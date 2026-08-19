@@ -1,0 +1,32 @@
+# Line endings are a property of THIS REPOSITORY, not of each developer's
+# core.autocrlf setting. Without this file, a collaborator whose git differs
+# sees every line of every file as modified.
+#
+# Policy: store LF in the repository, check out CRLF in the working tree.
+# This matches `end_of_line = crlf` in .editorconfig, which is enforced at
+# build time via EnforceCodeStyleInBuild - the two must not disagree.
+
+* text=auto eol=crlf
+
+# Binary: never touch these.
+*.ico    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.pdf    binary
+*.ttf    binary
+*.otf    binary
+*.woff   binary
+*.woff2  binary
+*.dll    binary
+*.exe    binary
+*.pdb    binary
+*.snk    binary
+*.pth    binary
+
+# Diff hints: show a useful hunk header for C# instead of a random brace line.
+*.cs     diff=csharp
+
+# Collapse generated/vendored files in review diffs.
+*.Designer.cs linguist-generated=true

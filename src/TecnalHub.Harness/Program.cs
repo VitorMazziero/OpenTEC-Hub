@@ -55,9 +55,48 @@ switch (mode)
     case "wifi":
         return await RunSessionAsync(mode, target, runFor, probe, loggerFactory).ConfigureAwait(false);
 
+    case "wifi-test":
+        return await RunWiFiTestAsync(target, loggerFactory).ConfigureAwait(false);
+
     default:
         PrintUsage();
         return 1;
+}
+
+static async Task<int> RunWiFiTestAsync(string? target, ILoggerFactory loggerFactory)
+{
+    // Fixed, predictable path: the operator has no internet while joined to the
+    // device's access point, so the results must be somewhere trivially findable
+    // afterwards rather than in a session-scoped temp directory.
+    var outputDirectory = Path.Combine(
+        Path.GetTempPath(), "tecnal-wifi-test",
+        DateTimeOffset.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture));
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) =>
+    {
+        e.Cancel = true;
+        cts.Cancel();
+    };
+
+    var suite = new WiFiTestSuite(target ?? "192.168.4.1", outputDirectory, loggerFactory);
+
+    try
+    {
+        return await suite.RunAsync(cts.Token).ConfigureAwait(false);
+    }
+    catch (Exception ex)
+    {
+        // Never die without leaving something on disk to read.
+        Console.WriteLine();
+        Console.WriteLine($"SUITE ABORTED: {ex.GetType().Name}: {ex.Message}");
+        Directory.CreateDirectory(outputDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(outputDirectory, "wifi-abort.txt"),
+            ex.ToString(),
+            CancellationToken.None).ConfigureAwait(false);
+        return 2;
+    }
 }
 
 static void PrintUsage()
@@ -68,6 +107,8 @@ static void PrintUsage()
           tecnal-harness ports              list serial ports
           tecnal-harness usb  [COM7]        connect over USB (auto-probes if omitted)
           tecnal-harness wifi [192.168.4.1] connect over Wi-Fi
+          tecnal-harness wifi-test [ip]     UNATTENDED Wi-Fi validation suite,
+                                            writes a report to a temp folder
 
         Options:
           --for <seconds>   run headless for a fixed period (no stdin)

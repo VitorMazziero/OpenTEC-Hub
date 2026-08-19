@@ -7,7 +7,8 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.1.0 — project scaffold and plan. No features implemented yet.
+> **Status:** v0.2.0 — Phase 0 protocol stack built and **validated over USB against a
+> real ESP32-S3**. Wi-Fi and live-sensor validation still pending; no UI yet.
 > v.6 remains the production application until TECNAL-Hub has completed a full
 > cultivation run.
 
@@ -21,6 +22,7 @@ Read in this order:
 |---|---|
 | [ROADMAP.md](docs/ROADMAP.md) | **Start here.** Phases, scope per phase, non-functional targets, what is deferred |
 | [PROTOCOL.md](docs/PROTOCOL.md) | The frozen ESP32-S3 wire contract. Every key, unit, range and timing constant |
+| [PHASE0_RESULTS.md](docs/PHASE0_RESULTS.md) | Hardware validation results — measured, on a real board |
 | [MIGRATION.md](docs/MIGRATION.md) | What each v.6 module becomes, why startup is slow, and 11 known defects found in the source |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, threading model, directory layout, testing strategy |
 | [UI_DESIGN.md](docs/UI_DESIGN.md) | Visual identity, the synoptic + detail layout, connection UX |

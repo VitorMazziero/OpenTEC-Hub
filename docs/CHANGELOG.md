@@ -6,6 +6,45 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.2.0] — 2026-08-19
+
+Phase 0: the protocol stack, built and validated over USB against a real ESP32-S3.
+No UI yet. See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for the measurements.
+
+### Added
+- `TecnalHub.Protocol`: `ITransport` + `SerialTransport` + `HttpTransport`,
+  `TecnalCommand` (culture-invariant by construction), `CommandKeys`/`TelemetryKeys`,
+  `CommandBuilders`, `TelemetryParser`, `SpikeFilter`, `ConnectionManager`.
+- `TecnalHub.Harness`: console harness for hardware validation, with a wire-trace
+  log for byte comparison against v.6 `command_logs/`.
+- 49 tests: golden wire strings, telemetry semantics, spike-filter behaviour, and a
+  culture fixture that forces pt-BR.
+
+### Verified on hardware
+- USB handshake, 60 s continuous telemetry, 0 parse failures, 0 spurious reconnects.
+- Parallel port discovery finds the board in **1.9 s** with no port configured
+  (v.6 would take ~12 s serially on the same machine).
+
+### Fixed relative to v.6
+- `OK` acknowledgements and `[ESP32_` log lines are recognised instead of being
+  counted as parse failures. v.6 counts the ack, so several commands in quick
+  succession can trip a false link-loss there.
+- Link-silence detection is a duration, not a count of empty reads — the count
+  couples failure detection to the poll rate.
+- Wi-Fi read faults raise `TransportFaultException` instead of returning null, which
+  in v.6 made link loss indistinguishable from "no new data".
+- Parser defaults now match the calibration actually in the field; v.6's hard-coded
+  defaults disagreed with `preferences.json`.
+
+### Documented
+- Wire-level finding: `OK` and device log lines share the USB telemetry stream
+  ([PROTOCOL.md](PROTOCOL.md) section 2.0), answering open question Q4.
+- Hardware finding: the DTR/RTS pulse means every USB reconnect reboots the board and
+  discards its process state. Raised as Q6; `PulseResetOnConnect` defaults to v.6
+  behaviour pending validation.
+
+---
+
 ## [0.1.0] — 2026-08-19
 
 Project scaffold and plan. No application features yet.

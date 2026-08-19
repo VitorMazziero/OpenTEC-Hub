@@ -129,6 +129,31 @@ sentinel for floats.
 | `PumpVol` | float | — | External pump |
 | `Time` | float | s | Seconds since controller boot; the app subtracts a user-zeroed offset |
 
+### 2.0 Not every line is telemetry
+
+**Confirmed on hardware 2026-08-19** (ESP32-S3 on COM3, CH343 adapter, no bioreactor
+module attached). Three kinds of line arrive on the same stream, and a reader that
+assumes "every line is JSON telemetry" will tear down a healthy link:
+
+| Line | Meaning | Correct handling |
+|---|---|---|
+| `{...}` | Telemetry frame | Parse |
+| `[ESP32_AVISO]: ...` | Device log line | Log, ignore, **do not count as a parse failure** |
+| `OK` | Command acknowledgement | Recognise, **do not count as a parse failure** |
+
+Observed device log lines:
+
+```text
+[ESP32_AVISO]: Falha de leitura UART do Módulo TECNAL após comando 'b'
+[ESP32_AVISO]: Limite de falhas UART atingido; reinicializando UART e iniciando cooldown de 5s
+```
+
+> On USB the `OK` acknowledgement travels on the **same serial stream** as telemetry,
+> so it lands in the reader rather than at the transport. v.6 counts it as a parse
+> failure; it survives only because it needs three *consecutive* failures and
+> telemetry usually interleaves. Sending several commands in quick succession can
+> trip a false link-loss there.
+
 ### 2.1 Client-side signal conditioning
 
 Two stages, in order, **inside the parser** — the firmware sends raw counts.
@@ -304,5 +329,6 @@ the Phase 0 transport is declared done.
 | Q1 | Does the firmware tolerate **unknown keys** in a command object? | Determines whether the app can send one combined object per cycle or must split by subsystem. |
 | Q2 | Is there a **maximum payload size** for `POST /command`? | The polynomial pump mode sends 21 coefficients plus mode in a single object. |
 | Q3 | Does `POST /command` ever reply something other than `OK` / non-200? | v.6 treats everything else as failure and silently drops the command. |
-| Q4 | Does the ESP32 emit a **boot banner** on the serial line after reset? | If yes, the handshake burns attempts on it; 10 retries currently masks the issue. |
-| Q5 | What is the real telemetry period, and does `dataDelay` apply to both transports? | Drives the Wi-Fi poll period and the chart sample rate. |
+| ~~Q4~~ | ~~Does the ESP32 emit a boot banner after reset?~~ | **Answered 2026-08-19.** No banner, but it does emit `[ESP32_` log lines and bare `OK` acks on the telemetry stream. See section 2.0. |
+| Q5 | Does `dataDelay` apply to both transports? | Drives the Wi-Fi poll period and the chart sample rate. **Partly answered 2026-08-19:** the measured USB emission period is ~2.0 s, matching the field `dataDelay` of 2000 ms. |
+| Q6 | Should the DTR/RTS reset pulse be suppressed on *reconnect*? | **Raised 2026-08-19.** Bench traces show the device clock returning to its boot value after every reconnect - the pulse reboots the board and discards its process state, including applied setpoints. Correct for an initial connect, harmful mid-run. Suppressing it needs hardware validation first: without the pulse a wedged board may never return. Controlled by `SerialTransportConfig.PulseResetOnConnect`, default `true` (v.6 behaviour). |

@@ -24,3 +24,4 @@ preferences.local.json
 # OS
 Thumbs.db
 desktop.ini
+harness-trace-*.log

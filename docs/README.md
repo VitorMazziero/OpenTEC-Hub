@@ -7,6 +7,7 @@ Index of the project documentation. The repository entry point is
 |---|---|
 | [ROADMAP.md](ROADMAP.md) | **Start here.** Phases, scope, non-functional targets, deferred work |
 | [PROTOCOL.md](PROTOCOL.md) | The frozen ESP32-S3 wire contract |
+| [PHASE0_RESULTS.md](PHASE0_RESULTS.md) | Hardware validation results and what the bench taught us |
 | [MIGRATION.md](MIGRATION.md) | v.6 module mapping, startup analysis, known defects |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, threading, layout, testing |
 | [UI_DESIGN.md](UI_DESIGN.md) | Visual identity, dashboard layout, connection UX |

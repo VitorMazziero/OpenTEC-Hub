@@ -63,6 +63,17 @@ public sealed record ConnectionOptions
 
     /// <summary>Same-port failures tolerated before re-probing for a moved device.</summary>
     public int FailuresBeforeReprobe { get; init; } = 3;
+
+    /// <summary>
+    /// Consecutive USB handshake failures before escalating to a hardware reset.
+    /// </summary>
+    /// <remarks>
+    /// Connects normally leave the board running, which preserves its process state.
+    /// That cannot recover a hung firmware, though - only pulsing DTR/RTS can. So
+    /// after this many failures one attempt is made with the reset pulse enabled,
+    /// accepting the loss of device state as the price of getting the link back.
+    /// </remarks>
+    public int FailuresBeforeHardwareReset { get; init; } = 2;
 }
 
 /// <summary>
@@ -756,11 +767,35 @@ public sealed class ConnectionManager : IAsyncDisposable
     private ITransport? BuildRealTransport(TransportMedium medium) => medium switch
     {
         TransportMedium.Usb when _serialConfig is { } cfg =>
-            new SerialTransport(cfg, _loggerFactory?.CreateLogger<SerialTransport>()),
+            new SerialTransport(ApplyResetEscalation(cfg), _loggerFactory?.CreateLogger<SerialTransport>()),
         TransportMedium.WiFi when _httpConfig is { } cfg =>
             new HttpTransport(cfg, _loggerFactory?.CreateLogger<HttpTransport>()),
         _ => null,
     };
+
+    /// <summary>
+    /// Enables the hardware reset once repeated handshakes have failed.
+    /// </summary>
+    /// <remarks>
+    /// A normal connect deliberately leaves the board running so its setpoints
+    /// survive. If the firmware has hung, that will never succeed - only a DTR/RTS
+    /// pulse recovers it. This is the escape hatch, and it is deliberately the last
+    /// resort rather than the default.
+    /// </remarks>
+    private SerialTransportConfig ApplyResetEscalation(SerialTransportConfig config)
+    {
+        if (config.PulseResetOnConnect || _samePortFailures < _options.FailuresBeforeHardwareReset)
+        {
+            return config;
+        }
+
+        _log.LogWarning(
+            "USB {Port}: {Failures} handshake failures - escalating to a hardware reset. " +
+            "The board will reboot and lose its process state.",
+            config.PortName, _samePortFailures);
+
+        return config with { PulseResetOnConnect = true };
+    }
 
     private async Task<ITransport?> GetTransportAsync(CancellationToken token)
     {

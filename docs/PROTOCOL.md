@@ -60,12 +60,20 @@ Reply is compared **after trimming**, case-sensitively, against exactly `OK`.
 | Read timeout | 0.75 s | |
 | Write timeout | 1.0 s | |
 | Inter-byte timeout | 0.1 s | |
-| DTR/RTS | pulse **low, 50 ms, high** before settle | Triggers the ESP32 reset pin. Adapters that do not support it fail silently, by design. |
-| Boot settle | **1.8 s** after the pulse, before any handshake byte | **Critical.** Below this the bootloader is still emitting and the handshake reads garbage. Do not "optimise" this value. |
+| DTR/RTS | **not pulsed by default** | The pulse hardware-resets the board. Measured 2026-08-19; see below. Available as an escalation after repeated handshake failures. |
+| Boot settle | **1.8 s, only when pulsing** | Exists solely to wait out the reboot the pulse causes. Do not shorten it on the pulsed path. Skipped entirely when not pulsing. |
 
 Port auto-detection ranks by USB descriptor keywords — `CP210`, `CH340`, `CH910`,
 `USB Serial`, `ESP32`, `Silicon Labs`, `wch` — then falls back to any non-Bluetooth
 serial port. Ports whose description contains `Bluetooth` are always skipped.
+
+**The DTR/RTS pulse is a hardware reset, and we do not want one.** The auto-reset
+circuit responds only to *differential* DTR/RTS states; v.6 drives both lines to the
+same value at each end, so whatever reset it causes comes from the transient between
+two non-atomic line changes rather than from the sequence as designed. Either way the
+board reboots, losing its process state - which is wrong when attaching to a running
+application rather than flashing firmware. Use `{"restart":1}` for a deliberate
+software restart.
 
 **Reading drains to the newest line.** v.6 does not consume one line per cycle: it
 reads *every* buffered line and returns only the last. This is deliberate — it stops
@@ -367,4 +375,4 @@ the Phase 0 transport is declared done.
 | Q3 | Does `POST /command` ever reply something other than `OK` / non-200? | v.6 treats everything else as failure and silently drops the command. |
 | ~~Q4~~ | ~~Does the ESP32 emit a boot banner after reset?~~ | **Answered 2026-08-19.** No banner, but it does emit `[ESP32_` log lines and bare `OK` acks on the telemetry stream. See section 2.0. |
 | Q5 | Does `dataDelay` apply to both transports? | Drives the Wi-Fi poll period and the chart sample rate. **Partly answered 2026-08-19:** the measured USB emission period is ~2.0 s, matching the field `dataDelay` of 2000 ms. |
-| Q6 | Should the DTR/RTS reset pulse be suppressed on *reconnect*? | **Raised 2026-08-19.** Bench traces show the device clock returning to its boot value after every reconnect - the pulse reboots the board and discards its process state, including applied setpoints. Correct for an initial connect, harmful mid-run. Suppressing it needs hardware validation first: without the pulse a wedged board may never return. Controlled by `SerialTransportConfig.PulseResetOnConnect`, default `true` (v.6 behaviour). |
+| ~~Q6~~ | ~~Should the DTR/RTS reset pulse be suppressed?~~ | **Answered 2026-08-19** by `tecnal-harness reset-test`. Yes. With the pulse the device clock fell 102.1 s to 2.8 s across a reconnect while 5.1 s of wall time passed; without it the clock advanced 5.5 s against 5.5 s of wall time. The pulse is what reboots the board. Suppressing it takes a connect from 1903 ms to 13 ms and preserves device state. Now default-off, with an escalation to a pulsed connect after repeated handshake failures for the hung-firmware case. |

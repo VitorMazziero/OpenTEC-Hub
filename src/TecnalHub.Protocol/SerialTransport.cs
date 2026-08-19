@@ -26,9 +26,14 @@ public sealed record SerialTransportConfig
 
     /// <summary>
     /// Quiet period after the DTR/RTS reset pulse, before any handshake byte.
-    /// <b>Do not shorten.</b> Below this the ESP32 bootloader is still emitting and
-    /// the handshake reads boot noise instead of the reply.
     /// </summary>
+    /// <remarks>
+    /// <b>Only applied when <see cref="PulseResetOnConnect"/> is true</b>, because it
+    /// exists purely to wait out the reboot that pulse causes. With no pulse there is
+    /// no bootloader to wait for, and measurement showed the handshake succeeding with
+    /// a zero settle. Do not shorten it for the pulsed path: below ~1.8 s the
+    /// bootloader is still emitting and the handshake reads boot noise.
+    /// </remarks>
     public TimeSpan BootSettle { get; init; } = TimeSpan.FromMilliseconds(1800);
 
     public int HandshakeAttempts { get; init; } = 10;
@@ -38,23 +43,30 @@ public sealed record SerialTransportConfig
     public TimeSpan OpenTimeout { get; init; } = TimeSpan.FromSeconds(3);
 
     /// <summary>
-    /// Pulse DTR/RTS on connect, resetting the ESP32 for a clean start.
+    /// Pulse DTR/RTS on connect, hardware-resetting the ESP32.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Defaults to true, matching v.6. <b>Be aware of what it costs on reconnect:</b>
-    /// bench traces show the device clock returning to the same boot value after
-    /// every reconnect, i.e. the board really does reboot and loses its process
-    /// state - including any setpoints already applied.
+    /// <b>Defaults to false, unlike v.6.</b> Measured on hardware 2026-08-19
+    /// (<c>tecnal-harness reset-test</c>): with the pulse the device clock fell from
+    /// 102.1 s to 2.8 s across a reconnect while only 5.1 s of wall time passed - the
+    /// board really does reboot, discarding its process state including applied
+    /// setpoints. With the pulse suppressed the clock advanced 5.5 s against 5.5 s of
+    /// wall time: it kept running.
     /// </para>
     /// <para>
-    /// That is correct for an initial connect and harmful for a mid-run recovery.
-    /// Suppressing it during recovery is a candidate change for Phase 1, but it must
-    /// be validated on hardware first: without the pulse, a genuinely wedged board
-    /// may never come back. See <c>docs/PROTOCOL.md</c> section 5, Q6.
+    /// Removing it also removes the reason for the 1.8 s <see cref="BootSettle"/>,
+    /// taking a connect from ~1900 ms to ~13 ms.
+    /// </para>
+    /// <para>
+    /// We are attaching to a running application, not flashing firmware, so a reset
+    /// is the wrong default. It stays available for the one case that needs it: a
+    /// firmware hang, where only a hardware reset recovers the board.
+    /// <c>ConnectionManager</c> escalates to a pulsed connect after repeated
+    /// handshake failures.
     /// </para>
     /// </remarks>
-    public bool PulseResetOnConnect { get; init; } = true;
+    public bool PulseResetOnConnect { get; init; }
 }
 
 /// <summary>
@@ -98,10 +110,16 @@ public sealed class SerialTransport(
 
         try
         {
-            PulseResetLines(port);
+            if (config.PulseResetOnConnect)
+            {
+                PulseResetLines(port);
 
-            // Let the bootloader finish before we speak.
-            await Task.Delay(config.BootSettle, cancellationToken).ConfigureAwait(false);
+                // The settle exists only to wait out the reboot the pulse just
+                // caused. With no pulse there is no bootloader to wait for, and the
+                // handshake retries below already cover a board that happens to be
+                // booting for some other reason.
+                await Task.Delay(config.BootSettle, cancellationToken).ConfigureAwait(false);
+            }
 
             TryDiscardBuffers(port);
 
@@ -445,11 +463,6 @@ public sealed class SerialTransport(
     /// </remarks>
     private void PulseResetLines(SerialPort port)
     {
-        if (!config.PulseResetOnConnect)
-        {
-            return;
-        }
-
         try
         {
             port.DtrEnable = false;

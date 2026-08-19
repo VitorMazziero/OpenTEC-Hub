@@ -23,6 +23,7 @@ Read in this order:
 | [ROADMAP.md](docs/ROADMAP.md) | **Start here.** Phases, scope per phase, non-functional targets, what is deferred |
 | [PROTOCOL.md](docs/PROTOCOL.md) | The frozen ESP32-S3 wire contract. Every key, unit, range and timing constant |
 | [PHASE0_RESULTS.md](docs/PHASE0_RESULTS.md) | Hardware validation results — measured, on a real board |
+| [PHASE_LOG.md](docs/PHASE_LOG.md) | Decisions taken while executing each phase, with evidence |
 | [MIGRATION.md](docs/MIGRATION.md) | What each v.6 module becomes, why startup is slow, and 11 known defects found in the source |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, threading model, directory layout, testing strategy |
 | [UI_DESIGN.md](docs/UI_DESIGN.md) | Visual identity, the synoptic + detail layout, connection UX |

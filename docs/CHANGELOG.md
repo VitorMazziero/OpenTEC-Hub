@@ -6,6 +6,30 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.2.2] — 2026-08-19
+
+### Changed
+- **The DTR/RTS reset pulse is off by default.** Measured as the cause of the reboot
+  on every USB connect: with the pulse the device clock fell 102.1 s to 2.8 s across a
+  reconnect while 5.1 s of wall time passed; without it the clock advanced 5.5 s
+  against 5.5 s. Connect 1903 ms -> 13 ms, discovery 1.9 s -> 0.1 s, and device state
+  now survives a reconnect. The 1.8 s boot settle now applies only when pulsing, since
+  it existed solely to wait out the self-inflicted reboot.
+- `ConnectionManager` escalates to a pulsed (hardware-reset) connect after
+  `FailuresBeforeHardwareReset` handshake failures, for the hung-firmware case that
+  nothing else recovers.
+
+### Added
+- `tecnal-harness reset-test` — determines what reboots the board on connect and finds
+  the minimum viable boot settle.
+- [PHASE_LOG.md](PHASE_LOG.md) — record of decisions taken while executing each phase.
+
+### Documented
+- PROTOCOL.md Q6 answered and the USB parameter table corrected.
+- ROADMAP.md now tracks Phase 0 deliverables and the P1/P2/P3 follow-ups as checkboxes.
+
+---
+
 ## [0.2.1] — 2026-08-19
 
 Two link-supervision defects found by review after the hardware runs, plus the first

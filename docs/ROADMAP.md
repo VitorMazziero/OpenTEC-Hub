@@ -60,23 +60,62 @@ boot settle, that must surface now — not in month three.
 
 **Deliverables**
 
-- [ ] `TecnalHub.Protocol` — `ITransport`, `SerialTransport`, `HttpTransport`
-- [ ] `TecnalCommand` — flat JSON builder, **`InvariantCulture` enforced at the type level**
-- [ ] `TelemetryParser` — key-by-key port of `data_parser.py`, sentinel semantics intact
-- [ ] `SpikeFilter` — direct port, same thresholds
-- [ ] `ConnectionManager` — the state machine, as an `async` service (no Qt signals)
-- [ ] A **console harness** (`dotnet run`) that connects, prints live telemetry, sends a setpoint
-- [ ] Golden-string tests, including one that runs under `pt-BR` culture
+- [x] `TecnalHub.Protocol` — `ITransport`, `SerialTransport`, `HttpTransport`
+- [x] `TecnalCommand` — flat JSON builder, **`InvariantCulture` enforced at the type level**
+- [x] `TelemetryParser` — key-by-key port of `data_parser.py`, sentinel semantics intact
+- [x] `SpikeFilter` — direct port, same thresholds
+- [x] `ConnectionManager` — the state machine, as an `async` service (no Qt signals)
+- [x] A **console harness** (`dotnet run`) that connects, prints live telemetry, sends a setpoint
+- [x] Golden-string tests, including one that runs under `pt-BR` culture
+- [x] *(added)* `ConnectionManagerTests` — 14 state-machine tests against a fake transport
+- [x] *(added)* `wifi-test` — unattended Wi-Fi validation suite
+- [x] *(added)* `reset-test` — determines what reboots the board on connect
 
-**Exit criteria — all three, on real hardware**
+**Exit criteria — on real hardware**
 
-1. USB connect, 10 min of telemetry, no dropped link.
-2. Wi-Fi connect, 10 min of telemetry, ETag 304s handled correctly.
-3. A captured v.6 session and a captured TECNAL-Hub session produce **identical
-   command bytes** for the same operator actions.
+1. [x] USB connect, sustained telemetry, no dropped link.
+2. [x] Wi-Fi connect, sustained telemetry, ETag 304s handled correctly.
+3. [ ] A captured v.6 session and a captured TECNAL-Hub session produce **identical
+   command bytes** for the same operator actions. *(needs the bioreactor)*
+4. [ ] Telemetry with **live sensors** — calibration, spike filters and the `pHCal`
+   echo have never met real data. *(needs the bioreactor)*
 
 > Capture v.6's side first: it already writes `command_logs/command_log_*.txt`.
 > That is the comparison baseline — do not skip collecting it.
+
+See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for measurements and
+[PHASE_LOG.md](PHASE_LOG.md) for the decisions taken during execution.
+
+### Phase 0 follow-ups
+
+Found by review and by hardware measurement. Priorities are as agreed with the
+project owner; P1 is done, the rest ride along with Phase 1.
+
+**P1 — done**
+
+- [x] Wi-Fi silence detection (was gated on USB; a stalled Wi-Fi link showed stale
+      data as live indefinitely)
+- [x] Liveness probe actually runs (`HeartbeatInterval` was declared but never used)
+- [x] DTR/RTS pulse disabled by default — measured as the cause of the reboot on every
+      connect; connect went 1900 ms → 13 ms, discovery 1.9 s → 0.1 s, and device state
+      now survives a reconnect
+
+**P2 — do alongside Phase 1**
+
+- [x] State-machine tests (pulled forward; the P1 fixes were untestable without them)
+- [ ] Correlate `LastRoundTripMs` against `FlowCommandAck`, or rename it — on USB it
+      times a fire-and-forget write and reports ~0 ms
+
+**P3 — before the app ships**
+
+- [ ] Port probing opens **every** COM port simultaneously; treat "access denied" as
+      *busy, skip* rather than *not the device*. It will collide with v.6, which stays
+      installed as the fallback
+- [ ] Rank ports by USB descriptor (WMI) so the likely adapter is tried first and
+      unrelated ports are never opened. The board is a **CH343**, which is not in v.6's
+      keyword list and matches only via the `wch` manufacturer string
+- [ ] Stop exposing the mutable `Readings` object; callers should only get `Snapshot()`
+- [ ] Wire `HttpTransport.SetPollPeriod` to the configured `dataDelay`
 
 ---
 

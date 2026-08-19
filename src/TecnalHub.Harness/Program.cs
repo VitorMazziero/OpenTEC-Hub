@@ -55,6 +55,14 @@ switch (mode)
     case "wifi":
         return await RunSessionAsync(mode, target, runFor, probe, loggerFactory).ConfigureAwait(false);
 
+    case "reset-test":
+    {
+        using var resetCts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; resetCts.Cancel(); };
+        var experiment = new ResetExperiment(target ?? "COM3", loggerFactory);
+        return await experiment.RunAsync(resetCts.Token).ConfigureAwait(false);
+    }
+
     case "wifi-test":
         return await RunWiFiTestAsync(target, loggerFactory).ConfigureAwait(false);
 
@@ -109,6 +117,8 @@ static void PrintUsage()
           tecnal-harness wifi [192.168.4.1] connect over Wi-Fi
           tecnal-harness wifi-test [ip]     UNATTENDED Wi-Fi validation suite,
                                             writes a report to a temp folder
+          tecnal-harness reset-test [COM3]  determine what reboots the board on
+                                            connect, and whether the settle is needed
 
         Options:
           --for <seconds>   run headless for a fixed period (no stdin)

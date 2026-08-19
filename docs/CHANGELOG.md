@@ -6,6 +6,38 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.3.0] — 2026-08-19
+
+Phase 1 begins: the application shell, running and connected to real hardware.
+
+### Added
+- Composition root with DI, Serilog rolling file, and crash handlers wired from the
+  first line of startup.
+- `AppSettings` - one typed record, JSON, debounced atomic writes, corrupt files
+  quarantined rather than deleted. Replaces v.6's 370 lines of hand-marshalling.
+- `DeviceService` - wraps `ConnectionManager` and marshals telemetry to the UI thread,
+  so the protocol layer stays free of any UI dependency.
+- `ThemeService` - light/dark, following the Windows app theme live.
+- Shell: title bar with the connection chip and popover, navigation rail, and the
+  always-visible KPI strip.
+- Fluent control templates (Button, TextBox, ComboBox, RadioButton, CheckBox,
+  Separator, ToolTip) - WPF's built-in chrome ignores the design tokens entirely.
+
+### Verified on hardware
+- **First frame at 662 ms** (budget 2000 ms); connected to COM3 **599 ms after process
+  start**, with auto-connect firing only after the window was rendered.
+
+### Notable
+- Agitation is displayed as **commanded, not measured**: the firmware sends no RPM
+  feedback, and v.6 logs the commanded value in the same column as measured ones.
+- Sentinels render as an em dash, never `0` - zero is a legitimate reading for
+  pressure and flow.
+- Two WPF traps recorded in [PHASE_LOG.md](PHASE_LOG.md): a font stack containing CSS
+  keywords plus a Windows-11-only family overflowed the stack in font fallback before
+  the first frame, and `ConverterParameter` cannot be bound.
+
+---
+
 ## [0.2.2] — 2026-08-19
 
 ### Changed

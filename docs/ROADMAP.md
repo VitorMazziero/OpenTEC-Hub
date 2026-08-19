@@ -128,16 +128,19 @@ valves · Pressure. Nothing else.
 
 **Deliverables**
 
-- [ ] Shell: title bar, nav rail, always-visible KPI strip
-- [ ] **Auto-connect on launch** to the last-used port/IP, with the status chip and
+- [x] Shell: title bar, nav rail, always-visible KPI strip
+- [x] **Auto-connect on launch** to the last-used port/IP, with the status chip and
       its popover ([UI_DESIGN.md](UI_DESIGN.md#3-connection-ux))
+- [x] Settings persistence — **typed and serialised, not hand-marshalled**
+- [x] Light/dark theme tokens + control templates (WPF's default chrome ignores them)
 - [ ] Synoptic view of the reactor + side detail pane, responsive fallback to the
       bottom drawer under 1200 px
-- [ ] Settings persistence — **typed and serialised, not hand-marshalled**
+- [ ] Setpoint entry and send for the five core subsystems, with visible validation
 - [ ] Live charts (ScottPlot) for the five core variables
 - [ ] CSV session logging, matching v.6's column format so old analysis scripts keep working
-- [ ] Serilog rolling file + an in-app log pane
-- [ ] Light/dark toggle following the Windows system theme
+- [x] Serilog rolling file
+- [ ] In-app log pane
+- [x] Light/dark toggle following the Windows system theme
 
 **Exit criteria:** a real cultivation run controlled end-to-end by TECNAL-Hub with
 v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV that

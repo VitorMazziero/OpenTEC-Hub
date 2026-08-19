@@ -36,9 +36,19 @@
          Segoe UI Variable is the Windows 11 face; Segoe UI is the Win10 fallback.
          Process VALUES use a tabular-figure font so digits do not jitter as they
          update at 1 Hz - a readability requirement, not a stylistic one. -->
-    <FontFamily x:Key="FontUi">Segoe UI Variable Text, Segoe UI, sans-serif</FontFamily>
-    <FontFamily x:Key="FontDisplay">Segoe UI Variable Display, Segoe UI, sans-serif</FontFamily>
-    <FontFamily x:Key="FontNumeric">Consolas, Cascadia Mono, monospace</FontFamily>
+    <!-- WPF font fallback lists take real family names only. CSS generic keywords
+         (sans-serif, monospace) are not families here: WPF fails to resolve them and
+         the fallback chain recurses until the stack overflows - which it did, inside
+         TextBlock.MeasureOverride, before the first frame ever rendered. Every name
+         below must be a font that actually exists on Windows. -->
+    <!-- Segoe UI Variable ships with Windows 11 only. Naming it first on a Windows 10
+         machine sent WPF's fallback resolution into infinite recursion and overflowed
+         the stack inside TextBlock.MeasureOverride, before the first frame. Segoe UI
+         exists on both, so it is the primary; the Variable faces are a Win11 nicety
+         and can be reinstated behind a runtime OS check if ever worth it. -->
+    <FontFamily x:Key="FontUi">Segoe UI</FontFamily>
+    <FontFamily x:Key="FontDisplay">Segoe UI</FontFamily>
+    <FontFamily x:Key="FontNumeric">Consolas</FontFamily>
 
     <sys:Double x:Key="FontSizeCaption">11</sys:Double>
     <sys:Double x:Key="FontSizeBody">13</sys:Double>

@@ -257,4 +257,79 @@ testability. Most of the P2 testing item is now closed.
 
 # Phase 1 — Shell, connection UX, core loop
 
-*Not started.*
+**Started 2026-08-19.**
+
+---
+
+### P1-01 · Build a vertical slice before any screen is finished
+
+**Decided:** foundation (DI, settings, theme, logging) plus shell, connection chip and
+KPI strip first - launch, auto-connect, live values - rather than completing one
+screen at a time.
+
+**Why:** it exercises every layer against real hardware on day one. A beautiful
+synoptic bound to nothing proves less than a plain window showing a real reading.
+
+**Evidence:** first run reached **first frame in 662 ms** (budget 2000 ms) and was
+connected to COM3 **599 ms after process start**.
+
+---
+
+### P1-02 · Settings are one typed record, not two marshalling functions
+
+**Decided:** `AppSettings` as a nested record tree, `System.Text.Json`, debounced
+atomic writes.
+
+**Why:** v.6's `collect_preferences` / `apply_preferences` are 370 lines that must be
+kept in sync by hand - the largest single source of silently lost settings. Adding a
+setting here is now one line, with no read site and no write site.
+
+**Consequence:** a corrupt settings file is quarantined rather than deleted, and the
+app starts on defaults. An operator who cannot launch the app cannot reach the
+equipment either, so failing to start is never the right answer.
+
+---
+
+### P1-03 · Agitation is displayed as commanded, not measured
+
+**Decided:** `ProcessVariableViewModel.IsCommandedOnly`, and the KPI tile labels the
+agitation figure *comandado*.
+
+**Why:** while wiring telemetry I mapped motor RPM to a telemetry field, then found
+the firmware sends **no RPM feedback at all**. v.6 logs the commanded value in the
+same column as measured ones, which quietly implies a verification the equipment never
+provided.
+
+**Consequence:** the display distinguishes the two. Anything with no feedback path must
+say so.
+
+---
+
+### P1-04 · Sentinels display as an em dash, never as zero
+
+**Decided:** `-1` and below render as `—`.
+
+**Why:** zero is a legitimate reading for pressure and flow. Showing the sentinel as
+`0.0` would be indistinguishable from a real measurement.
+
+**Evidence:** with no bioreactor attached, the first run correctly showed `—` for
+temperature, oxygen, pH and flow, and `0,0 kPa` for the one channel genuinely
+reporting zero.
+
+---
+
+### P1-05 · Two WPF defects worth recording
+
+**Fonts.** The token dictionary named `Segoe UI Variable Text, Segoe UI, sans-serif`.
+Two faults: `sans-serif` is a CSS keyword and not a WPF font family, and **Segoe UI
+Variable ships only with Windows 11** while this machine is Windows 10. WPF's fallback
+resolution recursed until the stack overflowed, inside `TextBlock.MeasureOverride`,
+before the first frame. Now pinned to `Segoe UI`, which exists on both.
+
+**Bindings.** `ConverterParameter={Binding Id}` throws at parse time -
+`ConverterParameter` is not a `DependencyProperty`. Replaced the templated
+`RadioButton` nav rail with a `ListBox` using `SelectedValuePath`, which expresses
+selection directly and removes the converter entirely.
+
+Both were caught only because unhandled exceptions are logged to file from the first
+line of `OnStartup`. Neither appears in a build.

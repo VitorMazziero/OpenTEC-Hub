@@ -1,0 +1,186 @@
+using System.IO;
+using TecnalHub.Protocol;
+
+namespace TecnalHub.Services.Persistence;
+
+/// <summary>Which colour theme the shell uses.</summary>
+public enum ThemePreference
+{
+    /// <summary>Follow the Windows app theme.</summary>
+    System,
+    Light,
+    Dark,
+}
+
+/// <summary>
+/// Everything the application persists between runs.
+/// </summary>
+/// <remarks>
+/// <para>
+/// One typed record, serialised with <c>System.Text.Json</c>. This replaces v.6's
+/// <c>collect_preferences</c> / <c>apply_preferences</c> pair - 370 lines of
+/// hand-written field marshalling in two functions that had to be kept in sync by
+/// hand, and the single largest source of "add a field, forget a line, silently lose
+/// the setting". See <c>docs/MIGRATION.md</c>.
+/// </para>
+/// <para>
+/// Adding a setting here is the whole job: no read site, no write site.
+/// </para>
+/// </remarks>
+public sealed record AppSettings
+{
+    /// <summary>Schema version, so a future format change can migrate rather than reset.</summary>
+    public int Version { get; init; } = 1;
+
+    public ConnectionSettings Connection { get; init; } = new();
+
+    public CalibrationSettings Calibration { get; init; } = new();
+
+    public SetpointSettings Setpoints { get; init; } = new();
+
+    public LoggingSettings Logging { get; init; } = new();
+
+    public ThemePreference Theme { get; init; } = ThemePreference.System;
+}
+
+/// <summary>How and where to reach the controller.</summary>
+public sealed record ConnectionSettings
+{
+    /// <summary>Medium tried first on launch.</summary>
+    public TransportMedium PreferredMedium { get; init; } = TransportMedium.Usb;
+
+    /// <summary>
+    /// Last COM port that completed a handshake. Tried first, which turns the common
+    /// case into a single fast connect rather than a scan.
+    /// </summary>
+    public string? LastKnownPort { get; init; }
+
+    public string IpAddress { get; init; } = "192.168.4.1";
+
+    /// <summary>
+    /// Connect on launch without being asked. The connect runs after the shell is on
+    /// screen, never before - see <c>docs/UI_DESIGN.md</c>.
+    /// </summary>
+    public bool AutoConnect { get; init; } = true;
+
+    /// <summary>Cycle to the other medium automatically when a link drops.</summary>
+    public bool BackupEnabled { get; init; } = true;
+
+    /// <summary>Telemetry emission period requested from the device, in milliseconds.</summary>
+    public int DataDelayMs { get; init; } = 2000;
+}
+
+/// <summary>
+/// Probe calibration.
+/// </summary>
+/// <remarks>
+/// Defaults match the values actually in the field (v.6 <c>preferences.json</c>).
+/// v.6's hard-coded defaults disagreed with its own saved values, so any fallback
+/// silently applied a different calibration - see <c>docs/MIGRATION.md</c> item 2.
+/// </remarks>
+public sealed record CalibrationSettings
+{
+    public double OxygenA { get; init; } = 0.0305473419314;
+    public double OxygenB { get; init; } = -25.09136520919;
+    public double PHSlope { get; init; } = 0.0005012405704;
+    public double PHIntercept { get; init; } = -0.600385955239;
+
+    /// <summary>Projects these coefficients onto the protocol layer's parser config.</summary>
+    public ParserConfig ToParserConfig() => new()
+    {
+        OxygenCalibrationA = OxygenA,
+        OxygenCalibrationB = OxygenB,
+        PHSlope = PHSlope,
+        PHIntercept = PHIntercept,
+    };
+}
+
+/// <summary>
+/// Last-entered setpoints for the Phase 1 core loop.
+/// </summary>
+/// <remarks>
+/// Persisted so the operator does not retype them every launch. <b>Restoring a value
+/// into a field is not the same as sending it</b> - nothing here is transmitted on
+/// connect. The device keeps its own state, and silently re-asserting a stale
+/// setpoint over it would be an unpleasant surprise.
+/// </remarks>
+public sealed record SetpointSettings
+{
+    public double TemperatureCelsius { get; init; } = 30.0;
+    public int MotorRpm { get; init; } = 300;
+    public double OxygenPercent { get; init; } = 40.0;
+    public double FlowLitresPerMinute { get; init; } = 1.0;
+    public double MaxFlowLitresPerMinute { get; init; } = 50.0;
+    public double PressureKilopascal { get; init; } = 100.0;
+}
+
+/// <summary>Where session data is written.</summary>
+public sealed record LoggingSettings
+{
+    /// <summary>
+    /// Tab-separated session log. Empty means logging is off.
+    /// </summary>
+    /// <remarks>
+    /// Format is byte-compatible with v.6 so the existing analysis scripts keep
+    /// working - see <see cref="SessionLogFormat"/>.
+    /// </remarks>
+    public string? SessionLogPath { get; init; }
+
+    /// <summary>Append to an existing file rather than starting a new one per run.</summary>
+    public bool AppendToExisting { get; init; } = true;
+}
+
+/// <summary>
+/// The v.6 session-log format, kept byte-compatible.
+/// </summary>
+/// <remarks>
+/// Tab-separated, UTF-8, <c>.txt</c>, header written only when the file is new.
+/// Existing analysis scripts read this, so the column set, order and decimal places
+/// are a contract - not a formatting preference.
+/// <para>
+/// Columns absent from the Phase 1 scope (pH, antifoam, distance, OUR, biomass, pump)
+/// are still emitted, carrying the not-received sentinel, so the column count never
+/// changes between versions of this app.
+/// </para>
+/// </remarks>
+public static class SessionLogFormat
+{
+    /// <summary>Exact header line v.6 writes, including the accented final column.</summary>
+    public const string Header =
+        "Time (min)\tTemperature (°C)\tMotor (rpm)\tpH\tAntifoam\t" +
+        "Pressure\tOxygen\tFlowmeter\tDistance\tOUR\tBiomass\tPump Volume\tPump Flow\tConexão";
+
+    /// <summary>Decimal places per column, matching v.6 exactly.</summary>
+    public static readonly int[] Decimals = [2, 2, 3, 2, 3, -1, 3, 3, 2, 5, 4, 3, 3];
+}
+
+/// <summary>Where the application keeps its files.</summary>
+public static class AppPaths
+{
+    private const string FolderName = "TECNAL-Hub";
+
+    /// <summary>Per-user application data directory, created on demand.</summary>
+    public static string DataDirectory
+    {
+        get
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                FolderName);
+            Directory.CreateDirectory(path);
+            return path;
+        }
+    }
+
+    public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
+
+    public static string LogDirectory
+    {
+        get
+        {
+            var path = Path.Combine(DataDirectory, "logs");
+            Directory.CreateDirectory(path);
+            return path;
+        }
+    }
+}

@@ -1,0 +1,308 @@
+# ESP32-S3 Protocol Contract
+
+> **Status:** FROZEN — the firmware is not being changed.
+> **Source of truth:** reverse-engineered from `v.6/communication/{transport,data_parser,connection_manager}.py`
+> and every `send_command()` call site in the v.6 tree.
+>
+> **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md)
+
+---
+
+## 0. The rule
+
+The ESP32-S3 firmware is **fixed**. Every byte this app puts on the wire must be
+byte-identical to what v.6 puts on the wire. This document is the contract; the
+C# implementation is validated against it by golden-string tests in
+`tests/TecnalHub.Tests`, not by inspection.
+
+If something here looks wrong or redundant — **it stays**. v.6 talks to real
+hardware successfully today. Cleanups happen *above* the wire, never on it.
+
+---
+
+## 1. Framing
+
+Both transports carry the **same payload**: a single flat JSON object, no nesting,
+no arrays. Only the framing differs.
+
+| | USB (Serial CDC) | Wi-Fi (HTTP) |
+|---|---|---|
+| Write frame | `<json>\n` — **newline terminated** | `<json>` — **no newline** |
+| Write target | the open COM port | `POST http://{ip}/command` |
+| Write ack | none (fire and forget) | body must equal `OK` |
+| Read | `readline()` | `GET http://{ip}/readData` |
+| Liveness | `in_waiting` does not throw | `GET http://{ip}/ping` returns 200 |
+
+> **The trailing newline differs by transport.** USB appends `\n`; Wi-Fi must
+> not. This is the single easiest way to break USB while Wi-Fi keeps working (or
+> vice versa) and is covered by a dedicated test.
+
+### 1.1 Handshake
+
+Identical intent, different framing:
+
+```text
+USB    ->  {"comTest":1}\n              <-  OK
+Wi-Fi  ->  POST /command {"comTest":1}  <-  200, body "OK"
+```
+
+Reply is compared **after trimming**, case-sensitively, against exactly `OK`.
+
+- USB: up to **10** attempts, 100 ms apart.
+- Wi-Fi: up to **3** attempts, 100 ms apart.
+
+### 1.2 USB link parameters
+
+| Parameter | Value | Why it matters |
+|---|---|---|
+| Baud | 115200 | |
+| Frame | 8 data bits, 1 stop bit, parity none | |
+| Read timeout | 0.75 s | |
+| Write timeout | 1.0 s | |
+| Inter-byte timeout | 0.1 s | |
+| DTR/RTS | pulse **low, 50 ms, high** before settle | Triggers the ESP32 reset pin. Adapters that do not support it fail silently, by design. |
+| Boot settle | **1.8 s** after the pulse, before any handshake byte | **Critical.** Below this the bootloader is still emitting and the handshake reads garbage. Do not "optimise" this value. |
+
+Port auto-detection ranks by USB descriptor keywords — `CP210`, `CH340`, `CH910`,
+`USB Serial`, `ESP32`, `Silicon Labs`, `wch` — then falls back to any non-Bluetooth
+serial port. Ports whose description contains `Bluetooth` are always skipped.
+
+**Reading drains to the newest line.** v.6 does not consume one line per cycle: it
+reads *every* buffered line and returns only the last. This is deliberate — it stops
+the UI from lagging minutes behind when the ESP32 emits faster than the app consumes.
+Preserve this behaviour; a naive "read one line per tick" port will appear to work
+on the bench and fall progressively behind during a real cultivation.
+
+### 1.3 Wi-Fi link parameters
+
+| Parameter | Value |
+|---|---|
+| Default IP | `192.168.4.1` (ESP32 SoftAP) |
+| Connect timeout | 0.25 s |
+| Read timeout | 0.75 s |
+| Ping timeout | 1.0 s |
+| Minimum poll period | 1.0 s (v.6 polls at `0.98x` this) |
+| Proxy | **bypassed** — v.6 sets `trust_env = False` |
+
+`GET /readData` is **ETag-conditional**: send back the last `ETag` as
+`If-None-Match`; a **304** means "nothing new", not an error. On reconnect the
+cached ETag must be cleared, or the first poll after reconnect returns 304 forever.
+
+v.6 also forces `Connection: close` and builds a brand-new HTTP session on every
+connect, specifically to defeat OS-level socket reuse after the ESP32 reboots.
+Keep this behaviour: in C#, use a fresh `HttpClient` / `SocketsHttpHandler` per
+connect rather than a long-lived singleton.
+
+---
+
+## 2. Telemetry: device to app
+
+One flat JSON object per read. **Every key is optional** — the parser must treat a
+missing key as "no update", never as zero. v.6 uses `-1.0` as the "never received"
+sentinel for floats.
+
+| JSON key | Type | Unit | Handling |
+|---|---|---|---|
+| `Tempval` | float | degC | Accepted only if `10 < v < 100`; otherwise the previous value is held |
+| `Oxyval` | float | raw ADC | `<= 0.1` means sensor absent, ignore. Spike-filtered, then calibrated |
+| `pHval` | float | raw ADC | `<= 0.1` means sensor absent, ignore. Spike-filtered, then calibrated |
+| `Pressure` | float | kPa | |
+| `FlowRate` | float | L/min | |
+| `FlowSetpoint` | float | L/min | Echo of the accepted setpoint |
+| `FlowVoltage` | float | V | Raw flowmeter voltage, used by calibration |
+| `Antifoam` | float | — | |
+| `Distance` | float | mm | Accepted if `0 <= v < 1000`. **If the key is absent for > 3 s, force `-1`** |
+| `SensorCommOK` | bool | — | Defaults to `true` when absent |
+| `FlowmeterOnline` | bool | — | Sticky: holds the previous value when absent |
+| `FlowControlEnabled` | bool | — | Sticky |
+| `FlowCommandPending` | bool | — | **Not sticky** — defaults to `false` when absent |
+| `FlowCommandSource` | string | — | Sticky, free-form |
+| `Valve1`, `Valve2`, `ValveFlow` | int | 0/1 | Only assigned when the key is present |
+| `FlowCommandId`, `FlowCommandAck` | int | — | Command round-trip correlation |
+| `FlowCommandDeliveries`, `FlowCommandAgeMs` | int | — | Parsed by v.6, never displayed |
+| `HubStations` | int | — | Number of stations seen by the hub |
+| `BiomassAbs` | float | AU | |
+| `BiomassRaw` | int | counts | |
+| `BiomassIT` | int | ms | Integration time |
+| `BiomassPWM` | float | % | |
+| `PumpFlow` | float | — | External pump |
+| `PumpVol` | float | — | External pump |
+| `Time` | float | s | Seconds since controller boot; the app subtracts a user-zeroed offset |
+
+### 2.1 Client-side signal conditioning
+
+Two stages, in order, **inside the parser** — the firmware sends raw counts.
+
+**Stage 1 — spike / step filter** (per channel, stateful):
+
+```text
+if no good value yet        -> accept unconditionally (bootstrap)
+if |new - lastGood| <= absThreshold
+                            -> accept, clear candidate
+else                                                     (spike region)
+    if no candidate, or |new - candidate| > followTolerance
+                            -> start a new candidate, HOLD lastGood
+    else
+        candidateRuns++
+        if candidateRuns >= confirmRuns
+                            -> promote candidate (a real step change)
+        else                -> HOLD lastGood
+```
+
+| Channel | `absThreshold` | `followTolerance` | `confirmRuns` |
+|---|---|---|---|
+| pH | 500 | 200 | 3 |
+| Oxygen | 150 | 50 | 3 |
+
+> These thresholds are in **raw ADC counts**, not engineering units. Changing the
+> calibration therefore silently changes what the filter considers a spike — see
+> [MIGRATION.md](MIGRATION.md#3-known-defects-carried-in-from-v6), item 4.
+
+**Stage 2 — linear calibration:**
+
+```text
+oxygen_mg_per_L = max(oxy_a * acceptedRaw + oxy_b, 0)                    rounded to 4 dp
+pH              = clamp(ph_slope * acceptedRaw + ph_intercept, 0, 25000) rounded to 2 dp
+```
+
+Calibration currently in the field (`v.6/preferences.json`):
+
+```text
+oxy_a    = 0.0305473419314      oxy_b        = -25.09136520919
+ph_slope = 0.0005012405704      ph_intercept = -0.600385955239
+```
+
+### 2.2 The pH echo-back
+
+Non-obvious and **mandatory**: the app computes the calibrated pH and sends it
+*back* to the device whenever it changes.
+
+```json
+{"pHCal": "6.98"}
+```
+
+The value is a **string with exactly 2 decimal places**, not a JSON number
+(v.6 uses `format(calibrated_ph, ".2f")`). The firmware needs the calibrated value
+because calibration lives on the PC side.
+
+> **Culture hazard.** On a pt-BR Windows machine, naive .NET formatting yields
+> `"6,98"` and the firmware parse fails. Every numeric-to-string conversion on
+> this wire must pass `CultureInfo.InvariantCulture`. This is enforced by a test
+> that runs under a `pt-BR` culture.
+
+---
+
+## 3. Commands: app to device
+
+Flat JSON. Multiple keys may be combined into one object, and v.6 relies on this
+(the kLa cascade sends flow + oxygen + motor together to save bus time). Combining
+is **preferred** — it reduces round trips on the shared UART.
+
+### 3.1 Core loop (Phase 1 scope)
+
+| Subsystem | Keys | Range / encoding |
+|---|---|---|
+| Temperature | `tempSetpoint` | degC; `0` = disabled |
+| Motor | `motorSetpoint` | **int** rpm, 50-1000; `0` = off |
+| Oxygen monitor | `oxygenMonitor` | % setpoint; `0` = disabled |
+| Pressure | `pressureReference` | 1-380; `0` = disabled |
+| Flowmeter | `flowmeterComm` | `1` enable / `0` disable |
+| | `flowSetpoint` | L/min, clamped to `maxFlow` |
+| | `maxFlow` | L/min ceiling |
+| | `valve_1`, `valve_2` | `0`/`1` — auxiliary / nitrogen valves |
+| | `v_Flow` | **`1` when `flowSetpoint == 0`, else `0`** (inverted vent logic) |
+
+> `v_Flow` is inverted relative to intuition and is easy to get backwards.
+> Disabling the flow subsystem must send `flowmeterComm:0, flowSetpoint:0,
+> v_Flow:1, valve_1:0, valve_2:0` — v.6 deliberately forces both valves closed on
+> disable rather than preserving the operator's manual selection, because leaving
+> a nitrogen valve open on a safe-stop is a hazard. **Preserve this.**
+
+### 3.2 Flow calibration
+
+Two-segment piecewise curve, split at **0.0545 V**:
+
+| Keys | Segment |
+|---|---|
+| `k1`, `f1`, `c1` | `V <= 0.0545` |
+| `k2`, `f2`, `c2` | `V > 0.0545` |
+
+### 3.3 Dosing (Phase 2 scope)
+
+| Subsystem | Keys |
+|---|---|
+| pH | `pHSetpoint`, `pHError`, `pHOperation`, `pHMix`, `pHIntensity` (= speed % x 10) |
+| Nutrient | `nutriOperation`, `nutriMix`, `nutriOpCycle`, `nutriMixCycle`, `nutriIntensity` |
+| Antifoam | `antifoamOperation` (0-999), `antifoamMix` (1-999), `antifoamIntensity` (0-99) |
+| Distance / foam | `distanceSensorComm`, `distanceSensorReference`, `foamStartDelay_s`, `foamPulse_s`, `foamInterval_s` |
+| Agitator flask | `agitatorAuto`, `agitatorReEnablePot`, `agitatorPercent` (0-100 magnitude), `agitatorDir` (`1` CW / `0` CCW), `agitatorOn` |
+
+> The agitator UI encodes direction as a **signed** percent (-100..100) but the
+> wire carries magnitude and direction as two separate keys. Do not leak the
+> signed form onto the wire.
+
+### 3.4 Biomass (Phase 3 scope)
+
+| Keys | Meaning |
+|---|---|
+| `biomassComm` | `1`/`0` enable |
+| `blank` | `1` — capture blank reference |
+| `low`, `high`, `opt` | Integration-time thresholds (ints), sent together |
+
+### 3.5 External pump (Phase 3 scope)
+
+`pumpComm` (`1`/`0`) plus a `mode` and its parameters. Disabling sends
+`pumpComm:0, mode:0, speed:0`.
+
+| `mode` | Profile | Parameters |
+|---|---|---|
+| 1 | Constant | `lambda_const` |
+| 2 | Linear | `lambda_linear`, `phi_linear` |
+| 3 | Exponential | `lambda_exp`, `phi_exp` |
+| 4 | Polynomial | `p0` ... `p20` (flattened, one key per coefficient) |
+| 5 | Piecewise | `num_segments`, then `t0`...`tN` and `q0`...`qN` |
+
+### 3.6 System
+
+| Key | Meaning |
+|---|---|
+| `comTest` | `1` — handshake probe |
+| `dataDelay` | Telemetry period in **ms** (field value: 2000) |
+| `resetVariables` | `1` — reset the module's process variables |
+| `restart` | `1` — restart all controller communications |
+
+---
+
+## 4. Golden strings
+
+These exact byte sequences are asserted in `tests/TecnalHub.Tests/WireFormatTests.cs`.
+Extend this table before adding any new command, never after.
+
+```text
+USB handshake      {"comTest":1}\n
+Wi-Fi handshake    {"comTest":1}
+pH echo            {"pHCal":"6.98"}
+Motor setpoint     {"motorSetpoint":790}
+Flow safe-stop     {"flowmeterComm":0,"flowSetpoint":0,"maxFlow":50,"valve_1":0,"valve_2":0,"v_Flow":1}
+kLa combined       {"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40,"motorSetpoint":300}
+```
+
+Key order within an object is not believed to matter (the firmware parses JSON),
+but the tests pin v.6's emission order anyway — it costs nothing and removes the
+question from the table if a problem ever appears in the field.
+
+---
+
+## 5. Open questions for hardware verification
+
+These are behaviours v.6 relies on that could not be confirmed from the Python
+source alone. Each should be checked against the firmware or on the bench before
+the Phase 0 transport is declared done.
+
+| # | Question | Why it matters |
+|---|---|---|
+| Q1 | Does the firmware tolerate **unknown keys** in a command object? | Determines whether the app can send one combined object per cycle or must split by subsystem. |
+| Q2 | Is there a **maximum payload size** for `POST /command`? | The polynomial pump mode sends 21 coefficients plus mode in a single object. |
+| Q3 | Does `POST /command` ever reply something other than `OK` / non-200? | v.6 treats everything else as failure and silently drops the command. |
+| Q4 | Does the ESP32 emit a **boot banner** on the serial line after reset? | If yes, the handshake burns attempts on it; 10 retries currently masks the issue. |
+| Q5 | What is the real telemetry period, and does `dataDelay` apply to both transports? | Drives the Wi-Fi poll period and the chart sample rate. |

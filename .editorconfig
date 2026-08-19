@@ -1,0 +1,53 @@
+# TECNAL-Hub - formatting and naming, enforced at build via EnforceCodeStyleInBuild.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+indent_style = space
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_size = 4
+
+# --- Naming rules (see docs/CONVENTIONS.md) --------------------------------
+# Code is English. UI strings are pt-BR and live in resource files, never inline.
+
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbols
+dotnet_naming_rule.interfaces_start_with_i.style = prefix_i_pascal
+dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
+dotnet_naming_style.prefix_i_pascal.required_prefix = I
+dotnet_naming_style.prefix_i_pascal.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_field_symbols
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_field_symbols.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+dotnet_naming_rule.publics_are_pascal.severity = warning
+dotnet_naming_rule.publics_are_pascal.symbols = public_symbols
+dotnet_naming_rule.publics_are_pascal.style = pascal
+dotnet_naming_symbols.public_symbols.applicable_kinds = class,struct,enum,property,method,event
+dotnet_naming_symbols.public_symbols.applicable_accessibilities = public,internal,protected
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+# --- Style preferences ------------------------------------------------------
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_prefer_braces = true:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+
+# CA1303: literal strings passed to log calls. Our UI strings are localised, log
+# strings deliberately are not - they must stay greppable in English.
+dotnet_diagnostic.CA1303.severity = none
+
+[*.{csproj,props,targets,xaml,json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false

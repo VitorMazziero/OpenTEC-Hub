@@ -1,0 +1,25 @@
+<Window x:Class="TecnalHub.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TECNAL-Hub"
+        Width="1280" Height="800"
+        MinWidth="960" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SurfaceBaseBrush}">
+
+    <!-- Scaffold only. The real shell (title bar with the connection chip, nav
+         rail, KPI strip, synoptic + detail pane) is built in Phase 1; the layout
+         is specified in docs/UI_DESIGN.md. -->
+    <Grid>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="TECNAL-Hub"
+                       FontFamily="{DynamicResource FontDisplay}"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Estrutura inicial do projeto. Consulte docs/ROADMAP.md."
+                       Style="{StaticResource CaptionTextStyle}"
+                       Margin="0,8,0,0"
+                       HorizontalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</Window>

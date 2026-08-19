@@ -1,0 +1,26 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+publish/
+*.user
+*.suo
+
+# IDE
+.vs/
+.idea/
+*.DotSettings.user
+
+# Installer output
+installer/Output/
+
+# Runtime data - never commit lab data or machine-specific settings
+logs/
+*.log
+preferences.local.json
+
+# OS
+Thumbs.db
+desktop.ini

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Version, metadata and code standards live in ../../Directory.Build.props. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>TecnalHub</RootNamespace>
+    <AssemblyName>TecnalHub</AssemblyName>
+    <AssemblyTitle>TECNAL-Hub</AssemblyTitle>
+    <!-- Lab PCs are Windows x64 only. Restricting the RID keeps the self-contained
+         publish (and the SkiaSharp native bits pulled in by ScottPlot) small. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <!-- Startup time is a headline requirement (v.6 took ~20 s because of `import torch`).
+         ReadyToRun precompiles IL to native so the first frame is not JIT-bound. -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <!-- Trimming is intentionally OFF: WPF + XAML rely on reflection and trimming
+         WPF apps is not supported. Do not enable without measuring. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- TODO(branding): drop app_icon.ico into Resources\Icons\ and re-enable.
+         <ApplicationIcon>Resources\Icons\app_icon.ico</ApplicationIcon> -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TecnalHub.Protocol\TecnalHub.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MVVM source generators: [ObservableProperty], [RelayCommand]. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- Composition root lives in App.xaml.cs. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <!-- Unified logging with a rolling file. All managed DLLs - they travel with
+         the self-contained publish, nothing to install on the target machine. -->
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <!-- Live process charts. Replaces pyqtgraph + matplotlib from v.6. -->
+    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
+  </ItemGroup>
+
+</Project>

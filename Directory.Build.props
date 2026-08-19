@@ -1,0 +1,51 @@
+<Project>
+
+  <!--
+    Shared MSBuild settings for every project under this repository. MSBuild imports
+    this file automatically before evaluating each .csproj - no reference needed.
+
+    HERE:       product version, metadata, language/analyzer defaults (whole codebase).
+    In .csproj: project identity (OutputType, UseWPF, TargetFramework, icon, RIDs).
+  -->
+
+  <PropertyGroup Label="Product version (SINGLE SOURCE)">
+    <!--
+      The ONLY place the version number lives. The SDK derives from <Version>:
+        AssemblyVersion      = 0.1.0.0
+        FileVersion          = 0.1.0.0
+        InformationalVersion = 0.1.0
+      On release, change ONLY this line, then mirror it in docs/CHANGELOG.md
+      and in the installer script.
+    -->
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Product metadata">
+    <Product>TECNAL-Hub</Product>
+    <Company>UNESP - Bioprocess Engineering and Biotechnology</Company>
+    <Authors>Vitor T. Mazziero</Authors>
+    <Copyright>(c) $([System.DateTime]::Now.Year) Vitor T. Mazziero</Copyright>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Language and code standards (all C#)">
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>14.0</LangVersion>
+    <!-- Deterministic build: same input -> same binary. -->
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- Official .NET analyzers + .editorconfig style rules enforced at build time.
+         AnalysisLevel=latest uses the DEFAULT rule set (correctness-focused), not
+         "-recommended" (which floods the build with style warnings). -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Warnings are NOT errors while the codebase is young. Flip to true once
+         Phase 1 is stable, so any new warning breaks the build. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

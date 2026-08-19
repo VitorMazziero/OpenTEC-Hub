@@ -57,6 +57,12 @@ public sealed record LinkDiagnostics
 
     /// <summary>Bare <c>OK</c> lines seen; on USB these share the telemetry stream.</summary>
     public int CommandAcks { get; init; }
+
+    /// <summary>
+    /// Active liveness probes sent. Stays at zero while telemetry flows normally -
+    /// a rising count means frames have been going quiet.
+    /// </summary>
+    public int LivenessProbes { get; init; }
     public int ConnectAttemptsUsb { get; init; }
     public int ConnectAttemptsWiFi { get; init; }
     public double? LastRoundTripMs { get; init; }

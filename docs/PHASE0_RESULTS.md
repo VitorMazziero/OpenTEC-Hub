@@ -183,6 +183,58 @@ discard setpoints. Worth weighing when finding 3 is resolved.
 
 ---
 
+## Post-validation fixes (P1)
+
+Two defects found by reviewing the implementation after the hardware runs. Neither
+was visible in the bench results, because neither transport misbehaved during them.
+
+### Wi-Fi had no silence detection at all
+
+The check was gated on the medium:
+
+```csharp
+if (transport.Medium == TransportMedium.Usb &&      // Wi-Fi never reached
+    now - lastTraffic > UsbSilenceTimeout)
+```
+
+The reasoning was that Wi-Fi returns null for every 304 and so cannot distinguish
+"unchanged" from "silent". That was wrong. A *hard* Wi-Fi failure does surface (the
+read throws `TransportFaultException`), but a **soft** one does not: if the ESP32's
+web server stays up while its telemetry task stalls, it answers 304 forever and the
+app would sit indefinitely on frozen readings behind a healthy "Connected" indicator.
+
+For a control application, stale data presented as live is a worse failure than an
+honest disconnect.
+
+*Fixed:* `TelemetrySilenceTimeout` now applies to both transports, and is measured
+against the last **parsed telemetry frame** rather than against any traffic - device
+log lines must not mask stalled telemetry.
+
+### The heartbeat was configured but never ran
+
+`HeartbeatInterval` was declared and `TestConnectionAsync` implemented on both
+transports, but nothing ever called it. v.6 probed every second; the behaviour was
+dropped during the port.
+
+*Fixed:* liveness detection is now two-stage.
+
+| Silence | Behaviour |
+|---|---|
+| under `LivenessProbeAfterSilence` (4 s) | nothing - no probe traffic at all |
+| 4 s to `TelemetrySilenceTimeout` (8 s) | probe the transport on that cadence; a failed probe drops the link immediately |
+| over 8 s | drop the link **even if the probe still succeeds** - this is the stalled-telemetry case |
+
+The staging matters: a healthy link generates **zero** extra traffic, which was
+verified on hardware (45 s USB run, 22 frames, `liveness probes: 0`). The device
+shares one UART with the sensor module, so needless chatter is not free.
+
+*Tested:* `ConnectionManagerTests` drives the state machine against a fake transport -
+14 tests covering silence on both media, probe failure, command coalescing, requeue
+after a rejected write, reconnect cycling and read faults. The Wi-Fi silence test was
+confirmed to **fail** against the previous implementation before the fix was kept.
+
+---
+
 ## Deliverables status
 
 | Deliverable | Status |

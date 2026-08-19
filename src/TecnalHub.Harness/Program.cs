@@ -265,6 +265,7 @@ static async Task<int> RunSessionAsync(
     Console.WriteLine($"parse failures  : {diagnostics.ParseFailures}");
     Console.WriteLine($"device log lines: {diagnostics.DeviceLogLines}");
     Console.WriteLine($"command acks    : {diagnostics.CommandAcks}");
+    Console.WriteLine($"liveness probes : {diagnostics.LivenessProbes}");
     Console.WriteLine($"connect attempts: usb={diagnostics.ConnectAttemptsUsb} wifi={diagnostics.ConnectAttemptsWiFi}");
     Console.WriteLine($"last error      : {(string.IsNullOrEmpty(diagnostics.LastError) ? "-" : diagnostics.LastError)}");
     Console.WriteLine($"trace           : {trace.Path}");

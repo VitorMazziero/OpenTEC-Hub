@@ -14,19 +14,38 @@ public sealed record ConnectionOptions
     /// <summary>Pause between reconnect attempts.</summary>
     public TimeSpan BackupDelay { get; init; } = TimeSpan.FromSeconds(5);
 
-    /// <summary>Liveness probe period while connected.</summary>
-    public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(1);
+    /// <summary>
+    /// How long telemetry may be silent before an active liveness probe starts.
+    /// </summary>
+    /// <remarks>
+    /// While frames arrive normally no probe is sent at all, so a healthy link costs
+    /// nothing extra. Once telemetry goes quiet for this long the transport is
+    /// pinged on this cadence, which detects a dead link well before
+    /// <see cref="TelemetrySilenceTimeout"/> would.
+    /// </remarks>
+    public TimeSpan LivenessProbeAfterSilence { get; init; } = TimeSpan.FromSeconds(4);
 
     /// <summary>How often the device is polled for telemetry.</summary>
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(250);
 
     /// <summary>
-    /// How long USB may stay silent before the link is presumed lost.
+    /// How long telemetry may be silent before the link is presumed lost.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Must be comfortably larger than the device's telemetry period (<c>dataDelay</c>,
-    /// 2000 ms in the field). The default allows four missed frames.
+    /// 2000 ms in the field). The default allows four missed frames. If
+    /// <c>dataDelay</c> is raised, raise this with it - the relationship is not
+    /// enforced automatically.
+    /// </para>
+    /// <para>
+    /// <b>Applies to both transports.</b> An earlier version checked USB only, on the
+    /// reasoning that Wi-Fi returns null for every 304 and so cannot distinguish
+    /// silence from "unchanged". That was wrong, and dangerously so: if the ESP32's
+    /// web server stays up while telemetry stalls, it answers 304 forever and the app
+    /// would show frozen readings behind a healthy "Connected" indicator, with no
+    /// timeout to catch it. Stale data presented as live is worse than an honest
+    /// disconnect.
     /// </para>
     /// <para>
     /// <b>Expressed as a duration on purpose.</b> v.6 counted consecutive empty reads
@@ -37,7 +56,7 @@ public sealed record ConnectionOptions
     /// re-pulses DTR/RTS and therefore reboots the board.
     /// </para>
     /// </remarks>
-    public TimeSpan UsbSilenceTimeout { get; init; } = TimeSpan.FromSeconds(8);
+    public TimeSpan TelemetrySilenceTimeout { get; init; } = TimeSpan.FromSeconds(8);
 
     /// <summary>Consecutive malformed frames before the link is presumed lost.</summary>
     public int ParseFailuresBeforeLinkLost { get; init; } = 3;
@@ -68,6 +87,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     private readonly ILogger _log;
     private readonly ILoggerFactory? _loggerFactory;
     private readonly TelemetryParser _parser;
+    private readonly Func<TransportMedium, ITransport?>? _transportFactory;
 
     private readonly Channel<Request> _requests =
         Channel.CreateUnbounded<Request>(new UnboundedChannelOptions { SingleReader = true });
@@ -90,7 +110,8 @@ public sealed class ConnectionManager : IAsyncDisposable
     private TransportMedium? _medium;
     private string _endpoint = "";
 
-    private long _lastTrafficTicks;
+    private long _lastTelemetryTicks;
+    private long _lastProbeTicks;
     private int _parseFailureStreak;
     private int _samePortFailures;
 
@@ -100,19 +121,31 @@ public sealed class ConnectionManager : IAsyncDisposable
     private int _parseFailures;
     private int _deviceLogLines;
     private int _commandAcks;
+    private int _livenessProbes;
     private int _attemptsUsb;
     private int _attemptsWiFi;
     private double? _lastRoundTripMs;
     private string _lastError = "";
     private DateTimeOffset? _lastFrameAt;
 
+    /// <param name="options">Lifecycle tuning.</param>
+    /// <param name="parserConfig">Calibration and filter tuning.</param>
+    /// <param name="loggerFactory">Optional logging.</param>
+    /// <param name="transportFactory">
+    /// Overrides how transports are created. Exists so the state machine can be
+    /// tested against a fake link - reconnect cycling, silence detection and command
+    /// requeue are impossible to exercise reliably against real hardware. Null uses
+    /// the real serial and HTTP transports.
+    /// </param>
     public ConnectionManager(
         ConnectionOptions? options = null,
         ParserConfig? parserConfig = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        Func<TransportMedium, ITransport?>? transportFactory = null)
     {
         _options = options ?? new ConnectionOptions();
         _loggerFactory = loggerFactory;
+        _transportFactory = transportFactory;
         _log = loggerFactory?.CreateLogger<ConnectionManager>() ?? NullLogger<ConnectionManager>.Instance;
 
         _parser = new TelemetryParser(parserConfig);
@@ -147,6 +180,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         ParseFailures = Volatile.Read(ref _parseFailures),
         DeviceLogLines = Volatile.Read(ref _deviceLogLines),
         CommandAcks = Volatile.Read(ref _commandAcks),
+        LivenessProbes = Volatile.Read(ref _livenessProbes),
         ConnectAttemptsUsb = Volatile.Read(ref _attemptsUsb),
         ConnectAttemptsWiFi = Volatile.Read(ref _attemptsWiFi),
         LastRoundTripMs = _lastRoundTripMs,
@@ -226,6 +260,7 @@ public sealed class ConnectionManager : IAsyncDisposable
                 {
                     await FlushCommandsAsync(token).ConfigureAwait(false);
                     await PollTelemetryAsync(token).ConfigureAwait(false);
+                    await CheckLivenessAsync(token).ConfigureAwait(false);
                 }
             }
         }
@@ -490,6 +525,82 @@ public sealed class ConnectionManager : IAsyncDisposable
     // Telemetry and commands
     // ==================================================================
 
+    /// <summary>
+    /// Decides whether the link is still alive, in two stages.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Stage 1, once telemetry has been quiet for
+    /// <see cref="ConnectionOptions.LivenessProbeAfterSilence"/>: actively ping the
+    /// transport. A failed probe drops the link immediately, rather than waiting out
+    /// the full silence timeout.
+    /// </para>
+    /// <para>
+    /// Stage 2, at <see cref="ConnectionOptions.TelemetrySilenceTimeout"/>: drop the
+    /// link even if the probe still succeeds. This is the case that matters on Wi-Fi -
+    /// the ESP32's web server can happily answer <c>/ping</c> and serve 304s while the
+    /// telemetry task is stalled. The link is "up" and the data is stale, which for a
+    /// control application is the worse failure of the two.
+    /// </para>
+    /// <para>
+    /// While frames arrive normally neither stage does any work, so a healthy link
+    /// costs no extra traffic.
+    /// </para>
+    /// </remarks>
+    private async Task CheckLivenessAsync(CancellationToken token)
+    {
+        var silentFor = Environment.TickCount64 - _lastTelemetryTicks;
+
+        if (silentFor <= (long)_options.LivenessProbeAfterSilence.TotalMilliseconds)
+        {
+            return;
+        }
+
+        if (silentFor > (long)_options.TelemetrySilenceTimeout.TotalMilliseconds)
+        {
+            Post(new LinkLostRequest(FormattableString.Invariant(
+                $"sem telemetria por {_options.TelemetrySilenceTimeout.TotalSeconds:F0}s")));
+            return;
+        }
+
+        // Rate-limit the probe itself to the same cadence.
+        var sinceProbe = Environment.TickCount64 - _lastProbeTicks;
+        if (sinceProbe < (long)_options.LivenessProbeAfterSilence.TotalMilliseconds)
+        {
+            return;
+        }
+
+        _lastProbeTicks = Environment.TickCount64;
+
+        var transport = await GetTransportAsync(token).ConfigureAwait(false);
+        if (transport is null)
+        {
+            return;
+        }
+
+        bool alive;
+        try
+        {
+            alive = await transport.TestConnectionAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _lastError = ex.Message;
+            alive = false;
+        }
+
+        Interlocked.Increment(ref _livenessProbes);
+
+        if (!alive)
+        {
+            Post(new LinkLostRequest("sonda de atividade falhou"));
+        }
+    }
+
     private async Task PollTelemetryAsync(CancellationToken token)
     {
         var transport = await GetTransportAsync(token).ConfigureAwait(false);
@@ -512,26 +623,17 @@ public sealed class ConnectionManager : IAsyncDisposable
 
         if (string.IsNullOrEmpty(line))
         {
-            // Wi-Fi returns null on every 304 and between poll ticks, so only USB
-            // silence is evidence of a dead link.
-            if (transport.Medium == TransportMedium.Usb &&
-                Environment.TickCount64 - _lastTrafficTicks > (long)_options.UsbSilenceTimeout.TotalMilliseconds)
-            {
-                Post(new LinkLostRequest(FormattableString.Invariant(
-                    $"sem dados USB por {_options.UsbSilenceTimeout.TotalSeconds:F0}s")));
-            }
-
+            // Nothing to read is normal - between poll ticks on either transport,
+            // and on every Wi-Fi 304. Silence is judged by the clock, in
+            // CheckLivenessAsync, not by counting empty reads here.
             return;
         }
-
-        // Any line at all proves the link is alive - including a device log line,
-        // which is not telemetry but is certainly traffic.
-        _lastTrafficTicks = Environment.TickCount64;
 
         switch (_parser.Parse(line))
         {
             case ParseOutcome.Updated:
                 _parseFailureStreak = 0;
+                _lastTelemetryTicks = Environment.TickCount64;
                 Interlocked.Increment(ref _framesReceived);
                 _lastFrameAt = DateTimeOffset.Now;
                 TelemetryReceived?.Invoke(_parser.Readings.Snapshot());
@@ -646,7 +748,12 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     private void Post(Request request) => _requests.Writer.TryWrite(request);
 
-    private ITransport? BuildTransport(TransportMedium medium) => medium switch
+    private ITransport? BuildTransport(TransportMedium medium)
+        => _transportFactory is not null
+            ? _transportFactory(medium)
+            : BuildRealTransport(medium);
+
+    private ITransport? BuildRealTransport(TransportMedium medium) => medium switch
     {
         TransportMedium.Usb when _serialConfig is { } cfg =>
             new SerialTransport(cfg, _loggerFactory?.CreateLogger<SerialTransport>()),
@@ -731,9 +838,10 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     private void ResetLinkCounters()
     {
-        // Seed the silence clock at connect time; without this the first poll after
-        // a slow handshake could look like a link that has been quiet for ages.
-        _lastTrafficTicks = Environment.TickCount64;
+        // Seed both clocks at connect time; without this the first poll after a slow
+        // handshake looks like a link that has been quiet for ages.
+        _lastTelemetryTicks = Environment.TickCount64;
+        _lastProbeTicks = Environment.TickCount64;
         _parseFailureStreak = 0;
         _samePortFailures = 0;
         _lastError = "";

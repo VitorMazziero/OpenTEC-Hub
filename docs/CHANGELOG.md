@@ -6,6 +6,39 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.2.1] — 2026-08-19
+
+Two link-supervision defects found by review after the hardware runs, plus the first
+tests for the state machine itself.
+
+### Fixed
+- **Wi-Fi had no silence detection.** The timeout was gated on `Medium == Usb`, so a
+  Wi-Fi link whose telemetry stalled while the web server stayed up (answering 304
+  forever) would never time out - the app would show frozen readings behind a healthy
+  "Connected" indicator. `TelemetrySilenceTimeout` now covers both transports and is
+  measured against parsed telemetry, not against any traffic.
+- **The heartbeat never ran.** `HeartbeatInterval` was declared and
+  `TestConnectionAsync` implemented, but nothing called either. Replaced with
+  two-stage liveness: quiet for `LivenessProbeAfterSilence` (4 s) starts probing;
+  quiet for `TelemetrySilenceTimeout` (8 s) drops the link even if the probe succeeds.
+  A healthy link sends no probes at all - verified on hardware, 45 s USB run with
+  `liveness probes: 0`.
+
+### Added
+- `ConnectionManagerTests` - 14 tests against a scriptable `FakeTransport`, covering
+  silence on both media, probe failure, command coalescing, requeue after a rejected
+  write, reconnect cycling, read faults and device-log/ack classification. The Wi-Fi
+  silence test was verified to fail against the previous implementation.
+- `ConnectionManager` accepts a transport factory, so the state machine can be driven
+  without hardware.
+- `LinkDiagnostics.LivenessProbes`, surfaced in the harness summary.
+
+### Changed
+- `ConnectionOptions.UsbSilenceTimeout` renamed to `TelemetrySilenceTimeout` (it is no
+  longer USB-specific); `HeartbeatInterval` replaced by `LivenessProbeAfterSilence`.
+
+---
+
 ## [0.2.0] — 2026-08-19
 
 Phase 0: the protocol stack, built and validated over USB against a real ESP32-S3.

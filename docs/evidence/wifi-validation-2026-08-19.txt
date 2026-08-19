@@ -1,0 +1,112 @@
+
+======================================================================
+TECNAL-Hub Phase 0 - Wi-Fi validation
+======================================================================
+started      : 2026-08-19 18:33:40 -03:00
+target       : http://192.168.4.1
+machine      : DESKTOP-J4OP7IO
+culture      : pt-BR (decimal ',')
+output       : C:\Users\vitor\AppData\Local\Temp\tecnal-wifi-test\2026-08-19_18-33-40
+
+
+======================================================================
+1. Network environment
+======================================================================
+  Wi-Fi [Wireless80211]
+    addresses : 192.168.4.2
+    gateways  : 192.168.4.1
+
+  [PASS] machine holds a 192.168.4.x address (expected on the Modulo_TECNAL_1 AP)
+  [PASS] no system proxy interferes with the device address
+  [PASS] ICMP reachable in 1 ms
+
+======================================================================
+2. Raw HTTP endpoints (not using HttpTransport)
+======================================================================
+  GET  /ping        -> 200 in 28 ms, ETag=-
+       body: pong
+  [PASS] /ping answers 200
+  GET  /readData    -> 200 in 13 ms, ETag="496"
+       body: {"Time":992.8,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+  [PASS] /readData returns a JSON object
+  POST /command     -> 200 in 17 ms, ETag=-
+       body: OK
+  [PASS] /command accepts {"comTest":1} and answers OK
+
+  Endpoint discovery (informational, 404 is a fine answer):
+  GET  /            -> 404 in 19 ms, ETag=-
+       body: Not found
+  GET  /status      -> 404 in 6 ms, ETag=-
+       body: Not found
+  GET  /info        -> 404 in 8 ms, ETag=-
+       body: Not found
+  GET  /config      -> 404 in 13 ms, ETag=-
+       body: Not found
+
+======================================================================
+3. ETag conditional polling
+======================================================================
+  v.6 relies on If-None-Match; a 304 means 'unchanged', not an error.
+  Getting this wrong shows up as telemetry that silently stops updating.
+
+  [PASS] device supplies an ETag: "496"
+  [PASS] conditional re-request answers 304 as expected
+
+======================================================================
+4. HttpTransport
+======================================================================
+  [PASS] handshake succeeded with the default timeouts (connect 250 ms, read 750 ms)
+  [PASS] read returned a frame after 2 attempt(s)
+       OK
+  [FAIL] frame did not parse as telemetry (outcome: CommandAck)
+  [PASS] write accepted: {"dataDelay":2000} answered OK
+  [PASS] liveness probe (/ping) succeeded
+
+======================================================================
+5. Round-trip latency (20 x POST /command)
+======================================================================
+  Informs whether the v.6 default timeouts leave enough headroom.
+
+  min=5 ms  median=9 ms  p95=33 ms  max=33 ms  (20/20 ok, 0 failed)
+  [PASS] all 20 probes answered
+  [PASS] p95 (33 ms) fits inside the write timeout (500 ms)
+
+======================================================================
+6. 90 s soak through ConnectionManager
+======================================================================
+  state transitions:
+    18:33:43 Connecting
+    18:33:43 Connected
+    18:35:13 Disconnected desconectado pelo usuário
+
+  frames received : 45
+  commands sent   : 0
+  parse failures  : 0
+  device log lines: 0
+  command acks    : 1
+  connect attempts: 1
+  last error      : -
+  time to first frame: 1.1 s
+
+  [PASS] 45 frames in 90 s (100% of the ~45 expected)
+  [PASS] no parse failures
+  [PASS] link stayed up on a single connect
+
+======================================================================
+7. Disconnect / reconnect
+======================================================================
+  On reconnect the cached ETag must be cleared, or the first poll
+  answers 304 forever and telemetry never resumes.
+
+  [PASS] disconnected cleanly
+  [PASS] reconnected
+  [PASS] telemetry resumed after reconnect (ETag correctly cleared)
+
+======================================================================
+Summary
+======================================================================
+passed  : 20
+warned  : 0
+failed  : 1
+
+RESULT: FAILURES PRESENT - see the sections above.

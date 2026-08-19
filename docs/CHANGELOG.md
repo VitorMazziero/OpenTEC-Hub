@@ -24,6 +24,12 @@ No UI yet. See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for the measurements.
 - USB handshake, 60 s continuous telemetry, 0 parse failures, 0 spurious reconnects.
 - Parallel port discovery finds the board in **1.9 s** with no port configured
   (v.6 would take ~12 s serially on the same machine).
+- Wi-Fi on the `Modulo_TECNAL_1` SoftAP: 20/21 checks passed, 0 warnings. 90 s soak
+  gave 45 frames at ~2.1 s with 0 parse failures on a single connect; ETag 304
+  conditional polling confirmed; latency p95 33 ms, ~15x headroom over the v.6
+  timeouts; reconnect resumes telemetry with the ETag correctly cleared.
+- Wi-Fi reconnects do **not** reboot the device (no reset line), making Wi-Fi the
+  safer transport for mid-run recovery.
 
 ### Fixed relative to v.6
 - `OK` acknowledgements and `[ESP32_` log lines are recognised instead of being

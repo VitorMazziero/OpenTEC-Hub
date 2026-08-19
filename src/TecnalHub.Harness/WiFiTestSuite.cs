@@ -422,40 +422,59 @@ internal sealed class WiFiTestSuite(string ipAddress, string outputDirectory, IL
                 return;
             }
 
-            // Read. The first call can legitimately return null: the poll period has
-            // not elapsed yet, or the device answered 304.
+            // Read until telemetry arrives.
+            //
+            // Null is legitimate: the poll period has not elapsed, or the device
+            // answered 304. So is a bare "OK" - the handshake POST leaves it in the
+            // device's shared response buffer, and the next GET /readData serves
+            // that before returning to telemetry. Confirmed on hardware 2026-08-19.
+            var parser = new TelemetryParser();
             var attempts = 0;
-            string? frame = null;
-            while (attempts++ < 10 && frame is null)
+            var acksSeen = 0;
+            string? telemetry = null;
+
+            while (attempts++ < 10 && telemetry is null)
             {
-                frame = await transport.ReadAsync(cancellationToken).ConfigureAwait(false);
-                if (frame is null)
+                var line = await transport.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (line is null)
                 {
                     await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                switch (parser.Parse(line))
+                {
+                    case ParseOutcome.Updated:
+                        telemetry = line;
+                        break;
+
+                    case ParseOutcome.CommandAck:
+                        acksSeen++;
+                        Line($"       read #{attempts} returned the handshake ack ('OK'), continuing");
+                        break;
+
+                    case var other:
+                        Fail($"read #{attempts} returned an unparseable line ({other}): {line}");
+                        break;
                 }
             }
 
-            if (frame is not null)
+            if (acksSeen > 0)
             {
-                Pass($"read returned a frame after {attempts} attempt(s)");
-                Line($"       {(frame.Length > 300 ? frame[..300] + "..." : frame)}");
+                Pass($"handshake ack echoed on /readData was recognised, not miscounted as corruption " +
+                     $"({acksSeen} seen)");
+            }
 
-                var parser = new TelemetryParser();
-                var outcome = parser.Parse(frame);
-                if (outcome == ParseOutcome.Updated)
-                {
-                    Pass("frame parsed as telemetry");
-                    Line(FormattableString.Invariant(
-                        $"       time={parser.Readings.TimeRawSeconds:F1}s sensorOk={parser.Readings.SensorCommOk}"));
-                }
-                else
-                {
-                    Fail($"frame did not parse as telemetry (outcome: {outcome})");
-                }
+            if (telemetry is not null)
+            {
+                Pass($"telemetry frame received after {attempts} read(s)");
+                Line($"       {(telemetry.Length > 300 ? telemetry[..300] + "..." : telemetry)}");
+                Line(FormattableString.Invariant(
+                    $"       time={parser.Readings.TimeRawSeconds:F1}s sensorOk={parser.Readings.SensorCommOk}"));
             }
             else
             {
-                Fail("read returned null on all 10 attempts over ~5 s");
+                Fail("no telemetry frame after 10 reads over ~5 s");
             }
 
             // Write path. Deliberately a no-op: dataDelay set to the value already in

@@ -31,7 +31,7 @@ no arrays. Only the framing differs.
 | Write target | the open COM port | `POST http://{ip}/command` |
 | Write ack | none (fire and forget) | body must equal `OK` |
 | Read | `readline()` | `GET http://{ip}/readData` |
-| Liveness | `in_waiting` does not throw | `GET http://{ip}/ping` returns 200 |
+| Liveness | `in_waiting` does not throw | `GET http://{ip}/ping` returns 200, body `pong` |
 
 > **The trailing newline differs by transport.** USB appends `\n`; Wi-Fi must
 > not. This is the single easiest way to break USB while Wi-Fi keeps working (or
@@ -93,6 +93,26 @@ connect, specifically to defeat OS-level socket reuse after the ESP32 reboots.
 Keep this behaviour: in C#, use a fresh `HttpClient` / `SocketsHttpHandler` per
 connect rather than a long-lived singleton.
 
+**Measured 2026-08-19** on the `Modulo_TECNAL_1` SoftAP (client at 192.168.4.2,
+gateway 192.168.4.1):
+
+| | |
+|---|---|
+| `POST /command` round trip | min 5 ms · median 9 ms · p95 33 ms · max 33 ms (20/20) |
+| Telemetry cadence | ~2.1 s, 45 frames in 90 s, none dropped |
+| Time to first frame after connect | 1.1 s |
+| ETag | present (`"496"`), and `If-None-Match` correctly answers **304** |
+
+The v.6 timeouts (250 ms connect, 750 ms read, 500 ms write) therefore have ample
+headroom on this link — roughly 15x the observed p95. They are tight but not wrong.
+
+Endpoints other than `/ping`, `/readData` and `/command` return **404 "Not found"**;
+there is no `/`, `/status`, `/info` or `/config`.
+
+Unlike USB, a Wi-Fi reconnect does **not** reboot the device — there is no reset line
+to pulse, and the device clock was observed advancing monotonically across a
+disconnect/reconnect cycle. See section 5, Q6.
+
 ---
 
 ## 2. Telemetry: device to app
@@ -153,6 +173,22 @@ Observed device log lines:
 > failure; it survives only because it needs three *consecutive* failures and
 > telemetry usually interleaves. Sending several commands in quick succession can
 > trip a false link-loss there.
+
+**The same applies on Wi-Fi, for a different reason.** Confirmed 2026-08-19: the
+device appears to serve `/readData` from a shared response buffer, so the first
+`GET /readData` after a `POST /command` returns that command's `OK` instead of a
+telemetry frame. Subsequent polls return telemetry normally.
+
+This bites every Wi-Fi connect, because the handshake *is* a `POST /command`:
+
+```text
+POST /command {"comTest":1}   -> 200 "OK"      (handshake)
+GET  /readData                -> 200 "OK"      <- the buffered ack, not telemetry
+GET  /readData                -> 200 {"Time":...}
+```
+
+A reader that requires the first frame after connect to be telemetry will report a
+spurious failure. Treat `OK` as an expected line on **both** transports.
 
 ### 2.1 Client-side signal conditioning
 

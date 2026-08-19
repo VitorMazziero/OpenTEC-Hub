@@ -1,7 +1,8 @@
 # Phase 0 — Hardware Validation Results
 
-> **Date:** 2026-08-19 · **Status:** USB validated · Wi-Fi pending
-> **Hardware:** ESP32-S3 on COM3 (`USB-Enhanced-SERIAL CH343`, wch.cn, VID_1A86/PID_55D3)
+> **Date:** 2026-08-19 · **Status:** USB and Wi-Fi both validated
+> **Hardware:** ESP32-S3 — USB on COM3 (`USB-Enhanced-SERIAL CH343`, wch.cn, VID_1A86/PID_55D3);
+> Wi-Fi on the `Modulo_TECNAL_1` SoftAP (client 192.168.4.2, gateway 192.168.4.1)
 > **Configuration:** board alone, **no bioreactor module attached** — firmware-level test only
 >
 > **Docs:** [ROADMAP](ROADMAP.md) · [PROTOCOL](PROTOCOL.md) · [MIGRATION](MIGRATION.md) · [DECISIONS](DECISIONS.md)
@@ -10,12 +11,18 @@
 
 ## Verdict
 
-**The core Phase 0 risk is retired.** C#'s `System.IO.Ports` reproduces pyserial's
-DTR/RTS pulse and 1.8 s boot-settle behaviour exactly; the device completes the
-`{"comTest":1}` → `OK` handshake on the first attempt, every attempt.
+**Both transports work against real hardware.**
 
-The parts of Phase 0 still outstanding are listed under [What is not yet
-validated](#what-is-not-yet-validated).
+- **USB:** C#'s `System.IO.Ports` reproduces pyserial's DTR/RTS pulse and 1.8 s
+  boot-settle behaviour exactly; the handshake succeeds on the first attempt, every
+  attempt.
+- **Wi-Fi:** 20 of 21 checks passed with zero warnings on the first run. The single
+  failure was an over-strict assertion in the test itself, and it caught a real
+  firmware behaviour — see [finding 5](#5-wi-fi-serves-the-handshake-ack-on-readdata).
+
+What remains is listed under [What is not yet
+validated](#what-is-not-yet-validated) — chiefly that every reading so far has been a
+sentinel, because no bioreactor was attached.
 
 ---
 
@@ -42,12 +49,32 @@ Expected with no bioreactor attached, and correctly represented: `SensorCommOK:f
 all probe channels at the not-received sentinel, and the ESP32 reporting internal UART
 failures to the absent module.
 
+### Wi-Fi (`tecnal-harness wifi-test`)
+
+| Check | Result |
+|---|---|
+| SoftAP association | 192.168.4.2, gateway 192.168.4.1, ICMP 1 ms |
+| `/ping` | 200, body `pong` |
+| `/readData` | 200, JSON, ETag `"496"` |
+| `/command` | 200, body `OK` |
+| Conditional poll (`If-None-Match`) | **304 as expected** |
+| Handshake at v.6 default timeouts | Succeeded (250 ms connect / 750 ms read) |
+| Round-trip latency, 20 x `POST /command` | min 5 · median 9 · **p95 33** · max 33 ms, 20/20 |
+| 90 s soak | **45 frames, 0 parse failures, 1 connect attempt** |
+| Frame cadence | ~2.1 s — 100% of the expected count, none dropped |
+| Time to first frame | 1.1 s |
+| Disconnect / reconnect | Telemetry resumed; ETag correctly cleared |
+| Endpoint discovery | Only `/ping`, `/readData`, `/command` exist; everything else 404 |
+
+The v.6 timeouts have roughly **15x headroom** over the observed p95 on this link.
+They are tight, but they are not wrong — no reason to change them.
+
 ---
 
 ## What the hardware taught us
 
-Four findings, all of which changed the code. None of them were visible from reading
-the Python source.
+Five findings, all of which changed the code. None were visible from reading the
+Python source.
 
 ### 1. Not every line is telemetry — `OK` and `[ESP32_` share the stream
 
@@ -116,6 +143,44 @@ the rule down.
 *Fixed:* every formatting site swept; `CultureInvarianceTests` forces `pt-BR`
 explicitly rather than trusting the CI machine's locale.
 
+### 5. Wi-Fi serves the handshake ack on `/readData`
+
+The one FAIL in the Wi-Fi run:
+
+```text
+[PASS] read returned a frame after 2 attempt(s)
+     OK
+[FAIL] frame did not parse as telemetry (outcome: CommandAck)
+```
+
+The device appears to serve `/readData` from a shared response buffer, so the first
+`GET /readData` after a `POST /command` returns that command's `OK` rather than a
+telemetry frame. Since the Wi-Fi handshake *is* a `POST /command`, this happens on
+**every** connect:
+
+```text
+POST /command {"comTest":1}   -> 200 "OK"      (handshake)
+GET  /readData                -> 200 "OK"      <- buffered ack, not telemetry
+GET  /readData                -> 200 {"Time":...}
+```
+
+Finding 1 had already made the parser treat `OK` as `CommandAck` rather than
+corruption, so the transport handled this correctly and the 90 s soak recorded
+**zero** parse failures. Only the test's assertion — "the first frame after connect
+must be telemetry" — was too strict.
+
+*Fixed:* the assertion now reads until telemetry arrives and reports the ack as
+expected traffic. Documented in [PROTOCOL.md](PROTOCOL.md#20-not-every-line-is-telemetry).
+
+### Bonus: Wi-Fi reconnects do not reboot the board
+
+The device clock advanced monotonically across the disconnect/reconnect cycle
+(996.6 → 998.9 → 1000.6 s), where USB resets to its boot value every time. There is
+no reset line to pulse over Wi-Fi.
+
+That makes Wi-Fi the **safer transport for mid-run recovery** — a reconnect does not
+discard setpoints. Worth weighing when finding 3 is resolved.
+
 ---
 
 ## Deliverables status
@@ -130,26 +195,30 @@ explicitly rather than trusting the CI machine's locale.
 | Console harness | Done |
 | Golden-string tests, incl. pt-BR culture | Done — **49 tests, all passing** |
 | USB verified on hardware | **Done** |
-| Wi-Fi verified on hardware | Not started |
+| Wi-Fi verified on hardware | **Done** |
 | Byte-comparison against a v.6 capture | Not started |
 
 ---
 
 ## What is not yet validated
 
-Phase 0 is **not** complete. Three items remain, and two need the bioreactor.
+Phase 0 is **not** complete. Two items remain, and both need the bioreactor.
 
-1. **Wi-Fi transport against hardware.** Untested. The ETag/304 path and the
-   fresh-client-per-connect behaviour are ported but unproven.
-2. **Byte-comparison against v.6.** The exit criterion is that both apps emit
-   identical command bytes for the same actions. Our side is captured
-   (`harness-trace-*.log`); the v.6 side needs a capture from `command_logs/`.
-3. **Telemetry with real sensors.** Everything read so far was a sentinel. The
-   calibration path, spike filters, and the `pHCal` echo-back are covered by unit
-   tests but have never seen a live probe.
+1. **Byte-comparison against v.6.** The exit criterion is that both apps emit
+   identical command bytes for the same operator actions. Our side is captured
+   (`harness-trace-*.log`); the v.6 side needs a capture from `command_logs/` of the
+   same actions.
+2. **Telemetry with real sensors.** Every reading so far has been a sentinel
+   (`SensorCommOK:false`, all probes at -1). Never yet exercised against live data:
+   - the oxygen and pH **calibration** path,
+   - the **spike filters** (thresholds are in raw ADC counts),
+   - the **`pHCal` echo-back**, which is the only place the app writes a *string* to
+     the wire and therefore the highest-risk culture site,
+   - the flow, valve and biomass telemetry keys, which the firmware does not emit
+     at all with no module attached.
 
-Items 2 and 3 need the bioreactor connected. Item 1 does not — it only needs the
-board in Wi-Fi mode.
+Both are covered by unit tests against synthetic data; neither has met the real
+instrument.
 
 ---
 

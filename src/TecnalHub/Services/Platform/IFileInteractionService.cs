@@ -5,6 +5,8 @@ public interface IFileInteractionService
 {
     string? ChooseSavePath(string title, string suggestedName, string filter, string extension);
 
+    string? ChooseOpenPath(string title, string filter, string extension);
+
     void OpenFolder(string path);
 
     void CopyText(string text);

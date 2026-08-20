@@ -268,6 +268,9 @@ public sealed class Wp7Tests
         public string? ChooseSavePath(string title, string suggestedName, string filter, string extension)
             => null;
 
+        public string? ChooseOpenPath(string title, string filter, string extension)
+            => null;
+
         public void OpenFolder(string path)
         {
         }

@@ -8,6 +8,7 @@ using Serilog;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
 using TecnalHub.Services.Telemetry;
@@ -153,6 +154,8 @@ public partial class App : Application
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IFileInteractionService, FileInteractionService>();
+        services.AddSingleton<IKlaMappingEngine, KlaMappingEngine>();
+        services.AddSingleton<IKlaProfileStore>(_ => new KlaProfileStore(AppPaths.KlaMappingDirectory));
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal
@@ -192,6 +195,7 @@ public partial class App : Application
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<PHControlViewModel>();
         services.AddSingleton<CalibrationViewModel>();
+        services.AddSingleton<KlaMappingViewModel>();
         services.AddSingleton<ShellViewModel>();
     }
 

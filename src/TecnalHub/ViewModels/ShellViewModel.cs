@@ -108,6 +108,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SettingsViewModel settings_,
         PHControlViewModel phControl,
         CalibrationViewModel calibration,
+        KlaMappingViewModel klaMapping,
         IDialogService dialogs,
         ICascadeService cascade,
         ITelemetryHistory history,
@@ -127,6 +128,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Settings = settings_;
         PHControl = phControl;
         Calibration = calibration;
+        KlaMapping = klaMapping;
         _appliedUnits = settings.Current.Units;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1, channel: TelemetryChannel.Temperature);
@@ -215,6 +217,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("events", "Eventos", "EventLog"),
             new NavigationItem("calibrations", "Calibrações", "Target", StartsGroup: true),
             new NavigationItem("settings", "Configurações", "Gear"),
+            new NavigationItem("kla-mapping", "Mapeamento kLa", "NodeGraph", StartsGroup: true),
         ];
         _commandPaletteCatalog =
         [
@@ -299,6 +302,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Guided pH, oxygen and airflow calibration procedures.</summary>
     public CalibrationViewModel Calibration { get; }
+
+    /// <summary>Operator-created kLa experiments, paper path search and publication.</summary>
+    public KlaMappingViewModel KlaMapping { get; }
 
     /// <summary>All-setpoints and valve-control page.</summary>
     public ControlViewModel Control { get; }

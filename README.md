@@ -7,7 +7,7 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.13.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
+> **Status:** v0.14.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
 > way**. WP1 landed the cascade controller core — velocity-form PID, prediction horizon,
 > least-squares rate estimation and actuator-window allocation — as pure, headlessly
 > validated math against a simulated DOT plant with dead time. WP2 wires it into the
@@ -17,11 +17,12 @@ full instrument, and without ever changing the firmware protocol.
 > including the pH safe-stop interlock and the app-to-module `pHCal` display echo. **WP4
 > part 1** opens the P0 safety kernel: one `CommandArbiter` now owns the wire, with
 > per-actuator ownership, an honest command lifecycle, safe abort on link loss and the
-> operator session clock — the operational alarm engine is the rest of WP4. Live cascade
-> actuation waits for the remaining gate and the bioreactor. The next scientific workspace
-> is **Mapeamento kLa**: it estimates `kLa(Q_g,N)` from operator-entered experimental points
-> and publishes the paper's gradient/headroom allocation path; no production surface is
-> pre-loaded. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
+> operator session clock — the operational alarm engine is the rest of WP4. **WP5 is now
+> complete:** the dedicated `Mapeamento kLa` workspace estimates `kLa(Q_g,N)` from
+> operator-entered measurements, reproduces the paper's normalized gradient/headroom
+> search, and publishes a reviewed, immutable allocation receipt. It ships no production
+> surface and never sends a device command. Live cascade actuation waits for WP4's remaining
+> gate, WP6 and the bioreactor. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
 > full-cultivation validation still need the bioreactor and remain the hardware gate. v.6
 > remains the production application until TECNAL-Hub has completed a full cultivation run.
 
@@ -36,6 +37,7 @@ Read in this order:
 | [ROADMAP.md](docs/ROADMAP.md) | **Start here.** Phases, scope per phase, non-functional targets, what is deferred |
 | [PROTOCOL.md](docs/PROTOCOL.md) | The frozen ESP32-S3 wire contract. Every key, unit, range and timing constant |
 | [CALIBRATION.md](docs/CALIBRATION.md) | Calibration ownership, pH/O₂/airflow procedures, interlocks and refusal states |
+| [KLA_MAPPING.md](docs/KLA_MAPPING.md) | kLa experiment, reference algorithm/parameters, headroom path, refusals and receipts |
 | [PHASE0_RESULTS.md](docs/PHASE0_RESULTS.md) | Hardware validation results — measured, on a real board |
 | [PHASE_LOG.md](docs/PHASE_LOG.md) | Decisions taken while executing each phase, with evidence |
 | [MIGRATION.md](docs/MIGRATION.md) | What each v.6 module becomes, why startup is slow, and 11 known defects found in the source |
@@ -45,6 +47,7 @@ Read in this order:
 | [DECISIONS.md](docs/DECISIONS.md) | Decision log — why things are the way they are |
 | [CONVENTIONS.md](docs/CONVENTIONS.md) | Naming, layering rules, async, error handling |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Version history |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Notices for source-derived third-party algorithms |
 
 ---
 
@@ -77,6 +80,7 @@ dotnet publish src/TecnalHub -c Release
 ```text
 ProjetoTECNAL/
 ├─ docs/                    documentation (start with ROADMAP.md)
+├─ tools/                   development-time hardware/scientific verification
 ├─ src/
 │  ├─ TecnalHub.Protocol/   ESP32-S3 wire layer — no WPF, headlessly testable
 │  ├─ TecnalHub.Simulator/  localhost HTTP / virtual-serial device simulator

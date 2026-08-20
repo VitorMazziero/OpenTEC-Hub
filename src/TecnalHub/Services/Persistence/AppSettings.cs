@@ -490,6 +490,9 @@ public static class AppPaths
 
     public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
 
+    /// <summary>Operator-created kLa drafts and immutable publication receipts.</summary>
+    public static string KlaMappingDirectory => Path.Combine(DataDirectory, "kla-mapping");
+
     public static string LogDirectory
     {
         get

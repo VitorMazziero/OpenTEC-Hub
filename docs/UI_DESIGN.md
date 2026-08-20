@@ -579,7 +579,7 @@ contributor to v.6's cold start. **Receitas is a main window**, not a dialog.
 | 5.6 | **Eventos** | Unified audit trail | 1 partial → 5 |
 | 5.7 | **Calibrações** | Calibration procedures with live feedback | 2 WP3 partial → 3 |
 | 5.8 | **Configurações** | Everything genuinely configuration | 1 ✅ |
-| 5.9 | **Mapeamento kLa** | Estimate `kLa(Q_g,N)`, construct/review the gradient-headroom path and publish an allocation profile | 2 WP5 |
+| 5.9 | **Mapeamento kLa** | Estimate `kLa(Q_g,N)`, construct/review the gradient-headroom path and publish an allocation profile | 2 WP5 ✅ |
 
 ### The device inventory
 
@@ -1615,6 +1615,10 @@ typed, would put visibly wrong numbers on screen and into the session log.
 
 ### 5.9 Mapeamento kLa
 
+> **Implemented 2026-08-20 in Phase 2 WP5.** The three-column workspace, two scientific
+> plots, explicit lifecycle, complete parameter surface and immutable receipt flow follow
+> this contract. The operating/scientific procedure is in [KLA_MAPPING.md](KLA_MAPPING.md).
+
 **Purpose:** apply the paper method to experimental data inside the controller app:
 
 \[
@@ -1655,8 +1659,9 @@ display-only and does not invalidate scientific results.
 - **Right diagnostics, 320 px:** algorithm identity, units, domain, kLa range, residual
   summary, selected start, maximum/selected headroom, path length, allocation-point count
   and invalidation state.
-- **Footer:** `Reverter etapa`, `Estimar superfície`, `Calcular trajetória`, `Marcar como
-  revisada`, `Publicar perfil`. Only the action valid for the current stage is primary.
+- **Footer:** `Salvar rascunho`, `Estimar superfície`, `Calcular trajetória`, `Marcar
+  revisada`, `Publicar perfil`; a running numerical stage exposes cancellation/progress.
+  Only the action valid for the current stage is primary.
 
 The path search exposes progress/cancel rather than freezing the UI. Long numerical work
 runs outside the dispatcher and stale results are rejected by an input fingerprint. The
@@ -1940,8 +1945,8 @@ Charts appear in four places, and all four use `TrendChart` ([6.6](#66-trendchar
 | Motion | Flow animation **off by default**; motion in peripheral vision competes with alarms |
 | Text scaling | Layout survives 125 % and 150 % Windows scaling without clipping |
 
-**Current implementation.** The seven present destinations use `Ctrl+1`–`Ctrl+7`;
-Calibrações is 6, Configurações is 7, and the handler reserves `Ctrl+8`. `Ctrl+S`
+**Current implementation.** The eight present destinations use `Ctrl+1`–`Ctrl+8`;
+Calibrações is 6, Configurações is 7, and Mapeamento kLa is 8. `Ctrl+S`
 is likewise reserved for Receitas: before Phase 3 it opens command search on a disabled
 `Salvar receita` entry and states why it is unavailable. `Space` pauses Gráficos only
 when an input, button, list item, tab or data-grid cell does not own the key. Closing the

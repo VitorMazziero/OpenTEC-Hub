@@ -693,6 +693,13 @@
                     <views:SettingsView DataContext="{Binding Settings}" />
                 </Border>
             </Grid>
+
+            <!-- D-008: experimental map reconstruction and immutable path publication. -->
+            <views:KlaMappingView DataContext="{Binding KlaMapping}"
+                                  Visibility="{Binding DataContext.SelectedNavigationId,
+                                                       RelativeSource={RelativeSource AncestorType=Window},
+                                                       Converter={StaticResource EqualsToVis},
+                                                       ConverterParameter=kla-mapping}" />
         </Grid>
 
         <!-- Ctrl+K command palette. It stays a Popup so it overlays every destination

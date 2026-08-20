@@ -29,6 +29,23 @@ public sealed class FileInteractionService : IFileInteractionService
             : null;
     }
 
+    public string? ChooseOpenPath(string title, string filter, string extension)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = title,
+            Filter = filter,
+            DefaultExt = extension,
+            AddExtension = true,
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+
+        return dialog.ShowDialog(Application.Current?.MainWindow) == true
+            ? dialog.FileName
+            : null;
+    }
+
     public void OpenFolder(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

@@ -10,6 +10,57 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.14.0] - 2026-08-20
+
+Phase 2 WP5 — the D-008 kLa experimental mapping and allocation-profile workspace.
+It reproduces the current paper algorithm from operator-entered measurements; no paper
+surface or active production profile is bundled.
+
+### Added
+- **Mapeamento kLa**, the eighth currently implemented main destination (`Ctrl+8`): named experiments, metadata,
+  physical airflow/agitation domain, an editable measured `(Q_g,N,kLa)` table and a blank
+  3² coordinate helper. Incomplete worksheets save exactly as drafts without becoming
+  numerical input.
+- Pure managed reference pipeline: C1 Clough–Tocher reconstruction on 300² nodes, nearest
+  fill, reflected Gaussian smoothing, not-a-knot bicubic values/normalized derivatives,
+  SciPy-compatible adaptive RK45, 150² maximum-mean-headroom search, low-to-high path
+  orientation and monotonic kLa-to-`(Q_g,N)` allocation.
+- Professional two-plot scientific workspace: surface/contours, measured anchors, normalized
+  gradient arrows and selected path above the candidate-headroom landscape. Algorithm
+  identity, units, residuals, convex-hull coverage, start, headroom, range, allocation count,
+  warnings and fingerprints remain visible beside it.
+- Explicit `Rascunho → Superfície estimada → Trajetória válida → Revisada → Publicada`
+  lifecycle. Long stages run off the dispatcher with progress/cancel and reject stale
+  results by input fingerprint. Every numerical parameter is exposed; preview/custom runs
+  calculate but cannot publish as the paper method.
+- Create-only, versioned JSON receipts with complete inputs/settings, review note,
+  diagnostics, allocation and SHA-256 fingerprints. Read/export/load/import verify integrity;
+  export is byte-identical and import always becomes a new draft needing local review.
+- A parallel development-time SciPy oracle generator under `tools/kla-reference/`, plus
+  managed cross-language surface/derivative/path/headroom fixtures. Python is not a runtime
+  dependency.
+
+### Safety boundary
+- The fitting and receipt services do not depend on `IDeviceService`. Calculate, review,
+  publish, import and export send no commands and activate no profile. Live consumption is
+  WP6 work behind WP4 automatic ownership.
+- A clean profile store is empty. Test paper data remains in the test assembly only.
+
+### Verified
+- 289/289 headless tests pass, including SciPy numerical tolerances, full reference candidate
+  selection, monotonic/clamped allocation, scientific refusals, incomplete-draft round-trip,
+  version continuity, byte-for-byte reopen/export, receipt-tamper refusal, empty-install and
+  custom-publication refusal.
+- The full managed 150×150 search completes in about 3.2 s on the development machine.
+- Light/dark runtime review of the populated workspace recorded zero new XAML binding
+  failures or unhandled exceptions. Evidence: `docs/evidence/ui/phase2-wp5-kla-*.png`.
+
+### Documentation
+- Added [KLA_MAPPING.md](KLA_MAPPING.md), P2-08 in the phase log, WP5 completion evidence in
+  the roadmap, implementation detail in D-008/architecture and the SciPy BSD notice.
+
+---
+
 ## [0.13.0] - 2026-08-20
 
 Phase 2 WP4 (part 1) — the P0 command-path safety kernel: one arbiter owns the wire, a

@@ -980,3 +980,50 @@ journalled event today, not yet an ackable latched alarm. The remaining Phase 0 
 (busy-port handling, WMI/CH343 ranking, immutable snapshots, configured poll period, round-trip
 naming) is also still open. No automatic subsystem can send until the whole gate passes on the
 bioreactor.
+
+---
+
+### P2-08 · WP5 reproduces the paper method; headroom includes the RK45 sampling policy
+
+**Decided:** implement D-008 as a pure managed scientific pipeline and a dedicated main
+destination (`Ctrl+8`, the eighth currently implemented destination). Production begins with no map: the operator creates a named experiment, declares
+the physical `Q_g/N` domain, enters measured triples and moves explicitly through
+`Rascunho → Superfície estimada → Trajetória válida → Revisada → Publicada`. The 3² helper
+creates coordinates only; it never inserts a paper kLa value.
+
+**Numerical contract:** the executable oracle is the current paper script
+`analysis/1_kla_mapping_gradient/gradient_path_score.py`, not the older February workbook.
+The managed sequence is 300² Clough–Tocher, nearest fill, Gaussian `sigma=5`, zero-smoothing
+not-a-knot bicubic spline, normalized derivatives, a 150² candidate scan, bidirectional
+Dormand–Prince RK45, mean boundary headroom, low-to-high orientation and strictly increasing
+kLa allocation. The paper takes a plain mean over the adaptive solver's returned points;
+therefore SciPy's initial-step selection, RMS error norm, step-growth policy and dense event
+location are reproduced as part of the algorithm. Before that alignment, surface values
+matched while a 7² search selected the wrong start — a useful example of why a plausible plot
+is not a scientific fixture.
+
+**Operator decisions:** every reference parameter is visible. A fast preview or any custom
+value may calculate, but the identity changes to `Método parametrizado` and review/publication
+is refused until all reference values are restored. Incomplete or temporarily invalid table
+cells can be saved exactly as draft text but never enter a calculation. Surface/path work runs
+off the dispatcher with progress, cancellation and stale-input fingerprint rejection.
+
+**Publication boundary:** receipts are create-only, versioned JSON carrying inputs, method,
+diagnostics, allocation and surface/path fingerprints. Their SHA-256 is verified on load,
+read, export and import; export is byte-for-byte. Import always creates a new local draft and
+requires recomputation/review. The fitting layer has no command-service dependency and
+publication does not activate a profile. WP6 is the first consumer and must still acquire
+automatic ownership before it can command.
+
+**Evidence:** managed-vs-SciPy fixtures cover surface values, normalized derivatives, fixed
+path endpoints/headroom and the full 150² candidate selection with declared tolerances. The
+fresh SciPy 1.17.1 oracle selects `(q,n)=(0.5972959732,0.6308463087)` with
+`H=0.2024300198`; the managed result agrees to `1e-10`. Draft round-trip,
+receipt versioning, byte identity, tamper refusal, blank-install and custom-publication refusal
+are headless tests. The complete 150² managed search takes about 3.2 s on the development
+machine. The reproducible oracle generator and precise operator/scientific contract are in
+`tools/kla-reference/` and [KLA_MAPPING.md](KLA_MAPPING.md).
+
+**Boundary:** this is an implementation-parity result on the paper dataset, not biological
+validation of a new broth. WP5 neither activates nor sends the allocation, and the bioreactor
+hardware/cultivation gate remains open for WP6.

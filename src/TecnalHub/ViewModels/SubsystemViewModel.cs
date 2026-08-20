@@ -19,12 +19,30 @@ namespace TecnalHub.ViewModels;
 /// must agree, and separating them is how a UI comes to accept a value the device
 /// will reject.
 /// </remarks>
+/// <param name="HasOutput">
+/// True where the app can show what the actuator is actually doing. Flow can: the wire
+/// reports valve states and the vent flag. Temperature cannot - its controller lives
+/// inside the device.
+/// </param>
+/// <param name="HasCascade">True once an app-side cascade drives this loop. Phase 2.</param>
+/// <param name="HasPid">
+/// True only where an app-side controller exists to have terms. <b>The firmware has no
+/// PID keys at all</b> - it accepts setpoints - so a PID tab anywhere else would describe
+/// a controller this application cannot observe. See docs/UI_DESIGN.md section 2, item 7.
+/// </param>
+/// <param name="HasCalibration">True where raw counts are decoded on the PC side.</param>
+/// <param name="HasHealth">False where the wire reports nothing to be healthy about.</param>
 public sealed record SubsystemSpec(
     double Minimum,
     double Maximum,
     bool IsInteger,
     Func<double, TecnalCommand> BuildApply,
-    Func<TecnalCommand> BuildDisable);
+    Func<TecnalCommand> BuildDisable,
+    bool HasOutput = false,
+    bool HasCascade = false,
+    bool HasPid = false,
+    bool HasCalibration = false,
+    bool HasHealth = true);
 
 /// <summary>
 /// One controllable subsystem: its live reading, its setpoint entry, and the rules
@@ -36,7 +54,7 @@ public sealed record SubsystemSpec(
 /// in a bare <c>except</c> that substituted a plausible default - a typo in the pH
 /// field sent setpoint 7 to the reactor and said nothing. Here a value that does not
 /// parse, or falls outside the device's range, blocks the send and is shown as an
-/// error. See <c>docs/UI_DESIGN.md</c> section 4.
+/// error. See <c>docs/UI_DESIGN.md</c> section 9.
 /// </para>
 /// <para>
 /// A typed value that has not yet been acknowledged is also visually distinct from
@@ -71,11 +89,50 @@ public sealed partial class SubsystemViewModel : ObservableObject
         SetpointText = Format(initialSetpoint);
         Validate();
 
+        // FormattedDeviation is computed from the variable's reading and setpoint, so it
+        // has to be told when either moves. Without this the delta shows whatever it was
+        // when the pane was built and then quietly stops - the sort of stale number this
+        // application exists to avoid.
+        Variable.PropertyChanged += OnVariableChanged;
+
         _initialised = true;
+    }
+
+    private void OnVariableChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ProcessVariableViewModel.Value)
+                           or nameof(ProcessVariableViewModel.Setpoint))
+        {
+            OnPropertyChanged(nameof(FormattedDeviation));
+        }
     }
 
     /// <summary>The live reading this subsystem drives.</summary>
     public ProcessVariableViewModel Variable { get; }
+
+    // ── Which detail-pane sections exist for this subsystem ──────────────────
+    // Not a uniform set. A tab that is always present regardless of what the device
+    // can do teaches the operator to ignore tabs.
+
+    public bool HasOutput => _spec.HasOutput;
+
+    public bool HasCascade => _spec.HasCascade;
+
+    public bool HasPid => _spec.HasPid;
+
+    public bool HasCalibration => _spec.HasCalibration;
+
+    public bool HasHealth => _spec.HasHealth;
+
+    /// <summary>
+    /// True when there is more than one section, so the segmented strip earns its space.
+    /// </summary>
+    /// <remarks>
+    /// A one-segment segmented control is a heading pretending to be a choice. With only
+    /// "SP &amp; Limites" - which is most subsystems in Phase 1 - the strip is hidden and
+    /// the content shown directly.
+    /// </remarks>
+    public bool ShowTabStrip => HasOutput || HasCascade || HasPid;
 
     public string DisplayName => Variable.DisplayName;
 
@@ -119,6 +176,32 @@ public sealed partial class SubsystemViewModel : ObservableObject
     /// <summary>Last value the device confirmed, or null before any send.</summary>
     [ObservableProperty]
     public partial double? AppliedSetpoint { get; set; }
+
+    /// <summary>
+    /// Signed distance from the acknowledged setpoint, or an em dash.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not coloured by sign. A positive deviation is not "good" and a
+    /// negative one is not "bad" - whether the process is healthy is what the state
+    /// chip says, and giving the number its own colour would put a sixth vocabulary
+    /// on screen competing with the five that carry meaning.
+    /// </remarks>
+    public string FormattedDeviation
+    {
+        get
+        {
+            if (Variable.Value is not { } value || Variable.Setpoint is not { } setpoint)
+            {
+                return "—";
+            }
+
+            var delta = value - setpoint;
+            var format = "+0." + new string('0', Variable.Decimals) + ";-0." +
+                         new string('0', Variable.Decimals) + ";0";
+
+            return delta.ToString(format, CultureInfo.CurrentCulture);
+        }
+    }
 
     public bool IsValid => ValidationError is null;
 

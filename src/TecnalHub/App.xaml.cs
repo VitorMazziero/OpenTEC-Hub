@@ -44,6 +44,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
         ConfigureLogging();
+        WireBindingDiagnostics();
 
         var services = new ServiceCollection();
         ConfigureServices(services);
@@ -58,6 +59,49 @@ public partial class App : Application
         window.ContentRendered += OnShellRendered;
         MainWindow = window;
         window.Show();
+    }
+
+    /// <summary>
+    /// Routes WPF data-binding failures into the log.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A failed binding is silent.</b> WPF resolves it to nothing, the property keeps
+    /// its default, and the window renders looking almost right. That is how
+    /// <c>{Binding SelectedSubsystem, RelativeSource={RelativeSource AncestorType=Window}}</c>
+    /// - which asks the Window object for a property only its DataContext has - put two
+    /// detail panes on screen at once during Phase 1b, with nothing anywhere reporting a
+    /// problem.
+    /// </para>
+    /// <para>
+    /// Debug only: the listener costs a trace hop per binding failure, and a shipped
+    /// build should have none left to report.
+    /// </para>
+    /// </remarks>
+    [Conditional("DEBUG")]
+    private static void WireBindingDiagnostics()
+    {
+        PresentationTraceSources.Refresh();
+
+        var source = PresentationTraceSources.DataBindingSource;
+        source.Listeners.Add(new BindingFailureListener());
+        source.Switch.Level = SourceLevels.Warning | SourceLevels.Error;
+    }
+
+    /// <summary>Writes binding-failure traces to Serilog.</summary>
+    private sealed class BindingFailureListener : TraceListener
+    {
+        public override void Write(string? message)
+        {
+        }
+
+        public override void WriteLine(string? message)
+        {
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                Serilog.Log.Warning("XAML binding failure: {Message}", message);
+            }
+        }
     }
 
     private void OnShellRendered(object? sender, EventArgs e)

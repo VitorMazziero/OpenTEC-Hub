@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TecnalHub.Protocol;
+using TecnalHub.Services.Telemetry;
 
 namespace TecnalHub.ViewModels;
 
@@ -60,7 +61,8 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         string unit,
         int decimals = 1,
         bool isControllable = true,
-        bool isCommandedOnly = false)
+        bool isCommandedOnly = false,
+        TelemetryChannel? channel = null)
     {
         Id = id;
         DisplayName = displayName;
@@ -68,6 +70,7 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         Decimals = decimals;
         IsControllable = isControllable;
         IsCommandedOnly = isCommandedOnly;
+        Channel = channel;
     }
 
     /// <summary>Stable identifier, used for selection and persistence.</summary>
@@ -79,6 +82,16 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     public string Unit { get; }
 
     public int Decimals { get; }
+
+    /// <summary>
+    /// Series in the history buffer, for the detail pane's inline trend.
+    /// </summary>
+    /// <remarks>
+    /// Null where nothing is recorded. The variable knows which channel it is; the pane
+    /// does not have to carry a lookup table that would drift the moment a variable is
+    /// added.
+    /// </remarks>
+    public TelemetryChannel? Channel { get; }
 
     /// <summary>False for read-only readings such as pressure.</summary>
     public bool IsControllable { get; }
@@ -114,6 +127,17 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     /// <summary>True while the subsystem is enabled on the device.</summary>
     [ObservableProperty]
     public partial bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// True when this is the variable the shell has selected.
+    /// </summary>
+    /// <remarks>
+    /// Lives on the variable rather than on each view because selection has to look the
+    /// same in the KPI strip, the variable rail and the synoptic simultaneously - they
+    /// are three windows onto one selection, not three selections.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
 
     /// <summary>True when the reading is real rather than a sentinel.</summary>
     public bool HasValue => Value is not null;

@@ -1,0 +1,29 @@
+<UserControl x:Class="TecnalHub.Controls.Icon"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+
+    <!-- The Path is scaled by a RenderTransform rather than by Stretch, and the
+         pen is pre-divided by that scale. Stretch would fold the stroke into the
+         layout bounds, so a thicker pen would visibly shrink the glyph; this way
+         the geometry always occupies exactly Size pixels and the rendered stroke
+         is always ~1.5 px. See Icon.xaml.cs. -->
+
+    <Grid Width="{Binding Size, ElementName=Root}"
+          Height="{Binding Size, ElementName=Root}">
+        <Path Data="{Binding Geometry, ElementName=Root}"
+              Stroke="{Binding Stroke, ElementName=Root}"
+              StrokeThickness="{Binding PenThickness, ElementName=Root}"
+              StrokeLineJoin="Round"
+              StrokeStartLineCap="Round"
+              StrokeEndLineCap="Round"
+              Fill="{x:Null}"
+              VerticalAlignment="Top"
+              HorizontalAlignment="Left">
+            <Path.RenderTransform>
+                <ScaleTransform ScaleX="{Binding Scale, ElementName=Root}"
+                                ScaleY="{Binding Scale, ElementName=Root}" />
+            </Path.RenderTransform>
+        </Path>
+    </Grid>
+</UserControl>

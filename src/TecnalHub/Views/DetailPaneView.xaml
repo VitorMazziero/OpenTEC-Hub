@@ -1,8 +1,9 @@
-﻿<UserControl x:Class="TecnalHub.Views.DetailPaneView"
+<UserControl x:Class="TecnalHub.Views.DetailPaneView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:TecnalHub.Converters"
              xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             xmlns:ctl="clr-namespace:TecnalHub.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -10,114 +11,37 @@
 
     <!-- ══════════════════════════════════════════════════════════════════════
          DETAIL PANE
-         The selected subsystem's controls. Only one subsystem's controls are on
-         screen at a time - that is what stops twelve of them becoming the wall
-         the v.6 card board was.
+         The selected subsystem's controls. One subsystem at a time - that is what
+         stops twelve of them becoming the wall the v.6 card board was.
+
+         The hierarchy is fixed and the same for every device:
+             what is happening now   -> PV / SP / Δ
+             how has it behaved      -> trend
+             how is it controlled    -> mode and the section tabs
+             what engineering exists -> calibration, health, advanced
+         Only WHICH sections appear varies, and it varies with what the device can
+         actually do. See docs/UI_DESIGN.md section 6.1.
          ══════════════════════════════════════════════════════════════════════ -->
 
     <UserControl.Resources>
-        <conv:StateToBrushConverter x:Key="StateToBrush" />
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
-    </UserControl.Resources>
 
-    <Border Background="{DynamicResource SurfaceCardBrush}"
-            BorderBrush="{DynamicResource StrokeDefaultBrush}"
-            BorderThickness="1"
-            CornerRadius="{DynamicResource RadiusMedium}"
-            Padding="18">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <!-- SP & Limites. Shown inside the segmented strip where one exists, and
+             directly where it does not - same template either way, so the two
+             paths cannot drift. -->
+        <DataTemplate x:Key="SetpointSectionTemplate" DataType="{x:Type vm:SubsystemViewModel}">
             <StackPanel>
+                <ctl:SetpointField Label="Setpoint" />
 
-                <!-- ── Heading ────────────────────────────────────────────── -->
-                <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,8,0"
-                             Fill="{Binding Variable.State, Converter={StaticResource StateToBrush}}" />
-                    <TextBlock Text="{Binding DisplayName}"
-                               FontSize="{DynamicResource FontSizeSubtitle}"
-                               FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                    <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                  VerticalAlignment="Center"
+                                  AutomationProperties.Name="Subsistema ativo"
+                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                    <TextBlock Text="Subsistema ativo" Margin="10,0,0,0"
+                               VerticalAlignment="Center" />
                 </StackPanel>
-
-                <!-- ── Live reading ───────────────────────────────────────── -->
-                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                    <TextBlock Text="{Binding Variable.FormattedValue}"
-                               Style="{StaticResource ReadoutTextStyle}" />
-                    <TextBlock Text="{Binding Unit}"
-                               Margin="6,0,0,5"
-                               VerticalAlignment="Bottom"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                </StackPanel>
-
-                <!-- Agitation reports no feedback, so its figure is what was
-                     commanded. Saying so beats implying a measurement. -->
-                <TextBlock Text="Valor comandado — o equipamento não informa leitura desta variável."
-                           Style="{StaticResource CaptionTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="0,2,0,0"
-                           Visibility="{Binding Variable.IsCommandedOnly, Converter={StaticResource BoolToVis}}" />
-
-                <Separator Margin="0,16,0,16" />
-
-                <!-- ── Setpoint entry ─────────────────────────────────────── -->
-                <TextBlock Text="Setpoint" Style="{StaticResource CaptionTextStyle}" />
-
-                <Grid Margin="0,6,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBox Grid.Column="0"
-                             Text="{Binding SetpointText, UpdateSourceTrigger=PropertyChanged}"
-                             FontFamily="{DynamicResource FontNumeric}"
-                             FontSize="15">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                <Style.Triggers>
-                                    <!-- Invalid input is shown as invalid. It is never
-                                         quietly replaced with a plausible default. -->
-                                    <DataTrigger Binding="{Binding IsValid}" Value="False">
-                                        <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
-                                        <Setter Property="BorderThickness" Value="2" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-
-                    <TextBlock Grid.Column="1" Text="{Binding Unit}"
-                               VerticalAlignment="Center" Margin="8,0,0,0"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                </Grid>
-
-                <TextBlock Text="{Binding RangeHint}"
-                           Style="{StaticResource CaptionTextStyle}"
-                           Margin="0,4,0,0" />
-
-                <!-- Validation message -->
-                <TextBlock Text="{Binding ValidationError}"
-                           TextWrapping="Wrap"
-                           Margin="0,6,0,0"
-                           FontSize="{DynamicResource FontSizeCaption}"
-                           Foreground="{DynamicResource StateAlarmBrush}"
-                           Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}" />
-
-                <!-- A typed value the device has not acknowledged looks different
-                     from one it has. v.6 gave no indication at all. -->
-                <Border Margin="0,10,0,0" Padding="8,5"
-                        CornerRadius="{DynamicResource RadiusSmall}"
-                        Background="{DynamicResource SurfaceSunkenBrush}"
-                        Visibility="{Binding HasPendingChange, Converter={StaticResource BoolToVis}}">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="6" Height="6" VerticalAlignment="Center" Margin="0,0,7,0"
-                                 Fill="{DynamicResource StateWarningBrush}" />
-                        <TextBlock Text="Não aplicado" Style="{StaticResource CaptionTextStyle}" />
-                    </StackPanel>
-                </Border>
-
-                <CheckBox Content="Subsistema ativo"
-                          Margin="0,14,0,0"
-                          IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
 
                 <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                     <Button Content="Aplicar"
@@ -129,33 +53,250 @@
                             IsEnabled="{Binding HasPendingChange}" />
                 </StackPanel>
 
-                <Separator Margin="0,18,0,14" />
-
-                <!-- ── Acknowledged state ─────────────────────────────────── -->
-                <Grid>
+                <Grid Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
+                        <RowDefinition /><RowDefinition />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Aplicado"
                                Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Grid.Row="0" Grid.Column="1"
-                               HorizontalAlignment="Right"
-                               FontFamily="{DynamicResource FontNumeric}" FontSize="11"
+                    <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right"
+                               Style="{StaticResource NumericTextStyle}" FontSize="11"
                                Text="{Binding AppliedSetpoint, TargetNullValue=—}" />
 
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Confirmado pelo equipamento"
                                Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Grid.Row="1" Grid.Column="1"
-                               HorizontalAlignment="Right"
-                               FontFamily="{DynamicResource FontNumeric}" FontSize="11"
+                    <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right"
+                               Style="{StaticResource NumericTextStyle}" FontSize="11"
                                Text="{Binding Variable.FormattedSetpoint}" />
                 </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Saída. Only flow has one in Phase 1: it is the single core subsystem
+             whose actuator state comes back on the wire. -->
+        <DataTemplate x:Key="OutputSectionTemplate" DataType="{x:Type vm:SubsystemViewModel}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition /><RowDefinition />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Comandado pelo aplicativo"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right"
+                               Style="{StaticResource NumericTextStyle}" FontSize="11"
+                               Text="{Binding AppliedSetpoint, TargetNullValue=—}" />
+
+                    <!-- The device echoes the setpoint it accepted. When this disagrees
+                         with the line above, the command did not land - which is exactly
+                         the case v.6 could not show. -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Eco do equipamento"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right"
+                               Style="{StaticResource NumericTextStyle}" FontSize="11"
+                               Text="{Binding Variable.FormattedSetpoint}" />
+                </Grid>
+
+                <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                           Margin="0,12,0,0"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           Text="Estado das válvulas e do vent fica em Controle, junto do resto do caminho de gás." />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource SurfaceCardBrush}"
+            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusMedium}"
+            Padding="18">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- ── Header ─────────────────────────────────────────────── -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                               FontSize="{DynamicResource FontSizeSubtitle}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <ctl:StateChip Grid.Column="1" State="{Binding Variable.State}"
+                                   VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Margin="10,0,0,0" Padding="4"
+                            Background="Transparent" BorderThickness="0"
+                            AutomationProperties.Name="Fechar painel"
+                            ToolTip="Fechar"
+                            Command="{Binding DataContext.ClearSelectionCommand,
+                                      RelativeSource={RelativeSource AncestorType=Window}}">
+                        <TextBlock Text="✕" FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                    </Button>
+                </Grid>
+
+                <!-- ── PV / SP / Δ ────────────────────────────────────────────
+                     The three numbers that answer "what is happening now". PV
+                     dominates: the operator's eye should find the measurement
+                     without reading a label. -->
+                <Grid Margin="0,16,4,0">
+                    <Grid.ColumnDefinitions>
+                        <!-- PV takes only what it needs and the slack sits between the
+                             readout and its two companions, so SP and Δ stay a pair
+                             rather than drifting apart with the pane width. -->
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" MinWidth="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="PV" Style="{StaticResource CaptionTextStyle}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Variable.FormattedValue}"
+                                       Style="{StaticResource ReadoutTextStyle}" />
+                            <TextBlock Text="{Binding Unit}" Margin="5,0,0,5"
+                                       VerticalAlignment="Bottom"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,16,3">
+                        <TextBlock Text="SP" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding Variable.FormattedSetpoint}"
+                                   Style="{StaticResource NumericTextStyle}"
+                                   FontSize="18" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" VerticalAlignment="Bottom" Margin="0,0,0,3">
+                        <TextBlock Text="Δ" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding FormattedDeviation}"
+                                   Style="{StaticResource NumericTextStyle}"
+                                   FontSize="18"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                </Grid>
+
+                <ctl:ProvenanceBadge Margin="0,8,0,0"
+                                     Visibility="{Binding Variable.IsCommandedOnly, Converter={StaticResource BoolToVis}}" />
+
+                <!-- ── Trend ──────────────────────────────────────────────── -->
+                <ctl:TrendSpark Margin="0,14,0,0"
+                                PlotHeight="120"
+                                Channel="{Binding Variable.Channel}"
+                                Setpoint="{Binding Variable.Setpoint}"
+                                History="{Binding DataContext.History,
+                                          RelativeSource={RelativeSource AncestorType=Window}}" />
+
+                <Separator Margin="0,16,0,14" />
+
+                <!-- ── Control ────────────────────────────────────────────── -->
+                <TextBlock Text="Controle" FontWeight="SemiBold"
+                           Style="{StaticResource CaptionTextStyle}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,0,10" />
+
+                <!-- The segmented strip appears only where there is more than one
+                     section to choose between. Most Phase 1 subsystems have just
+                     "SP & Limites", and a one-segment control is a heading
+                     pretending to be a choice. -->
+                <TabControl Style="{StaticResource SegmentedControlStyle}"
+                            Visibility="{Binding ShowTabStrip, Converter={StaticResource BoolToVis}}">
+                    <TabItem Header="SP &amp; Limites">
+                        <ContentControl ContentTemplate="{StaticResource SetpointSectionTemplate}"
+                                        Content="{Binding}" />
+                    </TabItem>
+                    <TabItem Header="Saída"
+                             Visibility="{Binding HasOutput, Converter={StaticResource BoolToVis}}">
+                        <ContentControl ContentTemplate="{StaticResource OutputSectionTemplate}"
+                                        Content="{Binding}" />
+                    </TabItem>
+                    <TabItem Header="Cascata"
+                             Visibility="{Binding HasCascade, Converter={StaticResource BoolToVis}}" />
+                    <TabItem Header="PID"
+                             Visibility="{Binding HasPid, Converter={StaticResource BoolToVis}}" />
+                </TabControl>
+
+                <ContentControl ContentTemplate="{StaticResource SetpointSectionTemplate}"
+                                Content="{Binding}"
+                                Visibility="{Binding ShowTabStrip,
+                                             Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+
+                <!-- ── Engineering ────────────────────────────────────────────
+                     Progressively denser toward the bottom: overview, control,
+                     then the things looked at once a week. -->
+                <Separator Margin="0,16,0,4" />
+
+                <Expander Visibility="{Binding HasCalibration, Converter={StaticResource BoolToVis}}">
+                    <Expander.Header>
+                        <TextBlock Text="Calibração" />
+                    </Expander.Header>
+                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                               Text="O equipamento envia contagens brutas; a conversão é feita no aplicativo. Os coeficientes ficam em Configurações → Calibração das sondas." />
+                </Expander>
+
+                <Expander Visibility="{Binding HasHealth, Converter={StaticResource BoolToVis}}">
+                    <Expander.Header>
+                        <TextBlock Text="Saúde do sensor" />
+                    </Expander.Header>
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition /><RowDefinition /><RowDefinition />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Última leitura aceita"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right"
+                                       Style="{StaticResource NumericTextStyle}" FontSize="11"
+                                       Text="{Binding DataContext.LastUpdateText,
+                                              RelativeSource={RelativeSource AncestorType=Window}}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Sinal presente"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding Variable.HasValue}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Estado"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                            <ctl:StateChip Grid.Row="2" Grid.Column="1" HorizontalAlignment="Right"
+                                           State="{Binding Variable.State}" />
+                        </Grid>
+
+                        <!-- Honest about its own limits. Raw counts and the spike
+                             filter's hold state are inside the parser and are not
+                             exposed yet; claiming to show sensor health while
+                             omitting the filter would be worse than saying so. -->
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                                   Margin="0,10,0,0"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Text="Contagem bruta, estado do filtro de spike e amostras rejeitadas exigem expor o estado do parser — ainda não disponível." />
+                    </StackPanel>
+                </Expander>
+
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="Configurações avançadas" />
+                    </Expander.Header>
+                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                               Text="Filtros, calibração, conexão e comandos do equipamento ficam em Configurações." />
+                </Expander>
             </StackPanel>
         </ScrollViewer>
     </Border>

@@ -15,7 +15,7 @@ namespace TecnalHub.ViewModels;
 /// Connecting was the only reason most operators ever opened v.6's Configurations
 /// window, so it stops being a destination: the chip shows the link, the popover
 /// carries the few controls that matter, and everything else moves to Advanced
-/// Settings. See <c>docs/UI_DESIGN.md</c> section 3.
+/// Settings. See <c>docs/UI_DESIGN.md</c> section 8.
 /// </remarks>
 public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
 {

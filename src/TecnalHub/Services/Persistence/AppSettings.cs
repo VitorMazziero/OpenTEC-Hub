@@ -42,7 +42,20 @@ public sealed record AppSettings
 
     public LoggingSettings Logging { get; init; } = new();
 
-    public ThemePreference Theme { get; init; } = ThemePreference.System;
+    public UiSettings Ui { get; init; } = new();
+
+    /// <summary>
+    /// Colour theme. <b>Light by default, even when Windows is set to dark.</b>
+    /// </summary>
+    /// <remarks>
+    /// Light is the primary designed theme: a laboratory runs eight-hour
+    /// cultivations and needs the brighter workspace for graphs, numbers and the
+    /// process diagram. Dark exists for low-light rooms and is chosen
+    /// deliberately, not inherited from the desktop. <see cref="ThemePreference.System"/>
+    /// remains available for anyone who wants the app to follow Windows.
+    /// See <c>docs/UI_DESIGN.md</c> section 1.3.
+    /// </remarks>
+    public ThemePreference Theme { get; init; } = ThemePreference.Light;
 
     /// <summary>Projects calibration and filter settings onto the protocol layer.</summary>
     public ParserConfig ToParserConfig() => new()
@@ -145,6 +158,32 @@ public sealed record SetpointSettings
     public double FlowLitresPerMinute { get; init; } = 1.0;
     public double MaxFlowLitresPerMinute { get; init; } = 50.0;
     public double PressureKilopascal { get; init; } = 100.0;
+}
+
+/// <summary>
+/// Shell layout choices the operator makes and expects to find again.
+/// </summary>
+/// <remarks>
+/// These are preferences, not configuration: nothing here reaches the wire. They are
+/// persisted because a KPI strip that forgets its tiles every launch is worse than one
+/// that cannot be configured at all.
+/// </remarks>
+public sealed record UiSettings
+{
+    /// <summary>
+    /// Variables shown in the KPI strip, in order. Empty means "use the default set".
+    /// </summary>
+    /// <remarks>
+    /// Stored as ids rather than indices so adding a variable in a later phase cannot
+    /// silently re-point an operator's pinned set at the wrong readings.
+    /// </remarks>
+    public string[] PinnedKpis { get; init; } = [];
+
+    /// <summary>
+    /// Option B's variable rail. Off by default: process-first, instrumentation-dense
+    /// only when asked for. See <c>docs/UI_DESIGN.md</c> section 1.1.
+    /// </summary>
+    public bool ShowVariableRail { get; init; }
 }
 
 /// <summary>Where session data is written.</summary>

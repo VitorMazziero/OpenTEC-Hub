@@ -1,0 +1,20 @@
+<UserControl x:Class="TecnalHub.Controls.StateDot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             x:Name="Root">
+
+    <!-- One of the only two ways state colour reaches the screen; the other is
+         StateChip. Hand-rolling an Ellipse with a converter is how eight
+         slightly different dot sizes end up in the same application. -->
+
+    <UserControl.Resources>
+        <conv:StateToBrushConverter x:Key="StateToBrush" />
+    </UserControl.Resources>
+
+    <Ellipse Width="{Binding Size, ElementName=Root}"
+             Height="{Binding Size, ElementName=Root}"
+             VerticalAlignment="Center"
+             Fill="{Binding State, ElementName=Root, Converter={StaticResource StateToBrush}}"
+             ToolTip="{Binding Label, ElementName=Root}" />
+</UserControl>

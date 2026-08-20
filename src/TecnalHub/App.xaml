@@ -10,6 +10,10 @@
                 <ResourceDictionary Source="Themes/Tokens.Light.xaml" />
                 <ResourceDictionary Source="Themes/Tokens.Shared.xaml" />
                 <ResourceDictionary Source="Themes/Controls.xaml" />
+                <!-- Icon geometries. Vector paths, never an icon font - see the
+                     header of Icons.xaml. Order is irrelevant here; only slot 0
+                     is meaningful, and ThemeService owns it. -->
+                <ResourceDictionary Source="Resources/Icons/Icons.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

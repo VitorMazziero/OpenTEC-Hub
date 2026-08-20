@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Windows;
+using System.Windows.Media;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using TecnalHub.Services.Persistence;
@@ -16,14 +18,21 @@ public interface IThemeService
 }
 
 /// <summary>
-/// Swaps the active token dictionary in <see cref="Application.Resources"/>.
+/// Refills the active token dictionary in <see cref="Application.Resources"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Only slot 0 of the merged dictionaries is replaced - the light/dark tokens. Every
-/// brush in <c>Tokens.Shared.xaml</c> resolves its colour through
-/// <c>DynamicResource</c>, so replacing that one dictionary repaints the whole tree
-/// without rebuilding it.
+/// Slot 0 of the merged dictionaries holds the light/dark colours. Every brush in
+/// <c>Tokens.Shared.xaml</c> resolves its colour from there through
+/// <c>DynamicResource</c>, so changing those entries repaints the whole tree without
+/// rebuilding it.
+/// </para>
+/// <para>
+/// <b>The entries are replaced, not the dictionary.</b> This originally assigned
+/// <c>MergedDictionaries[0]</c> a new dictionary, which does not invalidate
+/// <c>DynamicResource</c> references already resolved in a live visual tree. The effect
+/// was that the theme worked at startup - applied before the window was shown - and the
+/// in-app toggle silently did nothing at all. See <see cref="_live"/>.
 /// </para>
 /// <para>
 /// Under <see cref="ThemePreference.System"/> the Windows app theme is tracked live,
@@ -42,6 +51,20 @@ public sealed class ThemeService : IThemeService, IDisposable
     private readonly ILogger<ThemeService> _log;
     private ThemePreference _preference = ThemePreference.System;
     private bool _watchingSystem;
+
+    /// <summary>
+    /// The theme dictionary in slot 0, owned by this service and never replaced.
+    /// </summary>
+    /// <remarks>
+    /// <b>Replacing a merged dictionary does not repaint a live visual tree.</b> The
+    /// brushes in Tokens.Shared.xaml resolve their Color through DynamicResource against
+    /// slot 0, and assigning <c>MergedDictionaries[0]</c> does not invalidate those
+    /// references - the switch was silently a no-op after the first frame, so the theme
+    /// only ever appeared to work because it was applied before the window was shown.
+    /// Assigning entries INTO a live dictionary does invalidate, so slot 0 is created
+    /// once and only its contents change.
+    /// </remarks>
+    private ResourceDictionary? _live;
 
     public ThemeService(ILogger<ThemeService> log) => _log = log;
 
@@ -74,20 +97,105 @@ public sealed class ThemeService : IThemeService, IDisposable
 
         IsDark = dark;
 
-        var dictionary = new ResourceDictionary { Source = dark ? DarkTokens : LightTokens };
+        var source = new ResourceDictionary { Source = dark ? DarkTokens : LightTokens };
         var merged = application.Resources.MergedDictionaries;
 
-        if (merged.Count == 0)
+        // Slot 0 is the theme by convention; see App.xaml. On the first call we swap
+        // App.xaml's boot dictionary for one this service owns, then never replace it
+        // again - only its entries change.
+        if (_live is null)
         {
-            merged.Add(dictionary);
-        }
-        else
-        {
-            // Slot 0 is the theme by convention; see App.xaml.
-            merged[0] = dictionary;
+            _live = [];
+
+            if (merged.Count == 0)
+            {
+                merged.Add(_live);
+            }
+            else
+            {
+                merged[0] = _live;
+            }
         }
 
-        _log.LogInformation("Theme applied: {Theme}", dark ? "dark" : "light");
+        foreach (DictionaryEntry entry in source)
+        {
+            _live[entry.Key] = entry.Value;
+        }
+
+        var repainted = RepaintBrushes(merged);
+
+        _log.LogInformation(
+            "Theme applied: {Theme} ({Count} brushes repainted)",
+            dark ? "dark" : "light", repainted);
+    }
+
+    /// <summary>
+    /// Pushes the new colours into the live brush objects.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what actually repaints the application, and it cannot be done in
+    /// XAML.</b> The brushes live in <c>Tokens.Shared.xaml</c> and the colours in the
+    /// theme dictionary beside it - <i>sibling</i> merged dictionaries. A
+    /// <c>DynamicResource</c> written inside one resource dictionary that points at a
+    /// key in a sibling resolves correctly the first time it is read and is then never
+    /// re-evaluated: WPF invalidates the visual tree when a dictionary changes, but a
+    /// brush sitting in another dictionary is not in the visual tree.
+    /// </para>
+    /// <para>
+    /// The result was a theme system that looked right whenever it was applied before
+    /// the window appeared, and did nothing at all afterwards - the in-app toggle was
+    /// silently inert. Assigning <see cref="SolidColorBrush.Color"/> on the existing
+    /// brush instance repaints reliably, because every element in the tree already holds
+    /// that instance.
+    /// </para>
+    /// <para>
+    /// Pairing is by convention: <c>FooBrush</c> takes its colour from <c>FooColor</c>.
+    /// A brush whose colour key is missing keeps its current value rather than throwing,
+    /// but that is a bug in the token files and <c>TokenParityTests</c> is what catches
+    /// it.
+    /// </para>
+    /// </remarks>
+    private int RepaintBrushes(IEnumerable<ResourceDictionary> dictionaries)
+    {
+        const string BrushSuffix = "Brush";
+        var repainted = 0;
+
+        foreach (var dictionary in dictionaries)
+        {
+            if (ReferenceEquals(dictionary, _live))
+            {
+                continue;
+            }
+
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                if (entry.Key is not string key ||
+                    !key.EndsWith(BrushSuffix, StringComparison.Ordinal) ||
+                    entry.Value is not SolidColorBrush brush)
+                {
+                    continue;
+                }
+
+                if (brush.IsFrozen)
+                {
+                    // Would throw on assignment. A frozen token brush means someone
+                    // removed its DynamicResource, which silently disables theming.
+                    _log.LogWarning("Token brush {Key} is frozen and cannot follow the theme", key);
+                    continue;
+                }
+
+                var colourKey = string.Concat(key.AsSpan(0, key.Length - BrushSuffix.Length), "Color");
+
+                if (_live?[colourKey] is Color colour && brush.Color != colour)
+                {
+                    brush.Color = colour;
+                    repainted++;
+                }
+            }
+        }
+
+        return repainted;
     }
 
     /// <remarks>

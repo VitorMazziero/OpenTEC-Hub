@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -10,8 +11,81 @@ using TecnalHub.Services.Theme;
 
 namespace TecnalHub.ViewModels;
 
+/// <summary>
+/// Who is allowed to put commands on the wire.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>One command queue, one owner.</b> A running recipe and an operator must not be able
+/// to fight over the link, which is the rule [D-009] sets for the recipe engine. Making
+/// ownership explicit and visible is cheaper than discovering mid-cultivation that two
+/// things were writing setpoints.
+/// </para>
+/// <para>
+/// Only <see cref="Manual"/> is reachable today: the cascade arrives in Phase 2 and the
+/// recipe engine in Phase 3. The other two are shown disabled with a reason rather than
+/// hidden, so the model the application is built around is visible from the start.
+/// </para>
+/// </remarks>
+public enum CommandOwner
+{
+    /// <summary>The operator writes setpoints.</summary>
+    Manual,
+
+    /// <summary>The cascade controller owns its actuators. Phase 2.</summary>
+    Automatic,
+
+    /// <summary>The recipe engine owns everything it declares. Phase 3.</summary>
+    Recipe,
+}
+
+/// <summary>One selectable owner, with the reason it may not be selectable yet.</summary>
+public sealed record CommandOwnerOption(CommandOwner Owner, string Label, string? UnavailableReason)
+{
+    public bool IsAvailable => UnavailableReason is null;
+
+    public override string ToString() => Label;
+}
+
+/// <summary>A variable offered to the KPI strip's configuration list.</summary>
+public sealed partial class KpiOption : ObservableObject
+{
+    public KpiOption(ProcessVariableViewModel variable, bool isPinned)
+    {
+        Variable = variable;
+        IsPinned = isPinned;
+    }
+
+    public ProcessVariableViewModel Variable { get; }
+
+    public string DisplayName => Variable.DisplayName;
+
+    [ObservableProperty]
+    public partial bool IsPinned { get; set; }
+}
+
 /// <summary>A destination in the navigation rail.</summary>
-public sealed record NavigationItem(string Id, string Label, string Glyph);
+/// <param name="Id">Stable identifier, used for selection and persistence.</param>
+/// <param name="Label">pt-BR text shown in the rail.</param>
+/// <param name="Glyph">
+/// <para>
+/// Short icon name, resolved by <c>Icon.Key</c> against
+/// <c>Resources/Icons/Icons.xaml</c>. A plain string rather than a <c>Geometry</c> so
+/// no WPF type reaches the ViewModel.
+/// </para>
+/// <para>
+/// These were previously Segoe MDL2 Assets codepoints (<c></c> and friends).
+/// Nothing ever set an icon font, so they would have rendered as tofu had anything
+/// bound them - and an icon font would have been the wrong answer regardless, because
+/// the Fluent set is Windows 11 only. See the header of <c>Icons.xaml</c>.
+/// </para>
+/// </param>
+/// <param name="StartsGroup">
+/// Draws a divider above this item. The rail is grouped Operação / Registro / Sistema,
+/// with a rule and no heading - a heading per group would cost more vertical space than
+/// the grouping saves at four destinations.
+/// </param>
+public sealed record NavigationItem(string Id, string Label, string Glyph, bool StartsGroup = false);
 
 /// <summary>
 /// Shell state: navigation, the always-visible KPI strip, and the live variables.
@@ -19,7 +93,7 @@ public sealed record NavigationItem(string Id, string Label, string Glyph);
 /// <remarks>
 /// Owns the single set of <see cref="ProcessVariableViewModel"/> instances that the
 /// KPI strip, synoptic and detail pane all bind to, so those three views can never
-/// disagree about a value. See <c>docs/UI_DESIGN.md</c> section 2.
+/// disagree about a value. See <c>docs/UI_DESIGN.md</c> section 4.
 /// </remarks>
 public sealed partial class ShellViewModel : ObservableObject, IDisposable
 {
@@ -29,6 +103,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
     private readonly ILogger<ShellViewModel> _log;
+
+    /// <summary>Drives the liveness check and the status-bar clock.</summary>
+    private readonly DispatcherTimer _tick;
+
+    /// <summary>When the last accepted telemetry frame arrived.</summary>
+    private DateTimeOffset? _lastFrameAt;
+
+    /// <summary>Suppresses persistence while the constructor seeds the UI state.</summary>
+    private readonly bool _uiLoaded;
 
     public ShellViewModel(
         IDeviceService device,
@@ -51,16 +134,24 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Charts = charts;
         Settings = settings_;
 
-        Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1);
+        Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1, channel: TelemetryChannel.Temperature);
         // No RPM feedback exists on the wire, so this variable can only ever show
         // what was commanded.
         Motor = new ProcessVariableViewModel(
-            "motor", "Agitação", "rpm", decimals: 0, isCommandedOnly: true);
-        Oxygen = new ProcessVariableViewModel("oxygen", "Oxigênio", "%", decimals: 1);
-        Flow = new ProcessVariableViewModel("flow", "Vazão", "L/min", decimals: 2);
-        Pressure = new ProcessVariableViewModel("pressure", "Pressão", "kPa", decimals: 1, isControllable: false);
+            "motor", "Agitação", "rpm", decimals: 0, isCommandedOnly: true,
+            channel: TelemetryChannel.MotorRpm);
+        // pH is parsed, spike-filtered, calibrated and echoed back to the device as
+        // pHCal in Phase 1, and it is already offered as a chart channel. It had no
+        // tile, so the charts advertised a variable the dashboard denied existed.
+        // Read-only until Phase 2 brings the dosing loop.
+        Ph = new ProcessVariableViewModel("ph", "pH", "", decimals: 2, isControllable: false, channel: TelemetryChannel.PH);
+        Oxygen = new ProcessVariableViewModel("oxygen", "Oxigênio", "%", decimals: 1, channel: TelemetryChannel.Oxygen);
+        Flow = new ProcessVariableViewModel("flow", "Vazão", "L/min", decimals: 2, channel: TelemetryChannel.Flow);
+        Pressure = new ProcessVariableViewModel("pressure", "Pressão", "kPa", decimals: 1, isControllable: false,
+            channel: TelemetryChannel.Pressure);
 
-        Variables = [Temperature, Motor, Oxygen, Flow, Pressure];
+        // KPI-strip order, which is also the variable-rail order.
+        Variables = [Temperature, Ph, Oxygen, Motor, Flow, Pressure];
 
         // Ranges come from docs/PROTOCOL.md section 3.1 and are paired with the
         // command builders, so validation and the wire cannot drift apart.
@@ -78,13 +169,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new SubsystemViewModel(Motor,
                 new SubsystemSpec(50, 1000, IsInteger: true,
                     value => CommandBuilders.MotorSetpoint((int)value),
-                    () => CommandBuilders.MotorSetpoint(0)),
+                    () => CommandBuilders.MotorSetpoint(0),
+                    // The wire carries no RPM key at all, so there is no signal whose
+                    // health could be reported.
+                    HasHealth: false),
                 device, setpoints.MotorRpm),
 
             new SubsystemViewModel(Oxygen,
                 new SubsystemSpec(0, 100, IsInteger: false,
                     value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, value),
-                    () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0)),
+                    () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0),
+                    // Cascade, PID and output arrive with the Phase 2 controller. Until
+                    // then there is no app-side loop to have terms.
+                    HasCalibration: true),
                 device, setpoints.OxygenPercent),
 
             new SubsystemViewModel(Flow,
@@ -92,7 +189,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     value => CommandBuilders.FlowSetpoint(value, maxFlow),
                     // Safe-stop, not merely zero flow: both valves are forced closed,
                     // because leaving nitrogen open through a stop is a hazard.
-                    () => CommandBuilders.FlowSafeStop(maxFlow)),
+                    () => CommandBuilders.FlowSafeStop(maxFlow),
+                    // Valve states and the vent flag come back on the wire, so the app
+                    // can show what the actuator is doing rather than only what it asked.
+                    HasOutput: true, HasCalibration: true),
                 device, setpoints.FlowLitresPerMinute),
 
             new SubsystemViewModel(Pressure,
@@ -107,23 +207,68 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         NavigationItems =
         [
-            new NavigationItem("dashboard", "Painel", ""),
-            new NavigationItem("charts", "Gráficos", ""),
-            new NavigationItem("log", "Registro", ""),
-            new NavigationItem("settings", "Configurações", ""),
+            new NavigationItem("dashboard", "Painel", "Vessel"),
+            new NavigationItem("charts", "Gráficos", "Trend", StartsGroup: true),
+            new NavigationItem("log", "Registro", "EventLog"),
+            new NavigationItem("settings", "Configurações", "Gear", StartsGroup: true),
         ];
         SelectedNavigationId = "dashboard";
+
+        SelectedMode = ModeOptions[0];
+
+        // Pinned set: what the operator last chose, else every variable this phase has.
+        var pinned = settings.Current.Ui.PinnedKpis;
+        foreach (var id in OrderedIds(pinned))
+        {
+            if (Variables.FirstOrDefault(v => v.Id == id) is { } variable)
+            {
+                KpiOptions.Add(new KpiOption(variable, pinned.Length == 0 || pinned.Contains(id)));
+            }
+        }
+
+        foreach (var option in KpiOptions)
+        {
+            option.PropertyChanged += OnKpiOptionChanged;
+        }
+
+        RebuildPinned();
+        IsVariableRailVisible = settings.Current.Ui.ShowVariableRail;
 
         _device.StateChanged += OnStateChanged;
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.DeviceLogReceived += OnDeviceLogReceived;
+
+        // 1 Hz: fast enough to notice a stalled link within one emission period, slow
+        // enough to cost nothing. The device emits every 2 s.
+        _tick = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(1),
+        };
+        _tick.Tick += OnTick;
+        _tick.Start();
+
+        _uiLoaded = true;
     }
+
+    /// <summary>
+    /// Variable ids in the operator's saved order, with anything unsaved appended.
+    /// </summary>
+    /// <remarks>
+    /// A variable added by a later phase must appear rather than vanish because it was
+    /// not in a preference file written before it existed.
+    /// </remarks>
+    private IEnumerable<string> OrderedIds(string[] saved)
+        => saved.Where(id => Variables.Any(v => v.Id == id))
+                .Concat(Variables.Select(v => v.Id).Where(id => !saved.Contains(id)));
 
     public ConnectionViewModel Connection { get; }
 
     public ChartsViewModel Charts { get; }
 
     public SettingsViewModel Settings { get; }
+
+    /// <summary>Ring-buffered telemetry, for the detail pane's inline trend.</summary>
+    public ITelemetryHistory History => _history;
 
     /// <summary>True while telemetry rows are being appended to the session log.</summary>
     public bool IsLogging => _sessionLogger.IsLogging;
@@ -138,6 +283,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public ProcessVariableViewModel Motor { get; }
 
+    public ProcessVariableViewModel Ph { get; }
+
     public ProcessVariableViewModel Oxygen { get; }
 
     public ProcessVariableViewModel Flow { get; }
@@ -151,6 +298,127 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Recent device log lines, newest last. Bounded so a long run cannot grow it without limit.</summary>
     public ObservableCollection<string> DeviceLog { get; } = [];
+
+    // ── Command ownership ────────────────────────────────────────────────────
+
+    /// <summary>Owners offered by the rail footer, including the ones not yet built.</summary>
+    public IReadOnlyList<CommandOwnerOption> ModeOptions { get; } =
+    [
+        new(CommandOwner.Manual, "Manual", null),
+        new(CommandOwner.Automatic, "Automático",
+            "A cascata chega na Fase 2. Sem ela, nada além do operador pode escrever setpoints."),
+        new(CommandOwner.Recipe, "Receita",
+            "O motor de receitas chega na Fase 3."),
+    ];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModeDetail))]
+    public partial CommandOwnerOption SelectedMode { get; set; }
+
+    /// <summary>What the current owner is actually doing, or an em dash.</summary>
+    public string ModeDetail => SelectedMode.Owner switch
+    {
+        CommandOwner.Automatic => "Cascata kLa ativa",
+        CommandOwner.Recipe => RecipeName is { Length: > 0 } name ? name : "Receita em execução",
+        _ => "Operador no comando",
+    };
+
+    // ── KPI strip configuration ──────────────────────────────────────────────
+
+    /// <summary>Every variable, pinned or not, in strip order.</summary>
+    public ObservableCollection<KpiOption> KpiOptions { get; } = [];
+
+    /// <summary>The tiles actually shown, derived from <see cref="KpiOptions"/>.</summary>
+    public ObservableCollection<ProcessVariableViewModel> PinnedVariables { get; } = [];
+
+    /// <summary>Option B's variable rail, as the operator set it. Collapsed by default.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowVariableRail))]
+    public partial bool IsVariableRailVisible { get; set; }
+
+    /// <summary>
+    /// False when the window is too narrow to carry the rail as well.
+    /// </summary>
+    /// <remarks>
+    /// Set by the shell's responsive switch. Kept separate from
+    /// <see cref="IsVariableRailVisible"/> on purpose: narrowing the window must not
+    /// silently rewrite a saved preference, so the rail comes back by itself when there
+    /// is room for it again.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowVariableRail))]
+    public partial bool IsRailAffordable { get; set; } = true;
+
+    /// <summary>Whether the rail is actually on screen: wanted, and affordable.</summary>
+    public bool ShowVariableRail => IsVariableRailVisible && IsRailAffordable;
+
+    // ── Liveness ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// True when no telemetry frame has arrived for several emission periods.
+    /// </summary>
+    /// <remarks>
+    /// <b>A frozen link that keeps showing the last good frame is the failure this
+    /// application exists to prevent.</b> The connection can be perfectly healthy at the
+    /// socket level while the device has stopped emitting - the simulator has a
+    /// dedicated <c>stall</c> scenario for exactly this. When it happens every readout
+    /// goes to an em dash rather than continuing to display a measurement nobody took.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SystemState))]
+    [NotifyPropertyChangedFor(nameof(SystemStateText))]
+    public partial bool IsTelemetryStale { get; set; }
+
+    /// <summary>Clock time of the last accepted frame, for the status bar.</summary>
+    [ObservableProperty]
+    public partial string LastUpdateText { get; set; } = "—";
+
+    // ── Status bar ───────────────────────────────────────────────────────────
+
+    /// <summary>Running recipe. Phase 3; an em dash until then.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModeDetail))]
+    public partial string RecipeName { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string PhaseName { get; set; } = "—";
+
+    /// <summary>
+    /// What the recipe engine will do next. Only the engine can know this, so it stays
+    /// an em dash until Phase 3 rather than inventing a countdown.
+    /// </summary>
+    [ObservableProperty]
+    public partial string NextActionText { get; set; } = "—";
+
+    public string LoggingSummary => _sessionLogger.IsLogging
+        ? $"gravando · {_sessionLogger.RowsWritten} linhas"
+        : "parado";
+
+    /// <summary>
+    /// One dot for "is the whole system healthy", composed from the link, the sensor
+    /// module and telemetry liveness.
+    /// </summary>
+    public VariableState SystemState
+    {
+        get
+        {
+            if (_device.State is not Protocol.ConnectionState.Connected)
+            {
+                return VariableState.Alarm;
+            }
+
+            return IsTelemetryStale || IsSensorModuleOffline
+                ? VariableState.Warning
+                : VariableState.Ok;
+        }
+    }
+
+    public string SystemStateText => SystemState switch
+    {
+        VariableState.Ok => "Sistema online",
+        VariableState.Warning => IsTelemetryStale ? "Dados congelados" : "Módulo offline",
+        _ => "Sistema offline",
+    };
 
     [ObservableProperty]
     public partial string SelectedNavigationId { get; set; }
@@ -180,16 +448,182 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// the operator the wrong thing.
     /// </remarks>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SystemState))]
+    [NotifyPropertyChangedFor(nameof(SystemStateText))]
     public partial bool IsSensorModuleOffline { get; set; }
 
     [RelayCommand]
     private void Navigate(string id) => SelectedNavigationId = id;
 
-    [RelayCommand]
-    private void SelectVariable(ProcessVariableViewModel variable)
+    // ── KPI strip ────────────────────────────────────────────────────────────
+
+    private void OnKpiOptionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        SelectedVariable = variable;
-        SelectedSubsystem = Subsystems.FirstOrDefault(s => s.Variable == variable);
+        if (e.PropertyName == nameof(KpiOption.IsPinned))
+        {
+            RebuildPinned();
+            PersistUi();
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the visible tiles from the pin state.
+    /// </summary>
+    /// <remarks>
+    /// A pinned tile whose channel has no data stays on screen showing an em dash. It is
+    /// never dropped: tiles that come and go are how an operator stops trusting the strip
+    /// to be the safety glance it exists to be.
+    /// </remarks>
+    private void RebuildPinned()
+    {
+        PinnedVariables.Clear();
+
+        foreach (var option in KpiOptions.Where(o => o.IsPinned))
+        {
+            PinnedVariables.Add(option.Variable);
+        }
+    }
+
+    [RelayCommand]
+    private void MoveKpiUp(KpiOption option)
+    {
+        var index = KpiOptions.IndexOf(option);
+        if (index > 0)
+        {
+            KpiOptions.Move(index, index - 1);
+            RebuildPinned();
+            PersistUi();
+        }
+    }
+
+    [RelayCommand]
+    private void MoveKpiDown(KpiOption option)
+    {
+        var index = KpiOptions.IndexOf(option);
+        if (index >= 0 && index < KpiOptions.Count - 1)
+        {
+            KpiOptions.Move(index, index + 1);
+            RebuildPinned();
+            PersistUi();
+        }
+    }
+
+    /// <summary>Restores declaration order with everything pinned.</summary>
+    [RelayCommand]
+    private void ResetKpis()
+    {
+        for (var target = 0; target < Variables.Count; target++)
+        {
+            var current = KpiOptions.IndexOf(KpiOptions.First(o => o.Variable == Variables[target]));
+            if (current != target)
+            {
+                KpiOptions.Move(current, target);
+            }
+        }
+
+        foreach (var option in KpiOptions)
+        {
+            option.IsPinned = true;
+        }
+
+        RebuildPinned();
+        PersistUi();
+    }
+
+    [RelayCommand]
+    private void ToggleVariableRail() => IsVariableRailVisible = !IsVariableRailVisible;
+
+    partial void OnIsVariableRailVisibleChanged(bool value) => PersistUi();
+
+    private void PersistUi()
+    {
+        if (!_uiLoaded)
+        {
+            return;
+        }
+
+        _settings.Update(s => s with
+        {
+            Ui = s.Ui with
+            {
+                PinnedKpis = [.. KpiOptions.Where(o => o.IsPinned).Select(o => o.Variable.Id)],
+                ShowVariableRail = IsVariableRailVisible,
+            },
+        });
+    }
+
+    // ── Liveness ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Notices a link that has gone quiet without dropping.
+    /// </summary>
+    /// <remarks>
+    /// Three emission periods of silence, so one late frame is not an alarm. The period
+    /// comes from the configured <c>dataDelay</c> rather than a constant, because an
+    /// operator who slows telemetry to 10 s should not get a permanent stale warning.
+    /// </remarks>
+    private void OnTick(object? sender, EventArgs e)
+    {
+        if (_device.State is not Protocol.ConnectionState.Connected || _lastFrameAt is not { } last)
+        {
+            return;
+        }
+
+        var budget = TimeSpan.FromMilliseconds(Math.Max(_settings.Current.Connection.DataDelayMs, 500) * 3);
+        var stale = DateTimeOffset.Now - last > budget;
+
+        if (stale == IsTelemetryStale)
+        {
+            return;
+        }
+
+        IsTelemetryStale = stale;
+
+        if (stale)
+        {
+            _log.LogWarning("Telemetry stalled: no frame for {Elapsed:0.0} s",
+                (DateTimeOffset.Now - last).TotalSeconds);
+
+            // The link is up but nothing is being measured. Showing the last frame as
+            // though it were live is the exact failure this guard exists to prevent.
+            foreach (var variable in Variables)
+            {
+                variable.Clear();
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void SelectVariable(ProcessVariableViewModel variable) => SelectedVariable = variable;
+
+    /// <summary>Deselects, collapsing the detail pane back to the bare synoptic.</summary>
+    [RelayCommand]
+    private void ClearSelection() => SelectedVariable = null;
+
+    /// <summary>
+    /// Keeps everything that follows the selection in step.
+    /// </summary>
+    /// <remarks>
+    /// <b>On the property, not in the command.</b> Selection arrives three ways - a KPI
+    /// tile raises the command, the variable rail two-way binds
+    /// <see cref="SelectedVariable"/> directly, and the synoptic raises the command
+    /// again. With the sync inside the command, the rail set the selection without ever
+    /// updating the detail pane, so clicking pH left the previous subsystem's controls on
+    /// screen under the wrong heading. They are three windows onto one selection, which
+    /// only holds if the property itself is what reacts.
+    /// </remarks>
+    partial void OnSelectedVariableChanged(ProcessVariableViewModel? value)
+    {
+        foreach (var candidate in Variables)
+        {
+            candidate.IsSelected = ReferenceEquals(candidate, value);
+        }
+
+        // Null for a read-only variable such as pH or pressure: there is nothing to
+        // command, so the detail pane shows the reading rather than an entry field.
+        SelectedSubsystem = value is null
+            ? null
+            : Subsystems.FirstOrDefault(s => s.Variable == value);
     }
 
     /// <summary>Selects a subsystem by id, for clicks on the synoptic.</summary>
@@ -232,8 +666,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     private void OnStateChanged(ConnectionStateChange change)
     {
+        OnPropertyChanged(nameof(SystemState));
+        OnPropertyChanged(nameof(SystemStateText));
+
         if (change.State is ConnectionState.Connected)
         {
+            _lastFrameAt = DateTimeOffset.Now;
             return;
         }
 
@@ -246,11 +684,18 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         ElapsedText = "—";
         IsSensorModuleOffline = false;
+        IsTelemetryStale = false;
+        LastUpdateText = "—";
+        _lastFrameAt = null;
+
+        OnPropertyChanged(nameof(SystemState));
+        OnPropertyChanged(nameof(SystemStateText));
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
         Temperature.Push(snapshot.Temperature);
+        Ph.Push(snapshot.PHCalibrated);
         Oxygen.Push(snapshot.OxygenCalibrated);
         Flow.Push(snapshot.FlowRate);
         Pressure.Push(snapshot.Pressure);
@@ -262,6 +707,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Flow.Setpoint = snapshot.FlowSetpoint >= 0 ? snapshot.FlowSetpoint : null;
 
         IsSensorModuleOffline = !snapshot.SensorCommOk;
+
+        _lastFrameAt = DateTimeOffset.Now;
+        IsTelemetryStale = false;
+        LastUpdateText = _lastFrameAt.Value.ToString("HH:mm:ss");
+        OnPropertyChanged(nameof(LoggingSummary));
 
         // History first: the charts read from it, and a row written to the log should
         // never describe a frame the charts have not seen.
@@ -331,6 +781,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(IsLogging));
         OnPropertyChanged(nameof(SessionLogPath));
+        OnPropertyChanged(nameof(LoggingSummary));
     }
 
     /// <summary>Captures the applied setpoints so they are restored next launch.</summary>
@@ -354,6 +805,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _tick.Stop();
+        _tick.Tick -= OnTick;
+
+        foreach (var option in KpiOptions)
+        {
+            option.PropertyChanged -= OnKpiOptionChanged;
+        }
+
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.DeviceLogReceived -= OnDeviceLogReceived;

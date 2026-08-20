@@ -2,43 +2,126 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         LIGHT THEME TOKENS  -  Fluent / Windows 11
+         LIGHT THEME TOKENS  -  Scientific Control Interface
+         The PRIMARY theme. Dark is a re-mapped palette for low-light rooms, not
+         an inversion; see docs/UI_DESIGN.md section 1.3.
+
          Only COLOURS live here. Every brush, typography and control style is in
          Tokens.Shared.xaml and resolves these keys via DynamicResource, so the
          theme can be swapped at runtime without rebuilding the visual tree.
          Never hard-code a colour in a View - add a token here instead.
+
+         Tokens.Dark.xaml must define EXACTLY this key set. TokenParityTests
+         asserts it: a key present in one file and missing in the other is a
+         runtime crash on theme switch.
          ══════════════════════════════════════════════════════════════════════ -->
 
-    <!-- Surfaces: layered background -> card -> elevated popover -->
-    <Color x:Key="SurfaceBaseColor">#F3F3F3</Color>
-    <Color x:Key="SurfaceCardColor">#FBFBFB</Color>
+    <!-- ── Surfaces ──────────────────────────────────────────────────────────
+         The slight blue bias in the neutrals is deliberate: it reads as
+         technical without making the interface look blue. -->
+    <Color x:Key="SurfaceBaseColor">#F7F9FC</Color>
+    <Color x:Key="SurfaceCardColor">#FFFFFF</Color>
     <Color x:Key="SurfaceElevatedColor">#FFFFFF</Color>
-    <Color x:Key="SurfaceSunkenColor">#EDEDED</Color>
+    <Color x:Key="SurfaceSunkenColor">#F3F6F9</Color>
+    <Color x:Key="SurfaceHoverColor">#EDF3FA</Color>
+    <Color x:Key="SurfaceSelectedColor">#EAF3FF</Color>
 
-    <!-- Text -->
-    <Color x:Key="TextPrimaryColor">#1A1A1A</Color>
-    <Color x:Key="TextSecondaryColor">#5D5D5D</Color>
-    <Color x:Key="TextDisabledColor">#9D9D9D</Color>
+    <!-- Semantic control surfaces. These exist because the correct fill for an
+         input INVERTS between themes: on a light ground a text box reads as
+         clean when it is white against an off-white card, while on a dark ground
+         it reads as a well only when it is DARKER than its card. Encoding that
+         here keeps the control templates theme-agnostic - they ask for "the
+         input surface", not for a specific grey. -->
+    <Color x:Key="SurfaceInputColor">#FFFFFF</Color>   <!-- text boxes, dropdowns, ticks -->
+    <Color x:Key="SurfaceControlColor">#FFFFFF</Color> <!-- secondary buttons            -->
+    <!-- Toggle knob / slider handle. Must stay LIGHT in both themes: it rides
+         on a mid-grey track when off and on the accent when on, so it cannot
+         follow the surface scale like the tokens above. -->
+    <Color x:Key="ControlThumbColor">#FFFFFF</Color>
+
+    <!-- ── Text ─────────────────────────────────────────────────────────────-->
+    <Color x:Key="TextPrimaryColor">#172033</Color>
+    <Color x:Key="TextSecondaryColor">#526071</Color>
+    <Color x:Key="TextMutedColor">#7C8795</Color>
+    <Color x:Key="TextDisabledColor">#A5ADB8</Color>
     <Color x:Key="TextOnAccentColor">#FFFFFF</Color>
 
-    <!-- Accent: interactive affordances only. Never used to encode process data. -->
-    <Color x:Key="AccentColor">#0067C0</Color>
-    <Color x:Key="AccentHoverColor">#0078D4</Color>
-    <Color x:Key="AccentPressedColor">#005494</Color>
+    <!-- ── Accent ───────────────────────────────────────────────────────────
+         TECNAL Control Blue. Every shade means selection, control, connectivity
+         or interaction. None of them ever encodes process data. -->
+    <Color x:Key="AccentColor">#2563D9</Color>
+    <Color x:Key="AccentHoverColor">#3182F6</Color>
+    <Color x:Key="AccentPressedColor">#1749A6</Color>
+    <Color x:Key="AccentBorderColor">#B9D5FF</Color>
+    <Color x:Key="AccentSelectionColor">#EAF3FF</Color>
+    <Color x:Key="AccentSubtleColor">#F4F8FF</Color>
 
-    <!-- Strokes -->
-    <Color x:Key="StrokeDefaultColor">#E1E1E1</Color>
-    <Color x:Key="StrokeStrongColor">#C8C8C8</Color>
+    <!-- ── Strokes ──────────────────────────────────────────────────────────-->
+    <Color x:Key="StrokeDefaultColor">#D9E0E8</Color>
+    <Color x:Key="StrokeSubtleColor">#E7EBF0</Color>
+    <Color x:Key="StrokeStrongColor">#C5CED8</Color>
 
-    <!-- Process state. These four are the ONLY colours allowed to carry meaning
-         about the equipment; see docs/UI_DESIGN.md section "Colour discipline". -->
-    <Color x:Key="StateOkColor">#0F7B0F</Color>       <!-- at setpoint / healthy -->
-    <Color x:Key="StateActuatingColor">#0067C0</Color><!-- controller is moving  -->
-    <Color x:Key="StateWarningColor">#9D5D00</Color>  <!-- out of band           -->
-    <Color x:Key="StateAlarmColor">#C42B1C</Color>    <!-- alarm / link lost     -->
-    <Color x:Key="StateIdleColor">#8A8A8A</Color>     <!-- disabled / no data    -->
+    <!-- ── Process state ────────────────────────────────────────────────────
+         The ONLY colours allowed to carry meaning about the equipment; see
+         docs/UI_DESIGN.md section 3.3, "Colour discipline".
 
-    <!-- Chart series. Distinct in both themes and colour-blind safe (Okabe-Ito). -->
+         GREEN DOES NOT MEAN "ENABLED". Green means healthy or operating
+         normally. "Controle habilitado" is a BLUE toggle; "Agitador operando
+         normalmente" is a GREEN status. Conflating them is how state colour
+         loses its authority.
+
+         Two variants per state. The vivid fills are 3:1-ish on white - correct
+         for an 8 px dot, failing for type. Anything that renders a state as
+         TEXT must use the *TextColor variant, which clears 4.5:1. -->
+    <Color x:Key="StateOkColor">#16A34A</Color>            <!-- at setpoint / healthy -->
+    <Color x:Key="StateOkTextColor">#0E7A3C</Color>
+    <Color x:Key="StateActuatingColor">#2563D9</Color>     <!-- controller is moving  -->
+    <Color x:Key="StateActuatingTextColor">#1749A6</Color>
+    <!-- Darkened from the #D99000 the design doc first proposed: that value is
+         only 2.66:1 on white, below the 3:1 WCAG threshold for non-text marks,
+         which would have made an 8 px amber dot near-invisible. Amber on white
+         is the classic case where this goes wrong. #C67F00 is 3.24:1.
+         Asserted by TokenParityTests. -->
+    <Color x:Key="StateWarningColor">#C67F00</Color>       <!-- out of band           -->
+    <Color x:Key="StateWarningTextColor">#8A5A00</Color>
+    <Color x:Key="StateAlarmColor">#DC3545</Color>         <!-- alarm / link lost     -->
+    <Color x:Key="StateAlarmTextColor">#B42318</Color>
+    <Color x:Key="StateIdleColor">#7C8795</Color>          <!-- disconnected / no data-->
+    <Color x:Key="StateIdleTextColor">#526071</Color>
+    <Color x:Key="StateDisabledColor">#B6BEC8</Color>      <!-- intentionally inactive-->
+    <Color x:Key="StateDisabledTextColor">#A5ADB8</Color>
+
+    <!-- ── Synoptic paths ───────────────────────────────────────────────────
+         Confined to the synoptic drawing. This vocabulary never leaks into the
+         rest of the UI: purple identifies the antifoam LINE on the diagram, but
+         the antifoam SETTINGS use the ordinary accent blue like every other
+         panel. Path colour is subordinate to state colour - a line in alarm
+         draws in alarm red regardless of what it carries. -->
+    <Color x:Key="PathPipingColor">#596575</Color>
+    <Color x:Key="PathSelectedColor">#2563D9</Color>
+    <Color x:Key="PathGasColor">#2F80ED</Color>
+    <Color x:Key="PathHeatingColor">#D94A45</Color>
+    <Color x:Key="PathCoolingColor">#3B82D0</Color>
+    <Color x:Key="PathFeedColor">#37975A</Color>
+    <Color x:Key="PathAntifoamColor">#8754C9</Color>
+    <Color x:Key="PathInstrumentColor">#455568</Color>
+
+    <!-- ── Chart: ROLE palette ──────────────────────────────────────────────
+         For a SINGLE loop, where every series describes the same variable:
+         the detail-pane trend, cascade tuning, recipe execution. Setpoint green
+         is always DASHED so it cannot be mistaken for the state green of a
+         status dot. Never draw this palette and the identity palette on one
+         axis. -->
+    <Color x:Key="ChartPvColor">#2563D9</Color>
+    <Color x:Key="ChartSetpointColor">#22A447</Color>
+    <Color x:Key="ChartOutputColor">#E67E22</Color>
+    <Color x:Key="ChartLimitColor">#D95C5C</Color>
+    <Color x:Key="ChartMutedColor">#8A96A5</Color>
+
+    <!-- ── Chart: IDENTITY palette ──────────────────────────────────────────
+         For Históricos, where each series is a DIFFERENT variable. Okabe-Ito,
+         colour-blind safe. Series colour says WHICH variable; state colour says
+         HOW it is behaving. Mixing the two vocabularies makes both unreadable. -->
     <Color x:Key="Series1Color">#0072B2</Color>
     <Color x:Key="Series2Color">#E69F00</Color>
     <Color x:Key="Series3Color">#009E73</Color>

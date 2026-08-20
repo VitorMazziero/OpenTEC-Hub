@@ -13,24 +13,68 @@
     <SolidColorBrush x:Key="SurfaceCardBrush"     Color="{DynamicResource SurfaceCardColor}" />
     <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="{DynamicResource SurfaceElevatedColor}" />
     <SolidColorBrush x:Key="SurfaceSunkenBrush"   Color="{DynamicResource SurfaceSunkenColor}" />
+    <SolidColorBrush x:Key="SurfaceHoverBrush"    Color="{DynamicResource SurfaceHoverColor}" />
+    <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="{DynamicResource SurfaceSelectedColor}" />
+    <!-- Semantic control surfaces. Control templates bind to THESE, never to a
+         specific grey, because the correct fill inverts between themes - see the
+         note in Tokens.Light.xaml. -->
+    <SolidColorBrush x:Key="SurfaceInputBrush"    Color="{DynamicResource SurfaceInputColor}" />
+    <SolidColorBrush x:Key="SurfaceControlBrush"  Color="{DynamicResource SurfaceControlColor}" />
+    <SolidColorBrush x:Key="ControlThumbBrush"    Color="{DynamicResource ControlThumbColor}" />
 
     <SolidColorBrush x:Key="TextPrimaryBrush"   Color="{DynamicResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{DynamicResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextMutedBrush"     Color="{DynamicResource TextMutedColor}" />
     <SolidColorBrush x:Key="TextDisabledBrush"  Color="{DynamicResource TextDisabledColor}" />
     <SolidColorBrush x:Key="TextOnAccentBrush"  Color="{DynamicResource TextOnAccentColor}" />
 
-    <SolidColorBrush x:Key="AccentBrush"        Color="{DynamicResource AccentColor}" />
-    <SolidColorBrush x:Key="AccentHoverBrush"   Color="{DynamicResource AccentHoverColor}" />
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="{DynamicResource AccentPressedColor}" />
+    <SolidColorBrush x:Key="AccentBrush"          Color="{DynamicResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentHoverBrush"     Color="{DynamicResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="AccentPressedBrush"   Color="{DynamicResource AccentPressedColor}" />
+    <SolidColorBrush x:Key="AccentBorderBrush"    Color="{DynamicResource AccentBorderColor}" />
+    <SolidColorBrush x:Key="AccentSelectionBrush" Color="{DynamicResource AccentSelectionColor}" />
+    <SolidColorBrush x:Key="AccentSubtleBrush"    Color="{DynamicResource AccentSubtleColor}" />
 
     <SolidColorBrush x:Key="StrokeDefaultBrush" Color="{DynamicResource StrokeDefaultColor}" />
+    <SolidColorBrush x:Key="StrokeSubtleBrush"  Color="{DynamicResource StrokeSubtleColor}" />
     <SolidColorBrush x:Key="StrokeStrongBrush"  Color="{DynamicResource StrokeStrongColor}" />
 
+    <!-- State: FILL variants, for dots, chips, badges and strokes. -->
     <SolidColorBrush x:Key="StateOkBrush"        Color="{DynamicResource StateOkColor}" />
     <SolidColorBrush x:Key="StateActuatingBrush" Color="{DynamicResource StateActuatingColor}" />
     <SolidColorBrush x:Key="StateWarningBrush"   Color="{DynamicResource StateWarningColor}" />
     <SolidColorBrush x:Key="StateAlarmBrush"     Color="{DynamicResource StateAlarmColor}" />
     <SolidColorBrush x:Key="StateIdleBrush"      Color="{DynamicResource StateIdleColor}" />
+    <SolidColorBrush x:Key="StateDisabledBrush"  Color="{DynamicResource StateDisabledColor}" />
+
+    <!-- State: TEXT variants. Use these whenever a state is rendered as TYPE.
+         The fills above are ~3:1 on white - right for an 8 px dot, failing for
+         a word. See docs/UI_DESIGN.md section 3.3. -->
+    <SolidColorBrush x:Key="StateOkTextBrush"        Color="{DynamicResource StateOkTextColor}" />
+    <SolidColorBrush x:Key="StateActuatingTextBrush" Color="{DynamicResource StateActuatingTextColor}" />
+    <SolidColorBrush x:Key="StateWarningTextBrush"   Color="{DynamicResource StateWarningTextColor}" />
+    <SolidColorBrush x:Key="StateAlarmTextBrush"     Color="{DynamicResource StateAlarmTextColor}" />
+    <SolidColorBrush x:Key="StateIdleTextBrush"      Color="{DynamicResource StateIdleTextColor}" />
+    <SolidColorBrush x:Key="StateDisabledTextBrush"  Color="{DynamicResource StateDisabledTextColor}" />
+
+    <!-- Synoptic paths. Confined to the reactor drawing; this vocabulary must
+         not appear anywhere else in the UI. -->
+    <SolidColorBrush x:Key="PathPipingBrush"     Color="{DynamicResource PathPipingColor}" />
+    <SolidColorBrush x:Key="PathSelectedBrush"   Color="{DynamicResource PathSelectedColor}" />
+    <SolidColorBrush x:Key="PathGasBrush"        Color="{DynamicResource PathGasColor}" />
+    <SolidColorBrush x:Key="PathHeatingBrush"    Color="{DynamicResource PathHeatingColor}" />
+    <SolidColorBrush x:Key="PathCoolingBrush"    Color="{DynamicResource PathCoolingColor}" />
+    <SolidColorBrush x:Key="PathFeedBrush"       Color="{DynamicResource PathFeedColor}" />
+    <SolidColorBrush x:Key="PathAntifoamBrush"   Color="{DynamicResource PathAntifoamColor}" />
+    <SolidColorBrush x:Key="PathInstrumentBrush" Color="{DynamicResource PathInstrumentColor}" />
+
+    <!-- Chart ROLE palette: one loop, many aspects of the SAME variable.
+         Separate from the identity palette below; never on the same axis. -->
+    <SolidColorBrush x:Key="ChartPvBrush"       Color="{DynamicResource ChartPvColor}" />
+    <SolidColorBrush x:Key="ChartSetpointBrush" Color="{DynamicResource ChartSetpointColor}" />
+    <SolidColorBrush x:Key="ChartOutputBrush"   Color="{DynamicResource ChartOutputColor}" />
+    <SolidColorBrush x:Key="ChartLimitBrush"    Color="{DynamicResource ChartLimitColor}" />
+    <SolidColorBrush x:Key="ChartMutedBrush"    Color="{DynamicResource ChartMutedColor}" />
 
     <!-- Chart series. Okabe-Ito, colour-blind safe and distinct in both themes.
          Separate from the state brushes on purpose: series colour identifies WHICH
@@ -59,7 +103,14 @@
          and can be reinstated behind a runtime OS check if ever worth it. -->
     <FontFamily x:Key="FontUi">Segoe UI</FontFamily>
     <FontFamily x:Key="FontDisplay">Segoe UI</FontFamily>
-    <FontFamily x:Key="FontNumeric">Consolas</FontFamily>
+    <!-- Process readouts use the UI face with TABULAR FIGURES, not a monospace
+         family. Consolas held digits still but made every measurement look like
+         terminal output rather than instrument output. Tabular figures give the
+         same fixed advance width inside a proportional face - see
+         ReadoutTextStyle below, which switches the feature on. -->
+    <FontFamily x:Key="FontNumeric">Segoe UI</FontFamily>
+    <!-- Recipe JSON is the one place a monospace face is correct. -->
+    <FontFamily x:Key="FontMono">Cascadia Mono, Consolas</FontFamily>
 
     <sys:Double x:Key="FontSizeCaption">11</sys:Double>
     <sys:Double x:Key="FontSizeBody">13</sys:Double>
@@ -70,9 +121,12 @@
     <!-- ── Geometry ──────────────────────────────────────────────────────────
          One radius scale, one spacing scale. Anything not on these scales is a
          bug in the View, not a special case. -->
+    <!-- Two radii, and nothing larger. 4 px for inputs, buttons and chips; 6 px
+         for cards and panels. The 12 px "large" radius was retired with the
+         Fluent palette: it reads as consumer software, and this application
+         should feel engineered. See docs/UI_DESIGN.md section 3.8. -->
     <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
-    <CornerRadius x:Key="RadiusMedium">8</CornerRadius>
-    <CornerRadius x:Key="RadiusLarge">12</CornerRadius>
+    <CornerRadius x:Key="RadiusMedium">6</CornerRadius>
 
     <Thickness x:Key="SpacingXs">4</Thickness>
     <Thickness x:Key="SpacingSm">8</Thickness>
@@ -98,11 +152,28 @@
     </Style>
 
     <!-- Live process value: tabular digits, so the readout does not shift width
-         when 9.9 becomes 10.0. -->
+         when 9.9 becomes 10.0. This is a readability requirement, not a
+         stylistic one - a figure that jitters at 1 Hz is harder to read than one
+         that does not.
+
+         NumeralAlignment=Tabular asks the font for the OpenType `tnum` feature.
+         Segoe UI provides it; a face that does not is ignored gracefully rather
+         than failing, so this is safe on the Windows 10 fallback path. -->
     <Style x:Key="ReadoutTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{DynamicResource FontNumeric}" />
         <Setter Property="FontSize"   Value="{DynamicResource FontSizeReadout}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!-- Any numeric that is not the headline readout: KPI values, table cells,
+         applied setpoints. Same tabular guarantee, caller sets the size. -->
+    <Style x:Key="NumericTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FontNumeric}" />
+        <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
     </Style>
 
 </ResourceDictionary>

@@ -137,6 +137,48 @@ not ported. A plan for the standalone module is written separately.
 
 ---
 
+### D-011 · The KPI strip belongs to Receitas, not to every page
+**Status:** Accepted · 2026-08-20
+
+WP4 delivered the strip and the variable rail together, and Painel ended up carrying
+**two viewers of the same six variables** — the horizontal strip on top and the rail on
+the left, showing identical values a few hundred pixels apart.
+
+*Decision:* the KPI strip appears **only on Receitas**. Everywhere else the variable rail
+is the variable display, and it is no longer optional.
+
+*Rationale:* the rail keeps its meaning next to the synoptic, where a value sits beside
+the drawing of the thing that produced it. On Receitas the strip earns its place for the
+opposite reason — the canvas there describes the *intended* process, and the strip is the
+only thing on screen showing the *actual* one. That contrast is the whole point of
+[UI_DESIGN.md](UI_DESIGN.md#5315-process-versus-recipe).
+
+*Consequence:* reverses "KPI strip visible on every page" from the original §4.4. The
+strip is kept as `Views/KpiStripView.xaml` — built, tested, and unused until Phase 3
+places it on Receitas.
+
+---
+
+### D-012 · The synoptic becomes a photorealistic render with editable anchored cards
+**Status:** Accepted · 2026-08-20 · **implementation deferred, see [UI_DESIGN.md §5.1.1](UI_DESIGN.md#511-the-reactor-image)**
+
+The flat vector drawing reads as a diagram of a tank rather than as the machine in the
+room. Reference for the target: `docs/UI_design_guides/Bioreactor Panel.png`.
+
+*Decision:* the reactor becomes a high-resolution render, with callout cards anchored to
+the physical ports by leader lines. **Those cards are the primary way an operator edits a
+setpoint** — not read-only labels.
+
+*Rationale:* the reactor drawing is what makes this a bioreactor application rather than a
+dashboard. Anchoring the control to the physical port also teaches the process: the
+operator learns where the pH probe enters the vessel while adjusting it.
+
+*Constraint:* nothing that changes at 1 Hz may be baked into the image. The render is a
+static asset; values, state colours, leader lines and hit targets stay as WPF overlays on
+top of it.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

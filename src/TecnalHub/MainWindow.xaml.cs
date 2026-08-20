@@ -23,6 +23,17 @@ public partial class MainWindow : Window
     /// </remarks>
     private const double SidePaneMinimumWidth = 1200;
 
+    /// <summary>
+    /// Below this width the variable rail folds away.
+    /// </summary>
+    /// <remarks>
+    /// Nav rail, variable rail, synoptic and detail pane all want horizontal space; at
+    /// four columns the diagram is the one that suffers, and the diagram is what makes
+    /// this a bioreactor application. The operator's preference is untouched - the rail
+    /// returns on its own once there is room. See <c>docs/UI_DESIGN.md</c> section 4.7.
+    /// </remarks>
+    private const double VariableRailMinimumWidth = 1400;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -34,10 +45,19 @@ public partial class MainWindow : Window
     {
         var wide = ActualWidth >= SidePaneMinimumWidth;
 
-        SideDetail.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
+        if (DataContext is ViewModels.ShellViewModel shell)
+        {
+            shell.IsRailAffordable = ActualWidth >= VariableRailMinimumWidth;
+        }
+
+        // The HOSTS are toggled, never the panes inside them. Each host holds both a
+        // controllable and a read-only pane, and which one shows is a data question
+        // answered by a binding - assigning Visibility on those panes from here would
+        // replace the binding with a local value and permanently break it.
+        SideDetailHost.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         DetailColumn.Width = wide ? new GridLength(380) : new GridLength(0);
 
-        DrawerDetail.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
+        DrawerDetailHost.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
         DrawerRow.Height = wide ? new GridLength(0) : new GridLength(300);
     }
 }

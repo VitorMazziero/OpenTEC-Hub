@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:TecnalHub.Converters"
         xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+        xmlns:views="clr-namespace:TecnalHub.Views"
         d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -307,24 +308,41 @@
             </ItemsControl>
         </Border>
 
-        <!-- ══ Content: synoptic + detail pane arrive next ══ -->
-        <Grid Margin="16">
-            <Border CornerRadius="{StaticResource RadiusMedium}"
+        <!-- ══ Content: synoptic + detail pane ══
+             Responsive. At >=1200 px the detail pane sits beside the synoptic so
+             process context is never lost while tuning. Below that it becomes a
+             drawer over the diagram - the same ViewModel in a different template,
+             so behaviour is identical and only presentation changes. -->
+        <Grid x:Name="ContentRoot" Margin="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SynopticColumn" Width="*" />
+                <ColumnDefinition x:Name="DetailColumn" Width="380" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition x:Name="DrawerRow" Height="0" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Grid.Column="0"
+                    CornerRadius="{StaticResource RadiusMedium}"
                     Background="{DynamicResource SurfaceCardBrush}"
                     BorderBrush="{DynamicResource StrokeDefaultBrush}"
                     BorderThickness="1">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding SelectedVariable.DisplayName}"
-                               FontSize="{DynamicResource FontSizeTitle}"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="{Binding SelectedVariable.FormattedValue}"
-                               Style="{StaticResource ReadoutTextStyle}"
-                               HorizontalAlignment="Center" Margin="0,8,0,0" />
-                    <TextBlock Text="Sinóptico e painel de detalhe em construção."
-                               Style="{StaticResource CaptionTextStyle}"
-                               HorizontalAlignment="Center" Margin="0,16,0,0" />
-                </StackPanel>
+                <views:SynopticView />
             </Border>
+
+            <!-- Side pane: wide windows -->
+            <views:DetailPaneView x:Name="SideDetail"
+                                  Grid.Row="0" Grid.Column="1"
+                                  Margin="16,0,0,0"
+                                  DataContext="{Binding SelectedSubsystem}" />
+
+            <!-- Drawer: narrow windows. Collapsed until the layout switches. -->
+            <views:DetailPaneView x:Name="DrawerDetail"
+                                  Grid.Row="1" Grid.ColumnSpan="2"
+                                  Margin="0,12,0,0"
+                                  Visibility="Collapsed"
+                                  DataContext="{Binding SelectedSubsystem}" />
         </Grid>
     </DockPanel>
 </Window>

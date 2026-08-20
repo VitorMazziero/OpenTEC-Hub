@@ -1,7 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- net10.0-windows + UseWPF so the app's ViewModels can be tested. The setpoint
+         validation is safety-critical - it is what stands between a typo and a
+         setpoint reaching a reactor - and leaving it untested because the assembly was
+         awkward to reference would be the wrong trade. No test starts an Application;
+         the ViewModels take interfaces, so they run headless. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <RootNamespace>TecnalHub.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <!-- Tests assert on protocol wire format; a stray culture must not turn
@@ -10,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TecnalHub.Protocol\TecnalHub.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\TecnalHub\TecnalHub.csproj" />
   </ItemGroup>
 
   <ItemGroup>

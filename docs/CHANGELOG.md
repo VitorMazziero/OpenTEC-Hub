@@ -6,6 +6,33 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.4.0] - 2026-08-19
+
+Phase 1's two remaining screens: the synoptic and setpoint entry.
+
+### Added
+- **Synoptic** - vector schematic of the reactor with each live value pinned at the
+  hardware that produces it: jacket, motor, probes, sparger, headplate. Clicking any
+  element selects it. Themed and scalable, not an image.
+- **Detail pane** - reading, setpoint entry, validation, apply/revert, and the
+  acknowledged state. Only one subsystem's controls on screen at a time, which is what
+  stops twelve of them becoming the wall the v.6 card board was.
+- **Responsive layout** - side pane at 1200 px and above, drawer below. Same ViewModel,
+  so behaviour is identical and only presentation changes.
+- **Setpoint entry** for all five core subsystems, with ranges paired to their command
+  builders so validation and the wire cannot drift apart.
+- ViewModel tests: `TecnalHub.Tests` now references the app assembly.
+
+### Fixed
+- **Validation guarded only the button, not the send.** `Apply` checked whether the
+  text parsed, so an out-of-range value like `60.1` on a 15-60 range parsed fine and
+  was sent. Anything reaching the method other than the button - the Enter key, a
+  future recipe engine - bypassed the range and integer rules. Found by the tests.
+- The pending-change marker no longer fires when the constructor seeds the field from
+  persisted settings; it lit on every subsystem at launch.
+
+---
+
 ## [0.3.1] — 2026-08-19
 
 ### Added

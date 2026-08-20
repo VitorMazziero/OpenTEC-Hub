@@ -167,9 +167,9 @@ valves · Pressure. Nothing else.
       its popover ([UI_DESIGN.md](UI_DESIGN.md#3-connection-ux))
 - [x] Settings persistence — **typed and serialised, not hand-marshalled**
 - [x] Light/dark theme tokens + control templates (WPF's default chrome ignores them)
-- [ ] Synoptic view of the reactor + side detail pane, responsive fallback to the
+- [x] Synoptic view of the reactor + side detail pane, responsive fallback to the
       bottom drawer under 1200 px
-- [ ] Setpoint entry and send for the five core subsystems, with visible validation
+- [x] Setpoint entry and send for the five core subsystems, with visible validation
 - [ ] Live charts (ScottPlot) for the five core variables
 - [ ] CSV session logging, matching v.6's column format so old analysis scripts keep working
 - [x] Serilog rolling file

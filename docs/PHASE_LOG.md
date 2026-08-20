@@ -404,3 +404,48 @@ so 304 means "you already have the current frame" rather than "the tag never cha
 **Also fixed:** `TransportFaultException` now folds the inner exception's message into
 its own. `read failed` alone cannot distinguish a timeout from a refused connection, and
 that message is what reaches the connection popover.
+
+---
+
+### P1-10 · Validation guards the send, not just the button
+
+**Decided:** `SubsystemViewModel.Apply` re-validates before sending, rather than relying
+on the command's `CanExecute`.
+
+**Why:** found by the tests, and it was a real defect. `CanExecute` only greys out the
+button. `Apply` itself checked whether the text *parsed* - so `60.1` on a 15-60 range
+parsed perfectly well and was sent to the device. Anything reaching the method by
+another route (the Enter key, a future recipe engine) would have bypassed the range and
+integer rules entirely.
+
+**Consequence:** the guard now sits where the send happens. This is the same class of
+defect as v.6's `except: ph_value = 7` - a setpoint reaching the reactor without the
+operator's intent - arrived at from the opposite direction.
+
+**Evidence:** four tests failed on first run and pass after the fix.
+
+---
+
+### P1-11 · Test project references the app assembly
+
+**Decided:** `TecnalHub.Tests` moved to `net10.0-windows` with `UseWPF`, so ViewModels
+can be tested.
+
+**Why:** setpoint validation is what stands between a typo and a reactor. Leaving it
+untested because the assembly was awkward to reference would be the wrong trade, and
+P1-10 is the proof - the bug was invisible until the tests existed.
+
+**Consequence:** no test starts an `Application`; the ViewModels take interfaces, so
+they run headless. 86 tests.
+
+---
+
+### P1-12 · Restoring a setpoint is not an operator edit
+
+**Decided:** the pending-change marker is suppressed while the constructor seeds the
+field from persisted settings.
+
+**Why:** the first build lit "não aplicado" on all five subsystems at launch. It was
+*technically* honest - those values genuinely had not been sent this session - but a
+warning that is always on is one nobody reads, and it would have devalued the marker
+in the case that matters: a half-typed setpoint mid-run.

@@ -50,7 +50,49 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Pressure = new ProcessVariableViewModel("pressure", "Pressão", "kPa", decimals: 1, isControllable: false);
 
         Variables = [Temperature, Motor, Oxygen, Flow, Pressure];
+
+        // Ranges come from docs/PROTOCOL.md section 3.1 and are paired with the
+        // command builders, so validation and the wire cannot drift apart.
+        var setpoints = settings.Current.Setpoints;
+        var maxFlow = setpoints.MaxFlowLitresPerMinute;
+
+        Subsystems =
+        [
+            new SubsystemViewModel(Temperature,
+                new SubsystemSpec(15, 60, IsInteger: false,
+                    value => TecnalCommand.Create().Set(CommandKeys.TempSetpoint, value),
+                    () => TecnalCommand.Create().Set(CommandKeys.TempSetpoint, 0.0)),
+                device, setpoints.TemperatureCelsius),
+
+            new SubsystemViewModel(Motor,
+                new SubsystemSpec(50, 1000, IsInteger: true,
+                    value => CommandBuilders.MotorSetpoint((int)value),
+                    () => CommandBuilders.MotorSetpoint(0)),
+                device, setpoints.MotorRpm),
+
+            new SubsystemViewModel(Oxygen,
+                new SubsystemSpec(0, 100, IsInteger: false,
+                    value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, value),
+                    () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0)),
+                device, setpoints.OxygenPercent),
+
+            new SubsystemViewModel(Flow,
+                new SubsystemSpec(0, maxFlow, IsInteger: false,
+                    value => CommandBuilders.FlowSetpoint(value, maxFlow),
+                    // Safe-stop, not merely zero flow: both valves are forced closed,
+                    // because leaving nitrogen open through a stop is a hazard.
+                    () => CommandBuilders.FlowSafeStop(maxFlow)),
+                device, setpoints.FlowLitresPerMinute),
+
+            new SubsystemViewModel(Pressure,
+                new SubsystemSpec(1, 380, IsInteger: false,
+                    value => TecnalCommand.Create().Set(CommandKeys.PressureReference, value),
+                    () => TecnalCommand.Create().Set(CommandKeys.PressureReference, 0.0)),
+                device, setpoints.PressureKilopascal),
+        ];
+
         SelectedVariable = Temperature;
+        SelectedSubsystem = Subsystems[0];
 
         NavigationItems =
         [
@@ -81,6 +123,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public ProcessVariableViewModel Pressure { get; }
 
+    /// <summary>Controllable subsystems, aligned with <see cref="Variables"/>.</summary>
+    public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
+
     public IReadOnlyList<NavigationItem> NavigationItems { get; }
 
     /// <summary>Recent device log lines, newest last. Bounded so a long run cannot grow it without limit.</summary>
@@ -92,6 +137,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>The variable whose controls fill the detail pane.</summary>
     [ObservableProperty]
     public partial ProcessVariableViewModel? SelectedVariable { get; set; }
+
+    /// <summary>
+    /// The subsystem behind <see cref="SelectedVariable"/>, or null when the selected
+    /// variable is read-only (pressure has no controllable half in Phase 1 scope
+    /// beyond its reference, which is exposed here for completeness).
+    /// </summary>
+    [ObservableProperty]
+    public partial SubsystemViewModel? SelectedSubsystem { get; set; }
 
     /// <summary>Elapsed run time reported by the device, formatted for the header.</summary>
     [ObservableProperty]
@@ -112,7 +165,21 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private void Navigate(string id) => SelectedNavigationId = id;
 
     [RelayCommand]
-    private void SelectVariable(ProcessVariableViewModel variable) => SelectedVariable = variable;
+    private void SelectVariable(ProcessVariableViewModel variable)
+    {
+        SelectedVariable = variable;
+        SelectedSubsystem = Subsystems.FirstOrDefault(s => s.Variable == variable);
+    }
+
+    /// <summary>Selects a subsystem by id, for clicks on the synoptic.</summary>
+    [RelayCommand]
+    private void SelectById(string id)
+    {
+        if (Variables.FirstOrDefault(v => v.Id == id) is { } variable)
+        {
+            SelectVariable(variable);
+        }
+    }
 
     [RelayCommand]
     private void ToggleTheme()
@@ -190,6 +257,25 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         {
             DeviceLog.RemoveAt(0);
         }
+    }
+
+    /// <summary>Captures the applied setpoints so they are restored next launch.</summary>
+    public void PersistSetpoints()
+    {
+        double Applied(int index, double fallback)
+            => Subsystems[index].AppliedSetpoint ?? fallback;
+
+        _settings.Update(s => s with
+        {
+            Setpoints = s.Setpoints with
+            {
+                TemperatureCelsius = Applied(0, s.Setpoints.TemperatureCelsius),
+                MotorRpm = (int)Applied(1, s.Setpoints.MotorRpm),
+                OxygenPercent = Applied(2, s.Setpoints.OxygenPercent),
+                FlowLitresPerMinute = Applied(3, s.Setpoints.FlowLitresPerMinute),
+                PressureKilopascal = Applied(4, s.Setpoints.PressureKilopascal),
+            },
+        });
     }
 
     public void Dispose()

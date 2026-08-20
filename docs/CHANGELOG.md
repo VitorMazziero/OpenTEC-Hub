@@ -6,6 +6,21 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [Unreleased]
+
+### Documentation
+- Re-audited the remaining v.6 operator/device features and ordered them P0-P2 by field
+  safety and dependency. Automatic ownership, system alarms and hardware protocol closure
+  now precede live cascade actuation; biomass/external-pump parity precedes Receitas.
+- Corrected [D-008](DECISIONS.md): `Mapeamento kLa` is a dedicated experimental workflow
+  that estimates `kLa(Q_g,N)` from operator-entered anchors, calculates the paper's
+  normalized gradient/headroom path and publishes a reviewed allocation profile. It is not
+  a pre-loaded surface selector, and a fresh production install has no active map.
+- Added Phase 2 WP4-WP8 and Phase 3 WP1-WP4 acceptance plans to the roadmap, plus the ninth
+  main-window specification for the kLa mapping workflow.
+
+---
+
 ## [0.12.0] - 2026-08-20
 
 Phase 2 WP3 — complete pH control plus guided pH, oxygen and airflow calibration.

@@ -49,6 +49,37 @@ Every phase is measured against these. They are acceptance criteria, not aspirat
 
 ---
 
+## Remaining v.6 parity — priority order *(audit 2026-08-20)*
+
+The communication contract, the Phase 1 core loop, dual graphs, persistence, pH control
+and the pH/O₂/airflow procedures are already present. The following list is the remaining
+operator-visible or operational behaviour found in v.6. Priority is based on field risk
+and dependency, not on implementation size.
+
+| Priority | Remaining capability | Current state | Planned delivery |
+|---|---|---|---|
+| **P0** | Field protocol closure: captured byte comparison, live-sensor/calibration run, command acknowledgement timing, safe COM discovery and configured Wi-Fi poll period | Partial; software/simulator complete, hardware gate open | Phase 0 follow-ups + Phase 2 WP4 |
+| **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | State colours and event types exist; no alarm engine | Phase 2 WP4 |
+| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | Modes are displayed but `Automático` is disabled; cascade is advisory | Phase 2 WP4/WP6 |
+| **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | Absent; the old placeholder assumed a loaded surface | Phase 2 WP5 — [D-008](DECISIONS.md) |
+| **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | Corrected controller and advisory terms exist; no sending | Phase 2 WP6 |
+| **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | Protocol keys documented; no operator controls or safe-stop aggregation | Phase 2 WP7 |
+| **P1** | Conditional OUR soft sensor and controller gain scheduling | Absent | Phase 2 WP8 |
+| **P2** | Biomass sensor: enable, blank/start/stop, thresholds, live raw/Abs/IT/PWM and calibration procedure | Telemetry parsed/logged; commands and UI absent | Phase 3 WP1 |
+| **P2** | External pump: five firmware profiles, curve/volume preview and proportional-gas coupling `Q_g=(V_0+V_p)·vvm` | Telemetry parsed/logged; operational UI absent | Phase 3 WP2 |
+| **P2** | Remaining level and biomass calibration plus full v.6 parity/bench receipt | Calibration page exists but these procedures do not | Phase 3 WP3 |
+
+The following v.6 code is **not** parity work: neural/gassing-out estimation remains a
+standalone project ([D-010](DECISIONS.md)); `HubStations` waits for a real second module;
+and the old positional/simple PID implementation is replaced by the corrected controller,
+while its agitation-only and aeration-only operator modes are preserved.
+
+**Parity gate:** Receitas is a new TECNAL-Hub capability, not a v.6 feature. Its execution
+engine starts only after P0-P2 hardware behaviour is closed, so automation cannot become a
+second command source before ownership and safe-abort semantics are proven.
+
+---
+
 ## Phase 0 — Protocol spike *(highest risk, do it first)*
 
 **Goal:** prove C# can talk to the ESP32-S3 over both transports, byte-identically,
@@ -109,8 +140,9 @@ responds. Full design in [SIMULATOR.md](SIMULATOR.md).
 
 **Phase 2 — the model becomes load-bearing**
 
-- [ ] Replace the placeholder `kLa = k·N^a·Q^b` with the manuscript's fitted **bicubic
-      B-spline surface** (ties to [D-008](DECISIONS.md), same exported data)
+- [ ] Replace the placeholder `kLa = k·N^a·Q^b` with the currently published profile
+      produced by the in-app [D-008](DECISIONS.md) mapping workflow. The simulator and
+      controller must consume the same immutable surface/path receipt
 - [ ] Realistic OUR trajectory across a cultivation, rather than a biomass proportion
 - [ ] Configurable probe dead time and measurement quantisation, to reproduce the
       "staircase" signal the least-squares rate estimator exists to handle
@@ -602,16 +634,16 @@ difference, which cancels the probe's quantisation staircase.
 
 **kLa gradient-path allocation.** The method from
 [the submitted manuscript](../../../Doutorado_CNPq/_Artigos_e_Coorientacoes/Artigos/04_Cascata_kLa):
-map kLa over agitation x aeration, fit a bicubic B-spline surface, pick the start
-point by maximising mean actuator headroom, then track the steepest-ascent kLa
-trajectory with the cascade PID.
+the operator enters experimental `(Q_g,N,kLa)` points, the app estimates the continuous
+`kLa(Q_g,N)` surface, evaluates derivatives in normalized actuator coordinates, selects
+the initial point by maximum mean actuator headroom and constructs the bidirectional
+gradient path used by the cascade PID.
 
-> **Open decision — see [DECISIONS.md](DECISIONS.md) D-008.** The surface fit and
-> gradient are currently computed in Python (scipy). Three options: embed a
-> pre-computed surface as a data file the app interpolates; implement bicubic
-> B-spline in C# (`MathNet.Numerics`); or keep a small Python sidecar. **Recommendation:
-> embed the pre-computed surface** — the fitting is an offline research activity, the
-> app only needs evaluation and gradient, and this keeps Python out of the runtime.
+> **Accepted contract — [D-008](DECISIONS.md).** This is a dedicated experimental
+> mapping window, not a pre-loaded surface selector. The production app starts without
+> an active map. A fit becomes usable by the controller only after the operator reviews
+> and publishes a versioned surface/path receipt. Numerical parity is checked against
+> the paper project's Python/SciPy reference fixtures; Python is not a runtime dependency.
 
 **Deliverables**
 
@@ -619,8 +651,9 @@ trajectory with the cascade PID.
       scheduling** deferred to a later WP)*
 - [~] Actuator-window allocation — agitation / aeration overlapping windows *(WP1 done;
       **enrichment (N₂)** window rides with the enrichment path)*
-- [ ] kLa surface evaluation + gradient ascent *(gated on [D-008](DECISIONS.md); replaces
-      the WP1 linear allocator without touching the controller)*
+- [ ] In-app kLa mapping, surface estimation and gradient/headroom path publication
+      *([D-008](DECISIONS.md); replaces the WP1 linear allocator without touching the
+      controller)*
 - [ ] OUR soft sensor
 - [~] Dosing subsystems — **pH delivered in WP3**; Nutrient · Antifoam · Distance-foam ·
       Agitator flask remain
@@ -672,12 +705,12 @@ first-order DOT plant with dead time, asserting no windup and no zero-at-setpoin
 > process injects a huge derivative and limit-cycles. Real gains come from a bioreactor
 > run; anything tuned against the simulator's placeholder kLa is provisional.
 
-**Deferred to later Phase 2 WPs, on purpose:** the [D-008](DECISIONS.md) kLa surface and
-its gradient-path allocation (replaces the linear allocator, not the controller); gain
+**Deferred to later Phase 2 WPs, on purpose:** the [D-008](DECISIONS.md) kLa mapping
+window, surface fit and gradient-path allocation (replaces the linear allocator, not the controller); gain
 scheduling; the OUR soft sensor; the five dosing subsystems and their synoptic positions;
 the `oxygen` detail-pane `Cascata`/`PID`/`Saída` tabs; mode ownership and live actuation.
 WP1 is the piece every one of those builds on, and the only piece that needs neither the
-bioreactor nor D-008.
+bioreactor nor a published kLa path.
 
 ### WP2 — Cascade tuning workspace *(advisory)* — **done 2026-08-20**
 
@@ -702,7 +735,7 @@ safe increment; the controller must be trusted before anything sends its output 
 
 **Deferred to later WPs:** live actuation under `Automático` ownership; the `oxygen`
 detail-pane `Cascata`/`PID`/`Saída` tabs; the kLa `Trajetória` contour and gradient path
-([D-008](DECISIONS.md)); and a live tuning chart.
+created by the dedicated [D-008](DECISIONS.md) mapping window; and a live tuning chart.
 
 ### WP3 — pH control + guided calibration — **done 2026-08-20**
 
@@ -734,18 +767,122 @@ and pulls the three mature v.6 calibration procedures forward from Phase 3.
 the external flow standard, pump direction or physical interlocks. See
 [CALIBRATION.md](CALIBRATION.md#6-estados-de-recusa-e-limite-de-validação).
 
+### WP4 — operational safety, ownership and field-parity kernel — **P0 · next**
+
+This WP precedes every automatic command. It closes the small v.6 operational behaviours
+that become safety-critical once the advisory controller is allowed to send.
+
+- [ ] One command arbiter owns the wire. `Manual`, `Automático` and later `Receita` are
+      mutually exclusive per actuator; changing owner is explicit, journalled and bumpless
+- [ ] Desired/issued/transport-accepted/telemetry-confirmed/timed-out command lifecycle.
+      Use `FlowCommandAck` where the firmware exposes it and label other channels honestly
+      when only transport acceptance or setpoint echo is available
+- [ ] Core system alarms: link lost, module offline, flowmeter offline, frozen data,
+      sensor absent and unacknowledged command. Each has delay/deadband, acknowledgement,
+      audit history and an audible indication with a timed silence — not a permanent mute
+- [ ] Operator **Zerar tempo da sessão**: store a local display/log offset exactly as v.6
+      does; never reset the device clock or rewrite prior samples
+- [ ] Finish the Phase 0 P2/P3 link work: safe busy-port handling, WMI/CH343 ranking,
+      immutable telemetry snapshots, configured HTTP poll period and truthful round-trip
+      naming/correlation
+
+**Exit:** manual control still works through the arbiter; a simulated or real link loss
+revokes automatic ownership and produces one latched alarm/event; no automatic subsystem
+can send until this gate passes on the bioreactor.
+
+### WP5 — Mapeamento kLa and path publication — **P1 · D-008**
+
+A dedicated main destination implements the paper method. It is not a file picker for a
+pre-built surface and it does not start with a production profile selected.
+
+- [ ] Named mapping experiments with actuator bounds, experiment metadata and an editable
+      `(Q_g,N,kLa)` point table plus experimental-design plot
+- [ ] `Rascunho → superfície estimada → trajetória válida → revisada → publicada` state
+      machine. Editing an anchor or numerical setting invalidates every downstream state
+- [ ] Paper-reference reconstruction, normalized derivatives, candidate headroom search,
+      bidirectional gradient integration, low-to-high orientation and monotonic kLa
+      allocation table, following `04_Cascata_kLa/app/kLa Control Lab/equations.md`
+- [ ] Side-by-side contour/gradient/path display with algorithm identity, units, residuals,
+      domain/range, selected start, mean headroom and refusal diagnostics visible
+- [ ] Immutable, versioned publication receipt containing inputs, algorithm/settings,
+      surface/path fingerprint, kLa range and allocation samples. Import/export is explicit;
+      imported data still requires review and activation
+- [ ] Cross-language scientific fixtures generated by the Python/SciPy reference pipeline;
+      C# values, derivatives, path/headroom and allocation must meet declared tolerances
+
+**Exit:** starting from operator-entered anchors, a fresh installation reproduces the
+reference result, publishes a receipt and can reopen it byte-for-byte. Paper datasets may
+exist in tests/documentation, but do not ship in the production profile store.
+
+### WP6 — live cascade ownership and actuation — **P1**
+
+- [ ] Replace the linear allocator with the selected published kLa path while preserving
+      the validated velocity-form controller
+- [ ] Enable three explicit operator modes: agitation-only, aeration-only and simultaneous
+      kLa-path allocation. Nitrogen enrichment remains disabled until its own path is proven
+- [ ] `Automático` requests ownership from WP4, initializes from the currently commanded
+      actuators, supports an explicit integral reset, and transfers without a setpoint jump
+- [ ] Send the complete combined actuation frame; wait for available flow/setpoint feedback,
+      retry within a bounded policy and safe-abort on stale O₂, link loss or ownership loss
+- [ ] Add the O₂ `Cascata`/`PID`/`Saída` detail tabs and the live PV/SP/kLa/output tuning chart
+
+**Exit:** a hardware-in-the-loop run demonstrates arm, track, manual takeover, feedback
+timeout and safe abort. No result tuned only against the simulator closes this WP.
+
+### WP7 — remaining v.6 cultivation auxiliaries — **P1**
+
+- [ ] Nutrient dosing: operation/mix/cycle/intensity as one validated desired state
+- [ ] Antifoam dosing plus distance/foam reference, initial delay, pulse and interval
+- [ ] Separate flask agitator: automatic mode, signed operator direction converted to wire
+      magnitude/direction, on/off and potentiometer re-enable semantics
+- [ ] Extend the global safe-stop and command arbiter to all three; commanded-only values
+      remain tagged as such and never receive a false healthy state
+- [ ] Add their Controle cards, detail surfaces, events and synoptic elements. The flask
+      agitator remains off the reactor drawing because it is a separate bench device
+
+### WP8 — conditional OUR and gain scheduling — **P1**
+
+- [ ] Implement the paper-defined conditional OUR soft sensor on live data, with explicit
+      quasi-steady acceptance/refusal states and `estimado` provenance
+- [ ] Keep conditional OUR separate from total cultivation oxygen consumption and never
+      fill refused intervals with zero
+- [ ] Add gain scheduling as a versioned controller profile whose transitions are visible,
+      bounded and journalled
+- [ ] Validate with reference traces, replay and the real cultivation receipt after WP6
+
 ---
 
 ## Phase 3 — Remaining subsystems + recipes
 
-**Goal:** feature parity with v.6, plus the automation that v.6 never had.
+**Goal:** close the remaining v.6 device inventory, pass a parity receipt, and only then
+add the automation that v.6 never had.
 
-- [ ] Biomass sensor (blank, thresholds, integration time)
-- [ ] External pump, all five profile modes including polynomial `p0..p20` and piecewise
-- [ ] **Remaining calibration procedures** — the level reference and biomass blank/
-      thresholds. The dedicated page and pH, oxygen and airflow procedures were delivered
-      early in Phase 2 WP3 ([UI_DESIGN §5.7](UI_DESIGN.md#57-calibrações))
-- [ ] **Receitas page** — node canvas, execution engine, JSON persistence
+### WP1 — biomass sensor and procedure — **P2**
+
+- [ ] Enable/disable, blank/start/stop, atomic low/high/optimal thresholds and live
+      `BiomassAbs`/`BiomassRaw`/`BiomassIT`/`BiomassPWM`
+- [ ] Add the biomass procedure to Calibrações and confirm whether the firmware actually
+      exposes an HD-mode state before displaying one
+
+### WP2 — external pump and proportional gas — **P2**
+
+- [ ] All five firmware profiles: constant, linear, exponential, polynomial `p0..p20`
+      and piecewise `t0..tN`/`q0..qN`, with a shared flow/accumulated-volume preview
+- [ ] Safe disabled frame `pumpComm:0, mode:0, speed:0`, payload-size validation and
+      versioned profile persistence
+- [ ] Optional proportional-gas coupling from v.6,
+      `Q_g=(V_initial+PumpVol/1000)·vvm`, owned by the same arbiter as manual/cascade flow
+
+### WP3 — remaining calibration and v.6 parity receipt — **P2**
+
+- [ ] Known-level reference plus biomass blank/threshold procedure. pH, oxygen and airflow
+      were delivered early in Phase 2 WP3
+- [ ] Run every v.6 operator action against real hardware, capture command/telemetry/event
+      receipts, and resolve the remaining protocol questions before declaring parity
+
+### WP4 — Receitas — **new capability after the parity gate**
+
+- [ ] Node canvas, validator, execution engine and versioned JSON persistence
 
 On recipes: the concept and the engine architecture come from ReceitasTECNAL —
 node graph, validator, engine sliced by responsibility. The **UI, visual language
@@ -788,7 +925,7 @@ make while re-implementing, rather than copying forward:
 
 > **Most of this phase was absorbed.** It began as an unagreed list seeded from a page
 > review (`docs/evidence/ui/`). The [UI_DESIGN.md](UI_DESIGN.md) revision of 2026-08-20
-> specified all eight main windows, which moved the shell, KPI-strip, settings-navigation,
+> now specifies all nine main windows, which moved the shell, KPI-strip, settings-navigation,
 > confirmation, chart-export, event-log, icon, persistence and keyboard items into
 > **Phase 1b**. pH, oxygen and airflow calibration then moved forward into **Phase 2 WP3**;
 > level and biomass procedures remain in Phase 3. What remains genuinely needs the later
@@ -796,13 +933,12 @@ make while re-implementing, rather than copying forward:
 
 ### Alarms
 
-- [ ] **Alarm engine.** v.6 had an audible alarm and an alarm state; the state colours
-      exist here but nothing raises or acknowledges an alarm. Needs per-variable HH/H/L/LL
-      limits with deadband and delay, plus the seven system alarms — link lost, module
-      offline, flowmeter offline, frozen data, sensor absent, unacknowledged command,
-      persistent foam ([UI_DESIGN §5.4](UI_DESIGN.md#54-alarmes)).
+- [ ] **Extend the Phase 2 WP4 safety kernel.** WP4 supplies the system-alarm lifecycle,
+      acknowledgement, event record and timed audible silence before automatic actuation.
+      Phase 5 adds configurable per-variable HH/H/L/LL limits with deadband/delay and the
+      persistent-foam process alarm ([UI_DESIGN §5.4](UI_DESIGN.md#54-alarmes)).
 - [ ] **Alarmes page** — active, history, configuration. Design is specified and ready to
-      build once the engine exists.
+      build on the WP4 engine once the complete variable inventory exists.
 - [ ] Alarm limits are in **engineering units** and must not be confused with the
       spike-filter thresholds, which are in raw ADC counts.
 
@@ -816,7 +952,8 @@ make while re-implementing, rather than copying forward:
 
 ### Field readiness
 
-- [ ] Audible alarm, with a silence timeout.
+- [ ] Verify the WP4 audible alarm and silence timeout with the operator and the real
+      control-room audio environment.
 - [ ] Operator walkthrough of every page against the pt-BR wording, in one review.
 
 ---

@@ -12,7 +12,7 @@
 ## How to read this document
 
 This is the **target** design, written before the UI grows large enough that changing it
-becomes expensive. Sections 1-4 are binding today. Section 5 specifies eight main
+becomes expensive. Sections 1-4 are binding today. Section 5 specifies nine main
 windows; each one names the phase that builds or completes it.
 
 Three words are used precisely throughout:
@@ -565,7 +565,7 @@ configuration all persist.
 
 ## 5. The main windows
 
-Eight destinations. **kLa gassing-out is deliberately absent** — it leaves the controller
+Nine destinations. **kLa gassing-out is deliberately absent** — it leaves the controller
 app entirely ([D-010](DECISIONS.md)) because it depends on torch and is the single largest
 contributor to v.6's cold start. **Receitas is a main window**, not a dialog.
 
@@ -579,6 +579,7 @@ contributor to v.6's cold start. **Receitas is a main window**, not a dialog.
 | 5.6 | **Eventos** | Unified audit trail | 1 partial → 5 |
 | 5.7 | **Calibrações** | Calibration procedures with live feedback | 2 WP3 partial → 3 |
 | 5.8 | **Configurações** | Everything genuinely configuration | 1 ✅ |
+| 5.9 | **Mapeamento kLa** | Estimate `kLa(Q_g,N)`, construct/review the gradient-headroom path and publish an allocation profile | 2 WP5 |
 
 ### The device inventory
 
@@ -859,7 +860,7 @@ The scientific payload gets a real workspace.
 |---|---|
 | **Malha** | `Controlada ▾` (O₂) · `Manipuladas` checklist: `Agitação` · `Aeração` · `Enriquecimento (N₂)` — the last disabled until the enrichment path is validated |
 | **Janelas de atuação** | Per actuator: `Mín` · `Máx` · `Prioridade` · overlap band, with a stacked bar showing the allocation |
-| **Trajetória kLa** | `Superfície ▾` (loaded surface file) · `Ponto inicial: máxima folga` / `manual` · `Passo` · contour plot of kLa over agitation × aeração with the gradient path drawn |
+| **Perfil kLa ativo** | Published profile selector · version/fingerprint · kLa range · selected-start/headroom summary · read-only path thumbnail · `Abrir Mapeamento kLa`. No fitted surface is created or silently loaded inside Controle |
 | **PID** | `Kp` · `Ki` · `Kd` · `I_min` · `I_max` · `Horizonte de predição (s)` 30-60 · `Janela de estimativa de taxa (s)` |
 | **Termos ao vivo** | Read-only tabular: `P` · `I` · `D` · `dSaída` · `Saída` · `DOT_pred`, updating at 1 Hz |
 | **Gráfico de sintonia** | Role palette (3.5): PV solid blue, SP dashed green, output dotted orange, limits thin red |
@@ -1612,6 +1613,70 @@ typed, would put visibly wrong numbers on screen and into the session log.
 
 ---
 
+### 5.9 Mapeamento kLa
+
+**Purpose:** apply the paper method to experimental data inside the controller app:
+
+\[
+(Q_g,N,kLa)_{experimental}
+\rightarrow kLa(Q_g,N)
+\rightarrow \nabla kLa
+\rightarrow \text{maximum-headroom path}
+\rightarrow kLa_{requested}\mapsto(Q_g,N).
+\]
+
+This is a dedicated main window under [D-008](DECISIONS.md), not a pre-loaded feature
+inside the tuning form. A clean installation says **Nenhum perfil kLa publicado**. The
+controller cannot arm in path mode until the operator has created or explicitly imported,
+reviewed, published and activated a valid profile.
+
+#### Workflow and state
+
+| Stage | Operator surface | Completion gate |
+|---|---|---|
+| **1 · Experimento** | Name, broth/run metadata, `Q_g` and `N` bounds, design/table editor for measured triples `(Q_g,N,kLa)` | Finite non-negative kLa; unique coordinates; enough non-collinear coverage; units and bounds valid |
+| **2 · Superfície** | `Estimar superfície`; contour map with anchors/residuals; exact method/settings and numerical warnings | Finite surface over the operational domain; reference-fixture tolerance satisfied |
+| **3 · Gradiente e folga** | Normalized gradient field, candidate-search progress, headroom landscape and selected initialization | Candidate search complete; selected score/start recorded; no zero-gradient/degenerate-path refusal |
+| **4 · Trajetória** | Bidirectional path, low/high-kLa orientation, kLa span, `Q_g/N` allocation plots and diagnostics | Monotonic allocatable kLa relation; physical bounds respected |
+| **5 · Revisão e publicação** | Input/method/result summary, version note and `Publicar perfil` | Explicit operator review; immutable receipt stored and fingerprinted |
+
+States are `Rascunho → Superfície estimada → Trajetória válida → Revisada → Publicada`.
+Changing any experimental anchor, actuator bound or scientific setting invalidates the
+surface and every later state. Changing palette, labels, zoom or graph density is
+display-only and does not invalidate scientific results.
+
+#### Layout
+
+- **Left rail, 300 px:** named experiment/profile list, metadata, anchor table and
+  validation issues. Add/delete/duplicate/import are secondary actions.
+- **Central workspace:** the contour map is primary. It can overlay anchors, normalized
+  gradient vectors, candidate starts, headroom, selected path and the current result
+  without hiding the underlying measured points.
+- **Right diagnostics, 320 px:** algorithm identity, units, domain, kLa range, residual
+  summary, selected start, maximum/selected headroom, path length, allocation-point count
+  and invalidation state.
+- **Footer:** `Reverter etapa`, `Estimar superfície`, `Calcular trajetória`, `Marcar como
+  revisada`, `Publicar perfil`. Only the action valid for the current stage is primary.
+
+The path search exposes progress/cancel rather than freezing the UI. Long numerical work
+runs outside the dispatcher and stale results are rejected by an input fingerprint. The
+plot follows the application theme, but the algorithm and receipt do not.
+
+#### Operational boundary
+
+- A published receipt is immutable. Editing creates a new draft/version; it never mutates
+  the profile currently owned by an automatic run.
+- Paper datasets remain test/documentation fixtures, outside the production profile store
+  and operator selector. An operator can import their own experimental dataset explicitly.
+- `Controle → Cascata e sintonia` selects and summarizes a published profile; it does not
+  fit one. Its `Abrir Mapeamento kLa` action navigates here.
+- The fitting/search layer never sends commands. Only the live controller, after acquiring
+  `Automático` ownership, converts requested kLa through the active published path.
+- Manual initialization may be available for diagnosis, but publication as **método do
+  artigo** requires the recorded maximum-mean-headroom selection rule.
+
+---
+
 ## 6. Shared components
 
 Built once, used everywhere. A component defined here must not be re-implemented per
@@ -1912,28 +1977,30 @@ section is the design-side summary; the roadmap is the plan of record.
 
 ### Phase 2
 
-9. Detail-pane tabs for `oxygen`: Cascata, PID, Saída.
-10. `Controle` → `Cascata e sintonia`, with the overlapping actuator-window bar.
-11. Complete pH control plus the pH/O₂/airflow Calibrações workspace — **done in WP3**.
+9. P0 command-ownership and system-alarm kernel; automatic control remains disabled until it passes.
+10. Dedicated **Mapeamento kLa** destination implementing [5.9](#59-mapeamento-kla) and D-008.
+11. Live cascade ownership/actuation, `oxygen` Cascata/PID/Saída detail tabs and tuning chart.
+12. `Controle → Cascata e sintonia` consumes a published path; it never fits a surface.
+13. Complete pH control plus the pH/O₂/airflow Calibrações workspace — **done in WP3**.
     Nutrient, antifoam, foam and flask-agitator cards **and their synoptic elements** remain,
     added alongside each subsystem rather than in a later pass.
 
 ### Phase 3
 
-12. Remaining level and biomass calibration procedures on the existing page.
-13. Receitas: generated node definitions, canvas, library, properties pane, JSON panel,
+14. Remaining level and biomass calibration procedures on the existing page.
+15. Biomass and external-pump cards, synoptic elements, chart channels.
+16. Receitas, after the v.6 parity gate: generated node definitions, canvas, library, properties pane, JSON panel,
     validator strip, execution view.
-14. Biomass and external-pump cards, synoptic elements, chart channels.
 
 ### Phase 5
 
-15. Alarm engine, then the Alarmes page and the bell badge. The page is fully specified in
-    [5.4](#54-alarmes) and waits only on the engine.
+17. Extend the Phase 2 system-alarm kernel with variable HH/H/L/LL configuration, then
+    deliver the Alarmes page and bell badge specified in [5.4](#54-alarmes).
 
 ### Continuous
 
-16. Responsive verification at every breakpoint in [4.7](#47-responsive-behaviour).
-17. Screenshot evidence per page in `docs/evidence/ui/`, refreshed after the re-tint.
+18. Responsive verification at every breakpoint in [4.7](#47-responsive-behaviour).
+19. Screenshot evidence per page in `docs/evidence/ui/`, refreshed after the re-tint.
 
 ---
 
@@ -1944,7 +2011,7 @@ Recorded so the previous revision's decisions are not silently lost.
 | Was | Is | Why |
 |---|---|---|
 | Dark-first, Fluent `#0067C0` | **Light-first, `#2563D9`** | Long lab sessions; readability for graphs and numbers |
-| Four nav destinations | **Eight main windows** | Receitas, Alarmes, Calibrações, Eventos and Controle all had roadmap deliverables with nowhere to live |
+| Four nav destinations | **Nine main windows** | Receitas, Alarmes, Calibrações, Eventos, Controle and the experimental kLa mapping workflow all need first-class workspaces |
 | "2+1 hybrid" | Same structure, plus an **optional variable rail** | Option B's density without a second layout |
 | Chart palette: Okabe-Ito only | **Role palette + identity palette** | A single-loop plot and a multi-variable comparison are different questions |
 | Five state colours | **Six, each with a text variant** | `Disabled` was missing; the vivid fills fail contrast as type |

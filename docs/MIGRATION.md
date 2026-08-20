@@ -76,7 +76,7 @@ cannot be aborted once started — the window is unresponsive until it finishes.
 |---|---:|---|
 | `kLa_methods/simple_cascade_control.py` | 422 | `Services/Control/CascadeController.cs` — **rewritten** from the ReceitasTECNAL design, not ported |
 | `kLa_methods/kla_cascade_control.py` | 368 | `Services/Control/KlaPathController.cs` — **rewritten** per the manuscript |
-| `kLa_methods/kla_cascade_page.py` | 918 | Phase 2 kLa view |
+| `kLa_methods/kla_cascade_page.py` | 918 | Dedicated `Mapeamento kLa` workspace + published-path selector in Controle. Preserve interactive experimental points/profile management, but replace v.6's numerical shortcut with the paper-reference D-008 workflow |
 | `kLa_methods/kla_gassing_out_page.py` | 1716 | **Removed** — separate project |
 
 ### Application
@@ -91,6 +91,12 @@ cannot be aborted once started — the window is unresponsive until it finishes.
 > written by name, in two places that must be kept in sync by hand. This is the
 > single largest source of "add a field, forget a line, silently lose the setting".
 > It becomes a typed record and `System.Text.Json`, and disappears.
+
+**D-008 correction:** v.6's kLa page is evidence for an operator workflow, not evidence
+that production should load a bundled fitted surface. It lets the operator create named
+profiles, add/edit `(Q_g,N,kLa)` experimental points and calculate a gradient path. The new
+workspace keeps that lifecycle, applies the paper-reference reconstruction/headroom method,
+and publishes an immutable path receipt. No map is active on a clean installation.
 
 **Calibration ownership after WP3:** pH and oxygen coefficients remain in the app parser;
 accepted pH is echoed to the module as the quoted `pHCal` display value. The six airflow

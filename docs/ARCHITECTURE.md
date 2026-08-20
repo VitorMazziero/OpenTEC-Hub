@@ -112,6 +112,13 @@ and keeps every pt-BR user-facing string in one reviewable place.
 v.6's 370 lines of hand-written `collect_preferences` / `apply_preferences` marshalling —
 the single biggest source of silently-lost settings in the old app.
 
+**kLa mapping and live control have separate lifecycles.** The D-008 workspace owns
+experimental `(Q_g,N,kLa)` anchors, surface reconstruction, gradient/headroom search and
+publication. A published profile is an immutable, versioned receipt; the real-time
+controller receives only its monotonic kLa-to-actuator allocation and cannot edit or refit
+it. A fresh installation has no active operational map. Scientific fitting runs off the UI
+thread and never touches `IDeviceService`.
+
 **Calibration has three explicit owners.** pH and oxygen linear curves belong to the
 app parser. Accepted pH is then echoed as a quoted `pHCal` solely because the module needs
 the calibrated value for its display/controller. The two-segment airflow curve belongs to

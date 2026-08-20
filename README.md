@@ -15,7 +15,10 @@ full instrument, and without ever changing the firmware protocol.
 > against live oxygen telemetry and is tunable on screen, but does not actuate. WP3 adds
 > the complete five-field pH dosing state and guided pH, oxygen and airflow calibration,
 > including the pH safe-stop interlock and the app-to-module `pHCal` display echo. Live
-> cascade actuation waits for command ownership and the bioreactor. USB and Wi-Fi were validated
+> cascade actuation waits for the P0 safety/ownership gate and the bioreactor. The next
+> scientific workspace is **Mapeamento kLa**: it estimates `kLa(Q_g,N)` from operator-entered
+> experimental points and publishes the paper's gradient/headroom allocation path; no
+> production surface is pre-loaded. USB and Wi-Fi were validated
 > against a real ESP32-S3; live-sensor and full-cultivation validation still need the
 > bioreactor and remain the hardware gate. v.6 remains the production application until
 > TECNAL-Hub has completed a full cultivation run.

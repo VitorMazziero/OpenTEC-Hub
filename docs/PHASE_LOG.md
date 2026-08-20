@@ -772,7 +772,8 @@ no wire, no telemetry, no UI, validated against a simulated first-order DOT plan
 time.
 
 **Why:** it is the piece every other Phase 2 deliverable sits on, and the only one that
-needs neither the bioreactor nor the open [D-008](DECISIONS.md) kLa-surface decision. Risk
+needs neither the bioreactor nor the then-open [D-008](DECISIONS.md) kLa-surface decision
+(resolved later by P2-06). Risk
 is front-loaded exactly as it was for Phase 0: the controller math is the genuinely unknown
 part, so it goes first and is allowed to be proven or disproven cheaply, before a pixel of
 the tuning UI or a byte of live actuation depends on it.
@@ -836,7 +837,7 @@ tuning UI will expose every one of them.
 
 | Item | Why deferred |
 |---|---|
-| kLa surface evaluation + gradient-path allocation | Gated on [D-008](DECISIONS.md); it replaces the linear allocator, not the controller |
+| kLa surface evaluation + gradient-path allocation | At WP1 it was gated on [D-008](DECISIONS.md); P2-06 later resolved it as an in-app mapping workflow. It replaces the linear allocator, not the controller |
 | Gain scheduling | Wanted, but not needed to prove the core law; a later WP |
 | OUR soft sensor | Builds on the validated controller |
 | Dosing subsystems + their synoptic positions | Separate WP; touch the UI and the wire |
@@ -903,3 +904,31 @@ new XAML binding failure, fatal exception or unhandled exception. Screenshots ar
 **Boundary:** no physical calibration was performed. Buffers, the O₂ standard, certified
 flow reference, pump direction and real interlocks remain part of the bioreactor hardware
 gate; v.6 remains the production fallback until that gate and a cultivation run close.
+
+---
+
+### P2-06 · D-008 is an in-app mapping experiment, not a bundled surface
+
+**Corrected by the project owner:** the kLa feature is a dedicated window in which the
+operator enters experimental `(Q_g,N,kLa)` values, the paper method estimates
+`kLa(Q_g,N)`, and the gradient/headroom trajectory is constructed for actuator allocation.
+The earlier proposal to ship a fitted surface and only evaluate it in C# is superseded.
+
+**Evidence reviewed:** v.6 `kla_cascade_page.py` already exposes named profiles and an
+interactive experimental-point editor before calculating its path. The manuscript project
+defines the authoritative sequence as normalized surface reconstruction, normalized local
+gradient, candidate start selection by maximum mean actuator headroom, bidirectional path
+integration, low-to-high orientation and kLa-to-`(Q_g,N)` interpolation. The accompanying
+kLa Path Control Lab preserves the same visible Map → Gradient → Headroom → Path chain.
+
+**Operational decision:** production starts with no active map. A fit remains a draft until
+it is reviewed and published as an immutable, versioned receipt; edits invalidate the
+surface and all downstream results. Paper datasets may serve tests/examples but are never
+silently selected. The live controller consumes only a published path and cannot fit or
+mutate one while running.
+
+**Roadmap consequence:** remaining v.6 parity is now ordered P0-P2. Field protocol closure,
+alarms and exclusive command ownership precede automatic actuation; the D-008 mapping
+workspace precedes live kLa-path control; v.6 dosing auxiliaries, OUR, biomass and the
+external pump close before the new Receitas engine is allowed to become another command
+source.

@@ -1,5 +1,6 @@
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Persistence;
 using TecnalHub.ViewModels;
 using Xunit;
 
@@ -66,6 +67,9 @@ internal sealed class RecordingDeviceService : IDeviceService
     public Task<string?> DiscoverUsbPortAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(null);
 
+    /// <summary>Raises a telemetry frame, as the real service does on the UI thread.</summary>
+    public void PushTelemetry(SensorSnapshot snapshot) => TelemetryReceived?.Invoke(snapshot);
+
     /// <summary>Silences the unused-event warnings; nothing here raises them.</summary>
     internal void Unused()
     {
@@ -73,6 +77,26 @@ internal sealed class RecordingDeviceService : IDeviceService
         TelemetryReceived?.Invoke(new SensorSnapshot());
         DeviceLogReceived?.Invoke("");
     }
+}
+
+/// <summary>In-memory settings, with the last mutation kept for assertions.</summary>
+internal sealed class MemorySettingsService(AppSettings initial) : ISettingsService
+{
+    public MemorySettingsService() : this(new AppSettings())
+    {
+    }
+
+    public AppSettings Current { get; private set; } = initial;
+
+    public event Action<AppSettings>? Changed;
+
+    public void Update(Func<AppSettings, AppSettings> mutate)
+    {
+        Current = mutate(Current);
+        Changed?.Invoke(Current);
+    }
+
+    public Task SaveNowAsync() => Task.CompletedTask;
 }
 
 /// <summary>

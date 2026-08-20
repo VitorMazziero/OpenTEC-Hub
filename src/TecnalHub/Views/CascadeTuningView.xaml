@@ -1,0 +1,362 @@
+<UserControl x:Class="TecnalHub.Views.CascadeTuningView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:CascadeTuningViewModel}">
+
+    <UserControl.Resources>
+        <conv:DoubleToStarConverter x:Key="Star" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <Style x:Key="TuningBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="72" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,0,0,7" />
+        </Style>
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeSubtitle}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="TermLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="TermValue" TargetType="TextBlock" BasedOn="{StaticResource NumericTextStyle}">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="360" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ── Left: editable tuning ─────────────────────────────────── -->
+                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+
+                    <!-- Malha -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Malha de oxigênio" Style="{StaticResource CardTitle}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Controlada:" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="Oxigênio dissolvido (O₂)" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Setpoint de O₂ (%)" Style="{StaticResource FieldLabel}" Width="130" />
+                                <TextBox Style="{StaticResource TuningBox}" Margin="0"
+                                         Text="{Binding OxygenSetpoint}" />
+                            </StackPanel>
+                            <TextBlock Text="Manipuladas" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
+                            <CheckBox Content="Agitação" IsChecked="True" IsEnabled="False"
+                                      ToolTip="Sempre ativa nesta fase; a alocação divide o esforço entre agitação e aeração." />
+                            <CheckBox Content="Aeração" IsChecked="True" IsEnabled="False" Margin="0,4,0,0"
+                                      ToolTip="Sempre ativa nesta fase." />
+                            <CheckBox Content="Enriquecimento (N₂)" IsChecked="False" IsEnabled="False" Margin="0,4,0,0"
+                                      ToolTip="Requer a validação do caminho de enriquecimento (Fase 2, depois da cascata base)." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- PID -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="PID — forma de velocidade" Style="{StaticResource CardTitle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="90" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Kp" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding Kp}" />
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="I_min" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="0" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding IntegralMin}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Ki" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding Ki}" />
+                                <TextBlock Grid.Row="1" Grid.Column="3" Text="I_max" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="1" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding IntegralMax}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Kd" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding Kd}" />
+                                <TextBlock Grid.Row="2" Grid.Column="3" Text="Horizonte (s)" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="2" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding PredictionHorizonSeconds}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Intervalo (s)" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding IntervalSeconds}" />
+                                <TextBlock Grid.Row="3" Grid.Column="3" Text="Janela taxa (s)" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="3" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding RateWindowSeconds}" />
+                            </Grid>
+                            <TextBlock TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       Text="A saída é integrada: Saída[i] = Saída[i−1] + dSaída[i]. O horizonte de predição compensa o tempo morto da sonda; por isso Kp é pequeno — Kp × horizonte é a ação derivativa efetiva." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Janelas de atuação -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="Janelas de atuação" Style="{StaticResource CardTitle}" />
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Mín" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Máx" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="Início %" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="4" Text="Fim %" Style="{StaticResource FieldLabel}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Agitação" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding AgitationMinRpm}" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Style="{StaticResource TuningBox}" Text="{Binding AgitationMaxRpm}" />
+                                <TextBox Grid.Row="1" Grid.Column="3" Style="{StaticResource TuningBox}" Text="{Binding AgitationEffortStart}" />
+                                <TextBox Grid.Row="1" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding AgitationEffortEnd}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Aeração" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding AerationMinLpm}" />
+                                <TextBox Grid.Row="2" Grid.Column="2" Style="{StaticResource TuningBox}" Text="{Binding AerationMaxLpm}" />
+                                <TextBox Grid.Row="2" Grid.Column="3" Style="{StaticResource TuningBox}" Text="{Binding AerationEffortStart}" />
+                                <TextBox Grid.Row="2" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding AerationEffortEnd}" />
+                            </Grid>
+
+                            <!-- Allocation bar over the 0-100 % effort track -->
+                            <TextBlock Text="Alocação do esforço (0–100 %)" Style="{StaticResource FieldLabel}" Margin="0,6,0,4" />
+                            <Grid>
+                                <StackPanel>
+                                    <!-- Agitation window -->
+                                    <Grid Height="16" Margin="0,0,0,4"
+                                          Background="{DynamicResource SurfaceSunkenBrush}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="{Binding AgitationBarStart, Converter={StaticResource Star}}" />
+                                            <ColumnDefinition Width="{Binding AgitationBarSpan, Converter={StaticResource Star}}" />
+                                            <ColumnDefinition Width="{Binding AgitationBarRest, Converter={StaticResource Star}}" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="1" Background="{DynamicResource AccentBrush}" CornerRadius="2"
+                                                ToolTip="Agitação" />
+                                    </Grid>
+                                    <!-- Aeration window -->
+                                    <Grid Height="16"
+                                          Background="{DynamicResource SurfaceSunkenBrush}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="{Binding AerationBarStart, Converter={StaticResource Star}}" />
+                                            <ColumnDefinition Width="{Binding AerationBarSpan, Converter={StaticResource Star}}" />
+                                            <ColumnDefinition Width="{Binding AerationBarRest, Converter={StaticResource Star}}" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="1" Background="{DynamicResource PathGasBrush}" CornerRadius="2"
+                                                ToolTip="Aeração" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Current-effort marker, drawn across both bars -->
+                                <Grid Visibility="{Binding IsArmed, Converter={StaticResource BoolToVis}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="{Binding EffortMarker, Converter={StaticResource Star}}" />
+                                        <ColumnDefinition Width="{Binding EffortRest, Converter={StaticResource Star}}" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="2" HorizontalAlignment="Right"
+                                            Background="{DynamicResource ChartOutputBrush}" />
+                                </Grid>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center"
+                                        Background="{DynamicResource AccentBrush}" />
+                                <TextBlock Text="Agitação" Style="{StaticResource FieldLabel}" Margin="5,0,14,0" />
+                                <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center"
+                                        Background="{DynamicResource PathGasBrush}" />
+                                <TextBlock Text="Aeração" Style="{StaticResource FieldLabel}" Margin="5,0,14,0" />
+                                <Border Width="2" Height="12" VerticalAlignment="Center"
+                                        Background="{DynamicResource ChartOutputBrush}" />
+                                <TextBlock Text="Esforço atual" Style="{StaticResource FieldLabel}" Margin="5,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ── Right: advisory monitor ───────────────────────────────── -->
+                <StackPanel Grid.Column="1">
+
+                    <!-- Advisory arming -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Cascata consultiva" Style="{StaticResource CardTitle}" />
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       Text="A cascata calcula o que comandaria a partir do O₂ ao vivo, mas não envia nada ao equipamento. A atuação real chega com a posse de comando (modo Automático) e o biorreator." />
+                            <Button Content="{Binding ArmLabel}"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding ToggleArmCommand}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                        Visibility="{Binding IsArmed, Converter={StaticResource BoolToVis}}">
+                                <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                                        Background="{DynamicResource StateActuatingBrush}" />
+                                <TextBlock Text="Calculando (consultivo)" Margin="6,0,0,0"
+                                           Foreground="{DynamicResource StateActuatingTextBrush}"
+                                           FontSize="{DynamicResource FontSizeCaption}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Live terms -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Termos ao vivo" Style="{StaticResource CardTitle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="O₂ medido" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LiveOxygen}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="DOT_pred (predito)" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LivePredicted}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Taxa dO₂/dt" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LiveRate}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Erro" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LiveError}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="P" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LiveProportional}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="I" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding LiveIntegral}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="D" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding LiveDerivative}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="dSaída" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding LiveDeltaOutput}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="Saída (esforço)" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding LiveOutput}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="9" Grid.Column="0" Text="→ Agitação" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding LiveAgitation}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="10" Grid.Column="0" Text="→ Aeração" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding LiveAeration}" Style="{StaticResource TermValue}" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                        Visibility="{Binding IsSaturated, Converter={StaticResource BoolToVis}}">
+                                <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                                        Background="{DynamicResource StateWarningBrush}" />
+                                <TextBlock Text="Saída saturada no limite do atuador"
+                                           Margin="6,0,0,0"
+                                           Foreground="{DynamicResource StateWarningTextBrush}"
+                                           FontSize="{DynamicResource FontSizeCaption}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- kLa trajectory placeholder (D-008) -->
+                    <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="Trajetória kLa" Style="{StaticResource CardTitle}"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       Text="A superfície kLa (agitação × aeração) e a subida pelo gradiente chegam com o arquivo de superfície do manuscrito. Até lá, a divisão do esforço usa as janelas de atuação acima." />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="1" Margin="0,12,0,0"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                Padding="12">
+            <StackPanel>
+                <WrapPanel>
+                    <TextBox Width="170"
+                             Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome da nova sintonia" />
+                    <Button Content="Salvar sintonia" Margin="6,0,12,0" Command="{Binding SaveTuningCommand}" />
+                    <ComboBox Width="180" ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                              DisplayMemberPath="Name" />
+                    <Button Content="Carregar sintonia" Margin="6,0,12,0" Command="{Binding LoadTuningCommand}" />
+                    <Button Content="Reverter" Margin="0,0,12,0" Command="{Binding RevertCommand}" />
+                    <Button Content="Aplicar sintonia" Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding ApplyCommand}" />
+                </WrapPanel>
+                <TextBlock Text="{Binding ValidationError}"
+                           Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                           Foreground="{DynamicResource StateAlarmTextBrush}"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           TextWrapping="Wrap" Margin="2,8,0,0" />
+                <TextBlock Text="{Binding StatusText}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           TextWrapping="Wrap" Margin="2,6,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

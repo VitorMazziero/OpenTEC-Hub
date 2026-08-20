@@ -150,6 +150,27 @@ public sealed class EqualsToVisibilityConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>
+/// A non-negative double to a star <see cref="GridLength"/>.
+/// </summary>
+/// <remarks>
+/// Lets a proportion drive a grid column width directly, which is how the cascade
+/// allocation bar places each actuator's window on the 0-100 % effort track without any
+/// pixel arithmetic in code-behind. A non-positive or non-finite value collapses to
+/// <c>0*</c>.
+/// </remarks>
+public sealed class DoubleToStarConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var weight = value is double d && double.IsFinite(d) && d > 0 ? d : 0.0;
+        return new GridLength(weight, GridUnitType.Star);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>True when the bound value equals the parameter. Used for nav-rail selection.</summary>
 public sealed class EqualsConverter : IValueConverter
 {

@@ -165,6 +165,13 @@ time. The controller meets the wire in exactly one place, `CascadeController.Bui
 which goes through `CommandBuilders.CascadeActuation`; it never sends, so a running cascade
 and an operator share the one command queue. See [D-013](DECISIONS.md).
 
+**The cascade runs advisory before it runs live.** `CascadeService` drives the controller
+from telemetry and feeds the `Controle → Cascata e sintonia` tuning workspace, but does not
+call `IDeviceService.Send` — the operator can watch and tune the loop against a real process
+with no actuation. It takes a `TimeProvider` so the real-elapsed-time step between frames is
+deterministic under test. Live actuation is a later work package, gated on command ownership
+(`Automático`) and the bioreactor.
+
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session
 `command_logs/`, and an in-window pane) that do not agree with each other.

@@ -1,0 +1,406 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using TecnalHub.Services.Control;
+using TecnalHub.Services.Persistence;
+
+namespace TecnalHub.ViewModels;
+
+/// <summary>
+/// The <c>Controle → Cascata e sintonia</c> workspace: edit the oxygen cascade's tuning
+/// and watch its live terms.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The cascade runs in an advisory role here (<see cref="ICascadeService"/>): arming it
+/// computes what it would command against live dissolved-oxygen telemetry, without sending
+/// anything. That lets the operator tune against a real process before any actuation is
+/// permitted. See <c>docs/UI_DESIGN.md</c> section 5.2.
+/// </para>
+/// <para>
+/// Editable fields are staged; only <see cref="ApplyCommand"/> reaches the running
+/// controller and persists. Saving and loading a named tuning never actuates.
+/// </para>
+/// </remarks>
+public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposable
+{
+    private static readonly HashSet<string> EditableFields =
+    [
+        nameof(Kp), nameof(Ki), nameof(Kd), nameof(IntegralMin), nameof(IntegralMax),
+        nameof(PredictionHorizonSeconds), nameof(RateWindowSeconds), nameof(IntervalSeconds),
+        nameof(OxygenSetpoint),
+        nameof(AgitationMinRpm), nameof(AgitationMaxRpm), nameof(AgitationEffortStart), nameof(AgitationEffortEnd),
+        nameof(AerationMinLpm), nameof(AerationMaxLpm), nameof(AerationEffortStart), nameof(AerationEffortEnd),
+    ];
+
+    private readonly ICascadeService _cascade;
+    private readonly ISettingsService _settings;
+    private bool _loading;
+
+    public CascadeTuningViewModel(ICascadeService cascade, ISettingsService settings)
+    {
+        _cascade = cascade;
+        _settings = settings;
+
+        LoadFrom(settings.Current.Cascade);
+
+        foreach (var preset in settings.Current.CascadeTuningPresets
+                     .Where(p => !string.IsNullOrWhiteSpace(p.Name))
+                     .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            Presets.Add(preset);
+        }
+
+        SelectedPreset = Presets.FirstOrDefault();
+
+        _cascade.Updated += OnCascadeUpdated;
+        RefreshWindows();
+        RefreshLive();
+        Validate();
+        _loading = false;
+    }
+
+    // ── Editable tuning (staged) ─────────────────────────────────────────────
+
+    [ObservableProperty] public partial double Kp { get; set; }
+    [ObservableProperty] public partial double Ki { get; set; }
+    [ObservableProperty] public partial double Kd { get; set; }
+    [ObservableProperty] public partial double IntegralMin { get; set; }
+    [ObservableProperty] public partial double IntegralMax { get; set; }
+    [ObservableProperty] public partial double PredictionHorizonSeconds { get; set; }
+    [ObservableProperty] public partial double RateWindowSeconds { get; set; }
+    [ObservableProperty] public partial double IntervalSeconds { get; set; }
+    [ObservableProperty] public partial double OxygenSetpoint { get; set; }
+
+    [ObservableProperty] public partial double AgitationMinRpm { get; set; }
+    [ObservableProperty] public partial double AgitationMaxRpm { get; set; }
+    [ObservableProperty] public partial double AgitationEffortStart { get; set; }
+    [ObservableProperty] public partial double AgitationEffortEnd { get; set; }
+
+    [ObservableProperty] public partial double AerationMinLpm { get; set; }
+    [ObservableProperty] public partial double AerationMaxLpm { get; set; }
+    [ObservableProperty] public partial double AerationEffortStart { get; set; }
+    [ObservableProperty] public partial double AerationEffortEnd { get; set; }
+
+    // ── Staged-state flags ───────────────────────────────────────────────────
+
+    [ObservableProperty]
+    public partial string? ValidationError { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasPendingChange { get; set; }
+
+    [ObservableProperty]
+    public partial string StatusText { get; set; } = "";
+
+    public bool CanApply => ValidationError is null;
+
+    // ── Named tunings ────────────────────────────────────────────────────────
+
+    public ObservableCollection<CascadeTuningPreset> Presets { get; } = [];
+
+    [ObservableProperty]
+    public partial CascadeTuningPreset? SelectedPreset { get; set; }
+
+    [ObservableProperty]
+    public partial string PresetName { get; set; } = "";
+
+    // ── Live terms (advisory) ────────────────────────────────────────────────
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ArmLabel))]
+    public partial bool IsArmed { get; set; }
+
+    public string ArmLabel => IsArmed ? "Parar cascata consultiva" : "Simular cascata (não envia)";
+
+    [ObservableProperty] public partial string LiveOxygen { get; set; } = "—";
+    [ObservableProperty] public partial string LivePredicted { get; set; } = "—";
+    [ObservableProperty] public partial string LiveRate { get; set; } = "—";
+    [ObservableProperty] public partial string LiveError { get; set; } = "—";
+    [ObservableProperty] public partial string LiveProportional { get; set; } = "—";
+    [ObservableProperty] public partial string LiveIntegral { get; set; } = "—";
+    [ObservableProperty] public partial string LiveDerivative { get; set; } = "—";
+    [ObservableProperty] public partial string LiveDeltaOutput { get; set; } = "—";
+    [ObservableProperty] public partial string LiveOutput { get; set; } = "—";
+    [ObservableProperty] public partial string LiveAgitation { get; set; } = "—";
+    [ObservableProperty] public partial string LiveAeration { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial bool IsSaturated { get; set; }
+
+    // ── Allocation bar (0-100 % effort track, in star units) ─────────────────
+
+    [ObservableProperty] public partial double AgitationBarStart { get; set; }
+    [ObservableProperty] public partial double AgitationBarSpan { get; set; }
+    [ObservableProperty] public partial double AgitationBarRest { get; set; }
+    [ObservableProperty] public partial double AerationBarStart { get; set; }
+    [ObservableProperty] public partial double AerationBarSpan { get; set; }
+    [ObservableProperty] public partial double AerationBarRest { get; set; }
+
+    /// <summary>Current effort as a star fraction of the 0-100 track, for the marker.</summary>
+    [ObservableProperty] public partial double EffortMarker { get; set; }
+    [ObservableProperty] public partial double EffortRest { get; set; } = 100;
+
+    // ── Commands ─────────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void ToggleArm()
+    {
+        if (_cascade.IsArmed)
+        {
+            _cascade.Disarm();
+            StatusText = "Cascata consultiva parada.";
+        }
+        else
+        {
+            _cascade.Arm();
+            StatusText = "Cascata consultiva iniciada. Ela calcula, mas não envia comandos.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApply))]
+    private void Apply()
+    {
+        Validate();
+        if (!CanApply)
+        {
+            StatusText = "Revise os campos destacados antes de aplicar.";
+            return;
+        }
+
+        var settings = BuildSettings();
+        _cascade.Configure(settings);
+        _settings.Update(s => s with { Cascade = settings });
+
+        HasPendingChange = false;
+        StatusText = "Sintonia aplicada à cascata consultiva. Nada foi enviado ao equipamento.";
+        RefreshWindows();
+    }
+
+    [RelayCommand]
+    private void Revert()
+    {
+        LoadFrom(_settings.Current.Cascade);
+        StatusText = "Alterações de sintonia revertidas.";
+    }
+
+    [RelayCommand]
+    private void SaveTuning()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0)
+        {
+            StatusText = "Informe um nome para a sintonia.";
+            return;
+        }
+
+        Validate();
+        if (!CanApply)
+        {
+            StatusText = "Corrija os campos antes de salvar a sintonia.";
+            return;
+        }
+
+        var preset = new CascadeTuningPreset { Name = name, Settings = BuildSettings() };
+        var existing = Presets.FirstOrDefault(p =>
+            string.Equals(p.Name, name, StringComparison.CurrentCultureIgnoreCase));
+        if (existing is null)
+        {
+            Presets.Add(preset);
+        }
+        else
+        {
+            Presets[Presets.IndexOf(existing)] = preset;
+        }
+
+        SortPresets();
+        SelectedPreset = Presets.First(p =>
+            string.Equals(p.Name, name, StringComparison.CurrentCultureIgnoreCase));
+        PresetName = "";
+        _settings.Update(s => s with { CascadeTuningPresets = [.. Presets] });
+        StatusText = $"Sintonia “{name}” salva. Nenhum comando foi enviado.";
+    }
+
+    [RelayCommand]
+    private void LoadTuning()
+    {
+        if (SelectedPreset is not { } preset)
+        {
+            StatusText = "Selecione uma sintonia para carregar.";
+            return;
+        }
+
+        LoadFrom(preset.Settings, markPending: true);
+        StatusText = $"Sintonia “{preset.Name}” carregada nos campos; nada foi aplicado nem enviado.";
+    }
+
+    // ── Internals ────────────────────────────────────────────────────────────
+
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        if (_loading || e.PropertyName is null || !EditableFields.Contains(e.PropertyName))
+        {
+            return;
+        }
+
+        Validate();
+        HasPendingChange = !BuildSettings().Equals(_settings.Current.Cascade);
+    }
+
+    private void Validate()
+    {
+        var settings = BuildSettings();
+        var issues = new List<string>(CascadeService.ToTuning(settings).Validate());
+        issues.AddRange(Agitation(settings).Validate());
+        issues.AddRange(Aeration(settings).Validate());
+
+        if (settings.OxygenSetpointPercent is < 0 or > 100)
+        {
+            issues.Add("O setpoint de O₂ deve ficar entre 0 e 100 %.");
+        }
+
+        ValidationError = issues.Count > 0 ? issues[0] : null;
+        OnPropertyChanged(nameof(CanApply));
+        ApplyCommand.NotifyCanExecuteChanged();
+    }
+
+    private CascadeSettings BuildSettings() => new()
+    {
+        Kp = Kp,
+        Ki = Ki,
+        Kd = Kd,
+        IntegralMin = IntegralMin,
+        IntegralMax = IntegralMax,
+        PredictionHorizonSeconds = PredictionHorizonSeconds,
+        RateWindowSeconds = RateWindowSeconds,
+        IntervalSeconds = IntervalSeconds,
+        OxygenSetpointPercent = OxygenSetpoint,
+        AgitationMinRpm = AgitationMinRpm,
+        AgitationMaxRpm = AgitationMaxRpm,
+        AgitationEffortStart = AgitationEffortStart,
+        AgitationEffortEnd = AgitationEffortEnd,
+        AerationMinLpm = AerationMinLpm,
+        AerationMaxLpm = AerationMaxLpm,
+        AerationEffortStart = AerationEffortStart,
+        AerationEffortEnd = AerationEffortEnd,
+    };
+
+    private static ActuatorWindow Agitation(CascadeSettings c) => new(
+        CascadeController.AgitationActuator,
+        c.AgitationMinRpm, c.AgitationMaxRpm, c.AgitationEffortStart, c.AgitationEffortEnd);
+
+    private static ActuatorWindow Aeration(CascadeSettings c) => new(
+        CascadeController.AerationActuator,
+        c.AerationMinLpm, c.AerationMaxLpm, c.AerationEffortStart, c.AerationEffortEnd);
+
+    private void LoadFrom(CascadeSettings c, bool markPending = false)
+    {
+        _loading = true;
+
+        Kp = c.Kp;
+        Ki = c.Ki;
+        Kd = c.Kd;
+        IntegralMin = c.IntegralMin;
+        IntegralMax = c.IntegralMax;
+        PredictionHorizonSeconds = c.PredictionHorizonSeconds;
+        RateWindowSeconds = c.RateWindowSeconds;
+        IntervalSeconds = c.IntervalSeconds;
+        OxygenSetpoint = c.OxygenSetpointPercent;
+        AgitationMinRpm = c.AgitationMinRpm;
+        AgitationMaxRpm = c.AgitationMaxRpm;
+        AgitationEffortStart = c.AgitationEffortStart;
+        AgitationEffortEnd = c.AgitationEffortEnd;
+        AerationMinLpm = c.AerationMinLpm;
+        AerationMaxLpm = c.AerationMaxLpm;
+        AerationEffortStart = c.AerationEffortStart;
+        AerationEffortEnd = c.AerationEffortEnd;
+
+        _loading = false;
+
+        Validate();
+        HasPendingChange = markPending;
+    }
+
+    private void OnCascadeUpdated()
+    {
+        RefreshLive();
+        if (IsArmed != _cascade.IsArmed)
+        {
+            IsArmed = _cascade.IsArmed;
+        }
+    }
+
+    private void RefreshLive()
+    {
+        IsArmed = _cascade.IsArmed;
+
+        var c = CultureInfo.CurrentCulture;
+        LiveOxygen = _cascade.LatestOxygen is { } o ? o.ToString("F1", c) + " %" : "—";
+
+        var terms = _cascade.Terms;
+        if (!_cascade.IsArmed)
+        {
+            LivePredicted = LiveRate = LiveError = LiveProportional = LiveIntegral =
+                LiveDerivative = LiveDeltaOutput = LiveOutput = LiveAgitation = LiveAeration = "—";
+            IsSaturated = false;
+            EffortMarker = 0;
+            EffortRest = 100;
+            return;
+        }
+
+        LivePredicted = terms.PredictedMeasurement.ToString("F1", c) + " %";
+        LiveRate = terms.MeasurementRate.ToString("F3", c) + " %/s";
+        LiveError = terms.Error.ToString("+0.0;-0.0;0.0", c) + " %";
+        LiveProportional = terms.Proportional.ToString("F2", c);
+        LiveIntegral = terms.Integral.ToString("F2", c);
+        LiveDerivative = terms.Derivative.ToString("F2", c);
+        LiveDeltaOutput = terms.DeltaOutput.ToString("+0.00;-0.00;0.00", c);
+        LiveOutput = terms.Output.ToString("F1", c) + " %";
+        IsSaturated = terms.Saturated;
+
+        if (_cascade.LastActuation is { } actuation)
+        {
+            LiveAgitation = actuation.AgitationRpm.ToString(c) + " rpm";
+            LiveAeration = actuation.AerationLpm.ToString("F2", c) + " L/min";
+        }
+
+        EffortMarker = Math.Clamp(terms.Output, 0, 100);
+        EffortRest = 100 - EffortMarker;
+    }
+
+    private void RefreshWindows()
+    {
+        var agitation = _cascade.Windows.FirstOrDefault(w => w.Name == CascadeController.AgitationActuator);
+        var aeration = _cascade.Windows.FirstOrDefault(w => w.Name == CascadeController.AerationActuator);
+
+        if (agitation is not null)
+        {
+            AgitationBarStart = Math.Clamp(agitation.EffortStart, 0, 100);
+            AgitationBarSpan = Math.Clamp(agitation.EffortEnd - agitation.EffortStart, 0, 100);
+            AgitationBarRest = Math.Max(0, 100 - AgitationBarStart - AgitationBarSpan);
+        }
+
+        if (aeration is not null)
+        {
+            AerationBarStart = Math.Clamp(aeration.EffortStart, 0, 100);
+            AerationBarSpan = Math.Clamp(aeration.EffortEnd - aeration.EffortStart, 0, 100);
+            AerationBarRest = Math.Max(0, 100 - AerationBarStart - AerationBarSpan);
+        }
+    }
+
+    private void SortPresets()
+    {
+        var ordered = Presets.OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        Presets.Clear();
+        foreach (var preset in ordered)
+        {
+            Presets.Add(preset);
+        }
+    }
+
+    public void Dispose() => _cascade.Updated -= OnCascadeUpdated;
+}

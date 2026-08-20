@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 
@@ -56,7 +57,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlowControlViewModel flowControl,
         IDeviceService device,
         ISettingsService settings,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        ICascadeService cascade)
     {
         if (subsystems.Count != 5)
         {
@@ -67,6 +69,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _settings = settings;
         _dialogs = dialogs;
         FlowControl = flowControl;
+        Tuning = new CascadeTuningViewModel(cascade, settings);
 
         Rows =
         [
@@ -101,6 +104,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public FlowControlViewModel FlowControl { get; }
 
     public SubsystemViewModel FlowSubsystem => _flowSubsystem;
+
+    /// <summary>Tab 2: the oxygen-cascade tuning workspace.</summary>
+    public CascadeTuningViewModel Tuning { get; }
 
     public ObservableCollection<SetpointPreset> Presets { get; } = [];
 
@@ -459,5 +465,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         FlowControl.PropertyChanged -= OnFlowStateChanged;
+        Tuning.Dispose();
     }
 }

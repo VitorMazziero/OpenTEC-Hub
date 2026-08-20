@@ -620,7 +620,9 @@ trajectory with the cascade PID.
       the WP1 linear allocator without touching the controller)*
 - [ ] OUR soft sensor
 - [ ] pH · Nutrient · Antifoam · Distance-foam · Agitator flask
-- [ ] Controller tuning UI with live term display (P, I, D contributions visible)
+- [~] Controller tuning UI with live term display (P, I, D contributions visible) *(WP2 done,
+      **advisory**: it computes on live telemetry and is tunable, but does not actuate; the
+      kLa contour and a live tuning chart ride with later WPs)*
 
 > **The UI for this phase is already specified**, so none of it needs designing twice.
 > Tuning lives on **Controle → `Cascata e sintonia`**
@@ -669,9 +671,34 @@ first-order DOT plant with dead time, asserting no windup and no zero-at-setpoin
 **Deferred to later Phase 2 WPs, on purpose:** the [D-008](DECISIONS.md) kLa surface and
 its gradient-path allocation (replaces the linear allocator, not the controller); gain
 scheduling; the OUR soft sensor; the five dosing subsystems and their synoptic positions;
-and the whole UI — `Controle → Cascata e sintonia`, the `oxygen` detail-pane
-`Cascata`/`PID`/`Saída` tabs, mode ownership and live actuation. WP1 is the piece every one
-of those builds on, and the only piece that needs neither the bioreactor nor D-008.
+the `oxygen` detail-pane `Cascata`/`PID`/`Saída` tabs; mode ownership and live actuation.
+WP1 is the piece every one of those builds on, and the only piece that needs neither the
+bioreactor nor D-008.
+
+### WP2 — Cascade tuning workspace *(advisory)* — **done 2026-08-20**
+
+The tuning UI specified in [§5.2](UI_DESIGN.md#52-controle), wired to the WP1 controller —
+but in an **advisory** role: it runs the cascade against live oxygen telemetry so the
+operator can watch it track and tune it, without any actuation. This is the honest,
+safe increment; the controller must be trusted before anything sends its output to a reactor.
+
+- [x] `CascadeService` — an advisory runtime that steps the controller on each telemetry
+      frame (real elapsed time via an injectable `TimeProvider`) and exposes the terms. It
+      **never** calls `IDeviceService.Send`; arming resets the loop, disarming clears it
+- [x] `Controle → Cascata e sintonia`, the second tab: **Malha** (O₂ controlled, setpoint,
+      manipulated checklist), **PID** (all seven parameters, staged apply/revert with
+      validation), **Janelas de atuação** (editable windows + a live stacked allocation bar
+      with the effort marker), **Termos ao vivo** (`P`/`I`/`D`/`dSaída`/`Saída`/`DOT_pred`
+      plus O₂, rate, error and the allocated agitation/aeração), and named `Salvar/Carregar
+      sintonia` that only stage
+- [x] `CascadeSettings`/`CascadeTuningPreset` in the typed settings; `TimeProvider` in the
+      composition root
+- [x] 15 tests (242/242). Live simulator review: opened on the tab, connected, streamed
+      telemetry, rendered with **zero XAML binding failures** (first frame 1017 ms)
+
+**Deferred to later WPs:** live actuation under `Automático` ownership; the `oxygen`
+detail-pane `Cascata`/`PID`/`Saída` tabs; the kLa `Trajetória` contour and gradient path
+([D-008](DECISIONS.md)); and a live tuning chart.
 
 ---
 

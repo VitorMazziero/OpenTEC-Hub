@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Telemetry;
@@ -134,6 +135,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         EventsViewModel events,
         SettingsViewModel settings_,
         IDialogService dialogs,
+        ICascadeService cascade,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
         ILogger<ShellViewModel> log)
@@ -225,7 +227,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
-        Control = new ControlViewModel(Subsystems, FlowControl, device, settings, dialogs);
+        Control = new ControlViewModel(Subsystems, FlowControl, device, settings, dialogs, cascade);
 
         NavigationItems =
         [

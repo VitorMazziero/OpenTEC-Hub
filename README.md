@@ -7,14 +7,16 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.10.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 has
-> begun**: WP1 lands the cascade controller core — velocity-form PID, prediction horizon,
+> **Status:** v0.11.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
+> way**. WP1 landed the cascade controller core — velocity-form PID, prediction horizon,
 > least-squares rate estimation and actuator-window allocation — as pure, headlessly
-> validated math against a simulated DOT plant with dead time. It does not yet send or
-> appear in the UI. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
-> full-cultivation validation still need the bioreactor and remain the hardware gate.
-> v.6 remains the production application until TECNAL-Hub has completed a full
-> cultivation run.
+> validated math against a simulated DOT plant with dead time. WP2 wires it into the
+> `Controle → Cascata e sintonia` tuning workspace in an **advisory** role: it computes
+> against live oxygen telemetry and is tunable on screen, but does not actuate. Live
+> actuation waits for command ownership and the bioreactor. USB and Wi-Fi were validated
+> against a real ESP32-S3; live-sensor and full-cultivation validation still need the
+> bioreactor and remain the hardware gate. v.6 remains the production application until
+> TECNAL-Hub has completed a full cultivation run.
 
 ---
 

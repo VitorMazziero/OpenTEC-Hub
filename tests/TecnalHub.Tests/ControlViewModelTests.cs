@@ -1,4 +1,5 @@
 using TecnalHub.Protocol;
+using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.ViewModels;
@@ -156,12 +157,14 @@ public sealed class ControlViewModelTests
                     Settings.Current.Setpoints.PressureKilopascal),
             ];
 
-            Control = new ControlViewModel(Subsystems, Flow, Device, Settings, Dialogs);
+            Cascade = new CascadeService(Device, Settings, TimeProvider.System);
+            Control = new ControlViewModel(Subsystems, Flow, Device, Settings, Dialogs, Cascade);
         }
 
         public RecordingDeviceService Device { get; }
         public MemorySettingsService Settings { get; }
         public RecordingDialogService Dialogs { get; }
+        public CascadeService Cascade { get; }
         public FlowControlViewModel Flow { get; }
         public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
         public ControlViewModel Control { get; }
@@ -184,22 +187,11 @@ public sealed class ControlViewModelTests
                 Device,
                 initial);
 
-        public void Dispose() => Control.Dispose();
-    }
-
-    private sealed class MemorySettingsService(AppSettings initial) : ISettingsService
-    {
-        public AppSettings Current { get; private set; } = initial;
-
-        public event Action<AppSettings>? Changed;
-
-        public void Update(Func<AppSettings, AppSettings> mutate)
+        public void Dispose()
         {
-            Current = mutate(Current);
-            Changed?.Invoke(Current);
+            Control.Dispose();
+            Cascade.Dispose();
         }
-
-        public Task SaveNowAsync() => Task.CompletedTask;
     }
 
     private sealed class RecordingDialogService : IDialogService

@@ -6,6 +6,58 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.11.0] - 2026-08-20
+
+Phase 2 WP2 — the cascade tuning workspace, wired to the WP1 controller in an advisory
+role. The cascade now computes against live oxygen telemetry and is tunable on screen; it
+still does not send.
+
+### Added
+- **`CascadeService`** (advisory runtime) — owns a `CascadeController`, subscribes to
+  telemetry, and steps the loop on each dissolved-oxygen frame using the real elapsed time
+  between frames (a `TimeProvider`, so it is deterministically testable). It computes what
+  the cascade *would* command and exposes the terms; it never calls `IDeviceService.Send`.
+  Arming resets the loop; disarming clears the live terms.
+- **`Controle → Cascata e sintonia`** — the tuning workspace as Controle's second tab
+  (`CascadeTuningView` / `CascadeTuningViewModel`):
+  - **Malha**: O₂ as the controlled variable, the O₂ setpoint, and the manipulated
+    checklist (agitação/aeração always on this phase; enriquecimento N₂ disabled with a
+    reason).
+  - **PID**: editable `Kp` · `Ki` · `Kd` · `I_min` · `I_max` · prediction horizon · rate
+    window · interval, with staged apply/revert and validation (interval band, output and
+    integral windows, non-negative gains).
+  - **Janelas de atuação**: editable agitation/aeration windows and a live stacked
+    allocation bar with the current-effort marker.
+  - **Termos ao vivo**: `P` · `I` · `D` · `dSaída` · `Saída` · `DOT_pred`, plus the measured
+    O₂, rate, error and the allocated agitation/aeração, updating each frame.
+  - Footer: apply, revert, and named **Salvar/Carregar sintonia** (persisted; loading only
+    stages, never actuates).
+- `CascadeSettings` and `CascadeTuningPreset` in the typed settings record; `TimeProvider`
+  registered in the composition root.
+- `DoubleToStarConverter`, for the allocation bar's proportional columns.
+- 15 tests: advisory-computes-but-never-sends, arming/disarming, sentinel handling,
+  configure, and the workspace's validation, apply/revert, save/load and live-terms binding.
+
+### Changed
+- Controle is now a two-tab page (`Parâmetros` · `Cascata e sintonia`); the Phase 1 table,
+  valves and footer are unchanged, inside the first tab.
+
+### Notable
+- **Still advisory.** The cascade does not actuate: live sending waits for command
+  ownership (`Automático`) and the bioreactor, a later Phase 2 WP. The `Trajetória kLa`
+  panel is a placeholder pending the [D-008](DECISIONS.md) surface, and a live tuning chart
+  is deferred with it.
+
+### Verified
+- 242/242 tests pass (227 + 15). Build clean; `ResourceKeyTests` confirms every resource
+  key in the new views resolves.
+- Live simulator run: the app opened on `Controle → Cascata e sintonia`, connected over the
+  localhost Wi-Fi simulator, streamed telemetry, and rendered the workspace with **zero XAML
+  binding failures** and no fatal exception (first frame 1017 ms). The existing SkiaSharp
+  `NU1701` warning is unchanged.
+
+---
+
 ## [0.10.0] - 2026-08-20
 
 Phase 2 WP1 — the cascade controller core. The scientific payload's control law, built and

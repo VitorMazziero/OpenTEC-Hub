@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
@@ -161,6 +162,12 @@ public partial class App : Application
             sp.GetRequiredService<ILogger<DeviceService>>(),
             sp.GetRequiredService<ILoggerFactory>(),
             Dispatcher.CurrentDispatcher));
+
+        services.AddSingleton(TimeProvider.System);
+
+        // The advisory oxygen cascade. It subscribes to telemetry and computes, but never
+        // sends - live actuation waits for command ownership and the bioreactor.
+        services.AddSingleton<ICascadeService, CascadeService>();
 
         services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
         services.AddSingleton<ISessionLogger, SessionLogger>();

@@ -52,6 +52,12 @@ public sealed record AppSettings
 
     public LoggingSettings Logging { get; init; } = new();
 
+    /// <summary>Oxygen-cascade tuning. Advisory in Phase 2 WP2; it does not actuate yet.</summary>
+    public CascadeSettings Cascade { get; init; } = new();
+
+    /// <summary>Named, operator-saved cascade tunings. Loading one only stages the fields.</summary>
+    public CascadeTuningPreset[] CascadeTuningPresets { get; init; } = [];
+
     public UiSettings Ui { get; init; } = new();
 
     /// <summary>
@@ -272,6 +278,49 @@ public sealed record SetpointPreset
 
     public double PressureKilopascal { get; init; } = 100.0;
     public bool PressureEnabled { get; init; }
+}
+
+/// <summary>
+/// Persisted oxygen-cascade tuning.
+/// </summary>
+/// <remarks>
+/// Plain data: the mapping onto the controller's <c>CascadeTuning</c> and
+/// <c>ActuatorWindow</c> lives in <c>CascadeService</c>, so this record does not depend on
+/// the control layer. The defaults mirror the controller's own provisional simulator
+/// defaults (<c>CascadeTuning</c> and <c>CascadeController.CreateDefault</c>); they are a
+/// coherent starting point, not a validated field tuning.
+/// </remarks>
+public sealed record CascadeSettings
+{
+    public double Kp { get; init; } = 0.25;
+    public double Ki { get; init; } = 0.02;
+    public double Kd { get; init; }
+    public double IntegralMin { get; init; }
+    public double IntegralMax { get; init; } = 100.0;
+    public double PredictionHorizonSeconds { get; init; } = 25.0;
+    public double RateWindowSeconds { get; init; } = 25.0;
+    public double IntervalSeconds { get; init; } = 2.0;
+
+    /// <summary>The dissolved-oxygen target the cascade holds, in percent.</summary>
+    public double OxygenSetpointPercent { get; init; } = 30.0;
+
+    public double AgitationMinRpm { get; init; } = 200;
+    public double AgitationMaxRpm { get; init; } = 800;
+    public double AgitationEffortStart { get; init; }
+    public double AgitationEffortEnd { get; init; } = 65;
+
+    public double AerationMinLpm { get; init; } = 0.5;
+    public double AerationMaxLpm { get; init; } = 5.0;
+    public double AerationEffortStart { get; init; } = 35;
+    public double AerationEffortEnd { get; init; } = 100;
+}
+
+/// <summary>A named cascade tuning. Loading one stages fields; it never actuates.</summary>
+public sealed record CascadeTuningPreset
+{
+    public string Name { get; init; } = "";
+
+    public CascadeSettings Settings { get; init; } = new();
 }
 
 /// <summary>

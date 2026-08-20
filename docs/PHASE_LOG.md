@@ -841,3 +841,30 @@ tuning UI will expose every one of them.
 | OUR soft sensor | Builds on the validated controller |
 | Dosing subsystems + their synoptic positions | Separate WP; touch the UI and the wire |
 | Tuning UI, `oxygen` detail-pane tabs, mode ownership, live actuation | The controller must be trusted before anything sends its output to a reactor |
+
+---
+
+### P2-04 · The tuning workspace is advisory: it computes on live telemetry, but never sends
+
+**Decided:** wire the cascade into `Controle → Cascata e sintonia` through a `CascadeService`
+that steps the controller on each dissolved-oxygen frame and shows the live terms, but does
+**not** call `IDeviceService.Send`. Arming it starts the computation; nothing reaches the
+wire.
+
+**Why:** the tuning UI's whole job is to let the operator watch the cascade track a real
+process and adjust it — which needs the loop running against live telemetry, not the loop
+actuating. Actuation is the dangerous half and is gated on command ownership (`Automático`
+mode) and a bioreactor. Splitting "compute and show" from "send" lets WP2 deliver the entire
+tuning surface now, safely, and leaves the send path for the WP that also brings mode
+ownership. It mirrors how `Automático` already ships disabled with a reason rather than
+half-built.
+
+**Evidence:** the service is asserted to leave the device's command capture empty across an
+armed run (`An_armed_service_computes_actuation_and_never_sends`), and the workspace's apply
+and save/load paths are all asserted to send nothing. A live simulator run opened straight
+onto the tab, connected, streamed telemetry and rendered with zero XAML binding failures.
+
+**Consequence:** `CascadeService` takes a `TimeProvider` so the loop's real-elapsed-time
+step is deterministic in tests rather than depending on wall-clock spacing between pushed
+frames. The `Trajetória kLa` contour ([D-008](DECISIONS.md)) and a live tuning chart are
+shown as deferred rather than faked, the same discipline the health expander used in Phase 1b.

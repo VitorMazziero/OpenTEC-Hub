@@ -37,12 +37,31 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public event Action<string>? CommandSent;
 
+    public event Action<double>? SessionTimeZeroed;
+
+    public int ZeroSessionTimeCalls { get; private set; }
+
+    /// <summary>
+    /// When false, <see cref="Send"/> records the frame but does not raise
+    /// <see cref="CommandSent"/> — the transport buffered it but never flushed, as
+    /// happens on a dropped link. Lets the arbiter's timeout path be exercised.
+    /// </summary>
+    public bool RaiseCommandSentOnSend { get; set; } = true;
+
     public void Send(TecnalCommand command)
     {
         var json = command.ToJson();
         Sent.Add(json);
-        CommandSent?.Invoke(json);
+        if (RaiseCommandSentOnSend)
+        {
+            CommandSent?.Invoke(json);
+        }
     }
+
+    public void ZeroSessionTime() => ZeroSessionTimeCalls++;
+
+    /// <summary>Raises the session-zero echo the real worker sends back after zeroing.</summary>
+    public void PushSessionTimeZeroed(double offsetMinutes) => SessionTimeZeroed?.Invoke(offsetMinutes);
 
     public void Connect()
     {

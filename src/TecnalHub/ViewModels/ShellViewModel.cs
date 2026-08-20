@@ -13,34 +13,6 @@ using TecnalHub.Services.Theme;
 
 namespace TecnalHub.ViewModels;
 
-/// <summary>
-/// Who is allowed to put commands on the wire.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>One command queue, one owner.</b> A running recipe and an operator must not be able
-/// to fight over the link, which is the rule [D-009] sets for the recipe engine. Making
-/// ownership explicit and visible is cheaper than discovering mid-cultivation that two
-/// things were writing setpoints.
-/// </para>
-/// <para>
-/// Only <see cref="Manual"/> is reachable today: the cascade arrives in Phase 2 and the
-/// recipe engine in Phase 3. The other two are shown disabled with a reason rather than
-/// hidden, so the model the application is built around is visible from the start.
-/// </para>
-/// </remarks>
-public enum CommandOwner
-{
-    /// <summary>The operator writes setpoints.</summary>
-    Manual,
-
-    /// <summary>The cascade controller owns its actuators. Phase 2.</summary>
-    Automatic,
-
-    /// <summary>The recipe engine owns everything it declares. Phase 3.</summary>
-    Recipe,
-}
-
 /// <summary>One selectable owner, with the reason it may not be selectable yet.</summary>
 public sealed record CommandOwnerOption(CommandOwner Owner, string Label, string? UnavailableReason)
 {
@@ -252,6 +224,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new("reconnect", "Reconectar ao equipamento", "F5"),
             new("charts-pause", "Pausar / continuar gráficos", "Espaço"),
             new("theme", "Alternar tema claro / escuro", ""),
+            new("zero-time", "Zerar tempo da sessão", ""),
             new("recipe-save", "Salvar receita", "Ctrl+S", IsAvailable: false,
                 UnavailableReason: "Disponível quando o editor de receitas entrar na Fase 3."),
         ];
@@ -283,6 +256,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         _device.StateChanged += OnStateChanged;
         _device.TelemetryReceived += OnTelemetryReceived;
+        _device.SessionTimeZeroed += OnSessionTimeZeroed;
         _settings.Changed += OnSettingsChanged;
         _sessionLogger.StatusChanged += OnSessionStatusChanged;
         Historical.OpenGraphsRequested += OnOpenGraphsRequested;
@@ -610,6 +584,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 case "theme":
                     ToggleTheme();
                     break;
+                case "zero-time":
+                    ZeroSessionTimeCommand.Execute(null);
+                    break;
             }
         }
 
@@ -832,6 +809,24 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _settings.Update(s => s with { Theme = next });
     }
 
+    /// <summary>Only meaningful with a device clock to rebase against.</summary>
+    public bool CanZeroSessionTime => _device.State is Protocol.ConnectionState.Connected;
+
+    /// <summary>
+    /// Rebases the operator session clock to now.
+    /// </summary>
+    /// <remarks>
+    /// A local display/log offset exactly as v.6 kept one: the device clock is never
+    /// reset and samples already written are never rewritten. The header shows zero
+    /// immediately; the device's next frame, carrying the same offset, confirms it.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanZeroSessionTime))]
+    private void ZeroSessionTime()
+    {
+        _device.ZeroSessionTime();
+        ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+    }
+
     /// <summary>
     /// Starts the link, after the shell is on screen.
     /// </summary>
@@ -852,10 +847,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _device.Connect();
     }
 
+    /// <summary>
+    /// The device echoed the new session offset. The command already zeroed the header
+    /// optimistically; this is the authoritative confirmation from the worker.
+    /// </summary>
+    private void OnSessionTimeZeroed(double offsetMinutes)
+        => ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+
     private void OnStateChanged(ConnectionStateChange change)
     {
         OnPropertyChanged(nameof(SystemState));
         OnPropertyChanged(nameof(SystemStateText));
+        OnPropertyChanged(nameof(CanZeroSessionTime));
+        ZeroSessionTimeCommand.NotifyCanExecuteChanged();
 
         if (change.State is ConnectionState.Connected)
         {
@@ -992,6 +996,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetryReceived;
+        _device.SessionTimeZeroed -= OnSessionTimeZeroed;
         _settings.Changed -= OnSettingsChanged;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;
         Historical.OpenGraphsRequested -= OnOpenGraphsRequested;

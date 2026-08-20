@@ -80,6 +80,49 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
+    /// Zeroing the session clock rebases reported minutes from the next frame on, without
+    /// resetting the device clock or rewriting frames already published.
+    /// </summary>
+    [Fact]
+    public async Task Zeroing_the_session_clock_rebases_reported_time_only()
+    {
+        var fake = new FakeTransport();
+        var snapshots = new List<SensorSnapshot>();
+        double? zeroedOffset = null;
+
+        await using var manager = new ConnectionManager(
+            FastOptions(), transportFactory: _ => fake);
+
+        manager.TelemetryReceived += s => { lock (snapshots) { snapshots.Add(s); } };
+        manager.SessionTimeZeroed += o => zeroedOffset = o;
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        fake.EmitTelemetry(600); // 10 minutes since boot
+        Assert.True(await WaitForAsync(() =>
+        {
+            lock (snapshots) { return snapshots.Count >= 1; }
+        }));
+        lock (snapshots) { Assert.Equal(10.0, snapshots[^1].TimeMinutes); }
+
+        manager.ZeroSessionTime();
+        Assert.True(await WaitForAsync(() => zeroedOffset is not null));
+        Assert.Equal(10.0, zeroedOffset);
+
+        fake.EmitTelemetry(660); // 11 min since boot, but one minute past the zero
+        Assert.True(await WaitForAsync(() =>
+        {
+            lock (snapshots) { return snapshots.Count >= 2; }
+        }));
+
+        lock (snapshots)
+        {
+            Assert.Equal(1.0, snapshots[^1].TimeMinutes);      // rebased
+            Assert.Equal(660, snapshots[^1].TimeRawSeconds);   // device clock untouched
+        }
+    }
+
+    /// <summary>
     /// The regression this whole change exists for.
     /// </summary>
     /// <remarks>

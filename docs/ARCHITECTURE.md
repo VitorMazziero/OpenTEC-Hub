@@ -46,8 +46,9 @@ One rule, and it removes an entire class of bug that v.6 has
 
 - All transport I/O is `async`, on the thread pool, never on the dispatcher.
 - Telemetry is marshalled to the UI thread **once**, at the ViewModel boundary.
-- Manual control and the recipe engine share the same command queue, so an operator
-  and a running recipe cannot issue contradictory writes into the same link.
+- One `CommandArbiter` owns the command path above the transport: every `Send` carries an
+  owner, ownership is tracked per actuator, and an operator, the cascade and a running recipe
+  cannot issue contradictory writes into the same link. See [D-015](DECISIONS.md).
 - Cancellation tokens are threaded through everything, including port probing.
 
 Nothing blocks the UI thread. A synchronous file read in `App.OnStartup` is a bug,
@@ -79,7 +80,7 @@ ProjetoTECNAL/
 │     ├─ ViewModels/
 │     ├─ Views/
 │     ├─ Services/
-│     │  ├─ Communication/      ConnectionManager (owns the link)
+│     │  ├─ Communication/      DeviceService · CommandArbiter (one owner of the wire)
 │     │  ├─ Control/            cascade + kLa path controllers
 │     │  ├─ Calibration/        pure fits + stability statistics
 │     │  ├─ Telemetry/          ring buffers, session files, audit journal
@@ -152,6 +153,16 @@ rows into one wire frame and then commit the same state transition per row.
 **Presets stage; they never command.** Named core-loop presets live in the typed settings
 record. Loading one fills setpoint, enable, valve and `maxFlow` fields; only an explicit
 Apply action can call `IDeviceService.Send`.
+
+**One command arbiter owns the wire.** `CommandArbiter` decorates the transport wrapper, so
+the `IDeviceService` everything resolves *is* the arbiter and a plain `Send` is a Manual
+dispatch — there is no un-arbitrated path to the link, and a future control surface cannot
+forget to ask. Ownership is per `ActuatorId`, so the cascade can own the oxygen actuators
+while the operator holds pH; a frame touching an actuator owned by another owner is refused
+whole. A non-Connected link revokes every non-Manual owner back to Manual (safe abort) and
+journals it, and the command lifecycle only claims a `TelemetryConfirmed` where the firmware
+echoes the setpoint (aeration) — every other channel rests at transport-accepted and says so.
+See [D-015](DECISIONS.md).
 
 **Dialogs are behind `IDialogService`.** The destructive-confirmation implementation is
 a WPF service, while `ControlViewModel` sees only a boolean result. Tests can prove that

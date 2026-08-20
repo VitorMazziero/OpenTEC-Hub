@@ -8,7 +8,53 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ## [Unreleased]
 
+---
+
+## [0.13.0] - 2026-08-20
+
+Phase 2 WP4 (part 1) — the P0 command-path safety kernel: one arbiter owns the wire, a
+honest command lifecycle, safe abort on link loss, and the operator session clock. This is
+the gate that must close before any automatic actuation, so it ships before live cascade
+control (WP6) can add a second command source.
+
+### Added
+- **`CommandArbiter`** — the single gate onto the wire. It decorates the transport wrapper,
+  so the `IDeviceService` the whole application resolves *is* the arbiter and nothing can
+  send without an owner. Ownership is tracked **per actuator** (temperature, agitation,
+  oxygen, aeration, pressure, pH dosing): a command is sent only if the requester owns every
+  actuator it touches, and one owned-by-another actuator refuses the whole frame atomically.
+- **Explicit, journalled, bumpless ownership transfer.** `Manual` owns everything until a
+  `Claim`; transfers carry the last commanded state so a new owner starts without a setpoint
+  jump. `Automatic` and `Recipe` remain unreachable from the UI until WP6 and Phase 3.
+- **Safe abort.** A link or feedback loss revokes every non-Manual owner back to Manual and
+  raises an alarm-severity event; any command still outstanding is timed out.
+- **Command lifecycle** — `Issued → TransportAccepted → TelemetryConfirmed / TimedOut`,
+  honest per channel: only aeration is telemetry-confirmed (`FlowSetpoint` echo, with
+  `FlowCommandAck`), and every other actuator rests at transport-accepted and says "sem eco".
+- **Operator session clock** — a `Zerar tempo da sessão` header button, command-palette
+  entry and `IDeviceService.ZeroSessionTime()`. It rebases the local display/log offset
+  exactly as v.6 did, without ever resetting the device clock or rewriting logged samples.
+- Eventos now records ownership transfers, refused commands, timed-out commands, safe aborts
+  (alarm severity) and session-clock zeroing.
+
+### Changed
+- `CommandOwner` moved from the shell into the communication layer, beside the arbiter.
+- The `IDeviceService`/transport gain a `ZeroSessionTime()` method and a `SessionTimeZeroed`
+  echo, marshalled onto the worker so the readings stay the worker's to own.
+
+### Verified
+- 280/280 tests pass (21 new): arbiter ownership/atomic refusal/bumpless transfer, the full
+  lifecycle including timeout and the aeration-only confirmation, safe abort on link loss,
+  journal integration, and the session-clock rebase at both the `SensorReadings` and
+  `ConnectionManager` levels.
+- Live localhost simulator run: connected over Wi-Fi, first frame in 1210 ms, telemetry
+  flowing through the arbiter, the `Zerar` button enabled, and zero XAML binding failures or
+  exceptions. Evidence: `docs/evidence/ui/phase2-wp4-arbiter-painel.png`.
+
 ### Documentation
+- Added [D-015](DECISIONS.md) for the command-arbiter model. WP4 in the roadmap is now
+  annotated part-done (ownership, lifecycle, safe abort, session clock) with the alarm engine
+  and Phase 0 link cleanup remaining.
 - Re-audited the remaining v.6 operator/device features and ordered them P0-P2 by field
   safety and dependency. Automatic ownership, system alarms and hardware protocol closure
   now precede live cascade actuation; biomass/external-pump parity precedes Receitas.

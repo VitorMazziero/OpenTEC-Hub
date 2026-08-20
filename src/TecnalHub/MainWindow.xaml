@@ -84,6 +84,14 @@
                                FontFamily="{DynamicResource FontNumeric}"
                                FontSize="{DynamicResource FontSizeBody}"
                                VerticalAlignment="Center" />
+                    <!-- Local display/log offset only: never resets the device clock, never
+                         rewrites samples already logged. Disabled with no live link. -->
+                    <Button Content="Zerar"
+                            Margin="10,0,0,0" Padding="8,2"
+                            FontSize="{DynamicResource FontSizeCaption}"
+                            VerticalAlignment="Center"
+                            Command="{Binding ZeroSessionTimeCommand}"
+                            ToolTip="Zera o tempo da sessão (deslocamento local; não altera o relógio do equipamento nem os dados já gravados)." />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">

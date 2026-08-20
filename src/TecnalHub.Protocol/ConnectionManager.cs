@@ -180,6 +180,12 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// </summary>
     public event Action<string>? CommandSent;
 
+    /// <summary>
+    /// Raised after the operator zeroes the session clock, carrying the new offset in
+    /// minutes. Purely a local display/log rebase — the device clock is untouched.
+    /// </summary>
+    public event Action<double>? SessionTimeZeroed;
+
     /// <summary>Current state. Safe to read from any thread.</summary>
     public ConnectionState State
     {
@@ -254,6 +260,17 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     /// <summary>Applies new calibration and filter tuning.</summary>
     public void Reconfigure(ParserConfig parserConfig) => _parser.Reconfigure(parserConfig);
+
+    /// <summary>
+    /// Treats the current device clock as the run's zero point.
+    /// </summary>
+    /// <remarks>
+    /// Marshalled onto the worker rather than mutating <see cref="SensorReadings"/>
+    /// from the caller's thread — the readings are the worker's to own, and this is
+    /// exactly how v.6 rebased its display: a local offset, never a write to the device
+    /// clock and never a rewrite of samples already logged.
+    /// </remarks>
+    public void ZeroSessionTime() => Post(new ZeroTimeRequest());
 
     // ==================================================================
     // Worker
@@ -335,9 +352,23 @@ public sealed class ConnectionManager : IAsyncDisposable
                 await HandleLinkLostAsync(lost.Reason, token).ConfigureAwait(false);
                 break;
 
+            case ZeroTimeRequest:
+                HandleZeroSessionTime();
+                break;
+
             default:
                 break;
         }
+    }
+
+    /// <summary>Rebases the session clock on the worker thread and announces the offset.</summary>
+    private void HandleZeroSessionTime()
+    {
+        _parser.Readings.ZeroTime();
+        var offsetMinutes = _parser.Readings.TimeOffsetMinutes;
+        _log.LogInformation("Session clock zeroed at device {Seconds:F0}s (offset {Offset:F2} min)",
+            _parser.Readings.TimeRawSeconds, offsetMinutes);
+        SessionTimeZeroed?.Invoke(offsetMinutes);
     }
 
     private async Task HandleConnectAsync(TransportMedium medium, CancellationToken token)
@@ -942,4 +973,6 @@ public sealed class ConnectionManager : IAsyncDisposable
     private sealed record FlushRequest : Request;
 
     private sealed record LinkLostRequest(string Reason) : Request;
+
+    private sealed record ZeroTimeRequest : Request;
 }

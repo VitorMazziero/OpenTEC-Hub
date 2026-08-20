@@ -7,21 +7,23 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.12.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
+> **Status:** v0.13.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
 > way**. WP1 landed the cascade controller core — velocity-form PID, prediction horizon,
 > least-squares rate estimation and actuator-window allocation — as pure, headlessly
 > validated math against a simulated DOT plant with dead time. WP2 wires it into the
 > `Controle → Cascata e sintonia` tuning workspace in an **advisory** role: it computes
 > against live oxygen telemetry and is tunable on screen, but does not actuate. WP3 adds
 > the complete five-field pH dosing state and guided pH, oxygen and airflow calibration,
-> including the pH safe-stop interlock and the app-to-module `pHCal` display echo. Live
-> cascade actuation waits for the P0 safety/ownership gate and the bioreactor. The next
-> scientific workspace is **Mapeamento kLa**: it estimates `kLa(Q_g,N)` from operator-entered
-> experimental points and publishes the paper's gradient/headroom allocation path; no
-> production surface is pre-loaded. USB and Wi-Fi were validated
-> against a real ESP32-S3; live-sensor and full-cultivation validation still need the
-> bioreactor and remain the hardware gate. v.6 remains the production application until
-> TECNAL-Hub has completed a full cultivation run.
+> including the pH safe-stop interlock and the app-to-module `pHCal` display echo. **WP4
+> part 1** opens the P0 safety kernel: one `CommandArbiter` now owns the wire, with
+> per-actuator ownership, an honest command lifecycle, safe abort on link loss and the
+> operator session clock — the operational alarm engine is the rest of WP4. Live cascade
+> actuation waits for the remaining gate and the bioreactor. The next scientific workspace
+> is **Mapeamento kLa**: it estimates `kLa(Q_g,N)` from operator-entered experimental points
+> and publishes the paper's gradient/headroom allocation path; no production surface is
+> pre-loaded. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
+> full-cultivation validation still need the bioreactor and remain the hardware gate. v.6
+> remains the production application until TECNAL-Hub has completed a full cultivation run.
 
 ---
 

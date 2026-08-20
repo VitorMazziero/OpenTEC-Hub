@@ -264,6 +264,50 @@ pump direction or the real bioreactor interlocks.
 
 ---
 
+### D-015 · One command arbiter owns the wire; ownership is per actuator and safe-aborts on link loss
+**Status:** Accepted and implemented (part 1) · 2026-08-20 · see [PHASE_LOG P2-07](PHASE_LOG.md#p2-07--the-command-arbiter-is-the-single-gate-onto-the-wire)
+
+Every command reaches the transport through a single `CommandArbiter`. It decorates the
+transport wrapper, so the `IDeviceService` the whole application resolves *is* the arbiter:
+a plain `Send` is a Manual dispatch, and nothing can reach the wire without an owner. The
+arbiter also exposes `ICommandArbiter` for the ownership and command-lifecycle surface.
+
+Ownership is tracked **per `ActuatorId`** (temperature, agitation, oxygen, aeration,
+pressure, pH dosing), not globally: the cascade can own the oxygen actuators while the
+operator still holds temperature. A command is sent only if the requester owns **every**
+actuator it touches; one owned-by-another actuator refuses the whole frame — a partial send
+leaves the reactor in a state neither owner asked for. `Manual` owns everything until
+something explicitly `Claim`s it, transfers are journalled and carry the last commanded
+state so a new owner starts bumpless, and a link/feedback loss **revokes every non-Manual
+owner back to Manual** and raises an alarm-severity event.
+
+The command lifecycle is honest about what the wire can prove: `Issued → TransportAccepted`
+for every actuator, and `→ TelemetryConfirmed` **only for aeration**, the one actuator whose
+applied setpoint the firmware echoes (`FlowSetpoint`, with `FlowCommandAck` alongside).
+Temperature, agitation, oxygen, pressure and pH have no setpoint echo, so they rest at
+`TransportAccepted` and label the channel "sem eco" rather than claiming a confirmation the
+wire never gave. A command the transport never accepts within the budget, or that is
+outstanding when the link drops, becomes `TimedOut`.
+
+*Rejected:* a single global `Manual/Automático/Receita` mode (it cannot express the cascade
+owning O₂ while the operator holds pH); routing sends straight to `IDeviceService` with
+ownership bolted on at each call site (a future control surface would forget it); claiming a
+telemetry confirmation for setpoints the firmware does not echo.
+
+*Consequence:* `CommandOwner` moved from the shell into the communication layer. Only
+`Manual` is reachable from the UI today; `Automatic` arrives with live actuation (WP6) and
+`Recipe` with the engine (Phase 3). The arbiter, its lifecycle and its safe abort ship now
+so the model is real and enforced from the start rather than retrofitted onto twelve control
+surfaces later. The pH-calibration echo (`pHCal`) is a protocol-internal reflex below
+`IDeviceService` and is intentionally unowned, so it is never blocked by pH-dosing ownership.
+
+*Scope of part 1:* command ownership, the lifecycle, safe abort and the operator session
+clock. The full operational **alarm engine** (link/module/flowmeter/frozen/sensor-absent
+alarms with deadband, acknowledgement and timed audible silence) and the remaining Phase 0
+link cleanup remain the rest of WP4.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

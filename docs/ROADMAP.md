@@ -1,6 +1,6 @@
 # TECNAL-Hub — Build Roadmap
 
-> **Version:** 0.12.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-20
+> **Version:** 0.13.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-20
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
 > without ever losing a working link to the ESP32-S3.
 >
@@ -59,8 +59,8 @@ and dependency, not on implementation size.
 | Priority | Remaining capability | Current state | Planned delivery |
 |---|---|---|---|
 | **P0** | Field protocol closure: captured byte comparison, live-sensor/calibration run, command acknowledgement timing, safe COM discovery and configured Wi-Fi poll period | Partial; software/simulator complete, hardware gate open | Phase 0 follow-ups + Phase 2 WP4 |
-| **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | State colours and event types exist; no alarm engine | Phase 2 WP4 |
-| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | Modes are displayed but `Automático` is disabled; cascade is advisory | Phase 2 WP4/WP6 |
+| **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | Session-time zero and ownership/safe-abort events shipped (WP4 part 1); alarm engine (deadband/ack/audible silence) remains | Phase 2 WP4 |
+| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | **Done (WP4 part 1):** per-actuator arbiter, journalled bumpless transfer and safe abort. `Automático` stays disabled until live actuation | Phase 2 WP4/WP6 |
 | **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | Absent; the old placeholder assumed a loaded surface | Phase 2 WP5 — [D-008](DECISIONS.md) |
 | **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | Corrected controller and advisory terms exist; no sending | Phase 2 WP6 |
 | **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | Protocol keys documented; no operator controls or safe-stop aggregation | Phase 2 WP7 |
@@ -767,28 +767,48 @@ and pulls the three mature v.6 calibration procedures forward from Phase 3.
 the external flow standard, pump direction or physical interlocks. See
 [CALIBRATION.md](CALIBRATION.md#6-estados-de-recusa-e-limite-de-validação).
 
-### WP4 — operational safety, ownership and field-parity kernel — **P0 · next**
+### WP4 — operational safety, ownership and field-parity kernel — **P0 · part 1 done 2026-08-20**
 
 This WP precedes every automatic command. It closes the small v.6 operational behaviours
-that become safety-critical once the advisory controller is allowed to send.
+that become safety-critical once the advisory controller is allowed to send. **Part 1 — the
+command path — shipped**; the alarm engine and the Phase 0 link cleanup remain.
 
-- [ ] One command arbiter owns the wire. `Manual`, `Automático` and later `Receita` are
+- [x] One command arbiter owns the wire. `Manual`, `Automático` and later `Receita` are
       mutually exclusive per actuator; changing owner is explicit, journalled and bumpless
-- [ ] Desired/issued/transport-accepted/telemetry-confirmed/timed-out command lifecycle.
-      Use `FlowCommandAck` where the firmware exposes it and label other channels honestly
-      when only transport acceptance or setpoint echo is available
+- [x] Desired/issued/transport-accepted/telemetry-confirmed/timed-out command lifecycle.
+      Uses the `FlowSetpoint`/`FlowCommandAck` echo where the firmware exposes it and labels
+      every other channel honestly as transport-accepted with no confirmation echo
 - [ ] Core system alarms: link lost, module offline, flowmeter offline, frozen data,
       sensor absent and unacknowledged command. Each has delay/deadband, acknowledgement,
       audit history and an audible indication with a timed silence — not a permanent mute
-- [ ] Operator **Zerar tempo da sessão**: store a local display/log offset exactly as v.6
+- [x] Operator **Zerar tempo da sessão**: store a local display/log offset exactly as v.6
       does; never reset the device clock or rewrite prior samples
 - [ ] Finish the Phase 0 P2/P3 link work: safe busy-port handling, WMI/CH343 ranking,
       immutable telemetry snapshots, configured HTTP poll period and truthful round-trip
       naming/correlation
 
-**Exit:** manual control still works through the arbiter; a simulated or real link loss
-revokes automatic ownership and produces one latched alarm/event; no automatic subsystem
-can send until this gate passes on the bioreactor.
+**Part 1 delivered — [D-015](DECISIONS.md):**
+
+- [x] `CommandArbiter` decorates the transport wrapper, so the `IDeviceService` the whole app
+      resolves *is* the arbiter: a plain `Send` is a Manual dispatch and nothing reaches the
+      wire without an owner. Ownership is per `ActuatorId`; a frame touching an actuator owned
+      by another owner is refused whole, never partially applied
+- [x] Explicit, journalled `Claim`/`Release`/`ReturnToManual`; transfers carry the last
+      commanded state so a new owner starts bumpless. Only `Manual` is UI-reachable — the
+      second owner arrives with live actuation in WP6
+- [x] Safe abort: a non-Connected link revokes every non-Manual owner back to Manual, raises
+      an alarm-severity event and times out any command not yet accepted
+- [x] Lifecycle confirmation is honest — only aeration reaches `TelemetryConfirmed`; the rest
+      rest at `TransportAccepted` and say "sem eco"
+- [x] Operator session clock wired end to end (`ConnectionManager.ZeroSessionTime` → worker →
+      `SensorReadings.ZeroTime`), with a header button, palette entry and journal entry
+- [x] 280/280 tests (21 new); live simulator run connected with telemetry through the arbiter
+      and zero XAML binding failures (`docs/evidence/ui/phase2-wp4-arbiter-painel.png`)
+
+**Exit:** manual control still works through the arbiter (met); a simulated link loss revokes
+automatic ownership and produces one journalled safe-abort event (met at the software level).
+The **latched, acknowledgeable** alarm and the audible silence arrive with the alarm engine;
+no automatic subsystem can send until the whole gate passes on the bioreactor.
 
 ### WP5 — Mapeamento kLa and path publication — **P1 · D-008**
 

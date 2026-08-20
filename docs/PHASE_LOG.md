@@ -932,3 +932,51 @@ alarms and exclusive command ownership precede automatic actuation; the D-008 ma
 workspace precedes live kLa-path control; v.6 dosing auxiliaries, OUR, biomass and the
 external pump close before the new Receitas engine is allowed to become another command
 source.
+
+---
+
+### P2-07 · The command arbiter is the single gate onto the wire
+
+**Decided:** build WP4 as a `CommandArbiter` that decorates the transport wrapper and register
+it as the `IDeviceService` the whole application resolves. A plain `Send` becomes a Manual
+dispatch, so every existing call site routes through the arbiter without a line of change, and
+nothing can reach the wire without an owner. The arbiter also exposes `ICommandArbiter` for the
+ownership and lifecycle surface.
+
+**Why the decorator, not a new dependency at each call site:** five view-models send today, and
+a sixth control surface added in a later WP could quietly forget to ask the arbiter first. Making
+the arbiter *be* the device service closes that hole structurally — there is no un-arbitrated
+`Send` for anyone to call. Ownership is per `ActuatorId`, not a single global mode, because WP6
+needs the cascade to own the oxygen actuators while the operator still holds pH; a global
+`Manual/Automático/Receita` switch cannot express that.
+
+**Safety decisions:** a frame touching an actuator owned by another owner is refused **whole** —
+a partial send leaves the reactor in a state neither owner asked for. A link or feedback loss
+revokes every non-Manual owner back to Manual and raises an alarm-severity event, and any command
+still merely issued is timed out. Ownership transfers carry the last commanded state so a new
+owner can start bumpless. The lifecycle refuses to over-claim: only aeration reaches
+`TelemetryConfirmed`, because it is the one actuator whose applied setpoint the firmware echoes
+(`FlowSetpoint`, with `FlowCommandAck`); temperature, agitation, oxygen, pressure and pH rest at
+`TransportAccepted` and label the channel "sem eco" rather than pretend the wire confirmed them.
+The pH-calibration echo (`pHCal`) stays a protocol-internal reflex below `IDeviceService` and is
+intentionally unowned, so it is never blocked by pH-dosing ownership.
+
+**Session clock:** the `TimeOffsetMinutes`/`ZeroTime` math already sat in `SensorReadings` from
+Phase 0, unused. WP4 wired the operator path — `ConnectionManager.ZeroSessionTime` posts a
+request handled on the worker thread (the readings are the worker's to own), which zeroes the
+local offset and echoes it back for the header and the journal. The device clock and samples
+already logged are never touched.
+
+**Evidence:** 280/280 tests (21 new) cover atomic refusal, journalled bumpless transfer, the full
+lifecycle including timeout and the aeration-only confirmation, safe abort on link loss, and the
+session-clock rebase at both the `SensorReadings` and `ConnectionManager` levels. A live localhost
+simulator run connected over Wi-Fi, rendered the first frame in 1210 ms, streamed telemetry
+through the arbiter, showed the `Zerar` button enabled, and logged zero XAML binding failures or
+exceptions (`docs/evidence/ui/phase2-wp4-arbiter-painel.png`).
+
+**Boundary:** this is WP4 part 1. The exit criterion's *latched, acknowledgeable* alarm and the
+timed audible silence arrive with the operational alarm engine; the safe abort produces a
+journalled event today, not yet an ackable latched alarm. The remaining Phase 0 link cleanup
+(busy-port handling, WMI/CH343 ranking, immutable snapshots, configured poll period, round-trip
+naming) is also still open. No automatic subsystem can send until the whole gate passes on the
+bioreactor.

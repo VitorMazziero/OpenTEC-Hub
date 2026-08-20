@@ -65,20 +65,27 @@ public sealed class EventJournal : IEventJournal
     private readonly Lock _gate = new();
     private readonly List<AuditEvent> _entries = [];
     private readonly IDeviceService _device;
+    private readonly ICommandArbiter _arbiter;
     private readonly ISettingsService _settings;
 
     private AppSettings _previousSettings;
     private long _sequence;
 
-    public EventJournal(IDeviceService device, ISettingsService settings)
+    public EventJournal(IDeviceService device, ICommandArbiter arbiter, ISettingsService settings)
     {
         _device = device;
+        _arbiter = arbiter;
         _settings = settings;
         _previousSettings = settings.Current;
 
         device.DeviceLogReceived += OnDeviceLogReceived;
         device.CommandSent += OnCommandSent;
         device.StateChanged += OnStateChanged;
+        device.SessionTimeZeroed += OnSessionTimeZeroed;
+        arbiter.OwnershipChanged += OnOwnershipChanged;
+        arbiter.OwnershipRevoked += OnOwnershipRevoked;
+        arbiter.CommandRejected += OnCommandRejected;
+        arbiter.CommandTracked += OnCommandTracked;
         settings.Changed += OnSettingsChanged;
 
         Add(AuditSource.Application, AuditSeverity.Information, "Aplicação iniciada.");
@@ -165,6 +172,75 @@ public sealed class EventJournal : IEventJournal
         }
     }
 
+    private void OnSessionTimeZeroed(double offsetMinutes)
+        => Add(
+            AuditSource.Application,
+            AuditSeverity.Information,
+            "Tempo da sessão zerado pelo operador.",
+            $"Deslocamento local aplicado: {offsetMinutes.ToString("F2", System.Globalization.CultureInfo.CurrentCulture)} min. " +
+            "O relógio do equipamento e as amostras já registradas não foram alterados.");
+
+    private void OnOwnershipChanged(OwnershipTransfer transfer)
+    {
+        if (transfer.IsSafeAbort || transfer.Actuators.Count == 0)
+        {
+            // Safe aborts are journalled with alarm severity in OnOwnershipRevoked; a
+            // no-op transfer is not worth a line.
+            return;
+        }
+
+        var actuators = string.Join(", ", transfer.Actuators.Select(CommandActuators.Label));
+        Add(
+            AuditSource.Command,
+            AuditSeverity.Information,
+            $"Posse transferida para {OwnerLabel(transfer.To)}: {actuators}.",
+            transfer.Reason);
+    }
+
+    private void OnOwnershipRevoked(OwnershipTransfer transfer)
+    {
+        var actuators = string.Join(", ", transfer.Actuators.Select(CommandActuators.Label));
+        Add(
+            AuditSource.Alarm,
+            AuditSeverity.Warning,
+            $"Aborto seguro: posse devolvida ao operador ({actuators}).",
+            transfer.Reason);
+    }
+
+    private void OnCommandRejected(CommandRejection rejection)
+    {
+        var conflicts = string.Join("; ",
+            rejection.Conflicts.Select(c => $"{CommandActuators.Label(c.Actuator)} pertence a {OwnerLabel(c.Owner)}"));
+        Add(
+            AuditSource.Command,
+            AuditSeverity.Warning,
+            $"Comando de {OwnerLabel(rejection.Requester)} recusado: {conflicts}.",
+            rejection.CommandJson);
+    }
+
+    private void OnCommandTracked(CommandLifecycleEntry entry)
+    {
+        // Accepted/confirmed transitions are normal traffic and would drown the journal.
+        // A timeout is the one that means something did not reach the reactor.
+        if (entry.Phase != CommandPhase.TimedOut)
+        {
+            return;
+        }
+
+        Add(
+            AuditSource.Command,
+            AuditSeverity.Error,
+            $"Comando de {CommandActuators.Label(entry.Actuator)} expirou sem aceitação do transporte.",
+            entry.Summary);
+    }
+
+    private static string OwnerLabel(CommandOwner owner) => owner switch
+    {
+        CommandOwner.Automatic => "Automático",
+        CommandOwner.Recipe => "Receita",
+        _ => "Manual",
+    };
+
     private void OnStateChanged(ConnectionStateChange change)
     {
         var severity = change.State is ConnectionState.Faulted
@@ -208,6 +284,11 @@ public sealed class EventJournal : IEventJournal
         _device.DeviceLogReceived -= OnDeviceLogReceived;
         _device.CommandSent -= OnCommandSent;
         _device.StateChanged -= OnStateChanged;
+        _device.SessionTimeZeroed -= OnSessionTimeZeroed;
+        _arbiter.OwnershipChanged -= OnOwnershipChanged;
+        _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+        _arbiter.CommandRejected -= OnCommandRejected;
+        _arbiter.CommandTracked -= OnCommandTracked;
         _settings.Changed -= OnSettingsChanged;
     }
 }

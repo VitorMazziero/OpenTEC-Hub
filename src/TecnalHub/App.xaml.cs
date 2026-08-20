@@ -157,13 +157,24 @@ public partial class App : Application
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal
         // telemetry, so ViewModels never have to think about threads.
-        services.AddSingleton<IDeviceService>(sp => new DeviceService(
+        services.AddSingleton<DeviceService>(sp => new DeviceService(
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<ILogger<DeviceService>>(),
             sp.GetRequiredService<ILoggerFactory>(),
             Dispatcher.CurrentDispatcher));
 
         services.AddSingleton(TimeProvider.System);
+
+        // One command arbiter owns the wire. It decorates the transport wrapper, so the
+        // IDeviceService everything else resolves IS the arbiter: a plain Send is a Manual
+        // dispatch, and nothing can reach the wire without an owner. The same instance is
+        // exposed as ICommandArbiter for the ownership and lifecycle surface.
+        services.AddSingleton<CommandArbiter>(sp => new CommandArbiter(
+            sp.GetRequiredService<DeviceService>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CommandArbiter>>()));
+        services.AddSingleton<IDeviceService>(sp => sp.GetRequiredService<CommandArbiter>());
+        services.AddSingleton<ICommandArbiter>(sp => sp.GetRequiredService<CommandArbiter>());
 
         // The advisory oxygen cascade. It subscribes to telemetry and computes, but never
         // sends - live actuation waits for command ownership and the bioreactor.

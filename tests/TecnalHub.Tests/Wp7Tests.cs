@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using TecnalHub.Protocol;
+using TecnalHub.Services.Communication;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
@@ -84,7 +85,8 @@ public sealed class Wp7Tests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService(new AppSettings());
-        using var journal = new EventJournal(device, settings);
+        using var arbiter = new CommandArbiter(device, TimeProvider.System);
+        using var journal = new EventJournal(arbiter, arbiter, settings);
 
         device.Send(CommandBuilders.MotorSetpoint(790));
 
@@ -102,7 +104,8 @@ public sealed class Wp7Tests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService(new AppSettings());
-        using var journal = new EventJournal(device, settings);
+        using var arbiter = new CommandArbiter(device, TimeProvider.System);
+        using var journal = new EventJournal(arbiter, arbiter, settings);
         await using var logger = new RecordingSessionLogger();
 
         using var vm = new EventsViewModel(journal, logger, settings, new RecordingFiles());

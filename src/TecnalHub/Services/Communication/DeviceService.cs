@@ -39,6 +39,12 @@ public interface IDeviceService
     /// <summary>Exact merged JSON successfully written to the active transport.</summary>
     event Action<string>? CommandSent;
 
+    /// <summary>
+    /// Raised on the UI thread after the operator zeroes the session clock, carrying the
+    /// new offset in minutes.
+    /// </summary>
+    event Action<double>? SessionTimeZeroed;
+
     /// <summary>Connects using the persisted preference. Safe to call when already connected.</summary>
     void Connect();
 
@@ -52,6 +58,12 @@ public interface IDeviceService
 
     /// <summary>Queues a command. Merged with anything already buffered.</summary>
     void Send(TecnalCommand command);
+
+    /// <summary>
+    /// Zeroes the operator session clock: stores a local display/log offset without ever
+    /// resetting the device clock or rewriting samples already logged.
+    /// </summary>
+    void ZeroSessionTime();
 
     /// <summary>Finds the controller on any serial port, preferring the remembered one.</summary>
     Task<string?> DiscoverUsbPortAsync(CancellationToken cancellationToken = default);
@@ -86,6 +98,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         _manager.TelemetryReceived += OnTelemetryReceived;
         _manager.DeviceLogReceived += OnDeviceLogReceived;
         _manager.CommandSent += OnCommandSent;
+        _manager.SessionTimeZeroed += OnSessionTimeZeroed;
 
         // Recalibration must reach the running parser, or the operator calibrates a
         // probe and nothing changes on screen.
@@ -109,6 +122,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     public event Action<string>? DeviceLogReceived;
 
     public event Action<string>? CommandSent;
+
+    public event Action<double>? SessionTimeZeroed;
 
     public void Connect()
     {
@@ -177,6 +192,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
 
     public void Send(TecnalCommand command) => _manager.SendCommand(command);
 
+    public void ZeroSessionTime() => _manager.ZeroSessionTime();
+
     public Task<string?> DiscoverUsbPortAsync(CancellationToken cancellationToken = default)
         => SerialTransport.ProbePortsAsync(
             new SerialTransportConfig { PortName = "DISCOVER" },
@@ -209,6 +226,9 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
 
     private void OnCommandSent(string json) => ToUi(() => CommandSent?.Invoke(json));
 
+    private void OnSessionTimeZeroed(double offsetMinutes)
+        => ToUi(() => SessionTimeZeroed?.Invoke(offsetMinutes));
+
     /// <remarks>
     /// <see cref="Dispatcher.BeginInvoke(Delegate, object[])"/> rather than
     /// <c>Invoke</c>: the protocol worker must never block waiting on the UI thread.
@@ -233,6 +253,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         _manager.TelemetryReceived -= OnTelemetryReceived;
         _manager.DeviceLogReceived -= OnDeviceLogReceived;
         _manager.CommandSent -= OnCommandSent;
+        _manager.SessionTimeZeroed -= OnSessionTimeZeroed;
 
         await _manager.DisposeAsync().ConfigureAwait(false);
     }

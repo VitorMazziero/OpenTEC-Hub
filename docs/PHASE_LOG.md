@@ -552,3 +552,87 @@ raw ADC counts, not engineering units.
 recalibrating a probe silently changes what the filter treats as a spike. It cannot be
 fixed without a bench comparison, so the next best thing is to make sure anyone tuning
 one knows about the other. Hiding a known sharp edge is worse than labelling it.
+
+---
+
+## Phase 1b — Design-system refit and shell completion
+
+### P1B-01 · Controle reuses the detail pane's subsystem state
+
+**Decided:** the all-setpoints table binds to the same five `SubsystemViewModel`
+instances as the detail pane. `SubsystemViewModel` now separates building a validated
+command from committing the staged state, so per-row apply and bulk apply use one set of
+rules rather than parallel implementations.
+
+**Why:** copying values into a second table model would let the two screens disagree about
+what is dirty, valid or applied. The page is a second view of the same control state, not
+a second owner of it.
+
+**Consequence:** bulk apply builds each dirty row, merges the flat command objects, queues
+one frame, then commits those same rows. A flow setpoint above the staged `maxFlow` is
+refused before the builder can clamp it.
+
+---
+
+### P1B-02 · Valve control sends complete desired flow state
+
+**Decided:** changing either gas valve sends `flowmeterComm`, `flowSetpoint`, `maxFlow`,
+`valve_1`, `valve_2`, and the derived `v_Flow` together. The vent state is read-only in
+the UI and shown as both physical state and wire flag.
+
+**Why:** a one-key valve write would recreate the legacy hub's stale-state hazard. The
+reliable flow protocol is desired-state based, idempotent and acknowledgement-visible;
+the operator should never have to remember that `v_Flow` is inverted.
+
+**Evidence:** golden tests pin valves open at zero flow as `v_Flow:1`, and the complete
+safe-stop as both gas valves closed. The simulator displayed `Aberta · v_Flow = 1` while
+the measured flow was zero.
+
+---
+
+### P1B-03 · Presets stage; only an explicit apply reaches the wire
+
+**Decided:** a named preset persists values, enabled flags, both valve requests and
+`maxFlow`, but loading it only fills the fields.
+
+**Why:** a preset is a pre-run verification aid, not a recipe. Reasserting an old set of
+commands merely because it was selected would be an unsafe surprise.
+
+**Evidence:** `Loading_a_preset_only_stages_fields_and_never_sends` observes an empty
+device-command capture after load. The page says explicitly that nothing was sent.
+
+---
+
+### P1B-04 · Safe stop previews exact bytes and defaults to cancel
+
+**Decided:** `Parada segura` is the only red action in the application. It opens the
+destructive-confirmation dialog with the consequence and exact JSON, with Cancel as the
+default. Confirm sends one complete core safe-stop.
+
+**Why:** five individual writes can be interrupted between subsystems, and a generic
+"are you sure?" does not tell an operator whether nitrogen closes. The exact command is
+both the safety explanation and the protocol evidence.
+
+**Evidence:** cancellation and confirmation are separate tests. The confirmed frame
+contains temperature, motor, oxygen, pressure, flow disable, both gas valves closed, and
+the inverted vent flag asserted.
+
+---
+
+### P1B-05 · Runtime review found two shell defects outside the page
+
+**Found and fixed:**
+
+1. The variable rail had responsive state in the ViewModel but its `Border` never bound
+   `Visibility`, so it was always present. Controle now also hides the duplicate rail by
+   design, leaving every table column visible at 1280 px.
+2. Clean shutdown called synchronous `ServiceProvider.Dispose()` even though the
+   container owns async-only services. Every normal exit logged a fatal exception.
+   `DisposeAsync()` now closes the session logger, device and settings once, in container
+   order. A fresh start/exit at 10:12 logged the exit and settings save with no later fatal.
+
+**Visual evidence:** `docs/evidence/ui/wp6-controle-{light,dark}.png`; all five rows and
+their Apply/Revert actions were also enumerated as visible through UI Automation.
+
+**Test evidence:** 169/169 pass. The existing SkiaSharp `NU1701` compatibility warning
+remains; it is unrelated to WP6 and was present in the 161-test baseline.

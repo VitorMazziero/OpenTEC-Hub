@@ -6,6 +6,44 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.7.0] - 2026-08-20
+
+Phase 1b WP6 - the all-setpoints Controle page and explicit valve control.
+
+### Added
+- **Controle page** with all five core subsystems in one table: live PV, last applied
+  setpoint, staged setpoint, range, active state, mode, owner, and per-row actions.
+- **One-frame bulk apply.** Dirty subsystem commands are merged into one flat JSON
+  object; invalid cross-field flow/maxFlow combinations are refused rather than clamped.
+- **Valve card** for `valve_1` (auxiliary) and `valve_2` (nitrogen), with the physical
+  valve telemetry beside each toggle and the derived/inverted `v_Flow` state read-only.
+- Typed, named setpoint presets. Loading a preset stages fields and is asserted never to
+  send a command.
+- **Parada segura**, the application's only red button, behind a default-cancel dialog
+  that displays the exact JSON before sending the complete five-subsystem safe state.
+- Eight WP6 acceptance tests and light/dark simulator evidence in `docs/evidence/ui/`.
+
+### Changed
+- The variable rail now obeys its responsive visibility state. It stays hidden on
+  Controle because the page already shows every live PV and needs the full width at
+  1280 px.
+- `SubsystemViewModel` now separates command construction from commit, allowing bulk
+  apply to reuse exactly the same validation and state transitions as per-row apply.
+
+### Fixed
+- Clean app shutdown no longer logs a fatal exception: the dependency container is now
+  disposed asynchronously because settings, session logging, and the device service are
+  async-only disposables.
+- The shared `ListViewItem` template now honours its `Padding` property; WP6 can compact
+  its five rows without clipping the pressure row.
+
+### Verified
+- 169/169 tests pass.
+- Localhost simulator connected with live telemetry; all five rows and actions were
+  visible at 1280×800 in both themes with zero XAML binding failures.
+
+---
+
 ## [0.6.0] - 2026-08-19
 
 Advanced settings - **Phase 1 complete**.

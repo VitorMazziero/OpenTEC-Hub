@@ -1,0 +1,365 @@
+<UserControl x:Class="TecnalHub.Views.ControlView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:ctl="clr-namespace:TecnalHub.Controls"
+             xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ControlViewModel}">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Controle"
+                       FontFamily="{DynamicResource FontDisplay}"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="Confira e aplique toda a configuração do ensaio em uma única tela."
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,3,0,0" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="12">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="Parâmetros do processo"
+                                   FontSize="{DynamicResource FontSizeSubtitle}"
+                                   FontWeight="SemiBold"
+                                   Margin="4,0,0,8" />
+
+                        <ListView ItemsSource="{Binding Rows}"
+                                  Height="286"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem"
+                                       BasedOn="{StaticResource {x:Type ListViewItem}}">
+                                    <Setter Property="Padding" Value="0,3" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.View>
+                                <GridView AllowsColumnReorder="False">
+                                    <GridViewColumn Width="30">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text=" " />
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <ctl:StateDot State="{Binding Subsystem.Variable.State}"
+                                                              Size="8"
+                                                              Label="{Binding Subsystem.DisplayName}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Variável" Width="130">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <Button Padding="2"
+                                                        Background="Transparent"
+                                                        BorderThickness="0"
+                                                        HorizontalContentAlignment="Left"
+                                                        Command="{Binding DataContext.OpenVariableFromControlCommand,
+                                                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding Subsystem.Variable}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ctl:Icon Key="{Binding IconKey}" Size="18" Margin="0,0,7,0" />
+                                                        <TextBlock Text="{Binding Subsystem.DisplayName}"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="PV" Width="95">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}"
+                                                                   Style="{StaticResource NumericTextStyle}" />
+                                                        <TextBlock Text="{Binding Subsystem.Unit}"
+                                                                   Margin="4,0,0,0"
+                                                                   Style="{StaticResource CaptionTextStyle}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                    </StackPanel>
+                                                    <ctl:ProvenanceBadge Text="comandado"
+                                                                         Visibility="{Binding Subsystem.Variable.IsCommandedOnly,
+                                                                                      Converter={StaticResource BoolToVis}}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="SP aplicado" Width="90">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <TextBlock Text="{Binding Subsystem.FormattedAppliedSetpoint}"
+                                                           Style="{StaticResource NumericTextStyle}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Novo SP" Width="96">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <TextBox Width="88"
+                                                         Text="{Binding Subsystem.SetpointText,
+                                                                        UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="{Binding Subsystem.ValidationError}">
+                                                    <TextBox.Style>
+                                                        <Style TargetType="TextBox"
+                                                               BasedOn="{StaticResource {x:Type TextBox}}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Subsystem.HasPendingChange}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Subsystem.IsValid}" Value="False">
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBox.Style>
+                                                </TextBox>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Unidade" Width="55">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <TextBlock Text="{Binding Subsystem.Unit}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Faixa" Width="120">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <TextBlock Text="{Binding Subsystem.RangeHint}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding Subsystem.RangeHint}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Ativo" Width="58">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                              IsChecked="{Binding Subsystem.IsEnabled, Mode=TwoWay}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Modo" Width="105">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <ComboBox Width="95"
+                                                          ItemsSource="{Binding ModeOptions}"
+                                                          SelectedItem="{Binding SelectedMode, Mode=TwoWay}">
+                                                    <ComboBox.ItemContainerStyle>
+                                                        <Style TargetType="ComboBoxItem"
+                                                               BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                                            <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+                                                            <Setter Property="ToolTip" Value="{Binding UnavailableReason}" />
+                                                        </Style>
+                                                    </ComboBox.ItemContainerStyle>
+                                                </ComboBox>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Dono" Width="68">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                                        BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="3"
+                                                        Padding="5,2"
+                                                        HorizontalAlignment="Left">
+                                                    <TextBlock Text="{Binding OwnerText}"
+                                                               FontSize="10"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header=" " Width="134">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="Aplicar"
+                                                            Padding="8,4"
+                                                            Command="{Binding Subsystem.ApplyCommand}" />
+                                                    <Button Content="Reverter"
+                                                            Padding="8,4"
+                                                            Margin="5,0,0,0"
+                                                            Command="{Binding Subsystem.RevertCommand}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </DockPanel>
+                </Border>
+
+                <!-- Valve writes are a complete desired flow state. The vent valve is
+                     read-only because v_Flow is derived and inverted on the wire. -->
+                <Border Margin="0,12,0,0"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.1*" />
+                            <ColumnDefinition Width="1.1*" />
+                            <ColumnDefinition Width="1.5*" />
+                            <ColumnDefinition Width="1.1*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Válvula auxiliar" FontWeight="SemiBold" />
+                            <ToggleButton Margin="0,8,0,0"
+                                          Style="{StaticResource ToggleSwitchStyle}"
+                                          IsChecked="{Binding FlowControl.RequestedValve1, Mode=TwoWay}"
+                                          IsEnabled="{Binding FlowSubsystem.IsEnabled}" />
+                            <TextBlock Text="{Binding FlowControl.Valve1ActualText, StringFormat='Telemetria: {0}'}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Válvula de N₂" FontWeight="SemiBold" />
+                            <ToggleButton Margin="0,8,0,0"
+                                          Style="{StaticResource ToggleSwitchStyle}"
+                                          IsChecked="{Binding FlowControl.RequestedValve2, Mode=TwoWay}"
+                                          IsEnabled="{Binding FlowSubsystem.IsEnabled}" />
+                            <TextBlock Text="{Binding FlowControl.Valve2ActualText, StringFormat='Telemetria: {0}'}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Respiro · v_Flow" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding FlowControl.VentActualText}"
+                                       Style="{StaticResource NumericTextStyle}"
+                                       Margin="0,8,0,0" />
+                            <TextBlock Text="{Binding FlowControl.VentRuleText}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,12,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="maxFlow" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBox Width="82"
+                                         Text="{Binding FlowControl.MaxFlowText,
+                                                        UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="{Binding FlowControl.ValidationError}" />
+                                <TextBlock Text="L/min"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding FlowRequestError}"
+                                       Visibility="{Binding FlowRequestError, Converter={StaticResource NullToVis}}"
+                                       Foreground="{DynamicResource StateAlarmTextBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,5,0,0" />
+                        </StackPanel>
+
+                        <Button Grid.Column="4"
+                                Content="Aplicar vazão e válvulas"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Command="{Binding ApplyFlowStateCommand}" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2"
+                Margin="0,12,0,0"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusMedium}"
+                Padding="12">
+            <StackPanel>
+                <WrapPanel>
+                    <TextBox Width="170"
+                             Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome da nova predefinição" />
+                    <Button Content="Salvar como predefinição"
+                            Margin="6,0,12,0"
+                            Command="{Binding SavePresetCommand}" />
+                    <ComboBox Width="190"
+                              ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                              DisplayMemberPath="Name" />
+                    <Button Content="Carregar predefinição"
+                            Margin="6,0,12,0"
+                            Command="{Binding LoadPresetCommand}" />
+                    <Button Content="Reverter tudo"
+                            Margin="0,0,12,0"
+                            Command="{Binding RevertAllCommand}" />
+                    <Button Content="{Binding ApplyAllLabel}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding ApplyAllCommand}" />
+                    <Button Content="Parada segura"
+                            Margin="12,0,0,0"
+                            Style="{StaticResource DangerButtonStyle}"
+                            Command="{Binding SafeStopCommand}" />
+                </WrapPanel>
+
+                <TextBlock Text="{Binding StatusText}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           Margin="2,8,0,0"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

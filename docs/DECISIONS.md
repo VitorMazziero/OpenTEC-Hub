@@ -144,8 +144,10 @@ WP4 delivered the strip and the variable rail together, and Painel ended up carr
 **two viewers of the same six variables** — the horizontal strip on top and the rail on
 the left, showing identical values a few hundred pixels apart.
 
-*Decision:* the KPI strip appears **only on Receitas**. Everywhere else the variable rail
-is the variable display, and it is no longer optional.
+*Decision:* the KPI strip appears **only on Receitas**. On process and record pages the
+variable rail is the variable display and is no longer optional. **Controle is the one
+exception:** its all-setpoints table already carries every PV, so the rail is hidden there
+to keep the complete configuration and action columns visible at 1280 px.
 
 *Rationale:* the rail keeps its meaning next to the synoptic, where a value sits beside
 the drawing of the thing that produced it. On Receitas the strip earns its place for the
@@ -155,7 +157,8 @@ only thing on screen showing the *actual* one. That contrast is the whole point 
 
 *Consequence:* reverses "KPI strip visible on every page" from the original §4.4. The
 strip is kept as `Views/KpiStripView.xaml` — built, tested, and unused until Phase 3
-places it on Receitas.
+places it on Receitas. The shell now binds the rail's actual visibility to its responsive
+state; before WP6 that property existed but the rail border ignored it.
 
 ---
 

@@ -430,6 +430,23 @@
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 BorderThickness="0,0,1,0">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowVariableRail}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <!-- Controle already carries every live PV in its table. Hiding
+                             the duplicate rail is what "full width" in UI_DESIGN §5.2
+                             means and keeps the complete run configuration visible at
+                             the 1280 px acceptance width. -->
+                        <DataTrigger Binding="{Binding SelectedNavigationId}" Value="control">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <DockPanel Margin="12,12,8,12">
                 <TextBlock DockPanel.Dock="Top" Text="Variáveis"
                            FontWeight="SemiBold"
@@ -550,6 +567,13 @@
 
             </Grid>
             </Grid>
+
+            <!-- Controle -->
+            <views:ControlView DataContext="{Binding Control}"
+                               Visibility="{Binding DataContext.SelectedNavigationId,
+                                                    RelativeSource={RelativeSource AncestorType=Window},
+                                                    Converter={StaticResource EqualsToVis},
+                                                    ConverterParameter=control}" />
 
             <!-- Gráficos -->
             <views:ChartsView DataContext="{Binding Charts}"

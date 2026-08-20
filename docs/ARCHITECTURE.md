@@ -110,6 +110,19 @@ and keeps every pt-BR user-facing string in one reviewable place.
 v.6's 370 lines of hand-written `collect_preferences` / `apply_preferences` marshalling —
 the single biggest source of silently-lost settings in the old app.
 
+**Controle is another view of the core subsystem state, not a copy.** The all-setpoints
+table and the detail pane share the same `SubsystemViewModel` instances. A subsystem can
+build its validated pending command without sending it, which lets bulk apply merge dirty
+rows into one wire frame and then commit the same state transition per row.
+
+**Presets stage; they never command.** Named core-loop presets live in the typed settings
+record. Loading one fills setpoint, enable, valve and `maxFlow` fields; only an explicit
+Apply action can call `IDeviceService.Send`.
+
+**Dialogs are behind `IDialogService`.** The destructive-confirmation implementation is
+a WPF service, while `ControlViewModel` sees only a boolean result. Tests can prove that
+Cancel sends nothing without opening a window.
+
 **Charts are ring buffers.** Fixed capacity, allocated once. A 24 h run must not grow
 memory ([ROADMAP.md](ROADMAP.md#non-functional-targets)).
 

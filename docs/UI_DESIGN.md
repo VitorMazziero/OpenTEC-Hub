@@ -787,7 +787,9 @@ before starting a run*, and *tune a controller*. **Phase 1** ships the setpoint 
 > lists *"Controller tuning UI with live term display"* with nowhere to live. This page is
 > both answers.
 
-Full width, no detail pane. Two tabs.
+Full width, no detail pane and no variable rail: the table already carries every live PV,
+so a second variable display would be redundant and would hide the action columns at the
+1280 px acceptance width. Two tabs.
 
 #### Tab 1 — `Parâmetros`
 
@@ -1870,7 +1872,7 @@ section is the design-side summary; the roadmap is the plan of record.
 | 3 | Icon `ResourceDictionary` in `Resources/Icons/`; wire the unused `NavigationItem.Glyph` |
 | 4 | Nav rail to 184 px with icons, groups and the `Modo` footer. KPI strip scrollable, configurable, `comandado` badge, suppressed trend arrow. Status bar. Variable rail |
 | 5 | Detail pane: PV/SP/Δ, state chip, inline trend, section matrix, `Saúde do Sensor` |
-| 6 | `Controle` page — all-setpoints table, **valve card**, bulk apply, `Parada segura` |
+| 6 | `Controle` page — all-setpoints table, **valve card**, bulk apply, `Parada segura` — **done 2026-08-20** |
 | 7 | `Gráficos` → `Históricos` (+ Sessões, export, cursor); `Registro` → `Eventos` (eight sources); Configurações section nav + Unidades; confirmation dialog ([7.2](#7-dialogs-and-secondary-surfaces)) |
 | 8 | Persist window size, position, last page, rail state, KPI configuration. Keyboard map |
 

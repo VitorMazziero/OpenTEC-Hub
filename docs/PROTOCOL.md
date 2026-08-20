@@ -352,7 +352,9 @@ USB handshake      {"comTest":1}\n
 Wi-Fi handshake    {"comTest":1}
 pH echo            {"pHCal":"6.98"}
 Motor setpoint     {"motorSetpoint":790}
-Flow safe-stop     {"flowmeterComm":0,"flowSetpoint":0,"maxFlow":50,"valve_1":0,"valve_2":0,"v_Flow":1}
+Valve state at 0   {"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}
+Flow safe-stop     {"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}
+Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
 kLa combined       {"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40,"motorSetpoint":300}
 ```
 

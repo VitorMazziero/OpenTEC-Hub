@@ -62,6 +62,22 @@ public static class CommandBuilders
             .Set(CommandKeys.V_Flow, true);
 
     /// <summary>
+    /// Safely disables every subsystem in the Phase 1 core loop in one command.
+    /// </summary>
+    /// <remarks>
+    /// Flow uses the full safe-stop shape rather than a zero setpoint alone, so both
+    /// gas valves close and the inverted vent flag is asserted. Keeping the whole stop
+    /// here makes the destructive-confirmation preview byte-identical to what is sent.
+    /// </remarks>
+    public static TecnalCommand CoreSafeStop(double maxFlow)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.TempSetpoint, 0.0)
+            .Set(CommandKeys.MotorSetpoint, 0)
+            .Set(CommandKeys.OxygenMonitor, 0.0)
+            .Merge(FlowSafeStop(maxFlow))
+            .Set(CommandKeys.PressureReference, 0.0);
+
+    /// <summary>
     /// Motor setpoint in rpm. Valid range is 50-1000; <c>0</c> stops the motor.
     /// </summary>
     /// <remarks>Always an integer on the wire.</remarks>

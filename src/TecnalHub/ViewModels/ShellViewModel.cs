@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
@@ -120,6 +121,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         ConnectionViewModel connection,
         ChartsViewModel charts,
         SettingsViewModel settings_,
+        IDialogService dialogs,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
         ILogger<ShellViewModel> log)
@@ -157,6 +159,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // command builders, so validation and the wire cannot drift apart.
         var setpoints = settings.Current.Setpoints;
         var maxFlow = setpoints.MaxFlowLitresPerMinute;
+        FlowControl = new FlowControlViewModel(maxFlow);
 
         Subsystems =
         [
@@ -186,13 +189,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
             new SubsystemViewModel(Flow,
                 new SubsystemSpec(0, maxFlow, IsInteger: false,
-                    value => CommandBuilders.FlowSetpoint(value, maxFlow),
+                    value => FlowControl.BuildSetpointUsingObservedValves(value),
                     // Safe-stop, not merely zero flow: both valves are forced closed,
                     // because leaving nitrogen open through a stop is a hazard.
-                    () => CommandBuilders.FlowSafeStop(maxFlow),
+                    () => FlowControl.BuildSafeStop(),
                     // Valve states and the vent flag come back on the wire, so the app
                     // can show what the actuator is doing rather than only what it asked.
-                    HasOutput: true, HasCalibration: true),
+                    HasOutput: true, HasCalibration: true,
+                    OnCommitted: (_, enabled) => FlowControl.CommitFromFlowSetpoint(enabled)),
                 device, setpoints.FlowLitresPerMinute),
 
             new SubsystemViewModel(Pressure,
@@ -204,10 +208,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
+        Control = new ControlViewModel(Subsystems, FlowControl, device, settings, dialogs);
 
         NavigationItems =
         [
             new NavigationItem("dashboard", "Painel", "Vessel"),
+            new NavigationItem("control", "Controle", "Sliders"),
             new NavigationItem("charts", "Gráficos", "Trend", StartsGroup: true),
             new NavigationItem("log", "Registro", "EventLog"),
             new NavigationItem("settings", "Configurações", "Gear", StartsGroup: true),
@@ -266,6 +272,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public ChartsViewModel Charts { get; }
 
     public SettingsViewModel Settings { get; }
+
+    /// <summary>All-setpoints and valve-control page.</summary>
+    public ControlViewModel Control { get; }
+
+    /// <summary>Shared staged/observed flow state used by both detail and Controle.</summary>
+    public FlowControlViewModel FlowControl { get; }
 
     /// <summary>Ring-buffered telemetry, for the detail pane's inline trend.</summary>
     public ITelemetryHistory History => _history;
@@ -454,6 +466,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void Navigate(string id) => SelectedNavigationId = id;
+
+    /// <summary>Opens a Controle table row in the process-first dashboard.</summary>
+    [RelayCommand]
+    private void OpenVariableFromControl(ProcessVariableViewModel variable)
+    {
+        SelectedVariable = variable;
+        SelectedNavigationId = "dashboard";
+    }
 
     // ── KPI strip ────────────────────────────────────────────────────────────
 
@@ -705,6 +725,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // which the UI must present as a command rather than a reading - see
         // MotorIsCommandedOnly. v.6 logs the same commanded figure.
         Flow.Setpoint = snapshot.FlowSetpoint >= 0 ? snapshot.FlowSetpoint : null;
+        FlowControl.UpdateTelemetry(snapshot);
 
         IsSensorModuleOffline = !snapshot.SensorCommOk;
 
@@ -798,6 +819,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 MotorRpm = (int)Applied(1, s.Setpoints.MotorRpm),
                 OxygenPercent = Applied(2, s.Setpoints.OxygenPercent),
                 FlowLitresPerMinute = Applied(3, s.Setpoints.FlowLitresPerMinute),
+                MaxFlowLitresPerMinute = FlowControl.AppliedMaxFlow,
                 PressureKilopascal = Applied(4, s.Setpoints.PressureKilopascal),
             },
         });
@@ -816,6 +838,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.DeviceLogReceived -= OnDeviceLogReceived;
+        Control.Dispose();
         Connection.Dispose();
     }
 }

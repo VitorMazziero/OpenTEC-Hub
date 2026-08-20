@@ -170,9 +170,8 @@ valves · Pressure. Nothing else.
 - [x] Synoptic view of the reactor + side detail pane, responsive fallback to the
       bottom drawer under 1200 px
 - [x] Setpoint entry and send for the five core subsystems, with visible validation
-- [ ] **Valve control** — `valve_1` (auxiliary) and `valve_2` (nitrogen) are in the locked
-      scope above and were never built. They are reachable today only as a side effect of
-      the flow safe-stop, which forces both closed. Delivered by Phase 1b, WP6
+- [x] **Valve control** — `valve_1` (auxiliary), `valve_2` (nitrogen), physical valve
+      telemetry, and the derived/inverted `v_Flow` state. Delivered by Phase 1b, WP6
 - [x] Live charts (ScottPlot) — two selectable panels side by side, 11 channels,
       selectable time window, ring-buffered history
 - [x] Session logging, byte-compatible with v.6's tab-separated format so old analysis
@@ -187,9 +186,9 @@ valves · Pressure. Nothing else.
 v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV that
 the existing analysis scripts read without modification.
 
-> **Status 2026-08-20:** every deliverable above shipped except valve control, and the
-> exit criteria are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are.
-> Phase 1b below is the work that can proceed while that hardware is unavailable.
+> **Status 2026-08-20:** every software deliverable above has shipped. The exit criteria
+> are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are. Phase 1b WP7
+> and WP8 below are the remaining work that can proceed while that hardware is unavailable.
 
 ---
 
@@ -478,18 +477,25 @@ numerically rather than hand-placed.
 > omitting the filter would be worse than admitting the gap, so the panel names it.
 > Exposing that state is a parser change, deferred rather than faked.
 
-### WP6 — Controle page *(new main window)*
+### WP6 — Controle page *(new main window)* — **done 2026-08-20**
 
-- [ ] All-setpoints table: PV, applied SP, new SP, range, active, mode, owner, per-row apply
-- [ ] **Valve card — `valve_1` auxiliary, `valve_2` nitrogen, and the derived `v_Flow`
+- [x] All-setpoints table: PV, applied SP, new SP, range, active, mode, owner, per-row apply
+- [x] **Valve card — `valve_1` auxiliary, `valve_2` nitrogen, and the derived `v_Flow`
       vent state shown read-only.** This closes the one unbuilt item in Phase 1's locked
       scope
-- [ ] Bulk apply, combining dirty rows into one command object where the protocol allows
-- [ ] Setpoint presets: save, load, and **load-without-sending**
-- [ ] `Parada segura` — the application's only red button, behind a confirmation
+- [x] Bulk apply, combining dirty rows into one command object where the protocol allows
+- [x] Setpoint presets: save, load, and **load-without-sending**
+- [x] `Parada segura` — the application's only red button, behind a confirmation
 
-**Acceptance:** a run's whole configuration is verifiable on one screen before starting;
-`v_Flow` inversion is visible rather than remembered.
+**Acceptance — met:** a run's whole configuration is verifiable on one screen before
+starting; `v_Flow` inversion is visible rather than remembered.
+
+- [x] Five rows, both valve states, `maxFlow`, and the vent rule render at 1280×800 in
+      both themes (`docs/evidence/ui/wp6-controle-{light,dark}.png`)
+- [x] `ControlViewModelTests` proves dirty rows share one frame, preset loading sends
+      nothing, an SP above staged `maxFlow` is refused, and safe stop defaults to cancel
+- [x] Golden strings pin valve-open-at-zero-flow (`v_Flow:1`) and the complete core safe-stop
+- [x] 169/169 tests pass; localhost simulator live, zero XAML binding failures
 
 ### WP7 — Page completion and renames
 
@@ -523,7 +529,7 @@ command bytes can be compared against a v.6 capture without a debugger.
 1. [ ] Every page passes a light/dark render check with no default WPF chrome and no
        colour literals in the Views.
 2. [ ] Twelve KPI tiles can be pinned and remain reachable at 1280 px.
-3. [ ] Valve control sends the correct bytes, verified by golden-string test, including
+3. [x] Valve control sends the correct bytes, verified by golden-string test, including
        the `v_Flow` inversion.
 4. [ ] Killing the simulator mid-run degrades every readout to `—` and turns
        `Última atualização` to warning, with no stale value presented as live.

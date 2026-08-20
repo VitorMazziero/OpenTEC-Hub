@@ -59,6 +59,15 @@
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
+    <!-- The application has exactly one destructive red action: Parada segura.
+         Alarm red otherwise remains process state, never general interaction chrome. -->
+    <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource StateAlarmBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
     <!-- ── TextBox ────────────────────────────────────────────────────────── -->
     <Style TargetType="TextBox">
         <Setter Property="Background" Value="{DynamicResource SurfaceInputBrush}" />
@@ -703,14 +712,15 @@
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
+        <Setter Property="Padding" Value="0,7" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListViewItem">
                     <Border x:Name="Row" Background="Transparent"
-                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="0,7">
+                             BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                             BorderThickness="0,0,0,1"
+                             Padding="{TemplateBinding Padding}">
                         <GridViewRowPresenter VerticalAlignment="Center"
                                               Columns="{TemplateBinding GridView.ColumnCollection}" />
                     </Border>

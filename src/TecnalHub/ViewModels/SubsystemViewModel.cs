@@ -32,6 +32,10 @@ namespace TecnalHub.ViewModels;
 /// </param>
 /// <param name="HasCalibration">True where raw counts are decoded on the PC side.</param>
 /// <param name="HasHealth">False where the wire reports nothing to be healthy about.</param>
+/// <param name="OnCommitted">
+/// Optional callback after a command is accepted for sending. Flow uses it to commit
+/// the staged <c>maxFlow</c> value carried in every flow command.
+/// </param>
 public sealed record SubsystemSpec(
     double Minimum,
     double Maximum,
@@ -42,7 +46,8 @@ public sealed record SubsystemSpec(
     bool HasCascade = false,
     bool HasPid = false,
     bool HasCalibration = false,
-    bool HasHealth = true);
+    bool HasHealth = true,
+    Action<double, bool>? OnCommitted = null);
 
 /// <summary>
 /// One controllable subsystem: its live reading, its setpoint entry, and the rules
@@ -64,7 +69,7 @@ public sealed record SubsystemSpec(
 public sealed partial class SubsystemViewModel : ObservableObject
 {
     private readonly IDeviceService _device;
-    private readonly SubsystemSpec _spec;
+    private SubsystemSpec _spec;
 
     /// <summary>
     /// Suppresses the pending-change flag while the constructor seeds the field.
@@ -175,7 +180,19 @@ public sealed partial class SubsystemViewModel : ObservableObject
 
     /// <summary>Last value the device confirmed, or null before any send.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormattedAppliedSetpoint))]
     public partial double? AppliedSetpoint { get; set; }
+
+    /// <summary>Whether the last command sent for this subsystem left it enabled.</summary>
+    [ObservableProperty]
+    public partial bool AppliedIsEnabled { get; set; }
+
+    /// <summary>Acknowledged setpoint formatted for the all-parameters table.</summary>
+    public string FormattedAppliedSetpoint => AppliedSetpoint is { } value
+        ? value.ToString(
+            "F" + (_spec.IsInteger ? 0 : Variable.Decimals).ToString(CultureInfo.InvariantCulture),
+            CultureInfo.CurrentCulture)
+        : "—";
 
     /// <summary>
     /// Signed distance from the acknowledged setpoint, or an em dash.
@@ -216,16 +233,14 @@ public sealed partial class SubsystemViewModel : ObservableObject
             return;
         }
 
-        HasPendingChange = IsValid && TryParse(value, out var parsed) &&
-                           (AppliedSetpoint is not { } applied ||
-                            Math.Abs(parsed - applied) > 1e-9);
+        RefreshPendingState();
     }
 
     partial void OnIsEnabledChanged(bool value)
     {
         if (_initialised)
         {
-            HasPendingChange = true;
+            RefreshPendingState();
         }
     }
 
@@ -235,48 +250,97 @@ public sealed partial class SubsystemViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
     {
+        if (!TryBuildPendingCommand(out var command))
+        {
+            return;
+        }
+
+        _device.Send(command);
+        CommitPendingCommand();
+    }
+
+    /// <summary>
+    /// Builds the currently staged command without sending it, for one-frame bulk apply.
+    /// </summary>
+    public bool TryBuildPendingCommand(out TecnalCommand command)
+    {
         if (!IsEnabled)
         {
             // Disabling must not depend on the entry parsing: an operator turning
             // something off should never be blocked by a typo in its value field.
-            _device.Send(_spec.BuildDisable());
-            AppliedSetpoint = 0;
-            HasPendingChange = false;
-            Variable.IsEnabled = false;
-
-            if (Variable.IsCommandedOnly)
-            {
-                Variable.PushCommanded(0);
-            }
-
-            return;
+            command = _spec.BuildDisable();
+            return true;
         }
 
-        // Re-validate here, not only via CanExecute.
-        //
-        // CanExecute merely greys out the button. Anything else that reaches this
-        // method - the Enter key, a future recipe engine, a test - would otherwise
-        // sail past the range and integer rules, because those values parse perfectly
-        // well. Only unparseable text was being caught, so "60.1" on a 15-60 range
-        // was sent to the device. The guard belongs where the send happens.
+        // Re-validate here, not only via CanExecute. CanExecute merely greys out the
+        // button; every route to the wire must enforce the range and integer rules.
         Validate();
         if (!IsValid || !TryParse(SetpointText, out var value))
         {
+            command = TecnalCommand.Create();
+            return false;
+        }
+
+        command = _spec.BuildApply(value);
+        return true;
+    }
+
+    /// <summary>
+    /// Updates the acknowledged UI state after a caller has queued the staged command.
+    /// </summary>
+    public void CommitPendingCommand()
+    {
+        var value = 0.0;
+        if (IsEnabled && !TryParse(SetpointText, out value))
+        {
             return;
         }
 
-        _device.Send(_spec.BuildApply(value));
+        AppliedSetpoint = IsEnabled ? value : 0;
+        AppliedIsEnabled = IsEnabled;
+        Variable.IsEnabled = IsEnabled;
+        Variable.Setpoint = IsEnabled ? value : 0;
 
-        AppliedSetpoint = value;
-        HasPendingChange = false;
-        Variable.IsEnabled = true;
-        Variable.Setpoint = value;
-
-        // Variables with no feedback path can only ever show what was commanded.
         if (Variable.IsCommandedOnly)
         {
-            Variable.PushCommanded(value);
+            Variable.PushCommanded(IsEnabled ? value : 0);
         }
+
+        HasPendingChange = false;
+        _spec.OnCommitted?.Invoke(value, IsEnabled);
+    }
+
+    /// <summary>Parses the staged value after applying the subsystem's validation rules.</summary>
+    public bool TryGetStagedValue(out double value)
+    {
+        Validate();
+        value = default;
+        return IsValid && TryParse(SetpointText, out value);
+    }
+
+    /// <summary>Stages a preset value and enabled state without sending anything.</summary>
+    public void Stage(double value, bool isEnabled)
+    {
+        SetpointText = Format(value);
+        IsEnabled = isEnabled;
+        RefreshPendingState();
+    }
+
+    /// <summary>
+    /// Changes the upper validation limit when the staged flowmeter ceiling changes.
+    /// </summary>
+    public void UpdateMaximum(double maximum)
+    {
+        if (!double.IsFinite(maximum) || maximum <= _spec.Minimum ||
+            Math.Abs(maximum - _spec.Maximum) <= 1e-9)
+        {
+            return;
+        }
+
+        _spec = _spec with { Maximum = maximum };
+        OnPropertyChanged(nameof(RangeHint));
+        Validate();
+        RefreshPendingState();
     }
 
     /// <summary>Discards an unapplied edit, restoring the acknowledged value.</summary>
@@ -284,7 +348,26 @@ public sealed partial class SubsystemViewModel : ObservableObject
     private void Revert()
     {
         SetpointText = AppliedSetpoint is { } applied ? Format(applied) : SetpointText;
+        IsEnabled = AppliedIsEnabled;
         HasPendingChange = false;
+    }
+
+    private void RefreshPendingState()
+    {
+        if (!_initialised)
+        {
+            return;
+        }
+
+        if (IsEnabled != AppliedIsEnabled)
+        {
+            HasPendingChange = true;
+            return;
+        }
+
+        HasPendingChange = IsValid && TryParse(SetpointText, out var parsed) &&
+                           (AppliedSetpoint is not { } applied ||
+                            Math.Abs(parsed - applied) > 1e-9);
     }
 
     /// <summary>Re-runs validation and publishes the message.</summary>

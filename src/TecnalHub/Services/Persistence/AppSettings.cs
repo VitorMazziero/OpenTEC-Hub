@@ -40,6 +40,12 @@ public sealed record AppSettings
 
     public SetpointSettings Setpoints { get; init; } = new();
 
+    /// <summary>
+    /// Named, operator-created core-loop configurations. Loading one only stages
+    /// fields in the Controle page; it never sends a command by itself.
+    /// </summary>
+    public SetpointPreset[] SetpointPresets { get; init; } = [];
+
     public LoggingSettings Logging { get; init; } = new();
 
     public UiSettings Ui { get; init; } = new();
@@ -158,6 +164,37 @@ public sealed record SetpointSettings
     public double FlowLitresPerMinute { get; init; } = 1.0;
     public double MaxFlowLitresPerMinute { get; init; } = 50.0;
     public double PressureKilopascal { get; init; } = 100.0;
+}
+
+/// <summary>
+/// A named snapshot of every Phase 1 command field.
+/// </summary>
+/// <remarks>
+/// The enabled flags are stored separately from the setpoint values so a preset can
+/// stage a useful value for a subsystem that should begin the run disabled. Presets
+/// are data-entry aids, not recipes: loading one never reaches the wire.
+/// </remarks>
+public sealed record SetpointPreset
+{
+    public string Name { get; init; } = "";
+
+    public double TemperatureCelsius { get; init; } = 30.0;
+    public bool TemperatureEnabled { get; init; }
+
+    public int MotorRpm { get; init; } = 300;
+    public bool MotorEnabled { get; init; }
+
+    public double OxygenPercent { get; init; } = 40.0;
+    public bool OxygenEnabled { get; init; }
+
+    public double FlowLitresPerMinute { get; init; } = 1.0;
+    public double MaxFlowLitresPerMinute { get; init; } = 50.0;
+    public bool FlowEnabled { get; init; }
+    public bool Valve1Open { get; init; }
+    public bool Valve2Open { get; init; }
+
+    public double PressureKilopascal { get; init; } = 100.0;
+    public bool PressureEnabled { get; init; }
 }
 
 /// <summary>

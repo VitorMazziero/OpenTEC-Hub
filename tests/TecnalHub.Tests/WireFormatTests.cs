@@ -64,6 +64,18 @@ public class WireFormatTests
             CommandBuilders.FlowSafeStop(maxFlow: 50.0).ToJson());
 
     [Fact]
+    public void Valve_control_sends_complete_state_and_derives_the_inverted_vent_flag()
+        => Assert.Equal(
+            """{"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}""",
+            CommandBuilders.FlowSetpoint(0.0, maxFlow: 50.0, valve1: true, valve2: true).ToJson());
+
+    [Fact]
+    public void Core_safe_stop_is_one_complete_command_with_both_gas_valves_closed()
+        => Assert.Equal(
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}""",
+            CommandBuilders.CoreSafeStop(maxFlow: 50.0).ToJson());
+
+    [Fact]
     public void Cascade_actuation_keeps_v6_key_order()
         => Assert.Equal(
             """{"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",

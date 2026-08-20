@@ -1,0 +1,218 @@
+using TecnalHub.Protocol;
+using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.Persistence;
+using TecnalHub.ViewModels;
+using Xunit;
+
+namespace TecnalHub.Tests;
+
+/// <summary>Acceptance tests for Phase 1b WP6.</summary>
+public sealed class ControlViewModelTests
+{
+    [Fact]
+    public void Bulk_apply_combines_dirty_rows_and_valves_into_one_wire_frame()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Subsystems[0].Stage(37.5, isEnabled: true);
+        fixture.Flow.Stage(50.0, valve1: true, valve2: false);
+        fixture.Subsystems[3].Stage(2.5, isEnabled: true);
+
+        Assert.True(fixture.Control.CanApplyAll);
+        fixture.Control.ApplyAllCommand.Execute(null);
+
+        Assert.Equal(
+            """{"tempSetpoint":37.5,"flowmeterComm":1,"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":1,"valve_2":0,"v_Flow":0}""",
+            Assert.Single(fixture.Device.Sent));
+        Assert.Equal(0, fixture.Control.DirtyCount);
+        Assert.True(fixture.Subsystems[0].AppliedIsEnabled);
+        Assert.True(fixture.Subsystems[3].AppliedIsEnabled);
+    }
+
+    [Fact]
+    public void Loading_a_preset_only_stages_fields_and_never_sends()
+    {
+        var preset = new SetpointPreset
+        {
+            Name = "Ensaio A",
+            TemperatureCelsius = 32.5,
+            TemperatureEnabled = true,
+            MotorRpm = 450,
+            MotorEnabled = true,
+            OxygenPercent = 35,
+            OxygenEnabled = true,
+            FlowLitresPerMinute = 3.2,
+            MaxFlowLitresPerMinute = 20,
+            FlowEnabled = true,
+            Valve1Open = true,
+            Valve2Open = false,
+            PressureKilopascal = 90,
+            PressureEnabled = true,
+        };
+
+        using var fixture = new ControlFixture(new AppSettings { SetpointPresets = [preset] });
+
+        fixture.Control.LoadPresetCommand.Execute(null);
+
+        Assert.Empty(fixture.Device.Sent);
+        Assert.Equal("32.5", fixture.Subsystems[0].SetpointText.Replace(',', '.'));
+        Assert.Equal("3.20", fixture.Subsystems[3].SetpointText.Replace(',', '.'));
+        Assert.True(fixture.Flow.RequestedValve1);
+        Assert.False(fixture.Flow.RequestedValve2);
+        Assert.Equal(20, fixture.Flow.MaximumForCommand);
+        Assert.Contains("nada foi enviado", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Applying_valves_at_zero_flow_makes_the_inverted_vent_state_explicit()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Subsystems[3].Stage(0, isEnabled: true);
+        fixture.Flow.Stage(50, valve1: true, valve2: true);
+        fixture.Control.ApplyFlowStateCommand.Execute(null);
+
+        Assert.Equal(
+            """{"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}""",
+            Assert.Single(fixture.Device.Sent));
+    }
+
+    [Fact]
+    public void Safe_stop_defaults_to_cancel_and_exposes_the_exact_command()
+    {
+        using var fixture = new ControlFixture();
+        fixture.Dialogs.ConfirmResult = false;
+
+        fixture.Control.SafeStopCommand.Execute(null);
+
+        Assert.Empty(fixture.Device.Sent);
+        Assert.Equal(1, fixture.Dialogs.Calls);
+        Assert.Equal(
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}""",
+            fixture.Dialogs.ExactCommand);
+    }
+
+    [Fact]
+    public void Confirmed_safe_stop_sends_once_and_closes_both_requested_valves()
+    {
+        using var fixture = new ControlFixture();
+        fixture.Dialogs.ConfirmResult = true;
+        fixture.Subsystems[3].Stage(2.5, isEnabled: true);
+        fixture.Flow.Stage(50, valve1: true, valve2: true);
+
+        fixture.Control.SafeStopCommand.Execute(null);
+
+        Assert.Single(fixture.Device.Sent);
+        Assert.All(fixture.Subsystems, subsystem => Assert.False(subsystem.IsEnabled));
+        Assert.False(fixture.Flow.RequestedValve1);
+        Assert.False(fixture.Flow.RequestedValve2);
+    }
+
+    [Fact]
+    public void Flow_setpoint_above_staged_maximum_is_refused_not_clamped()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Flow.Stage(2.0, valve1: false, valve2: false);
+        fixture.Subsystems[3].Stage(2.5, isEnabled: true);
+
+        Assert.False(fixture.Control.CanApplyAll);
+        Assert.NotNull(fixture.Control.FlowRequestError);
+        fixture.Control.ApplyAllCommand.Execute(null);
+        Assert.Empty(fixture.Device.Sent);
+    }
+
+    private sealed class ControlFixture : IDisposable
+    {
+        public ControlFixture(AppSettings? initialSettings = null)
+        {
+            Device = new RecordingDeviceService();
+            Settings = new MemorySettingsService(initialSettings ?? new AppSettings());
+            Dialogs = new RecordingDialogService();
+            Flow = new FlowControlViewModel(Settings.Current.Setpoints.MaxFlowLitresPerMinute);
+
+            Subsystems =
+            [
+                Create("temperature", "Temperatura", "°C", 1, 15, 60, false,
+                    value => TecnalCommand.Create().Set(CommandKeys.TempSetpoint, value),
+                    () => TecnalCommand.Create().Set(CommandKeys.TempSetpoint, 0.0),
+                    Settings.Current.Setpoints.TemperatureCelsius),
+                Create("motor", "Agitação", "rpm", 0, 50, 1000, true,
+                    value => CommandBuilders.MotorSetpoint((int)value),
+                    () => CommandBuilders.MotorSetpoint(0),
+                    Settings.Current.Setpoints.MotorRpm),
+                Create("oxygen", "Oxigênio", "%", 1, 0, 100, false,
+                    value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, value),
+                    () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0),
+                    Settings.Current.Setpoints.OxygenPercent),
+                Create("flow", "Vazão", "L/min", 2, 0, Flow.AppliedMaxFlow, false,
+                    value => Flow.BuildSetpointUsingObservedValves(value),
+                    () => Flow.BuildSafeStop(),
+                    Settings.Current.Setpoints.FlowLitresPerMinute,
+                    (_, enabled) => Flow.CommitFromFlowSetpoint(enabled)),
+                Create("pressure", "Pressão", "kPa", 1, 1, 380, false,
+                    value => TecnalCommand.Create().Set(CommandKeys.PressureReference, value),
+                    () => TecnalCommand.Create().Set(CommandKeys.PressureReference, 0.0),
+                    Settings.Current.Setpoints.PressureKilopascal),
+            ];
+
+            Control = new ControlViewModel(Subsystems, Flow, Device, Settings, Dialogs);
+        }
+
+        public RecordingDeviceService Device { get; }
+        public MemorySettingsService Settings { get; }
+        public RecordingDialogService Dialogs { get; }
+        public FlowControlViewModel Flow { get; }
+        public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
+        public ControlViewModel Control { get; }
+
+        private SubsystemViewModel Create(
+            string id,
+            string name,
+            string unit,
+            int decimals,
+            double minimum,
+            double maximum,
+            bool integer,
+            Func<double, TecnalCommand> apply,
+            Func<TecnalCommand> disable,
+            double initial,
+            Action<double, bool>? committed = null)
+            => new(
+                new ProcessVariableViewModel(id, name, unit, decimals),
+                new SubsystemSpec(minimum, maximum, integer, apply, disable, OnCommitted: committed),
+                Device,
+                initial);
+
+        public void Dispose() => Control.Dispose();
+    }
+
+    private sealed class MemorySettingsService(AppSettings initial) : ISettingsService
+    {
+        public AppSettings Current { get; private set; } = initial;
+
+        public event Action<AppSettings>? Changed;
+
+        public void Update(Func<AppSettings, AppSettings> mutate)
+        {
+            Current = mutate(Current);
+            Changed?.Invoke(Current);
+        }
+
+        public Task SaveNowAsync() => Task.CompletedTask;
+    }
+
+    private sealed class RecordingDialogService : IDialogService
+    {
+        public bool ConfirmResult { get; set; }
+        public int Calls { get; private set; }
+        public string ExactCommand { get; private set; } = "";
+
+        public bool ConfirmDestructive(string title, string consequence, string exactCommand)
+        {
+            Calls++;
+            ExactCommand = exactCommand;
+            return ConfirmResult;
+        }
+    }
+}

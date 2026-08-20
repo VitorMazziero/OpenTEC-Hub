@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
@@ -148,6 +149,7 @@ public partial class App : Application
             new SettingsService(sp.GetRequiredService<ILogger<SettingsService>>()));
 
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<IDialogService, DialogService>();
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal
@@ -195,20 +197,11 @@ public partial class App : Application
 
         if (_services is { } services)
         {
-            // Flush settings and close the link before the process goes away.
-            services.GetRequiredService<ISettingsService>().SaveNowAsync().GetAwaiter().GetResult();
-
-            // Close the session log before the process goes away, so the last rows
-            // are on disk rather than in a buffer.
-            services.GetRequiredService<ISessionLogger>().DisposeAsync()
-                    .AsTask().GetAwaiter().GetResult();
-
-            if (services.GetRequiredService<IDeviceService>() is IAsyncDisposable device)
-            {
-                device.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-
-            services.Dispose();
+            // The container owns the async-only settings, session-log and device
+            // services. A synchronous Dispose throws after an otherwise clean exit;
+            // DisposeAsync closes them in reverse registration order and also disposes
+            // the synchronous ViewModels and theme service exactly once.
+            services.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
 
         Log.CloseAndFlush();

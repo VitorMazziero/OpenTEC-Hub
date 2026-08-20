@@ -36,6 +36,9 @@ public interface IDeviceService
     /// <summary>Raised on the UI thread for device log lines.</summary>
     event Action<string>? DeviceLogReceived;
 
+    /// <summary>Exact merged JSON successfully written to the active transport.</summary>
+    event Action<string>? CommandSent;
+
     /// <summary>Connects using the persisted preference. Safe to call when already connected.</summary>
     void Connect();
 
@@ -82,6 +85,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         _manager.StateChanged += OnStateChanged;
         _manager.TelemetryReceived += OnTelemetryReceived;
         _manager.DeviceLogReceived += OnDeviceLogReceived;
+        _manager.CommandSent += OnCommandSent;
 
         // Recalibration must reach the running parser, or the operator calibrates a
         // probe and nothing changes on screen.
@@ -103,6 +107,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     public event Action<SensorSnapshot>? TelemetryReceived;
 
     public event Action<string>? DeviceLogReceived;
+
+    public event Action<string>? CommandSent;
 
     public void Connect()
     {
@@ -201,6 +207,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
 
     private void OnDeviceLogReceived(string line) => ToUi(() => DeviceLogReceived?.Invoke(line));
 
+    private void OnCommandSent(string json) => ToUi(() => CommandSent?.Invoke(json));
+
     /// <remarks>
     /// <see cref="Dispatcher.BeginInvoke(Delegate, object[])"/> rather than
     /// <c>Invoke</c>: the protocol worker must never block waiting on the UI thread.
@@ -224,6 +232,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         _manager.StateChanged -= OnStateChanged;
         _manager.TelemetryReceived -= OnTelemetryReceived;
         _manager.DeviceLogReceived -= OnDeviceLogReceived;
+        _manager.CommandSent -= OnCommandSent;
 
         await _manager.DisposeAsync().ConfigureAwait(false);
     }

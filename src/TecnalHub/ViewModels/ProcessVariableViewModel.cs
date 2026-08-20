@@ -54,6 +54,8 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     private const double TrendDeadband = 0.005;
 
     private double? _previousValue;
+    private double _displayScale = 1.0;
+    private double _displayOffset;
 
     public ProcessVariableViewModel(
         string id,
@@ -79,9 +81,9 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     /// <summary>pt-BR label shown to the operator.</summary>
     public string DisplayName { get; }
 
-    public string Unit { get; }
+    public string Unit { get; private set; }
 
-    public int Decimals { get; }
+    public int Decimals { get; private set; }
 
     /// <summary>
     /// Series in the history buffer, for the detail pane's inline trend.
@@ -147,12 +149,50 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     /// never a zero, which would read as a genuine measurement.
     /// </summary>
     public string FormattedValue => Value is { } v
-        ? v.ToString("F" + Decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.CurrentCulture)
+        ? ToDisplay(v).ToString(
+            "F" + Decimals.ToString(CultureInfo.InvariantCulture),
+            CultureInfo.CurrentCulture)
         : "—";
 
     public string FormattedSetpoint => Setpoint is { } s
-        ? s.ToString("F" + Decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.CurrentCulture)
+        ? ToDisplay(s).ToString(
+            "F" + Decimals.ToString(CultureInfo.InvariantCulture),
+            CultureInfo.CurrentCulture)
         : "—";
+
+    /// <summary>Converts a canonical protocol value for display.</summary>
+    public double ToDisplay(double canonical) => (canonical * _displayScale) + _displayOffset;
+
+    /// <summary>Converts an operator-facing value back to the protocol unit.</summary>
+    /// <remarks>
+    /// The rounded boundary removes binary conversion residue (for example,
+    /// 98.6 °F becoming 36.99999999999999 °C) before a value reaches command JSON.
+    /// Twelve decimal places remain well beyond every protocol channel's resolution.
+    /// </remarks>
+    public double ToCanonical(double display)
+        => Math.Round((display - _displayOffset) / _displayScale, 12, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// Changes only presentation. Stored readings and setpoints stay in protocol units.
+    /// </summary>
+    public void SetPresentation(string unit, int decimals, double scale = 1.0, double offset = 0.0)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(unit);
+        if (!double.IsFinite(scale) || Math.Abs(scale) < 1e-12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale));
+        }
+
+        _displayScale = scale;
+        _displayOffset = offset;
+        Unit = unit;
+        Decimals = Math.Max(0, decimals);
+
+        OnPropertyChanged(nameof(Unit));
+        OnPropertyChanged(nameof(Decimals));
+        OnPropertyChanged(nameof(FormattedValue));
+        OnPropertyChanged(nameof(FormattedSetpoint));
+    }
 
     /// <summary>
     /// Applies a new reading, deriving the trend.

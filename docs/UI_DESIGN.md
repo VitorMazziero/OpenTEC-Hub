@@ -1407,14 +1407,15 @@ separately:
 
 ---
 
-### 5.5 Históricos
+### 5.5 Gráficos and Históricos
 
-**Purpose:** read trends and get data out. **Phase 1 built** (two ScottPlot panels);
-Phase 5 adds the session browser and export.
+**Purpose:** read trends and get data out. **Phase 1b WP7 built.** These are two
+dedicated rail destinations, not tabs: `Gráficos` owns the focused dual-chart workspace;
+`Históricos` owns persisted-session discovery and hands an accepted file to Gráficos.
+This supersedes the earlier proposed `Gráficos`→`Históricos` rename and preserves the
+operator's dedicated two-graph page.
 
-Two sub-views: `Tempo real` · `Sessões`.
-
-#### 5.5.1 `Tempo real`
+#### 5.5.1 `Gráficos`
 
 Two large panels side by side. Side by side rather than stacked because a trend is read
 along the time axis, and on a wide screen that is where the pixels are. Five small charts
@@ -1445,15 +1446,18 @@ instant — the thing an operator actually wants when comparing two variables.
 | Redraw | 1 Hz on a timer, not per frame. The device emits every 2 s |
 | Colour | Identity palette here; role palette in single-loop views (3.5) |
 
-#### 5.5.2 `Sessões`
+The same panels render live telemetry or a session loaded from Históricos. Source and
+sample count are always stated; `Voltar ao tempo real` removes the file source without
+starting or changing any equipment communication.
 
-Closes a real gap: v.6 exported a PNG per parameter and this app currently exports
-nothing, and the session file has no UI at all.
+#### 5.5.2 `Históricos`
+
+Closes a real gap: v.6 exported a PNG per parameter while the session file had no UI.
 
 | Region | Contents |
 |---|---|
 | File list | Name · date range · duration · rows · size · connection medium |
-| Toolbar | `Abrir pasta` · `Carregar nos gráficos` · `Exportar seleção…` · `Excluir` · search |
+| Toolbar | `Atualizar` · `Abrir pasta` · `Carregar no Gráficos` · `Exportar CSV` · search |
 | Preview | Column summary, first and last rows, and a **format check** confirming the header matches `SessionLogFormat.Header` exactly |
 
 > The session log is tab-separated, UTF-8, with v.6's exact header including the accented
@@ -1466,12 +1470,13 @@ nothing, and the session file has no UI at all.
 
 ### 5.6 Eventos
 
-**Purpose:** one honest, filterable audit trail of everything that happened. **Phase 1
-partial** (device log lines only); Phase 5 completes it.
+**Purpose:** one honest, filterable audit trail of everything that happened. **Phase 1b
+WP7 built.** Sources whose owning subsystem arrives later (`Alarme`, `Receita`) are
+already typed and filterable; their producers arrive with those phases.
 
-Today's Registro page shows device log lines and nothing else — which means it is
-**empty over Wi-Fi**, because `[ESP32_` lines only appear on the serial stream. That is
-the bug this window fixes: the app knows far more than it shows.
+The old Registro page showed device log lines and nothing else — which made it **empty
+over Wi-Fi**, because `[ESP32_` lines only appear on the serial stream. Eventos fixes
+that gap by recording app-known facts on both media.
 
 | Column | Notes |
 |---|---|
@@ -1564,10 +1569,10 @@ The pH wizard offers a buffer `ComboBox`: `4,00` · `6,86` · `7,00` · `9,18` �
 
 ### 5.8 Configurações
 
-**Purpose:** everything that is genuinely configuration, out of the way. **Phase 1
-built** — needs in-page section navigation before Phases 2-3 add a section per subsystem.
+**Purpose:** everything that is genuinely configuration, out of the way. **Phase 1b
+WP7 built**, including in-page section navigation ready for later subsystem sections.
 
-Two columns: a 200 px section list on the left, the form on the right, a staged
+Two columns: a 230 px section list on the left, the form on the right, a staged
 apply/revert footer across the bottom.
 
 | Section | Fields |

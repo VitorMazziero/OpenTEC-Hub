@@ -3,10 +3,18 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Theme;
 
 namespace TecnalHub.ViewModels;
+
+public sealed record SettingsSection(string Id, string Label, string Glyph);
+
+public sealed record SettingOption<T>(T Value, string Label)
+{
+    public override string ToString() => Label;
+}
 
 /// <summary>
 /// Advanced settings: everything that is genuinely configuration.
@@ -30,16 +38,44 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ISettingsService _settings;
     private readonly IThemeService _theme;
     private readonly IDeviceService _device;
+    private readonly IDialogService _dialogs;
 
     private bool _loading;
 
-    public SettingsViewModel(ISettingsService settings, IThemeService theme, IDeviceService device)
+    public SettingsViewModel(
+        ISettingsService settings,
+        IThemeService theme,
+        IDeviceService device,
+        IDialogService dialogs)
     {
         _settings = settings;
         _theme = theme;
         _device = device;
+        _dialogs = dialogs;
 
         ThemeOptions = [ThemePreference.System, ThemePreference.Light, ThemePreference.Dark];
+        Sections =
+        [
+            new("connection", "Conexão", "NodeGraph"),
+            new("calibration", "Calibração", "Target"),
+            new("acquisition", "Aquisição", "Trend"),
+            new("units", "Unidades", "Pressure"),
+            new("logging", "Registro e aparência", "EventLog"),
+            new("device", "Comandos do equipamento", "Gear"),
+        ];
+        SelectedSection = Sections[0];
+
+        TemperatureUnitOptions =
+        [
+            new(TemperatureUnitPreference.Celsius, "°C — Celsius"),
+            new(TemperatureUnitPreference.Fahrenheit, "°F — Fahrenheit"),
+        ];
+        PressureUnitOptions =
+        [
+            new(PressureUnitPreference.KPa, "kPa"),
+            new(PressureUnitPreference.MmHg, "mmHg"),
+            new(PressureUnitPreference.Bar, "bar"),
+        ];
 
         // The previews decode the LIVE raw count, so they have to be re-evaluated as
         // telemetry arrives - not only when a coefficient is edited. Without this they
@@ -57,6 +93,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     public IReadOnlyList<ThemePreference> ThemeOptions { get; }
+
+    public IReadOnlyList<SettingsSection> Sections { get; }
+
+    public IReadOnlyList<SettingOption<TemperatureUnitPreference>> TemperatureUnitOptions { get; }
+
+    public IReadOnlyList<SettingOption<PressureUnitPreference>> PressureUnitOptions { get; }
+
+    [ObservableProperty]
+    public partial SettingsSection SelectedSection { get; set; }
 
     // ---- Connection --------------------------------------------------
 
@@ -134,6 +179,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasChanges))]
     public partial ThemePreference Theme { get; set; }
 
+    // ---- Presentation units -----------------------------------------
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasChanges))]
+    public partial SettingOption<TemperatureUnitPreference> TemperatureUnit { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasChanges))]
+    public partial SettingOption<PressureUnitPreference> PressureUnit { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasChanges))]
+    public partial string VesselVolumeLitres { get; set; } = "";
+
     // ---- State -------------------------------------------------------
 
     /// <summary>Non-null when something on the page cannot be applied.</summary>
@@ -210,6 +269,12 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OxygenFollowTolerance = ParseDouble(OxygenFollowTolerance, s.Filters.OxygenFollowTolerance),
                 OxygenConfirmRuns = ParseInt(OxygenConfirmRuns, s.Filters.OxygenConfirmRuns),
             },
+            Units = s.Units with
+            {
+                Temperature = TemperatureUnit.Value,
+                Pressure = PressureUnit.Value,
+                VesselVolumeLitres = ParseDouble(VesselVolumeLitres, s.Units.VesselVolumeLitres),
+            },
             Logging = s.Logging with
             {
                 SessionLogPath = string.IsNullOrWhiteSpace(SessionLogPath) ? null : SessionLogPath.Trim(),
@@ -256,7 +321,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void ResetDeviceVariables()
     {
-        _device.Send(CommandBuilders.ResetVariables());
+        var command = CommandBuilders.ResetVariables();
+        if (!_dialogs.ConfirmDestructive(
+                "Resetar variáveis do módulo",
+                "Apaga o estado de processo mantido pelo módulo durante a operação atual. " +
+                "Faça isto apenas com o cultivo em condição segura.",
+                command.ToJson()))
+        {
+            StatusMessage = "Reset cancelado; nenhum comando foi enviado.";
+            return;
+        }
+
+        _device.Send(command);
         StatusMessage = "Comando de reset enviado ao equipamento.";
     }
 
@@ -264,7 +340,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void RestartDeviceComms()
     {
-        _device.Send(CommandBuilders.Restart());
+        var command = CommandBuilders.Restart();
+        if (!_dialogs.ConfirmDestructive(
+                "Reiniciar comunicações",
+                "Interrompe e reinicia as comunicações internas do módulo. Leituras e " +
+                "confirmações ficarão indisponíveis durante o reinício.",
+                command.ToJson()))
+        {
+            StatusMessage = "Reinício cancelado; nenhum comando foi enviado.";
+            return;
+        }
+
+        _device.Send(command);
         StatusMessage = "Comando de reinício enviado ao equipamento.";
     }
 
@@ -285,6 +372,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
             SessionLogPath = settings.Logging.SessionLogPath ?? "";
             Theme = settings.Theme;
+            TemperatureUnit = TemperatureUnitOptions.First(option => option.Value == settings.Units.Temperature);
+            PressureUnit = PressureUnitOptions.First(option => option.Value == settings.Units.Pressure);
+            VesselVolumeLitres = Format(settings.Units.VesselVolumeLitres);
         }
         finally
         {
@@ -324,6 +414,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (_loading ||
             e.PropertyName is null or
             nameof(HasChanges) or nameof(ValidationError) or nameof(StatusMessage) or
+            nameof(SelectedSection) or
             nameof(IsValid) or nameof(CanApply) or
             nameof(OxygenPreview) or nameof(PHPreview))
         {
@@ -393,6 +484,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (!TryInt(DataDelayMs, out var delay) || delay is < 100 or > 60_000)
         {
             ValidationError = "Período de telemetria inválido (100–60000 ms).";
+            return;
+        }
+
+        if (!TryDouble(VesselVolumeLitres, out var volume) || volume <= 0)
+        {
+            ValidationError = "Volume nominal da dorna inválido (deve ser maior que zero).";
             return;
         }
 

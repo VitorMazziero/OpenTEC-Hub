@@ -81,8 +81,9 @@ ProjetoTECNAL/
 │     ├─ Services/
 │     │  ├─ Communication/      ConnectionManager (owns the link)
 │     │  ├─ Control/            cascade + kLa path controllers
-│     │  ├─ Telemetry/          ring buffers, CSV export
+│     │  ├─ Telemetry/          ring buffers, session files, audit journal
 │     │  ├─ Persistence/        typed settings, recipe storage
+│     │  ├─ Platform/           file dialogs, Explorer, clipboard boundary
 │     │  ├─ Dialogs/            IDialogService — VMs never open dialogs
 │     │  └─ Diagnostics/        logging, crash capture
 │     ├─ Converters/
@@ -125,6 +126,16 @@ Cancel sends nothing without opening a window.
 
 **Charts are ring buffers.** Fixed capacity, allocated once. A 24 h run must not grow
 memory ([ROADMAP.md](ROADMAP.md#non-functional-targets)).
+
+**History browsing and charting stay separate.** `SessionFileService` verifies and
+parses the frozen v.6-compatible file contract. `HistoricalViewModel` owns discovery;
+`ChartsViewModel` owns both live and loaded-session rendering. Loading a file changes
+only the graph source and never initiates equipment communication.
+
+**Audit command evidence is post-write.** `ConnectionManager.CommandSent` is raised
+only after the active transport accepts the merged frame. `EventJournal` records that
+exact JSON plus app-known connection, setpoint, calibration and application facts, so
+Eventos is useful on Wi-Fi without inventing serial device messages.
 
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session

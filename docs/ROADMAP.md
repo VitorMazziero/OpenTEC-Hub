@@ -187,8 +187,8 @@ v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV t
 the existing analysis scripts read without modification.
 
 > **Status 2026-08-20:** every software deliverable above has shipped. The exit criteria
-> are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are. Phase 1b WP7
-> and WP8 below are the remaining work that can proceed while that hardware is unavailable.
+> are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are. Phase 1b WP8
+> below is the remaining work that can proceed while that hardware is unavailable.
 
 ---
 
@@ -497,18 +497,24 @@ starting; `v_Flow` inversion is visible rather than remembered.
 - [x] Golden strings pin valve-open-at-zero-flow (`v_Flow:1`) and the complete core safe-stop
 - [x] 169/169 tests pass; localhost simulator live, zero XAML binding failures
 
-### WP7 — Page completion and renames
+### WP7 — Page completion and navigation — **done 2026-08-20**
 
-- [ ] `Gráficos` → **`Históricos`**: `Sessões` sub-view (file list, row count, header
-      format check, open folder), PNG and CSV export, cursor readout
-- [ ] `Registro` → **`Eventos`**: expand from device-log lines to the eight sources in
+- [x] Keep **`Gráficos` as a dedicated dual-graph workspace** and add separate
+      **`Históricos`** session browsing (file list, row count, exact-header check, open
+      folder, CSV export, and load into Gráficos); add graph PNG/CSV export and cursor
+      readout
+- [x] `Registro` → **`Eventos`**: expand from device-log lines to the eight sources in
       [§5.6](UI_DESIGN.md#56-eventos), **including the exact JSON put on the wire**
-- [ ] Configurações: in-page section navigation; add the `Unidades` section
-- [ ] **Confirmation dialog on `resetVariables` and `restart`** — both destroy module
+- [x] Configurações: in-page section navigation; add the `Unidades` section
+- [x] **Confirmation dialog on `resetVariables` and `restart`** — both destroy module
       process state, mid-cultivation, on one click today
 
-**Acceptance:** the Eventos page is useful over Wi-Fi, where `[ESP32_` lines never appear;
-command bytes can be compared against a v.6 capture without a debugger.
+**Acceptance — met:** the Eventos page remained populated over the localhost Wi-Fi
+simulator, where `[ESP32_` lines never appear; exact successful command frames were
+selectable without a debugger. A recorded 58-row session passed the frozen-header check
+and rendered in the same two graph panels. Runtime review found and fixed the initial
+filter-order crash and read-only detail binding. 178/178 tests pass; evidence is in
+`docs/evidence/ui/wp7-*.png`.
 
 ### WP8 — Persistence and keyboard
 
@@ -533,7 +539,7 @@ command bytes can be compared against a v.6 capture without a debugger.
        the `v_Flow` inversion.
 4. [ ] Killing the simulator mid-run degrades every readout to `—` and turns
        `Última atualização` to warning, with no stale value presented as live.
-5. [ ] Both destructive device commands require confirmation.
+5. [x] Both destructive device commands require confirmation.
 6. [ ] Screenshot evidence per page refreshed in `docs/evidence/ui/`.
 
 ---

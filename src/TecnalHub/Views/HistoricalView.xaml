@@ -1,0 +1,109 @@
+<UserControl x:Class="TecnalHub.Views.HistoricalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:HistoricalViewModel}">
+
+    <UserControl.Resources>
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="12,8"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+            <WrapPanel>
+                <TextBox Width="220" ToolTip="Pesquisar nome ou meio de conexão"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Content="Atualizar" Margin="8,0,0,0" Command="{Binding RefreshCommand}" />
+                <Button Content="Abrir pasta" Margin="8,0,0,0" Command="{Binding OpenFolderCommand}" />
+                <Button Content="Carregar no Gráficos" Margin="16,0,0,0"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Command="{Binding LoadInGraphsCommand}" />
+                <Button Content="Exportar CSV" Margin="8,0,0,0" Command="{Binding ExportCsvCommand}" />
+            </WrapPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.45*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Margin="0,0,6,0"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                    Padding="8">
+                <ListView ItemsSource="{Binding Sessions}"
+                          SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
+                          AutomationProperties.Name="Arquivos de sessão">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Arquivo" Width="190" DisplayMemberBinding="{Binding Name}" />
+                            <GridViewColumn Header="Data" Width="150" DisplayMemberBinding="{Binding DateRangeText}" />
+                            <GridViewColumn Header="Duração" Width="72" DisplayMemberBinding="{Binding DurationText}" />
+                            <GridViewColumn Header="Linhas" Width="60" DisplayMemberBinding="{Binding RowCount}" />
+                            <GridViewColumn Header="Tamanho" Width="70" DisplayMemberBinding="{Binding SizeText}" />
+                            <GridViewColumn Header="Conexão" Width="90" DisplayMemberBinding="{Binding ConnectionMedia}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Border>
+
+            <Border Grid.Column="1" Margin="6,0,0,0"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                    Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Verificação do formato" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedSession.HeaderStatus}"
+                               Margin="0,8,0,0" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                                <Setter Property="Foreground" Value="{DynamicResource StateOkTextBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedSession.HeaderValid}" Value="False">
+                                        <Setter Property="Foreground" Value="{DynamicResource StateAlarmTextBrush}" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="Primeira linha" Margin="0,18,0,5"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBox Text="{Binding SelectedSession.FirstRow, Mode=OneWay}" IsReadOnly="True"
+                             TextWrapping="Wrap" MinHeight="80"
+                             FontFamily="{DynamicResource FontMono}" />
+
+                    <TextBlock Text="Última linha" Margin="0,14,0,5"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBox Text="{Binding SelectedSession.LastRow, Mode=OneWay}" IsReadOnly="True"
+                             TextWrapping="Wrap" MinHeight="80"
+                             FontFamily="{DynamicResource FontMono}" />
+
+                    <TextBlock Text="{Binding SelectedSession.Path}" Margin="0,14,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <TextBlock Grid.Row="2" Text="{Binding StatusText}" Margin="4,10,0,0"
+                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+    </Grid>
+</UserControl>

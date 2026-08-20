@@ -7,11 +7,12 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.7.0 — Phase 1 and Phase 1b WP1-WP6 are implemented: the operator
-> shell, five-subsystem core loop, charts/logging/settings, the all-setpoints Controle
-> page, and explicit auxiliary/nitrogen valve control. USB and Wi-Fi were validated
-> against a real ESP32-S3; live-sensor and full-cultivation validation still need the
-> bioreactor. Phase 1b WP7-WP8 remain open.
+> **Status:** v0.8.0 — Phase 1 and Phase 1b WP1-WP7 are implemented. The dedicated
+> dual-graph workspace now shares persisted sessions with a separate Históricos browser;
+> Eventos records app-known activity and exact transmitted JSON; Configurações has
+> section navigation and display-unit preferences. USB and Wi-Fi were validated against
+> a real ESP32-S3; live-sensor and full-cultivation validation still need the bioreactor.
+> Phase 1b WP8 remains open.
 > v.6 remains the production application until TECNAL-Hub has completed a full
 > cultivation run.
 

@@ -26,7 +26,14 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public event Action<string>? DeviceLogReceived;
 
-    public void Send(TecnalCommand command) => Sent.Add(command.ToJson());
+    public event Action<string>? CommandSent;
+
+    public void Send(TecnalCommand command)
+    {
+        var json = command.ToJson();
+        Sent.Add(json);
+        CommandSent?.Invoke(json);
+    }
 
     public void Connect()
     {
@@ -157,6 +164,25 @@ public class SetpointValidationTests
 
         Assert.True(vm.IsValid);
         Assert.Equal("""{"tempSetpoint":37.5}""", Assert.Single(device.Sent));
+    }
+
+    [Fact]
+    public void Fahrenheit_entry_is_converted_back_to_celsius_on_the_wire()
+    {
+        var (vm, device) = Temperature();
+        vm.SetPresentation("°F", decimals: 1, scale: 9.0 / 5.0, offset: 32.0);
+
+        vm.SetpointText = "98.6";
+        vm.IsEnabled = true;
+        vm.ApplyCommand.Execute(null);
+
+        Assert.True(vm.IsValid);
+        Assert.Equal("""{"tempSetpoint":37.0}""", Assert.Single(device.Sent));
+        Assert.Equal(37.0, Assert.IsType<double>(vm.AppliedSetpoint), precision: 8);
+        Assert.Equal("°F", vm.Unit);
+        Assert.Equal(98.6, double.Parse(
+            vm.FormattedAppliedSetpoint.Replace(',', '.'),
+            System.Globalization.CultureInfo.InvariantCulture), precision: 8);
     }
 
     [Fact]

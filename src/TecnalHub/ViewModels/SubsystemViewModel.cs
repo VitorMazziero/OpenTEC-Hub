@@ -146,9 +146,9 @@ public sealed partial class SubsystemViewModel : ObservableObject
     /// <summary>Human-readable range, shown beside the field.</summary>
     public string RangeHint => _spec.IsInteger
         ? string.Create(CultureInfo.CurrentCulture,
-            $"{_spec.Minimum:F0}–{_spec.Maximum:F0} {Unit} (0 = desligado)")
+            $"{Variable.ToDisplay(_spec.Minimum):F0}–{Variable.ToDisplay(_spec.Maximum):F0} {Unit} (0 = desligado)")
         : string.Create(CultureInfo.CurrentCulture,
-            $"{_spec.Minimum:F1}–{_spec.Maximum:F1} {Unit}");
+            $"{Variable.ToDisplay(_spec.Minimum):F1}–{Variable.ToDisplay(_spec.Maximum):F1} {Unit}");
 
     /// <summary>Raw text from the entry field.</summary>
     [ObservableProperty]
@@ -189,7 +189,7 @@ public sealed partial class SubsystemViewModel : ObservableObject
 
     /// <summary>Acknowledged setpoint formatted for the all-parameters table.</summary>
     public string FormattedAppliedSetpoint => AppliedSetpoint is { } value
-        ? value.ToString(
+        ? Variable.ToDisplay(value).ToString(
             "F" + (_spec.IsInteger ? 0 : Variable.Decimals).ToString(CultureInfo.InvariantCulture),
             CultureInfo.CurrentCulture)
         : "—";
@@ -212,7 +212,7 @@ public sealed partial class SubsystemViewModel : ObservableObject
                 return "—";
             }
 
-            var delta = value - setpoint;
+            var delta = Variable.ToDisplay(value) - Variable.ToDisplay(setpoint);
             var format = "+0." + new string('0', Variable.Decimals) + ";-0." +
                          new string('0', Variable.Decimals) + ";0";
 
@@ -343,6 +343,27 @@ public sealed partial class SubsystemViewModel : ObservableObject
         RefreshPendingState();
     }
 
+    /// <summary>
+    /// Re-expresses the staged field in another display unit without changing its
+    /// canonical value or sending anything to the equipment.
+    /// </summary>
+    public void SetPresentation(string unit, int decimals, double scale, double offset = 0.0)
+    {
+        var wasPending = HasPendingChange;
+        var canonical = TryParse(SetpointText, out var staged)
+            ? staged
+            : AppliedSetpoint ?? 0.0;
+
+        Variable.SetPresentation(unit, decimals, scale, offset);
+        SetpointText = Format(canonical);
+        OnPropertyChanged(nameof(Unit));
+        OnPropertyChanged(nameof(RangeHint));
+        OnPropertyChanged(nameof(FormattedAppliedSetpoint));
+        OnPropertyChanged(nameof(FormattedDeviation));
+        Validate();
+        HasPendingChange = wasPending;
+    }
+
     /// <summary>Discards an unapplied edit, restoring the acknowledged value.</summary>
     [RelayCommand]
     private void Revert()
@@ -392,7 +413,7 @@ public sealed partial class SubsystemViewModel : ObservableObject
         if (value != 0 && (value < _spec.Minimum || value > _spec.Maximum))
         {
             ValidationError = string.Create(CultureInfo.CurrentCulture,
-                $"Fora da faixa ({_spec.Minimum:G}–{_spec.Maximum:G} {Unit}).");
+                $"Fora da faixa ({Variable.ToDisplay(_spec.Minimum):G}–{Variable.ToDisplay(_spec.Maximum):G} {Unit}).");
             return;
         }
 
@@ -414,15 +435,24 @@ public sealed partial class SubsystemViewModel : ObservableObject
     /// invariantly by construction, so what is typed here can never reach the device
     /// as <c>6,98</c>. See <c>docs/PROTOCOL.md</c> section 2.2.
     /// </remarks>
-    private static bool TryParse(string? text, out double value)
-        => double.TryParse(
-            (text ?? "").Trim().Replace(',', '.'),
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out value);
+    private bool TryParse(string? text, out double value)
+    {
+        if (!double.TryParse(
+                (text ?? "").Trim().Replace(',', '.'),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var display))
+        {
+            value = default;
+            return false;
+        }
+
+        value = Variable.ToCanonical(display);
+        return double.IsFinite(value);
+    }
 
     private string Format(double value)
-        => value.ToString(
+        => Variable.ToDisplay(value).ToString(
             "F" + (_spec.IsInteger ? 0 : Variable.Decimals).ToString(CultureInfo.InvariantCulture),
             CultureInfo.CurrentCulture);
 }

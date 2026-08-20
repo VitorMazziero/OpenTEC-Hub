@@ -8,6 +8,7 @@ using Serilog;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Platform;
 using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
 using TecnalHub.ViewModels;
@@ -150,6 +151,7 @@ public partial class App : Application
 
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IFileInteractionService, FileInteractionService>();
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal
@@ -162,9 +164,13 @@ public partial class App : Application
 
         services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
         services.AddSingleton<ISessionLogger, SessionLogger>();
+        services.AddSingleton<ISessionFileService, SessionFileService>();
+        services.AddSingleton<IEventJournal, EventJournal>();
 
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();
+        services.AddSingleton<HistoricalViewModel>();
+        services.AddSingleton<EventsViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ShellViewModel>();
     }

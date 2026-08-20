@@ -24,7 +24,8 @@
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal">
+            <StackPanel>
+            <WrapPanel>
                 <TextBlock Text="Esquerdo" Style="{StaticResource CaptionTextStyle}"
                            VerticalAlignment="Center" Margin="0,0,6,0" />
                 <ComboBox Width="180"
@@ -46,16 +47,36 @@
                           ItemsSource="{Binding Windows}"
                           SelectedItem="{Binding SelectedWindow, Mode=TwoWay}" />
 
-                <Button Content="Pausar" Margin="12,0,0,0"
+                <Button Content="{Binding PauseLabel}" Margin="12,0,0,0"
                         Command="{Binding TogglePauseCommand}" />
 
-                <TextBlock Text="{Binding SampleCountText}"
+                <Button Content="{Binding CursorLabel}" Margin="6,0,0,0"
+                        Command="{Binding ToggleCursorCommand}" />
+
+                <Button Content="Exportar PNG" Margin="12,0,0,0"
+                        Click="ExportPng_Click" />
+                <Button Content="Exportar CSV" Margin="6,0,0,0"
+                        Click="ExportCsv_Click" />
+
+                <Button Content="Voltar ao tempo real" Margin="12,0,0,0"
+                        Visibility="{Binding IsSessionLoaded, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding ReturnToLiveCommand}" />
+            </WrapPanel>
+
+            <WrapPanel Margin="0,6,0,0">
+                <TextBlock Text="{Binding DataSourceText}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding SampleCountText}" Margin="14,0,0,0"
+                           Style="{StaticResource CaptionTextStyle}" />
+                <TextBlock Text="{Binding CursorText}" Margin="14,0,0,0"
                            Style="{StaticResource CaptionTextStyle}"
-                           VerticalAlignment="Center" Margin="16,0,0,0" />
+                           Foreground="{DynamicResource AccentBrush}" />
+            </WrapPanel>
             </StackPanel>
         </Border>
 
-        <Grid Margin="12">
+        <Grid x:Name="ChartArea" Margin="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="RightColumn" Width="*" />

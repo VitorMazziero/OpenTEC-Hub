@@ -198,9 +198,17 @@ public class ConnectionManagerTests
     public async Task Commands_are_written_to_the_transport()
     {
         var fake = new FakeTransport();
+        var transmitted = new List<string>();
 
         await using var manager = new ConnectionManager(
             FastOptions(), transportFactory: _ => fake);
+        manager.CommandSent += json =>
+        {
+            lock (transmitted)
+            {
+                transmitted.Add(json);
+            }
+        };
 
         manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
         Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
@@ -215,6 +223,43 @@ public class ConnectionManagerTests
         lock (fake.Writes)
         {
             Assert.Equal("""{"motorSetpoint":790}""", fake.Writes[0]);
+        }
+
+        Assert.True(await WaitForAsync(() =>
+        {
+            lock (transmitted) { return transmitted.Count == 1; }
+        }));
+        lock (transmitted)
+        {
+            Assert.Equal("""{"motorSetpoint":790}""", Assert.Single(transmitted));
+        }
+    }
+
+    [Fact]
+    public async Task Rejected_command_is_not_reported_as_transmitted()
+    {
+        var fake = new FakeTransport { WriteSucceeds = false };
+        var transmitted = new List<string>();
+
+        await using var manager = new ConnectionManager(
+            FastOptions(), transportFactory: _ => fake);
+        manager.CommandSent += json =>
+        {
+            lock (transmitted)
+            {
+                transmitted.Add(json);
+            }
+        };
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        manager.SendCommand(CommandBuilders.MotorSetpoint(790));
+
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Faulted));
+        lock (transmitted)
+        {
+            Assert.Empty(transmitted);
         }
     }
 

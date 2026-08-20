@@ -1,20 +1,17 @@
-﻿<UserControl x:Class="TecnalHub.Views.SettingsView"
+<UserControl x:Class="TecnalHub.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:ctl="clr-namespace:TecnalHub.Controls"
              xmlns:vm="clr-namespace:TecnalHub.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}">
 
-    <!-- Everything that is genuinely configuration. v.6 put connecting in the same
-         window as all of this, so every operator walked past calibration coefficients
-         to do the one thing they came for. Connecting now lives on the chip; nothing
-         here was removed, it is just no longer in the way. -->
-
     <UserControl.Resources>
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
+        <conv:EqualsToVisibilityConverter x:Key="EqualsToVis" />
 
         <Style x:Key="SectionHeading" TargetType="TextBlock">
             <Setter Property="FontSize" Value="{DynamicResource FontSizeSubtitle}" />
@@ -24,7 +21,7 @@
 
         <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Margin" Value="0,0,10,4" />
         </Style>
 
         <Style x:Key="Card" TargetType="Border">
@@ -33,7 +30,6 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
             <Setter Property="Padding" Value="18" />
-            <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
 
         <Style x:Key="NumericBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
@@ -43,157 +39,154 @@
         </Style>
     </UserControl.Resources>
 
-    <DockPanel>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <!-- Action bar stays pinned: edits are staged, so the operator must always be
-             able to see whether anything is waiting to be applied. -->
-        <Border DockPanel.Dock="Bottom"
-                Padding="16,12"
+        <!-- WP7 in-page navigation: one stable list, one focused form section. -->
+        <Border Grid.Row="0" Grid.Column="0"
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                BorderThickness="0,1,0,0">
+                BorderThickness="0,0,1,0"
+                Padding="8">
             <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Content="Reverter" Margin="0,0,8,0"
-                            Command="{Binding RevertCommand}"
-                            IsEnabled="{Binding HasChanges}" />
-                    <Button Content="Aplicar"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Command="{Binding ApplyCommand}" />
-                </StackPanel>
-
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ValidationError}"
-                               TextWrapping="Wrap"
-                               FontSize="{DynamicResource FontSizeCaption}"
-                               Foreground="{DynamicResource StateAlarmBrush}"
-                               Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}" />
-                    <TextBlock Text="{Binding StatusMessage}"
-                               Style="{StaticResource CaptionTextStyle}" />
-                </StackPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Configurações"
+                           FontWeight="SemiBold" Margin="10,8,0,10" />
+                <ListBox ItemsSource="{Binding Sections}"
+                         SelectedItem="{Binding SelectedSection, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         AutomationProperties.Name="Seções de configurações">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:SettingsSection}">
+                            <StackPanel Orientation="Horizontal">
+                                <ctl:Icon Key="{Binding Glyph}" Size="18" Margin="0,0,9,0" />
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center"
+                                           TextWrapping="Wrap" MaxWidth="175" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </DockPanel>
         </Border>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
-            <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+        <ScrollViewer Grid.Row="0" Grid.Column="1"
+                      VerticalScrollBarVisibility="Auto" Padding="18">
+            <Grid MaxWidth="760" HorizontalAlignment="Left">
 
-                <!-- ── Conexão ────────────────────────────────────────────── -->
-                <Border Style="{StaticResource Card}">
+                <!-- Conexão -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=connection}">
                     <StackPanel>
                         <TextBlock Text="Conexão" Style="{StaticResource SectionHeading}" />
-
-                        <CheckBox Content="Conectar automaticamente ao iniciar"
-                                  Margin="0,0,0,8"
+                        <CheckBox Content="Conectar automaticamente ao iniciar" Margin="0,0,0,8"
                                   IsChecked="{Binding AutoConnect, Mode=TwoWay}" />
-                        <CheckBox Content="Alternar de meio automaticamente ao perder o link"
-                                  Margin="0,0,0,14"
+                        <CheckBox Content="Alternar de meio automaticamente ao perder o link" Margin="0,0,0,14"
                                   IsChecked="{Binding BackupEnabled, Mode=TwoWay}" />
-
                         <TextBlock Text="Endereço Wi-Fi" Style="{StaticResource FieldLabel}" />
                         <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,12"
                                  Text="{Binding IpAddress, UpdateSourceTrigger=PropertyChanged}" />
-
                         <TextBlock Text="Período de telemetria (ms)" Style="{StaticResource FieldLabel}" />
                         <TextBox Style="{StaticResource NumericBox}"
                                  Text="{Binding DataDelayMs, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="Enviado ao equipamento ao aplicar. O tempo limite de silêncio do app deve acomodá-lo."
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="O período só chega ao equipamento quando Aplicar é acionado."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,5,0,0" />
                     </StackPanel>
                 </Border>
 
-                <!-- ── Calibração ─────────────────────────────────────────── -->
-                <Border Style="{StaticResource Card}">
+                <!-- Calibração -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=calibration}">
                     <StackPanel>
                         <TextBlock Text="Calibração das sondas" Style="{StaticResource SectionHeading}" />
-                        <TextBlock Text="O equipamento envia contagens brutas; a conversão para unidades de engenharia é feita aqui."
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   TextWrapping="Wrap" Margin="0,0,0,14" />
-
-                        <TextBlock Text="Oxigênio — coeficiente A" Style="{StaticResource FieldLabel}" />
-                        <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,8"
-                                 Text="{Binding OxygenA, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Text="Oxigênio — coeficiente B" Style="{StaticResource FieldLabel}" />
-                        <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,4"
-                                 Text="{Binding OxygenB, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <!-- Live preview: 0.0305473419314 looks exactly as plausible as
-                             0.305473419314, and only the decoded value tells them apart. -->
-                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                CornerRadius="{DynamicResource RadiusSmall}"
-                                Padding="8,5" Margin="0,0,0,14" HorizontalAlignment="Left">
-                            <TextBlock Text="{Binding OxygenPreview}"
-                                       FontFamily="{DynamicResource FontNumeric}"
-                                       FontSize="11" />
-                        </Border>
-
-                        <TextBlock Text="pH — inclinação" Style="{StaticResource FieldLabel}" />
-                        <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,8"
-                                 Text="{Binding PHSlope, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Text="pH — intercepto" Style="{StaticResource FieldLabel}" />
-                        <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,4"
-                                 Text="{Binding PHIntercept, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                CornerRadius="{DynamicResource RadiusSmall}"
-                                Padding="8,5" HorizontalAlignment="Left">
-                            <TextBlock Text="{Binding PHPreview}"
-                                       FontFamily="{DynamicResource FontNumeric}"
-                                       FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <!-- ── Filtros de spike ───────────────────────────────────── -->
-                <Border Style="{StaticResource Card}">
-                    <StackPanel>
-                        <TextBlock Text="Filtros de spike" Style="{StaticResource SectionHeading}" />
-
-                        <!-- Surfaced rather than hidden: an operator changing calibration
-                             needs to know these move with it. -->
-                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                CornerRadius="{DynamicResource RadiusSmall}"
-                                Padding="10,7" Margin="0,0,0,14">
-                            <TextBlock TextWrapping="Wrap"
-                                       Style="{StaticResource CaptionTextStyle}"
-                                       Text="Estes limiares estão em contagens brutas do conversor, não em unidades de engenharia. Recalibrar uma sonda altera, portanto, o que o filtro considera um spike." />
-                        </Border>
+                        <TextBlock Text="Os pares são aplicados juntos; a prévia usa a leitura bruta atual."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,14" />
 
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Text="Oxigênio — coeficiente A" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,8"
+                                         Text="{Binding OxygenA, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="Oxigênio — coeficiente B" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,8"
+                                         Text="{Binding OxygenB, UpdateSourceTrigger=PropertyChanged}" />
+                                <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                        CornerRadius="{DynamicResource RadiusSmall}" Padding="8,5">
+                                    <TextBlock Text="{Binding OxygenPreview}" FontFamily="{DynamicResource FontNumeric}"
+                                               FontSize="11" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="pH — inclinação" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,8"
+                                         Text="{Binding PHSlope, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="pH — intercepto" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource NumericBox}" Margin="0,0,0,8"
+                                         Text="{Binding PHIntercept, UpdateSourceTrigger=PropertyChanged}" />
+                                <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                        CornerRadius="{DynamicResource RadiusSmall}" Padding="8,5">
+                                    <TextBlock Text="{Binding PHPreview}" FontFamily="{DynamicResource FontNumeric}"
+                                               FontSize="11" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
+                <!-- Aquisição -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=acquisition}">
+                    <StackPanel>
+                        <TextBlock Text="Aquisição · filtros de spike" Style="{StaticResource SectionHeading}" />
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                CornerRadius="{DynamicResource RadiusSmall}" Padding="10,7" Margin="0,0,0,14">
+                            <TextBlock Text="Valores em contagens brutas, não em unidades de engenharia. Uma nova calibração altera o significado destes limiares."
+                                       TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}" />
+                        </Border>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock Text="pH" FontWeight="SemiBold" Margin="0,0,0,8" />
-
                                 <TextBlock Text="Limiar absoluto" Style="{StaticResource FieldLabel}" />
                                 <TextBox Style="{StaticResource NumericBox}" Width="150" Margin="0,0,0,8"
                                          Text="{Binding PHAbsoluteThreshold, UpdateSourceTrigger=PropertyChanged}" />
-
                                 <TextBlock Text="Tolerância de acompanhamento" Style="{StaticResource FieldLabel}" />
                                 <TextBox Style="{StaticResource NumericBox}" Width="150" Margin="0,0,0,8"
                                          Text="{Binding PHFollowTolerance, UpdateSourceTrigger=PropertyChanged}" />
-
                                 <TextBlock Text="Confirmações" Style="{StaticResource FieldLabel}" />
                                 <TextBox Style="{StaticResource NumericBox}" Width="150"
                                          Text="{Binding PHConfirmRuns, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="Oxigênio" FontWeight="SemiBold" Margin="0,0,0,8" />
-
                                 <TextBlock Text="Limiar absoluto" Style="{StaticResource FieldLabel}" />
                                 <TextBox Style="{StaticResource NumericBox}" Width="150" Margin="0,0,0,8"
                                          Text="{Binding OxygenAbsoluteThreshold, UpdateSourceTrigger=PropertyChanged}" />
-
                                 <TextBlock Text="Tolerância de acompanhamento" Style="{StaticResource FieldLabel}" />
                                 <TextBox Style="{StaticResource NumericBox}" Width="150" Margin="0,0,0,8"
                                          Text="{Binding OxygenFollowTolerance, UpdateSourceTrigger=PropertyChanged}" />
-
                                 <TextBlock Text="Confirmações" Style="{StaticResource FieldLabel}" />
                                 <TextBox Style="{StaticResource NumericBox}" Width="150"
                                          Text="{Binding OxygenConfirmRuns, UpdateSourceTrigger=PropertyChanged}" />
@@ -202,18 +195,48 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ── Registro e aparência ───────────────────────────────── -->
-                <Border Style="{StaticResource Card}">
+                <!-- Unidades -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=units}">
+                    <StackPanel>
+                        <TextBlock Text="Unidades" Style="{StaticResource SectionHeading}" />
+                        <Border Background="{DynamicResource AccentSubtleBrush}"
+                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusSmall}" Padding="10,8" Margin="0,0,0,16">
+                            <TextBlock Text="Conversão somente de apresentação. Telemetria, arquivos de sessão e JSON continuam em °C e kPa."
+                                       TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}" />
+                        </Border>
+
+                        <TextBlock Text="Temperatura" Style="{StaticResource FieldLabel}" />
+                        <ComboBox Width="210" HorizontalAlignment="Left" Margin="0,0,0,14"
+                                  ItemsSource="{Binding TemperatureUnitOptions}"
+                                  SelectedItem="{Binding TemperatureUnit, Mode=TwoWay}" />
+
+                        <TextBlock Text="Pressão" Style="{StaticResource FieldLabel}" />
+                        <ComboBox Width="210" HorizontalAlignment="Left" Margin="0,0,0,14"
+                                  ItemsSource="{Binding PressureUnitOptions}"
+                                  SelectedItem="{Binding PressureUnit, Mode=TwoWay}" />
+
+                        <TextBlock Text="Volume nominal da dorna (L)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource NumericBox}"
+                                 Text="{Binding VesselVolumeLitres, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="A geometria e o volume derivado serão habilitados quando o sensor de nível entrar na Fase 2."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Registro e aparência -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=logging}">
                     <StackPanel>
                         <TextBlock Text="Registro e aparência" Style="{StaticResource SectionHeading}" />
-
                         <TextBlock Text="Arquivo de registro da sessão" Style="{StaticResource FieldLabel}" />
-                        <TextBox Margin="0,0,0,4"
+                        <TextBox Margin="0,0,0,5"
                                  Text="{Binding SessionLogPath, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="Formato separado por tabulação, compatível com os scripts de análise da v.6. Vazio usa um arquivo por sessão."
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   TextWrapping="Wrap" Margin="0,0,0,14" />
-
+                        <TextBlock Text="TSV compatível com os scripts da v.6. Vazio cria um arquivo por sessão."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16" />
                         <TextBlock Text="Tema" Style="{StaticResource FieldLabel}" />
                         <ComboBox Width="190" HorizontalAlignment="Left"
                                   ItemsSource="{Binding ThemeOptions}"
@@ -221,25 +244,48 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ── Equipamento ────────────────────────────────────────── -->
-                <Border Style="{StaticResource Card}">
+                <!-- Equipamento -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=device}">
                     <StackPanel>
-                        <TextBlock Text="Equipamento" Style="{StaticResource SectionHeading}" />
-                        <TextBlock Text="Estes comandos agem imediatamente sobre o equipamento e não dependem de aplicar as configurações."
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   TextWrapping="Wrap" Margin="0,0,0,12" />
-
-                        <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Comandos do equipamento" Style="{StaticResource SectionHeading}" />
+                        <TextBlock Text="Agem imediatamente e podem destruir o estado de processo. A confirmação mostra o JSON exato antes do envio."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <WrapPanel>
                             <Button Content="Resetar variáveis do módulo" Margin="0,0,8,0"
                                     Command="{Binding ResetDeviceVariablesCommand}" />
-                            <Button Content="Reiniciar comunicações" Margin="0,0,8,0"
+                            <Button Content="Reiniciar comunicações"
                                     Command="{Binding RestartDeviceCommsCommand}" />
-                            <Button Content="Valores de fábrica"
-                                    Command="{Binding RestoreDefaultsCommand}" />
-                        </StackPanel>
+                        </WrapPanel>
+                        <Separator Margin="0,18,0,14" />
+                        <Button Content="Carregar valores de fábrica para revisão"
+                                HorizontalAlignment="Left"
+                                Command="{Binding RestoreDefaultsCommand}" />
                     </StackPanel>
                 </Border>
-            </StackPanel>
+            </Grid>
         </ScrollViewer>
-    </DockPanel>
+
+        <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="16,12"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="0,1,0,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Reverter" Margin="0,0,8,0"
+                            Command="{Binding RevertCommand}" IsEnabled="{Binding HasChanges}" />
+                    <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding ApplyCommand}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ValidationError}" TextWrapping="Wrap"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                               Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}" />
+                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
 </UserControl>

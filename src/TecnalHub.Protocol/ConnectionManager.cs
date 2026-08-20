@@ -174,6 +174,12 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// <summary>Raised for log lines the device emits (prefixed <c>[ESP32_</c>).</summary>
     public event Action<string>? DeviceLogReceived;
 
+    /// <summary>
+    /// Raised only after a command frame was successfully written, carrying the exact
+    /// merged JSON sent by the transport.
+    /// </summary>
+    public event Action<string>? CommandSent;
+
     /// <summary>Current state. Safe to read from any thread.</summary>
     public ConnectionState State
     {
@@ -724,6 +730,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         _lastRoundTripMs = stopwatch.Elapsed.TotalMilliseconds;
         Interlocked.Increment(ref _commandsSent);
         _log.LogDebug("TX {Payload}", json);
+        CommandSent?.Invoke(json);
 
         // Record that the pH echo actually went out, so it is not resent every frame.
         if (payload.GetRawValue(CommandKeys.PHCal) is { } raw &&

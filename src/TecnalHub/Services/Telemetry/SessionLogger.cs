@@ -10,6 +10,9 @@ namespace TecnalHub.Services.Telemetry;
 /// <summary>Writes the tab-separated session log v.6's analysis scripts read.</summary>
 public interface ISessionLogger : IAsyncDisposable
 {
+    /// <summary>Raised when recording state, path or row count changes.</summary>
+    event Action? StatusChanged;
+
     /// <summary>True while rows are being written.</summary>
     bool IsLogging { get; }
 
@@ -52,6 +55,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
 
     private StreamWriter? _writer;
     private int _rowsWritten;
+
+    public event Action? StatusChanged;
 
     public bool IsLogging
     {
@@ -109,6 +114,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
                 log.LogError(ex, "Could not open session log at {Path}; continuing without it", path);
             }
         }
+
+        StatusChanged?.Invoke();
     }
 
     public void Stop()
@@ -118,11 +125,14 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
             CloseWriter();
             CurrentPath = null;
         }
+
+        StatusChanged?.Invoke();
     }
 
     public void Write(SensorSnapshot snapshot, double commandedRpm, string connectionStatus)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        var changed = false;
 
         lock (_gate)
         {
@@ -135,6 +145,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
             {
                 _writer.WriteLine(BuildRow(snapshot, commandedRpm, connectionStatus));
                 _rowsWritten++;
+                changed = true;
             }
             catch (IOException ex)
             {
@@ -142,7 +153,13 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
                 // down mid-run. Stop logging, keep controlling.
                 log.LogError(ex, "Session log write failed; logging stopped");
                 CloseWriter();
+                changed = true;
             }
+        }
+
+        if (changed)
+        {
+            StatusChanged?.Invoke();
         }
     }
 

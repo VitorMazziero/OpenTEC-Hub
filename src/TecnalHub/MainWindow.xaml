@@ -582,40 +582,20 @@
                                                    Converter={StaticResource EqualsToVis},
                                                    ConverterParameter=charts}" />
 
-            <!-- Registro -->
-            <Grid Margin="16"
-                  Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
-                                       ConverterParameter=log}">
-                <Border CornerRadius="{StaticResource RadiusMedium}"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1"
-                        Padding="16">
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
-                            <Button Content="Iniciar/parar registro"
-                                    Command="{Binding ToggleLoggingCommand}" />
-                            <TextBlock Text="{Binding SessionLogPath}"
-                                       Style="{StaticResource CaptionTextStyle}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"
-                                       Margin="12,0,0,0" />
-                        </StackPanel>
+            <!-- Históricos: file inventory and contract preview. The dual graph remains
+                 its own dedicated page and receives a selected session on request. -->
+            <views:HistoricalView DataContext="{Binding Historical}"
+                                  Visibility="{Binding DataContext.SelectedNavigationId,
+                                                       RelativeSource={RelativeSource AncestorType=Window},
+                                                       Converter={StaticResource EqualsToVis},
+                                                       ConverterParameter=history}" />
 
-                        <TextBlock DockPanel.Dock="Top"
-                                   Text="Mensagens do equipamento"
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   Margin="0,0,0,6" />
-
-                        <ListBox ItemsSource="{Binding DeviceLog}"
-                                 Background="{DynamicResource SurfaceSunkenBrush}"
-                                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                                 BorderThickness="1"
-                                 FontFamily="{DynamicResource FontNumeric}"
-                                 FontSize="11" />
-                    </DockPanel>
-                </Border>
-            </Grid>
+            <!-- Eventos: app-known audit trail, useful over both USB and Wi-Fi. -->
+            <views:EventsView DataContext="{Binding Events}"
+                              Visibility="{Binding DataContext.SelectedNavigationId,
+                                                   RelativeSource={RelativeSource AncestorType=Window},
+                                                   Converter={StaticResource EqualsToVis},
+                                                   ConverterParameter=events}" />
 
             <!-- Configurações -->
             <Grid Margin="16"

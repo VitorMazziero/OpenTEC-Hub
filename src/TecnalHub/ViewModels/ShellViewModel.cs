@@ -104,6 +104,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
     private readonly ILogger<ShellViewModel> _log;
+    private UnitSettings _appliedUnits;
 
     /// <summary>Drives the liveness check and the status-bar clock.</summary>
     private readonly DispatcherTimer _tick;
@@ -120,6 +121,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IThemeService theme,
         ConnectionViewModel connection,
         ChartsViewModel charts,
+        HistoricalViewModel historical,
+        EventsViewModel events,
         SettingsViewModel settings_,
         IDialogService dialogs,
         ITelemetryHistory history,
@@ -134,7 +137,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _log = log;
         Connection = connection;
         Charts = charts;
+        Historical = historical;
+        Events = events;
         Settings = settings_;
+        _appliedUnits = settings.Current.Units;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1, channel: TelemetryChannel.Temperature);
         // No RPM feedback exists on the wire, so this variable can only ever show
@@ -206,6 +212,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 device, setpoints.PressureKilopascal),
         ];
 
+        ApplyUnits(_appliedUnits);
+
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(Subsystems, FlowControl, device, settings, dialogs);
@@ -215,7 +223,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("dashboard", "Painel", "Vessel"),
             new NavigationItem("control", "Controle", "Sliders"),
             new NavigationItem("charts", "Gráficos", "Trend", StartsGroup: true),
-            new NavigationItem("log", "Registro", "EventLog"),
+            new NavigationItem("history", "Históricos", "Export"),
+            new NavigationItem("events", "Eventos", "EventLog"),
             new NavigationItem("settings", "Configurações", "Gear", StartsGroup: true),
         ];
         SelectedNavigationId = "dashboard";
@@ -242,7 +251,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         _device.StateChanged += OnStateChanged;
         _device.TelemetryReceived += OnTelemetryReceived;
-        _device.DeviceLogReceived += OnDeviceLogReceived;
+        _settings.Changed += OnSettingsChanged;
+        _sessionLogger.StatusChanged += OnSessionStatusChanged;
+        Historical.OpenGraphsRequested += OnOpenGraphsRequested;
 
         // 1 Hz: fast enough to notice a stalled link within one emission period, slow
         // enough to cost nothing. The device emits every 2 s.
@@ -271,6 +282,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public ChartsViewModel Charts { get; }
 
+    public HistoricalViewModel Historical { get; }
+
+    public EventsViewModel Events { get; }
+
     public SettingsViewModel Settings { get; }
 
     /// <summary>All-setpoints and valve-control page.</summary>
@@ -281,12 +296,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Ring-buffered telemetry, for the detail pane's inline trend.</summary>
     public ITelemetryHistory History => _history;
-
-    /// <summary>True while telemetry rows are being appended to the session log.</summary>
-    public bool IsLogging => _sessionLogger.IsLogging;
-
-    /// <summary>File currently being logged to, for the log page.</summary>
-    public string? SessionLogPath => _sessionLogger.CurrentPath;
 
     /// <summary>Every live variable, in KPI-strip order.</summary>
     public IReadOnlyList<ProcessVariableViewModel> Variables { get; }
@@ -307,9 +316,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
 
     public IReadOnlyList<NavigationItem> NavigationItems { get; }
-
-    /// <summary>Recent device log lines, newest last. Bounded so a long run cannot grow it without limit.</summary>
-    public ObservableCollection<string> DeviceLog { get; } = [];
 
     // ── Command ownership ────────────────────────────────────────────────────
 
@@ -474,6 +480,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedVariable = variable;
         SelectedNavigationId = "dashboard";
     }
+
+    private void OnOpenGraphsRequested() => SelectedNavigationId = "charts";
 
     // ── KPI strip ────────────────────────────────────────────────────────────
 
@@ -732,8 +740,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _lastFrameAt = DateTimeOffset.Now;
         IsTelemetryStale = false;
         LastUpdateText = _lastFrameAt.Value.ToString("HH:mm:ss");
-        OnPropertyChanged(nameof(LoggingSummary));
-
         // History first: the charts read from it, and a row written to the log should
         // never describe a frame the charts have not seen.
         var commandedRpm = Motor.Value ?? 0;
@@ -746,15 +752,36 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             : TimeSpan.FromMinutes(minutes).ToString(@"hh\:mm\:ss");
     }
 
-    private void OnDeviceLogReceived(string line)
+    private void OnSettingsChanged(AppSettings settings)
     {
-        DeviceLog.Add(line);
-
-        // A multi-hour run must not accumulate an unbounded list.
-        while (DeviceLog.Count > 500)
+        if (settings.Units == _appliedUnits)
         {
-            DeviceLog.RemoveAt(0);
+            return;
         }
+
+        _appliedUnits = settings.Units;
+        ApplyUnits(_appliedUnits);
+    }
+
+    private void OnSessionStatusChanged() => OnPropertyChanged(nameof(LoggingSummary));
+
+    private void ApplyUnits(UnitSettings units)
+    {
+        var temperatureScale = UnitConversions.TemperatureToDisplay(1, units.Temperature) -
+                               UnitConversions.TemperatureToDisplay(0, units.Temperature);
+        var temperatureOffset = UnitConversions.TemperatureToDisplay(0, units.Temperature);
+        Subsystems[0].SetPresentation(
+            UnitConversions.TemperatureLabel(units.Temperature),
+            decimals: 1,
+            scale: temperatureScale,
+            offset: temperatureOffset);
+
+        var pressureScale = UnitConversions.PressureToDisplay(1, units.Pressure) -
+                            UnitConversions.PressureToDisplay(0, units.Pressure);
+        Subsystems[4].SetPresentation(
+            UnitConversions.PressureLabel(units.Pressure),
+            decimals: units.Pressure == PressureUnitPreference.Bar ? 3 : 1,
+            scale: pressureScale);
     }
 
     /// <summary>
@@ -772,38 +799,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Protocol.ConnectionState.Faulted => "Falha",
         _ => "Desconectado",
     };
-
-    /// <summary>Starts or stops appending telemetry rows to a file.</summary>
-    [RelayCommand]
-    private void ToggleLogging()
-    {
-        if (_sessionLogger.IsLogging)
-        {
-            _sessionLogger.Stop();
-        }
-        else
-        {
-            var path = _settings.Current.Logging.SessionLogPath;
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                path = System.IO.Path.Combine(
-                    Services.Persistence.AppPaths.DataDirectory,
-                    "sessions",
-                    $"session_{DateTimeOffset.Now:yyyy-MM-dd_HH-mm-ss}.txt");
-
-                _settings.Update(s => s with
-                {
-                    Logging = s.Logging with { SessionLogPath = path },
-                });
-            }
-
-            _sessionLogger.Start(path);
-        }
-
-        OnPropertyChanged(nameof(IsLogging));
-        OnPropertyChanged(nameof(SessionLogPath));
-        OnPropertyChanged(nameof(LoggingSummary));
-    }
 
     /// <summary>Captures the applied setpoints so they are restored next launch.</summary>
     public void PersistSetpoints()
@@ -837,7 +832,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetryReceived;
-        _device.DeviceLogReceived -= OnDeviceLogReceived;
+        _settings.Changed -= OnSettingsChanged;
+        _sessionLogger.StatusChanged -= OnSessionStatusChanged;
+        Historical.OpenGraphsRequested -= OnOpenGraphsRequested;
         Control.Dispose();
         Connection.Dispose();
     }

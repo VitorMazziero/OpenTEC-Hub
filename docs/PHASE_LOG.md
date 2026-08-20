@@ -636,3 +636,55 @@ their Apply/Revert actions were also enumerated as visible through UI Automation
 
 **Test evidence:** 169/169 pass. The existing SkiaSharp `NU1701` compatibility warning
 remains; it is unrelated to WP6 and was present in the 161-test baseline.
+
+---
+
+### P1B-06 · Graphs and session discovery are separate destinations
+
+**Decided:** the requested dedicated `Gráficos` page remains in the rail. Históricos is
+a separate session inventory that validates a file and then loads it into the same two
+chart panels.
+
+**Why:** file management and visual comparison are different operator tasks. Combining
+them would make the graph workspace carry discovery chrome permanently; renaming the
+only live graph destination would also obscure its primary use.
+
+**Evidence:** a 58-row simulator session was inventoried with its exact header, first and
+last rows, loaded into both panels, and returned to live mode without reconnecting.
+Screenshots: `wp7-historicos.png`, `wp7-historico-nos-graficos.png`, and
+`wp7-graficos-dual.png`.
+
+---
+
+### P1B-07 · Eventos records only successful transport bytes
+
+**Decided:** the protocol layer publishes `CommandSent` after `WriteAsync` returns true,
+carrying the exact merged JSON. Rejected writes are requeued but not reported as sent.
+The bounded journal adds connection, setpoint, calibration, application and USB-only
+equipment facts around that source.
+
+**Why:** logging an operator intent as a transmission would create false evidence in the
+one page intended for v.6 byte comparison. Device-log lines alone are unavailable over
+Wi-Fi, so the application must expose the facts it actually knows on either medium.
+
+**Runtime findings:** the first live launch found an initialization-order null in the
+two event filters. Selecting an event then exposed a two-way binding against its
+read-only `Detail`. Both are regression-covered/fixed; a fresh simulator run logged zero
+XAML binding failures.
+
+---
+
+### P1B-08 · Display units stop at the protocol boundary
+
+**Decided:** temperature and pressure preferences re-express readouts, staged fields,
+ranges and charts. Stored telemetry, session files and command builders remain in °C and
+kPa. Conversion results are normalized to twelve decimal places before command JSON.
+
+**Why:** changing presentation must never change the firmware contract or historical
+file format. The normalization was added after a focused test showed that 98.6 °F could
+otherwise leave as `36.99999999999999` °C.
+
+**Test evidence:** 178/178 pass. Focused coverage pins successful-vs-rejected command
+events, session header/rows/duration, pressure round trips, Fahrenheit command bytes,
+event initialization and default-cancel reset/restart behavior. The existing
+SkiaSharp `NU1701` warning remains unchanged.

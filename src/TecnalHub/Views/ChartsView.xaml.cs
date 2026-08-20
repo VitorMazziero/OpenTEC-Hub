@@ -1,7 +1,11 @@
+using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using ScottPlot;
 using ScottPlot.WPF;
 using TecnalHub.ViewModels;
@@ -54,6 +58,8 @@ public partial class ChartsView : UserControl
         RightHost.Child = _rightPlot;
 
         _redraw.Tick += (_, _) => Redraw();
+        _leftPlot.MouseMove += (_, args) => UpdateCursor(_leftPlot, args.GetPosition(_leftPlot));
+        _rightPlot.MouseMove += (_, args) => UpdateCursor(_rightPlot, args.GetPosition(_rightPlot));
 
         Loaded += (_, _) =>
         {
@@ -154,8 +160,7 @@ public partial class ChartsView : UserControl
 
     private static void DrawPanel(WpfPlot host, ChartChannelOption spec, ChartsViewModel viewModel)
     {
-        var series = viewModel.History.GetSeries(
-            spec.Channel, viewModel.SelectedWindow.Window, MaxPointsPerPanel);
+        var series = viewModel.GetSeries(spec, MaxPointsPerPanel);
 
         host.Plot.Clear();
 
@@ -169,7 +174,77 @@ public partial class ChartsView : UserControl
             host.Plot.Axes.AutoScale();
         }
 
+        if (viewModel.IsCursorEnabled && viewModel.CursorMinutes is { } cursor)
+        {
+            var line = host.Plot.Add.VerticalLine(cursor);
+            line.Color = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);
+            line.LineWidth = 1.2f;
+        }
+
         host.Refresh();
+    }
+
+    private void UpdateCursor(WpfPlot plot, Point point)
+    {
+        if (ViewModel is not { IsCursorEnabled: true } viewModel)
+        {
+            return;
+        }
+
+        var coordinates = plot.Plot.GetCoordinates((float)point.X, (float)point.Y);
+        viewModel.UpdateCursor(coordinates.X);
+    }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Exportar gráficos como PNG",
+            FileName = $"graficos_{DateTimeOffset.Now:yyyy-MM-dd_HH-mm-ss}.png",
+            Filter = "Imagem PNG (*.png)|*.png",
+            DefaultExt = ".png",
+            AddExtension = true,
+            OverwritePrompt = true,
+        };
+
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+        {
+            return;
+        }
+
+        ChartArea.UpdateLayout();
+        var width = Math.Max(1, (int)Math.Ceiling(ChartArea.ActualWidth));
+        var height = Math.Max(1, (int)Math.Ceiling(ChartArea.ActualHeight));
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(ChartArea);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(dialog.FileName);
+        encoder.Save(stream);
+    }
+
+    private void ExportCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Exportar dados visíveis como CSV",
+            FileName = $"graficos_{DateTimeOffset.Now:yyyy-MM-dd_HH-mm-ss}.csv",
+            Filter = "CSV (*.csv)|*.csv",
+            DefaultExt = ".csv",
+            AddExtension = true,
+            OverwritePrompt = true,
+        };
+
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+        {
+            File.WriteAllText(dialog.FileName, viewModel.BuildCsv(), new UTF8Encoding(false));
+        }
     }
 
     private static SolidColorBrush? TryBrush(string key)

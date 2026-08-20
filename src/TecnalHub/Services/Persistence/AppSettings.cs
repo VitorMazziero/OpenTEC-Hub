@@ -38,6 +38,9 @@ public sealed record AppSettings
 
     public FilterSettings Filters { get; init; } = new();
 
+    /// <summary>Presentation units. Values on the wire remain in the protocol units.</summary>
+    public UnitSettings Units { get; init; } = new();
+
     public SetpointSettings Setpoints { get; init; } = new();
 
     /// <summary>
@@ -145,6 +148,79 @@ public sealed record FilterSettings
     public double OxygenAbsoluteThreshold { get; init; } = 150.0;
     public double OxygenFollowTolerance { get; init; } = 50.0;
     public int OxygenConfirmRuns { get; init; } = 3;
+}
+
+/// <summary>Pressure units available for operator-facing presentation.</summary>
+public enum PressureUnitPreference
+{
+    KPa,
+    MmHg,
+    Bar,
+}
+
+/// <summary>Temperature units available for operator-facing presentation.</summary>
+public enum TemperatureUnitPreference
+{
+    Celsius,
+    Fahrenheit,
+}
+
+/// <summary>
+/// Display-only unit preferences. TECNAL's protocol remains Celsius and kPa.
+/// </summary>
+public sealed record UnitSettings
+{
+    public PressureUnitPreference Pressure { get; init; } = PressureUnitPreference.KPa;
+
+    public TemperatureUnitPreference Temperature { get; init; } = TemperatureUnitPreference.Celsius;
+
+    /// <summary>Nominal working vessel volume; reserved for derived values in Phase 2.</summary>
+    public double VesselVolumeLitres { get; init; } = 5.0;
+}
+
+/// <summary>Canonical/display conversions shared by readouts, controls and charts.</summary>
+public static class UnitConversions
+{
+    private const double MillimetresMercuryPerKilopascal = 7.500616827;
+
+    public static string PressureLabel(PressureUnitPreference unit) => unit switch
+    {
+        PressureUnitPreference.MmHg => "mmHg",
+        PressureUnitPreference.Bar => "bar",
+        _ => "kPa",
+    };
+
+    public static string TemperatureLabel(TemperatureUnitPreference unit) => unit switch
+    {
+        TemperatureUnitPreference.Fahrenheit => "°F",
+        _ => "°C",
+    };
+
+    public static double PressureToDisplay(double kilopascal, PressureUnitPreference unit) => unit switch
+    {
+        PressureUnitPreference.MmHg => kilopascal * MillimetresMercuryPerKilopascal,
+        PressureUnitPreference.Bar => kilopascal / 100.0,
+        _ => kilopascal,
+    };
+
+    public static double PressureToCanonical(double display, PressureUnitPreference unit) => unit switch
+    {
+        PressureUnitPreference.MmHg => display / MillimetresMercuryPerKilopascal,
+        PressureUnitPreference.Bar => display * 100.0,
+        _ => display,
+    };
+
+    public static double TemperatureToDisplay(double celsius, TemperatureUnitPreference unit) => unit switch
+    {
+        TemperatureUnitPreference.Fahrenheit => (celsius * 9.0 / 5.0) + 32.0,
+        _ => celsius,
+    };
+
+    public static double TemperatureToCanonical(double display, TemperatureUnitPreference unit) => unit switch
+    {
+        TemperatureUnitPreference.Fahrenheit => (display - 32.0) * 5.0 / 9.0,
+        _ => display,
+    };
 }
 
 /// <summary>

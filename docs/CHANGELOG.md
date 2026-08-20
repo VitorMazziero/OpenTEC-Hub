@@ -6,6 +6,48 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.8.0] - 2026-08-20
+
+Phase 1b WP7 — completed pages, history/audit tooling, and display units.
+
+### Added
+- **Históricos**, a persisted-session browser separate from Gráficos. It inventories
+  name, date, duration, row count, size and connection medium; previews first/last rows;
+  and refuses graph loading when the header differs from `SessionLogFormat.Header`.
+- Session CSV export and loading into the existing dedicated two-panel graph workspace.
+  Gráficos also gains PNG/visible-data CSV export and a synchronized cursor readout.
+- **Eventos**, a bounded, filterable eight-source audit journal. Successful transport
+  writes publish their exact merged JSON only after the write succeeds, so command
+  evidence remains honest over USB and Wi-Fi.
+- Session-log controls on Eventos: start/stop, new file, path, row count, size and folder.
+- In-page Configurações navigation and the display-only `Unidades` section (`°C`/`°F`,
+  `kPa`/`mmHg`/`bar`, nominal vessel volume). Protocol and session values stay canonical.
+- Confirmation for `resetVariables` and `restart`, showing exact JSON and defaulting to
+  cancellation.
+
+### Changed
+- The roadmap's proposed `Gráficos`→`Históricos` rename was intentionally not applied.
+  `Gráficos` remains the focused live/session dual-chart page; `Históricos` owns file
+  discovery and hands an accepted session to it.
+- Session logging now emits state/row notifications consumed by Eventos and the shell.
+
+### Fixed
+- Display-unit conversion residue can no longer leak values such as
+  `36.99999999999999` into command JSON.
+- Eventos no longer dereferences its second filter during first-filter initialization.
+- Read-only event/session previews use one-way bindings, so selecting a row displays its
+  detail without a WPF binding failure.
+
+### Verified
+- 178/178 tests pass, including post-write command evidence, rejected-write exclusion,
+  session header/row parsing, unit round trips, event initialization and destructive
+  confirmation.
+- Localhost simulator live at 1280×800; Gráficos, Históricos, Eventos and Unidades were
+  exercised with zero XAML binding failures. Evidence is in `docs/evidence/ui/wp7-*.png`.
+- The existing `SkiaSharp.Views.WPF` `NU1701` compatibility warning remains unchanged.
+
+---
+
 ## [0.7.0] - 2026-08-20
 
 Phase 1b WP6 - the all-setpoints Controle page and explicit valve control.

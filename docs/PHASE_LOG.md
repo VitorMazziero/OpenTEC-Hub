@@ -333,3 +333,74 @@ selection directly and removes the converter entirely.
 
 Both were caught only because unhandled exceptions are logged to file from the first
 line of `OnStartup`. Neither appears in a build.
+
+---
+
+### P1-06 · Simulate the ESP32, not the sensor module
+
+**Decided:** the simulator replaces the ESP32 and speaks the documented PC-side
+protocol. The proposed alternative — app → real ESP32 → simulated sensor module — was
+assessed and rejected.
+
+**Why:** the ESP32's module link is a hardware UART on GPIO pins, physically separate
+from the USB CDC the app uses. They would not contend, so the original concern about
+port conflict was unfounded — but **virtual COM port software cannot bridge to it**
+either, since it only creates PC-internal pairs. It would need a USB-TTL adapter wired
+to those pins, plus reverse-engineering an undocumented single-character protocol, in
+order to test the **firmware** — which is frozen and already works — rather than the
+app.
+
+**Consequence:** the existing Python simulator had already reached the same conclusion;
+despite being named `Simulated_MODULE.py`, it simulates the ESP32. Rewritten in C# so
+it shares `TecnalHub.Protocol` and is therefore held to the same golden-string tests as
+the app. A simulator that drifted from the contract would quietly certify a broken
+client.
+
+---
+
+### P1-07 · HTTP on localhost is the default, not the serial pair
+
+**Decided:** the primary way to run the simulator is HTTP on `127.0.0.1`; the virtual
+COM pair is secondary.
+
+**Why:** the app's Wi-Fi transport already speaks HTTP to an address, so pointing it at
+localhost needs no driver, no administrator rights and no reboot. The serial path needs
+a com0com install and exists only to exercise the serial stack specifically.
+
+**Worth noting:** this is only clean because the DTR/RTS pulse was removed
+([P0-09](#p0-09--disable-the-dtrrts-reset-pulse-by-default)). Virtual ports do not
+meaningfully emulate control lines, so v.6's pulse plus 1.8 s settle would have made
+the serial route awkward.
+
+---
+
+### P1-08 · The simulator emits raw ADC counts, not engineering units
+
+**Decided:** invert the field calibration so the wire carries counts, as the firmware
+does.
+
+**Why:** emitting `40` for oxygen directly would leave the app's entire calibration and
+spike-filter path untested — and a wrong coefficient is exactly the defect that then
+survives to the lab.
+
+**Evidence:** `Oxyval:3926.6` decodes through the app to **94.9 %**; `pHval:15178.7`
+to **7.01**. The round trip is verified end to end rather than assumed.
+
+---
+
+### P1-09 · A simulator bug, caught by the app
+
+**What happened:** the first version incremented the ETag only when sending a 200. After
+the first frame it therefore answered **304 forever** while its process kept advancing —
+accidentally implementing the `stall` scenario.
+
+The app responded correctly: `sem telemetria por 8s`, then reconnect. The Wi-Fi silence
+timeout added in [P0-10](#p0-10--fix-wi-fi-silence-detection-and-the-dormant-heartbeat-before-phase-1)
+caught a genuinely stalled feed on its first real encounter with one.
+
+**Fixed:** the simulator now publishes a frame on a timer at `dataDelay` and tags *that*,
+so 304 means "you already have the current frame" rather than "the tag never changes".
+
+**Also fixed:** `TransportFaultException` now folds the inner exception's message into
+its own. `read failed` alone cannot distinguish a timeout from a refused connection, and
+that message is what reaches the connection popover.

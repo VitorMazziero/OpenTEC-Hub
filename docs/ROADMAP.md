@@ -86,6 +86,40 @@ boot settle, that must surface now — not in month three.
 See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for measurements and
 [PHASE_LOG.md](PHASE_LOG.md) for the decisions taken during execution.
 
+### Device simulator
+
+Stands in for the ESP32-S3 and the bioreactor behind it, so the app can be built and
+tested without hardware — and so the cascade can be tuned against a process that
+responds. Full design in [SIMULATOR.md](SIMULATOR.md).
+
+**Built during Phase 1**
+
+- [x] Protocol simulator, both transports: HTTP on localhost (no setup) and serial
+      over a virtual COM pair
+- [x] Reproduces the measured firmware quirks — buffered `OK` on `/readData`,
+      `[ESP32_` log lines interleaved on serial, ETag/304 per published frame,
+      `/ping` → `pong`, 404 elsewhere
+- [x] Emits **raw ADC counts**, inverting the field calibration, so the app's
+      calibration and spike-filter path is genuinely exercised
+- [x] First-order process model with a 25 s oxygen probe dead time
+- [x] Fault injection: `no-module`, `stall`, `dropout`, `spikes`, `noise`, `drift`,
+      `garbage`
+
+**Phase 2 — the model becomes load-bearing**
+
+- [ ] Replace the placeholder `kLa = k·N^a·Q^b` with the manuscript's fitted **bicubic
+      B-spline surface** (ties to [D-008](DECISIONS.md), same exported data)
+- [ ] Realistic OUR trajectory across a cultivation, rather than a biomass proportion
+- [ ] Configurable probe dead time and measurement quantisation, to reproduce the
+      "staircase" signal the least-squares rate estimator exists to handle
+- [ ] Scripted cultivation profiles for repeatable controller comparison
+- [ ] Headless run mode: fixed seed, accelerated clock, CSV out — so a tuning change
+      can be regression-tested rather than eyeballed
+
+**Later**
+
+- [ ] Record/replay: capture a real session's telemetry and replay it into the app
+
 ### Phase 0 follow-ups
 
 Found by review and by hardware measurement. Priorities are as agreed with the

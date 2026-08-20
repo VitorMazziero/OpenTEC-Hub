@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/TecnalHub.Harness/TecnalHub.Harness.csproj" />
     <Project Path="src/TecnalHub.Protocol/TecnalHub.Protocol.csproj" />
+    <Project Path="src/TecnalHub.Simulator/TecnalHub.Simulator.csproj" />
     <Project Path="src/TecnalHub/TecnalHub.csproj" />
   </Folder>
   <Folder Name="/tests/">

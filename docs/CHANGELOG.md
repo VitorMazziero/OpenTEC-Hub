@@ -6,6 +6,34 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.3.1] — 2026-08-19
+
+### Added
+- **`TecnalHub.Simulator`** — stands in for the ESP32-S3 and the bioreactor behind it.
+  HTTP on localhost (no driver, no admin, no reboot) or serial over a virtual COM pair.
+  Full design in [SIMULATOR.md](SIMULATOR.md).
+  - Reproduces the measured firmware quirks: the buffered `OK` served by `/readData`
+    after a POST, `[ESP32_` log lines interleaved on serial, ETag/304 per published
+    frame, `/ping` → `pong`, 404 elsewhere.
+  - Emits **raw ADC counts**, inverting the field calibration, so the app's calibration
+    and spike-filter path is genuinely exercised rather than bypassed.
+  - First-order process model with a 25 s oxygen probe dead time — the piece the
+    cascade's prediction horizon exists to compensate.
+  - Fault injection: `no-module`, `stall`, `dropout`, `spikes`, `noise`, `drift`,
+    `garbage`.
+
+### Fixed
+- `TransportFaultException` now folds the inner exception's message into its own.
+  "read failed" alone cannot distinguish a timeout from a refused connection, and that
+  message is what reaches the connection popover.
+
+### Verified
+- App connected to the simulator over localhost showing live values; calibration round
+  trip confirmed (`Oxyval:3926.6` → 94.9 %, `pHval:15178.7` → 7.01).
+- The `stall` scenario correctly triggers the Wi-Fi silence timeout added in 0.2.1.
+
+---
+
 ## [0.3.0] — 2026-08-19
 
 Phase 1 begins: the application shell, running and connected to real hardware.

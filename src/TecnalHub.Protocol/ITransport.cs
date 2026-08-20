@@ -70,4 +70,16 @@ public interface ITransport : IAsyncDisposable
 /// heartbeat happened to notice. See <c>docs/MIGRATION.md</c> section 3, item 7.
 /// </remarks>
 public sealed class TransportFaultException(string message, Exception? innerException = null)
-    : Exception(message, innerException);
+    : Exception(Describe(message, innerException), innerException)
+{
+    /// <summary>
+    /// Folds the inner exception's message into the top-level one.
+    /// </summary>
+    /// <remarks>
+    /// The message is what reaches the connection popover and the state-change reason,
+    /// and "read failed" on its own is useless in the field - it does not distinguish a
+    /// timeout from a refused connection from a DNS failure. The cause travels with it.
+    /// </remarks>
+    private static string Describe(string message, Exception? inner)
+        => inner is null ? message : $"{message} ({inner.GetType().Name}: {inner.Message})";
+}

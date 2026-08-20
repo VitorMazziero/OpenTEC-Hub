@@ -32,6 +32,17 @@
     <SolidColorBrush x:Key="StateAlarmBrush"     Color="{DynamicResource StateAlarmColor}" />
     <SolidColorBrush x:Key="StateIdleBrush"      Color="{DynamicResource StateIdleColor}" />
 
+    <!-- Chart series. Okabe-Ito, colour-blind safe and distinct in both themes.
+         Separate from the state brushes on purpose: series colour identifies WHICH
+         variable, state colour says HOW it is behaving, and mixing the two vocabularies
+         would make both unreadable. -->
+    <SolidColorBrush x:Key="Series1Brush" Color="{DynamicResource Series1Color}" />
+    <SolidColorBrush x:Key="Series2Brush" Color="{DynamicResource Series2Color}" />
+    <SolidColorBrush x:Key="Series3Brush" Color="{DynamicResource Series3Color}" />
+    <SolidColorBrush x:Key="Series4Brush" Color="{DynamicResource Series4Color}" />
+    <SolidColorBrush x:Key="Series5Brush" Color="{DynamicResource Series5Color}" />
+    <SolidColorBrush x:Key="Series6Brush" Color="{DynamicResource Series6Color}" />
+
     <!-- ── Typography ────────────────────────────────────────────────────────
          Segoe UI Variable is the Windows 11 face; Segoe UI is the Win10 fallback.
          Process VALUES use a tabular-figure font so digits do not jitter as they

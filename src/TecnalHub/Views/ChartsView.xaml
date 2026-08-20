@@ -1,0 +1,83 @@
+﻿<UserControl x:Class="TecnalHub.Views.ChartsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ChartsViewModel}">
+
+    <!-- At most two panels, side by side. Five small charts fitted on screen but none
+         answered a question, and a bioreactor question is almost always one variable
+         against one other. Side by side rather than stacked because a trend is read
+         along the time axis, and on a wide screen that is where the pixels are. The
+         pair is selectable from everything the app can produce, mirroring v.6. -->
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top"
+                Padding="12,8"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Esquerdo" Style="{StaticResource CaptionTextStyle}"
+                           VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox Width="180"
+                          ItemsSource="{Binding Channels}"
+                          SelectedItem="{Binding LeftChannel, Mode=TwoWay}" />
+
+                <TextBlock Text="Direito" Style="{StaticResource CaptionTextStyle}"
+                           VerticalAlignment="Center" Margin="16,0,6,0" />
+                <ComboBox Width="180"
+                          ItemsSource="{Binding Channels}"
+                          SelectedItem="{Binding RightChannel, Mode=TwoWay}" />
+                <Button Content="1 / 2" Margin="6,0,0,0" Padding="8,4"
+                        ToolTip="Alternar entre um e dois gráficos"
+                        Command="{Binding ToggleSecondPanelCommand}" />
+
+                <TextBlock Text="Janela" Style="{StaticResource CaptionTextStyle}"
+                           VerticalAlignment="Center" Margin="20,0,6,0" />
+                <ComboBox Width="90"
+                          ItemsSource="{Binding Windows}"
+                          SelectedItem="{Binding SelectedWindow, Mode=TwoWay}" />
+
+                <Button Content="Pausar" Margin="12,0,0,0"
+                        Command="{Binding TogglePauseCommand}" />
+
+                <TextBlock Text="{Binding SampleCountText}"
+                           Style="{StaticResource CaptionTextStyle}"
+                           VerticalAlignment="Center" Margin="16,0,0,0" />
+            </StackPanel>
+        </Border>
+
+        <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="RightColumn" Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="LeftHost" Grid.Column="0"
+                    Margin="0,0,6,0"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" />
+
+            <!-- Hiding this Border is not enough on its own: the column would still
+                 reserve half the width and leave a gap. The column itself is collapsed
+                 in code-behind, which is a visual-tree concern XAML cannot express. -->
+            <Border x:Name="RightHost" Grid.Column="1"
+                    Margin="6,0,0,0"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1"
+                    Visibility="{Binding ShowRightPanel, Converter={StaticResource BoolToVis}}" />
+        </Grid>
+    </DockPanel>
+</UserControl>

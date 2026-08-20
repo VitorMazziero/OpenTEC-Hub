@@ -170,10 +170,12 @@ valves · Pressure. Nothing else.
 - [x] Synoptic view of the reactor + side detail pane, responsive fallback to the
       bottom drawer under 1200 px
 - [x] Setpoint entry and send for the five core subsystems, with visible validation
-- [ ] Live charts (ScottPlot) for the five core variables
-- [ ] CSV session logging, matching v.6's column format so old analysis scripts keep working
+- [x] Live charts (ScottPlot) — two selectable panels side by side, 11 channels,
+      selectable time window, ring-buffered history
+- [x] Session logging, byte-compatible with v.6's tab-separated format so old analysis
+      scripts keep working
 - [x] Serilog rolling file
-- [ ] In-app log pane
+- [x] In-app log pane (device messages + logging control)
 - [x] Light/dark toggle following the Windows system theme
 
 **Exit criteria:** a real cultivation run controlled end-to-end by TECNAL-Hub with

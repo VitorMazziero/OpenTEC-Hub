@@ -161,7 +161,33 @@ item 11, where a malformed pH entry silently became setpoint 7.
 
 ---
 
-## 5. Localisation
+## 5. Charts
+
+**Two panels at most, side by side.** The first build stacked five small charts, one
+per variable. They fitted on screen and none of them answered a question — a few
+hundred pixels of height is not enough to read a trend from.
+
+A bioreactor question is almost always *one variable against one other*: temperature
+against DO, agitation against DO, flow against pressure. Two large panels answer that;
+five small ones answer nothing. Side by side rather than stacked because a trend is
+read along the time axis, and on a wide screen that is where the pixels are.
+
+Either panel selects from every channel the app can produce — the set v.6's graphs page
+offered, minus OUR, which arrives with the Phase 2 soft sensor. Offering an
+always-empty chart would be worse than not offering it. Collapsing the right panel
+gives the left one the full width.
+
+| Concern | Decision |
+|---|---|
+| History | Fixed-capacity ring buffer, ~48 h at the field `dataDelay`. Flat memory, per the roadmap target |
+| Downsampling | Stride-sampled to 2000 points before reaching the plot — no display has 86,000 horizontal pixels |
+| Sentinels | Stored as `NaN` so a chart shows a **gap**, never a line diving to −1 |
+| Redraw | 1 Hz on a timer, not per frame. The device emits every 2 s; repainting faster is wasted work on the UI thread |
+| Colour | Okabe-Ito series palette, separate from the state palette. Series colour says *which* variable, state colour says *how it is behaving* |
+
+---
+
+## 6. Localisation
 
 UI is **pt-BR**; code, comments and logs are **English**
 ([CONVENTIONS.md](CONVENTIONS.md)). All user-facing strings live in `.resx` from day

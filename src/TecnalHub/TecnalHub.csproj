@@ -26,6 +26,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The session-log row builder is an implementation detail, but its output is a
+         contract with existing analysis scripts. Exposing it to the tests is better
+         than widening the public surface just to assert on it. -->
+    <InternalsVisibleTo Include="TecnalHub.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- MVVM source generators: [ObservableProperty], [RelayCommand]. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Composition root lives in App.xaml.cs. -->
@@ -37,7 +44,7 @@
     <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <!-- Live process charts. Replaces pyqtgraph + matplotlib from v.6. -->
-    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
+    <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
   </ItemGroup>
 
 </Project>

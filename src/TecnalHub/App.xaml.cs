@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
 using TecnalHub.ViewModels;
 
@@ -113,7 +114,11 @@ public partial class App : Application
             sp.GetRequiredService<ILoggerFactory>(),
             Dispatcher.CurrentDispatcher));
 
+        services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
+        services.AddSingleton<ISessionLogger, SessionLogger>();
+
         services.AddSingleton<ConnectionViewModel>();
+        services.AddSingleton<ChartsViewModel>();
         services.AddSingleton<ShellViewModel>();
     }
 
@@ -147,6 +152,11 @@ public partial class App : Application
         {
             // Flush settings and close the link before the process goes away.
             services.GetRequiredService<ISettingsService>().SaveNowAsync().GetAwaiter().GetResult();
+
+            // Close the session log before the process goes away, so the last rows
+            // are on disk rather than in a buffer.
+            services.GetRequiredService<ISessionLogger>().DisposeAsync()
+                    .AsTask().GetAwaiter().GetResult();
 
             if (services.GetRequiredService<IDeviceService>() is IAsyncDisposable device)
             {

@@ -88,6 +88,25 @@ public sealed class NullToVisibilityConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>
+/// Visible when the bound value equals the parameter.
+/// </summary>
+/// <remarks>
+/// Drives page switching from the nav rail's selected id. Pages are kept in the visual
+/// tree rather than swapped, so a chart does not lose its history and rebuild every
+/// time the operator glances at another page.
+/// </remarks>
+public sealed class EqualsToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => string.Equals(value?.ToString(), parameter?.ToString(), StringComparison.Ordinal)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>True when the bound value equals the parameter. Used for nav-rail selection.</summary>
 public sealed class EqualsConverter : IValueConverter
 {

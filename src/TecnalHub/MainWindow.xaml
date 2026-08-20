@@ -20,7 +20,7 @@
         <conv:StateToBrushConverter x:Key="StateToBrush" />
         <conv:TrendToGlyphConverter x:Key="TrendToGlyph" />
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
-        <conv:EqualsConverter x:Key="Equals" />
+        <conv:EqualsToVisibilityConverter x:Key="EqualsToVis" />
 
         <!-- KPI tile: one live reading, pinned across every page. -->
         <DataTemplate x:Key="KpiTileTemplate" DataType="{x:Type vm:ProcessVariableViewModel}">
@@ -308,41 +308,105 @@
             </ItemsControl>
         </Border>
 
+        <!-- ══ Content: one page at a time, chosen by the nav rail ══ -->
+        <Grid>
+
+            <!-- Painel -->
+            <Grid Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
+                                       ConverterParameter=dashboard}">
         <!-- ══ Content: synoptic + detail pane ══
-             Responsive. At >=1200 px the detail pane sits beside the synoptic so
-             process context is never lost while tuning. Below that it becomes a
-             drawer over the diagram - the same ViewModel in a different template,
-             so behaviour is identical and only presentation changes. -->
-        <Grid x:Name="ContentRoot" Margin="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="SynopticColumn" Width="*" />
-                <ColumnDefinition x:Name="DetailColumn" Width="380" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition x:Name="DrawerRow" Height="0" />
-            </Grid.RowDefinitions>
+                 Responsive. At >=1200 px the detail pane sits beside the synoptic so
+                 process context is never lost while tuning. Below that it becomes a
+                 drawer over the diagram - the same ViewModel in a different template,
+                 so behaviour is identical and only presentation changes. -->
+            <Grid x:Name="ContentRoot" Margin="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="SynopticColumn" Width="*" />
+                    <ColumnDefinition x:Name="DetailColumn" Width="380" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition x:Name="DrawerRow" Height="0" />
+                </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Grid.Column="0"
-                    CornerRadius="{StaticResource RadiusMedium}"
-                    Background="{DynamicResource SurfaceCardBrush}"
-                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                    BorderThickness="1">
-                <views:SynopticView />
-            </Border>
+                <Border Grid.Row="0" Grid.Column="0"
+                        CornerRadius="{StaticResource RadiusMedium}"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1">
+                    <views:SynopticView />
+                </Border>
 
-            <!-- Side pane: wide windows -->
-            <views:DetailPaneView x:Name="SideDetail"
-                                  Grid.Row="0" Grid.Column="1"
-                                  Margin="16,0,0,0"
-                                  DataContext="{Binding SelectedSubsystem}" />
+                <!-- Side pane: wide windows -->
+                <views:DetailPaneView x:Name="SideDetail"
+                                      Grid.Row="0" Grid.Column="1"
+                                      Margin="16,0,0,0"
+                                      DataContext="{Binding SelectedSubsystem}" />
 
-            <!-- Drawer: narrow windows. Collapsed until the layout switches. -->
-            <views:DetailPaneView x:Name="DrawerDetail"
-                                  Grid.Row="1" Grid.ColumnSpan="2"
-                                  Margin="0,12,0,0"
-                                  Visibility="Collapsed"
-                                  DataContext="{Binding SelectedSubsystem}" />
+                <!-- Drawer: narrow windows. Collapsed until the layout switches. -->
+                <views:DetailPaneView x:Name="DrawerDetail"
+                                      Grid.Row="1" Grid.ColumnSpan="2"
+                                      Margin="0,12,0,0"
+                                      Visibility="Collapsed"
+                                      DataContext="{Binding SelectedSubsystem}" />
+            </Grid>
+            </Grid>
+
+            <!-- Gráficos -->
+            <views:ChartsView DataContext="{Binding Charts}"
+                              Visibility="{Binding DataContext.SelectedNavigationId,
+                                                   RelativeSource={RelativeSource AncestorType=Window},
+                                                   Converter={StaticResource EqualsToVis},
+                                                   ConverterParameter=charts}" />
+
+            <!-- Registro -->
+            <Grid Margin="16"
+                  Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
+                                       ConverterParameter=log}">
+                <Border CornerRadius="{StaticResource RadiusMedium}"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1"
+                        Padding="16">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="Iniciar/parar registro"
+                                    Command="{Binding ToggleLoggingCommand}" />
+                            <TextBlock Text="{Binding SessionLogPath}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Margin="12,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="Mensagens do equipamento"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Margin="0,0,0,6" />
+
+                        <ListBox ItemsSource="{Binding DeviceLog}"
+                                 Background="{DynamicResource SurfaceSunkenBrush}"
+                                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                 BorderThickness="1"
+                                 FontFamily="{DynamicResource FontNumeric}"
+                                 FontSize="11" />
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- Configurações -->
+            <Grid Margin="16"
+                  Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
+                                       ConverterParameter=settings}">
+                <Border CornerRadius="{StaticResource RadiusMedium}"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1">
+                    <TextBlock Text="Configurações avançadas em construção."
+                               Style="{StaticResource CaptionTextStyle}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+            </Grid>
         </Grid>
     </DockPanel>
 </Window>

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
 
 namespace TecnalHub.ViewModels;
@@ -25,6 +26,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly IDeviceService _device;
     private readonly ISettingsService _settings;
     private readonly IThemeService _theme;
+    private readonly ITelemetryHistory _history;
+    private readonly ISessionLogger _sessionLogger;
     private readonly ILogger<ShellViewModel> _log;
 
     public ShellViewModel(
@@ -32,13 +35,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         ISettingsService settings,
         IThemeService theme,
         ConnectionViewModel connection,
+        ChartsViewModel charts,
+        ITelemetryHistory history,
+        ISessionLogger sessionLogger,
         ILogger<ShellViewModel> log)
     {
         _device = device;
         _settings = settings;
         _theme = theme;
+        _history = history;
+        _sessionLogger = sessionLogger;
         _log = log;
         Connection = connection;
+        Charts = charts;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1);
         // No RPM feedback exists on the wire, so this variable can only ever show
@@ -109,6 +118,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     }
 
     public ConnectionViewModel Connection { get; }
+
+    public ChartsViewModel Charts { get; }
+
+    /// <summary>True while telemetry rows are being appended to the session log.</summary>
+    public bool IsLogging => _sessionLogger.IsLogging;
+
+    /// <summary>File currently being logged to, for the log page.</summary>
+    public string? SessionLogPath => _sessionLogger.CurrentPath;
 
     /// <summary>Every live variable, in KPI-strip order.</summary>
     public IReadOnlyList<ProcessVariableViewModel> Variables { get; }
@@ -242,6 +259,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         IsSensorModuleOffline = !snapshot.SensorCommOk;
 
+        // History first: the charts read from it, and a row written to the log should
+        // never describe a frame the charts have not seen.
+        var commandedRpm = Motor.Value ?? 0;
+        _history.Add(snapshot, commandedRpm);
+        _sessionLogger.Write(snapshot, commandedRpm, DescribeConnection());
+
         var minutes = snapshot.TimeMinutes;
         ElapsedText = minutes < 0
             ? "—"
@@ -257,6 +280,53 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         {
             DeviceLog.RemoveAt(0);
         }
+    }
+
+    /// <summary>
+    /// Connection status as v.6 writes it into the log's final column.
+    /// </summary>
+    /// <remarks>
+    /// Kept in the file so a gap in the data can be attributed to a dropped link
+    /// rather than to the process.
+    /// </remarks>
+    private string DescribeConnection() => _device.State switch
+    {
+        Protocol.ConnectionState.Connected => _device.Medium == TransportMedium.WiFi ? "WiFi" : "USB",
+        Protocol.ConnectionState.Reconnecting => "Reconectando",
+        Protocol.ConnectionState.Connecting => "Conectando",
+        Protocol.ConnectionState.Faulted => "Falha",
+        _ => "Desconectado",
+    };
+
+    /// <summary>Starts or stops appending telemetry rows to a file.</summary>
+    [RelayCommand]
+    private void ToggleLogging()
+    {
+        if (_sessionLogger.IsLogging)
+        {
+            _sessionLogger.Stop();
+        }
+        else
+        {
+            var path = _settings.Current.Logging.SessionLogPath;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                path = System.IO.Path.Combine(
+                    Services.Persistence.AppPaths.DataDirectory,
+                    "sessions",
+                    $"session_{DateTimeOffset.Now:yyyy-MM-dd_HH-mm-ss}.txt");
+
+                _settings.Update(s => s with
+                {
+                    Logging = s.Logging with { SessionLogPath = path },
+                });
+            }
+
+            _sessionLogger.Start(path);
+        }
+
+        OnPropertyChanged(nameof(IsLogging));
+        OnPropertyChanged(nameof(SessionLogPath));
     }
 
     /// <summary>Captures the applied setpoints so they are restored next launch.</summary>

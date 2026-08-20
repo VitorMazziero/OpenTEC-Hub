@@ -449,3 +449,60 @@ field from persisted settings.
 *technically* honest - those values genuinely had not been sent this session - but a
 warning that is always on is one nobody reads, and it would have devalued the marker
 in the case that matters: a half-typed setpoint mid-run.
+
+---
+
+### P1-13 · Two chart panels, not five
+
+**Decided:** the charts page shows at most two panels, side by side, each selectable
+from every channel the app produces.
+
+**Why:** the first build stacked one small chart per variable. All five fitted on
+screen and none of them answered a question - a few hundred pixels of height is not
+enough to read a trend from. A bioreactor question is almost always *one variable
+against one other*: temperature against DO, agitation against DO, flow against
+pressure.
+
+Side by side rather than stacked because a trend is read along the time axis, and on a
+wide screen that is where the pixels are. Collapsing the right panel gives the left one
+the full width - which required collapsing the grid *column*, not just hiding the
+border, or the chart would have stayed at half width beside an empty gap.
+
+**Consequence:** the selectable set mirrors v.6's graphs page, minus OUR. That arrives
+with the Phase 2 soft sensor, and offering an always-empty chart would be worse than
+not offering it.
+
+---
+
+### P1-14 · History is a ring buffer, sentinels become NaN
+
+**Decided:** fixed-capacity ring buffer sized for ~48 h at the field `dataDelay`, with
+stride downsampling to 2000 points before anything reaches the plot.
+
+**Why:** the roadmap's target is flat memory across a 24 h run, and a cultivation can
+run longer. Growing a list would breach it. Downsampling is separate and equally
+necessary: no display has 86,000 horizontal pixels, so handing a plotting library every
+point costs time and shows nothing extra.
+
+**Also:** the not-received sentinel is stored as `NaN`, so a chart shows a **gap**. Left
+as -1 it would draw a line diving to a value that looks like a real measurement - the
+same failure the em-dash rule prevents on the readouts.
+
+---
+
+### P1-15 · The session log format is a contract
+
+**Decided:** byte-compatible with v.6 - column set, order, tab separator, decimal
+places, UTF-8 without BOM, header only when the file is new.
+
+**Why:** existing analysis scripts read these files. Columns outside the Phase 1 scope
+are still emitted carrying the sentinel, so the column count never changes between
+versions of this app and a script never has to ask which version wrote a file.
+
+Numbers are invariant-formatted. The file is data for downstream tools, not text for a
+person, so a pt-BR decimal comma would silently break every consumer - exactly as it
+would on the wire. There is a test that asserts this under a `pt-BR` culture.
+
+**Consequence:** `BuildRow` is `internal` with `InternalsVisibleTo` for the tests.
+Widening the public surface just to assert on an implementation detail would have been
+the wrong trade; leaving a contract untested would have been worse.

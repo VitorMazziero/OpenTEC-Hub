@@ -6,6 +6,34 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.5.0] - 2026-08-19
+
+Charts and session logging - Phase 1 feature-complete.
+
+### Added
+- **Charts page** - at most two panels side by side, each selectable from 11 channels,
+  with a selectable time window and a pause control. Mirrors what v.6's graphs page
+  offered, minus OUR (Phase 2 soft sensor).
+- **`TelemetryHistory`** - fixed-capacity ring buffer, ~48 h at the field `dataDelay`,
+  stride-downsampled to 2000 points before reaching a plot. Sentinels stored as `NaN`
+  so charts show a gap rather than a line diving to -1.
+- **`SessionLogger`** - tab-separated log byte-compatible with v.6, so existing
+  analysis scripts keep working. Invariant numbers, UTF-8 without BOM, header only
+  when the file is new.
+- **Log page** - device messages plus start/stop logging.
+- Page switching from the nav rail; pages stay in the visual tree so a chart does not
+  rebuild every time the operator glances elsewhere.
+- Chart series brushes (Okabe-Ito) in the token dictionaries.
+
+### Fixed
+- `TextTrimming="MiddleEllipsis"` is a WinUI value; WPF only has `None`,
+  `CharacterEllipsis` and `WordEllipsis`. It threw at XAML parse time.
+- Selector combo boxes showed the record type name instead of the label.
+- Collapsing the second chart panel now collapses its grid column, not just the
+  border - otherwise the remaining chart stayed at half width beside an empty gap.
+
+---
+
 ## [0.4.0] - 2026-08-19
 
 Phase 1's two remaining screens: the synoptic and setpoint entry.

@@ -229,11 +229,20 @@
         </Border>
 
         <!-- ══ Navigation rail ══ -->
-        <Border DockPanel.Dock="Left"
-                Width="184"
+        <Border x:Name="NavigationRail" DockPanel.Dock="Left"
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 BorderThickness="0,0,1,0">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Width" Value="184" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsNavigationCompact}" Value="True">
+                            <Setter Property="Width" Value="52" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <!-- A ListBox rather than templated RadioButtons: selection is exactly what
                  SelectedValue/SelectedValuePath express, and it avoids binding
                  ConverterParameter, which is not a DependencyProperty and throws at
@@ -246,7 +255,10 @@
             <Border DockPanel.Dock="Bottom"
                     BorderBrush="{DynamicResource StrokeSubtleBrush}"
                     BorderThickness="0,1,0,0"
-                    Padding="12,10">
+                    Padding="12,10"
+                    Visibility="{Binding IsNavigationCompact,
+                                         Converter={StaticResource BoolToVis},
+                                         ConverterParameter=Invert}">
                 <StackPanel>
                     <TextBlock Text="Modo" Style="{StaticResource CaptionTextStyle}" />
                     <ComboBox Margin="0,4,0,0"
@@ -273,10 +285,19 @@
             <ListBox ItemsSource="{Binding NavigationItems}"
                      SelectedValuePath="Id"
                      SelectedValue="{Binding SelectedNavigationId, Mode=TwoWay}"
-                     Margin="8,12"
                      Background="Transparent"
                      BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.Style>
+                    <Style TargetType="ListBox">
+                        <Setter Property="Margin" Value="8,12" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNavigationCompact}" Value="True">
+                                <Setter Property="Margin" Value="4,12" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.Style>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
@@ -289,6 +310,7 @@
                         <Setter Property="Padding" Value="12,8" />
                         <Setter Property="Margin" Value="0,0,0,4" />
                         <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="ToolTip" Value="{Binding Label}" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="Template">
                             <Setter.Value>
@@ -323,6 +345,13 @@
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsNavigationCompact,
+                                                           RelativeSource={RelativeSource AncestorType=Window}}"
+                                         Value="True">
+                                <Setter Property="Padding" Value="8" />
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
@@ -335,15 +364,28 @@
                                     Visibility="{Binding StartsGroup, Converter={StaticResource BoolToVis}}" />
                             <StackPanel Orientation="Horizontal">
                             <ctl:Icon Key="{Binding Glyph}" Size="20"
-                                      Margin="0,0,12,0"
                                       Stroke="{Binding
                                           RelativeSource={RelativeSource AncestorType=ListBoxItem},
                                           Path=Foreground}" />
                             <TextBlock Text="{Binding Label}"
+                                       Margin="12,0,0,0"
                                        VerticalAlignment="Center"
                                        Foreground="{Binding
                                            RelativeSource={RelativeSource AncestorType=ListBoxItem},
-                                           Path=Foreground}" />
+                                           Path=Foreground}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.IsNavigationCompact,
+                                                                           RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                             </StackPanel>
                         </StackPanel>
                     </DataTemplate>

@@ -717,3 +717,41 @@ ring. Screenshots: `wp8-command-palette.png` and `wp8-keyboard-focus.png`.
 **Test evidence:** 185/185 pass. The fresh runtime interval contains no XAML binding
 failure, fatal exception or unhandled exception; the existing SkiaSharp `NU1701` warning
 is unchanged.
+
+---
+
+### P1B-10 · The equipment is neutral scenery; the Painel owns operational truth
+
+**Decided:** Painel uses one transparent, neutral PBR reactor master in both themes.
+Readings, units, state dots, selection, leader lines, keyboard hit targets and missing
+level state remain WPF. If the PNG cannot decode, only the equipment layer falls back to
+the vector schematic.
+
+**Mechanical correction:** an early render incorrectly continued the agitator shaft to
+the sparger. The accepted asset has two Rushton disc-turbine levels, the shaft terminating
+below the lower hub, a visible clearance gap, and an independent annular sparger fed by a
+separate wall-side dip tube. It also makes the jacket, top-drive motor, top entries and
+four process probes readable at HMI scale.
+
+**Transparency gate:** one intermediate edit encoded a checkerboard into 24-bit RGB and
+was rejected. The packaged 1024 × 1536 PNG is colour type 6 RGBA with alpha-zero corners
+and an opaque equipment centre. Because the same neutral lighting remained legible on
+both token palettes, the solid-background light/dark contingency was unnecessary. The
+prompt, hash and asset contract are recorded in `docs/ASSET_PROVENANCE.md`.
+
+**Control-room closure:** pH now has its missing physical callout; the selected equipment
+card agrees with the rail/detail selection; the header shows system state and update age;
+the footer says explicitly that level is not monitored. Live theme switching now repaints
+the inline ScottPlot trend. The final responsive backlog item is also closed: below
+1400 px the navigation becomes a 52 px icon strip while automation names and tooltips
+retain the labels.
+
+**Evidence:** 190/190 tests pass. Runtime review covered light, dark and 1280 px layouts
+against the localhost simulator; the final interval logged no binding failure, fatal
+exception or unhandled exception. Release publish succeeded with the PNG and anchor JSON
+inside `TecnalHub.g.resources`. Screenshots:
+`phase1-final-painel-{light,dark}.png` and `phase1-final-responsive-1280.png`.
+
+**Boundary:** this closes Phase 1 and Phase 1b software. It does not satisfy the real
+cultivation exit gate or validate biological process performance; v.6 remains the
+production fallback until the bioreactor run is completed.

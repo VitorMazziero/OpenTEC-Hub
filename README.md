@@ -7,12 +7,11 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.9.0 — Phase 1 and Phase 1b WP1-WP8 are implemented. The dedicated
-> dual-graph workspace shares persisted sessions with a separate Históricos browser;
-> Eventos records exact transmitted JSON; window/page state persists; and the shell now
-> has command search, keyboard navigation and visible focus treatment. USB and Wi-Fi were
-> validated against a real ESP32-S3; live-sensor and full-cultivation validation still
-> need the bioreactor.
+> **Status:** v0.9.0 — Phase 1 and Phase 1b are software-complete. The dedicated
+> dual-graph workspace, Históricos, Eventos, persistence, keyboard shell and professional
+> transparent-reactor Painel are implemented, with responsive and light/dark evidence.
+> USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and full-cultivation
+> validation still need the bioreactor and remain the Phase 1 hardware gate.
 > v.6 remains the production application until TECNAL-Hub has completed a full
 > cultivation run.
 
@@ -31,6 +30,7 @@ Read in this order:
 | [MIGRATION.md](docs/MIGRATION.md) | What each v.6 module becomes, why startup is slow, and 11 known defects found in the source |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, threading model, directory layout, testing strategy |
 | [UI_DESIGN.md](docs/UI_DESIGN.md) | Visual identity, the synoptic + detail layout, connection UX |
+| [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md) | Generated reactor prompt, structure, alpha contract and hash |
 | [DECISIONS.md](docs/DECISIONS.md) | Decision log — why things are the way they are |
 | [CONVENTIONS.md](docs/CONVENTIONS.md) | Naming, layering rules, async, error handling |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Version history |

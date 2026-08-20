@@ -11,7 +11,7 @@
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │  Views (XAML)          shell · synoptic · detail · charts    │
-│  no logic, no MessageBox, no service references              │
+│  visual-only code-behind; no domain logic or service calls   │
 ├─────────────────────────────────────────────────────────────┤
 │  ViewModels            screen state + commands               │
 │  CommunityToolkit.Mvvm source generators                     │
@@ -88,7 +88,7 @@ ProjetoTECNAL/
 │     │  └─ Diagnostics/        logging, crash capture
 │     ├─ Converters/
 │     ├─ Themes/                Tokens.Light / Dark / Shared
-│     └─ Resources/
+│     └─ Resources/              icons + neutral reactor art/anchors
 │
 └─ tests/
    └─ TecnalHub.Tests/          golden wire strings, parser, filters, controllers
@@ -143,6 +143,19 @@ only after the active transport accepts the merged frame. `EventJournal` records
 exact JSON plus app-known connection, setpoint, calibration and application facts, so
 Eventos is useful on Wi-Fi without inventing serial device messages.
 
+**The reactor image is scenery, not state.** `reactor-neutral.png` is one true-alpha
+cross-theme equipment master. Values, units, path colours, selection, focus, hit targets
+and the missing-level statement remain native WPF overlays calibrated by
+`reactor-anchors.json`. `SynopticView` code-behind does one visual-only job: reveal the
+vector fallback if image decoding fails. Generation provenance is recorded in
+[ASSET_PROVENANCE.md](ASSET_PROVENANCE.md).
+
+**ScottPlot follows live token changes explicitly.** A plotting surface is not a WPF
+resource consumer. `TrendSpark` therefore listens to the shared surface brush's change
+notification and restyles after the theme service completes its repaint pass; without
+that bridge, a chart created in light mode remains white after the rest of Painel turns
+dark.
+
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session
 `command_logs/`, and an in-window pane) that do not agree with each other.
@@ -158,4 +171,5 @@ Eventos is useful on Wi-Fi without inventing serial device messages.
 | Spike filter | Property tests — a held value must never be overwritten by a single outlier |
 | Controllers | Simulated first-order DOT plant with dead time; assert no windup, no zero-at-setpoint collapse |
 | Themes | Light and dark dictionaries must define an identical key set (a missing key crashes the runtime theme switch) |
+| Reactor asset | PNG signature/dimensions/RGBA encoding, transparent canvas, anchor schema, pH overlay and decode fallback |
 | Transports | Not unit-tested. Verified by the Phase 0 hardware harness — mocking a serial port proves nothing about a real ESP32. |

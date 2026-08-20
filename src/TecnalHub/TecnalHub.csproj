@@ -26,6 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- State-free equipment art. Live readings and process colours remain WPF. -->
+    <Resource Include="Resources\Images\reactor-neutral.png" />
+    <Resource Include="Resources\Images\reactor-anchors.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The session-log row builder is an implementation detail, but its output is a
          contract with existing analysis scripts. Exposing it to the tests is better
          than widening the public surface just to assert on it. -->

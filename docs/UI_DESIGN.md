@@ -613,8 +613,8 @@ entities, derived from [PROTOCOL.md](PROTOCOL.md) — not from the mockups.
 ### 5.1 Visão Geral
 
 **Purpose:** understand the process by looking at it; select a component; adjust it
-without losing sight of the reactor. **Phase 1 — built, needs the re-tint and the
-elements Phases 2-3 add.**
+without losing sight of the reactor. **Phase 1 software surface — complete; Phases 2-3
+add new process elements without changing this visual contract.**
 
 ```text
 ┌─────────────────────────────────────────────┬──────────────────────────┐
@@ -632,14 +632,15 @@ elements Phases 2-3 add.**
 
 > **Decision [D-012](DECISIONS.md).** The flat vector reactor is replaced by a
 > photorealistic render with callout cards anchored to the physical ports. Reference:
-> `docs/UI_design_guides/Bioreactor Panel.png`. **Not yet implemented** — this section is
-> the approach, agreed before any asset is produced.
+> `docs/UI_design_guides/Bioreactor Panel.png`. **Implemented 2026-08-20** with the
+> transparent cross-theme master `Resources/Images/reactor-neutral.png`; generation
+> provenance and the accepted prompt are in [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md).
 
-**The cards are controls, not labels.** This is the substantive change. Clicking a card
-opens its setpoint entry in place, so the physical position of a probe or port *is* the
-control for it. An operator adjusting pH learns where the pH probe enters the vessel
-while doing it. The detail pane keeps the engineering depth ([6.1](#61-devicedetailpane));
-the card is the fast path for the one thing people do most.
+**The cards are controls, not labels.** This is the substantive change. Clicking or
+keyboard-activating a card selects that variable into the detail pane, so the physical
+position of a probe or port is the fast path to its operational context. The selected
+card shares the same state as the variable rail and detail pane; no parallel selection
+or value copy exists.
 
 ##### Producing the asset
 
@@ -649,14 +650,16 @@ Four options, in the order they were considered:
 |---|---|
 | Keep hand-authored vector XAML | **Rejected.** It is what exists, and it reads as a diagram of a tank. Photorealism in vectors means hundreds of gradient stops, which is neither maintainable nor fast to render |
 | Photograph the real reactor | **Rejected as the primary source.** Lighting, background and lens distortion fight the interface, the ports would sit wherever the photo put them, and a second machine means a second photo shoot. Useful as *reference* for the modeller |
-| **3D model, rendered once to a 2D asset** | **Chosen.** Blender or equivalent: model the vessel, headplate, jacket, impellers, sparger and ports; render orthographic, straight-on, on transparent background. Port positions are then known exactly, because they were placed deliberately |
+| **AI-generated PBR product render, validated as a 2D asset** | **Chosen for Phase 1.** Generate one orthographic, state-free equipment master; reject mechanically wrong geometry and false transparency; pin the accepted PNG and its normalized anchors in tests. An editable 3D source remains the better route if future hardware variants require repeated camera-identical renders |
 | Real-time 3D in the app | **Rejected.** A 3D viewport in a control application costs GPU, startup time and a dependency, to gain a rotation nobody needs. It also fights the "cold start under 2 s" target |
 
-##### Why a 3D source rather than a painted image
+##### Why one neutral transparent master
 
-The render is not the deliverable — **the camera is**. A model can be re-rendered when the
-design changes: a second vessel size, a port moved, a dark-theme variant, a higher DPI. A
-painted or photographed image is a dead end that has to be redone by hand each time.
+True alpha lets WPF own the equipment bay, selection and theme surfaces. Neutral lighting
+was reviewed on both palettes and remained legible, so one asset is safer than two files
+that could drift in geometry. If a future renderer cannot produce usable alpha, generate
+camera-identical light and dark images against the exact `SurfaceCard` colours; do not
+remove a background heuristically inside the application.
 
 ##### Asset requirements
 
@@ -664,10 +667,11 @@ painted or photographed image is a dead end that has to be redone by hand each t
 |---|---|---|
 | Format | PNG, transparent background | The app background is a theme token and must show through |
 | Projection | **Orthographic**, dead-on front | A perspective render makes anchor points drift as the image scales, and the vessel look like it is falling over |
-| Resolution | ~3x the largest on-screen size (≈2400 px tall) | Covers 200 % Windows scaling without resampling mush |
-| Variants | **Light and dark** | A render lit for a white page glows on `#11161D`. Same camera, same geometry, different environment lighting — this is exactly the re-render a 3D source makes cheap |
+| Resolution | **1024 × 1536 px** accepted master | More than 3x the current ~450 px display height and sufficient for 200 % scaling |
+| Variants | **One neutral RGBA master**, validated on both themes | Genuine transparency succeeded. Camera-identical solid light/dark variants are the fallback only when alpha cannot be produced |
 | Liquid | **Rendered empty** | Broth level is live data from `Distance` and must be a WPF overlay. Baking a level in would show a fill nobody measured |
 | Neutral state | No status colours, no glow, no labels | Every one of those is state, and state belongs to the overlay |
+| Structure | Double-wall jacket, top motor/entries/probes, two Rushton levels, independent ring sparger | The shaft terminates below the lower turbine with visible clearance; it never continues to the sparger |
 
 ##### What stays vector, and why
 
@@ -688,8 +692,12 @@ The overlay needs port positions in **image-relative coordinates** (0-1 in both 
 pixels, so the layout survives any scale. Ship them beside the asset:
 
 ```json
-{ "asset": "reactor-light.png", "aspect": 0.72,
-  "ports": { "ph": [0.28, 0.47], "oxygen": [0.28, 0.63], "temperature": [0.31, 0.25] } }
+{ "asset": "reactor-neutral.png",
+  "anchors": {
+    "ph": { "x": 0.43, "y": 0.61 },
+    "oxygen": { "x": 0.62, "y": 0.54 },
+    "flow": { "x": 0.50, "y": 0.80 }
+  } }
 ```
 
 A card is then positioned by its anchor and a side, and the leader line is generated —
@@ -699,9 +707,9 @@ re-render cheap instead of a re-layout.
 
 ##### Fallback
 
-If the asset is missing or fails to load, the synoptic falls back to the current vector
-drawing rather than showing an empty panel. The overlay is identical either way, because
-it never depended on the image — only on the port coordinates.
+If the asset is missing or fails to decode, `OnReactorRenderFailed` exposes the bundled
+vector schematic rather than showing an empty panel. The live cards and leader lines are
+identical either way, because they never depended on state baked into the image.
 
 #### Synoptic header
 
@@ -727,8 +735,9 @@ Overflow menu items:
 
 #### Synoptic elements
 
-Vector XAML, not an image, so it themes and scales. The reactor sits centrally with
-generous negative space. The visual hierarchy is:
+Transparent PBR equipment render plus native WPF overlays. The token-driven equipment
+bay, cards, lines, state, focus and fallback all theme and scale independently of the
+PNG. The reactor sits centrally with generous negative space. The visual hierarchy is:
 **reactor → physical connections → instrument symbols → live values → control
 relationships.**
 
@@ -751,10 +760,10 @@ relationships.**
 | Biomass optical sensor on vessel wall | `biomass` | `0.42 AU` | `PathInstrument` | 3 |
 | External pump + feed line | `pump` | `1.2 mL/min` | `PathFeed` | 3 |
 
-**Broth level is honest.** It is drawn from `Distance` when that key is live. When
-`Distance` is `-1` — the protocol forces this if the key is absent for more than 3 s — the
-fill drops to a static nominal level rendered in a hatched Idle grey with a `nível
-indisponível` caption. An animated level driven by nothing is exactly rule 3's failure.
+**Broth level is honest.** Phase 1 has no level channel in the active inventory, so the
+asset stays visibly empty and the footer says `nível não monitorado`. Phase 2 may add a
+WPF fill only when `Distance` is live; when the key is absent the correct state remains
+empty/unknown, never a nominal animated fill driven by nothing.
 
 **Selection highlight** is what gives the synoptic its purpose. Selecting `oxygen`
 highlights the **whole control relationship**, not just one label:

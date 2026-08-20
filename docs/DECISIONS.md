@@ -163,7 +163,7 @@ state; before WP6 that property existed but the rail border ignored it.
 ---
 
 ### D-012 · The synoptic becomes a photorealistic render with editable anchored cards
-**Status:** Accepted · 2026-08-20 · **implementation deferred, see [UI_DESIGN.md §5.1.1](UI_DESIGN.md#511-the-reactor-image)**
+**Status:** Implemented · 2026-08-20 · see [UI_DESIGN.md §5.1.1](UI_DESIGN.md#511-the-reactor-image) and [asset provenance](ASSET_PROVENANCE.md)
 
 The flat vector drawing reads as a diagram of a tank rather than as the machine in the
 room. Reference for the target: `docs/UI_design_guides/Bioreactor Panel.png`.
@@ -179,6 +179,14 @@ operator learns where the pH probe enters the vessel while adjusting it.
 *Constraint:* nothing that changes at 1 Hz may be baked into the image. The render is a
 static asset; values, state colours, leader lines and hit targets stay as WPF overlays on
 top of it.
+
+*Implementation:* one 1024 × 1536 neutral RGBA master serves both themes. True alpha was
+verified, so the solid-background light/dark contingency was not needed. The accepted
+geometry shows a double-wall jacket, top entries and probes, two Rushton turbine levels,
+and a separately fed annular sparger; the shaft stops below the lower turbine rather than
+continuing to the sparger. Normalized anchors ship beside the image, pH now has its own
+card, and a decode failure exposes the vector fallback. The generated image carries no
+liquid level or operational state.
 
 ---
 

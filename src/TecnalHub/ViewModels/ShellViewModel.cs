@@ -396,6 +396,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>Whether the rail is actually on screen: wanted, and affordable.</summary>
     public bool ShowVariableRail => IsVariableRailVisible && IsRailAffordable;
 
+    /// <summary>
+    /// True when the shell replaces navigation labels with the 52 px icon strip.
+    /// </summary>
+    /// <remarks>
+    /// This is transient responsive state, never a preference: widening the window
+    /// restores the complete rail automatically.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool IsNavigationCompact { get; set; }
+
     // ── Liveness ─────────────────────────────────────────────────────────────
 
     /// <summary>

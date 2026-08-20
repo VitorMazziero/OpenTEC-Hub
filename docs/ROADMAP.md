@@ -186,9 +186,10 @@ valves · Pressure. Nothing else.
 v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV that
 the existing analysis scripts read without modification.
 
-> **Status 2026-08-20:** every software deliverable above has shipped. The exit criteria
-> are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are. Phase 1b
-> WP1-WP8 are complete; the remaining verification gates are listed below.
+> **Status 2026-08-20:** Phase 1 and Phase 1b are **software-complete**. Every deliverable
+> above, WP1-WP8, the professional reactor synoptic and the responsive shell closure have
+> shipped. The cultivation exit gate remains **hardware-pending**: only a real
+> bioreactor run can establish end-to-end process performance and replace v.6.
 
 ---
 
@@ -385,8 +386,9 @@ numerically rather than hand-placed.
 - [x] Collapsible variable rail ([§4.3](UI_DESIGN.md#43-variable-rail--220-250-px-collapsed-by-default))
 - [x] Responsive: rail folds away below 1400 px, detail pane becomes a drawer below
       1200 px ([§4.7](UI_DESIGN.md#47-responsive-behaviour))
-- [ ] Nav rail collapsing to a 52 px icon strip between 1200-1400 px — **not done**, the
-      one part of §4.7 still outstanding
+- [x] Nav rail collapses to a 52 px icon strip below 1400 px; labels remain available as
+      automation names/tooltips, and the complete rail returns without changing a saved
+      preference
 
 **Open decisions — resolved as recommended:**
 
@@ -455,9 +457,10 @@ numerically rather than hand-placed.
       carried two viewers of the same six variables; the variable rail is now the single
       variable display and is no longer optional. The strip lives on as
       `Views/KpiStripView.xaml`, built and unplaced until Phase 3
-- [x] **Photoreal reactor render specified** — [D-012](DECISIONS.md) and
-      [UI_DESIGN §5.1.1](UI_DESIGN.md#511-the-reactor-image). Approach agreed, asset not
-      yet produced
+- [x] **Photoreal reactor render implemented** — [D-012](DECISIONS.md),
+      [UI_DESIGN §5.1.1](UI_DESIGN.md#511-the-reactor-image) and
+      [ASSET_PROVENANCE](ASSET_PROVENANCE.md). One true-alpha neutral master serves both
+      themes; calibrated native overlays and a vector decode fallback remain editable
 
 **Acceptance — met:**
 
@@ -530,7 +533,29 @@ Eventos, a 1450×850 window at (140, 90), and the expanded variable rail restore
 full close/relaunch. 185/185 tests pass; the fresh run contained zero XAML binding
 failures or fatal exceptions. Evidence is in `docs/evidence/ui/wp8-*.png`.
 
-### Open decisions for Phase 1b
+### Phase 1 visual and responsive closure — **done 2026-08-20**
+
+- [x] Replaced the schematic as the normal path with a 1024 × 1536 true-alpha PBR
+      equipment render. The accepted structure has a double-wall jacket, top drive and
+      entries, process probes, two Rushton turbine levels, a shaft that ends below the
+      lower turbine, and a separately fed annular sparger
+- [x] Kept readings, units, state dots, leader lines, selection, focus and hit targets as
+      theme-aware WPF overlays; added the previously missing pH callout and an explicit
+      `Equipamento vazio · nível não monitorado` state
+- [x] Repainted the inline ScottPlot trend after a live theme switch so the dark Painel
+      has no white foreign plotting surface
+- [x] Closed the final responsive backlog item with the specified 52 px navigation rail
+      at 1200-1400 px (and the same compact mode below 1200 px)
+- [x] Added regression coverage for RGBA encoding, transparent canvas, asset dimensions,
+      normalized anchors, fallback wiring and compact navigation. **190/190 tests pass**
+- [x] Final evidence: `phase1-final-painel-{light,dark}.png` and
+      `phase1-final-responsive-1280.png`
+
+This closes the Phase 1/1b software scope. It does **not** close the cultivation gate:
+the generated equipment is a visual asset, simulator data is not biological validation,
+and the real bioreactor still has to demonstrate the locked exit criterion above.
+
+### Resolved decisions for Phase 1b
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -538,17 +563,20 @@ failures or fatal exceptions. Evidence is in `docs/evidence/ui/wp8-*.png`.
 | 2 | **Ship the variable rail in 1b, or defer it?** | **Ship it.** It changes the workspace column grid, and retrofitting a column after four more pages exist is the expensive order |
 | 3 | **Does `Modo` do anything before Phase 2?** With no cascade and no recipe engine, only `Manual` is reachable | Ship the control, wire the ownership plumbing, leave `Automático` and `Receita` disabled with a reason tooltip. The plumbing is what Phase 2 needs; adding it later means revisiting every control |
 
-**Phase 1b exit criteria — all verifiable against the simulator, no bioreactor required:**
+**Phase 1b exit criteria — closed against tests and the simulator:**
 
-1. [ ] Every page passes a light/dark render check with no default WPF chrome and no
-       colour literals in the Views.
-2. [ ] Twelve KPI tiles can be pinned and remain reachable at 1280 px.
+1. [x] Every current page passes light/dark review with no default WPF chrome; the
+       resource suite rejects colour literals in Views.
+2. [x] **Superseded by [D-011](DECISIONS.md):** process pages use the scrolling variable
+       rail, not KPI tiles. `KpiStripView` remains scrollable and reserved for the Phase 3
+       recipe surface, where twelve-variable reachability becomes relevant.
 3. [x] Valve control sends the correct bytes, verified by golden-string test, including
        the `v_Flow` inversion.
-4. [ ] Killing the simulator mid-run degrades every readout to `—` and turns
-       `Última atualização` to warning, with no stale value presented as live.
+4. [x] A stalled simulator degrades every readout to `—` and turns
+       `Última atualização` to warning before the transport gives up (`wp4-stalled-link.png`).
 5. [x] Both destructive device commands require confirmation.
-6. [ ] Screenshot evidence per page refreshed in `docs/evidence/ui/`.
+6. [x] Page/WP and final Painel screenshots are in `docs/evidence/ui/`, including both
+       themes and the 1280 px compact-shell breakpoint.
 
 ---
 

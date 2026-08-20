@@ -62,6 +62,7 @@ public partial class TrendSpark : UserControl
 
     private readonly WpfPlot _plot = new();
     private readonly DispatcherTimer _redraw = new() { Interval = TimeSpan.FromSeconds(1) };
+    private System.Windows.Media.SolidColorBrush? _themeSentinel;
 
     public TrendSpark()
     {
@@ -74,6 +75,7 @@ public partial class TrendSpark : UserControl
 
         Loaded += (_, _) =>
         {
+            SubscribeToThemeChanges();
             StylePlot();
             Redraw();
             _redraw.Start();
@@ -81,7 +83,11 @@ public partial class TrendSpark : UserControl
 
         // Stopping on unload matters: the detail pane is re-created as the selection
         // changes, and a timer per abandoned instance is a slow leak of UI-thread work.
-        Unloaded += (_, _) => _redraw.Stop();
+        Unloaded += (_, _) =>
+        {
+            _redraw.Stop();
+            UnsubscribeFromThemeChanges();
+        };
     }
 
     /// <summary>Series to draw. Null draws nothing.</summary>
@@ -134,6 +140,54 @@ public partial class TrendSpark : UserControl
         }
 
         return fallback;
+    }
+
+    /// <summary>
+    /// ScottPlot is not in WPF's resource tree, so repaint it when the shared surface
+    /// brush changes. ThemeService updates that brush in place on every live switch.
+    /// </summary>
+    private void SubscribeToThemeChanges()
+    {
+        var sentinel = Application.Current?.TryFindResource("SurfaceCardBrush")
+            as System.Windows.Media.SolidColorBrush;
+
+        if (ReferenceEquals(_themeSentinel, sentinel))
+        {
+            return;
+        }
+
+        UnsubscribeFromThemeChanges();
+        _themeSentinel = sentinel;
+
+        if (_themeSentinel is not null)
+        {
+            _themeSentinel.Changed += OnThemeSentinelChanged;
+        }
+    }
+
+    private void UnsubscribeFromThemeChanges()
+    {
+        if (_themeSentinel is not null)
+        {
+            _themeSentinel.Changed -= OnThemeSentinelChanged;
+            _themeSentinel = null;
+        }
+    }
+
+    private void OnThemeSentinelChanged(object? sender, EventArgs e)
+    {
+        // ThemeService repaints all shared brushes in one synchronous pass. Queueing
+        // after that pass ensures surface, grid, text and series colours are all final.
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            if (!IsLoaded)
+            {
+                return;
+            }
+
+            StylePlot();
+            Redraw();
+        });
     }
 
     private void StylePlot()

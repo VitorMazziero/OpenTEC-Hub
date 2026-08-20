@@ -146,6 +146,7 @@ public partial class MainWindow : Window
         if (DataContext is ViewModels.ShellViewModel shell)
         {
             shell.IsRailAffordable = ActualWidth >= VariableRailMinimumWidth;
+            shell.IsNavigationCompact = ActualWidth < VariableRailMinimumWidth;
         }
 
         // The HOSTS are toggled, never the panes inside them. Each host holds both a

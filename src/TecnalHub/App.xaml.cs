@@ -119,6 +119,7 @@ public partial class App : Application
 
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();
+        services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ShellViewModel>();
     }
 

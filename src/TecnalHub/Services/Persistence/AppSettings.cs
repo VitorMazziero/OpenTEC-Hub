@@ -36,11 +36,26 @@ public sealed record AppSettings
 
     public CalibrationSettings Calibration { get; init; } = new();
 
+    public FilterSettings Filters { get; init; } = new();
+
     public SetpointSettings Setpoints { get; init; } = new();
 
     public LoggingSettings Logging { get; init; } = new();
 
     public ThemePreference Theme { get; init; } = ThemePreference.System;
+
+    /// <summary>Projects calibration and filter settings onto the protocol layer.</summary>
+    public ParserConfig ToParserConfig() => new()
+    {
+        OxygenCalibrationA = Calibration.OxygenA,
+        OxygenCalibrationB = Calibration.OxygenB,
+        PHSlope = Calibration.PHSlope,
+        PHIntercept = Calibration.PHIntercept,
+        PHFilter = new SpikeFilterConfig(
+            Filters.PHAbsoluteThreshold, Filters.PHFollowTolerance, Filters.PHConfirmRuns),
+        OxygenFilter = new SpikeFilterConfig(
+            Filters.OxygenAbsoluteThreshold, Filters.OxygenFollowTolerance, Filters.OxygenConfirmRuns),
+    };
 }
 
 /// <summary>How and where to reach the controller.</summary>
@@ -85,14 +100,32 @@ public sealed record CalibrationSettings
     public double PHSlope { get; init; } = 0.0005012405704;
     public double PHIntercept { get; init; } = -0.600385955239;
 
-    /// <summary>Projects these coefficients onto the protocol layer's parser config.</summary>
-    public ParserConfig ToParserConfig() => new()
-    {
-        OxygenCalibrationA = OxygenA,
-        OxygenCalibrationB = OxygenB,
-        PHSlope = PHSlope,
-        PHIntercept = PHIntercept,
-    };
+    /// <summary>Decodes a raw oxygen count with these coefficients.</summary>
+    public double DecodeOxygen(double raw) => Math.Max((OxygenA * raw) + OxygenB, 0.0);
+
+    /// <summary>Decodes a raw pH count with these coefficients.</summary>
+    public double DecodePH(double raw) => (PHSlope * raw) + PHIntercept;
+}
+
+/// <summary>
+/// Spike-filter tuning, per channel.
+/// </summary>
+/// <remarks>
+/// <b>These thresholds are in raw ADC counts, not engineering units.</b> Re-calibrating
+/// a channel therefore changes what the filter considers a spike. That coupling is
+/// inherited from v.6 and is a known defect - see <c>docs/MIGRATION.md</c> item 4. It is
+/// surfaced here rather than hidden so that anyone tuning one is at least aware of the
+/// other.
+/// </remarks>
+public sealed record FilterSettings
+{
+    public double PHAbsoluteThreshold { get; init; } = 500.0;
+    public double PHFollowTolerance { get; init; } = 200.0;
+    public int PHConfirmRuns { get; init; } = 3;
+
+    public double OxygenAbsoluteThreshold { get; init; } = 150.0;
+    public double OxygenFollowTolerance { get; init; } = 50.0;
+    public int OxygenConfirmRuns { get; init; } = 3;
 }
 
 /// <summary>

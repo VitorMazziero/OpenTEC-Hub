@@ -36,6 +36,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IThemeService theme,
         ConnectionViewModel connection,
         ChartsViewModel charts,
+        SettingsViewModel settings_,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
         ILogger<ShellViewModel> log)
@@ -48,6 +49,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _log = log;
         Connection = connection;
         Charts = charts;
+        Settings = settings_;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1);
         // No RPM feedback exists on the wire, so this variable can only ever show
@@ -120,6 +122,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public ConnectionViewModel Connection { get; }
 
     public ChartsViewModel Charts { get; }
+
+    public SettingsViewModel Settings { get; }
 
     /// <summary>True while telemetry rows are being appended to the session log.</summary>
     public bool IsLogging => _sessionLogger.IsLogging;

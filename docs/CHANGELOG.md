@@ -6,6 +6,34 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.6.0] - 2026-08-19
+
+Advanced settings - **Phase 1 complete**.
+
+### Added
+- **Settings page** - connection options, probe calibration, spike-filter tuning,
+  session-log path, theme, and the device commands (reset variables, restart
+  communications, restore factory values).
+- Edits are **staged and applied together**, with Revert. Calibration coefficients are
+  a pair; applying a new slope against an old intercept would put wrong numbers on
+  screen and into the log.
+- **Live calibration preview** - what the current raw count decodes to with the
+  coefficients as typed.
+- `FilterSettings` in the persisted settings record, and `AppSettings.ToParserConfig()`
+  now carries filter tuning through to the running parser.
+- `docs/evidence/ui/` - a capture of every page, for the Phase 5 interface review.
+
+### Changed
+- Advanced settings is a **page**, not the separate window UI_DESIGN specified. The nav
+  rail already had the slot, the KPI strip keeps safety context visible, and it is one
+  implementation rather than two. Doc updated to match.
+
+### Fixed
+- The calibration preview was computed once before any telemetry arrived and never
+  recomputed, so it read "sem leitura bruta disponível" permanently.
+
+---
+
 ## [0.5.0] - 2026-08-19
 
 Charts and session logging - Phase 1 feature-complete.

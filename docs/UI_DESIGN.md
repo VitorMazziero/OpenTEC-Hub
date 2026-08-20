@@ -139,10 +139,23 @@ The diagnostics in the popover are the fields v.6 already parses but never showe
 `FlowCommandDeliveries`, `FlowCommandAgeMs`, ack correlation
 ([MIGRATION.md](MIGRATION.md#3-known-defects-carried-in-from-v6) item 8).
 
-**Advanced Settings** remains a real window, reachable from the popover and from the
-nav rail, holding everything that is genuinely configuration: calibration coefficients,
-spike-filter tuning, control intervals, serial frame parameters, log paths, gassing-out
-constants. Nothing is removed — it is just no longer in the way.
+**Advanced Settings** holds everything that is genuinely configuration: calibration
+coefficients, spike-filter tuning, connection options, log paths, appearance and the
+device commands. Nothing is removed — it is just no longer in the way.
+
+> **Built as a page, not a window.** This section originally specified a separate
+> window. A page won on three counts: the nav rail already had the slot, the KPI strip
+> stays visible so no safety context is lost, and it is one implementation rather than
+> two. The popover's "Configurações avançadas" button navigates to it.
+
+Edits are **staged and applied together**, not written per keystroke. Calibration is
+the reason: coefficients are entered as a pair, and applying a new slope against an old
+intercept — even for the half-second before the second field is typed — would put
+visibly wrong numbers on screen and into the session log.
+
+Each calibration pair shows a **live preview** of what the current raw count decodes
+to. `0.0305473419314` looks exactly as plausible as `0.305473419314`; only the decoded
+value tells them apart.
 
 ---
 

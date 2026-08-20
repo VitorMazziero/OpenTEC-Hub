@@ -177,6 +177,8 @@ valves · Pressure. Nothing else.
 - [x] Serilog rolling file
 - [x] In-app log pane (device messages + logging control)
 - [x] Light/dark toggle following the Windows system theme
+- [x] Advanced settings — calibration, spike filters, connection options, logging,
+      appearance, device commands
 
 **Exit criteria:** a real cultivation run controlled end-to-end by TECNAL-Hub with
 v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV that
@@ -257,6 +259,53 @@ make while re-implementing, rather than copying forward:
 - [ ] First-run experience when no hardware is present
 - [ ] Operator documentation in pt-BR
 - [ ] Startup-time regression test in CI
+
+---
+
+## Phase 5 — Interface refinement
+
+**Goal:** close the gaps that only become visible once the whole app can be walked
+through, and prepare the shell for the subsystems Phases 2-3 add.
+
+Seeded from a review of every page (`docs/evidence/ui/`). **Not yet agreed** — this
+list is the starting point for that conversation, not a commitment.
+
+### Scale — the shell was built for five variables, not twelve
+
+- [ ] **KPI strip** holds five tiles today. Phases 2-3 bring roughly twelve. It needs
+      to wrap, scroll, or let the operator pin a subset — a strip that silently drops
+      tiles off the edge is worse than one that admits it cannot fit them.
+- [ ] **Synoptic** covers the core loop only. Pumps, valves, biomass and the agitator
+      flask have no position on the drawing yet.
+- [ ] **Settings** is already a long scroll and gains a section per subsystem. Needs
+      in-page section navigation.
+
+### Safety and feedback
+
+- [ ] **No confirmation on destructive device commands.** "Resetar variáveis do módulo"
+      and "Reiniciar comunicações" act immediately, mid-cultivation, on one click.
+      They should confirm.
+- [ ] **No alarm surface.** v.6 had an audible alarm and an alarm state; the state
+      colours exist here but nothing raises or acknowledges an alarm.
+- [ ] **No "all setpoints at a glance" view.** The detail pane deliberately shows one
+      subsystem at a time, which is right for editing and wrong for verifying a run's
+      configuration before starting it.
+
+### Gaps against v.6
+
+- [ ] **Chart export.** v.6 exported a PNG per parameter; nothing here does.
+- [ ] **pH calibration wizard** (one-point and two-point). v.6 had both; this app
+      currently only accepts coefficients typed directly.
+- [ ] **Flow calibration dialog** — the two-segment curve at 0.0545 V.
+
+### Polish
+
+- [ ] Nav rail has no icons (the `Glyph` field is present and unused).
+- [ ] Window size, position and last page are not persisted.
+- [ ] The log page is mostly empty space, and shows nothing at all over Wi-Fi because
+      `[ESP32_` lines only appear on the serial stream. It should also surface the
+      session-log file: row count, size, and a way to open its folder.
+- [ ] No keyboard shortcuts, and no focus order worth the name.
 
 ---
 

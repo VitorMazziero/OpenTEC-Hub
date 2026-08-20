@@ -76,7 +76,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
 
         _manager = new ConnectionManager(
             new ConnectionOptions { BackupEnabled = settings.Current.Connection.BackupEnabled },
-            settings.Current.Calibration.ToParserConfig(),
+            settings.Current.ToParserConfig(),
             loggerFactory);
 
         _manager.StateChanged += OnStateChanged;
@@ -179,7 +179,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
             cancellationToken);
 
     private void OnSettingsChanged(AppSettings settings)
-        => _manager.Reconfigure(settings.Calibration.ToParserConfig());
+        => _manager.Reconfigure(settings.ToParserConfig());
 
     // ------------------------------------------------------------------
     // Event marshalling

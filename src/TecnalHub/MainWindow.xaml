@@ -222,6 +222,13 @@
                                     <Button Content="Parar" Padding="10,4"
                                             Command="{Binding DisconnectCommand}" />
                                 </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                    <Button Content="Configurações avançadas" Padding="10,4"
+                                            Command="{Binding DataContext.NavigateCommand,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="settings" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -399,12 +406,10 @@
                   Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
                                        ConverterParameter=settings}">
                 <Border CornerRadius="{StaticResource RadiusMedium}"
-                        Background="{DynamicResource SurfaceCardBrush}"
+                        Background="{DynamicResource SurfaceBaseBrush}"
                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
                         BorderThickness="1">
-                    <TextBlock Text="Configurações avançadas em construção."
-                               Style="{StaticResource CaptionTextStyle}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <views:SettingsView DataContext="{Binding Settings}" />
                 </Border>
             </Grid>
         </Grid>

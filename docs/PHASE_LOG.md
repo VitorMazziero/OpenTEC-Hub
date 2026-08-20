@@ -506,3 +506,49 @@ would on the wire. There is a test that asserts this under a `pt-BR` culture.
 **Consequence:** `BuildRow` is `internal` with `InternalsVisibleTo` for the tests.
 Widening the public surface just to assert on an implementation detail would have been
 the wrong trade; leaving a contract untested would have been worse.
+
+---
+
+### P1-16 · Advanced settings is a page, not a window
+
+**Decided:** built as a page in the nav rail, contrary to [UI_DESIGN](UI_DESIGN.md),
+which had specified a separate window.
+
+**Why:** the nav rail already had the slot; the KPI strip stays visible so no safety
+context is lost by navigating there; and it is one implementation rather than two. The
+popover's "Configurações avançadas" button navigates to it, which was the only thing
+the window arrangement bought.
+
+**Consequence:** UI_DESIGN updated rather than left to disagree with the code.
+
+---
+
+### P1-17 · Settings edits are staged, not applied per keystroke
+
+**Decided:** every field stages, and one Apply writes them together.
+
+**Why:** calibration coefficients are entered as a **pair**. Applying a new slope
+against an old intercept - even for the half-second before the second field is typed -
+would put visibly wrong numbers on screen and into the session log. Staging also makes
+Revert meaningful and gives "restore factory values" somewhere safe to land.
+
+**Also:** each pair shows a live preview of what the current raw count decodes to.
+Coefficients are otherwise impossible to sanity-check by eye - `0.0305473419314` looks
+exactly as plausible as `0.305473419314`, and only the decoded value reveals which is
+right.
+
+**Bug found doing it:** the preview was computed once at construction, before any
+telemetry had arrived, and never recomputed - so it read "sem leitura bruta disponível"
+permanently. It now re-evaluates on each frame.
+
+---
+
+### P1-18 · Spike-filter thresholds surfaced, not hidden
+
+**Decided:** the filter tuning card carries an explicit note that its thresholds are in
+raw ADC counts, not engineering units.
+
+**Why:** that coupling is a known v.6 defect ([MIGRATION](MIGRATION.md) item 4) -
+recalibrating a probe silently changes what the filter treats as a spike. It cannot be
+fixed without a bench comparison, so the next best thing is to make sure anyone tuning
+one knows about the other. Hiding a known sharp edge is worse than labelling it.

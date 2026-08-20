@@ -156,6 +156,18 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Disconnect() => _device.Disconnect();
 
+    /// <summary>Explicit operator reconnect used by F5 and the command palette.</summary>
+    [RelayCommand]
+    private void Reconnect()
+    {
+        if (State != ConnectionState.Disconnected)
+        {
+            _device.Disconnect();
+        }
+
+        Connect();
+    }
+
     [RelayCommand]
     private void RefreshPorts()
     {

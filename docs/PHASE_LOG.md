@@ -688,3 +688,32 @@ otherwise leave as `36.99999999999999` °C.
 events, session header/rows/duration, pressure round trips, Fahrenheit command bytes,
 event initialization and default-cancel reset/restart behavior. The existing
 SkiaSharp `NU1701` warning remains unchanged.
+
+---
+
+### P1B-09 · Keyboard actions are searchable and unavailable actions stay honest
+
+**Decided:** the shell owns one searchable catalog for its present pages and global
+actions. `Ctrl+1`–`Ctrl+6` navigate the six current destinations; the handler reserves
+slots 7–8. `Ctrl+K` opens the catalog, `Ctrl+R` toggles the optional variable rail, `F5`
+performs an explicit disconnect/connect sequence, `Space` pauses Gráficos away from
+interactive controls, and `Esc` dismisses the active shell context.
+
+`Ctrl+S` is claimed now but does not simulate recipe persistence. It opens a disabled
+`Salvar receita` result saying that the editor arrives in Phase 3. This keeps the final
+operator map stable without implying a capability that does not exist.
+
+**Persistence boundary:** settings store normal window bounds, maximized state and the
+last page as plain serializable values. A platform resolver clamps valid geometry and
+centres an off-screen window after monitor changes. The WPF window is the only layer that
+reads or writes `Rect` values.
+
+**Runtime evidence:** UI Automation exercised the keyboard map against the localhost
+simulator. F5 produced Disconnected → Connecting → Connected journal entries; after a
+full close and relaunch, Eventos, the expanded variable rail and bounds (140, 90,
+1450×850) were restored exactly. A Tab traversal displayed the shared 2 px accent focus
+ring. Screenshots: `wp8-command-palette.png` and `wp8-keyboard-focus.png`.
+
+**Test evidence:** 185/185 pass. The fresh runtime interval contains no XAML binding
+failure, fatal exception or unhandled exception; the existing SkiaSharp `NU1701` warning
+is unchanged.

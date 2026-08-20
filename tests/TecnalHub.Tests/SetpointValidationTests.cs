@@ -10,6 +10,14 @@ internal sealed class RecordingDeviceService : IDeviceService
 {
     public List<string> Sent { get; } = [];
 
+    public int ConnectCalls { get; private set; }
+
+    public int DisconnectCalls { get; private set; }
+
+    public List<string> UsbConnections { get; } = [];
+
+    public List<string> WiFiConnections { get; } = [];
+
     public ConnectionState State => ConnectionState.Connected;
 
     public TransportMedium? Medium => TransportMedium.Usb;
@@ -37,18 +45,22 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public void Connect()
     {
+        ConnectCalls++;
     }
 
     public void ConnectUsb(string portName)
     {
+        UsbConnections.Add(portName);
     }
 
     public void ConnectWiFi(string ipAddress)
     {
+        WiFiConnections.Add(ipAddress);
     }
 
     public void Disconnect()
     {
+        DisconnectCalls++;
     }
 
     public Task<string?> DiscoverUsbPortAsync(CancellationToken cancellationToken = default)

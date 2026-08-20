@@ -56,7 +56,7 @@ public partial class App : Application
         _services.GetRequiredService<IThemeService>().Apply(settings.Current.Theme);
 
         var shell = _services.GetRequiredService<ShellViewModel>();
-        var window = new MainWindow { DataContext = shell };
+        var window = new MainWindow(settings) { DataContext = shell };
 
         window.ContentRendered += OnShellRendered;
         MainWindow = window;

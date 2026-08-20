@@ -6,6 +6,46 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.9.0] - 2026-08-20
+
+Phase 1b WP8 — persistent shell placement and complete keyboard operation.
+
+### Added
+- Persisted normal window bounds, maximized state and the last valid page, all stored by
+  stable fields in the typed settings record. Invalid or off-screen bounds recover into
+  the current virtual desktop instead of reopening an unreachable window.
+- `Ctrl+K` command palette with searchable pages and shell actions, keyboard cycling,
+  Enter execution, Escape dismissal, disabled-action reasons and focus restoration.
+- Keyboard map for current destinations (`Ctrl+1`–`Ctrl+6`), variable rail (`Ctrl+R`),
+  reconnect (`F5`), chart pause/resume (`Space`) and contextual dismissal (`Esc`). Slots
+  `Ctrl+7`–`Ctrl+8` remain reserved for later roadmap destinations.
+- A shared 2 px accent focus adorner applied to buttons, fields, selectors, switches,
+  tabs, expanders and custom list-item containers.
+
+### Changed
+- `Ctrl+S` is reserved for the Phase 3 recipe editor. Today it opens the command palette
+  on a disabled `Salvar receita` action whose reason is explicit; it never invents a save.
+- Space pauses charts only when focus is not owned by an interactive input or selector.
+
+### Fixed
+- The destructive-command preview's read-only field now binds one-way, avoiding a
+  binding write attempt when the dialog opens.
+- Closing the command palette by its button or outside click restores the prior keyboard
+  target as reliably as Escape and command execution.
+
+### Verified
+- 185/185 tests pass, including window recovery, reconnect ordering, accessibility
+  resources and command-palette structure.
+- Live simulator review exercised numbered navigation, chart pause/resume, command
+  search, the Phase 3 recipe reservation, variable-rail toggle and F5 reconnect.
+- A 1450×850 window at (140, 90), Eventos and the expanded variable rail all restored on
+  relaunch; the fresh run logged zero XAML binding failures or fatal exceptions.
+- Evidence: `docs/evidence/ui/wp8-command-palette.png` and
+  `docs/evidence/ui/wp8-keyboard-focus.png`. The existing `SkiaSharp.Views.WPF` `NU1701`
+  compatibility warning remains unchanged.
+
+---
+
 ## [0.8.0] - 2026-08-20
 
 Phase 1b WP7 — completed pages, history/audit tooling, and display units.

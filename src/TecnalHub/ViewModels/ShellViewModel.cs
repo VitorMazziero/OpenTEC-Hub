@@ -88,6 +88,14 @@ public sealed partial class KpiOption : ObservableObject
 /// </param>
 public sealed record NavigationItem(string Id, string Label, string Glyph, bool StartsGroup = false);
 
+/// <summary>One searchable page or action exposed by the Ctrl+K palette.</summary>
+public sealed record CommandPaletteEntry(
+    string Id,
+    string Label,
+    string Hint,
+    bool IsAvailable = true,
+    string UnavailableReason = "");
+
 /// <summary>
 /// Shell state: navigation, the always-visible KPI strip, and the live variables.
 /// </summary>
@@ -104,6 +112,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
     private readonly ILogger<ShellViewModel> _log;
+    private readonly IReadOnlyList<CommandPaletteEntry> _commandPaletteCatalog;
     private UnitSettings _appliedUnits;
 
     /// <summary>Drives the liveness check and the status-bar clock.</summary>
@@ -227,7 +236,22 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("events", "Eventos", "EventLog"),
             new NavigationItem("settings", "Configurações", "Gear", StartsGroup: true),
         ];
-        SelectedNavigationId = "dashboard";
+        _commandPaletteCatalog =
+        [
+            .. NavigationItems.Select((item, index) =>
+                new CommandPaletteEntry($"nav:{item.Id}", item.Label, $"Ctrl+{index + 1}")),
+            new("rail", "Alternar barra de variáveis", "Ctrl+R"),
+            new("reconnect", "Reconectar ao equipamento", "F5"),
+            new("charts-pause", "Pausar / continuar gráficos", "Espaço"),
+            new("theme", "Alternar tema claro / escuro", ""),
+            new("recipe-save", "Salvar receita", "Ctrl+S", IsAvailable: false,
+                UnavailableReason: "Disponível quando o editor de receitas entrar na Fase 3."),
+        ];
+        RebuildCommandPalette();
+
+        SelectedNavigationId = NavigationItems.Any(item => item.Id == settings.Current.Ui.LastPage)
+            ? settings.Current.Ui.LastPage
+            : "dashboard";
 
         SelectedMode = ModeOptions[0];
 
@@ -316,6 +340,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
 
     public IReadOnlyList<NavigationItem> NavigationItems { get; }
+
+    public ObservableCollection<CommandPaletteEntry> CommandPaletteResults { get; } = [];
 
     // ── Command ownership ────────────────────────────────────────────────────
 
@@ -441,6 +467,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string SelectedNavigationId { get; set; }
 
+    [ObservableProperty]
+    public partial bool IsCommandPaletteOpen { get; set; }
+
+    [ObservableProperty]
+    public partial string CommandSearchText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial CommandPaletteEntry? SelectedCommandPaletteEntry { get; set; }
+
     /// <summary>The variable whose controls fill the detail pane.</summary>
     [ObservableProperty]
     public partial ProcessVariableViewModel? SelectedVariable { get; set; }
@@ -471,7 +506,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public partial bool IsSensorModuleOffline { get; set; }
 
     [RelayCommand]
-    private void Navigate(string id) => SelectedNavigationId = id;
+    private void Navigate(string id)
+    {
+        if (NavigationItems.Any(item => item.Id == id))
+        {
+            SelectedNavigationId = id;
+        }
+    }
 
     /// <summary>Opens a Controle table row in the process-first dashboard.</summary>
     [RelayCommand]
@@ -482,6 +523,89 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     }
 
     private void OnOpenGraphsRequested() => SelectedNavigationId = "charts";
+
+    partial void OnSelectedNavigationIdChanged(string value)
+    {
+        if (!_uiLoaded || !NavigationItems.Any(item => item.Id == value))
+        {
+            return;
+        }
+
+        _settings.Update(settings => settings with
+        {
+            Ui = settings.Ui with { LastPage = value },
+        });
+    }
+
+    // ── Command palette ------------------------------------------------------
+
+    [RelayCommand]
+    private void OpenCommandPalette()
+    {
+        CommandSearchText = "";
+        RebuildCommandPalette();
+        IsCommandPaletteOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseCommandPalette() => IsCommandPaletteOpen = false;
+
+    [RelayCommand]
+    private void ExecuteCommandPaletteEntry(CommandPaletteEntry? entry)
+    {
+        if (entry is not { IsAvailable: true })
+        {
+            return;
+        }
+
+        if (entry.Id.StartsWith("nav:", StringComparison.Ordinal))
+        {
+            Navigate(entry.Id[4..]);
+        }
+        else
+        {
+            switch (entry.Id)
+            {
+                case "rail":
+                    ToggleVariableRail();
+                    break;
+                case "reconnect":
+                    Connection.ReconnectCommand.Execute(null);
+                    break;
+                case "charts-pause":
+                    SelectedNavigationId = "charts";
+                    Charts.TogglePauseCommand.Execute(null);
+                    break;
+                case "theme":
+                    ToggleTheme();
+                    break;
+            }
+        }
+
+        IsCommandPaletteOpen = false;
+    }
+
+    partial void OnCommandSearchTextChanged(string value) => RebuildCommandPalette();
+
+    private void RebuildCommandPalette()
+    {
+        var search = CommandSearchText.Trim();
+        var selectedId = SelectedCommandPaletteEntry?.Id;
+
+        CommandPaletteResults.Clear();
+        foreach (var entry in _commandPaletteCatalog.Where(entry =>
+                     search.Length == 0 ||
+                     entry.Label.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                     entry.Hint.Contains(search, StringComparison.CurrentCultureIgnoreCase)))
+        {
+            CommandPaletteResults.Add(entry);
+        }
+
+        SelectedCommandPaletteEntry =
+            CommandPaletteResults.FirstOrDefault(entry => entry.Id == selectedId) ??
+            CommandPaletteResults.FirstOrDefault(entry => entry.IsAvailable) ??
+            CommandPaletteResults.FirstOrDefault();
+    }
 
     // ── KPI strip ────────────────────────────────────────────────────────────
 

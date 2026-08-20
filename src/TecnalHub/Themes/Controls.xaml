@@ -10,6 +10,23 @@
          switch repaints these too.
          ══════════════════════════════════════════════════════════════════════ -->
 
+    <!-- Keyboard-only focus adorner shared by every custom control template.
+         It sits outside the control bounds, so a 2 px ring does not reflow forms. -->
+    <Style x:Key="KeyboardFocusVisualStyle">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-3"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            BorderThickness="2"
+                            CornerRadius="{DynamicResource RadiusSmall}">
+                        <AdornedElementPlaceholder />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ── Button ─────────────────────────────────────────────────────────── -->
     <Style TargetType="Button">
         <Setter Property="Background" Value="{DynamicResource SurfaceControlBrush}" />
@@ -20,6 +37,7 @@
         <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -79,6 +97,7 @@
         <Setter Property="Padding" Value="8,5" />
         <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
@@ -161,6 +180,7 @@
     <Style x:Key="IconToggleStyle" TargetType="ToggleButton">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Padding" Value="6" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
@@ -223,6 +243,7 @@
         <Setter Property="Padding" Value="10,5" />
         <Setter Property="MinHeight" Value="28" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
@@ -269,6 +290,7 @@
         <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
@@ -305,6 +327,7 @@
         <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
@@ -489,6 +512,7 @@
     <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Focusable" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="Template">
             <Setter.Value>
@@ -550,6 +574,7 @@
         <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
@@ -618,6 +643,7 @@
                     <StackPanel>
                         <ToggleButton x:Name="Header"
                                       Focusable="True" Cursor="Hand"
+                                      FocusVisualStyle="{StaticResource KeyboardFocusVisualStyle}"
                                       IsChecked="{Binding IsExpanded, Mode=TwoWay,
                                                   RelativeSource={RelativeSource TemplatedParent}}">
                             <ToggleButton.Template>
@@ -714,6 +740,7 @@
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
         <Setter Property="Padding" Value="0,7" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListViewItem">

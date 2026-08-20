@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json.Serialization;
 using TecnalHub.Protocol;
 
 namespace TecnalHub.Services.Persistence;
@@ -297,6 +298,33 @@ public sealed record UiSettings
     /// only when asked for. See <c>docs/UI_DESIGN.md</c> section 1.1.
     /// </summary>
     public bool ShowVariableRail { get; init; }
+
+    /// <summary>Last valid rail destination, stored by stable id rather than index.</summary>
+    public string LastPage { get; init; } = "dashboard";
+
+    /// <summary>Last normal window bounds and whether the window was maximized.</summary>
+    public WindowPlacementSettings Window { get; init; } = new();
+}
+
+/// <summary>Serializable WPF-window placement without any UI-framework types.</summary>
+public sealed record WindowPlacementSettings
+{
+    public double? Left { get; init; }
+
+    public double? Top { get; init; }
+
+    public double? Width { get; init; }
+
+    public double? Height { get; init; }
+
+    public bool IsMaximized { get; init; }
+
+    [JsonIgnore]
+    public bool HasBounds =>
+        Left is { } left && double.IsFinite(left) &&
+        Top is { } top && double.IsFinite(top) &&
+        Width is { } width && double.IsFinite(width) && width > 0 &&
+        Height is { } height && double.IsFinite(height) && height > 0;
 }
 
 /// <summary>Where session data is written.</summary>

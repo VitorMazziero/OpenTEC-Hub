@@ -83,7 +83,7 @@ ProjetoTECNAL/
 │     │  ├─ Control/            cascade + kLa path controllers
 │     │  ├─ Telemetry/          ring buffers, session files, audit journal
 │     │  ├─ Persistence/        typed settings, recipe storage
-│     │  ├─ Platform/           file dialogs, Explorer, clipboard boundary
+│     │  ├─ Platform/           file dialogs, Explorer, clipboard, window placement
 │     │  ├─ Dialogs/            IDialogService — VMs never open dialogs
 │     │  └─ Diagnostics/        logging, crash capture
 │     ├─ Converters/
@@ -110,6 +110,12 @@ and keeps every pt-BR user-facing string in one reviewable place.
 **Settings are a typed record**, serialised with `System.Text.Json`. This replaces
 v.6's 370 lines of hand-written `collect_preferences` / `apply_preferences` marshalling —
 the single biggest source of silently-lost settings in the old app.
+
+**Shell placement is persisted as data, not WPF objects.** `UiSettings` stores nullable
+normal bounds, maximized state and the last page's stable id. The platform resolver turns
+those values into a visible current-desktop rectangle; `MainWindow` alone applies and
+captures WPF geometry. A monitor-layout change therefore cannot strand the application
+off screen, and no UI-framework type leaks into the settings file.
 
 **Controle is another view of the core subsystem state, not a copy.** The all-setpoints
 table and the detail pane share the same `SubsystemViewModel` instances. A subsystem can

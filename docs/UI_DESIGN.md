@@ -1859,6 +1859,19 @@ Charts appear in four places, and all four use `TrendChart` ([6.6](#66-trendchar
 | Motion | Flow animation **off by default**; motion in peripheral vision competes with alarms |
 | Text scaling | Layout survives 125 % and 150 % Windows scaling without clipping |
 
+**Current WP8 implementation.** The six present destinations use `Ctrl+1`–`Ctrl+6`;
+the handler reserves `Ctrl+7`–`Ctrl+8` until their roadmap destinations exist. `Ctrl+S`
+is likewise reserved for Receitas: before Phase 3 it opens command search on a disabled
+`Salvar receita` entry and states why it is unavailable. `Space` pauses Gráficos only
+when an input, button, list item, tab or data-grid cell does not own the key. Closing the
+palette by Escape, its button, command execution or outside click restores the previous
+focus target.
+
+Window persistence stores the last normal bounds, maximized state and stable page id.
+Saved geometry is clamped to the current virtual desktop, with a centred fallback when
+too little of the old window remains visible after a monitor-layout change. Runtime
+evidence for the command palette and focus ring is in `docs/evidence/ui/wp8-*.png`.
+
 ---
 
 ## 12. Build order

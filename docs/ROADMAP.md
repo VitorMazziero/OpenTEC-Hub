@@ -187,8 +187,8 @@ v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV t
 the existing analysis scripts read without modification.
 
 > **Status 2026-08-20:** every software deliverable above has shipped. The exit criteria
-> are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are. Phase 1b WP8
-> below is the remaining work that can proceed while that hardware is unavailable.
+> are **blocked on the bioreactor**, exactly as Phase 0's items 3 and 4 are. Phase 1b
+> WP1-WP8 are complete; the remaining verification gates are listed below.
 
 ---
 
@@ -516,11 +516,19 @@ and rendered in the same two graph panels. Runtime review found and fixed the in
 filter-order crash and read-only detail binding. 178/178 tests pass; evidence is in
 `docs/evidence/ui/wp7-*.png`.
 
-### WP8 — Persistence and keyboard
+### WP8 — Persistence and keyboard — **done 2026-08-20**
 
-- [ ] Persist window size, position and last page (rail state and KPI configuration
+- [x] Persist window size, position and last page (rail state and KPI configuration
       already persist — done in WP4)
-- [ ] Keyboard map and focus order ([§11](UI_DESIGN.md#11-localisation-and-accessibility))
+- [x] Keyboard map, searchable command palette and 2 px focus treatment
+      ([§11](UI_DESIGN.md#11-localisation-and-accessibility)). `Ctrl+S` is reserved with
+      an explicit Phase 3 reason; `Ctrl+7`–`Ctrl+8` wait for their future destinations
+
+**Acceptance — met:** UI Automation exercised `Ctrl+3`, `Ctrl+4`, `Ctrl+5`, `Ctrl+K`,
+`Ctrl+R`, `Ctrl+S`, `F5`, `Space`, `Esc` and Tab against the live localhost simulator.
+Eventos, a 1450×850 window at (140, 90), and the expanded variable rail restored after a
+full close/relaunch. 185/185 tests pass; the fresh run contained zero XAML binding
+failures or fatal exceptions. Evidence is in `docs/evidence/ui/wp8-*.png`.
 
 ### Open decisions for Phase 1b
 

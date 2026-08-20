@@ -65,6 +65,7 @@
                          AutomationProperties.Name="Seções de configurações">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
+                            <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
                         </Style>

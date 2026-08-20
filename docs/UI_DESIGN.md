@@ -1,10 +1,10 @@
 # UI Design Specification
 
 > Visual language, shell anatomy and **every main window** of TECNAL-Hub.
-> Revised 2026-08-19 against the A/B concept mockups in `docs/UI_design_guides/`.
+> Revised 2026-08-20 against the A/B concept mockups and the implemented WP3 calibration workspace.
 >
 > **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Architecture](ARCHITECTURE.md) ·
-> [Protocol](PROTOCOL.md) · [Migration](MIGRATION.md) · [Decisions](DECISIONS.md) ·
+> [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [Decisions](DECISIONS.md) ·
 > [Conventions](CONVENTIONS.md)
 
 ---
@@ -13,7 +13,7 @@
 
 This is the **target** design, written before the UI grows large enough that changing it
 becomes expensive. Sections 1-4 are binding today. Section 5 specifies eight main
-windows, most of which do not exist yet; each one names the phase that builds it.
+windows; each one names the phase that builds or completes it.
 
 Three words are used precisely throughout:
 
@@ -21,7 +21,7 @@ Three words are used precisely throughout:
 |---|---|
 | **Main window** | A destination in the navigation rail. Implemented as a **page inside the single shell window**, never as a separate `Window`. See [D-006](DECISIONS.md). |
 | **Pane** | A persistent region of a page — the detail pane, the variable rail. |
-| **Dialog** | A genuine modal `Window`. There are five, listed in section 7. |
+| **Dialog** | A genuine modal `Window`. Four modal families are listed in section 7; calibration is intentionally a page. |
 
 > **Nothing here may contradict [PROTOCOL.md](PROTOCOL.md).** The firmware is frozen
 > ([D-002](DECISIONS.md)). Where the concept mockups show a value the wire cannot
@@ -106,7 +106,7 @@ which is the exact failure class [MIGRATION.md](MIGRATION.md) catalogues in v.6.
 | 9 | `Usuário: admin` | No authentication, no user model, no roles | Dropped. The slot holds the **command-ownership Modo** selector (4.2), which is load-bearing |
 | 10 | `Próxima ação: Alimentação de Nutriente em 02:15:30` | Only the recipe engine can know this (Phase 3) | `—` until a recipe is running |
 | 11 | `O₂ 40.2 %` | [PROTOCOL §2.1](PROTOCOL.md#21-client-side-signal-conditioning) names the calibration output `oxygen_mg_per_L`, while `oxygenMonitor` is a **% setpoint** | Display **% (saturação)**, matching the app today. **Flag:** the protocol doc is internally inconsistent here; confirm against live sensors before Phase 2 |
-| 12 | `pH 7.02` with a control panel | `pHval` is parsed, calibrated and echoed back as `pHCal` in Phase 1; `pHSetpoint` dosing is **Phase 2** | Phase 1: pH is a **read-only** KPI and chart channel. It gains setpoint, dosing and a control panel in Phase 2 |
+| 12 | `pH 7.02` with a control panel | `pHval` is parsed, calibrated and echoed back as `pHCal`; dosing is the separate five-field v.6 state | Phase 2 WP3 delivered the complete pH panel. Calibration remains app-side and starting its procedure interlocks dosing off |
 | 13 | `Alarmes` with a red badge `2` | **No alarm engine exists** ([ROADMAP](ROADMAP.md) Phase 5) | Badge and page are real design, but both depend on the alarm engine specified in 5.4. Until it ships, the nav item carries no badge |
 | 14 | — (absent from both mockups) | `agitatorAuto`, `agitatorPercent`, `agitatorDir`, `agitatorOn` | This is the **flask agitator, a separate bench device**, not the reactor impeller. It must not appear on the reactor synoptic. It gets its own card on Controle |
 | 15 | Nine KPI tiles fitting comfortably | Phase 1 has five variables; Phases 2-3 bring roughly twelve | The strip **scrolls and is user-configurable** (4.4). A strip that silently drops tiles off the edge is worse than one that admits it cannot fit them |
@@ -577,7 +577,7 @@ contributor to v.6's cold start. **Receitas is a main window**, not a dialog.
 | 5.4 | **Alarmes** | Active alarms, acknowledgement, limits | 5 |
 | 5.5 | **Históricos** | Trends, session files, export | 1 ✅ → 5 |
 | 5.6 | **Eventos** | Unified audit trail | 1 partial → 5 |
-| 5.7 | **Calibrações** | Calibration procedures with live feedback | 5 |
+| 5.7 | **Calibrações** | Calibration procedures with live feedback | 2 WP3 partial → 3 |
 | 5.8 | **Configurações** | Everything genuinely configuration | 1 ✅ |
 
 ### The device inventory
@@ -588,10 +588,10 @@ entities, derived from [PROTOCOL.md](PROTOCOL.md) — not from the mockups.
 | Id | Label (pt-BR) | Measured | Telemetry keys | Command keys | Phase |
 |---|---|---|---|---|---|
 | `temperature` | Temperatura | ✅ | `Tempval` | `tempSetpoint` | 1 |
-| `ph` | pH | ✅ | `pHval` → calibrated | `pHCal` echo; `pHSetpoint`, `pHError`, `pHOperation`, `pHMix`, `pHIntensity` | 1 read · 2 control |
+| `ph` | pH | ✅ | `pHval` → calibrated | `pHCal` echo; `pHSetpoint`, `pHError`, `pHOperation`, `pHMix`, `pHIntensity` | 1 read · 2 WP3 control/calibration |
 | `oxygen` | Oxigênio dissolvido | ✅ | `Oxyval` → calibrated | `oxygenMonitor` | 1 |
 | `motor` | Agitação | ❌ **commanded** | *none* | `motorSetpoint` | 1 |
-| `flow` | Vazão de ar | ✅ | `FlowRate`, `FlowSetpoint`, `FlowVoltage`, `FlowmeterOnline` | `flowmeterComm`, `flowSetpoint`, `maxFlow`, `v_Flow` | 1 |
+| `flow` | Vazão de ar | ✅ | `FlowRate`, `FlowSetpoint`, `FlowVoltage`, `FlowmeterOnline` | `flowmeterComm`, `flowSetpoint`, `maxFlow`, `v_Flow`; `k1..c2` calibration | 1 control · 2 WP3 calibration |
 | `valves` | Válvulas | ✅ state | `Valve1`, `Valve2`, `ValveFlow` | `valve_1`, `valve_2` | 1 |
 | `pressure` | Pressão | ✅ | `Pressure` | `pressureReference` | 1 |
 | `level` | Nível / espuma | ✅ | `Distance` | `distanceSensorComm`, `distanceSensorReference`, `foamStartDelay_s`, `foamPulse_s`, `foamInterval_s` | 2 |
@@ -788,7 +788,7 @@ Specified once in 6.1 and reused unchanged by every window that has one.
 
 **Purpose:** the two jobs the detail pane deliberately cannot do — *verify every setpoint
 before starting a run*, and *tune a controller*. **Phase 1** ships the setpoint table;
-**Phase 2** adds cascade and tuning.
+**Phase 2** adds cascade/tuning and the complete pH dosing card.
 
 > [ROADMAP](ROADMAP.md) Phase 5 records the gap directly: *"No 'all setpoints at a glance'
 > view. The detail pane deliberately shows one subsystem at a time, which is right for
@@ -827,7 +827,7 @@ Page footer:
 | `Reverter tudo` | secondary | Restores acknowledged values |
 | `Salvar como predefinição…` | secondary | Named setpoint set |
 | `Carregar predefinição ▾` | dropdown | Fills fields; **does not send** |
-| `⛔ Parada segura` | **danger** | Confirmation dialog (7.2). Sends every subsystem's safe-off, including the flow safe-stop that forces both valves closed |
+| `⛔ Parada segura` | **danger** | Confirmation dialog (7.2). Sends every subsystem's safe-off, including the flow safe-stop that forces both valves closed and the complete pH-off state |
 
 > **`Parada segura` is the only red button in the application.** Flow disable is not
 > merely zero flow: `flowmeterComm:0, flowSetpoint:0, v_Flow:1, valve_1:0, valve_2:0`,
@@ -839,7 +839,7 @@ Below the table, cards for subsystems that are not simple setpoints:
 |---|---|---|
 | **Válvulas** | `valve_1` aux toggle · `valve_2` N₂ toggle · `v_Flow` vent state (read-only, **derived and inverted** — shown so nobody has to remember the inversion) · `maxFlow` entry | 1 |
 | **Agitador de frasco** | `Ativo` · `Automático` · `Intensidade` 0-100 slider + entry · `Sentido` `Horário`/`Anti-horário` radio · `Reativar potenciômetro` button | 2 |
-| **Dosagem — pH** | `Operação (s)` · `Mistura (s)` · `Intensidade %` · `Erro permitido` · `Ativo` | 2 |
+| **Controle de pH** | `Setpoint` · `Banda inativa` · `Bomba ligada (s)` · `Repouso/mistura (s)` · `Velocidade %` · `Ativo`; all five wire fields are atomic | 2 WP3 — built |
 | **Dosagem — Nutriente** | `Operação` · `Mistura` · `Ciclo op.` · `Ciclo mist.` · `Intensidade %` · `Ativo` | 2 |
 | **Dosagem — Antiespumante** | `Operação` 0-999 · `Mistura` 1-999 · `Intensidade` 0-99 · `Ativo` | 2 |
 | **Controle de espuma** | `Sensor ativo` · `Referência (mm)` · `Atraso inicial (s)` · `Pulso (s)` · `Intervalo (s)` | 2 |
@@ -1529,50 +1529,56 @@ Toolbar: source multi-select · severity filter · text search · time range ·
 
 ### 5.7 Calibrações
 
-**Purpose:** run calibration *procedures* with live feedback. **Phase 5.**
+**Purpose:** run calibration *procedures* with live feedback. **Phase 2 WP3 built for
+pH, oxygen and airflow.** Level and biomass procedures remain Phase 3 work.
 
-Calibration is currently a set of coefficient fields buried in Configurações. That is a
-form, and calibration is a procedure: it needs the live raw count, a stabilisation wait,
-a computed result and an explicit accept step. v.6 had one-point and two-point pH
-wizards; this app has neither.
+Calibration is not a coefficient form. The dedicated destination uses three segmented
+tabs and keeps preparation, acquisition, the current curve, the proposed result and the
+explicit apply/send action visible together at 1280×800. The full operational contract is
+[CALIBRATION.md](CALIBRATION.md).
 
-A card per channel; each expands into a wizard.
+| Tab | Ownership | Implemented procedure |
+|---|---|---|
+| **pH** | App parser; accepted values return to the module as quoted `pHCal` | One point keeps the current slope; two points replace the pair. Twenty accepted raw frames establish stability (`sample σ < 5` by default), then twenty distinct frames are averaged |
+| **Oxigênio** | App parser only; there is no v.6 coefficient command | Direct two-point zero/span capture with the live raw and decoded values beside the current equation |
+| **Vazão de ar** | Dedicated flowmeter firmware | Certified real-flow rows, prepare/fine-adjust controls, ten-frame `FlowVoltage` average, live plot and the fixed two-segment 0.0545 V curve |
 
-| Card | Live readout | Coefficients | Wizard |
-|---|---|---|---|
-| **Oxigênio** | `Bruto 3734` → `88,96 %` | `oxy_a`, `oxy_b` | Zero (N₂ sparge) then span (air-saturated) |
-| **pH** | `Bruto 15200` → `7,02` | `ph_slope`, `ph_intercept` | One-point or two-point, buffer-driven |
-| **Vazão** | `0,0421 V` → `0,50 L/min` | `k1,f1,c1` / `k2,f2,c2` | Two-segment curve split at **0.0545 V** |
-| **Nível** | `Distance 120 mm` | reference offset | Single reference point at a known level |
-| **Biomassa** *(Phase 3)* | `Abs 0,42` · `Raw` · `IT` · `PWM` | blank + thresholds | Capture blank, then set `low`/`high`/`opt` |
+#### pH control and calibration interlock
 
-Every card shows: current coefficients, **live raw count**, **live decoded value**,
-`Aplicado em <data>`, `Assistente…`, `Editar coeficientes…`, and a history of applied
-calibrations with a `Reverter para esta` action.
+The five-field dosing panel (`setpoint`, inactive band, pump-on time, mix/rest time and
+speed) appears on Painel and Controle, not inside the calibration form. Starting either
+pH procedure first sends a **complete pH-off state**, then asks the operator to move the
+probe to the buffer. The pump stays off after cancel/apply; reactivation is explicit only
+after the probe returns to the vessel. Losing the link while waiting or acquiring refuses
+the run without changing coefficients.
 
-#### Wizard pattern
+The pH acquisition counts telemetry events, not timer polls, so the same device frame can
+never satisfy multiple samples. The review card shows the current and proposed equations.
+Equal raw means, non-finite results and degenerate slopes are refused instead of installing
+v.6's unsafe `slope=1` fallback.
 
-Same four steps for every channel, in a modal dialog (7.4):
+#### Oxygen and airflow
 
-1. **Preparar** — pt-BR instructions and a checklist (`Sonda limpa`, `Tampão 7,00 à
-   temperatura ambiente`).
-2. **Estabilizar** — live raw count, a rolling stability indicator, a countdown, and a
-   `Capturar` button that stays disabled until the reading is stable.
-3. **Repetir** for the second point (two-point only).
-4. **Revisar** — computed slope and intercept, the old values beside them, a preview
-   table decoding several raw counts under both, and `Aplicar` / `Descartar`.
+Oxygen is deliberately direct because v.6 has no stability wizard: the operator
+stabilizes the physical standard, then captures the current accepted raw value. Applying
+changes both coefficients together and sends no wire command.
 
-The pH wizard offers a buffer `ComboBox`: `4,00` · `6,86` · `7,00` · `9,18` · `10,01` ·
-`Personalizado…`, with a temperature-compensation note.
+For airflow, the operator enters the external standard's real flow, prepares that point,
+fine-adjusts the commanded flow, and captures ten distinct voltages. Point editing locks
+during capture. The low segment (`V <= 0.0545`) needs three points; the high segment uses
+a line with two or a quadratic with three. A partial curve may be sent because v.6 allows
+it, but the page labels it partial. **Parar ensaio de vazão** always exposes the complete
+flow safe-stop.
 
-> **Two warnings belong on this page, prominently.**
+> **Two warnings are permanent design constraints.**
 >
-> 1. **Calibration and the spike filter are coupled.** Filter thresholds are in raw ADC
->    counts, so changing a calibration silently changes what counts as a spike. Show the
->    affected thresholds and offer to rescale them.
-> 2. **Coefficients are applied as a pair.** `0,0305473419314` looks exactly as plausible
->    as `0,305473419314`; only the decoded value tells them apart. Edits are staged and
->    applied together, and the live preview is what makes the pair checkable.
+> 1. Calibration criteria and spike filters are in raw ADC counts. Applying a curve does
+>    not rescale them; the page states this beside the pH acquisition fields.
+> 2. Coefficients are applied as a pair. A calculated result remains merely proposed until
+>    the operator explicitly applies it; a flow curve remains local until explicitly sent.
+
+**Deferred:** known-level reference, biomass blank/thresholds, calibration history and
+rollback. They must use the same ownership and explicit-apply language when introduced.
 
 ---
 
@@ -1680,8 +1686,8 @@ Controle summary and the recipe execution header.
 
 ### 6.3 `SetpointField`
 
-The validated numeric entry, used by the detail pane, Controle, recipe blocks and the
-calibration wizards. Behaviour is specified once in [section 9](#9-input-validation).
+The validated numeric entry, used by the detail pane, Controle, recipe blocks and
+calibration procedures. Behaviour is specified once in [section 9](#9-input-validation).
 
 ```text
 Setpoint
@@ -1739,16 +1745,17 @@ labels, cursor readout, pause.
 
 ## 7. Dialogs and secondary surfaces
 
-Five modal dialogs. Everything else is a page, a pane or a popover
+Four modal-dialog families. Calibration deliberately stays on its dedicated page so the
+live readings, procedure state and proposed curve do not disappear behind a modal. Everything
+else is a page, a pane or a popover
 ([D-006](DECISIONS.md)).
 
 | # | Dialog | Trigger | Contents |
 |---|---|---|---|
 | 7.1 | **Conexão avançada** | Chip popover → `Configurações avançadas` | Navigates to Configurações → Conexão; not truly modal |
 | 7.2 | **Confirmação destrutiva** | `Parada segura` · `Resetar variáveis` · `Reiniciar comunicações` · `Abortar receita` · `Excluir receita` | Title, plain-language consequence, the exact command that will be sent, `Confirmar` (danger) / `Cancelar`. Defaults to Cancel |
-| 7.3 | **Assistente de calibração** | Calibrações → `Assistente…` | The four-step wizard in [5.7](#57-calibrações) |
-| 7.4 | **Abrir / salvar** | Recipes, session files, exports | Standard Windows dialogs. Do not re-implement |
-| 7.5 | **Comando personalizado** | Configurações → Comandos do equipamento | Free-text JSON, validated as flat JSON before sending, with a preview of the exact bytes and a warning. Confirmation required |
+| 7.3 | **Abrir / salvar** | Recipes, session files, exports | Standard Windows dialogs. Do not re-implement |
+| 7.4 | **Comando personalizado** | Configurações → Comandos do equipamento | Free-text JSON, validated as flat JSON before sending, with a preview of the exact bytes and a warning. Confirmation required |
 
 **Popovers** (not dialogs): connection chip, KPI configuration, alarm bell context menu,
 recipe metadata, chart export menu, validation findings.
@@ -1868,8 +1875,8 @@ Charts appear in four places, and all four use `TrendChart` ([6.6](#66-trendchar
 | Motion | Flow animation **off by default**; motion in peripheral vision competes with alarms |
 | Text scaling | Layout survives 125 % and 150 % Windows scaling without clipping |
 
-**Current WP8 implementation.** The six present destinations use `Ctrl+1`–`Ctrl+6`;
-the handler reserves `Ctrl+7`–`Ctrl+8` until their roadmap destinations exist. `Ctrl+S`
+**Current implementation.** The seven present destinations use `Ctrl+1`–`Ctrl+7`;
+Calibrações is 6, Configurações is 7, and the handler reserves `Ctrl+8`. `Ctrl+S`
 is likewise reserved for Receitas: before Phase 3 it opens command search on a disabled
 `Salvar receita` entry and states why it is unavailable. `Space` pauses Gráficos only
 when an input, button, list item, tab or data-grid cell does not own the key. Closing the
@@ -1907,12 +1914,13 @@ section is the design-side summary; the roadmap is the plan of record.
 
 9. Detail-pane tabs for `oxygen`: Cascata, PID, Saída.
 10. `Controle` → `Cascata e sintonia`, with the overlapping actuator-window bar.
-11. pH, nutrient, antifoam, foam and flask-agitator cards **and their synoptic elements**,
+11. Complete pH control plus the pH/O₂/airflow Calibrações workspace — **done in WP3**.
+    Nutrient, antifoam, foam and flask-agitator cards **and their synoptic elements** remain,
     added alongside each subsystem rather than in a later pass.
 
 ### Phase 3
 
-12. Calibrações page and the four wizards.
+12. Remaining level and biomass calibration procedures on the existing page.
 13. Receitas: generated node definitions, canvas, library, properties pane, JSON panel,
     validator strip, execution view.
 14. Biomass and external-pump cards, synoptic elements, chart channels.

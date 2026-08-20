@@ -4,7 +4,7 @@
 > **Source of truth:** reverse-engineered from `v.6/communication/{transport,data_parser,connection_manager}.py`
 > and every `send_command()` call site in the v.6 tree.
 >
-> **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md)
+> **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md)
 
 ---
 
@@ -296,6 +296,20 @@ Two-segment piecewise curve, split at **0.0545 V**:
 | `k1`, `f1`, `c1` | `V <= 0.0545` |
 | `k2`, `f2`, `c2` | `V > 0.0545` |
 
+Preparing or fine-adjusting one certified point uses the exact v.6 state below. The
+operator's real-flow value comes from an external standard; the app then averages
+distinct `FlowVoltage` telemetry frames.
+
+```json
+{"flowmeterComm":1,"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
+```
+
+The regression is `flow = k*V² + f*V + c`. The low segment requires at least three
+points. The high segment uses a line (`k2=0`) with two points and a quadratic with three
+or more. v.6 accepts a partial calibration, so each valid segment may be sent alone; the
+UI must label that state as partial. Point capture and coefficient fitting are specified
+operationally in [CALIBRATION.md](CALIBRATION.md#5-calibração-da-vazão-de-ar).
+
 ### 3.3 Dosing (Phase 2 scope)
 
 | Subsystem | Keys |
@@ -305,6 +319,21 @@ Two-segment piecewise curve, split at **0.0545 V**:
 | Antifoam | `antifoamOperation` (0-999), `antifoamMix` (1-999), `antifoamIntensity` (0-99) |
 | Distance / foam | `distanceSensorComm`, `distanceSensorReference`, `foamStartDelay_s`, `foamPulse_s`, `foamInterval_s` |
 | Agitator flask | `agitatorAuto`, `agitatorReEnablePot`, `agitatorPercent` (0-100 magnitude), `agitatorDir` (`1` CW / `0` CCW), `agitatorOn` |
+
+The pH state is **atomic** in TECNAL-Hub: all five keys are emitted together. Operator
+speed is 0-99%; `pHIntensity` carries that value multiplied by ten. The firmware ranges
+reproduced from v.6 are:
+
+| pH field | Operator range | Off encoding |
+|---|---:|---:|
+| `pHSetpoint` | 1-14 pH | `0.0` |
+| `pHError` | `> 0` and `< 2` pH | retained valid value |
+| `pHOperation` | integer 1-999 s, encoded as JSON float | retained valid value |
+| `pHMix` | integer 1-999 s, encoded as JSON float | retained valid value |
+| `pHIntensity` | 0-990 (`percent × 10`) | `0.0` |
+
+Calibration must send the complete off state before a probe is removed from the vessel.
+This is independent of the quoted `pHCal` display echo in §2.2.
 
 > The agitator UI encodes direction as a **signed** percent (-100..100) but the
 > wire carries magnitude and direction as two separate keys. Do not leak the
@@ -351,11 +380,16 @@ Extend this table before adding any new command, never after.
 USB handshake      {"comTest":1}\n
 Wi-Fi handshake    {"comTest":1}
 pH echo            {"pHCal":"6.98"}
+pH control         {"pHSetpoint":6.8,"pHError":0.17,"pHOperation":5.0,"pHMix":20.0,"pHIntensity":500.0}
+pH safe-stop       {"pHSetpoint":0.0,"pHError":0.17,"pHOperation":5.0,"pHMix":20.0,"pHIntensity":0.0}
 Motor setpoint     {"motorSetpoint":790}
 Valve state at 0   {"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}
 Flow safe-stop     {"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}
+Flow cal setpoint  {"flowmeterComm":1,"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
+Flow cal curve     {"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
 Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
-kLa combined       {"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40,"motorSetpoint":300}
+Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
+kLa combined       {"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}
 ```
 
 Key order within an object is not believed to matter (the firmware parses JSON),

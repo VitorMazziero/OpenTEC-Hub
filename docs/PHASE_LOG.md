@@ -8,7 +8,7 @@
 > judgement calls made mid-build, so that in six months nobody has to reconstruct
 > them from commit messages.
 >
-> **Docs:** [ROADMAP](ROADMAP.md) · [PHASE0_RESULTS](PHASE0_RESULTS.md) · [PROTOCOL](PROTOCOL.md) · [DECISIONS](DECISIONS.md)
+> **Docs:** [ROADMAP](ROADMAP.md) · [PHASE0_RESULTS](PHASE0_RESULTS.md) · [PROTOCOL](PROTOCOL.md) · [CALIBRATION](CALIBRATION.md) · [DECISIONS](DECISIONS.md)
 
 ---
 
@@ -868,3 +868,38 @@ onto the tab, connected, streamed telemetry and rendered with zero XAML binding 
 step is deterministic in tests rather than depending on wall-clock spacing between pushed
 frames. The `Trajetória kLa` contour ([D-008](DECISIONS.md)) and a live tuning chart are
 shown as deferred rather than faked, the same discipline the health expander used in Phase 1b.
+
+---
+
+### P2-05 · Calibration follows v.6 ownership; pH control was a missing UI, not missing firmware
+
+**Decided:** deliver the complete pH dosing state and the pH/O₂/airflow calibration
+procedures together. Calibration and actuation remain separate: pH and oxygen curves live
+in the app parser, accepted pH returns as quoted `pHCal` for the module display/controller,
+and only the airflow curve belongs to dedicated firmware.
+
+**Why pH was not controlled:** Phase 1b intentionally exposed only facts that had a complete
+operator path. It already parsed, filtered, calibrated and echoed pH, but postponed the
+five-field control surface. Reading v.6 and the firmware showed there was no protocol gap:
+`pHSetpoint`, `pHError`, `pHOperation`, `pHMix` and `pHIntensity` were already explicit.
+Leaving the value read-only in Phase 2 would therefore preserve a UI omission, not a safety
+boundary.
+
+**Safety decisions:** all five pH keys travel atomically; speed preserves `% × 10`; invalid
+enabled state is refused instead of falling back to pH 7. Starting calibration first sends
+the complete pH-off state and never re-arms it automatically. pH stability and final means
+count distinct telemetry events, not repeated polls of one frame. Equal raw points are
+refused rather than inheriting v.6's `slope=1` fallback. Flow point editing locks during
+capture; a lost connection cancels acquisition and discards prepared command certainty.
+
+**Evidence:** pure math, state and exact-wire tests bring the suite to 259/259. The updated
+localhost HTTP simulator accepted one combined pH-control + quoted-echo + six-flow-coefficient
+frame, returned its buffered `OK`, then accepted the explicit pH/flow safe-stop. Runtime
+review at 1280×800 covered pH, oxygen and airflow in both themes; it found and fixed a clipped
+flow capture button and a ScottPlot/list theme repaint defect. The final interval logged no
+new XAML binding failure, fatal exception or unhandled exception. Screenshots are
+`docs/evidence/ui/phase2-calibration-*.png`.
+
+**Boundary:** no physical calibration was performed. Buffers, the O₂ standard, certified
+flow reference, pump direction and real interlocks remain part of the bioreactor hardware
+gate; v.6 remains the production fallback until that gate and a cultivation run close.

@@ -1,0 +1,133 @@
+<UserControl x:Class="TecnalHub.Views.PHControlView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:ctl="clr-namespace:TecnalHub.Controls"
+             xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:PHControlViewModel}">
+
+    <UserControl.Resources>
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+        <Style x:Key="PHFieldLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource SurfaceCardBrush}"
+            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusMedium}"
+            Padding="16">
+        <StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal">
+                        <ctl:Icon Key="Ph" Size="20" Margin="0,0,8,0" />
+                        <TextBlock Text="Controle de pH"
+                                   FontSize="{DynamicResource FontSizeSubtitle}"
+                                   FontWeight="SemiBold" />
+                    </StackPanel>
+                    <TextBlock Text="Dosagem e calibração são independentes; este painel somente comanda a bomba."
+                               Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,12,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding AppliedStateText}"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Right" />
+                    <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                  HorizontalAlignment="Right"
+                                  Margin="0,6,0,0"
+                                  ToolTip="Habilitar controle de pH" />
+                </StackPanel>
+            </Grid>
+
+            <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                    CornerRadius="{DynamicResource RadiusSmall}"
+                    Padding="10"
+                    Margin="0,12,0,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="pH calibrado" Style="{StaticResource PHFieldLabel}" />
+                        <TextBlock Text="{Binding LivePHText}"
+                                   Style="{StaticResource NumericTextStyle}"
+                                   FontSize="20" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Leitura bruta" Style="{StaticResource PHFieldLabel}" />
+                        <TextBlock Text="{Binding LiveRawText}"
+                                   Style="{StaticResource NumericTextStyle}"
+                                   FontSize="16" />
+                    </StackPanel>
+                    <ctl:ProvenanceBadge Grid.Column="2" Text="pHCal → módulo"
+                                         VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <WrapPanel>
+                <StackPanel Width="142" Margin="0,0,10,10">
+                    <TextBlock Text="Setpoint (pH)" Style="{StaticResource PHFieldLabel}" />
+                    <TextBox Text="{Binding SetpointText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Faixa 1–14 pH" />
+                </StackPanel>
+                <StackPanel Width="142" Margin="0,0,10,10">
+                    <TextBlock Text="Banda inativa (pH)" Style="{StaticResource PHFieldLabel}" />
+                    <TextBox Text="{Binding InactiveBandText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Maior que 0 e menor que 2" />
+                </StackPanel>
+                <StackPanel Width="142" Margin="0,0,10,10">
+                    <TextBlock Text="Bomba ligada (s)" Style="{StaticResource PHFieldLabel}" />
+                    <TextBox Text="{Binding OperationSecondsText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Inteiro de 1 a 999 s" />
+                </StackPanel>
+                <StackPanel Width="142" Margin="0,0,10,10">
+                    <TextBlock Text="Repouso/mistura (s)" Style="{StaticResource PHFieldLabel}" />
+                    <TextBox Text="{Binding MixSecondsText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Inteiro de 1 a 999 s" />
+                </StackPanel>
+                <StackPanel Width="142" Margin="0,0,10,10">
+                    <TextBlock Text="Velocidade da bomba (%)" Style="{StaticResource PHFieldLabel}" />
+                    <TextBox Text="{Binding PumpSpeedPercentText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="0–99%; o protocolo envia percentual × 10" />
+                </StackPanel>
+            </WrapPanel>
+
+            <TextBlock Text="{Binding ValidationError}"
+                       Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                       Foreground="{DynamicResource StateAlarmTextBrush}"
+                       FontSize="{DynamicResource FontSizeCaption}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+
+            <StackPanel>
+                <TextBlock Text="{Binding StatusText}"
+                           Style="{StaticResource CaptionTextStyle}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,8" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
+                    <Button Content="Aplicar estado completo"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding ApplyCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

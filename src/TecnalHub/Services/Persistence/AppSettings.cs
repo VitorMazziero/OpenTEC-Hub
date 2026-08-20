@@ -37,6 +37,9 @@ public sealed record AppSettings
 
     public CalibrationSettings Calibration { get; init; } = new();
 
+    /// <summary>Staged pH dosing parameters. Restoring them never sends a command.</summary>
+    public PHControlSettings PHControl { get; init; } = new();
+
     public FilterSettings Filters { get; init; } = new();
 
     /// <summary>Presentation units. Values on the wire remain in the protocol units.</summary>
@@ -129,11 +132,58 @@ public sealed record CalibrationSettings
     public double PHSlope { get; init; } = 0.0005012405704;
     public double PHIntercept { get; init; } = -0.600385955239;
 
+    /// <summary>Accepted raw frames required before pH is considered stable.</summary>
+    public int PHStabilityWindow { get; init; } = 20;
+
+    /// <summary>Maximum sample standard deviation in raw ADC counts.</summary>
+    public double PHStabilityStandardDeviation { get; init; } = 5.0;
+
+    /// <summary>Accepted raw frames averaged after stability is reached.</summary>
+    public int PHAverageSamples { get; init; } = 20;
+
+    /// <summary>Distinct FlowVoltage frames averaged for one certified flow point.</summary>
+    public int FlowCaptureSamples { get; init; } = 10;
+
+    /// <summary>
+    /// Operator-certified flow points. Coefficients are derived deterministically and
+    /// reach the flowmeter only through an explicit send action.
+    /// </summary>
+    public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } = [];
+
     /// <summary>Decodes a raw oxygen count with these coefficients.</summary>
     public double DecodeOxygen(double raw) => Math.Max((OxygenA * raw) + OxygenB, 0.0);
 
     /// <summary>Decodes a raw pH count with these coefficients.</summary>
     public double DecodePH(double raw) => (PHSlope * raw) + PHIntercept;
+}
+
+/// <summary>A real-flow / measured-voltage pair used by the v.6 curve fit.</summary>
+public sealed record FlowCalibrationPoint
+{
+    public double FlowLitresPerMinute { get; init; }
+
+    public double Voltage { get; init; }
+}
+
+/// <summary>
+/// Complete pH dosing state understood by the ESP32-S3 and sensor module.
+/// </summary>
+/// <remarks>
+/// Defaults mirror the saved v.6 field configuration, not an assertion that dosing
+/// should be enabled. The ViewModel always starts disabled and merely stages these
+/// values for review.
+/// </remarks>
+public sealed record PHControlSettings
+{
+    public double Setpoint { get; init; } = 7.0;
+
+    public double InactiveBand { get; init; } = 0.15;
+
+    public int OperationSeconds { get; init; } = 1;
+
+    public int MixSeconds { get; init; } = 60;
+
+    public double PumpSpeedPercent { get; init; } = 80.0;
 }
 
 /// <summary>
@@ -269,6 +319,10 @@ public sealed record SetpointPreset
 
     public double OxygenPercent { get; init; } = 40.0;
     public bool OxygenEnabled { get; init; }
+
+    public PHControlSettings PHControl { get; init; } = new();
+
+    public bool PHControlEnabled { get; init; }
 
     public double FlowLitresPerMinute { get; init; } = 1.0;
     public double MaxFlowLitresPerMinute { get; init; } = 50.0;

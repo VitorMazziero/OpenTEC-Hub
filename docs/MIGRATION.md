@@ -6,7 +6,7 @@
 > **Source:** `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\TECNAL_control\_Wifi Hub\Software\_Windows App\v.6`
 > (11,519 lines of Python across 18 modules)
 >
-> **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Protocol](PROTOCOL.md) · [Architecture](ARCHITECTURE.md) · [Decisions](DECISIONS.md)
+> **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Architecture](ARCHITECTURE.md) · [Decisions](DECISIONS.md)
 
 ---
 
@@ -64,10 +64,10 @@ cannot be aborted once started — the window is unresponsive until it finishes.
 | v.6 | Lines | Becomes |
 |---|---:|---|
 | `ui/parameter_settings_page.py` | 1526 | Synoptic + detail pane + per-subsystem ViewModels |
-| `ui/configurations_page.py` | 1272 | Connection chip + popover, and a small Advanced Settings window |
+| `ui/configurations_page.py` | 1272 | Connection chip + popover, typed Settings, pH control and the app-side pH/O₂ calibration procedures |
 | `ui/graphs_page.py` | 444 | `Views/ChartsView.xaml` (ScottPlot) |
 | `ui/pump_mode_window.py` | 537 | `Views/PumpProfileView.xaml` (Phase 3) |
-| `ui/flow_calibration_dialog.py` | 500 | `Views/FlowCalibrationView.xaml` (Phase 3) |
+| `ui/flow_calibration_dialog.py` | 500 | `Views/CalibrationView.xaml` + `FlowCalibrationViewModel` (Phase 2 WP3) |
 | `ui/configurations_page_integration.py` | 296 | **Deleted.** Glue that exists only because the pages could not talk to each other. MVVM removes the need. |
 
 ### Control
@@ -92,6 +92,11 @@ cannot be aborted once started — the window is unresponsive until it finishes.
 > single largest source of "add a field, forget a line, silently lose the setting".
 > It becomes a typed record and `System.Text.Json`, and disappears.
 
+**Calibration ownership after WP3:** pH and oxygen coefficients remain in the app parser;
+accepted pH is echoed to the module as the quoted `pHCal` display value. The six airflow
+coefficients alone are sent to the dedicated flowmeter. The exact procedures and safety
+interlocks are in [CALIBRATION.md](CALIBRATION.md).
+
 ---
 
 ## 3. Known defects carried in from v.6
@@ -102,16 +107,16 @@ or decide about — **not** a licence to redesign the wire.
 | # | Defect | Location | Disposition |
 |---|---|---|---|
 | 1 | `probe_ports` builds `USBConfig` with no `cancel_event`, so probing cannot be cancelled | `transport.py` `probe_ports` | **Fix.** Cancellation token throughout. |
-| 2 | Default calibration in code (`oxy_a=0.030573419314`, `oxy_b=-25.09036520919`) differs from the field values in `preferences.json` (`0.0305473419314`, `-25.09136520919`) | `data_parser.py` `ParserConfig` vs `preferences.json` | **Fix.** Any fallback to defaults silently applies a different calibration. Defaults must either match the field values or refuse to run un-calibrated. |
+| 2 | Default calibration in code (`oxy_a=0.030573419314`, `oxy_b=-25.09036520919`) differs from the field values in `preferences.json` (`0.0305473419314`, `-25.09136520919`) | `data_parser.py` `ParserConfig` vs `preferences.json` | **Fixed.** Typed defaults match the field values; guided procedures replace both coefficients atomically. |
 | 3 | `biomass_hd_mode` is declared on `SensorReadings` and exposed via `biomassHdMode`, but `_parse_biomass` never assigns it — always `False` | `data_parser.py` | **Fix or drop.** Confirm whether the firmware sends a HD-mode key at all (see [PROTOCOL.md](PROTOCOL.md#5-open-questions-for-hardware-verification)). |
-| 4 | Spike-filter thresholds are in **raw ADC counts** while the user tunes **calibration** — recalibrating silently changes filter aggressiveness | `data_parser.py` | **Decide.** Express thresholds in engineering units and convert, or document the coupling loudly. Changing this changes filtering behaviour, so it needs a bench comparison. |
+| 4 | Spike-filter thresholds are in **raw ADC counts** while the user tunes **calibration** — recalibrating silently changes filter aggressiveness | `data_parser.py` | **Documented, behaviour preserved.** The procedure warns that curves do not rescale raw thresholds. Converting units still needs a bench comparison. |
 | 5 | `dir_val` is computed from `_last_dir`, then immediately overwritten on the next line — the `_last_dir` memory is dead code | `parameter_settings_page.py` `send_agitator` | **Fix.** Decide whether direction should be remembered at zero percent; implement one behaviour deliberately. |
 | 6 | `WiFiTransport.write()` hard-codes `timeout=0.5` and ignores the configured timeouts | `transport.py` | **Fix.** Honour config. |
 | 7 | Wi-Fi `read()` returns `None` for both "no new data" (304) and "exception" — link loss is invisible until the separate heartbeat notices | `transport.py` | **Fix.** Distinguish the two; a read fault should feed the state machine directly. |
 | 8 | `FlowCommandDeliveries` and `FlowCommandAgeMs` are parsed but never surfaced anywhere | `data_parser.py` | **Use them.** They are exactly the command round-trip diagnostics the connection popover should show. |
 | 9 | `transport.py`'s threading docstring says read/write happen on the Qt thread, but `_flush_commands` calls `write()` from the worker thread. Correctness rests on `_rw_lock`, not on the documented contract | `transport.py` vs `connection_manager.py` | **Fix the design, not the comment.** In C#, one owner for the link; all I/O through it. |
 | 10 | `com_port_edit` is persisted as `"Nenhuma porta disponível"` — a UI label stored as configuration | `preferences.json` | **Fix.** Settings store values; labels are presentation. |
-| 11 | Bare `except:` around every setpoint parse silently substitutes a default (e.g. a malformed pH becomes 7) | `parameter_settings_page.py`, many sites | **Fix.** Invalid input must be visible to the operator, not silently replaced with a plausible number. This one has real experimental consequences. |
+| 11 | Bare `except:` around every setpoint parse silently substitutes a default (e.g. a malformed pH becomes 7) | `parameter_settings_page.py`, many sites | **Fixed.** Every pH field has an explicit range; malformed enabled state never sends, while an off command remains available through the last valid auxiliaries. |
 
 > Item 11 deserves emphasis. `except: ph_value = 7` means a typo in the pH field
 > sends setpoint 7 to the reactor and says nothing. Input validation must be

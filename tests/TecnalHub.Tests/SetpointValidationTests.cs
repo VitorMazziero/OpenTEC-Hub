@@ -19,7 +19,7 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public List<string> WiFiConnections { get; } = [];
 
-    public ConnectionState State => ConnectionState.Connected;
+    public ConnectionState State { get; private set; } = ConnectionState.Connected;
 
     public TransportMedium? Medium => TransportMedium.Usb;
 
@@ -69,6 +69,13 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     /// <summary>Raises a telemetry frame, as the real service does on the UI thread.</summary>
     public void PushTelemetry(SensorSnapshot snapshot) => TelemetryReceived?.Invoke(snapshot);
+
+    /// <summary>Raises a link transition and updates the state exposed to commands.</summary>
+    public void PushState(ConnectionState state, string reason = "test")
+    {
+        State = state;
+        StateChanged?.Invoke(new ConnectionStateChange(state, Medium, Endpoint, reason));
+    }
 
     /// <summary>Silences the unused-event warnings; nothing here raises them.</summary>
     internal void Unused()

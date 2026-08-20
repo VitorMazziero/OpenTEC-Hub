@@ -94,6 +94,30 @@ public class WireFormatTests
         => Assert.Equal(expected, CommandBuilders.PHCalibration(value).ToJson());
 
     [Fact]
+    public void PH_control_and_safe_stop_are_complete_atomic_v6_frames()
+    {
+        Assert.Equal(
+            """{"pHSetpoint":6.8,"pHError":0.17,"pHOperation":5.0,"pHMix":20.0,"pHIntensity":500.0}""",
+            CommandBuilders.PHControl(6.8, 0.17, 5, 20, 50).ToJson());
+        Assert.Equal(
+            """{"pHSetpoint":0.0,"pHError":0.17,"pHOperation":5.0,"pHMix":20.0,"pHIntensity":0.0}""",
+            CommandBuilders.PHControlSafeStop(0.17, 5, 20).ToJson());
+    }
+
+    [Fact]
+    public void Flow_calibration_frames_match_v6_key_order()
+    {
+        Assert.Equal(
+            """{"flowmeterComm":1,"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            CommandBuilders.FlowCalibrationSetpoint(1.5).ToJson());
+        Assert.Equal(
+            """{"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}""",
+            CommandBuilders.FlowCalibrationLow(2, 3, 4)
+                .Merge(CommandBuilders.FlowCalibrationHigh(0, 5, 1))
+                .ToJson());
+    }
+
+    [Fact]
     public void System_commands_match_v6()
     {
         Assert.Equal("""{"dataDelay":2000}""", CommandBuilders.DataDelay(2000).ToJson());

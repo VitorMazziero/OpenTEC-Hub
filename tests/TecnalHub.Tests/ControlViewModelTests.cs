@@ -89,7 +89,7 @@ public sealed class ControlViewModelTests
         Assert.Empty(fixture.Device.Sent);
         Assert.Equal(1, fixture.Dialogs.Calls);
         Assert.Equal(
-            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}""",
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}""",
             fixture.Dialogs.ExactCommand);
     }
 
@@ -158,7 +158,8 @@ public sealed class ControlViewModelTests
             ];
 
             Cascade = new CascadeService(Device, Settings, TimeProvider.System);
-            Control = new ControlViewModel(Subsystems, Flow, Device, Settings, Dialogs, Cascade);
+            PH = new PHControlViewModel(Device, Settings);
+            Control = new ControlViewModel(Subsystems, Flow, PH, Device, Settings, Dialogs, Cascade);
         }
 
         public RecordingDeviceService Device { get; }
@@ -166,6 +167,7 @@ public sealed class ControlViewModelTests
         public RecordingDialogService Dialogs { get; }
         public CascadeService Cascade { get; }
         public FlowControlViewModel Flow { get; }
+        public PHControlViewModel PH { get; }
         public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
         public ControlViewModel Control { get; }
 
@@ -190,6 +192,7 @@ public sealed class ControlViewModelTests
         public void Dispose()
         {
             Control.Dispose();
+            PH.Dispose();
             Cascade.Dispose();
         }
     }

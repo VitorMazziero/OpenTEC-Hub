@@ -3,7 +3,7 @@
 > One entry per decision that would otherwise be re-litigated in three months.
 > Newest last. A decision is only "Open" if it genuinely blocks work.
 >
-> **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Architecture](ARCHITECTURE.md) · [UI Design](UI_DESIGN.md)
+> **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Architecture](ARCHITECTURE.md) · [Calibration](CALIBRATION.md) · [UI Design](UI_DESIGN.md)
 
 ---
 
@@ -210,6 +210,35 @@ accumulator railed — a measured **45.9 %** steady-state error against a 30 % t
 *Consequence:* the prediction horizon folds into the error, so `Kp` is deliberately small
 (`Kp·horizon` is the effective derivative). This is a property of the corrected design, not a
 tuning accident, and it is why the defaults are gentle. Field gains still need the bioreactor.
+
+---
+
+### D-014 · Calibration ownership is split by channel; pH calibration always interlocks dosing off
+**Status:** Accepted and implemented · 2026-08-20 · see [CALIBRATION.md](CALIBRATION.md)
+
+pH and oxygen calibration curves belong to the app parser. The module receives quoted
+`pHCal` values because its display/controller needs the app-calibrated result; that echo is
+not an actuator command. Airflow differs: its two-segment coefficients belong to the
+dedicated flowmeter firmware and cross the wire only after explicit operator review.
+
+The pH control loop was never absent from v.6 or the firmware. The new app had postponed
+its UI, leaving pH read-only despite already feeding calibrated values back to the module.
+WP3 therefore exposes all five control fields atomically and keeps them separate from the
+probe curve.
+
+*Safety consequence:* starting one- or two-point pH calibration sends a complete pH-off
+state before the probe leaves the vessel. Cancel/apply never re-arms the pump. Link loss
+cancels acquisition, equal raw points are refused, and malformed control input cannot fall
+back to a plausible value. Airflow capture similarly invalidates its prepared state after
+link loss and retains an explicit safe-stop.
+
+*Rejected:* treating all calibration as firmware-side; sending O₂ coefficients that v.6
+never sent; using `pHSetpoint` as a calibration target; automatically restoring pH dosing
+after the operator applies a curve; silently installing `slope=1` for equal pH raw points.
+
+*Validation boundary:* 259 automated tests and the localhost simulator validate equations,
+state transitions and bytes. They do not certify physical buffers, reference instruments,
+pump direction or the real bioreactor interlocks.
 
 ---
 

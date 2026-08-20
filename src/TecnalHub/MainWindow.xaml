@@ -493,6 +493,9 @@
                         <DataTrigger Binding="{Binding SelectedNavigationId}" Value="control">
                             <Setter Property="Visibility" Value="Collapsed" />
                         </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectedNavigationId}" Value="calibrations">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
@@ -592,11 +595,19 @@
                         Visibility="{Binding DataContext.SelectedSubsystem,
                                      RelativeSource={RelativeSource AncestorType=Window},
                                      Converter={StaticResource NullToVis}}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding DataContext.IsPHSelected,
+                                               RelativeSource={RelativeSource AncestorType=Window},
+                                               Converter={StaticResource BoolToVis}}">
+                        <views:PHControlView DataContext="{Binding DataContext.PHControl,
+                                                   RelativeSource={RelativeSource AncestorType=Window}}" />
+                    </ScrollViewer>
                     <views:ReadOnlyDetailView
                         DataContext="{Binding SelectedVariable}"
-                        Visibility="{Binding DataContext.SelectedSubsystem,
+                        Visibility="{Binding DataContext.ShowReadOnlyDetail,
                                      RelativeSource={RelativeSource AncestorType=Window},
-                                     Converter={StaticResource NullToVis}, ConverterParameter=Invert}" />
+                                     Converter={StaticResource BoolToVis}}" />
                 </Grid>
 
                 <!-- Drawer: narrow windows. Same two panes, same rules - the same
@@ -609,11 +620,19 @@
                         Visibility="{Binding DataContext.SelectedSubsystem,
                                      RelativeSource={RelativeSource AncestorType=Window},
                                      Converter={StaticResource NullToVis}}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding DataContext.IsPHSelected,
+                                               RelativeSource={RelativeSource AncestorType=Window},
+                                               Converter={StaticResource BoolToVis}}">
+                        <views:PHControlView DataContext="{Binding DataContext.PHControl,
+                                                   RelativeSource={RelativeSource AncestorType=Window}}" />
+                    </ScrollViewer>
                     <views:ReadOnlyDetailView
                         DataContext="{Binding SelectedVariable}"
-                        Visibility="{Binding DataContext.SelectedSubsystem,
+                        Visibility="{Binding DataContext.ShowReadOnlyDetail,
                                      RelativeSource={RelativeSource AncestorType=Window},
-                                     Converter={StaticResource NullToVis}, ConverterParameter=Invert}" />
+                                     Converter={StaticResource BoolToVis}}" />
                 </Grid>
 
             </Grid>
@@ -647,6 +666,13 @@
                                                    RelativeSource={RelativeSource AncestorType=Window},
                                                    Converter={StaticResource EqualsToVis},
                                                    ConverterParameter=events}" />
+
+            <!-- Calibrações: pH/O2 are app-side; the flow curve is sent to hardware. -->
+            <views:CalibrationView DataContext="{Binding Calibration}"
+                                   Visibility="{Binding DataContext.SelectedNavigationId,
+                                                        RelativeSource={RelativeSource AncestorType=Window},
+                                                        Converter={StaticResource EqualsToVis},
+                                                        ConverterParameter=calibrations}" />
 
             <!-- Configurações -->
             <Grid Margin="16"

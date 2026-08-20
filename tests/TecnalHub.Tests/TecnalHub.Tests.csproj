@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TecnalHub.Protocol\TecnalHub.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\TecnalHub.Simulator\TecnalHub.Simulator.csproj" />
     <ProjectReference Include="..\..\src\TecnalHub\TecnalHub.csproj" />
   </ItemGroup>
 

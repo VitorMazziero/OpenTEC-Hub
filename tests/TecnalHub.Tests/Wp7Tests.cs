@@ -118,7 +118,7 @@ public sealed class Wp7Tests
     {
         var device = new RecordingDeviceService();
         var dialogs = new RecordingDialogService();
-        var vm = new SettingsViewModel(
+        using var vm = new SettingsViewModel(
             new MemorySettingsService(new AppSettings()),
             new RecordingThemeService(),
             device,
@@ -135,6 +135,32 @@ public sealed class Wp7Tests
 
         Assert.Equal("""{"restart":1}""", Assert.Single(device.Sent));
         Assert.Equal("""{"restart":1}""", dialogs.ExactCommand);
+    }
+
+    [Fact]
+    public void Guided_calibration_refreshes_only_changed_coefficients_in_open_settings()
+    {
+        var settings = new MemorySettingsService(new AppSettings());
+        using var vm = new SettingsViewModel(
+            settings,
+            new RecordingThemeService(),
+            new RecordingDeviceService(),
+            new RecordingDialogService());
+
+        vm.PHSlope = "0.123";
+        vm.AutoConnect = false;
+
+        settings.Update(current => current with
+        {
+            Calibration = current.Calibration with { OxygenA = 0.125, OxygenB = -2.5 },
+        });
+
+        Assert.Equal(0.125, double.Parse(vm.OxygenA, CultureInfo.CurrentCulture));
+        Assert.Equal(-2.5, double.Parse(vm.OxygenB, CultureInfo.CurrentCulture));
+        Assert.Equal("0.123", vm.PHSlope);
+        Assert.False(vm.AutoConnect);
+        Assert.True(vm.HasChanges);
+        Assert.Contains("sincronizados", vm.StatusMessage, StringComparison.CurrentCultureIgnoreCase);
     }
 
     private static string Row(

@@ -134,6 +134,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         HistoricalViewModel historical,
         EventsViewModel events,
         SettingsViewModel settings_,
+        PHControlViewModel phControl,
+        CalibrationViewModel calibration,
         IDialogService dialogs,
         ICascadeService cascade,
         ITelemetryHistory history,
@@ -151,6 +153,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Historical = historical;
         Events = events;
         Settings = settings_;
+        PHControl = phControl;
+        Calibration = calibration;
         _appliedUnits = settings.Current.Units;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1, channel: TelemetryChannel.Temperature);
@@ -162,8 +166,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // pH is parsed, spike-filtered, calibrated and echoed back to the device as
         // pHCal in Phase 1, and it is already offered as a chart channel. It had no
         // tile, so the charts advertised a variable the dashboard denied existed.
-        // Read-only until Phase 2 brings the dosing loop.
-        Ph = new ProcessVariableViewModel("ph", "pH", "", decimals: 2, isControllable: false, channel: TelemetryChannel.PH);
+        // The five-field dosing contract already exists in v.6 and in the firmware.
+        // Probe calibration remains app-side; control is now exposed separately.
+        Ph = new ProcessVariableViewModel("ph", "pH", "", decimals: 2, channel: TelemetryChannel.PH);
         Oxygen = new ProcessVariableViewModel("oxygen", "Oxigênio", "%", decimals: 1, channel: TelemetryChannel.Oxygen);
         Flow = new ProcessVariableViewModel("flow", "Vazão", "L/min", decimals: 2, channel: TelemetryChannel.Flow);
         Pressure = new ProcessVariableViewModel("pressure", "Pressão", "kPa", decimals: 1, isControllable: false,
@@ -227,7 +232,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
-        Control = new ControlViewModel(Subsystems, FlowControl, device, settings, dialogs, cascade);
+        Control = new ControlViewModel(Subsystems, FlowControl, PHControl, device, settings, dialogs, cascade);
 
         NavigationItems =
         [
@@ -236,7 +241,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("charts", "Gráficos", "Trend", StartsGroup: true),
             new NavigationItem("history", "Históricos", "Export"),
             new NavigationItem("events", "Eventos", "EventLog"),
-            new NavigationItem("settings", "Configurações", "Gear", StartsGroup: true),
+            new NavigationItem("calibrations", "Calibrações", "Target", StartsGroup: true),
+            new NavigationItem("settings", "Configurações", "Gear"),
         ];
         _commandPaletteCatalog =
         [
@@ -313,6 +319,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public EventsViewModel Events { get; }
 
     public SettingsViewModel Settings { get; }
+
+    /// <summary>Complete pH dosing state shared by Painel, Controle and calibration interlock.</summary>
+    public PHControlViewModel PHControl { get; }
+
+    /// <summary>Guided pH, oxygen and airflow calibration procedures.</summary>
+    public CalibrationViewModel Calibration { get; }
 
     /// <summary>All-setpoints and valve-control page.</summary>
     public ControlViewModel Control { get; }
@@ -499,6 +511,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty]
     public partial SubsystemViewModel? SelectedSubsystem { get; set; }
+
+    /// <summary>pH uses a dedicated five-field detail panel rather than a scalar subsystem.</summary>
+    public bool IsPHSelected => ReferenceEquals(SelectedVariable, Ph);
+
+    /// <summary>True only for variables with neither scalar nor pH-specific controls.</summary>
+    public bool ShowReadOnlyDetail
+        => SelectedVariable is not null && SelectedSubsystem is null && !IsPHSelected;
 
     /// <summary>Elapsed run time reported by the device, formatted for the header.</summary>
     [ObservableProperty]
@@ -783,12 +802,17 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             candidate.IsSelected = ReferenceEquals(candidate, value);
         }
 
-        // Null for a read-only variable such as pH or pressure: there is nothing to
-        // command, so the detail pane shows the reading rather than an entry field.
+        // pH intentionally remains outside the scalar subsystem list: its apply is an
+        // atomic five-field state and is rendered by the dedicated pH detail view.
         SelectedSubsystem = value is null
             ? null
             : Subsystems.FirstOrDefault(s => s.Variable == value);
+        OnPropertyChanged(nameof(IsPHSelected));
+        OnPropertyChanged(nameof(ShowReadOnlyDetail));
     }
+
+    partial void OnSelectedSubsystemChanged(SubsystemViewModel? value)
+        => OnPropertyChanged(nameof(ShowReadOnlyDetail));
 
     /// <summary>Selects a subsystem by id, for clicks on the synoptic.</summary>
     [RelayCommand]
@@ -971,7 +995,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _settings.Changed -= OnSettingsChanged;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;
         Historical.OpenGraphsRequested -= OnOpenGraphsRequested;
+        Settings.Dispose();
         Control.Dispose();
+        Calibration.Dispose();
+        PHControl.Dispose();
         Connection.Dispose();
     }
 }

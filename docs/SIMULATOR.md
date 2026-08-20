@@ -4,7 +4,7 @@
 > developed and tested without hardware — and so the cascade controllers can be tuned
 > against a process that responds before one is trusted with a real cultivation.
 >
-> **Docs:** [ROADMAP](ROADMAP.md) · [PROTOCOL](PROTOCOL.md) · [PHASE0_RESULTS](PHASE0_RESULTS.md) · [ARCHITECTURE](ARCHITECTURE.md)
+> **Docs:** [ROADMAP](ROADMAP.md) · [PROTOCOL](PROTOCOL.md) · [CALIBRATION](CALIBRATION.md) · [PHASE0_RESULTS](PHASE0_RESULTS.md) · [ARCHITECTURE](ARCHITECTURE.md)
 
 ---
 
@@ -98,6 +98,7 @@ and are reproduced deliberately:
 | Absent sensors emit `-1` sentinels, `SensorCommOK:false` | Exactly the state of a board with no module attached |
 | Raw ADC counts, not engineering units | Exercises the calibration and spike-filter path, which is where a wrong coefficient hides |
 | Telemetry every `dataDelay` ms, honouring the command | The app's silence timeout must be derived from this |
+| Complete pH state, quoted `pHCal`, and `k1..c2` accepted | Exercises the same WP3 wire frames without claiming that a virtual probe/reference certifies hardware |
 
 **Raw counts matter.** The device sends ADC counts and the *app* calibrates. The
 simulator therefore inverts the field calibration to emit counts that decode back to
@@ -187,12 +188,13 @@ setpoint changes visibly take effect.
 | Flow | First-order approach to the commanded setpoint |
 | Pressure | Rises with flow against a vessel restriction |
 | Dissolved oxygen | `dC/dt = kLa(N,Q)·(C* − C) − OUR`, then a first-order probe with dead time |
-| pH | Drifts with metabolism, stepped by dosing pulses |
+| pH | Drifts with metabolism; dosing acts only outside `pHError` and is scaled by `pHIntensity` plus the `pHOperation`/`pHMix` duty cycle |
 | Biomass | Logistic growth |
 
 **Deliberately simplified for now.** The rigorous model — the bicubic kLa surface from
-the manuscript, a realistic OUR trajectory, the 20–40 s polarographic probe dead time
-— is a **Phase 2 deliverable**, because that is when it becomes load-bearing. See
+the manuscript and a realistic OUR trajectory — remains a **Phase 2 deliverable**, because
+that is when it becomes load-bearing. The oxygen probe already carries a 25 s dead time,
+and WP3 added the complete pH command semantics rather than a physical acid/base model. See
 [ROADMAP](ROADMAP.md).
 
 The probe dead time is the one piece worth getting right early: it is the reason the

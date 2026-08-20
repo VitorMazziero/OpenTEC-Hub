@@ -6,6 +6,60 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.12.0] - 2026-08-20
+
+Phase 2 WP3 — complete pH control plus guided pH, oxygen and airflow calibration.
+Calibration stays app-side where v.6 owns it; only the flow curve belongs to the
+dedicated flowmeter firmware.
+
+### Added
+- **Calibrações**, a dedicated three-tab operator workspace:
+  - pH one- and two-point acquisition with distinct-frame stability/averaging, explicit
+    proposal/apply, equal-raw refusal and a dosing safe-stop interlock;
+  - direct oxygen zero/span capture around the existing app-side linear coefficients;
+  - certified-flow point capture, 10-frame `FlowVoltage` averaging, v.6's fixed 0.0545 V
+    split, live curve plot and partial/complete six-coefficient send.
+- **Complete pH dosing control** on Painel and Controle: setpoint, inactive band, pump-on
+  time, mix/rest time and speed, sent atomically with the v.6 `% × 10` encoding. Invalid
+  input is refused instead of silently becoming pH 7.
+- Pure `CalibrationMath`, persisted flow points and pH-control presets, simulator support
+  for all five pH fields, `pHCal` display echo and flow coefficients.
+- [CALIBRATION.md](CALIBRATION.md), the operational contract for ownership, procedures,
+  interlocks, equations and validation boundaries.
+
+### Changed
+- pH is no longer read-only. Probe calibration and dosing remain separate lifecycles:
+  calibrated values are computed in the app and echoed as quoted `pHCal`; dosing uses the
+  independent five-field state.
+- The operator safe-stop now merges the frozen Phase 1 core stop with a complete pH stop.
+- Settings follows calibration changes live, so applying an unrelated staged setting can
+  no longer restore stale pH or oxygen coefficients.
+- Numbered navigation now uses `Ctrl+1`–`Ctrl+7`; Calibrações is destination 6 and
+  Configurações is destination 7.
+
+### Fixed
+- Airflow calibration keeps every capture action reachable at 1280×800 and locks point
+  editing during acquisition.
+- The airflow ScottPlot surface and point list repaint correctly after a live light/dark
+  theme change.
+- Losing the link invalidates an in-progress pH/flow acquisition and requires an explicit
+  restart or flow-point preparation instead of trusting stale command state.
+
+### Verified
+- 259/259 tests pass, including golden pH/flow frames, calibration equations and refusals,
+  simulator acceptance, calibration/settings synchronization and connection-loss paths.
+- Localhost HTTP simulator accepted the combined pH state, quoted display echo, six flow
+  coefficients and the subsequent safe-stop with `200 OK` / buffered `OK`.
+- Runtime review at 1280×800 covered all three tabs and both themes with zero new XAML
+  binding failures or fatal exceptions. Evidence:
+  `docs/evidence/ui/phase2-calibration-{ph,oxygen,airflow,airflow-dark}.png` and
+  `phase2-ph-control-painel.png`.
+- This is software/simulator evidence only. Buffer solutions, an oxygen reference,
+  certified airflow standard, pump direction and physical interlocks still require the
+  bioreactor hardware gate. The existing SkiaSharp `NU1701` warning is unchanged.
+
+---
+
 ## [0.11.0] - 2026-08-20
 
 Phase 2 WP2 — the cascade tuning workspace, wired to the WP1 controller in an advisory

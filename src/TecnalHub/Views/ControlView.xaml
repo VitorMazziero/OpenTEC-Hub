@@ -244,6 +244,9 @@
                                 </DockPanel>
                             </Border>
 
+                            <!-- pH is a five-field atomic state, not another scalar row. -->
+                            <views:PHControlView DataContext="{Binding PHControl}" Margin="0,12,0,0" />
+
                             <!-- Valve writes are a complete desired flow state. The vent valve is
                                  read-only because v_Flow is derived and inverted on the wire. -->
                             <Border Margin="0,12,0,0"

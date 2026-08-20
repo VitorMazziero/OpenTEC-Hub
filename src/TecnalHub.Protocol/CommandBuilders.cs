@@ -97,6 +97,67 @@ public static class CommandBuilders
         => TecnalCommand.Create().SetFixedString(CommandKeys.PHCal, calibratedPH, 2);
 
     /// <summary>
+    /// Complete pH desired state used by v.6: reference, inactive band, pump timing
+    /// and pump speed travel in one frame.
+    /// </summary>
+    /// <remarks>
+    /// The operator-facing speed remains 0-99 percent, while the sensor module expects
+    /// that value multiplied by ten. Operation and mixing are written as floating-point
+    /// JSON values because v.6 parsed those text fields with <c>float()</c> before
+    /// serialising them, even though the firmware ultimately stores integers.
+    /// </remarks>
+    public static TecnalCommand PHControl(
+        double setpoint,
+        double inactiveBand,
+        int operationSeconds,
+        int mixSeconds,
+        double pumpSpeedPercent)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.PHSetpoint, setpoint)
+            .Set(CommandKeys.PHError, inactiveBand)
+            .Set(CommandKeys.PHOperation, (double)operationSeconds)
+            .Set(CommandKeys.PHMix, (double)mixSeconds)
+            .Set(CommandKeys.PHIntensity, pumpSpeedPercent * 10.0);
+
+    /// <summary>
+    /// Disables pH dosing without discarding the last valid timing and inactive band.
+    /// </summary>
+    public static TecnalCommand PHControlSafeStop(
+        double inactiveBand,
+        int operationSeconds,
+        int mixSeconds)
+        => PHControl(0.0, inactiveBand, operationSeconds, mixSeconds, 0.0);
+
+    /// <summary>
+    /// Flow setpoint shape used while acquiring a calibration point in v.6.
+    /// Both optional gas valves are closed and the inverted vent flag is derived.
+    /// </summary>
+    public static TecnalCommand FlowCalibrationSetpoint(double setpoint)
+    {
+        var safe = Math.Max(setpoint, 0.0);
+        return TecnalCommand.Create()
+            .Set(CommandKeys.FlowmeterComm, 1)
+            .Set(CommandKeys.FlowSetpoint, safe)
+            .Set(CommandKeys.Valve1, false)
+            .Set(CommandKeys.Valve2, false)
+            .Set(CommandKeys.V_Flow, safe <= 0.0);
+    }
+
+    /// <summary>Low-voltage flowmeter polynomial, valid at V &lt;= 0.0545.</summary>
+    public static TecnalCommand FlowCalibrationLow(double k, double f, double c)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.K1, k)
+            .Set(CommandKeys.F1, f)
+            .Set(CommandKeys.C1, c);
+
+    /// <summary>High-voltage flowmeter polynomial, valid at V &gt; 0.0545.</summary>
+    public static TecnalCommand FlowCalibrationHigh(double k, double f, double c)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.K2, k)
+            .Set(CommandKeys.F2, f)
+            .Set(CommandKeys.C2, c);
+
+    /// <summary>
     /// Combined cascade actuation: flow, oxygen and motor in one frame.
     /// </summary>
     /// <remarks>

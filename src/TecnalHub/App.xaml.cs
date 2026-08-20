@@ -179,6 +179,8 @@ public partial class App : Application
         services.AddSingleton<HistoricalViewModel>();
         services.AddSingleton<EventsViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<PHControlViewModel>();
+        services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<ShellViewModel>();
     }
 

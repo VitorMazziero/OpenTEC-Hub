@@ -33,7 +33,7 @@ public sealed record SettingOption<T>(T Value, string Label)
 /// typed - would put visibly wrong numbers on screen and into the session log.
 /// </para>
 /// </remarks>
-public sealed partial class SettingsViewModel : ObservableObject
+public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 {
     private readonly ISettingsService _settings;
     private readonly IThemeService _theme;
@@ -41,6 +41,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IDialogService _dialogs;
 
     private bool _loading;
+    private CalibrationSettings _persistedCalibration = new();
 
     public SettingsViewModel(
         ISettingsService settings,
@@ -82,6 +83,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         // read "sem leitura bruta disponível" forever, having been computed once before
         // the first frame ever landed.
         _device.TelemetryReceived += OnTelemetryReceived;
+        _settings.Changed += OnSettingsChanged;
 
         Load(settings.Current);
     }
@@ -90,6 +92,51 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(OxygenPreview));
         OnPropertyChanged(nameof(PHPreview));
+    }
+
+    private void OnSettingsChanged(AppSettings settings)
+    {
+        var previous = _persistedCalibration;
+        var current = settings.Calibration;
+
+        var oxygenChanged = previous.OxygenA != current.OxygenA ||
+                            previous.OxygenB != current.OxygenB;
+        var phChanged = previous.PHSlope != current.PHSlope ||
+                        previous.PHIntercept != current.PHIntercept;
+
+        _persistedCalibration = current;
+        if (!oxygenChanged && !phChanged)
+        {
+            return;
+        }
+
+        // Guided procedures apply through ISettingsService while this singleton is
+        // still alive. Refresh only changed coefficients so a later Settings Apply
+        // cannot silently restore stale calibration values. Unrelated staged fields,
+        // including the other probe, remain untouched.
+        _loading = true;
+        try
+        {
+            if (oxygenChanged)
+            {
+                OxygenA = FormatPrecise(current.OxygenA);
+                OxygenB = FormatPrecise(current.OxygenB);
+            }
+
+            if (phChanged)
+            {
+                PHSlope = FormatPrecise(current.PHSlope);
+                PHIntercept = FormatPrecise(current.PHIntercept);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        OnPropertyChanged(nameof(OxygenPreview));
+        OnPropertyChanged(nameof(PHPreview));
+        StatusMessage = "Coeficientes sincronizados com a calibração guiada.";
     }
 
     public IReadOnlyList<ThemePreference> ThemeOptions { get; }
@@ -368,6 +415,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             IpAddress = settings.Connection.IpAddress;
 
             LoadCalibration(settings);
+            _persistedCalibration = settings.Calibration;
             LoadFilters(settings);
 
             SessionLogPath = settings.Logging.SessionLogPath ?? "";
@@ -549,4 +597,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Round-trip format, so no precision is lost by displaying a value.</summary>
     private static string FormatPrecise(double value)
         => value.ToString("R", CultureInfo.CurrentCulture);
+
+    public void Dispose()
+    {
+        _device.TelemetryReceived -= OnTelemetryReceived;
+        _settings.Changed -= OnSettingsChanged;
+    }
 }

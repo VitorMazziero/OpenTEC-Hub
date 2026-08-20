@@ -136,6 +136,61 @@ public static class WireCodec
             model.PHSetpoint = ph;
         }
 
+        if (TryDouble(root, CommandKeys.PHError, out var phError))
+        {
+            model.PHInactiveBand = phError;
+        }
+
+        if (TryDouble(root, CommandKeys.PHOperation, out var phOperation))
+        {
+            model.PHOperationSeconds = (int)phOperation;
+        }
+
+        if (TryDouble(root, CommandKeys.PHMix, out var phMix))
+        {
+            model.PHMixSeconds = (int)phMix;
+        }
+
+        if (TryDouble(root, CommandKeys.PHIntensity, out var phIntensity))
+        {
+            model.PHIntensity = phIntensity;
+        }
+
+        if (TryDouble(root, CommandKeys.PHCal, out var phCalibrated))
+        {
+            model.PHDisplayValue = phCalibrated;
+        }
+
+        if (TryDouble(root, CommandKeys.K1, out var k1))
+        {
+            model.FlowK1 = k1;
+        }
+
+        if (TryDouble(root, CommandKeys.F1, out var f1))
+        {
+            model.FlowF1 = f1;
+        }
+
+        if (TryDouble(root, CommandKeys.C1, out var c1))
+        {
+            model.FlowC1 = c1;
+        }
+
+        if (TryDouble(root, CommandKeys.K2, out var k2))
+        {
+            model.FlowK2 = k2;
+        }
+
+        if (TryDouble(root, CommandKeys.F2, out var f2))
+        {
+            model.FlowF2 = f2;
+        }
+
+        if (TryDouble(root, CommandKeys.C2, out var c2))
+        {
+            model.FlowC2 = c2;
+        }
+
         if (TryDouble(root, CommandKeys.MaxFlow, out var maxFlow))
         {
             model.MaxFlow = maxFlow;

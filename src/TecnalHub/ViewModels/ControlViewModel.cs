@@ -55,6 +55,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public ControlViewModel(
         IReadOnlyList<SubsystemViewModel> subsystems,
         FlowControlViewModel flowControl,
+        PHControlViewModel phControl,
         IDeviceService device,
         ISettingsService settings,
         IDialogService dialogs,
@@ -69,6 +70,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _settings = settings;
         _dialogs = dialogs;
         FlowControl = flowControl;
+        PHControl = phControl;
         Tuning = new CascadeTuningViewModel(cascade, settings);
 
         Rows =
@@ -87,6 +89,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         FlowControl.PropertyChanged += OnFlowStateChanged;
+        PHControl.PropertyChanged += OnPHStateChanged;
 
         foreach (var preset in settings.Current.SetpointPresets
                      .Where(p => !string.IsNullOrWhiteSpace(p.Name))
@@ -102,6 +105,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public IReadOnlyList<ControlParameterRowViewModel> Rows { get; }
 
     public FlowControlViewModel FlowControl { get; }
+
+    /// <summary>Full five-field pH state; separate from probe calibration.</summary>
+    public PHControlViewModel PHControl { get; }
 
     public SubsystemViewModel FlowSubsystem => _flowSubsystem;
 
@@ -121,7 +127,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     public int DirtyCount
         => Rows.Count(row => row.Subsystem.HasPendingChange) +
-           (FlowControl.HasPendingChange ? 1 : 0);
+           (FlowControl.HasPendingChange ? 1 : 0) +
+           (PHControl.HasPendingChange ? 1 : 0);
 
     public string ApplyAllLabel => $"Aplicar alterações ({DirtyCount})";
 
@@ -154,7 +161,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     }
 
     public bool CanApplyAll
-        => DirtyCount > 0 && DirtyRowsAreValid() && FlowRequestError is null;
+        => DirtyCount > 0 && DirtyRowsAreValid() &&
+           (!PHControl.HasPendingChange || PHControl.CanApply) &&
+           FlowRequestError is null;
 
     public bool CanApplyFlowState
         => (_flowSubsystem.HasPendingChange || FlowControl.HasPendingChange) &&
@@ -166,6 +175,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     {
         var dirtyRows = Rows.Where(row => row.Subsystem.HasPendingChange).ToArray();
         var flowWasDirty = _flowSubsystem.HasPendingChange || FlowControl.HasPendingChange;
+        var phWasDirty = PHControl.HasPendingChange;
 
         if (!TryBuildCombinedCommand(out var command))
         {
@@ -183,6 +193,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         if (flowWasDirty)
         {
             FlowControl.CommitRequested(_flowSubsystem.IsEnabled);
+        }
+
+        if (phWasDirty)
+        {
+            PHControl.CommitPendingCommand();
         }
 
         PersistAppliedSetpoints();
@@ -229,6 +244,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         FlowControl.Revert();
+        PHControl.RevertCommand.Execute(null);
         StatusText = "Alterações não enviadas revertidas.";
         RefreshState();
     }
@@ -243,7 +259,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!TryReadAllStagedValues(out var values) || FlowRequestError is not null)
+        if (!TryReadAllStagedValues(out var values) ||
+            !PHControl.TryGetStagedSettings(out var phSettings) ||
+            FlowRequestError is not null)
         {
             StatusText = "Corrija os campos antes de salvar a predefinição.";
             return;
@@ -258,6 +276,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             MotorEnabled = Rows[1].Subsystem.IsEnabled,
             OxygenPercent = values[2],
             OxygenEnabled = Rows[2].Subsystem.IsEnabled,
+            PHControl = phSettings,
+            PHControlEnabled = PHControl.IsEnabled,
             FlowLitresPerMinute = values[3],
             MaxFlowLitresPerMinute = FlowControl.MaximumForCommand,
             FlowEnabled = Rows[3].Subsystem.IsEnabled,
@@ -300,6 +320,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         Rows[0].Subsystem.Stage(preset.TemperatureCelsius, preset.TemperatureEnabled);
         Rows[1].Subsystem.Stage(preset.MotorRpm, preset.MotorEnabled);
         Rows[2].Subsystem.Stage(preset.OxygenPercent, preset.OxygenEnabled);
+        PHControl.Stage(preset.PHControl, preset.PHControlEnabled);
         Rows[3].Subsystem.Stage(preset.FlowLitresPerMinute, preset.FlowEnabled);
         Rows[4].Subsystem.Stage(preset.PressureKilopascal, preset.PressureEnabled);
 
@@ -310,10 +331,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SafeStop()
     {
-        var command = CommandBuilders.CoreSafeStop(FlowControl.MaximumForCommand);
+        var command = CommandBuilders.CoreSafeStop(FlowControl.MaximumForCommand)
+            .Merge(PHControl.BuildSafeStop());
         var confirmed = _dialogs.ConfirmDestructive(
             "Parada segura",
-            "Desativa temperatura, agitação, monitor de oxigênio, vazão e pressão. " +
+            "Desativa temperatura, agitação, monitor de oxigênio, vazão, pressão e dosagem de pH. " +
             "As válvulas auxiliar e de nitrogênio serão fechadas e a válvula de respiro será aberta.",
             command.ToJson());
 
@@ -331,6 +353,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         FlowControl.CommitRequested(flowEnabled: false);
+        PHControl.IsEnabled = false;
+        PHControl.CommitPendingCommand();
         PersistAppliedSetpoints();
         StatusText = "Parada segura enviada; todos os subsistemas foram comandados para o estado seguro.";
         RefreshState();
@@ -379,6 +403,16 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             combined.Merge(command);
         }
 
+        if (PHControl.HasPendingChange)
+        {
+            if (!PHControl.TryBuildPendingCommand(out var phCommand))
+            {
+                return false;
+            }
+
+            combined.Merge(phCommand);
+        }
+
         return !combined.IsEmpty;
     }
 
@@ -413,6 +447,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         RefreshState();
     }
+
+    private void OnPHStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => RefreshState();
 
     private void RefreshState()
     {
@@ -465,6 +502,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         FlowControl.PropertyChanged -= OnFlowStateChanged;
+        PHControl.PropertyChanged -= OnPHStateChanged;
         Tuning.Dispose();
     }
 }

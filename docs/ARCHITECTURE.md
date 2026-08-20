@@ -2,7 +2,7 @@
 
 > How TECNAL-Hub is put together and why.
 >
-> **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Protocol](PROTOCOL.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Conventions](CONVENTIONS.md)
+> **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Conventions](CONVENTIONS.md)
 
 ---
 
@@ -16,8 +16,8 @@
 │  ViewModels            screen state + commands               │
 │  CommunityToolkit.Mvvm source generators                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Services              connection · control · telemetry ·    │
-│                        persistence · dialogs                 │
+│  Services              connection · control · calibration ·  │
+│                        telemetry · persistence · dialogs     │
 │  every one behind an interface, registered in App.xaml.cs    │
 ├─────────────────────────────────────────────────────────────┤
 │  TecnalHub.Protocol    SEPARATE ASSEMBLY                     │
@@ -81,6 +81,7 @@ ProjetoTECNAL/
 │     ├─ Services/
 │     │  ├─ Communication/      ConnectionManager (owns the link)
 │     │  ├─ Control/            cascade + kLa path controllers
+│     │  ├─ Calibration/        pure fits + stability statistics
 │     │  ├─ Telemetry/          ring buffers, session files, audit journal
 │     │  ├─ Persistence/        typed settings, recipe storage
 │     │  ├─ Platform/           file dialogs, Explorer, clipboard, window placement
@@ -110,6 +111,25 @@ and keeps every pt-BR user-facing string in one reviewable place.
 **Settings are a typed record**, serialised with `System.Text.Json`. This replaces
 v.6's 370 lines of hand-written `collect_preferences` / `apply_preferences` marshalling —
 the single biggest source of silently-lost settings in the old app.
+
+**Calibration has three explicit owners.** pH and oxygen linear curves belong to the
+app parser. Accepted pH is then echoed as a quoted `pHCal` solely because the module needs
+the calibrated value for its display/controller. The two-segment airflow curve belongs to
+the dedicated flowmeter and crosses the wire only after explicit review. A `pHCal` echo
+can never arm dosing, and `pHSetpoint` can never alter probe calibration. See
+[D-014](DECISIONS.md) and [CALIBRATION.md](CALIBRATION.md).
+
+**Calibration procedures are state machines, not dialogs around coefficient fields.**
+`PHCalibrationViewModel` consumes each accepted telemetry event once through
+awaiting/stabilizing/averaging/proposed/applied states. `OxygenCalibrationViewModel` owns
+direct two-point capture, and `FlowCalibrationViewModel` owns certified points, averaging
+and the split fit. Pure equations live under `Services/Calibration/`; views only render
+state. Starting pH calibration first commands a complete pH-off frame.
+
+**Settings synchronize calibration writes.** The advanced settings VM remains a singleton,
+so it listens for coefficient changes applied by the guided page. It refreshes only the
+probe pair that changed, preserving unrelated staged edits and preventing a later settings
+apply from restoring stale coefficients.
 
 **Shell placement is persisted as data, not WPF objects.** `UiSettings` stores nullable
 normal bounds, maximized state and the last page's stable id. The platform resolver turns
@@ -185,6 +205,7 @@ deterministic under test. Live actuation is a later work package, gated on comma
 | Wire format | Golden-string assertions against [PROTOCOL.md](PROTOCOL.md#4-golden-strings) §4, including one fixture running under **pt-BR culture** |
 | Telemetry parser | Recorded real device JSON, replayed; sentinel and stickiness semantics asserted |
 | Spike filter | Property tests — a held value must never be overwritten by a single outlier |
+| Calibration | Exact two-point and polynomial fits, distinct-frame acquisition, refusal states, interlocks, parser-only vs wire ownership, settings synchronization |
 | Controllers | Simulated first-order DOT plant with dead time; assert no windup, no zero-at-setpoint collapse |
 | Themes | Light and dark dictionaries must define an identical key set (a missing key crashes the runtime theme switch) |
 | Reactor asset | PNG signature/dimensions/RGBA encoding, transparent canvas, anchor schema, pH overlay and decode fallback |

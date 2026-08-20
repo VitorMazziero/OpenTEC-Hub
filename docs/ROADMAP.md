@@ -1,10 +1,10 @@
 # TECNAL-Hub — Build Roadmap
 
-> **Version:** 0.1.0 · **Written:** 2026-08-19
+> **Version:** 0.12.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-20
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
 > without ever losing a working link to the ESP32-S3.
 >
-> **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Protocol](PROTOCOL.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md) · [Conventions](CONVENTIONS.md)
+> **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md) · [Conventions](CONVENTIONS.md)
 
 ---
 
@@ -102,6 +102,8 @@ responds. Full design in [SIMULATOR.md](SIMULATOR.md).
 - [x] Emits **raw ADC counts**, inverting the field calibration, so the app's
       calibration and spike-filter path is genuinely exercised
 - [x] First-order process model with a 25 s oxygen probe dead time
+- [x] Complete pH command state in the model (inactive band, duty timing and pump
+      intensity), plus acceptance of the quoted `pHCal` echo and both flow-curve segments
 - [x] Fault injection: `no-module`, `stall`, `dropout`, `spikes`, `noise`, `drift`,
       `garbage`
 
@@ -392,12 +394,12 @@ numerically rather than hand-placed.
 
 **Open decisions — resolved as recommended:**
 
-- [x] **pH is exposed as a read-only KPI.** It was already parsed, spike-filtered,
+- [x] **pH was exposed as a read-only KPI for Phase 1b.** It was already parsed, spike-filtered,
       calibrated, echoed back as `pHCal` and offered as a chart channel — the charts
-      advertised a variable the dashboard denied existed. Read-only until Phase 2 brings
-      dosing, with a dedicated `ReadOnlyDetailView` rather than an empty entry field:
-      showing a setpoint box for a loop that does not exist is the same class of lie as
-      showing a commanded figure as a measured one.
+      advertised a variable the dashboard denied existed. Phase 1b used a dedicated
+      `ReadOnlyDetailView` rather than an empty entry field: showing a setpoint box for a
+      loop that had not landed was the same class of lie as showing a commanded figure as
+      measured. Phase 2 WP3 subsequently replaced it with the complete dosing panel.
 - [x] **Variable rail shipped.** It changes the workspace column grid, so retrofitting it
       after four more pages exist was the expensive order.
 - [x] **`Modo` ships with the ownership plumbing.** `Automático` and `Receita` are
@@ -525,7 +527,8 @@ filter-order crash and read-only detail binding. 178/178 tests pass; evidence is
       already persist — done in WP4)
 - [x] Keyboard map, searchable command palette and 2 px focus treatment
       ([§11](UI_DESIGN.md#11-localisation-and-accessibility)). `Ctrl+S` is reserved with
-      an explicit Phase 3 reason; `Ctrl+7`–`Ctrl+8` wait for their future destinations
+      an explicit Phase 3 reason. WP3 now uses `Ctrl+6` for Calibrações and `Ctrl+7` for
+      Configurações; `Ctrl+8` remains reserved
 
 **Acceptance — met:** UI Automation exercised `Ctrl+3`, `Ctrl+4`, `Ctrl+5`, `Ctrl+K`,
 `Ctrl+R`, `Ctrl+S`, `F5`, `Space`, `Esc` and Tab against the live localhost simulator.
@@ -559,7 +562,7 @@ and the real bioreactor still has to demonstrate the locked exit criterion above
 
 | # | Question | Recommendation |
 |---|---|---|
-| 1 | **Expose pH as a read-only KPI?** It is parsed, spike-filtered, calibrated, echoed back as `pHCal` and offered as a chart channel — but has no tile and is not in `Variables`. Adding it touches the locked scope | **Yes.** The marginal cost is one `ProcessVariableViewModel` and a tile, and the present state is incoherent: the charts offer pH while the dashboard denies it exists. Read-only until Phase 2 brings dosing |
+| 1 | **Expose pH as a read-only KPI?** It is parsed, spike-filtered, calibrated, echoed back as `pHCal` and offered as a chart channel — but has no tile and is not in `Variables`. Adding it touches the locked scope | **Yes for Phase 1b.** Phase 2 WP3 superseded the read-only limit with the complete v.6 five-field dosing state; probe calibration remains separate |
 | 2 | **Ship the variable rail in 1b, or defer it?** | **Ship it.** It changes the workspace column grid, and retrofitting a column after four more pages exist is the expensive order |
 | 3 | **Does `Modo` do anything before Phase 2?** With no cascade and no recipe engine, only `Manual` is reachable | Ship the control, wire the ownership plumbing, leave `Automático` and `Receita` disabled with a reason tooltip. The plumbing is what Phase 2 needs; adding it later means revisiting every control |
 
@@ -619,7 +622,8 @@ trajectory with the cascade PID.
 - [ ] kLa surface evaluation + gradient ascent *(gated on [D-008](DECISIONS.md); replaces
       the WP1 linear allocator without touching the controller)*
 - [ ] OUR soft sensor
-- [ ] pH · Nutrient · Antifoam · Distance-foam · Agitator flask
+- [~] Dosing subsystems — **pH delivered in WP3**; Nutrient · Antifoam · Distance-foam ·
+      Agitator flask remain
 - [~] Controller tuning UI with live term display (P, I, D contributions visible) *(WP2 done,
       **advisory**: it computes on live telemetry and is tunable, but does not actuate; the
       kLa contour and a live tuning chart ride with later WPs)*
@@ -700,6 +704,36 @@ safe increment; the controller must be trusted before anything sends its output 
 detail-pane `Cascata`/`PID`/`Saída` tabs; the kLa `Trajetória` contour and gradient path
 ([D-008](DECISIONS.md)); and a live tuning chart.
 
+### WP3 — pH control + guided calibration — **done 2026-08-20**
+
+The missing pH control was not a firmware gap: v.6 and the module already expose an
+explicit five-field dosing state. What was missing was the new app's UI and the ownership
+boundary between probe calibration, module display and actuation. This WP closes that gap
+and pulls the three mature v.6 calibration procedures forward from Phase 3.
+
+- [x] Complete pH desired state on Painel and Controle: `pHSetpoint`, `pHError`,
+      `pHOperation`, `pHMix`, `pHIntensity`, emitted atomically and validated against the
+      firmware ranges. Pump speed preserves v.6's `percent × 10`; malformed text is refused
+      rather than replaced with pH 7
+- [x] Dedicated **Calibrações** destination (`Ctrl+6`; Configurações moves to `Ctrl+7`):
+      - pH one/two-point stability + averaging with a full dosing safe-stop before the
+        probe leaves the vessel;
+      - direct oxygen two-point calibration of the app parser only;
+      - certified airflow points, distinct-frame `FlowVoltage` averaging, the 0.0545 V
+        two-segment fit and explicit partial/complete coefficient send
+- [x] Calibration math isolated from WPF, persisted points/coefficients, settings live
+      synchronization, and a professional theme-aware flow curve. The pH and oxygen curves
+      stay in the app; accepted pH is echoed to the module as quoted `pHCal`; the flow curve
+      belongs to the dedicated flowmeter firmware
+- [x] Operator safe-stop now merges the frozen Phase 1 core frame with the complete pH-off
+      state. Link loss cancels acquisition and invalidates prepared flow state
+- [x] 259/259 tests; localhost HTTP accepted the combined pH/echo/flow frame and subsequent
+      safe-stop. Light/dark 1280×800 evidence is in `docs/evidence/ui/phase2-calibration-*`
+
+**Hardware gate remains open:** software tests do not certify buffers, O₂ references,
+the external flow standard, pump direction or physical interlocks. See
+[CALIBRATION.md](CALIBRATION.md#6-estados-de-recusa-e-limite-de-validação).
+
 ---
 
 ## Phase 3 — Remaining subsystems + recipes
@@ -708,9 +742,9 @@ detail-pane `Cascata`/`PID`/`Saída` tabs; the kLa `Trajetória` contour and gra
 
 - [ ] Biomass sensor (blank, thresholds, integration time)
 - [ ] External pump, all five profile modes including polynomial `p0..p20` and piecewise
-- [ ] **Calibrações page** — the four wizards, replacing today's typed coefficients:
-      oxygen zero/span, pH one- and two-point, the two-segment flow curve at 0.0545 V,
-      and the level reference ([UI_DESIGN §5.7](UI_DESIGN.md#57-calibrações))
+- [ ] **Remaining calibration procedures** — the level reference and biomass blank/
+      thresholds. The dedicated page and pH, oxygen and airflow procedures were delivered
+      early in Phase 2 WP3 ([UI_DESIGN §5.7](UI_DESIGN.md#57-calibrações))
 - [ ] **Receitas page** — node canvas, execution engine, JSON persistence
 
 On recipes: the concept and the engine architecture come from ReceitasTECNAL —
@@ -756,8 +790,9 @@ make while re-implementing, rather than copying forward:
 > review (`docs/evidence/ui/`). The [UI_DESIGN.md](UI_DESIGN.md) revision of 2026-08-20
 > specified all eight main windows, which moved the shell, KPI-strip, settings-navigation,
 > confirmation, chart-export, event-log, icon, persistence and keyboard items into
-> **Phase 1b**, and the calibration wizards into **Phase 3**. What remains genuinely needs
-> the later phases underneath it.
+> **Phase 1b**. pH, oxygen and airflow calibration then moved forward into **Phase 2 WP3**;
+> level and biomass procedures remain in Phase 3. What remains genuinely needs the later
+> phases underneath it.
 
 ### Alarms
 

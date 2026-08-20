@@ -94,6 +94,25 @@ public sealed class DeviceModel
 
     public double PHSetpoint { get; set; }
 
+    public double PHInactiveBand { get; set; } = 0.17;
+
+    public int PHOperationSeconds { get; set; } = 5;
+
+    public int PHMixSeconds { get; set; } = 20;
+
+    /// <summary>Firmware-scale intensity, 0-990 (operator percent times ten).</summary>
+    public double PHIntensity { get; set; }
+
+    /// <summary>Last app-calibrated pH value echoed for the module display.</summary>
+    public double PHDisplayValue { get; set; }
+
+    public double? FlowK1 { get; set; }
+    public double? FlowF1 { get; set; }
+    public double? FlowC1 { get; set; }
+    public double? FlowK2 { get; set; }
+    public double? FlowF2 { get; set; }
+    public double? FlowC2 { get; set; }
+
     public bool FlowmeterEnabled { get; set; }
 
     public bool VentValveOpen { get; set; } = true;
@@ -248,9 +267,17 @@ public sealed class DeviceModel
         // Metabolism acidifies; dosing corrects toward the setpoint.
         _ph -= _biomass * 0.0009 * dt;
 
-        if (PHSetpoint > 0)
+        if (PHSetpoint > 0 && PHIntensity > 0)
         {
-            _ph += (PHSetpoint - _ph) * (dt / 240.0);
+            var error = PHSetpoint - _ph;
+            if (Math.Abs(error) > PHInactiveBand)
+            {
+                var speedFraction = Math.Clamp(PHIntensity / 990.0, 0.0, 1.0);
+                var dutyFraction = PHOperationSeconds /
+                                   (double)Math.Max(PHOperationSeconds + PHMixSeconds, 1);
+                var dosingGain = Math.Max(speedFraction * dutyFraction, 0.01);
+                _ph += error * (dt / (240.0 / dosingGain));
+            }
         }
 
         _ph = Math.Clamp(_ph, 3.0, 11.0);

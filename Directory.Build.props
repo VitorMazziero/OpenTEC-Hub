@@ -11,13 +11,13 @@
   <PropertyGroup Label="Product version (SINGLE SOURCE)">
     <!--
       The ONLY place the version number lives. The SDK derives from <Version>:
-        AssemblyVersion      = 0.9.0.0
-        FileVersion          = 0.9.0.0
-        InformationalVersion = 0.9.0
+        AssemblyVersion      = 0.10.0.0
+        FileVersion          = 0.10.0.0
+        InformationalVersion = 0.10.0
       On release, change ONLY this line, then mirror it in docs/CHANGELOG.md
       and in the installer script.
     -->
-    <Version>0.9.0</Version>
+    <Version>0.10.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Label="Product metadata">

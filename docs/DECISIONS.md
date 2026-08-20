@@ -190,6 +190,29 @@ liquid level or operational state.
 
 ---
 
+### D-013 · Cascade controller is velocity-form with structural anti-windup, in the app assembly
+**Status:** Accepted · 2026-08-20 · see [PHASE_LOG P2-01…P2-03](PHASE_LOG.md#phase-2--cascade-control--dosing)
+
+The Phase 2 control law lives in `src/TecnalHub/Services/Control/` as pure C# (no WPF, no
+wire, no telemetry), per the [ARCHITECTURE.md](ARCHITECTURE.md#3-directory-layout) layout,
+and is unit-tested through the app-assembly reference the test project already carries.
+
+The controller is **true velocity form**: the output is the clamped integrator, so it holds
+the actuator at setpoint rather than collapsing to zero, and windup is structural — there is
+no unbounded integral state to unwind. `I_min`/`I_max` bound and display the integral
+*contribution*; they are an explicit operator cap, not the binding windup protection.
+
+*Rejected:* a positional PID with a separately clamped integral accumulator. It read as a
+faithful "sliding integral + I_min/I_max", but froze the output above setpoint when the
+accumulator railed — a measured **45.9 %** steady-state error against a 30 % target
+([PHASE_LOG P2-02](PHASE_LOG.md#p2-02--the-output-is-velocity-form-anti-windup-is-structural-not-a-clamped-integrator)).
+
+*Consequence:* the prediction horizon folds into the error, so `Kp` is deliberately small
+(`Kp·horizon` is the effective derivative). This is a property of the corrected design, not a
+tuning accident, and it is why the defaults are gentle. Field gains still need the bioreactor.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

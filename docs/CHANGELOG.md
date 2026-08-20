@@ -6,6 +6,54 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.10.0] - 2026-08-20
+
+Phase 2 WP1 — the cascade controller core. The scientific payload's control law, built and
+validated headlessly before it meets the wire or the UI. No app behaviour changes yet.
+
+### Added
+- **`TecnalHub.Services.Control`** — the Phase 2 controller home, pure math with no WPF,
+  no telemetry and no wire dependency:
+  - `LeastSquaresRateEstimator` — windowed slope fit that rejects the polarographic probe's
+    quantisation staircase, so the derivative and prediction consume a clean rate rather
+    than a noisy endpoint difference.
+  - `VelocityPidController` — the corrected cascade law carried from the ReceitasTECNAL
+    design: **velocity-form output** (holds the actuator at setpoint instead of collapsing
+    to zero the way v.6's positional PID did), **structural anti-windup** (the clamped
+    output is the integrator; a reported integral bounded by `I_min`/`I_max` is held while
+    railed), derivative-on-measurement, and the **prediction horizon**
+    `DOT_pred = DOT + rate·t_pred` that compensates the 20-40 s probe dead time. Exposes the
+    exact live terms the tuning workspace shows — `P`, `I`, `D`, `dSaída`, `Saída`,
+    `DOT_pred`.
+  - `ActuatorWindowAllocator` / `ActuatorWindow` — splits one control effort across
+    agitation and aeration with overlapping windows (the `Cascata e sintonia` stacked bar).
+  - `CascadeController` — composes the loop and the split, mapping one step onto the frozen
+    combined actuation frame through `CommandBuilders.CascadeActuation`. It does **not**
+    send: a caller queues the frame on the shared command queue.
+  - `CascadeTuning` / `CascadeTerms` — the tunable parameters and the decomposed readout,
+    each field a control on `Controle → Cascata e sintonia` (UI_DESIGN §5.2).
+- 37 controller tests over a simulated first-order DOT plant with dead time
+  (`FirstOrderDeadTimePlant`): staircase rejection, the setpoint-hold and no-windup
+  properties, a prediction-reduces-overshoot comparison, closed-loop tracking of both the
+  bare PID and the full cascade, allocator overlap behaviour, tuning validation, and a
+  culture-pinned golden cascade frame.
+
+### Notable
+- **The controller does not send, and is not wired into the running app.** WP1 is the
+  validated control core; the kLa surface ([D-008](DECISIONS.md)), gain scheduling, the OUR
+  soft sensor, the dosing subsystems, and the whole UI — the tuning workspace, the `oxygen`
+  detail-pane tabs, mode ownership and live actuation — are later Phase 2 work packages.
+- The default gains are provisional simulator values. A small `Kp` is deliberate: the
+  prediction folds into the error, so `Kp·horizon` is the loop's effective derivative gain,
+  and a large proportional term on a dead-time process injects a huge derivative and
+  limit-cycles. Field gains need the bioreactor.
+
+### Verified
+- 227/227 tests pass (190 baseline + 37 new). The existing `SkiaSharp.Views.WPF` `NU1701`
+  compatibility warning is unchanged; the new code adds no analyzer warnings.
+
+---
+
 ## [0.9.0] - 2026-08-20
 
 Phase 1b WP8 plus the Phase 1 visual/responsive closure.

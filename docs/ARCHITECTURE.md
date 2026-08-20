@@ -156,6 +156,15 @@ notification and restyles after the theme service completes its repaint pass; wi
 that bridge, a chart created in light mode remains white after the rest of Painel turns
 dark.
 
+**The cascade control law is pure and headlessly tested.** `Services/Control/` holds the
+Phase 2 controllers as plain C# with no WPF, wire or telemetry reference, driven a step at a
+time and unit-tested against a simulated first-order DOT plant with dead time. The output is
+velocity-form — the clamped output is the integrator, so it holds the actuator at setpoint
+and cannot wind up — and the error carries a prediction horizon to compensate the probe dead
+time. The controller meets the wire in exactly one place, `CascadeController.BuildCommand`,
+which goes through `CommandBuilders.CascadeActuation`; it never sends, so a running cascade
+and an operator share the one command queue. See [D-013](DECISIONS.md).
+
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session
 `command_logs/`, and an in-window pane) that do not agree with each other.

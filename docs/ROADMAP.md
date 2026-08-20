@@ -612,9 +612,12 @@ trajectory with the cascade PID.
 
 **Deliverables**
 
-- [ ] `CascadeController` — velocity-form, anti-windup, prediction horizon, gain scheduling
-- [ ] Actuator-window allocation (agitation / aeration / enrichment, overlapping windows)
-- [ ] kLa surface evaluation + gradient ascent
+- [~] `CascadeController` — velocity-form, anti-windup, prediction horizon *(WP1 done; **gain
+      scheduling** deferred to a later WP)*
+- [~] Actuator-window allocation — agitation / aeration overlapping windows *(WP1 done;
+      **enrichment (N₂)** window rides with the enrichment path)*
+- [ ] kLa surface evaluation + gradient ascent *(gated on [D-008](DECISIONS.md); replaces
+      the WP1 linear allocator without touching the controller)*
 - [ ] OUR soft sensor
 - [ ] pH · Nutrient · Antifoam · Distance-foam · Agitator flask
 - [ ] Controller tuning UI with live term display (P, I, D contributions visible)
@@ -631,6 +634,44 @@ trajectory with the cascade PID.
 
 **Exit criteria:** a kLa-path-controlled run whose DOT tracking is at least as good
 as the v.6 runs already recorded in the manuscript dataset.
+
+### WP1 — Cascade controller core — **done 2026-08-20**
+
+The scientific core's control law, built and validated headlessly before any of it is
+wired to the wire or the UI. It is pure math in `src/TecnalHub/Services/Control/`, held to
+the [ARCHITECTURE §5](ARCHITECTURE.md#5-testing-strategy) controller strategy — a simulated
+first-order DOT plant with dead time, asserting no windup and no zero-at-setpoint collapse.
+
+- [x] `LeastSquaresRateEstimator` — windowed slope fit that rejects the polarographic
+      probe's quantisation staircase, so the derivative and the prediction consume a clean
+      rate rather than an endpoint difference
+- [x] `VelocityPidController` — the three corrected-design fixes: **velocity-form output**
+      (holds the actuator at setpoint instead of collapsing to zero), **structural
+      anti-windup** (the clamped output is the integrator; a reported integral bounded by
+      `I_min`/`I_max` is held while railed), and the **prediction horizon**
+      `DOT_pred = DOT + rate·t_pred`. Exposes the exact live terms the tuning workspace
+      shows — `P`, `I`, `D`, `dSaída`, `Saída`, `DOT_pred`
+- [x] `ActuatorWindowAllocator` — splits one control effort across agitation and aeration
+      with overlapping windows (the [§5.2](UI_DESIGN.md#52-controle) stacked bar)
+- [x] `CascadeController` — composes the loop and the split, and maps one step onto the
+      frozen combined frame through `CommandBuilders.CascadeActuation`, `v_Flow` inversion
+      and all. It does **not** send: the caller queues it on the shared command queue
+- [x] 37 tests, including staircase rejection, the setpoint-hold and no-windup properties,
+      a prediction-reduces-overshoot comparison on a dead-time plant, closed-loop tracking,
+      and a culture-pinned golden cascade frame. **227/227 pass**
+
+> **The gains are provisional simulator defaults, not a field tuning.** They were set once
+> the loop was understood — a small `Kp` because the prediction folds into the error and
+> `Kp·horizon` is the effective derivative, so a large proportional gain on a dead-time
+> process injects a huge derivative and limit-cycles. Real gains come from a bioreactor
+> run; anything tuned against the simulator's placeholder kLa is provisional.
+
+**Deferred to later Phase 2 WPs, on purpose:** the [D-008](DECISIONS.md) kLa surface and
+its gradient-path allocation (replaces the linear allocator, not the controller); gain
+scheduling; the OUR soft sensor; the five dosing subsystems and their synoptic positions;
+and the whole UI — `Controle → Cascata e sintonia`, the `oxygen` detail-pane
+`Cascata`/`PID`/`Saída` tabs, mode ownership and live actuation. WP1 is the piece every one
+of those builds on, and the only piece that needs neither the bioreactor nor D-008.
 
 ---
 

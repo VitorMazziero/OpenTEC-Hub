@@ -755,3 +755,89 @@ inside `TecnalHub.g.resources`. Screenshots:
 **Boundary:** this closes Phase 1 and Phase 1b software. It does not satisfy the real
 cultivation exit gate or validate biological process performance; v.6 remains the
 production fallback until the bioreactor run is completed.
+
+---
+
+# Phase 2 — Cascade control + dosing
+
+**Started 2026-08-20.**
+
+---
+
+### P2-01 · Build the cascade controller core first, and headlessly
+
+**Decided:** the first Phase 2 increment is the control law alone — rate estimation,
+velocity-form PID, actuator-window allocation — in `src/TecnalHub/Services/Control/`, with
+no wire, no telemetry, no UI, validated against a simulated first-order DOT plant with dead
+time.
+
+**Why:** it is the piece every other Phase 2 deliverable sits on, and the only one that
+needs neither the bioreactor nor the open [D-008](DECISIONS.md) kLa-surface decision. Risk
+is front-loaded exactly as it was for Phase 0: the controller math is the genuinely unknown
+part, so it goes first and is allowed to be proven or disproven cheaply, before a pixel of
+the tuning UI or a byte of live actuation depends on it.
+
+**Consequence:** the controllers are pure C# even though they live in the WPF app assembly
+per [ARCHITECTURE.md](ARCHITECTURE.md#3-directory-layout); the test project already
+references that assembly, so they are unit-tested directly. Moving them to a separate
+no-WPF assembly later is a file move, not a redesign.
+
+---
+
+### P2-02 · The output is velocity-form; anti-windup is structural, not a clamped integrator
+
+**Decided:** implement true velocity form — `du = ΔP + Ki·e·dt + ΔD`,
+`Output = clamp(Output_prev + du, OutMin, OutMax)` — and let the clamped output *be* the
+integrator. The reported `I` term is a separate bounded accumulator, held while the output
+is railed, for the live display and for the operator's explicit `I_min`/`I_max` cap.
+
+**Why:** the first attempt kept a separate clamped integral accumulator and fed *its change*
+into `du`. That looked like it honoured "sliding-window integral + I_min/I_max saturation",
+but it introduced a steady-state offset: when the accumulator hit its floor, `ΔI` went to
+zero and the output froze above the level that actually held setpoint.
+
+**Evidence:** the closed-loop cascade settled at **45.9 %** against a 30 % setpoint. Feeding
+`Ki·e·dt` straight into `du` — the textbook incremental form — drove the steady-state error
+to zero. Windup is then structurally impossible: there is no unbounded integrator state,
+only the clamped output, so the proportional term pulls it off the rail the instant the
+error reverses. A separate no-windup test confirms the output leaves an unreachable-setpoint
+rail within one step once the target becomes reachable.
+
+**Consequence:** `I_min`/`I_max` bound and display the integral contribution and let the
+operator cap integral authority; the *binding* windup protection is the output saturation.
+This is documented on the controller and in [UI_DESIGN §5.2](UI_DESIGN.md#52-controle)'s
+terms, honestly rather than as a decorative clamp.
+
+---
+
+### P2-03 · Small `Kp`, because the prediction is most of the derivative
+
+**Decided:** default `Kp = 0.25`, `Ki = 0.02`, `Kd = 0`, prediction horizon 25 s (≈ the
+probe dead time), rate window 25 s.
+
+**Why:** the prediction folds into the error — `e = SP − (DOT + rate·horizon)` — so the
+proportional path also carries the loop's derivative action, with effective gain
+`Kp·horizon`. The first guess (`Kp = 2`, horizon 40) was an effective `Kd ≈ 80`, which turned
+the dead-time loop into a **sustained limit cycle** — the true DO swung 47 → 19 % while the
+effort pinned at 100 %. Explicit `Kd` defaults to zero for the same reason: stacking a second
+derivative on the prediction's is what destabilises it.
+
+**Evidence:** with the corrected gains the cascade tracks 30 % on the simulator's placeholder
+kLa within ~2 %, and a with-vs-without comparison shows the prediction horizon strictly
+reduces overshoot on a 25 s-dead-time plant.
+
+**Consequence:** these are **provisional simulator defaults**, stated as such in the code and
+the roadmap. Real gains come from a bioreactor run; the placeholder kLa is not biology. The
+tuning UI will expose every one of them.
+
+---
+
+### Phase 2 — what was deliberately NOT done in WP1
+
+| Item | Why deferred |
+|---|---|
+| kLa surface evaluation + gradient-path allocation | Gated on [D-008](DECISIONS.md); it replaces the linear allocator, not the controller |
+| Gain scheduling | Wanted, but not needed to prove the core law; a later WP |
+| OUR soft sensor | Builds on the validated controller |
+| Dosing subsystems + their synoptic positions | Separate WP; touch the UI and the wire |
+| Tuning UI, `oxygen` detail-pane tabs, mode ownership, live actuation | The controller must be trusted before anything sends its output to a reactor |

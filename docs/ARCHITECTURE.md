@@ -174,6 +174,15 @@ journals it, and the command lifecycle only claims a `TelemetryConfirmed` where 
 echoes the setpoint (aeration) — every other channel rests at transport-accepted and says so.
 See [D-015](DECISIONS.md).
 
+**The alarm engine latches, and its audible is timed.** `AlarmService` runs the six system
+alarms as small state machines — on-delay, latch, acknowledge, off-deadband — and holds a
+condition that clears while still unacknowledged in the returned-unacknowledged state, because
+an alarm nobody saw is the one worth keeping. It is polled from the shell's 1 Hz tick (so it
+evaluates the clock even when telemetry stops) and takes a `TimeProvider`, so every delay is
+deterministic under test. The audible sits behind `IAlarmAnnunciator` and is silenced for a
+window, never muted permanently; the whole policy is tested without making a sound. See
+[D-016](DECISIONS.md).
+
 **Dialogs are behind `IDialogService`.** The destructive-confirmation implementation is
 a WPF service, while `ControlViewModel` sees only a boolean result. Tests can prove that
 Cancel sends nothing without opening a window.

@@ -10,6 +10,49 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.15.0] - 2026-08-21
+
+Phase 2 WP4 (part 2) — the operational alarm engine. This completes the safety-kernel
+alarm gate: the six system alarms latch, are acknowledgeable, journalled, and sound an
+audible indication under a timed silence. With the arbiter's safe abort (part 1), this is
+the gate that had to close before any automatic actuation.
+
+### Added
+- **`AlarmService`** — a latched, acknowledgeable engine for the six §5.4.3 system alarms:
+  `Link perdido`, `Módulo sem resposta`, `Fluxômetro offline`, `Dados congelados`,
+  `Sensor ausente` and `Comando não confirmado`. Each has an on-delay to raise, an
+  off-deadband to clear, and stays latched until it is both acknowledged and clear.
+- **Returned-unacknowledged is kept.** An alarm whose condition clears while nobody has
+  acknowledged it stays in the list in that third state — an alarm nobody saw is the one
+  worth keeping.
+- **Audible indication with a timed silence** (`IAlarmAnnunciator`): sounds while any alarm
+  is annunciating; `Silenciar áudio (10 min)` mutes for a window, never permanently, and a
+  fresh alarm re-sounds through an active silence.
+- **A shell alarm banner** — full width, above the rails — headlining the most severe
+  active alarm with its detail, a `+N` overflow count, and `Reconhecer` / `Silenciar`
+  actions. The `Comando não confirmado` alarm is driven by the WP4 part 1 command lifecycle
+  (an actuator whose command timed out); recovery clears it.
+- Every alarm transition (raised, acknowledged, normalised, silenced) is written to Eventos
+  under `Alarme`, at error severity for critical alarms and warning for the rest.
+
+### Verified
+- 303/303 tests pass (14 new): the latch/acknowledge/deadband machine, returned-unacknowledged,
+  the timed-silence expiry and re-sound, all six conditions, and the exit criterion that a
+  link loss produces exactly one latched alarm.
+- Live simulator run: connected, then the simulator was killed — the link faulted, the
+  `Link perdido` banner latched with its audible/acknowledge actions, and every reading
+  degraded to an em dash with zero binding failures. Evidence:
+  `docs/evidence/ui/phase2-wp4-alarms-painel.png`.
+
+### Documentation
+- Added [D-016](DECISIONS.md) for the alarm-engine model and
+  [PHASE_LOG P2-09](PHASE_LOG.md). WP4 in the roadmap is now complete but for the Phase 0
+  P2/P3 link cleanup, which is hygiene rather than a gate. The full **Alarmes** page
+  (active/history/configuration, [UI_DESIGN §5.4](UI_DESIGN.md)) remains Phase 5 and builds
+  on this engine; per-variable limits and the persistent-foam alarm arrive with it.
+
+---
+
 ## [0.14.0] - 2026-08-20
 
 Phase 2 WP5 — the D-008 kLa experimental mapping and allocation-profile workspace.

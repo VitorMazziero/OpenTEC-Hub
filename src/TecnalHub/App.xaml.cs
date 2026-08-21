@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using TecnalHub.Services.Alarms;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
@@ -187,6 +188,11 @@ public partial class App : Application
         services.AddSingleton<ISessionLogger, SessionLogger>();
         services.AddSingleton<ISessionFileService, SessionFileService>();
         services.AddSingleton<IEventJournal, EventJournal>();
+
+        // The operational safety alarm engine (Phase 2 WP4). It watches the arbiter and the
+        // link, latches the six system alarms, journals them and drives the audible indication.
+        services.AddSingleton<IAlarmAnnunciator, AlarmAnnunciator>();
+        services.AddSingleton<IAlarmService, AlarmService>();
 
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();

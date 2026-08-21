@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TecnalHub.Protocol;
+using TecnalHub.Services.Alarms;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
@@ -80,6 +81,7 @@ public sealed record CommandPaletteEntry(
 public sealed partial class ShellViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IAlarmService _alarms;
     private readonly ISettingsService _settings;
     private readonly IThemeService _theme;
     private readonly ITelemetryHistory _history;
@@ -111,11 +113,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         KlaMappingViewModel klaMapping,
         IDialogService dialogs,
         ICascadeService cascade,
+        IAlarmService alarms,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
         ILogger<ShellViewModel> log)
     {
         _device = device;
+        _alarms = alarms;
         _settings = settings;
         _theme = theme;
         _history = history;
@@ -260,6 +264,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _device.StateChanged += OnStateChanged;
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.SessionTimeZeroed += OnSessionTimeZeroed;
+        _alarms.Changed += OnAlarmsChanged;
         _settings.Changed += OnSettingsChanged;
         _sessionLogger.StatusChanged += OnSessionStatusChanged;
         Historical.OpenGraphsRequested += OnOpenGraphsRequested;
@@ -467,6 +472,59 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         VariableState.Warning => IsTelemetryStale ? "Dados congelados" : "Módulo offline",
         _ => "Sistema offline",
     };
+
+    // ── Operational alarms (WP4) ─────────────────────────────────────────────
+
+    /// <summary>True while any system alarm is latched, so the banner shows.</summary>
+    public bool HasAlarms => _alarms.HasActiveAlarms;
+
+    /// <summary>The alarm the banner headlines, or null.</summary>
+    public AlarmSnapshot? AlarmHeadline => _alarms.Headline;
+
+    public string AlarmHeadlineText => AlarmHeadline?.Title ?? "";
+
+    public string AlarmHeadlineDetail => AlarmHeadline?.Detail ?? "";
+
+    /// <summary>The banner colour, reusing the process-state palette.</summary>
+    public VariableState AlarmState => AlarmHeadline?.Severity == AlarmSeverity.Warning
+        ? VariableState.Warning
+        : VariableState.Alarm;
+
+    /// <summary>
+    /// A count suffix for the banner when more than one alarm is latched, e.g. "+2".
+    /// </summary>
+    public string AlarmMoreText
+    {
+        get
+        {
+            var others = _alarms.Snapshot().Count - 1;
+            return others > 0 ? $"+{others}" : "";
+        }
+    }
+
+    /// <summary>Whether the annunciator is currently sounding, so Silenciar is offered.</summary>
+    public bool IsAlarmAudible => _alarms.IsAudible;
+
+    /// <summary>Whether there is anything left to acknowledge.</summary>
+    public bool HasUnacknowledgedAlarms => _alarms.AnnunciatingCount > 0;
+
+    [RelayCommand]
+    private void AcknowledgeAlarms() => _alarms.AcknowledgeAll();
+
+    [RelayCommand]
+    private void SilenceAlarms() => _alarms.Silence();
+
+    private void OnAlarmsChanged()
+    {
+        OnPropertyChanged(nameof(HasAlarms));
+        OnPropertyChanged(nameof(AlarmHeadline));
+        OnPropertyChanged(nameof(AlarmHeadlineText));
+        OnPropertyChanged(nameof(AlarmHeadlineDetail));
+        OnPropertyChanged(nameof(AlarmState));
+        OnPropertyChanged(nameof(AlarmMoreText));
+        OnPropertyChanged(nameof(IsAlarmAudible));
+        OnPropertyChanged(nameof(HasUnacknowledgedAlarms));
+    }
 
     [ObservableProperty]
     public partial string SelectedNavigationId { get; set; }
@@ -730,6 +788,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// </remarks>
     private void OnTick(object? sender, EventArgs e)
     {
+        // Alarms are evaluated on every tick, connected or not: link loss, on-delay expiry
+        // and the audio-silence timeout all need the clock to advance even when no telemetry
+        // is arriving.
+        _alarms.Poll();
+
         if (_device.State is not Protocol.ConnectionState.Connected || _lastFrameAt is not { } last)
         {
             return;
@@ -1003,6 +1066,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.SessionTimeZeroed -= OnSessionTimeZeroed;
+        _alarms.Changed -= OnAlarmsChanged;
         _settings.Changed -= OnSettingsChanged;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;
         Historical.OpenGraphsRequested -= OnOpenGraphsRequested;

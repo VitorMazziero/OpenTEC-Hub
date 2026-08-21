@@ -59,7 +59,7 @@ and dependency, not on implementation size.
 | Priority | Remaining capability | Current state | Planned delivery |
 |---|---|---|---|
 | **P0** | Field protocol closure: captured byte comparison, live-sensor/calibration run, command acknowledgement timing, safe COM discovery and configured Wi-Fi poll period | Partial; software/simulator complete, hardware gate open | Phase 0 follow-ups + Phase 2 WP4 |
-| **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | Session-time zero and ownership/safe-abort events shipped (WP4 part 1); alarm engine (deadband/ack/audible silence) remains | Phase 2 WP4 |
+| **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | **Done (WP4):** six latching system alarms with deadband, acknowledgement, timed audible silence, journal and a shell banner; session-time zero. Full Alarmes page is Phase 5 | Phase 2 WP4 |
 | **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | **Done (WP4 part 1):** per-actuator arbiter, journalled bumpless transfer and safe abort. `Automático` stays disabled until live actuation | Phase 2 WP4/WP6 |
 | **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | **Done (WP5):** blank-start experiment, paper/custom identity, headroom workspace and immutable receipts | Phase 2 WP5 — [D-008](DECISIONS.md) |
 | **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | Corrected controller and advisory terms exist; no sending | Phase 2 WP6 |
@@ -767,25 +767,26 @@ and pulls the three mature v.6 calibration procedures forward from Phase 3.
 the external flow standard, pump direction or physical interlocks. See
 [CALIBRATION.md](CALIBRATION.md#6-estados-de-recusa-e-limite-de-validação).
 
-### WP4 — operational safety, ownership and field-parity kernel — **P0 · part 1 done 2026-08-20**
+### WP4 — operational safety, ownership and field-parity kernel — **P0 · alarm gate done 2026-08-21**
 
 This WP precedes every automatic command. It closes the small v.6 operational behaviours
-that become safety-critical once the advisory controller is allowed to send. **Part 1 — the
-command path — shipped**; the alarm engine and the Phase 0 link cleanup remain.
+that become safety-critical once the advisory controller is allowed to send. **The command
+path (part 1) and the alarm engine (part 2) shipped**; only the Phase 0 link cleanup remains,
+and it is hygiene rather than a gate — so WP6 live actuation is unblocked.
 
 - [x] One command arbiter owns the wire. `Manual`, `Automático` and later `Receita` are
       mutually exclusive per actuator; changing owner is explicit, journalled and bumpless
 - [x] Desired/issued/transport-accepted/telemetry-confirmed/timed-out command lifecycle.
       Uses the `FlowSetpoint`/`FlowCommandAck` echo where the firmware exposes it and labels
       every other channel honestly as transport-accepted with no confirmation echo
-- [ ] Core system alarms: link lost, module offline, flowmeter offline, frozen data,
+- [x] Core system alarms: link lost, module offline, flowmeter offline, frozen data,
       sensor absent and unacknowledged command. Each has delay/deadband, acknowledgement,
       audit history and an audible indication with a timed silence — not a permanent mute
 - [x] Operator **Zerar tempo da sessão**: store a local display/log offset exactly as v.6
       does; never reset the device clock or rewrite prior samples
 - [ ] Finish the Phase 0 P2/P3 link work: safe busy-port handling, WMI/CH343 ranking,
       immutable telemetry snapshots, configured HTTP poll period and truthful round-trip
-      naming/correlation
+      naming/correlation *(hygiene; not a gate on WP6)*
 
 **Part 1 delivered — [D-015](DECISIONS.md):**
 
@@ -805,10 +806,22 @@ command path — shipped**; the alarm engine and the Phase 0 link cleanup remain
 - [x] 280/280 tests (21 new); live simulator run connected with telemetry through the arbiter
       and zero XAML binding failures (`docs/evidence/ui/phase2-wp4-arbiter-painel.png`)
 
+**Part 2 delivered — [D-016](DECISIONS.md):**
+
+- [x] `AlarmService` — the six §5.4.3 system alarms as latching state machines with on-delay,
+      off-deadband, acknowledgement and a returned-unacknowledged state that is kept, not dropped
+- [x] Audible indication behind `IAlarmAnnunciator` with a timed 10 min silence — never a
+      permanent mute; a fresh alarm re-sounds through an active silence
+- [x] A shell alarm banner headlining the most severe alarm with `Reconhecer` / `Silenciar`,
+      and every transition journalled to Eventos under `Alarme`
+- [x] `Comando não confirmado` reuses the part 1 command lifecycle; recovery clears it
+- [x] 303/303 tests (14 new); live simulator link-drop latched the `Link perdido` banner with
+      zero binding failures (`docs/evidence/ui/phase2-wp4-alarms-painel.png`)
+
 **Exit:** manual control still works through the arbiter (met); a simulated link loss revokes
-automatic ownership and produces one journalled safe-abort event (met at the software level).
-The **latched, acknowledgeable** alarm and the audible silence arrive with the alarm engine;
-no automatic subsystem can send until the whole gate passes on the bioreactor.
+automatic ownership, produces one journalled safe-abort event **and one latched, acknowledgeable
+alarm with a timed audible silence** (met). The Phase 0 link cleanup above is the only WP4 item
+still open; no automatic subsystem is field-blessed until the whole gate passes on the bioreactor.
 
 ### WP5 — Mapeamento kLa and path publication — **done 2026-08-20 · P1 · D-008**
 

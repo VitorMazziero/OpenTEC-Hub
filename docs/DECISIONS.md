@@ -316,6 +316,43 @@ link cleanup remain the rest of WP4.
 
 ---
 
+### D-016 · System alarms latch, acknowledge and clear on a deadband, with a timed audible silence
+**Status:** Accepted and implemented · 2026-08-21 · see [PHASE_LOG P2-09](PHASE_LOG.md#p2-09--the-operational-alarm-engine-latches-acknowledges-and-silences-on-a-timer)
+
+The six system alarms (§5.4.3) run through one `AlarmService`. Each alarm is a small state
+machine: a condition must hold for an **on-delay** before it raises, it then **latches**, and
+it clears only once it has been both **acknowledged** and clear for an **off-deadband**. The
+deadband stops a value sitting on a boundary from chattering; the latch means a fault that
+comes and goes is not lost.
+
+**Returned-unacknowledged is a first-class state.** An alarm whose condition clears while it
+is still unacknowledged stays in the list, flagged `Normalizado, não reconhecido` — an alarm
+nobody saw is exactly the one worth keeping. Only the acknowledgement, once the condition is
+already normal, removes it.
+
+**The audible is timed, never a permanent mute.** While any alarm is annunciating the
+annunciator sounds; `Silenciar` mutes it for a fixed window and then it sounds again, and a
+newly-raised alarm re-sounds immediately through an existing silence so a second fault cannot
+be hidden by a silence taken for the first. The audio device is behind `IAlarmAnnunciator`,
+so the whole policy is unit-tested against an injected clock without making a sound.
+
+**Conditions are mapped to concrete, already-available signals:** link state leaving Connected;
+`SensorCommOK` false; `FlowmeterOnline` false while flow control is enabled; no accepted frame
+for more than three emission periods; the oxygen probe reading its sentinel past a grace period;
+and — reusing the [D-015](DECISIONS.md) command lifecycle — an actuator whose command timed out
+without transport acceptance.
+
+*Rejected:* auto-clearing alarms (a transient fault would vanish unseen); a permanent mute
+(the one silence nobody remembers to lift); coupling the audible policy to WPF so it could not
+be tested; inventing a bespoke "sensor absent" signal when the probe sentinel already carries it.
+
+*Scope:* this is the WP4 system-alarm engine. The **Alarmes** page and configurable per-variable
+HH/H/L/LL limits with the persistent-foam process alarm are Phase 5 and build on this engine;
+today the operator surface is the shell banner. The Phase 0 P2/P3 link cleanup remains open but
+is hygiene, not part of this gate.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

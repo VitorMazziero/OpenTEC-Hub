@@ -1027,3 +1027,39 @@ machine. The reproducible oracle generator and precise operator/scientific contr
 **Boundary:** this is an implementation-parity result on the paper dataset, not biological
 validation of a new broth. WP5 neither activates nor sends the allocation, and the bioreactor
 hardware/cultivation gate remains open for WP6.
+
+---
+
+### P2-09 · The operational alarm engine latches, acknowledges and silences on a timer
+
+**Decided:** implement WP4's six system alarms as one `AlarmService` of small per-alarm state
+machines — on-delay to raise, latch, acknowledge, off-deadband to clear — driven by an injected
+`TimeProvider` and polled from the shell's existing 1 Hz tick plus every device/arbiter event.
+The audible indication lives behind `IAlarmAnnunciator`, so the whole silence policy is tested
+without making a sound.
+
+**Why the shell tick, not a timer in the service:** the service must evaluate the clock even when
+no telemetry arrives — link loss, on-delay expiry and the audio-silence timeout are all
+time-based. Reusing the shell's `DispatcherTimer` (which already exists for staleness) keeps the
+service free of a `Dispatcher` dependency and therefore trivially testable: `Poll()` is public and
+tests call it directly after advancing a `TestClock`.
+
+**Safety decisions:** an alarm latches and does not auto-clear — a fault that comes and goes while
+unacknowledged is held in the returned-unacknowledged state, because an alarm nobody saw is the
+one worth keeping. The audible is a **timed** silence, never a permanent mute, and a freshly-raised
+alarm resets the silence so a second fault cannot hide behind a silence taken for the first. Each
+condition is a signal that already exists — link state, `SensorCommOK`, `FlowmeterOnline` gated on
+flow being in use, the three-period staleness clock, the oxygen sentinel, and the [D-015](DECISIONS.md)
+command lifecycle's `TimedOut` — rather than a new bespoke detector.
+
+**Evidence:** 303/303 tests (14 new) cover the latch/ack/deadband machine, returned-unacknowledged,
+the silence expiry and the re-sound through silence, all six conditions, and the exit criterion that
+one link loss yields exactly one latched alarm. A live simulator run connected, then the simulator
+was killed: the link faulted, the `Link perdido` banner latched with its `Silenciar` and `Reconhecer`
+actions, every reading degraded to an em dash, and no XAML binding failure or exception was logged
+(`docs/evidence/ui/phase2-wp4-alarms-painel.png`).
+
+**Boundary:** the operator surface is the shell banner. The full **Alarmes** page and configurable
+per-variable HH/H/L/LL limits with the persistent-foam alarm are Phase 5 on this same engine. The
+Phase 0 P2/P3 link cleanup (busy-port handling, WMI/CH343 ranking, immutable snapshots, poll period,
+round-trip naming) is the one WP4 item still open, and it is hygiene rather than a gate on WP6.

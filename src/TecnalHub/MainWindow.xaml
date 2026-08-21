@@ -236,6 +236,43 @@
             </Grid>
         </Border>
 
+        <!-- ══ Alarm banner (WP4) — full width, above the rails ══
+             Shows whenever a system alarm is latched. Reconhecer acknowledges every
+             alarm; Silenciar mutes the audible for a window, never permanently. -->
+        <Border DockPanel.Dock="Top"
+                Visibility="{Binding HasAlarms, Converter={StaticResource BoolToVis}}"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{Binding AlarmState, Converter={StaticResource StateToBrush}}"
+                BorderThickness="0,0,0,2"
+                Padding="16,7">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ctl:StateDot State="{Binding AlarmState}" Margin="0,0,10,0" />
+                    <TextBlock Text="{Binding AlarmHeadlineText}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Foreground="{Binding AlarmState, Converter={StaticResource StateToBrush}, ConverterParameter=Text}" />
+                    <TextBlock Text="{Binding AlarmMoreText}" Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Text="{Binding AlarmHeadlineDetail}" Margin="16,0,0,0"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Style="{StaticResource CaptionTextStyle}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="Silenciar áudio (10 min)" Padding="10,4" Margin="0,0,8,0"
+                            Visibility="{Binding IsAlarmAudible, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding SilenceAlarmsCommand}" />
+                    <Button Content="Reconhecer"
+                            Padding="10,4"
+                            IsEnabled="{Binding HasUnacknowledgedAlarms}"
+                            Command="{Binding AcknowledgeAlarmsCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- ══ Navigation rail ══ -->
         <Border x:Name="NavigationRail" DockPanel.Dock="Left"
                 Background="{DynamicResource SurfaceCardBrush}"

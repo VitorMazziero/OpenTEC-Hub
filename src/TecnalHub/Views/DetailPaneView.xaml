@@ -27,6 +27,17 @@
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
 
+        <!-- Read-only label/value rows for the oxygen cascade tabs. -->
+        <Style x:Key="CascadeLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Margin" Value="0,0,0,7" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="CascadeValue" TargetType="TextBlock" BasedOn="{StaticResource NumericTextStyle}">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,7" />
+        </Style>
+
         <!-- SP & Limites. Shown inside the segmented strip where one exists, and
              directly where it does not - same template either way, so the two
              paths cannot drift. -->
@@ -219,13 +230,103 @@
                     </TabItem>
                     <TabItem Header="Saída"
                              Visibility="{Binding HasOutput, Converter={StaticResource BoolToVis}}">
-                        <ContentControl ContentTemplate="{StaticResource OutputSectionTemplate}"
-                                        Content="{Binding}" />
+                        <Grid>
+                            <!-- Flow: the device's setpoint echo. Oxygen: the cascade's effort
+                                 and the actuators it allocated. -->
+                            <ContentControl ContentTemplate="{StaticResource OutputSectionTemplate}"
+                                            Content="{Binding}"
+                                            Visibility="{Binding HasCascade, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                            <StackPanel Visibility="{Binding HasCascade, Converter={StaticResource BoolToVis}}">
+                                <StackPanel DataContext="{Binding DataContext.CascadeDetail, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <TextBlock Text="{Binding StateText}" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,10" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition /><RowDefinition /><RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Saída (esforço)" Style="{StaticResource CascadeLabel}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding OutputText}" Style="{StaticResource CascadeValue}" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Agitação alocada" Style="{StaticResource CascadeLabel}" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AgitationText}" Style="{StaticResource CascadeValue}" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Aeração alocada" Style="{StaticResource CascadeLabel}" />
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AerationText}" Style="{StaticResource CascadeValue}" />
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
                     </TabItem>
                     <TabItem Header="Cascata"
-                             Visibility="{Binding HasCascade, Converter={StaticResource BoolToVis}}" />
+                             Visibility="{Binding HasCascade, Converter={StaticResource BoolToVis}}">
+                        <StackPanel DataContext="{Binding DataContext.CascadeDetail, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <TextBlock Text="{Binding StateText}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,10" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Modo" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ModeText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Setpoint de O₂" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SetpointText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="kLa demandado" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding KlaDemandText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Agitação alocada" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AgitationText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Aeração alocada" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding AerationText}" Style="{StaticResource CascadeValue}" />
+                            </Grid>
+                            <TextBlock TextWrapping="Wrap" Margin="0,10,0,0"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="Sintonia, modo e ativação ficam em Controle → Cascata e sintonia." />
+                        </StackPanel>
+                    </TabItem>
                     <TabItem Header="PID"
-                             Visibility="{Binding HasPid, Converter={StaticResource BoolToVis}}" />
+                             Visibility="{Binding HasPid, Converter={StaticResource BoolToVis}}">
+                        <StackPanel DataContext="{Binding DataContext.CascadeDetail, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Erro" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ErrorText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="P" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProportionalText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="I" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding IntegralText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="D" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DerivativeText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="dSaída" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DeltaOutputText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Saída" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding OutputText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="DOT previsto" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding PredictedText}" Style="{StaticResource CascadeValue}" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Taxa de O₂" Style="{StaticResource CascadeLabel}" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding RateText}" Style="{StaticResource CascadeValue}" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                        Visibility="{Binding IsSaturated, Converter={StaticResource BoolToVis}}">
+                                <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                                        Background="{DynamicResource StateWarningBrush}" />
+                                <TextBlock Text="Saída saturada no limite do atuador" Margin="6,0,0,0"
+                                           Foreground="{DynamicResource StateWarningTextBrush}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </TabItem>
                 </TabControl>
 
                 <ContentControl ContentTemplate="{StaticResource SetpointSectionTemplate}"

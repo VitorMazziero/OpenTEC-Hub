@@ -182,9 +182,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 new SubsystemSpec(0, 100, IsInteger: false,
                     value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, value),
                     () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0),
-                    // Cascade, PID and output arrive with the Phase 2 controller. Until
-                    // then there is no app-side loop to have terms.
-                    HasCalibration: true),
+                    // Oxygen is the one device with an app-side controller the app can observe,
+                    // so it carries the Cascata / PID / Saída tabs. Their content is the live
+                    // cascade state (ShellViewModel.CascadeDetail); it is controlled on Controle.
+                    HasOutput: true, HasCascade: true, HasPid: true, HasCalibration: true),
                 device, setpoints.OxygenPercent),
 
             new SubsystemViewModel(Flow,
@@ -211,6 +212,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(Subsystems, FlowControl, PHControl, device, settings, dialogs, cascade);
+        CascadeDetail = new CascadeDetailViewModel(cascade);
 
         NavigationItems =
         [
@@ -313,6 +315,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>All-setpoints and valve-control page.</summary>
     public ControlViewModel Control { get; }
+
+    /// <summary>Live cascade state behind the oxygen detail pane's Cascata/PID/Saída tabs.</summary>
+    public CascadeDetailViewModel CascadeDetail { get; }
 
     /// <summary>Shared staged/observed flow state used by both detail and Controle.</summary>
     public FlowControlViewModel FlowControl { get; }
@@ -1072,6 +1077,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Historical.OpenGraphsRequested -= OnOpenGraphsRequested;
         Settings.Dispose();
         Control.Dispose();
+        CascadeDetail.Dispose();
         Calibration.Dispose();
         PHControl.Dispose();
         Connection.Dispose();

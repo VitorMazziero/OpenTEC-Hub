@@ -354,7 +354,7 @@ is hygiene, not part of this gate.
 ---
 
 ### D-017 · The cascade actuates through the arbiter, on the published kLa path, with a bumpless engage and safe abort
-**Status:** Accepted and implemented (part 1) · 2026-08-21 · see [PHASE_LOG P2-10](PHASE_LOG.md#p2-10--the-cascade-takes-the-wire-through-the-arbiter-on-the-published-path)
+**Status:** Accepted and implemented · 2026-08-21 · see [PHASE_LOG P2-10](PHASE_LOG.md#p2-10--the-cascade-takes-the-wire-through-the-arbiter-on-the-published-path), [P2-11](PHASE_LOG.md#p2-11--the-cascade-becomes-observable-detail-tabs-and-a-live-tuning-chart)
 
 Live oxygen cascade control (WP6) sits on the pieces below it: the validated velocity-form
 controller ([D-013](DECISIONS.md)), the command arbiter ([D-015](DECISIONS.md)) and the alarm
@@ -384,11 +384,12 @@ receipt); a single global mode that could not express the cascade owning O₂ wh
 holds pH; engaging without a bumpless preload; auto-clearing a safe abort. A trajectory run
 refuses to engage until a published map is selected — a fresh install ships none.
 
-*Scope of part 1:* the actuation engine, the ownership handshake, the safe abort and the
-workspace controls. The oxygen detail-pane `Cascata`/`PID`/`Saída` tabs and the live
-PV/SP/kLa/output tuning chart are part 2. Simulator actuation is validated here; field actuation
-on a real bioreactor remains the hardware gate, and no result tuned only against the simulator
-closes the WP.
+*Scope:* part 1 was the actuation engine, the ownership handshake, the safe abort and the
+workspace controls; part 2 made the loop observable — the oxygen detail-pane `Cascata`/`PID`/
+`Saída` tabs (read-only; tuning stays on Controle) and the live PV/SP/kLa/output tuning chart,
+fed by a fixed-capacity `CascadeTrend` ring the service fills each armed step. Simulator
+actuation is validated; field actuation on a real bioreactor remains the hardware gate, and no
+result tuned only against the simulator closes the WP.
 
 ---
 

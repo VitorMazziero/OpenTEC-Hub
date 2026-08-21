@@ -10,6 +10,41 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.17.0] - 2026-08-21
+
+Phase 2 WP6 (part 2) — the cascade made observable: the oxygen detail pane's
+`Cascata`/`PID`/`Saída` tabs and the live PV/SP/kLa/output tuning chart. This closes WP6.
+
+### Added
+- **Oxygen `Cascata`/`PID`/`Saída` detail tabs.** Oxygen is the one device with an app-side
+  controller the app can observe, so its synoptic detail pane now carries the cascade state:
+  `Cascata` (mode, O₂ setpoint, kLa demand, allocated agitation/aeration), `PID` (the seven
+  live terms plus a saturation flag) and `Saída` (effort and the allocated actuators). The
+  content is read-only — tuning, mode and engage stay on Controle.
+- **`CascadeDetailViewModel`** formats that state and reacts to every cascade frame; the shell
+  exposes it and the detail pane reaches it the same way it reaches the telemetry history.
+- **Live tuning chart** (`CascadeChart`, ScottPlot) on `Controle → Cascata e sintonia`: PV,
+  setpoint and effort on the left percent axis, and the kLa demand on its own right axis
+  (drawn only while engaged on the path). It is fed by `CascadeTrend`, a fixed-capacity ring
+  the service fills on every armed step, and redraws at 1 Hz — theme-aware, like `TrendSpark`.
+- The chart sits at the top of the tuning column, where it is watched while the fields below
+  are adjusted.
+
+### Verified
+- 328/328 tests pass (9 new): the trend ring (relative timing, the sparse kLa series, capacity,
+  clear), the service recording a sample per armed frame and clearing on disarm, and the detail
+  view's three states, mode text and change notifications.
+- Live simulator run: the tuning chart plotted PV/SP/effort with its legend while the advisory
+  cascade computed, and the oxygen detail pane rendered the four tabs with the Cascata overview,
+  both with zero binding failures. Evidence:
+  `docs/evidence/ui/phase2-wp6-tuning-chart.png`, `docs/evidence/ui/phase2-wp6-oxygen-detail.png`.
+
+### Documentation
+- [D-017](DECISIONS.md) and [PHASE_LOG P2-11](PHASE_LOG.md) updated: WP6 is complete but for the
+  bioreactor field gate. Only the WP4 Phase-0 link hygiene remains open in Phase 2's P0/P1 scope.
+
+---
+
 ## [0.16.0] - 2026-08-21
 
 Phase 2 WP6 (part 1) — live oxygen cascade ownership and actuation. With the WP4 alarm gate

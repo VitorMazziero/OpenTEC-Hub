@@ -1102,3 +1102,39 @@ map is selected, with zero binding failures
 `Cascata`/`PID`/`Saída` tabs and the live PV/SP/kLa/output chart are part 2. Simulator actuation
 is not biological validation; the bioreactor run — arm, track, manual takeover, feedback timeout,
 safe abort against a real process — remains the hardware gate that closes WP6.
+
+---
+
+### P2-11 · The cascade becomes observable: detail tabs and a live tuning chart
+
+**Decided:** close WP6 by making the loop observable without touching how it is controlled.
+Oxygen — the one device with an app-side controller the app can watch — gains its
+`Cascata`/`PID`/`Saída` detail-pane tabs, and `Controle → Cascata e sintonia` gains the live
+PV/SP/kLa/output chart. Both are read-only; tune, mode and engage stay where they were.
+
+**Where the cascade data comes from.** The detail pane binds to the selected `SubsystemViewModel`,
+which is generic and has no cascade state, so a small `CascadeDetailViewModel` wraps the service
+and the pane reaches it through the window's shell `DataContext` — exactly how it already reaches
+the telemetry history. Only oxygen turns the tabs on (`HasCascade`/`HasPid`), so no other device
+shows them.
+
+**The chart is a ring, not a binding.** ScottPlot is not in WPF's data-binding tree, so — like
+`TrendSpark` — `CascadeChart` reads a snapshot on a 1 Hz timer and redraws, theme-aware. The
+source is `CascadeTrend`, a fixed-capacity ring the service fills on every armed step (advisory
+or engaged), so a long run cannot grow memory. The kLa series is sparse — it exists only while
+engaged on the path — so it carries its own x-coordinates and is drawn against a second right
+axis in per-hour units rather than crammed onto the percent scale.
+
+**Placement.** The chart moved to the top of the tuning column: it is the element the operator
+watches while adjusting the fields below it, so burying it under them was the wrong order.
+
+**Evidence:** 328/328 tests (9 new) cover the ring (relative timing, the sparse kLa series,
+capacity, clear), the service recording one sample per armed frame and clearing on disarm, and
+the detail view's three states and change notifications. A live simulator run plotted PV/SP/effort
+with the advisory loop computing, and the oxygen detail pane rendered the four tabs with the
+Cascata overview, both with zero binding failures
+(`docs/evidence/ui/phase2-wp6-tuning-chart.png`, `docs/evidence/ui/phase2-wp6-oxygen-detail.png`).
+
+**Boundary:** this closes WP6's software scope. The bioreactor run — arm, track, manual takeover,
+feedback timeout and safe abort against a real process — remains the hardware gate, and the WP4
+Phase-0 link hygiene is the one Phase-2 P0 item still open.

@@ -178,6 +178,9 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         ? kla.ToString("F1", CultureInfo.CurrentCulture) + " /h"
         : "—";
 
+    /// <summary>The live PV/SP/kLa/output ring for the tuning chart.</summary>
+    public CascadeTrend Trend => _cascade.Trend;
+
     [ObservableProperty] public partial string LiveOxygen { get; set; } = "—";
     [ObservableProperty] public partial string LivePredicted { get; set; } = "—";
     [ObservableProperty] public partial string LiveRate { get; set; } = "—";

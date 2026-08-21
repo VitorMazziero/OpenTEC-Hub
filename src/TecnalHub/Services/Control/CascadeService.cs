@@ -60,6 +60,9 @@ public interface ICascadeService
     /// <summary>The latest valid dissolved-oxygen reading, or null before the first frame.</summary>
     double? LatestOxygen { get; }
 
+    /// <summary>The live PV/SP/kLa/output trend for the tuning chart, filled while armed.</summary>
+    CascadeTrend Trend { get; }
+
     /// <summary>Raised on the UI thread after each processed frame or state change.</summary>
     event Action? Updated;
 
@@ -112,6 +115,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
     private readonly IKlaProfileStore _store;
     private readonly TimeProvider _time;
     private readonly double _nominalStepSeconds;
+
+    private readonly CascadeTrend _trend = new();
 
     private CascadeController _controller;
     private CascadeSettings _configuration;
@@ -170,6 +175,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
     public double? LatestOxygen { get; private set; }
 
+    public CascadeTrend Trend => _trend;
+
     public event Action? Updated;
 
     public void Arm()
@@ -199,6 +206,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         Terms = CascadeTerms.Empty;
         LastActuation = null;
         ActiveKlaDemand = null;
+        _trend.Clear();
         Updated?.Invoke();
     }
 
@@ -369,6 +377,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _controller.Reset();
         _controller.OxygenSetpoint = _configuration.OxygenSetpointPercent;
         _lastStepAt = null;
+        _trend.Clear();
         Terms = CascadeTerms.Empty;
         LastActuation = null;
         IsArmed = true;
@@ -473,6 +482,9 @@ public sealed class CascadeService : ICascadeService, IDisposable
                 Disengage("aborto seguro: posse dos atuadores perdida");
             }
         }
+
+        _trend.Add(oxygen, _controller.OxygenSetpoint, ActiveKlaDemand, Terms.Output,
+            now.ToUnixTimeMilliseconds() / 60000.0);
 
         Updated?.Invoke();
     }

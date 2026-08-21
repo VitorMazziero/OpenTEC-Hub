@@ -62,7 +62,7 @@ and dependency, not on implementation size.
 | **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | **Done (WP4):** six latching system alarms with deadband, acknowledgement, timed audible silence, journal and a shell banner; session-time zero. Full Alarmes page is Phase 5 | Phase 2 WP4 |
 | **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | **Done (WP4 part 1):** per-actuator arbiter, journalled bumpless transfer and safe abort. `Automático` stays disabled until live actuation | Phase 2 WP4/WP6 |
 | **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | **Done (WP5):** blank-start experiment, paper/custom identity, headroom workspace and immutable receipts | Phase 2 WP5 — [D-008](DECISIONS.md) |
-| **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | **Done (WP6 part 1):** kLa-path allocation, three modes, ownership handshake, bumpless engage, integral reset and safe abort. Detail tabs + live chart are part 2 | Phase 2 WP6 |
+| **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | **Done (WP6):** kLa-path allocation, three modes, ownership handshake, bumpless engage, integral reset, safe abort, the O₂ detail tabs and the live tuning chart. Bioreactor run is the field gate | Phase 2 WP6 |
 | **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | Protocol keys documented; no operator controls or safe-stop aggregation | Phase 2 WP7 |
 | **P1** | Conditional OUR soft sensor and controller gain scheduling | Absent | Phase 2 WP8 |
 | **P2** | Biomass sensor: enable, blank/start/stop, thresholds, live raw/Abs/IT/PWM and calibration procedure | Telemetry parsed/logged; commands and UI absent | Phase 3 WP1 |
@@ -856,10 +856,11 @@ local draft. Scientific tolerances, operator procedure and refusal states are in
 [KLA_MAPPING.md](KLA_MAPPING.md). The fitting layer has no command-service dependency and
 WP5 activates nothing; consumption/activation belongs to WP6.
 
-### WP6 — live cascade ownership and actuation — **P1 · part 1 done 2026-08-21**
+### WP6 — live cascade ownership and actuation — **P1 · done 2026-08-21**
 
-Unblocked once the WP4 alarm gate closed. **Part 1 — the actuation engine, ownership handshake
-and safe abort — shipped**; the O₂ detail-pane tabs and the live tuning chart are part 2.
+Unblocked once the WP4 alarm gate closed. Part 1 shipped the actuation engine, ownership
+handshake and safe abort; **part 2 made the loop observable** — the O₂ detail-pane tabs and the
+live tuning chart. Only the bioreactor field gate remains.
 
 - [x] Replace the linear allocator with the selected published kLa path while preserving
       the validated velocity-form controller
@@ -869,8 +870,7 @@ and safe abort — shipped**; the O₂ detail-pane tabs and the live tuning char
       actuators, supports an explicit integral reset, and transfers without a setpoint jump
 - [x] Send the complete combined actuation frame; wait for available flow/setpoint feedback,
       retry within a bounded policy and safe-abort on stale O₂, link loss or ownership loss
-- [ ] Add the O₂ `Cascata`/`PID`/`Saída` detail tabs and the live PV/SP/kLa/output tuning chart
-      *(part 2)*
+- [x] Add the O₂ `Cascata`/`PID`/`Saída` detail tabs and the live PV/SP/kLa/output tuning chart
 
 **Part 1 delivered — [D-017](DECISIONS.md):**
 
@@ -884,9 +884,18 @@ and safe abort — shipped**; the O₂ detail-pane tabs and the live tuning char
 - [x] 319/319 tests (16 new); live simulator run reached the workspace and gated engage correctly
       with zero binding failures (`docs/evidence/ui/phase2-wp6-cascade-automatic.png`)
 
+**Part 2 delivered:**
+
+- [x] Oxygen `Cascata`/`PID`/`Saída` detail-pane tabs, read-only, fed by `CascadeDetailViewModel`
+      (mode, O₂ setpoint, kLa demand, allocation; the seven PID terms; effort and allocated actuators)
+- [x] Live `CascadeChart` (ScottPlot) on the tuning workspace — PV/SP/effort on the left axis, kLa
+      on its own right axis — fed by the fixed-capacity `CascadeTrend` ring, 1 Hz, theme-aware
+- [x] 328/328 tests (9 new); live simulator run rendered the chart and the four tabs with zero
+      binding failures (`docs/evidence/ui/phase2-wp6-{tuning-chart,oxygen-detail}.png`)
+
 **Exit:** a hardware-in-the-loop run demonstrates arm, track, manual takeover, feedback
-timeout and safe abort. Simulator actuation is validated; no result tuned only against the
-simulator closes this WP.
+timeout and safe abort. The software is complete and simulator-validated; no result tuned only
+against the simulator closes this WP — the bioreactor run is the remaining gate.
 
 ### WP7 — remaining v.6 cultivation auxiliaries — **P1**
 

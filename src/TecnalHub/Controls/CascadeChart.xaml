@@ -1,0 +1,19 @@
+<UserControl x:Class="TecnalHub.Controls.CascadeChart"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+
+    <Grid Height="{Binding PlotHeight, ElementName=Root}">
+        <Border x:Name="PlotHost"
+                CornerRadius="{DynamicResource RadiusSmall}"
+                ClipToBounds="True" />
+
+        <!-- A blank chart and a chart of nothing look identical; only one is honest. -->
+        <TextBlock x:Name="EmptyNotice"
+                   Text="Inicie a cascata (consultiva ou Automático) para ver PV, SP, saída e kLa."
+                   TextWrapping="Wrap" TextAlignment="Center" MaxWidth="300"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Style="{StaticResource CaptionTextStyle}"
+                   Foreground="{DynamicResource TextMutedBrush}" />
+    </Grid>
+</UserControl>

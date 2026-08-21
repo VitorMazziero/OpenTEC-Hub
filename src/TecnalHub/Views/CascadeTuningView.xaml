@@ -381,6 +381,63 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Conditional OUR soft sensor (WP8) — a read-only estimado observation. -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,12,0,0"
+                            DataContext="{Binding DataContext.Our, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="OUR condicional" Style="{StaticResource CardTitle}" />
+                                <ctl:ProvenanceBadge Grid.Column="1" Text="estimado" VerticalAlignment="Top" />
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                                <ctl:StateDot State="{Binding State}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding OurText}"
+                                           FontFamily="{DynamicResource FontNumeric}"
+                                           FontSize="20" FontWeight="SemiBold"
+                                           Typography.NumeralAlignment="Tabular" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,8" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition /><RowDefinition />
+                                    <RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="kLa" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding KlaText}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="dDOT/dt" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DotRateText}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Média aceita" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MeanText}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="∫OUR aceito" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CumulativeText}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Tempo aceito" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding AcceptedDurationText}" Style="{StaticResource TermValue}" />
+                            </Grid>
+
+                            <TextBlock Text="{Binding ActiveMapText}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}" Margin="0,8,0,0" />
+                            <Button Content="Zerar total aceito" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                    Command="{Binding ResetTotalsCommand}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- kLa trajectory placeholder (D-008) -->
                     <Border Background="{DynamicResource SurfaceSunkenBrush}"
                             BorderBrush="{DynamicResource StrokeSubtleBrush}"

@@ -1181,3 +1181,44 @@ three synoptic tags with zero binding failures (first frame 1452 ms).
 
 **Boundary:** software and simulator only. Actuating the real nutrient/antifoam pumps and the
 agitator is part of the standing bioreactor gate; nothing here is biologically validated.
+
+---
+
+### P2-13 · The conditional-OUR soft sensor is the manuscript's inversion, made causal
+
+**Decided:** deliver WP8 part 1 as the manuscript's conditional-OUR soft sensor on live data — a
+pure `OurSoftSensor` core plus a telemetry-driven service — and defer gain scheduling to part 2.
+See [D-019](DECISIONS.md).
+
+**The equation is an inversion, and it is pinned to the paper.** At quasi-steady state the oxygen
+balance gives `OUR = kLa·C*·(1 − DOT/100)`. Rather than trust a formula I typed, the science test
+extracts a 40-row oracle straight from the manuscript's own `analysis/2_our_soft_sensor` output
+(`tools/our-reference/generate_fixture.py` → `tests/fixtures/our-reference.json`) and asserts the
+C# `InferOur` reproduces every OUR value (max abs error 3.6e-15) and the acceptance predicate
+reproduces the paper's mask. `InferOur`/`IsQuasiSteady` are the same static methods the live loop
+uses, so the oracle guards the real path.
+
+**Refusal has no value — this was the load-bearing rule.** The paper never fills a refused interval
+with zero, and neither does the sensor: a refused frame's conditional value is `null`, and the
+accepted-interval integral never advances across a refused sample or a gap larger than the
+integration window. That is what keeps the conditional total separate from any total consumption,
+which the roadmap called out explicitly.
+
+**Causal where the paper is offline.** The reference uses a centred Savitzky-Golay derivative that
+reads the future; live data cannot. The rate is a `LeastSquaresRateEstimator` slope instead — so
+the parity fixture takes the paper's smoothed DOT and rate as given inputs (the scientific claim is
+the inversion and the gate, not the smoother), and the causal rate is covered by the unit tests and
+the live run, where it showed −217 pp/h during the DOT startup transient and correctly held the
+sensor in `Aguardando o DOT atingir o setpoint`.
+
+**kLa is the active map's surface, not the cascade's demand.** The sensor reconstructs the selected
+receipt's surface from its anchors and evaluates kLa at the live airflow and commanded agitation —
+independent of engagement, matching how the paper computes OUR from the recorded operating point.
+Off-map points yield no kLa rather than an extrapolation.
+
+**Evidence:** 366/366 tests (13 new). A live simulator run rendered the `estimado` OUR readout on
+`Controle → Cascata e sintonia` with the honest refusal state and zero binding failures
+(`docs/evidence/ui/phase2-wp8-our-panel.png`).
+
+**Boundary:** the OUR trace against a real cultivation is part of the standing bioreactor gate;
+the simulator's placeholder kLa is not biological validation.

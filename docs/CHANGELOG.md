@@ -10,6 +10,42 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.19.0] - 2026-08-21
+
+Phase 2 WP8 (part 1) — the conditional-OUR soft sensor. The manuscript's oxygen-uptake-rate
+inference (`analysis/2_our_soft_sensor`), made causal for live data. Observation only; it never
+actuates. Gain scheduling (part 2) is next.
+
+### Added
+- **`OurSoftSensor`** — the pure core. At quasi-steady state the O₂ balance
+  `dC/dt = kLa·(C*−C) − OUR` collapses to `OUR = kLa·C*·(1 − DOT/100)`. A sample is accepted only
+  when DOT is within a band of the setpoint **and** the causal |dDOT/dt| is small; anything else is
+  refused and carries **no value** — never zero. The accepted-interval integral (∫OUR dt) never
+  advances across a refused sample, keeping the conditional total separate from any total
+  consumption. The offline reference's centred Savitzky-Golay derivative becomes a causal
+  `LeastSquaresRateEstimator` — the same estimator the cascade already trusts.
+- **`OurSoftSensorService`** — the live sensor: DOT and airflow from telemetry, the commanded
+  agitation tracked from the command stream, and kLa from the active published map's reconstructed
+  surface (`IKlaMappingEngine.Reconstruct`), refusing an off-map operating point rather than
+  extrapolating.
+- **`OurViewModel` + an OUR readout** on `Controle → Cascata e sintonia`: the value while accepted,
+  the single accept/refuse reason while refused, the kLa and dDOT/dt behind it, and the
+  accepted-interval mean/total/duration — tagged `estimado`, with a `Zerar total aceito`.
+- **`OurSettings`** (C*, the band, the rate limit, the gate and the causal rate window), defaulting
+  to the manuscript's constants.
+
+### Verified
+- 366/366 tests pass (13 new). `OurSoftSensorScientificTests` pins a 40-row oracle extracted from
+  the manuscript's own conditional-OUR output (`tools/our-reference/generate_fixture.py` →
+  `tests/fixtures/our-reference.json`): the C# OUR inversion reproduces every paper row and the
+  acceptance predicate reproduces the paper mask. `OurSoftSensorTests` covers the gate, the two
+  refusal reasons, the never-zero-fill and the accepted-interval integration.
+- Live simulator run: the OUR readout rendered on the cascade workspace with the honest
+  `Aguardando o DOT atingir o setpoint` refusal and the live causal dDOT/dt, with zero binding
+  failures. Evidence: `docs/evidence/ui/phase2-wp8-our-panel.png`.
+
+---
+
 ## [0.18.1] - 2026-08-21
 
 Custom window chrome — the shell finally draws its own title bar, closing the gap with

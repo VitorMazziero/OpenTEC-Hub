@@ -70,6 +70,9 @@ public sealed record AppSettings
     /// <summary>Oxygen-cascade tuning. Advisory in Phase 2 WP2; it does not actuate yet.</summary>
     public CascadeSettings Cascade { get; init; } = new();
 
+    /// <summary>Conditional-OUR soft-sensor tuning (WP8). Observation only; it never actuates.</summary>
+    public OurSettings Our { get; init; } = new();
+
     /// <summary>Named, operator-saved cascade tunings. Loading one only stages the fields.</summary>
     public CascadeTuningPreset[] CascadeTuningPresets { get; init; } = [];
 
@@ -465,6 +468,32 @@ public sealed record CascadeTuningPreset
     public string Name { get; init; } = "";
 
     public CascadeSettings Settings { get; init; } = new();
+}
+
+/// <summary>
+/// Conditional-OUR soft-sensor tuning (WP8). Plain data; the mapping onto the sensor lives in
+/// <c>OurSoftSensorService</c>, so this record does not depend on the control layer.
+/// </summary>
+/// <remarks>
+/// Defaults are the manuscript's (<c>analysis/2_our_soft_sensor</c>), except the rate window,
+/// which is causal here rather than the paper's centred offline derivative.
+/// </remarks>
+public sealed record OurSettings
+{
+    /// <summary>Dissolved-oxygen saturation C* in mmol L⁻¹ (0.21 at 37 °C).</summary>
+    public double OxygenSaturationMmolPerL { get; init; } = 0.21;
+
+    /// <summary>DOT stability half-band around the setpoint, in percentage points.</summary>
+    public double SetpointTolerancePercentPoints { get; init; } = 5.0;
+
+    /// <summary>Largest quasi-steady |dDOT/dt|, in percentage points per hour.</summary>
+    public double RateLimitPointsPerHour { get; init; } = 10.0;
+
+    /// <summary>Gate half-band DOT must first enter before evaluation begins, in percentage points.</summary>
+    public double GateTolerancePercentPoints { get; init; } = 2.0;
+
+    /// <summary>Causal least-squares window for dDOT/dt, in seconds.</summary>
+    public double RateWindowSeconds { get; init; } = 900.0;
 }
 
 /// <summary>

@@ -118,6 +118,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         KlaMappingViewModel klaMapping,
         IDialogService dialogs,
         ICascadeService cascade,
+        IOurSoftSensor ourSensor,
         IAlarmService alarms,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
@@ -236,6 +237,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
             device, settings, dialogs, cascade);
         CascadeDetail = new CascadeDetailViewModel(cascade);
+        Our = new OurViewModel(ourSensor);
 
         // Nutrient is commanded-only: reflect its applied duty cycle onto the synoptic tile.
         _nutrientControl.PropertyChanged += OnNutrientCommandChanged;
@@ -344,6 +346,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Live cascade state behind the oxygen detail pane's Cascata/PID/Saída tabs.</summary>
     public CascadeDetailViewModel CascadeDetail { get; }
+
+    /// <summary>Conditional-OUR soft-sensor readout on the cascade tuning workspace (WP8).</summary>
+    public OurViewModel Our { get; }
 
     /// <summary>Shared staged/observed flow state used by both detail and Controle.</summary>
     public FlowControlViewModel FlowControl { get; }
@@ -1130,6 +1135,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Settings.Dispose();
         Control.Dispose();
         CascadeDetail.Dispose();
+        Our.Dispose();
         Calibration.Dispose();
         PHControl.Dispose();
         Connection.Dispose();

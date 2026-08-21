@@ -922,15 +922,30 @@ Controle page and connected with zero binding failures. The intensity `× 10` qu
 **pH-only** — nutrient and antifoam carry the raw percent. Bioreactor actuation of the pumps
 remains part of the standing hardware gate.
 
-### WP8 — conditional OUR and gain scheduling — **P1**
+### WP8 — conditional OUR and gain scheduling — **P1 · part 1 (OUR) done 2026-08-21 · D-019**
 
-- [ ] Implement the paper-defined conditional OUR soft sensor on live data, with explicit
-      quasi-steady acceptance/refusal states and `estimado` provenance
-- [ ] Keep conditional OUR separate from total cultivation oxygen consumption and never
-      fill refused intervals with zero
+- [x] Implement the paper-defined conditional OUR soft sensor on live data, with explicit
+      quasi-steady acceptance/refusal states and `estimado` provenance (`OurSoftSensor` +
+      `OurSoftSensorService`; the manuscript's `OUR = kLa·C*·(1 − DOT/100)` inversion, gated by
+      DOT-band and a causal |dDOT/dt| — the offline Savitzky-Golay derivative becomes the
+      `LeastSquaresRateEstimator`)
+- [x] Keep conditional OUR separate from total cultivation oxygen consumption and never
+      fill refused intervals with zero (a refused frame carries **no value**, and the
+      accepted-interval integral never advances across a refused sample)
 - [ ] Add gain scheduling as a versioned controller profile whose transitions are visible,
-      bounded and journalled
-- [ ] Validate with reference traces, replay and the real cultivation receipt after WP6
+      bounded and journalled *(part 2)*
+- [~] Validate with reference traces, replay and the real cultivation receipt after WP6
+      *(part 1: 40-row cross-language parity against the manuscript's own OUR output pins the
+      inversion and the acceptance rule; the bioreactor receipt remains the field gate)*
+
+**Part 1 delivered — [D-019](DECISIONS.md):** the conditional-OUR soft sensor as a pure core
+(`OurSoftSensor`, tested headlessly) plus a live service that reads DOT and airflow from telemetry,
+the commanded agitation from the command stream, and kLa from the active published map's
+reconstructed surface. A read-only `estimado` readout on `Controle → Cascata e sintonia` shows the
+value while accepted, the reason while refused, the kLa behind it and the accepted-interval total.
+366/366 tests (13 new, incl. paper parity); a live simulator run rendered the panel with the honest
+`Aguardando o DOT atingir o setpoint` refusal and zero binding failures
+(`docs/evidence/ui/phase2-wp8-our-panel.png`).
 
 ---
 

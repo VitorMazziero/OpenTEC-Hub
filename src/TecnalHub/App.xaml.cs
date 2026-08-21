@@ -184,6 +184,10 @@ public partial class App : Application
         // sends - live actuation waits for command ownership and the bioreactor.
         services.AddSingleton<ICascadeService, CascadeService>();
 
+        // The conditional-OUR soft sensor (WP8). Observes DOT, airflow and the commanded
+        // agitation against the active published kLa map; it never actuates.
+        services.AddSingleton<IOurSoftSensor, OurSoftSensorService>();
+
         services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
         services.AddSingleton<ISessionLogger, SessionLogger>();
         services.AddSingleton<ISessionFileService, SessionFileService>();

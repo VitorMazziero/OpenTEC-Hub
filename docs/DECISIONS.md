@@ -435,6 +435,46 @@ validation.
 
 ---
 
+### D-019 · The conditional-OUR soft sensor inverts the O₂ balance under a causal quasi-steady gate
+**Status:** Accepted and implemented (part 1) · 2026-08-21 · see [PHASE_LOG P2-13](PHASE_LOG.md#p2-13--the-conditional-our-soft-sensor-is-the-manuscripts-inversion-made-causal)
+
+WP8 part 1 adds the manuscript's conditional oxygen-uptake-rate soft sensor
+(`analysis/2_our_soft_sensor`) to live data. It is an observation, not a controller — it never
+touches the wire.
+
+**The physics is an inversion of the oxygen balance.** At quasi-steady state
+`dC/dt = kLa·(C*−C) − OUR` gives `OUR = kLa·C*·(1 − DOT/100)`. The C# `OurSoftSensor.InferOur`
+reproduces the manuscript's OUR column exactly across a 40-row cross-language oracle; the same
+static method the parity test calls is the one the live loop uses, so they cannot drift.
+
+**"Conditional" is a quasi-steady gate, and refusal has no value.** A reading is accepted only when
+raw DOT is within the stability band of the setpoint **and** |dDOT/dt| is within the rate limit,
+after DOT has first entered a tighter gate band (the run has left startup). Every other frame is
+refused with a single named reason, and its conditional value is **null — never zero**. The
+accepted-interval integral (∫OUR dt) never advances across a refused sample or a data gap, which is
+what keeps the conditional total honest and separate from any notion of total consumption.
+
+**Causal where the paper is offline.** The manuscript estimates dDOT/dt with a centred
+Savitzky-Golay derivative that reads the future; a live sensor cannot. So the rate is a windowed
+least-squares slope — the same `LeastSquaresRateEstimator` the cascade already trusts against the
+probe's quantisation staircase ([D-013](DECISIONS.md)). The parity fixture therefore takes the
+paper's smoothed DOT and rate as given inputs and pins only the two scientific claims — the OUR
+inversion and the acceptance predicate; the causal rate itself is covered by unit tests and the
+live run.
+
+**kLa comes from the active published map, not the cascade.** The sensor reconstructs the selected
+receipt's surface (`IKlaMappingEngine.Reconstruct`, from its anchors) and evaluates kLa at the live
+airflow and the commanded agitation, independent of whether the cascade is engaged — the paper
+computes OUR from recorded (Q,N,DOT), not from a controller. An operating point outside the mapped
+domain yields no kLa (status `NoKla`) rather than an extrapolation the manuscript explicitly refuses.
+
+*Rejected:* using the cascade's demanded kLa (would tie OUR to engagement and to a demand rather
+than the operating point); zero-filling refused intervals or integrating across them; reproducing
+the offline late-stage cutoff (a whole-run concept with no causal meaning). Bioreactor validation
+of the OUR trace rides the standing hardware gate.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

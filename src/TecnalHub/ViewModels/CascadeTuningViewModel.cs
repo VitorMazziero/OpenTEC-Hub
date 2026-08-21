@@ -4,9 +4,16 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Services.Control;
+using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 
 namespace TecnalHub.ViewModels;
+
+/// <summary>One selectable actuator-allocation mode for the cascade.</summary>
+public sealed record CascadeModeOption(CascadeMode Mode, string Label)
+{
+    public override string ToString() => Label;
+}
 
 /// <summary>
 /// The <c>Controle → Cascata e sintonia</c> workspace: edit the oxygen cascade's tuning
@@ -54,12 +61,15 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         }
 
         SelectedPreset = Presets.FirstOrDefault();
+        SelectedModeOption = Modes.FirstOrDefault(m => m.Mode == cascade.Mode) ?? Modes[0];
 
         _cascade.Updated += OnCascadeUpdated;
         RefreshWindows();
         RefreshLive();
         Validate();
         _loading = false;
+
+        LoadPathsSafe();
     }
 
     // ── Editable tuning (staged) ─────────────────────────────────────────────
@@ -115,6 +125,59 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
     public string ArmLabel => IsArmed ? "Parar cascata consultiva" : "Simular cascata (não envia)";
 
+    // ── Automatic actuation (WP6) ────────────────────────────────────────────
+
+    /// <summary>The three operator modes offered by the mode selector.</summary>
+    public IReadOnlyList<CascadeModeOption> Modes { get; } =
+    [
+        new(CascadeMode.KlaPath, "Trajetória kLa (agitação + aeração)"),
+        new(CascadeMode.AgitationOnly, "Somente agitação"),
+        new(CascadeMode.AerationOnly, "Somente aeração"),
+    ];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RequiresPath))]
+    public partial CascadeModeOption? SelectedModeOption { get; set; }
+
+    /// <summary>The kLa mode needs a published path; the fallback modes do not.</summary>
+    public bool RequiresPath => SelectedModeOption?.Mode == CascadeMode.KlaPath;
+
+    /// <summary>Published receipts available for the trajectory mode.</summary>
+    public ObservableCollection<KlaPublishedProfile> AvailablePaths { get; } = [];
+
+    [ObservableProperty]
+    public partial KlaPublishedProfile? SelectedPath { get; set; }
+
+    /// <summary>True while the cascade is actuating under Automatic ownership.</summary>
+    public bool IsEngaged => _cascade.IsEngaged;
+
+    /// <summary>Mode and path may only change while not engaged.</summary>
+    public bool CanEditMode => !_cascade.IsEngaged;
+
+    public string EngageLabel => IsEngaged ? "Assumir manual" : "Ativar Automático";
+
+    /// <summary>Why the operator cannot engage right now, or null when they can.</summary>
+    public string? EngageBlockedReason
+    {
+        get
+        {
+            if (IsEngaged)
+            {
+                return null;
+            }
+
+            _cascade.CanEngage(out var reason);
+            return reason;
+        }
+    }
+
+    public bool CanToggleEngage => IsEngaged || _cascade.CanEngage(out _);
+
+    /// <summary>The live kLa demand while engaged on the trajectory, else an em dash.</summary>
+    public string ActiveKlaText => _cascade.ActiveKlaDemand is { } kla
+        ? kla.ToString("F1", CultureInfo.CurrentCulture) + " /h"
+        : "—";
+
     [ObservableProperty] public partial string LiveOxygen { get; set; } = "—";
     [ObservableProperty] public partial string LivePredicted { get; set; } = "—";
     [ObservableProperty] public partial string LiveRate { get; set; } = "—";
@@ -158,6 +221,103 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
             _cascade.Arm();
             StatusText = "Cascata consultiva iniciada. Ela calcula, mas não envia comandos.";
         }
+    }
+
+    partial void OnSelectedModeOptionChanged(CascadeModeOption? value)
+    {
+        if (_loading || value is null)
+        {
+            return;
+        }
+
+        _cascade.SelectMode(value.Mode);
+        RefreshEngage();
+    }
+
+    partial void OnSelectedPathChanged(KlaPublishedProfile? value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _cascade.SelectPath(value);
+        RefreshEngage();
+    }
+
+    /// <summary>
+    /// Engages or disengages live automatic actuation. Engaging claims the oxygen actuators
+    /// through the arbiter and starts sending; the initial state is taken from the last
+    /// applied agitation and flow so the transfer is bumpless.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleEngage()
+    {
+        if (_cascade.IsEngaged)
+        {
+            _cascade.Disengage("operador assumiu o controle manual");
+            StatusText = "Automático desativado; o operador retomou o comando.";
+        }
+        else if (_cascade.CanEngage(out var reason))
+        {
+            var setpoints = _settings.Current.Setpoints;
+            _cascade.Engage(setpoints.MotorRpm, setpoints.FlowLitresPerMinute);
+            StatusText = "Automático ativado. A cascata assumiu agitação, aeração e o monitor de O₂.";
+        }
+        else
+        {
+            StatusText = reason ?? "Não é possível ativar o Automático agora.";
+        }
+
+        RefreshEngage();
+    }
+
+    [RelayCommand]
+    private void ResetIntegral()
+    {
+        _cascade.ResetIntegral();
+        StatusText = "Contribuição integral zerada.";
+    }
+
+    private async void LoadPathsSafe()
+    {
+        try
+        {
+            await _cascade.LoadAvailablePathsAsync().ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            // A missing or unreadable receipt store must not take the workspace down; the
+            // path list simply stays empty and the trajectory mode reports it cannot engage.
+        }
+
+        RebuildPaths();
+    }
+
+    private void RebuildPaths()
+    {
+        var previous = SelectedPath?.ReceiptFingerprint;
+        AvailablePaths.Clear();
+        foreach (var profile in _cascade.AvailablePaths)
+        {
+            AvailablePaths.Add(profile);
+        }
+
+        SelectedPath = AvailablePaths.FirstOrDefault(p => p.ReceiptFingerprint == previous)
+            ?? (_cascade.ActivePath is { } active
+                ? AvailablePaths.FirstOrDefault(p => p.ReceiptFingerprint == active.ReceiptFingerprint)
+                : null);
+        RefreshEngage();
+    }
+
+    private void RefreshEngage()
+    {
+        OnPropertyChanged(nameof(IsEngaged));
+        OnPropertyChanged(nameof(CanEditMode));
+        OnPropertyChanged(nameof(EngageLabel));
+        OnPropertyChanged(nameof(EngageBlockedReason));
+        OnPropertyChanged(nameof(CanToggleEngage));
+        OnPropertyChanged(nameof(ActiveKlaText));
     }
 
     [RelayCommand(CanExecute = nameof(CanApply))]
@@ -332,6 +492,10 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         {
             IsArmed = _cascade.IsArmed;
         }
+
+        // A safe abort disengages the cascade from under the operator; keep the button and
+        // the kLa readout in step with the service.
+        RefreshEngage();
     }
 
     private void RefreshLive()

@@ -1063,3 +1063,42 @@ actions, every reading degraded to an em dash, and no XAML binding failure or ex
 per-variable HH/H/L/LL limits with the persistent-foam alarm are Phase 5 on this same engine. The
 Phase 0 P2/P3 link cleanup (busy-port handling, WMI/CH343 ranking, immutable snapshots, poll period,
 round-trip naming) is the one WP4 item still open, and it is hygiene rather than a gate on WP6.
+
+---
+
+### P2-10 · The cascade takes the wire through the arbiter, on the published path
+
+**Decided:** implement WP6 as a change of *allocation* plus an ownership handshake, leaving the
+velocity-form controller ([P2-01](#p2-01)) untouched. A `CascadeAllocation` abstraction maps the
+control effort to the two actuators; `KlaPathAllocation` reads the published receipt's monotonic
+table, and two single-actuator fallbacks cover the v.6 agitation-only / aeration-only modes.
+`CascadeService` gains a live role on top of its advisory one: `Engage` claims the O₂ actuators
+through the arbiter and dispatches the combined frame each step; `Arm` still only computes.
+
+**Why sequence it after the alarm gate:** the operator directed "do the WP4 alarm gate first,"
+and it is the right order — a loop that actuates unattended needs the latched, acknowledgeable
+alarms to surface a fault. With [D-016](DECISIONS.md) shipped, live actuation is unblocked; the
+only remaining gate is the bioreactor itself.
+
+**Bumpless is an inverse, not a guess.** The controller is preloaded to the effort that
+reproduces the actuator the operator left running, found by bisecting the allocation (agitation
+is monotonic in effort for the path and the agitation-only mode; aeration for the aeration-only
+mode). A test pins that engaging on the path at the operator's 440 rpm / 5 L/min reproduces those
+values on the first automatic frame rather than snapping.
+
+**Safe abort is layered and tested:** three blind oxygen frames, an arbiter ownership revocation
+on link loss, or a manual `ReturnToManual` each disengage the cascade and hand the actuators back.
+Because Engage sets the engaged flag after `Claim` and Disengage clears it before `Release`, the
+service's own ownership events never masquerade as an external takeover.
+
+**Evidence:** 319/319 tests (16 new) cover the path allocation and its inverse, the modes, the
+per-frame dispatch under Automatic ownership, the bumpless transfer, and each safe-abort trigger,
+plus the advisory-never-sends regression. A live simulator run reached `Controle → Cascata e
+sintonia`, rendered the Automático card, and correctly gated the engage button until a published
+map is selected, with zero binding failures
+(`docs/evidence/ui/phase2-wp6-cascade-automatic.png`).
+
+**Boundary:** part 1 is the actuation engine and its workspace controls. The oxygen detail-pane
+`Cascata`/`PID`/`Saída` tabs and the live PV/SP/kLa/output chart are part 2. Simulator actuation
+is not biological validation; the bioreactor run — arm, track, manual takeover, feedback timeout,
+safe abort against a real process — remains the hardware gate that closes WP6.

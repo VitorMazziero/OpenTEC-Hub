@@ -45,7 +45,7 @@ public sealed class CascadeController
     public const string AerationActuator = "aeration";
 
     private readonly VelocityPidController _pid;
-    private readonly ActuatorWindowAllocator _allocator;
+    private CascadeAllocation _allocation;
 
     public CascadeController(
         CascadeTuning tuning,
@@ -58,7 +58,7 @@ public sealed class CascadeController
         ArgumentNullException.ThrowIfNull(aeration);
 
         _pid = new VelocityPidController(tuning, oxygenSetpoint);
-        _allocator = new ActuatorWindowAllocator(
+        _allocation = new WindowAllocation(
             agitation with { Name = AgitationActuator },
             aeration with { Name = AerationActuator });
     }
@@ -95,8 +95,18 @@ public sealed class CascadeController
     /// <summary>The current control effort in percent, before allocation.</summary>
     public double Effort => _pid.Output;
 
+    /// <summary>The active effort-to-actuator mapping.</summary>
+    public CascadeAllocation Allocation => _allocation;
+
     /// <summary>The configured actuator windows, for the tuning workspace's stacked bar.</summary>
-    public IReadOnlyList<ActuatorWindow> Windows => _allocator.Windows;
+    public IReadOnlyList<ActuatorWindow> Windows => _allocation.Windows;
+
+    /// <summary>
+    /// Swaps the effort-to-actuator mapping — the linear windows, a single-actuator fallback
+    /// or the published kLa path — without disturbing the controller's probe history.
+    /// </summary>
+    public void SetAllocation(CascadeAllocation allocation)
+        => _allocation = allocation ?? throw new ArgumentNullException(nameof(allocation));
 
     /// <summary>
     /// Advances the cascade by <paramref name="dtSeconds"/> against a new dissolved-oxygen
@@ -105,8 +115,7 @@ public sealed class CascadeController
     public CascadeActuationResult Update(double dissolvedOxygenPercent, double dtSeconds)
     {
         var terms = _pid.Update(dissolvedOxygenPercent, dtSeconds);
-        var rpm = _allocator.Allocate(AgitationActuator, terms.Output);
-        var flow = _allocator.Allocate(AerationActuator, terms.Output);
+        var (rpm, flow) = _allocation.Allocate(terms.Output);
 
         return new CascadeActuationResult(
             AgitationRpm: (int)Math.Round(rpm, MidpointRounding.AwayFromZero),
@@ -137,6 +146,9 @@ public sealed class CascadeController
 
     /// <summary>Arms the loop bumplessly at a known control effort.</summary>
     public void Preload(double effortPercent) => _pid.Preload(effortPercent);
+
+    /// <summary>Clears the reported integral contribution without disturbing the probe history.</summary>
+    public void ResetIntegral() => _pid.ResetIntegral();
 
     /// <summary>Clears all loop state when the cascade is disarmed.</summary>
     public void Reset() => _pid.Reset();

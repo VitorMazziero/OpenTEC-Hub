@@ -189,6 +189,18 @@ public sealed class VelocityPidController
     }
 
     /// <summary>
+    /// Clears the reported integral contribution to zero, keeping the output and probe
+    /// history.
+    /// </summary>
+    /// <remarks>
+    /// The operator-facing "reset integral". In velocity form the output <i>is</i> the
+    /// integrator and cannot structurally wind up, so this clears the bounded integral
+    /// <i>term</i> that the live display shows — a deliberate re-baseline of accumulated
+    /// authority — without snapping the actuator or discarding the rate window.
+    /// </remarks>
+    public void ResetIntegral() => _integral = 0;
+
+    /// <summary>
     /// Clears all loop state. Used when the cascade is disarmed - a reconnect, a mode
     /// change - so it does not resume with a stale integral or a stale rate history.
     /// </summary>

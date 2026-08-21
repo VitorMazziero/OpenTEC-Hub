@@ -10,6 +10,55 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.16.0] - 2026-08-21
+
+Phase 2 WP6 (part 1) — live oxygen cascade ownership and actuation. With the WP4 alarm gate
+closed, the cascade can now take the wire: it replaces the linear allocator with the published
+kLa path, claims the oxygen actuators through the arbiter, and actuates — safe-aborting on
+stale oxygen, link loss or a loss of ownership. The velocity-form controller is unchanged.
+
+### Added
+- **kLa-path allocation** (`KlaPathAllocation`): the control effort selects a kLa demand across
+  the published receipt's range, and the monotonic allocation table gives the (aeration,
+  agitation) that realises it along the paper's gradient/headroom path. It replaces the linear
+  window split without touching the controller.
+- **Three explicit operator modes** (`CascadeMode`): `Trajetória kLa` (both actuators on the
+  published path) plus the v.6 `Somente agitação` and `Somente aeração` fallbacks, which drive
+  one actuator and hold the other. Nitrogen enrichment stays disabled until its own path is proven.
+- **Live actuation on `CascadeService`**: `Ativar Automático` claims agitation, aeration and the
+  O₂ monitor through the arbiter (`CommandOwner.Automatic`), initialises the loop bumplessly from
+  the last applied actuators, and dispatches the combined frame each telemetry step. An explicit
+  `Zerar integral` re-baselines the integral contribution.
+- **Safe abort**: three consecutive frames without usable oxygen, an arbiter ownership revocation
+  on link loss, or a manual takeover each hand the wire back to the operator and return to the
+  advisory display.
+- **Consumes a published receipt**: the cascade workspace lists published kLa maps from the
+  store; the trajectory mode refuses to engage until one is selected.
+- The `Cascata e sintonia` workspace gains the mode selector, the published-path selector, the
+  engage/disengage button with its blocked-reason tooltip, the integral reset, and a live
+  `kLa demandado` readout while engaged.
+
+### Changed
+- `CascadeController` takes a pluggable `CascadeAllocation`; the linear windows remain the
+  default and the advisory role is unchanged. `CascadeService` now depends on the command
+  arbiter and the kLa profile store.
+
+### Verified
+- 319/319 tests pass (16 new): the kLa-path allocation and its bumpless inverse, the three modes,
+  ownership claim and per-frame dispatch, the bumpless transfer, and safe abort on stale oxygen,
+  link loss and manual takeover — plus the advisory-never-sends regression.
+- Live simulator run: connected, navigated to `Controle → Cascata e sintonia`; the new Automático
+  card renders with the mode and published-path selectors, and the engage button is correctly
+  gated (a trajectory run needs a published map) with zero binding failures. Evidence:
+  `docs/evidence/ui/phase2-wp6-cascade-automatic.png`.
+
+### Documentation
+- Added [D-017](DECISIONS.md) and [PHASE_LOG P2-10](PHASE_LOG.md). WP6's O₂ detail-pane
+  `Cascata`/`PID`/`Saída` tabs and the live PV/SP/kLa/output tuning chart are the remaining
+  part 2. Field actuation on a real bioreactor stays the hardware gate.
+
+---
+
 ## [0.15.0] - 2026-08-21
 
 Phase 2 WP4 (part 2) — the operational alarm engine. This completes the safety-kernel

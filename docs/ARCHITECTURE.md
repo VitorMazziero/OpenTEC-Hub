@@ -222,12 +222,16 @@ time. The controller meets the wire in exactly one place, `CascadeController.Bui
 which goes through `CommandBuilders.CascadeActuation`; it never sends, so a running cascade
 and an operator share the one command queue. See [D-013](DECISIONS.md).
 
-**The cascade runs advisory before it runs live.** `CascadeService` drives the controller
-from telemetry and feeds the `Controle → Cascata e sintonia` tuning workspace, but does not
-call `IDeviceService.Send` — the operator can watch and tune the loop against a real process
-with no actuation. It takes a `TimeProvider` so the real-elapsed-time step between frames is
-deterministic under test. Live actuation is a later work package, gated on command ownership
-(`Automático`) and the bioreactor.
+**The cascade has an advisory role and a live one.** `CascadeService` drives the controller
+from telemetry and feeds the `Controle → Cascata e sintonia` workspace. Armed, it is
+**advisory** — it computes what it would command and never sends, so the operator can tune it
+against a real process. Engaged (`Automático`, WP6), it is **live**: it claims agitation,
+aeration and the O₂ monitor through the arbiter, allocates the effort with the selected mode —
+a single-actuator fallback or the published kLa path — and dispatches the combined frame each
+step, safe-aborting on stale oxygen, link loss or a loss of ownership. The allocation is a
+swappable `CascadeAllocation`, so the controller math is unchanged between roles; a `TimeProvider`
+keeps the elapsed-time step deterministic under test. See [D-017](DECISIONS.md). Field actuation
+on a real bioreactor remains the hardware gate.
 
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session

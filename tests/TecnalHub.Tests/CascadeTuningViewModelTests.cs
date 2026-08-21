@@ -1,4 +1,5 @@
 using TecnalHub.Protocol;
+using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Persistence;
 using TecnalHub.ViewModels;
@@ -16,7 +17,8 @@ public class CascadeTuningViewModelTests
             Device = new RecordingDeviceService();
             Settings = new MemorySettingsService(settings ?? new AppSettings());
             Clock = new TestClock(DateTimeOffset.UnixEpoch);
-            Service = new CascadeService(Device, Settings, Clock);
+            var arbiter = new CommandArbiter(Device, Clock);
+            Service = new CascadeService(arbiter, arbiter, Settings, new FakeKlaProfileStore(), Clock);
             ViewModel = new CascadeTuningViewModel(Service, Settings);
         }
 

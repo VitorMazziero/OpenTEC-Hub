@@ -237,7 +237,7 @@
                             <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="{DynamicResource FontSizeCaption}"
-                                       Text="A cascata calcula o que comandaria a partir do O₂ ao vivo, mas não envia nada ao equipamento. A atuação real chega com a posse de comando (modo Automático) e o biorreator." />
+                                       Text="A cascata calcula o que comandaria a partir do O₂ ao vivo, mas não envia nada ao equipamento. Para enviar comandos ao equipamento, use o Automático abaixo." />
                             <Button Content="{Binding ArmLabel}"
                                     HorizontalAlignment="Left"
                                     Style="{StaticResource AccentButtonStyle}"
@@ -249,6 +249,64 @@
                                 <TextBlock Text="Calculando (consultivo)" Margin="6,0,0,0"
                                            Foreground="{DynamicResource StateActuatingTextBrush}"
                                            FontSize="{DynamicResource FontSizeCaption}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Automatic actuation (WP6): the cascade owns the O₂ actuators and sends -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Automático — atuação da cascata" Style="{StaticResource CardTitle}" />
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       Text="Ao ativar, a cascata assume a posse de agitação, aeração e do monitor de O₂ e passa a enviar o quadro combinado a cada leitura. A transferência é sem solavanco e o aborto seguro devolve o comando ao operador se o O₂ ficar obsoleto, o enlace cair ou a posse for perdida." />
+
+                            <TextBlock Text="Modo de alocação" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding Modes}"
+                                      SelectedItem="{Binding SelectedModeOption}"
+                                      IsEnabled="{Binding CanEditMode}"
+                                      Margin="0,0,0,10" />
+
+                            <StackPanel Visibility="{Binding RequiresPath, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Mapa kLa publicado" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,4" />
+                                <ComboBox ItemsSource="{Binding AvailablePaths}"
+                                          SelectedItem="{Binding SelectedPath}"
+                                          DisplayMemberPath="Payload.Name"
+                                          IsEnabled="{Binding CanEditMode}"
+                                          Margin="0,0,0,10" />
+                            </StackPanel>
+
+                            <WrapPanel>
+                                <Button Content="{Binding EngageLabel}" Margin="0,0,8,0"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        IsEnabled="{Binding CanToggleEngage}"
+                                        ToolTip="{Binding EngageBlockedReason}"
+                                        Command="{Binding ToggleEngageCommand}" />
+                                <Button Content="Zerar integral"
+                                        IsEnabled="{Binding IsArmed}"
+                                        ToolTip="Zera a contribuição integral sem parar a malha."
+                                        Command="{Binding ResetIntegralCommand}" />
+                            </WrapPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                        Visibility="{Binding IsEngaged, Converter={StaticResource BoolToVis}}">
+                                <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                                        Background="{DynamicResource StateActuatingBrush}" />
+                                <TextBlock Text="Automático ativo · enviando" Margin="6,0,14,0"
+                                           Foreground="{DynamicResource StateActuatingTextBrush}"
+                                           FontSize="{DynamicResource FontSizeCaption}"
+                                           FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="kLa demandado:" Style="{StaticResource CaptionTextStyle}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ActiveKlaText}" Margin="5,0,0,0"
+                                           FontFamily="{DynamicResource FontNumeric}"
+                                           FontSize="{DynamicResource FontSizeCaption}"
+                                           Typography.NumeralAlignment="Tabular"
+                                           VerticalAlignment="Center" />
                             </StackPanel>
                         </StackPanel>
                     </Border>

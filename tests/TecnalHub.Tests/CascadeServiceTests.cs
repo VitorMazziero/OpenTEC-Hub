@@ -1,4 +1,5 @@
 using TecnalHub.Protocol;
+using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Persistence;
 using Xunit;
@@ -19,7 +20,8 @@ public class CascadeServiceTests
             Cascade = configuration ?? new CascadeSettings { OxygenSetpointPercent = 30 },
         });
         var clock = new TestClock(DateTimeOffset.UnixEpoch);
-        return (new CascadeService(device, settings, clock), device, clock);
+        var arbiter = new CommandArbiter(device, clock);
+        return (new CascadeService(arbiter, arbiter, settings, new FakeKlaProfileStore(), clock), device, clock);
     }
 
     private static void PushOxygen(

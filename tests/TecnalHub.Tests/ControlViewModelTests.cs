@@ -1,4 +1,5 @@
 using TecnalHub.Protocol;
+using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
@@ -157,7 +158,8 @@ public sealed class ControlViewModelTests
                     Settings.Current.Setpoints.PressureKilopascal),
             ];
 
-            Cascade = new CascadeService(Device, Settings, TimeProvider.System);
+            var cascadeArbiter = new CommandArbiter(Device, TimeProvider.System);
+            Cascade = new CascadeService(cascadeArbiter, cascadeArbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
             PH = new PHControlViewModel(Device, Settings);
             Control = new ControlViewModel(Subsystems, Flow, PH, Device, Settings, Dialogs, Cascade);
         }

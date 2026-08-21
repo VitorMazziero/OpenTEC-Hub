@@ -7,7 +7,7 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.15.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
+> **Status:** v0.16.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
 > way**. WP1 landed the cascade controller core — velocity-form PID, prediction horizon,
 > least-squares rate estimation and actuator-window allocation — as pure, headlessly
 > validated math against a simulated DOT plant with dead time. WP2 wires it into the
@@ -23,8 +23,11 @@ full instrument, and without ever changing the firmware protocol.
 > `Mapeamento kLa` workspace, which estimates `kLa(Q_g,N)` from operator-entered
 > measurements, reproduces the paper's normalized gradient/headroom search, and publishes a
 > reviewed, immutable allocation receipt. It ships no production surface and never sends a
-> device command. With the alarm gate closed, live cascade actuation (WP6) is unblocked and
-> waits on the bioreactor. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
+> device command. **WP6 part 1** then took the cascade live: with the alarm gate closed, it
+> replaces the linear allocator with the published kLa path, claims the oxygen actuators through
+> the arbiter and actuates — three operator modes, a bumpless engage, an integral reset, and a
+> safe abort on stale oxygen, link loss or a loss of ownership. The O₂ detail tabs and the live
+> tuning chart are part 2, and field actuation on a real bioreactor remains the hardware gate. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
 > full-cultivation validation still need the bioreactor and remain the hardware gate. v.6
 > remains the production application until TECNAL-Hub has completed a full cultivation run.
 

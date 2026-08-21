@@ -62,7 +62,7 @@ and dependency, not on implementation size.
 | **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | **Done (WP4):** six latching system alarms with deadband, acknowledgement, timed audible silence, journal and a shell banner; session-time zero. Full Alarmes page is Phase 5 | Phase 2 WP4 |
 | **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | **Done (WP4 part 1):** per-actuator arbiter, journalled bumpless transfer and safe abort. `Automático` stays disabled until live actuation | Phase 2 WP4/WP6 |
 | **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | **Done (WP5):** blank-start experiment, paper/custom identity, headroom workspace and immutable receipts | Phase 2 WP5 — [D-008](DECISIONS.md) |
-| **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | Corrected controller and advisory terms exist; no sending | Phase 2 WP6 |
+| **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | **Done (WP6 part 1):** kLa-path allocation, three modes, ownership handshake, bumpless engage, integral reset and safe abort. Detail tabs + live chart are part 2 | Phase 2 WP6 |
 | **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | Protocol keys documented; no operator controls or safe-stop aggregation | Phase 2 WP7 |
 | **P1** | Conditional OUR soft sensor and controller gain scheduling | Absent | Phase 2 WP8 |
 | **P2** | Biomass sensor: enable, blank/start/stop, thresholds, live raw/Abs/IT/PWM and calibration procedure | Telemetry parsed/logged; commands and UI absent | Phase 3 WP1 |
@@ -856,20 +856,37 @@ local draft. Scientific tolerances, operator procedure and refusal states are in
 [KLA_MAPPING.md](KLA_MAPPING.md). The fitting layer has no command-service dependency and
 WP5 activates nothing; consumption/activation belongs to WP6.
 
-### WP6 — live cascade ownership and actuation — **P1**
+### WP6 — live cascade ownership and actuation — **P1 · part 1 done 2026-08-21**
 
-- [ ] Replace the linear allocator with the selected published kLa path while preserving
+Unblocked once the WP4 alarm gate closed. **Part 1 — the actuation engine, ownership handshake
+and safe abort — shipped**; the O₂ detail-pane tabs and the live tuning chart are part 2.
+
+- [x] Replace the linear allocator with the selected published kLa path while preserving
       the validated velocity-form controller
-- [ ] Enable three explicit operator modes: agitation-only, aeration-only and simultaneous
+- [x] Enable three explicit operator modes: agitation-only, aeration-only and simultaneous
       kLa-path allocation. Nitrogen enrichment remains disabled until its own path is proven
-- [ ] `Automático` requests ownership from WP4, initializes from the currently commanded
+- [x] `Automático` requests ownership from WP4, initializes from the currently commanded
       actuators, supports an explicit integral reset, and transfers without a setpoint jump
-- [ ] Send the complete combined actuation frame; wait for available flow/setpoint feedback,
+- [x] Send the complete combined actuation frame; wait for available flow/setpoint feedback,
       retry within a bounded policy and safe-abort on stale O₂, link loss or ownership loss
 - [ ] Add the O₂ `Cascata`/`PID`/`Saída` detail tabs and the live PV/SP/kLa/output tuning chart
+      *(part 2)*
+
+**Part 1 delivered — [D-017](DECISIONS.md):**
+
+- [x] `CascadeAllocation` abstraction; `KlaPathAllocation` consumes the published receipt's
+      monotonic table (effort → kLa demand → aeration/agitation), replacing the linear split
+- [x] `CascadeService` live role: `Engage` claims agitation/aeration/O₂ through the arbiter,
+      preloads bumplessly from the last applied actuators, dispatches each frame, `Zerar integral`
+- [x] Safe abort on stale O₂, arbiter ownership revocation (link loss) or manual takeover
+- [x] The workspace mode/path selectors, gated engage with a blocked-reason tooltip and a live
+      `kLa demandado` readout; a trajectory run refuses to engage without a published map
+- [x] 319/319 tests (16 new); live simulator run reached the workspace and gated engage correctly
+      with zero binding failures (`docs/evidence/ui/phase2-wp6-cascade-automatic.png`)
 
 **Exit:** a hardware-in-the-loop run demonstrates arm, track, manual takeover, feedback
-timeout and safe abort. No result tuned only against the simulator closes this WP.
+timeout and safe abort. Simulator actuation is validated; no result tuned only against the
+simulator closes this WP.
 
 ### WP7 — remaining v.6 cultivation auxiliaries — **P1**
 

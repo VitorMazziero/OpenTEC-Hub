@@ -1,5 +1,6 @@
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
+using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 
 namespace TecnalHub.Services.Control;
@@ -9,22 +10,34 @@ namespace TecnalHub.Services.Control;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Owns a <see cref="CascadeController"/>, drives it from live dissolved-oxygen telemetry,
-/// and exposes the result for the tuning workspace to display. It is the bridge between the
-/// pure control math and the app.
-/// </para>
-/// <para>
-/// <b>It never sends.</b> This WP runs the cascade in an advisory role — it computes what it
-/// <i>would</i> command so the operator can watch it track and tune it against real
-/// telemetry, with no actuation risk. Live actuation waits for command ownership
-/// (<c>Automático</c> mode) and the bioreactor, a later Phase 2 WP. That is why nothing here
-/// touches <see cref="IDeviceService.Send"/>.
+/// Owns a <see cref="CascadeController"/> and drives it from live dissolved-oxygen telemetry.
+/// It has two roles. <b>Advisory</b> (<see cref="Arm"/>): it computes what it would command so
+/// the operator can watch and tune it, and never sends — the WP2 behaviour. <b>Live</b>
+/// (<see cref="Engage"/>, WP6): it claims ownership of the oxygen actuators through the
+/// <see cref="ICommandArbiter"/>, allocates the control effort with the selected mode — a
+/// single-actuator fallback or the published kLa path — and dispatches the combined frame each
+/// step, safe-aborting on stale oxygen, link loss or a loss of ownership.
 /// </para>
 /// </remarks>
 public interface ICascadeService
 {
-    /// <summary>True while the advisory loop is computing on each telemetry frame.</summary>
+    /// <summary>True while the loop is computing on each telemetry frame (advisory or live).</summary>
     bool IsArmed { get; }
+
+    /// <summary>True while the loop is actuating under <see cref="CommandOwner.Automatic"/> ownership.</summary>
+    bool IsEngaged { get; }
+
+    /// <summary>The active actuator-allocation mode.</summary>
+    CascadeMode Mode { get; }
+
+    /// <summary>The published kLa path selected for the trajectory mode, or null.</summary>
+    KlaPublishedProfile? ActivePath { get; }
+
+    /// <summary>The published receipts available to select, most recent first.</summary>
+    IReadOnlyList<KlaPublishedProfile> AvailablePaths { get; }
+
+    /// <summary>The current kLa demand while engaged in the trajectory mode, else null.</summary>
+    double? ActiveKlaDemand { get; }
 
     /// <summary>The persisted configuration currently loaded into the controller.</summary>
     CascadeSettings Configuration { get; }
@@ -35,7 +48,7 @@ public interface ICascadeService
     /// <summary>The most recent decomposed evaluation, or <see cref="CascadeTerms.Empty"/>.</summary>
     CascadeTerms Terms { get; }
 
-    /// <summary>The most recent advisory actuation, or null when not armed.</summary>
+    /// <summary>The most recent actuation, or null when not computing.</summary>
     CascadeActuationResult? LastActuation { get; }
 
     /// <summary>The dissolved-oxygen target, in percent.</summary>
@@ -50,45 +63,98 @@ public interface ICascadeService
     /// <summary>Raised on the UI thread after each processed frame or state change.</summary>
     event Action? Updated;
 
-    /// <summary>Begins advisory computation, resetting loop state.</summary>
+    /// <summary>Begins advisory computation, resetting loop state. Never sends.</summary>
     void Arm();
 
-    /// <summary>Stops advisory computation and clears the live terms.</summary>
+    /// <summary>Stops advisory computation and clears the live terms. Disengages first if live.</summary>
     void Disarm();
 
     /// <summary>Loads a new configuration, preserving probe history for a gains-only change.</summary>
     void Configure(CascadeSettings settings);
+
+    /// <summary>Chooses the actuator-allocation mode. Ignored while engaged.</summary>
+    void SelectMode(CascadeMode mode);
+
+    /// <summary>Selects the published kLa path for the trajectory mode. Ignored while engaged.</summary>
+    void SelectPath(KlaPublishedProfile? profile);
+
+    /// <summary>Refreshes <see cref="AvailablePaths"/> from the receipt store.</summary>
+    Task<IReadOnlyList<KlaPublishedProfile>> LoadAvailablePathsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Whether live actuation may be engaged right now, with the reason it may not.</summary>
+    bool CanEngage(out string? reason);
+
+    /// <summary>
+    /// Takes ownership of the oxygen actuators and begins actuating, initialised bumplessly
+    /// from the currently commanded actuator values so the transfer has no setpoint jump.
+    /// </summary>
+    void Engage(double currentAgitationRpm, double currentAerationLpm);
+
+    /// <summary>Releases ownership and stops actuating; advisory computation continues.</summary>
+    void Disengage(string reason);
+
+    /// <summary>Clears the reported integral contribution while the loop keeps running.</summary>
+    void ResetIntegral();
 }
 
 /// <inheritdoc cref="ICascadeService"/>
 public sealed class CascadeService : ICascadeService, IDisposable
 {
+    /// <summary>The actuators the combined cascade frame writes: motor, flow group and the O₂ monitor.</summary>
+    private static readonly ActuatorId[] CascadeActuators =
+        [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen];
+
+    /// <summary>Consecutive missing-oxygen frames tolerated while engaged before a safe abort.</summary>
+    private const int StaleOxygenFrameLimit = 3;
+
     private readonly IDeviceService _device;
+    private readonly ICommandArbiter _arbiter;
+    private readonly IKlaProfileStore _store;
     private readonly TimeProvider _time;
     private readonly double _nominalStepSeconds;
 
     private CascadeController _controller;
     private CascadeSettings _configuration;
     private DateTimeOffset? _lastStepAt;
+    private IReadOnlyList<KlaPublishedProfile> _availablePaths = [];
+    private int _staleOxygenFrames;
 
-    public CascadeService(IDeviceService device, ISettingsService settings, TimeProvider time)
+    public CascadeService(
+        IDeviceService device,
+        ICommandArbiter arbiter,
+        ISettingsService settings,
+        IKlaProfileStore store,
+        TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(device);
+        ArgumentNullException.ThrowIfNull(arbiter);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
 
         _device = device;
+        _arbiter = arbiter;
+        _store = store;
         _time = time;
         _configuration = settings.Current.Cascade;
-        // A first armed frame has no previous step to measure against; fall back to the
-        // configured emission period rather than integrating against a zero interval.
         _nominalStepSeconds = Math.Max(settings.Current.Connection.DataDelayMs, 250) / 1000.0;
         _controller = Build(_configuration);
 
         _device.TelemetryReceived += OnTelemetry;
+        _arbiter.OwnershipChanged += OnOwnershipChanged;
     }
 
     public bool IsArmed { get; private set; }
+
+    public bool IsEngaged { get; private set; }
+
+    public CascadeMode Mode { get; private set; } = CascadeMode.KlaPath;
+
+    public KlaPublishedProfile? ActivePath { get; private set; }
+
+    public IReadOnlyList<KlaPublishedProfile> AvailablePaths => _availablePaths;
+
+    public double? ActiveKlaDemand { get; private set; }
 
     public CascadeSettings Configuration => _configuration;
 
@@ -113,17 +179,17 @@ public sealed class CascadeService : ICascadeService, IDisposable
             return;
         }
 
-        _controller.Reset();
-        _controller.OxygenSetpoint = _configuration.OxygenSetpointPercent;
-        _lastStepAt = null;
-        Terms = CascadeTerms.Empty;
-        LastActuation = null;
-        IsArmed = true;
+        StartComputing();
         Updated?.Invoke();
     }
 
     public void Disarm()
     {
+        if (IsEngaged)
+        {
+            Disengage("cascata desarmada pelo operador");
+        }
+
         if (!IsArmed)
         {
             return;
@@ -132,6 +198,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         IsArmed = false;
         Terms = CascadeTerms.Empty;
         LastActuation = null;
+        ActiveKlaDemand = null;
         Updated?.Invoke();
     }
 
@@ -144,21 +211,141 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         if (windowsChanged)
         {
-            // A new actuator split needs a new allocator; rebuild and re-arm cleanly.
             _controller = Build(settings);
             if (IsArmed)
             {
                 _lastStepAt = null;
             }
+
+            // A live loop cannot keep running under an allocation whose bands just moved.
+            if (IsEngaged)
+            {
+                Disengage("configuração da cascata alterada");
+            }
         }
         else
         {
-            // Gains, limits, horizon or setpoint only: keep the probe history the
-            // prediction depends on.
             _controller.Retune(ToTuning(settings));
             _controller.OxygenSetpoint = settings.OxygenSetpointPercent;
         }
 
+        Updated?.Invoke();
+    }
+
+    public void SelectMode(CascadeMode mode)
+    {
+        if (IsEngaged || Mode == mode)
+        {
+            return;
+        }
+
+        Mode = mode;
+        Updated?.Invoke();
+    }
+
+    public void SelectPath(KlaPublishedProfile? profile)
+    {
+        if (IsEngaged)
+        {
+            return;
+        }
+
+        ActivePath = profile;
+        Updated?.Invoke();
+    }
+
+    public async Task<IReadOnlyList<KlaPublishedProfile>> LoadAvailablePathsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        _availablePaths = await _store.LoadPublishedAsync(cancellationToken).ConfigureAwait(true);
+
+        // Keep the current selection if it survived a refresh; otherwise drop it.
+        if (ActivePath is { } active &&
+            _availablePaths.All(p => p.ReceiptFingerprint != active.ReceiptFingerprint))
+        {
+            ActivePath = null;
+        }
+
+        Updated?.Invoke();
+        return _availablePaths;
+    }
+
+    public bool CanEngage(out string? reason)
+    {
+        if (_device.State is not ConnectionState.Connected)
+        {
+            reason = "Conecte-se ao equipamento antes de ativar o Automático.";
+            return false;
+        }
+
+        if (Mode == CascadeMode.KlaPath && ActivePath is null)
+        {
+            reason = "Selecione um mapa kLa publicado para o modo trajetória.";
+            return false;
+        }
+
+        foreach (var actuator in CascadeActuators)
+        {
+            var owner = _arbiter.OwnerOf(actuator);
+            if (owner is not (CommandOwner.Manual or CommandOwner.Automatic))
+            {
+                reason = $"{CommandActuators.Label(actuator)} pertence a outro dono no momento.";
+                return false;
+            }
+        }
+
+        reason = null;
+        return true;
+    }
+
+    public void Engage(double currentAgitationRpm, double currentAerationLpm)
+    {
+        if (IsEngaged || !CanEngage(out _))
+        {
+            return;
+        }
+
+        var allocation = BuildAllocation(currentAgitationRpm, currentAerationLpm);
+
+        if (!IsArmed)
+        {
+            StartComputing();
+        }
+
+        _controller.SetAllocation(allocation);
+
+        // Bumpless: place the loop at the effort that reproduces the actuator the operator
+        // left running, so the first automatic frame nudges from there rather than jumping.
+        var effort = Mode == CascadeMode.AerationOnly
+            ? allocation.EffortForAeration(currentAerationLpm)
+            : allocation.EffortForAgitation(currentAgitationRpm);
+        _controller.Preload(effort);
+
+        _arbiter.Claim(CommandOwner.Automatic, CascadeActuators, $"cascata O₂ · {ModeLabel(Mode)}");
+        _staleOxygenFrames = 0;
+        IsEngaged = true;
+        Updated?.Invoke();
+    }
+
+    public void Disengage(string reason)
+    {
+        if (!IsEngaged)
+        {
+            return;
+        }
+
+        // Clear the flag first, so the ownership-change event this Release raises is not
+        // mistaken for an external takeover.
+        IsEngaged = false;
+        ActiveKlaDemand = null;
+        _arbiter.Release(CommandOwner.Automatic, reason);
+        _controller.SetAllocation(BuildWindowAllocation());
+        Updated?.Invoke();
+    }
+
+    public void ResetIntegral()
+    {
+        _controller.ResetIntegral();
         Updated?.Invoke();
     }
 
@@ -170,12 +357,47 @@ public sealed class CascadeService : ICascadeService, IDisposable
         Kd = c.Kd,
         IntegralMin = c.IntegralMin,
         IntegralMax = c.IntegralMax,
-        // The effort window is fixed 0-100 %: the allocator maps it onto real actuators.
         OutputMin = 0,
         OutputMax = 100,
         PredictionHorizonSeconds = c.PredictionHorizonSeconds,
         RateWindowSeconds = c.RateWindowSeconds,
         IntervalSeconds = c.IntervalSeconds,
+    };
+
+    private void StartComputing()
+    {
+        _controller.Reset();
+        _controller.OxygenSetpoint = _configuration.OxygenSetpointPercent;
+        _lastStepAt = null;
+        Terms = CascadeTerms.Empty;
+        LastActuation = null;
+        IsArmed = true;
+    }
+
+    private CascadeAllocation BuildAllocation(double currentAgitationRpm, double currentAerationLpm) => Mode switch
+    {
+        CascadeMode.AgitationOnly => SingleActuatorAllocation.Agitation(
+            _configuration.AgitationMinRpm, _configuration.AgitationMaxRpm, currentAerationLpm),
+        CascadeMode.AerationOnly => SingleActuatorAllocation.Aeration(
+            _configuration.AerationMinLpm, _configuration.AerationMaxLpm, currentAgitationRpm),
+        _ => new KlaPathAllocation(
+            (ActivePath ?? throw new InvalidOperationException("No published kLa path is selected."))
+                .Payload.Allocation),
+    };
+
+    private WindowAllocation BuildWindowAllocation() => new(
+        new ActuatorWindow(CascadeController.AgitationActuator,
+            _configuration.AgitationMinRpm, _configuration.AgitationMaxRpm,
+            _configuration.AgitationEffortStart, _configuration.AgitationEffortEnd),
+        new ActuatorWindow(CascadeController.AerationActuator,
+            _configuration.AerationMinLpm, _configuration.AerationMaxLpm,
+            _configuration.AerationEffortStart, _configuration.AerationEffortEnd));
+
+    private static string ModeLabel(CascadeMode mode) => mode switch
+    {
+        CascadeMode.AgitationOnly => "somente agitação",
+        CascadeMode.AerationOnly => "somente aeração",
+        _ => "trajetória kLa",
     };
 
     private static CascadeController Build(CascadeSettings c) => new(
@@ -197,7 +419,6 @@ public sealed class CascadeService : ICascadeService, IDisposable
         a.AerationMaxLpm == b.AerationMaxLpm &&
         a.AerationEffortStart == b.AerationEffortStart &&
         a.AerationEffortEnd == b.AerationEffortEnd &&
-        // The rate window changing rebuilds the estimator, so treat it like a window change.
         a.RateWindowSeconds == b.RateWindowSeconds;
 
     private void OnTelemetry(SensorSnapshot snapshot)
@@ -206,13 +427,26 @@ public sealed class CascadeService : ICascadeService, IDisposable
             ? snapshot.OxygenCalibrated
             : null;
 
-        if (!IsArmed || LatestOxygen is not { } oxygen)
+        if (LatestOxygen is not { } oxygen)
         {
-            // Still surface the reading so the workspace can show the current DO, but do
-            // not step the loop with no target or while disarmed.
+            // No usable oxygen: a live loop flying blind must hand the wire back rather than
+            // actuate on a stale value.
+            if (IsEngaged && ++_staleOxygenFrames >= StaleOxygenFrameLimit)
+            {
+                Disengage("aborto seguro: oxigênio obsoleto");
+            }
+
             Updated?.Invoke();
             return;
         }
+
+        if (!IsArmed)
+        {
+            Updated?.Invoke();
+            return;
+        }
+
+        _staleOxygenFrames = 0;
 
         var now = _time.GetUtcNow();
         var dt = _lastStepAt is { } last ? (now - last).TotalSeconds : _nominalStepSeconds;
@@ -224,8 +458,50 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         LastActuation = _controller.Update(oxygen, dt);
         Terms = LastActuation.Terms;
+
+        if (IsEngaged)
+        {
+            ActiveKlaDemand = _controller.Allocation is KlaPathAllocation kla
+                ? kla.KlaForEffort(Terms.Output)
+                : null;
+
+            var frame = CascadeController.BuildCommand(LastActuation);
+            var result = _arbiter.Dispatch(CommandOwner.Automatic, frame);
+            if (!result.Accepted)
+            {
+                // Ownership was taken from under us between frames; stop cleanly.
+                Disengage("aborto seguro: posse dos atuadores perdida");
+            }
+        }
+
         Updated?.Invoke();
     }
 
-    public void Dispose() => _device.TelemetryReceived -= OnTelemetry;
+    /// <summary>
+    /// Reacts to ownership moving away from the cascade — a manual takeover or the arbiter's
+    /// safe abort on link loss. Our own Claim/Release never trip this because the engaged flag
+    /// is set after Claim and cleared before Release.
+    /// </summary>
+    private void OnOwnershipChanged(OwnershipTransfer transfer)
+    {
+        if (!IsEngaged)
+        {
+            return;
+        }
+
+        var stillOurs = CascadeActuators.All(a => _arbiter.OwnerOf(a) == CommandOwner.Automatic);
+        if (!stillOurs)
+        {
+            IsEngaged = false;
+            ActiveKlaDemand = null;
+            _controller.SetAllocation(BuildWindowAllocation());
+            Updated?.Invoke();
+        }
+    }
+
+    public void Dispose()
+    {
+        _device.TelemetryReceived -= OnTelemetry;
+        _arbiter.OwnershipChanged -= OnOwnershipChanged;
+    }
 }

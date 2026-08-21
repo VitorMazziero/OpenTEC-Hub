@@ -353,6 +353,45 @@ is hygiene, not part of this gate.
 
 ---
 
+### D-017 · The cascade actuates through the arbiter, on the published kLa path, with a bumpless engage and safe abort
+**Status:** Accepted and implemented (part 1) · 2026-08-21 · see [PHASE_LOG P2-10](PHASE_LOG.md#p2-10--the-cascade-takes-the-wire-through-the-arbiter-on-the-published-path)
+
+Live oxygen cascade control (WP6) sits on the pieces below it: the validated velocity-form
+controller ([D-013](DECISIONS.md)), the command arbiter ([D-015](DECISIONS.md)) and the alarm
+gate ([D-016](DECISIONS.md)). It changes only the allocation and adds an ownership handshake.
+
+**The allocator, not the controller, changes.** A `CascadeAllocation` maps the scalar control
+effort to the two actuators. `KlaPathAllocation` turns effort into a kLa demand across the
+published receipt's range and reads the monotonic allocation table for the (aeration, agitation)
+that realises it along the paper's gradient/headroom path — replacing the linear window split
+while the controller above is untouched. Two v.6 fallbacks (`Somente agitação`, `Somente
+aeração`) drive one actuator and hold the other.
+
+**Automatic is a real owner, engaged bumplessly.** `Ativar Automático` claims agitation, aeration
+and the O₂ monitor through the arbiter, so a running cascade and the operator cannot both write —
+the arbiter refuses whichever does not own the actuator. The loop is preloaded to the effort that
+reproduces the actuator the operator left running (found by bisecting the allocation's inverse),
+so the transfer has no setpoint jump. Each telemetry step dispatches the combined frame; because
+the frame is re-sent every step, a dropped one is naturally retried on the next.
+
+**Safe abort is layered.** Stale oxygen (three consecutive blind frames), a link loss (the
+arbiter revokes ownership) or a manual takeover each disengage the cascade, return the actuators
+to the operator and fall back to the advisory display — the loop never actuates on a value it
+cannot trust or a wire it no longer owns.
+
+*Rejected:* baking the kLa path into the controller (it must stay pure and testable without a
+receipt); a single global mode that could not express the cascade owning O₂ while the operator
+holds pH; engaging without a bumpless preload; auto-clearing a safe abort. A trajectory run
+refuses to engage until a published map is selected — a fresh install ships none.
+
+*Scope of part 1:* the actuation engine, the ownership handshake, the safe abort and the
+workspace controls. The oxygen detail-pane `Cascata`/`PID`/`Saída` tabs and the live
+PV/SP/kLa/output tuning chart are part 2. Simulator actuation is validated here; field actuation
+on a real bioreactor remains the hardware gate, and no result tuned only against the simulator
+closes the WP.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

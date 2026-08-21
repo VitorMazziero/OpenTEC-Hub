@@ -106,6 +106,12 @@
     <Color x:Key="PathAntifoamColor">#8754C9</Color>
     <Color x:Key="PathInstrumentColor">#455568</Color>
 
+    <!-- ── Window caption ───────────────────────────────────────────────────
+         Only the close button departs from the neutral hover: red fill, white
+         glyph, the one universally understood "this closes the window". -->
+    <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
+    <Color x:Key="CaptionCloseGlyphColor">#FFFFFF</Color>
+
     <!-- ── Chart: ROLE palette ──────────────────────────────────────────────
          For a SINGLE loop, where every series describes the same variable:
          the detail-pane trend, cascade tuning, recipe execution. Setpoint green

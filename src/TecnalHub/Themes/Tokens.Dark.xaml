@@ -80,6 +80,10 @@
     <Color x:Key="PathAntifoamColor">#B48AE8</Color>
     <Color x:Key="PathInstrumentColor">#8E9CB0</Color>
 
+    <!-- ── Window caption ─────────────────────────────────────────────────── -->
+    <Color x:Key="CaptionCloseHoverColor">#D13438</Color>
+    <Color x:Key="CaptionCloseGlyphColor">#FFFFFF</Color>
+
     <!-- ── Chart: ROLE palette ──────────────────────────────────────────────-->
     <Color x:Key="ChartPvColor">#5B9CFF</Color>
     <Color x:Key="ChartSetpointColor">#4ECB77</Color>

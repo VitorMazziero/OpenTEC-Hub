@@ -68,6 +68,9 @@
     <SolidColorBrush x:Key="PathAntifoamBrush"   Color="{DynamicResource PathAntifoamColor}" />
     <SolidColorBrush x:Key="PathInstrumentBrush" Color="{DynamicResource PathInstrumentColor}" />
 
+    <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="{DynamicResource CaptionCloseHoverColor}" />
+    <SolidColorBrush x:Key="CaptionCloseGlyphBrush" Color="{DynamicResource CaptionCloseGlyphColor}" />
+
     <!-- Chart ROLE palette: one loop, many aspects of the SAME variable.
          Separate from the identity palette below; never on the same axis. -->
     <SolidColorBrush x:Key="ChartPvBrush"       Color="{DynamicResource ChartPvColor}" />

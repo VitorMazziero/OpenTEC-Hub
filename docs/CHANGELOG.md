@@ -10,6 +10,35 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.18.1] - 2026-08-21
+
+Custom window chrome — the shell finally draws its own title bar, closing the gap with
+[UI_DESIGN §4.1](UI_DESIGN.md#41-title-bar--48-px), which has always specified it.
+
+### Added
+- **Custom title bar.** `WindowChrome` removes the default Windows caption while keeping resize,
+  snap, the taskbar button and the aero-snap menu. The app's 48 px header is now the whole title
+  bar, with its own **minimise / maximise-restore / close** buttons on the right — vector glyphs
+  (no icon font), themed to the header; only close takes the close red (`CaptionCloseHoverBrush`)
+  on hover, and the maximise glyph switches to a restore glyph when maximised.
+- **`WindowChromeMaximizeFix`** answers `WM_GETMINMAXINFO` with the nearest monitor's work area, so
+  a maximised window stops at the taskbar instead of overhanging its edges — correct on multi-monitor.
+- New theme tokens `CaptionCloseHoverColor` / `CaptionCloseGlyphColor` (both themes) and their
+  shared brushes.
+
+### Changed
+- Interactive header controls (Zerar, connection chip, Buscar, Tema, the sensor-module chip) now
+  carry `WindowChrome.IsHitTestVisibleInChrome` so they stay clickable inside the drag region.
+
+### Verified
+- 350/350 tests pass (token parity and every XAML resource key still resolve, including the new
+  caption tokens and styles).
+- Live simulator run: the custom title bar rendered themed in dark mode with zero binding failures;
+  maximising respected the taskbar with no overhang and toggled to the restore glyph.
+  Evidence: `docs/evidence/ui/titlebar-custom-chrome.png`, `docs/evidence/ui/titlebar-maximized.png`.
+
+---
+
 ## [0.18.0] - 2026-08-21
 
 Phase 2 WP7 — the remaining v.6 cultivation auxiliaries: nutrient dosing, antifoam dosing,
@@ -56,7 +85,9 @@ reaches the wire only through the command arbiter.
   freedom, the four ViewModels, and — in `ControlViewModelTests` — that the safe-stop stops the three
   pumps but omits the foam sensor and that the bulk apply merges the pumps into one frame.
 - Live simulator run: the app reached the Controle page and connected over the localhost Wi-Fi
-  simulator with **zero binding failures** (first frame 1452 ms).
+  simulator with **zero binding failures** (first frame 1452 ms); the four dosing cards rendered
+  with their fields, badges and live telemetry. Evidence:
+  `docs/evidence/ui/phase2-wp7-dosing-cards.png`.
 
 ---
 

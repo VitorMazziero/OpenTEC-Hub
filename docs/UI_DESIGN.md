@@ -387,6 +387,25 @@ Custom chrome, three zones.
 | **Centre** | Run context: `Executando: <nome>` · elapsed `hh:mm:ss` (tabular) · `▶/⏸` when a recipe is running. All `—` when idle |
 | **Right** | Connection chip · alarm bell with badge · help · minimise / maximise / close |
 
+**The OS caption is gone.** `WindowChrome` (`CaptionHeight=48`, `UseAeroCaptionButtons=False`,
+`GlassFrameThickness=0`) removes the Windows title bar while keeping resize, snap, the taskbar
+button and the alt-space menu; the whole 48 px strip is the drag region. The app draws its own
+minimise / maximise-restore / close on the right — vector glyphs (no icon font, [WP3](#wp3--icon-system--done-2026-08-20)),
+themed to the header, the close button alone taking the close red on hover. The maximise glyph
+becomes the restore glyph when the window is maximised. Interactive header controls carry
+`WindowChrome.IsHitTestVisibleInChrome` so they stay clickable inside the drag region.
+
+> **A maximised custom-chrome window would overhang its monitor** and cover the taskbar, because
+> without the OS caption Windows sizes it to the full screen plus the resize border.
+> `WindowChromeMaximizeFix` answers `WM_GETMINMAXINFO` with the nearest monitor's work area, so
+> maximise stops at the taskbar and does the right thing on a multi-monitor desk. This is the only
+> native interop in the shell.
+>
+> Evidence: `docs/evidence/ui/titlebar-custom-chrome.png` (windowed) and
+> `docs/evidence/ui/titlebar-maximized.png` (maximised, restore glyph, taskbar intact).
+> The app icon, version text and alarm bell in the zones above remain the specified target;
+> the window controls and the custom chrome are built.
+
 **Connection chip** — the only entry point to connection state (8).
 
 | Control | Type | Behaviour |

@@ -58,6 +58,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         _settings = settings;
 
+        // Custom chrome: the OS caption is gone, so a maximized window must be told to
+        // stop at the work area instead of overhanging its edges and the taskbar.
+        WindowChromeMaximizeFix.Enable(this);
+
         ApplySavedPlacement();
         SizeChanged += (_, _) => ApplyResponsiveLayout();
         Loaded += (_, _) => ApplyResponsiveLayout();
@@ -104,6 +108,19 @@ public partial class MainWindow : Window
             _lastNonMinimizedState = WindowState;
         }
     }
+
+    // ── Custom caption buttons ───────────────────────────────────────────────
+    // The window has no OS caption, so the header draws its own controls.
+
+    private void OnMinimizeWindow(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeRestoreWindow(object sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+
+    private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {

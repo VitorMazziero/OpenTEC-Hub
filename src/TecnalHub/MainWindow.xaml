@@ -5,6 +5,7 @@
         xmlns:vm="clr-namespace:TecnalHub.ViewModels"
         xmlns:ctl="clr-namespace:TecnalHub.Controls"
         xmlns:views="clr-namespace:TecnalHub.Views"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -16,6 +17,18 @@
         Background="{DynamicResource SurfaceBaseBrush}"
         TextOptions.TextFormattingMode="Ideal"
         UseLayoutRounding="True">
+
+    <!-- Custom chrome: drop the OS caption but keep resize, snap and the taskbar. The top
+         48 px is the drag region (matching the header height); the app draws its own
+         minimise / maximise / close in that header. See docs/UI_DESIGN.md section 4.1. -->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="48"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            NonClientFrameEdges="None"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
         <conv:StateToBrushConverter x:Key="StateToBrush" />
@@ -52,16 +65,123 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ══ Window caption buttons ══
+             Vector glyphs, no icon font (the project has none), themed to the header.
+             Only the close button departs from the neutral hover, into the close red. -->
+        <Style x:Key="CaptionButtonBase" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="48" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+
+        <Style x:Key="CaptionMinimizeButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
+            <Setter Property="ToolTip" Value="Minimizar" />
+            <Setter Property="AutomationProperties.Name" Value="Minimizar" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <Path Width="10" Height="10" Stretch="None"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                  Data="M0,5 H10" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CaptionMaximizeButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
+            <Setter Property="ToolTip" Value="Maximizar" />
+            <Setter Property="AutomationProperties.Name" Value="Maximizar ou restaurar" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <Grid Width="10" Height="10"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <!-- Maximize: one square. -->
+                                <Path x:Name="MaxGlyph" Stretch="None"
+                                      Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                      Data="M0,0 H10 V10 H0 Z" />
+                                <!-- Restore: two overlapping squares. -->
+                                <Path x:Name="RestoreGlyph" Stretch="None" Visibility="Collapsed"
+                                      Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                      Data="M0,2 H8 V10 H0 Z M2,2 V0 H10 V8 H8" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource SurfaceHoverBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         Value="Maximized">
+                                <Setter TargetName="MaxGlyph" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="RestoreGlyph" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CaptionCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
+            <Setter Property="ToolTip" Value="Fechar" />
+            <Setter Property="AutomationProperties.Name" Value="Fechar" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <Path x:Name="Glyph" Width="10" Height="10" Stretch="None"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                  Data="M0,0 L10,10 M0,10 L10,0" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource CaptionCloseHoverBrush}" />
+                                <Setter TargetName="Glyph" Property="Stroke"
+                                        Value="{DynamicResource CaptionCloseGlyphBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <DockPanel x:Name="ShellRoot">
 
-        <!-- ══ Title bar: identity, run clock, connection chip ══ -->
+        <!-- ══ Title bar: identity, run clock, connection chip, window controls ══
+             This whole 48 px strip is the WindowChrome caption (drag region). Interactive
+             controls carry shell:WindowChrome.IsHitTestVisibleInChrome so they stay
+             clickable; everything else drags the window. -->
         <Border DockPanel.Dock="Top"
                 Height="48"
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 BorderThickness="0,0,0,1">
+            <DockPanel>
+                <!-- Minimise / maximise / close, flush to the window edge, full height. -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Style="{StaticResource CaptionMinimizeButtonStyle}" Click="OnMinimizeWindow" />
+                    <Button Style="{StaticResource CaptionMaximizeButtonStyle}" Click="OnMaximizeRestoreWindow" />
+                    <Button Style="{StaticResource CaptionCloseButtonStyle}" Click="OnCloseWindow" />
+                </StackPanel>
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -90,6 +210,7 @@
                             Margin="10,0,0,0" Padding="8,2"
                             FontSize="{DynamicResource FontSizeCaption}"
                             VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Command="{Binding ZeroSessionTimeCommand}"
                             ToolTip="Zera o tempo da sessão (deslocamento local; não altera o relógio do equipamento nem os dados já gravados)." />
                 </StackPanel>
@@ -102,6 +223,7 @@
                             CornerRadius="{StaticResource RadiusSmall}"
                             Background="{DynamicResource SurfaceSunkenBrush}"
                             ToolTip="O ESP32 não está recebendo dados do módulo de sensores."
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Visibility="{Binding IsSensorModuleOffline, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -116,6 +238,7 @@
                     <ToggleButton x:Name="ConnectionChip"
                                   FocusVisualStyle="{StaticResource KeyboardFocusVisualStyle}"
                                   Padding="10,4"
+                                  shell:WindowChrome.IsHitTestVisibleInChrome="True"
                                   Background="Transparent"
                                   BorderBrush="{DynamicResource StrokeDefaultBrush}"
                                   BorderThickness="1"
@@ -227,13 +350,16 @@
                     <Button Content="Buscar" Margin="8,0,0,0" Padding="10,4"
                             ToolTip="Pesquisar páginas e comandos (Ctrl+K)"
                             AutomationProperties.Name="Pesquisar páginas e comandos"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Click="OpenCommandPalette_Click" />
 
                     <Button Content="Tema" Margin="8,0,0,0" Padding="10,4"
                             ToolTip="Alternar entre tema claro e escuro"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Command="{Binding ToggleThemeCommand}" />
                 </StackPanel>
             </Grid>
+            </DockPanel>
         </Border>
 
         <!-- ══ Alarm banner (WP4) — full width, above the rails ══

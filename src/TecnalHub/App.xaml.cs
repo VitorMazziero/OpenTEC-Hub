@@ -200,6 +200,10 @@ public partial class App : Application
         services.AddSingleton<EventsViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<PHControlViewModel>();
+        services.AddSingleton<NutrientControlViewModel>();
+        services.AddSingleton<AntifoamControlViewModel>();
+        services.AddSingleton<FoamControlViewModel>();
+        services.AddSingleton<FlaskAgitatorViewModel>();
         services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();
         services.AddSingleton<ShellViewModel>();

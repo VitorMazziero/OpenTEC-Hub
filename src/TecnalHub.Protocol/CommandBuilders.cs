@@ -129,6 +129,120 @@ public static class CommandBuilders
         => PHControl(0.0, inactiveBand, operationSeconds, mixSeconds, 0.0);
 
     /// <summary>
+    /// Complete nutrient dosing state: operation/mix timing, the two cycle counts and
+    /// pump intensity, in one atomic frame.
+    /// </summary>
+    /// <remarks>
+    /// Timing and cycle counts travel as floating-point JSON values, matching v.6's
+    /// <c>float()</c> handling of those text fields. <b>Intensity is the raw operator
+    /// percent (0-99)</b> — it is <i>not</i> multiplied by ten. Only pH carries the
+    /// <c>× 10</c> quirk (see <see cref="PHControl"/> and <c>docs/PROTOCOL.md</c> §3.3).
+    /// </remarks>
+    public static TecnalCommand NutrientControl(
+        int operationSeconds,
+        int mixSeconds,
+        int operationCycles,
+        int mixCycles,
+        double pumpSpeedPercent)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.NutriOperation, (double)operationSeconds)
+            .Set(CommandKeys.NutriMix, (double)mixSeconds)
+            .Set(CommandKeys.NutriOpCycle, (double)operationCycles)
+            .Set(CommandKeys.NutriMixCycle, (double)mixCycles)
+            .Set(CommandKeys.NutriIntensity, pumpSpeedPercent);
+
+    /// <summary>Stops nutrient dosing (intensity zero), keeping the last valid timing and cycles.</summary>
+    public static TecnalCommand NutrientControlSafeStop(
+        int operationSeconds,
+        int mixSeconds,
+        int operationCycles,
+        int mixCycles)
+        => NutrientControl(operationSeconds, mixSeconds, operationCycles, mixCycles, 0.0);
+
+    /// <summary>
+    /// Complete antifoam dosing state: operation/mix timing and pump intensity.
+    /// </summary>
+    /// <remarks>
+    /// As with nutrient, timing travels as floating-point JSON and the intensity is the
+    /// raw operator percent (0-99), never <c>× 10</c>. Operation accepts 0-999 s and mix
+    /// 1-999 s (<c>docs/PROTOCOL.md</c> §3.3).
+    /// </remarks>
+    public static TecnalCommand AntifoamControl(
+        int operationSeconds,
+        int mixSeconds,
+        double pumpSpeedPercent)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.AntifoamOperation, (double)operationSeconds)
+            .Set(CommandKeys.AntifoamMix, (double)mixSeconds)
+            .Set(CommandKeys.AntifoamIntensity, pumpSpeedPercent);
+
+    /// <summary>
+    /// Stops the antifoam pump — operation and intensity zero, mix retained.
+    /// </summary>
+    /// <remarks>
+    /// This turns off the <i>pump</i>; it deliberately does not touch the level/foam
+    /// sensor, so foam monitoring keeps running through a stop. See <see cref="FoamControl"/>.
+    /// </remarks>
+    public static TecnalCommand AntifoamControlSafeStop(int mixSeconds)
+        => AntifoamControl(0, mixSeconds, 0.0);
+
+    /// <summary>
+    /// Level/foam sensor configuration and its automatic antifoam response.
+    /// </summary>
+    /// <remarks>
+    /// This is sensor and automation configuration, not a held actuator, so it is
+    /// intentionally outside the command arbiter and the global safe-stop — disabling the
+    /// sensor to "stop" would blind foam monitoring. The reference is millimetres; the
+    /// three timers travel as floating-point JSON.
+    /// </remarks>
+    public static TecnalCommand FoamControl(
+        bool sensorEnabled,
+        double referenceMillimetres,
+        int startDelaySeconds,
+        int pulseSeconds,
+        int intervalSeconds)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.DistanceSensorComm, sensorEnabled)
+            .Set(CommandKeys.DistanceSensorReference, referenceMillimetres)
+            .Set(CommandKeys.FoamStartDelaySeconds, (double)startDelaySeconds)
+            .Set(CommandKeys.FoamPulseSeconds, (double)pulseSeconds)
+            .Set(CommandKeys.FoamIntervalSeconds, (double)intervalSeconds);
+
+    /// <summary>
+    /// Flask-agitator state, converting the operator's <b>signed</b> percent into the
+    /// wire's separate magnitude and direction keys.
+    /// </summary>
+    /// <remarks>
+    /// The UI carries direction as the sign of a single -100..100 value; the wire carries
+    /// magnitude (<c>agitatorPercent</c>, 0-100) and direction (<c>agitatorDir</c>, 1 CW /
+    /// 0 CCW) as two keys. <b>The signed form must never leak onto the wire.</b>
+    /// See <c>docs/PROTOCOL.md</c> §3.3. This is the separate flask agitator, not the
+    /// reactor impeller (<see cref="MotorSetpoint"/>).
+    /// </remarks>
+    public static TecnalCommand FlaskAgitator(bool on, bool automatic, double signedPercent)
+    {
+        var magnitude = Math.Clamp(Math.Abs(signedPercent), 0.0, 100.0);
+        var clockwise = signedPercent >= 0.0;
+
+        return TecnalCommand.Create()
+            .Set(CommandKeys.AgitatorOn, on)
+            .Set(CommandKeys.AgitatorAuto, automatic)
+            .Set(CommandKeys.AgitatorPercent, magnitude)
+            .Set(CommandKeys.AgitatorDir, clockwise);
+    }
+
+    /// <summary>
+    /// Stops the flask agitator — off and out of automatic mode — keeping the operator's
+    /// staged magnitude and direction so re-enabling resumes it.
+    /// </summary>
+    public static TecnalCommand FlaskAgitatorSafeStop(double signedPercent)
+        => FlaskAgitator(on: false, automatic: false, signedPercent);
+
+    /// <summary>Re-enables the flask agitator's physical potentiometer. A momentary action.</summary>
+    public static TecnalCommand FlaskAgitatorReEnablePot()
+        => TecnalCommand.Create().Set(CommandKeys.AgitatorReEnablePot, 1);
+
+    /// <summary>
     /// Flow setpoint shape used while acquiring a calibration point in v.6.
     /// Both optional gas valves are closed and the inverted vent flag is derived.
     /// </summary>

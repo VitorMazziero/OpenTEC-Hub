@@ -339,6 +339,17 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > wire carries magnitude and direction as two separate keys. Do not leak the
 > signed form onto the wire.
 
+> **Intensity `× 10` is pH-only.** `pHIntensity` is `percent × 10` (0-990); `nutriIntensity`
+> and `antifoamIntensity` carry the **raw** operator percent (0-99). Nutrient and antifoam are
+> atomic like pH — all their keys travel in one frame — and their timing/cycle values are
+> floating-point JSON, matching v.6's `float()` handling.
+>
+> **Ownership (WP7).** The nutrient pump, the antifoam pump and the flask agitator are owned
+> actuators in the command arbiter; a safe-stop zeroes each pump and stops the agitator. The
+> level/foam **sensor** keys (`distanceSensorComm`, `distanceSensorReference`, `foam*`) are
+> unowned configuration, so a stop never disables foam monitoring. See
+> [DECISIONS D-018](DECISIONS.md).
+
 ### 3.4 Biomass (Phase 3 scope)
 
 | Keys | Meaning |

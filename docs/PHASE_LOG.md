@@ -1138,3 +1138,46 @@ Cascata overview, both with zero binding failures
 **Boundary:** this closes WP6's software scope. The bioreactor run — arm, track, manual takeover,
 feedback timeout and safe abort against a real process — remains the hardware gate, and the WP4
 Phase-0 link hygiene is the one Phase-2 P0 item still open.
+
+---
+
+### P2-12 · The cultivation auxiliaries: three owned pumps and an unowned foam sensor
+
+**Decided:** deliver WP7 as four dosing ViewModels mirroring the WP3 pH card — nutrient, antifoam,
+the level/foam sensor and the flask agitator — with the three that actuate becoming owned arbiter
+actuators and the sensor staying unowned. See [D-018](DECISIONS.md).
+
+**"All three" means the three that actuate.** Nutrient, antifoam and the flask agitator each become
+an `ActuatorId`, so a plain Manual `Send` owns them, they get lifecycle tracking and they join the
+global safe-stop. The level/foam sensor keys (`distanceSensorComm`, `distanceSensorReference`,
+`foam*`) map to `null` like the calibration keys, because a stop that disabled the sensor to "stop"
+would blind foam monitoring — the exact opposite of safe. `Parada segura` therefore zeroes the
+antifoam pump but leaves the sensor running, and the foam card applies on its own rather than
+through the bulk `Aplicar alterações`. Verified in `ControlViewModelTests`: the safe-stop JSON
+carries `nutriIntensity:0`, `antifoamIntensity:0` and `agitatorOn:0` but no `distanceSensorComm`.
+
+**Intensity is raw, not `× 10` — this was the trap.** pH sends `pHIntensity = percent × 10`
+(0-990), and copying that pattern onto nutrient and antifoam would have dosed at a tenth of the
+commanded speed. PROTOCOL.md §3.3 gives antifoam's range as 0-99 with no scaling, so the builders
+send the raw percent and `DosingAuxiliariesTests` pins `antifoamIntensity:45.0` for a 45% command.
+
+**The agitator's sign is split off before the wire.** `CommandBuilders.FlaskAgitator` takes the
+operator's signed percent and emits magnitude (`agitatorPercent`) and direction (`agitatorDir`,
+1 CW / 0 CCW) separately. The test asserts `-75` → `agitatorPercent:75.0, agitatorDir:0` and that
+the substring `-75` never appears. The slider (0-100) and the text entry stay in step through a
+guarded sync so neither fights the other.
+
+**Commanded-only stays honest.** Nutrient and the agitator have no telemetry; the nutrient tile
+shows a commanded duty cycle tagged `comandado`, pushed from the ViewModel's applied state exactly
+as `motor` is. Antifoam (`Antifoam`) and level (`Distance`) show their live figures. The read-only
+detail pane gained a per-variable note so each points at its Controle card rather than repeating
+pressure's "measured but uncontrolled" line.
+
+**Evidence:** 350/350 tests (22 new) — the frozen frames and safe-stops, the actuator map (three
+owned, foam free), a recipe-owned nutrient refusing a Manual frame while foam config passes, the
+four ViewModels, and the two `ControlViewModelTests` integration checks. A live simulator run
+reached the Controle page over the localhost Wi-Fi simulator and rendered the four cards and the
+three synoptic tags with zero binding failures (first frame 1452 ms).
+
+**Boundary:** software and simulator only. Actuating the real nutrient/antifoam pumps and the
+agitator is part of the standing bioreactor gate; nothing here is biologically validated.

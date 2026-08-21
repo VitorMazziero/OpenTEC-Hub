@@ -90,7 +90,14 @@ public sealed class ReactorAssetTests
         Assert.Contains("OnReactorRenderFailed", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VectorFallback\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CommandParameter=\"ph\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Equipamento vazio · nível não monitorado", xaml, StringComparison.Ordinal);
+
+        // WP7 dosing tags share the synoptic; the flask agitator deliberately does not,
+        // because it is a separate bench device.
+        Assert.Contains("CommandParameter=\"nutrient\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CommandParameter=\"antifoam\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CommandParameter=\"level\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommandParameter=\"agitator\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Nível/espuma pelo sensor de distância", xaml, StringComparison.Ordinal);
     }
 
     private static byte AlphaAt(BitmapSource source, int x, int y)

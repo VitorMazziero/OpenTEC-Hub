@@ -393,6 +393,48 @@ result tuned only against the simulator closes the WP.
 
 ---
 
+### D-018 · Dosing auxiliaries are three owned pumps plus an unowned foam sensor; intensity `× 10` is pH-only
+**Status:** Accepted and implemented · 2026-08-21 · see [PHASE_LOG P2-12](PHASE_LOG.md#p2-12--the-cultivation-auxiliaries-three-owned-pumps-and-an-unowned-foam-sensor)
+
+WP7 adds the remaining v.6 cultivation auxiliaries: nutrient dosing, antifoam dosing, the
+level/foam sensor and the separate flask agitator. Each is modelled on the WP3 pH card — a
+validated desired state, staged and reverted, that reaches the wire only through the arbiter.
+
+**The roadmap's "all three" are the three that actuate.** Nutrient, antifoam and the flask
+agitator become owned `ActuatorId`s, so each gets command ownership, lifecycle tracking and a
+place in the global safe-stop. The **level/foam sensor** keys (`distanceSensorComm`,
+`distanceSensorReference`, `foam*` timers) are deliberately **unowned** — the same treatment
+calibration and the `pHCal` echo get. They configure a sensor and the module's automatic
+response, not an actuator held against another owner. The direct consequence: `Parada segura`
+stops the antifoam *pump* but never disables the sensor, so foam monitoring survives a stop. The
+foam card therefore applies on its own rather than through the bulk apply.
+
+**Intensity `× 10` is a pH quirk, not a dosing convention.** v.6 sends `pHIntensity` as
+`percent × 10` (0-990). Nutrient and antifoam carry the **raw** operator percent (0-99);
+PROTOCOL.md §3.3 states antifoam's range as 0-99 with no scaling, and treating every pump like pH
+would have dosed at a tenth of the commanded speed. The builders encode the raw percent and a test
+pins it.
+
+**The agitator's sign never reaches the wire.** The operator picks a magnitude (0-100) and a
+direction (Horário/Anti-horário); the ViewModel combines them into a signed percent that
+`CommandBuilders.FlaskAgitator` splits into the wire's separate magnitude (`agitatorPercent`) and
+direction (`agitatorDir`, 1 CW / 0 CCW) keys. A golden test asserts `-75` becomes magnitude `75`
+with direction `0` and that the string `-75` is absent. The agitator is a **bench device** and has
+no place on the reactor synoptic; it gets a Controle card only.
+
+**Commanded-only stays commanded-only.** Nutrient and the agitator have no telemetry, so their
+tiles show what was commanded (a duty cycle for nutrient), tagged `comandado`, and never a false
+healthy state. Antifoam and level *do* have telemetry (`Antifoam`, `Distance`) and show it.
+
+*Rejected:* folding the foam sensor into the antifoam actuator (it feeds the shared `Distance`
+channel and the persistent-foam alarm, and owning the pump should not seize the sensor); a fourth
+`Foam` actuator (the sensor does not actuate, so ownership would be ceremony); leaking the signed
+agitator value onto the wire; putting the flask agitator on the reactor drawing. Bioreactor
+actuation of the pumps rides the standing hardware gate — simulator sends are not biological
+validation.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

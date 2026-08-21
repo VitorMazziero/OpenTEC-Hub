@@ -40,6 +40,18 @@ public sealed record AppSettings
     /// <summary>Staged pH dosing parameters. Restoring them never sends a command.</summary>
     public PHControlSettings PHControl { get; init; } = new();
 
+    /// <summary>Staged nutrient dosing parameters (WP7). Restoring them never sends a command.</summary>
+    public NutrientControlSettings NutrientControl { get; init; } = new();
+
+    /// <summary>Staged antifoam dosing parameters (WP7). Restoring them never sends a command.</summary>
+    public AntifoamControlSettings AntifoamControl { get; init; } = new();
+
+    /// <summary>Staged level/foam sensor configuration (WP7). Restoring it never sends a command.</summary>
+    public FoamControlSettings FoamControl { get; init; } = new();
+
+    /// <summary>Staged flask-agitator parameters (WP7). Restoring them never sends a command.</summary>
+    public FlaskAgitatorSettings FlaskAgitator { get; init; } = new();
+
     public FilterSettings Filters { get; init; } = new();
 
     /// <summary>Presentation units. Values on the wire remain in the protocol units.</summary>
@@ -184,6 +196,84 @@ public sealed record PHControlSettings
     public int MixSeconds { get; init; } = 60;
 
     public double PumpSpeedPercent { get; init; } = 80.0;
+}
+
+/// <summary>
+/// Complete nutrient dosing state (WP7): operation/mix timing, the two cycle counts and
+/// pump intensity.
+/// </summary>
+/// <remarks>
+/// Defaults are a coherent starting point, not a field configuration. The ViewModel always
+/// starts disabled and merely stages these values for review — nothing is sent on launch.
+/// Intensity is the raw operator percent (0-99); unlike pH it is not multiplied by ten.
+/// </remarks>
+public sealed record NutrientControlSettings
+{
+    public int OperationSeconds { get; init; } = 1;
+
+    public int MixSeconds { get; init; } = 60;
+
+    public int OperationCycles { get; init; } = 1;
+
+    public int MixCycles { get; init; } = 1;
+
+    public double PumpSpeedPercent { get; init; } = 80.0;
+}
+
+/// <summary>
+/// Complete antifoam dosing state (WP7): operation/mix timing and pump intensity.
+/// </summary>
+/// <remarks>
+/// Defaults are a coherent starting point, not a field configuration; the ViewModel starts
+/// disabled and only stages them. Operation accepts 0-999 s, mix 1-999 s and intensity the
+/// raw 0-99 percent.
+/// </remarks>
+public sealed record AntifoamControlSettings
+{
+    public int OperationSeconds { get; init; } = 5;
+
+    public int MixSeconds { get; init; } = 60;
+
+    public double PumpSpeedPercent { get; init; } = 50.0;
+}
+
+/// <summary>
+/// Level/foam sensor configuration (WP7): the sensor enable, its reference height and the
+/// three timers of the automatic antifoam response.
+/// </summary>
+/// <remarks>
+/// This is sensor and automation configuration rather than a held actuator, so it sits
+/// outside the command arbiter and the global safe-stop. The ViewModel still only stages it.
+/// </remarks>
+public sealed record FoamControlSettings
+{
+    public bool SensorEnabled { get; init; }
+
+    public double ReferenceMillimetres { get; init; } = 100.0;
+
+    public int StartDelaySeconds { get; init; } = 30;
+
+    public int PulseSeconds { get; init; } = 2;
+
+    public int IntervalSeconds { get; init; } = 30;
+}
+
+/// <summary>
+/// Flask-agitator state (WP7). A separate bench device, not the reactor impeller.
+/// </summary>
+/// <remarks>
+/// The operator sets a magnitude and a direction; the ViewModel combines them into the
+/// signed percent the command builder splits back onto the wire. The enabled ("ligado")
+/// state is deliberately not persisted — the ViewModel starts stopped, exactly as pH does.
+/// </remarks>
+public sealed record FlaskAgitatorSettings
+{
+    public double MagnitudePercent { get; init; } = 50.0;
+
+    /// <summary><c>true</c> for clockwise (<c>agitatorDir:1</c>), <c>false</c> for counter-clockwise.</summary>
+    public bool Clockwise { get; init; } = true;
+
+    public bool Automatic { get; init; }
 }
 
 /// <summary>

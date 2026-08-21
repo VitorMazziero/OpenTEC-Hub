@@ -237,6 +237,24 @@
                 <Ellipse Canvas.Left="332" Canvas.Top="249" Width="8" Height="8"
                          Fill="{DynamicResource PathInstrumentBrush}" />
 
+                <!-- WP7 dosing callouts: nutrient feed (green), antifoam (purple) and the
+                     level/foam distance sensor (instrument). -->
+                <Polyline Points="140,57 205,57 288,60"
+                          Stroke="{DynamicResource PathFeedBrush}" StrokeThickness="1.4"
+                          StrokeLineJoin="Round" Fill="Transparent" />
+                <Polyline Points="140,311 198,311 300,300"
+                          Stroke="{DynamicResource PathAntifoamBrush}" StrokeThickness="1.4"
+                          StrokeLineJoin="Round" Fill="Transparent" />
+                <Polyline Points="460,329 405,329 352,300"
+                          Stroke="{DynamicResource PathInstrumentBrush}" StrokeThickness="1.4"
+                          StrokeLineJoin="Round" Fill="Transparent" />
+                <Ellipse Canvas.Left="284" Canvas.Top="56" Width="8" Height="8"
+                         Fill="{DynamicResource PathFeedBrush}" />
+                <Ellipse Canvas.Left="296" Canvas.Top="296" Width="8" Height="8"
+                         Fill="{DynamicResource PathAntifoamBrush}" />
+                <Ellipse Canvas.Left="348" Canvas.Top="296" Width="8" Height="8"
+                         Fill="{DynamicResource PathInstrumentBrush}" />
+
                 <!-- Temperature, tied to the jacket/probe zone. -->
                 <Button Canvas.Left="8" Canvas.Top="100"
                         Style="{StaticResource InstrumentTagStyle}"
@@ -296,6 +314,36 @@
                         Command="{Binding DataContext.SelectByIdCommand,
                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="oxygen" />
+
+                <!-- Nutrient feed. Commanded-only pump, dosed through a headplate port. -->
+                <Button Canvas.Left="8" Canvas.Top="28"
+                        Style="{StaticResource InstrumentTagStyle}"
+                        DataContext="{Binding Nutrient}" Content="{Binding}"
+                        AutomationProperties.Name="{Binding DisplayName}"
+                        ToolTip="Dosagem de nutriente (comando sem realimentação)"
+                        Command="{Binding DataContext.SelectByIdCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="nutrient" />
+
+                <!-- Antifoam pump, dosed through a vessel port. -->
+                <Button Canvas.Left="8" Canvas.Top="282"
+                        Style="{StaticResource InstrumentTagStyle}"
+                        DataContext="{Binding Antifoam}" Content="{Binding}"
+                        AutomationProperties.Name="{Binding DisplayName}"
+                        ToolTip="Dosagem de antiespumante"
+                        Command="{Binding DataContext.SelectByIdCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="antifoam" />
+
+                <!-- Level / foam distance sensor on the headplate. -->
+                <Button Canvas.Left="460" Canvas.Top="300"
+                        Style="{StaticResource InstrumentTagStyle}"
+                        DataContext="{Binding Level}" Content="{Binding}"
+                        AutomationProperties.Name="{Binding DisplayName}"
+                        ToolTip="Sensor de nível/espuma (distância)"
+                        Command="{Binding DataContext.SelectByIdCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="level" />
             </Canvas>
         </Viewbox>
 
@@ -323,10 +371,20 @@
                     <Rectangle Width="14" Height="2" Margin="0,0,5,0"
                                VerticalAlignment="Center"
                                Fill="{DynamicResource PathHeatingBrush}" />
-                    <TextBlock Text="Utilidade térmica" FontSize="9"
+                    <TextBlock Text="Utilidade térmica" Margin="0,0,12,0" FontSize="9"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
+                               VerticalAlignment="Center"
+                               Fill="{DynamicResource PathFeedBrush}" />
+                    <TextBlock Text="Alimentação" Margin="0,0,12,0" FontSize="9"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
+                               VerticalAlignment="Center"
+                               Fill="{DynamicResource PathAntifoamBrush}" />
+                    <TextBlock Text="Antiespuma" FontSize="9"
                                Foreground="{DynamicResource TextMutedBrush}" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Text="Equipamento vazio · nível não monitorado"
+                <TextBlock Grid.Column="1" Text="Nível/espuma pelo sensor de distância, quando ativo · agitador de frasco em Controle"
                            Margin="16,0,0,0" FontSize="9" FontWeight="SemiBold"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
             </Grid>

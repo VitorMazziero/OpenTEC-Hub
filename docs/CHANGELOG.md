@@ -10,6 +10,56 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.18.0] - 2026-08-21
+
+Phase 2 WP7 — the remaining v.6 cultivation auxiliaries: nutrient dosing, antifoam dosing,
+the level/foam sensor and the separate flask agitator. Each is a validated desired state that
+reaches the wire only through the command arbiter.
+
+### Added
+- **Nutrient dosing** (`NutrientControlViewModel`) — operation/mix timing, the two cycle counts
+  and pump intensity, emitted as one atomic frame. A commanded-only pump: its synoptic tile shows
+  the commanded duty cycle, tagged `comandado`, never a measured value.
+- **Antifoam dosing** (`AntifoamControlViewModel`) — operation/mix timing and intensity. The
+  module's `Antifoam` figure has no documented unit, so it is shown raw and unitless.
+- **Level/foam control** (`FoamControlViewModel`) — the distance-sensor enable, its reference and
+  the three timers of the automatic antifoam response. This is sensor/automation **configuration**,
+  not a held actuator: it sits outside the arbiter and the global safe-stop, so a stop never blinds
+  foam monitoring.
+- **Flask agitator** (`FlaskAgitatorViewModel`) — on/off, automatic mode, a 0-100 magnitude, a
+  direction and the potentiometer re-enable. A separate bench device, so it never appears on the
+  reactor synoptic. The operator's **signed** percent is split into the wire's separate magnitude
+  (`agitatorPercent`) and direction (`agitatorDir`) keys — the sign never leaks onto the wire.
+- **Three new owned actuators** — `Nutrient`, `Antifoam`, `FlaskAgitator` — join the arbiter, so
+  each gains command ownership and lifecycle tracking and takes part in the global safe-stop. The
+  foam/level sensor keys stay unowned, like the calibration keys.
+- **Command builders** for all four subsystems (with matching safe-stops) and four typed settings
+  records in `AppSettings`.
+- **Controle cards** for Nutriente, Antiespumante, Controle de espuma and Agitador de frasco; the
+  first three take part in the bulk `Aplicar alterações`, and nutrient/antifoam/agitator in
+  `Parada segura`.
+- **Synoptic elements** for nutrient (feed), antifoam and level, each with a leader line and a
+  themed callout, plus a provenance-aware read-only detail pane. The legend gains the feed and
+  antifoam colours and drops the "nível não monitorado" note.
+- Event/setpoint audit names for the three dosing pumps, so their commands read cleanly on Eventos.
+
+### Changed
+- **Intensity encoding is pH-only `× 10`.** Nutrient and antifoam carry the **raw** operator percent
+  (0-99). Only pH multiplies by ten; the builders and docs now say so explicitly.
+- `ReadOnlyDetailView` gained a per-variable `DetailNote` and a `comandado` badge, so the dosing
+  variables point at their Controle cards rather than repeating pressure's "measured but
+  uncontrolled" wording.
+
+### Verified
+- 350/350 tests pass (22 new): the frozen dosing frames and their safe-stops, the signed→magnitude
+  /direction split (the sign is asserted absent), the three actuators' ownership and the foam keys'
+  freedom, the four ViewModels, and — in `ControlViewModelTests` — that the safe-stop stops the three
+  pumps but omits the foam sensor and that the bulk apply merges the pumps into one frame.
+- Live simulator run: the app reached the Controle page and connected over the localhost Wi-Fi
+  simulator with **zero binding failures** (first frame 1452 ms).
+
+---
+
 ## [0.17.0] - 2026-08-21
 
 Phase 2 WP6 (part 2) — the cascade made observable: the oxygen detail pane's

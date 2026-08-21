@@ -56,6 +56,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         IReadOnlyList<SubsystemViewModel> subsystems,
         FlowControlViewModel flowControl,
         PHControlViewModel phControl,
+        NutrientControlViewModel nutrientControl,
+        AntifoamControlViewModel antifoamControl,
+        FoamControlViewModel foamControl,
+        FlaskAgitatorViewModel flaskAgitator,
         IDeviceService device,
         ISettingsService settings,
         IDialogService dialogs,
@@ -71,6 +75,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         FlowControl = flowControl;
         PHControl = phControl;
+        NutrientControl = nutrientControl;
+        AntifoamControl = antifoamControl;
+        FoamControl = foamControl;
+        FlaskAgitator = flaskAgitator;
         Tuning = new CascadeTuningViewModel(cascade, settings);
 
         Rows =
@@ -90,6 +98,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         FlowControl.PropertyChanged += OnFlowStateChanged;
         PHControl.PropertyChanged += OnPHStateChanged;
+        NutrientControl.PropertyChanged += OnDosingStateChanged;
+        AntifoamControl.PropertyChanged += OnDosingStateChanged;
+        FoamControl.PropertyChanged += OnDosingStateChanged;
+        FlaskAgitator.PropertyChanged += OnDosingStateChanged;
 
         foreach (var preset in settings.Current.SetpointPresets
                      .Where(p => !string.IsNullOrWhiteSpace(p.Name))
@@ -108,6 +120,18 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     /// <summary>Full five-field pH state; separate from probe calibration.</summary>
     public PHControlViewModel PHControl { get; }
+
+    /// <summary>Nutrient dosing card (WP7).</summary>
+    public NutrientControlViewModel NutrientControl { get; }
+
+    /// <summary>Antifoam dosing card (WP7).</summary>
+    public AntifoamControlViewModel AntifoamControl { get; }
+
+    /// <summary>Level/foam sensor configuration card (WP7). Applied on its own, not in bulk.</summary>
+    public FoamControlViewModel FoamControl { get; }
+
+    /// <summary>Separate flask-agitator card (WP7).</summary>
+    public FlaskAgitatorViewModel FlaskAgitator { get; }
 
     public SubsystemViewModel FlowSubsystem => _flowSubsystem;
 
@@ -128,7 +152,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public int DirtyCount
         => Rows.Count(row => row.Subsystem.HasPendingChange) +
            (FlowControl.HasPendingChange ? 1 : 0) +
-           (PHControl.HasPendingChange ? 1 : 0);
+           (PHControl.HasPendingChange ? 1 : 0) +
+           (NutrientControl.HasPendingChange ? 1 : 0) +
+           (AntifoamControl.HasPendingChange ? 1 : 0) +
+           (FlaskAgitator.HasPendingChange ? 1 : 0);
 
     public string ApplyAllLabel => $"Aplicar alterações ({DirtyCount})";
 
@@ -163,6 +190,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public bool CanApplyAll
         => DirtyCount > 0 && DirtyRowsAreValid() &&
            (!PHControl.HasPendingChange || PHControl.CanApply) &&
+           (!NutrientControl.HasPendingChange || NutrientControl.CanApply) &&
+           (!AntifoamControl.HasPendingChange || AntifoamControl.CanApply) &&
+           (!FlaskAgitator.HasPendingChange || FlaskAgitator.CanApply) &&
            FlowRequestError is null;
 
     public bool CanApplyFlowState
@@ -176,6 +206,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         var dirtyRows = Rows.Where(row => row.Subsystem.HasPendingChange).ToArray();
         var flowWasDirty = _flowSubsystem.HasPendingChange || FlowControl.HasPendingChange;
         var phWasDirty = PHControl.HasPendingChange;
+        var nutrientWasDirty = NutrientControl.HasPendingChange;
+        var antifoamWasDirty = AntifoamControl.HasPendingChange;
+        var agitatorWasDirty = FlaskAgitator.HasPendingChange;
 
         if (!TryBuildCombinedCommand(out var command))
         {
@@ -198,6 +231,21 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         if (phWasDirty)
         {
             PHControl.CommitPendingCommand();
+        }
+
+        if (nutrientWasDirty)
+        {
+            NutrientControl.CommitPendingCommand();
+        }
+
+        if (antifoamWasDirty)
+        {
+            AntifoamControl.CommitPendingCommand();
+        }
+
+        if (agitatorWasDirty)
+        {
+            FlaskAgitator.CommitPendingCommand();
         }
 
         PersistAppliedSetpoints();
@@ -245,6 +293,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         FlowControl.Revert();
         PHControl.RevertCommand.Execute(null);
+        NutrientControl.RevertCommand.Execute(null);
+        AntifoamControl.RevertCommand.Execute(null);
+        FoamControl.RevertCommand.Execute(null);
+        FlaskAgitator.RevertCommand.Execute(null);
         StatusText = "Alterações não enviadas revertidas.";
         RefreshState();
     }
@@ -331,12 +383,20 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SafeStop()
     {
+        // Every actuator with an app-side control surface goes to its safe state in one
+        // frame: the Phase 1 core loop, pH, and the WP7 nutrient, antifoam and flask
+        // agitator. The level/foam sensor is deliberately left running — a stop must not
+        // blind foam monitoring.
         var command = CommandBuilders.CoreSafeStop(FlowControl.MaximumForCommand)
-            .Merge(PHControl.BuildSafeStop());
+            .Merge(PHControl.BuildSafeStop())
+            .Merge(NutrientControl.BuildSafeStop())
+            .Merge(AntifoamControl.BuildSafeStop())
+            .Merge(FlaskAgitator.BuildSafeStop());
         var confirmed = _dialogs.ConfirmDestructive(
             "Parada segura",
-            "Desativa temperatura, agitação, monitor de oxigênio, vazão, pressão e dosagem de pH. " +
-            "As válvulas auxiliar e de nitrogênio serão fechadas e a válvula de respiro será aberta.",
+            "Desativa temperatura, agitação, monitor de oxigênio, vazão, pressão, dosagem de pH, " +
+            "nutriente, antiespumante e o agitador de frasco. As válvulas auxiliar e de nitrogênio " +
+            "serão fechadas e a válvula de respiro será aberta. O sensor de nível/espuma segue ativo.",
             command.ToJson());
 
         if (!confirmed)
@@ -355,6 +415,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlowControl.CommitRequested(flowEnabled: false);
         PHControl.IsEnabled = false;
         PHControl.CommitPendingCommand();
+        NutrientControl.IsEnabled = false;
+        NutrientControl.CommitPendingCommand();
+        AntifoamControl.IsEnabled = false;
+        AntifoamControl.CommitPendingCommand();
+        FlaskAgitator.IsEnabled = false;
+        FlaskAgitator.CommitPendingCommand();
         PersistAppliedSetpoints();
         StatusText = "Parada segura enviada; todos os subsistemas foram comandados para o estado seguro.";
         RefreshState();
@@ -413,6 +479,36 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             combined.Merge(phCommand);
         }
 
+        if (NutrientControl.HasPendingChange)
+        {
+            if (!NutrientControl.TryBuildPendingCommand(out var nutrientCommand))
+            {
+                return false;
+            }
+
+            combined.Merge(nutrientCommand);
+        }
+
+        if (AntifoamControl.HasPendingChange)
+        {
+            if (!AntifoamControl.TryBuildPendingCommand(out var antifoamCommand))
+            {
+                return false;
+            }
+
+            combined.Merge(antifoamCommand);
+        }
+
+        if (FlaskAgitator.HasPendingChange)
+        {
+            if (!FlaskAgitator.TryBuildPendingCommand(out var agitatorCommand))
+            {
+                return false;
+            }
+
+            combined.Merge(agitatorCommand);
+        }
+
         return !combined.IsEmpty;
     }
 
@@ -449,6 +545,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     }
 
     private void OnPHStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => RefreshState();
+
+    private void OnDosingStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         => RefreshState();
 
     private void RefreshState()
@@ -503,6 +602,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         FlowControl.PropertyChanged -= OnFlowStateChanged;
         PHControl.PropertyChanged -= OnPHStateChanged;
+        NutrientControl.PropertyChanged -= OnDosingStateChanged;
+        AntifoamControl.PropertyChanged -= OnDosingStateChanged;
+        FoamControl.PropertyChanged -= OnDosingStateChanged;
+        FlaskAgitator.PropertyChanged -= OnDosingStateChanged;
         Tuning.Dispose();
     }
 }

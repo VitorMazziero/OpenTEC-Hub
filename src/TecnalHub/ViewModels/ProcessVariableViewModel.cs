@@ -64,7 +64,8 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         int decimals = 1,
         bool isControllable = true,
         bool isCommandedOnly = false,
-        TelemetryChannel? channel = null)
+        TelemetryChannel? channel = null,
+        string? detailNote = null)
     {
         Id = id;
         DisplayName = displayName;
@@ -73,7 +74,16 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         IsControllable = isControllable;
         IsCommandedOnly = isCommandedOnly;
         Channel = channel;
+        DetailNote = detailNote ??
+            "Somente leitura nesta fase. O equipamento informa esta variável, mas o aplicativo ainda não a controla.";
     }
+
+    /// <summary>
+    /// One honest sentence for the read-only detail pane: what the reading is and where its
+    /// controls live. Defaults to the "measured but uncontrolled" wording; the WP7 dosing
+    /// variables point at their Controle cards instead.
+    /// </summary>
+    public string DetailNote { get; }
 
     /// <summary>Stable identifier, used for selection and persistence.</summary>
     public string Id { get; }

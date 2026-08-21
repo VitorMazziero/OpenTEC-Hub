@@ -90,7 +90,7 @@ public sealed class ControlViewModelTests
         Assert.Empty(fixture.Device.Sent);
         Assert.Equal(1, fixture.Dialogs.Calls);
         Assert.Equal(
-            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}""",
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0,"nutriOperation":1.0,"nutriMix":60.0,"nutriOpCycle":1.0,"nutriMixCycle":1.0,"nutriIntensity":0.0,"antifoamOperation":0.0,"antifoamMix":60.0,"antifoamIntensity":0.0,"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":1}""",
             fixture.Dialogs.ExactCommand);
     }
 
@@ -122,6 +122,44 @@ public sealed class ControlViewModelTests
         Assert.NotNull(fixture.Control.FlowRequestError);
         fixture.Control.ApplyAllCommand.Execute(null);
         Assert.Empty(fixture.Device.Sent);
+    }
+
+    [Fact]
+    public void Safe_stop_stops_the_three_dosing_actuators_but_leaves_the_foam_sensor()
+    {
+        using var fixture = new ControlFixture();
+        fixture.Dialogs.ConfirmResult = true;
+
+        fixture.Control.SafeStopCommand.Execute(null);
+
+        var json = Assert.Single(fixture.Device.Sent);
+        Assert.Contains(""","nutriIntensity":0.0""", json, StringComparison.Ordinal);
+        Assert.Contains(""","antifoamIntensity":0.0""", json, StringComparison.Ordinal);
+        Assert.Contains("\"agitatorOn\":0", json, StringComparison.Ordinal);
+        // Foam monitoring must survive a stop: the sensor keys are absent.
+        Assert.DoesNotContain("distanceSensorComm", json, StringComparison.Ordinal);
+        Assert.False(fixture.Nutrient.IsEnabled);
+        Assert.False(fixture.Antifoam.IsEnabled);
+        Assert.False(fixture.Agitator.IsEnabled);
+    }
+
+    [Fact]
+    public void Bulk_apply_merges_the_nutrient_and_antifoam_pumps_into_one_frame()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Nutrient.IsEnabled = true;
+        fixture.Nutrient.PumpSpeedPercentText = "40";
+        fixture.Antifoam.IsEnabled = true;
+        fixture.Antifoam.PumpSpeedPercentText = "20";
+
+        Assert.True(fixture.Control.CanApplyAll);
+        fixture.Control.ApplyAllCommand.Execute(null);
+
+        var json = Assert.Single(fixture.Device.Sent);
+        Assert.Contains(""","nutriIntensity":40.0""", json, StringComparison.Ordinal);
+        Assert.Contains(""","antifoamIntensity":20.0""", json, StringComparison.Ordinal);
+        Assert.Equal(0, fixture.Control.DirtyCount);
     }
 
     private sealed class ControlFixture : IDisposable
@@ -161,7 +199,12 @@ public sealed class ControlViewModelTests
             var cascadeArbiter = new CommandArbiter(Device, TimeProvider.System);
             Cascade = new CascadeService(cascadeArbiter, cascadeArbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
             PH = new PHControlViewModel(Device, Settings);
-            Control = new ControlViewModel(Subsystems, Flow, PH, Device, Settings, Dialogs, Cascade);
+            Nutrient = new NutrientControlViewModel(Device, Settings);
+            Antifoam = new AntifoamControlViewModel(Device, Settings);
+            Foam = new FoamControlViewModel(Device, Settings);
+            Agitator = new FlaskAgitatorViewModel(Device, Settings);
+            Control = new ControlViewModel(
+                Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Device, Settings, Dialogs, Cascade);
         }
 
         public RecordingDeviceService Device { get; }
@@ -170,6 +213,10 @@ public sealed class ControlViewModelTests
         public CascadeService Cascade { get; }
         public FlowControlViewModel Flow { get; }
         public PHControlViewModel PH { get; }
+        public NutrientControlViewModel Nutrient { get; }
+        public AntifoamControlViewModel Antifoam { get; }
+        public FoamControlViewModel Foam { get; }
+        public FlaskAgitatorViewModel Agitator { get; }
         public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
         public ControlViewModel Control { get; }
 
@@ -195,6 +242,8 @@ public sealed class ControlViewModelTests
         {
             Control.Dispose();
             PH.Dispose();
+            Antifoam.Dispose();
+            Foam.Dispose();
             Cascade.Dispose();
         }
     }

@@ -11,11 +11,19 @@ namespace TecnalHub.Protocol;
 /// owns aeration owns the whole valve/flow group, or none of it.
 /// </para>
 /// <para>
-/// The list is deliberately the Phase 1/2 core loop plus pH. Keys that no controller
-/// contends for yet — device/system commands, calibration coefficients, and the
-/// Phase 2 WP7/Phase 3 subsystems (nutrient, antifoam, foam, flask agitator, biomass,
-/// external pump) — map to <c>null</c> and are unowned. They pass the arbiter freely
-/// today; each gains an owner in the WP that adds its control surface.
+/// The list is the Phase 1/2 core loop, pH, and the WP7 cultivation dosing pumps
+/// (nutrient, antifoam and the flask agitator). Keys that no controller contends for —
+/// device/system commands, calibration coefficients, the foam/level <b>sensor</b>
+/// configuration, and the Phase 3 subsystems (biomass, external pump) — map to
+/// <c>null</c> and are unowned. They pass the arbiter freely; each gains an owner in the
+/// WP that adds its control surface.
+/// </para>
+/// <para>
+/// The foam-control keys (<c>distanceSensorComm</c>, <c>distanceSensorReference</c> and the
+/// <c>foam*</c> timers) are deliberately <b>unowned</b>. They configure the level/foam
+/// sensor and its automatic response, not an actuator held against another owner — the
+/// same treatment calibration and the <c>pHCal</c> echo get. A safe-stop stops the
+/// antifoam <i>pump</i>; it must not blind foam monitoring by disabling the sensor.
 /// </para>
 /// </remarks>
 public enum ActuatorId
@@ -37,6 +45,18 @@ public enum ActuatorId
 
     /// <summary>pH dosing pump: reference, band, timing and intensity.</summary>
     PHDosing,
+
+    /// <summary>Nutrient dosing pump: operation/mix timing, cycle counts and intensity.</summary>
+    Nutrient,
+
+    /// <summary>Antifoam dosing pump: operation/mix timing and intensity.</summary>
+    Antifoam,
+
+    /// <summary>
+    /// The separate flask agitator (a bench device): on/off, automatic mode, magnitude,
+    /// direction and the potentiometer re-enable. Not the reactor impeller.
+    /// </summary>
+    FlaskAgitator,
 }
 
 /// <summary>
@@ -78,6 +98,25 @@ public static class CommandActuators
             // pHCal is a calibration echo the protocol reflects back on its own, not a
             // dosing setpoint, so it is intentionally unowned — it must never be blocked
             // by whoever happens to own pH dosing.
+
+            [CommandKeys.NutriOperation] = ActuatorId.Nutrient,
+            [CommandKeys.NutriMix] = ActuatorId.Nutrient,
+            [CommandKeys.NutriOpCycle] = ActuatorId.Nutrient,
+            [CommandKeys.NutriMixCycle] = ActuatorId.Nutrient,
+            [CommandKeys.NutriIntensity] = ActuatorId.Nutrient,
+
+            [CommandKeys.AntifoamOperation] = ActuatorId.Antifoam,
+            [CommandKeys.AntifoamMix] = ActuatorId.Antifoam,
+            [CommandKeys.AntifoamIntensity] = ActuatorId.Antifoam,
+
+            // distanceSensor* and foam* configure the level/foam sensor and its automatic
+            // response, not an actuator — they stay unowned, like the calibration keys.
+
+            [CommandKeys.AgitatorOn] = ActuatorId.FlaskAgitator,
+            [CommandKeys.AgitatorAuto] = ActuatorId.FlaskAgitator,
+            [CommandKeys.AgitatorPercent] = ActuatorId.FlaskAgitator,
+            [CommandKeys.AgitatorDir] = ActuatorId.FlaskAgitator,
+            [CommandKeys.AgitatorReEnablePot] = ActuatorId.FlaskAgitator,
         };
 
     /// <summary>Every actuator an arbiter tracks, in synoptic order.</summary>
@@ -89,6 +128,9 @@ public static class CommandActuators
         ActuatorId.Aeration,
         ActuatorId.Pressure,
         ActuatorId.PHDosing,
+        ActuatorId.Nutrient,
+        ActuatorId.Antifoam,
+        ActuatorId.FlaskAgitator,
     ];
 
     /// <summary>
@@ -124,6 +166,9 @@ public static class CommandActuators
         ActuatorId.Aeration => "aeração",
         ActuatorId.Pressure => "pressão",
         ActuatorId.PHDosing => "dosagem de pH",
+        ActuatorId.Nutrient => "dosagem de nutriente",
+        ActuatorId.Antifoam => "dosagem de antiespumante",
+        ActuatorId.FlaskAgitator => "agitador de frasco",
         _ => actuator.ToString(),
     };
 }

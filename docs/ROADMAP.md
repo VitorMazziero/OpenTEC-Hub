@@ -897,16 +897,30 @@ live tuning chart. Only the bioreactor field gate remains.
 timeout and safe abort. The software is complete and simulator-validated; no result tuned only
 against the simulator closes this WP — the bioreactor run is the remaining gate.
 
-### WP7 — remaining v.6 cultivation auxiliaries — **P1**
+### WP7 — remaining v.6 cultivation auxiliaries — **done 2026-08-21 · P1 · D-018**
 
-- [ ] Nutrient dosing: operation/mix/cycle/intensity as one validated desired state
-- [ ] Antifoam dosing plus distance/foam reference, initial delay, pulse and interval
-- [ ] Separate flask agitator: automatic mode, signed operator direction converted to wire
-      magnitude/direction, on/off and potentiometer re-enable semantics
-- [ ] Extend the global safe-stop and command arbiter to all three; commanded-only values
-      remain tagged as such and never receive a false healthy state
-- [ ] Add their Controle cards, detail surfaces, events and synoptic elements. The flask
-      agitator remains off the reactor drawing because it is a separate bench device
+- [x] Nutrient dosing: operation/mix/cycle/intensity as one validated desired state
+      (`NutrientControlViewModel`, five keys atomic; intensity is the raw 0-99 percent)
+- [x] Antifoam dosing plus distance/foam reference, initial delay, pulse and interval —
+      the antifoam pump (`AntifoamControlViewModel`) and the level/foam sensor
+      (`FoamControlViewModel`) as two cards
+- [x] Separate flask agitator: automatic mode, signed operator direction converted to wire
+      magnitude/direction (the sign never leaks), on/off and potentiometer re-enable
+      (`FlaskAgitatorViewModel`)
+- [x] Extend the global safe-stop and command arbiter to all three: three new owned actuators
+      (`Nutrient`, `Antifoam`, `FlaskAgitator`); the foam/level **sensor** config stays
+      unowned, like calibration, so a stop never blinds foam monitoring. Nutrient and the
+      agitator stay tagged `comandado` with no false healthy state
+- [x] Added their Controle cards, read-only synoptic detail surfaces, event/setpoint audit
+      names and the nutrient/antifoam/level synoptic elements. The flask agitator stays off
+      the reactor drawing because it is a separate bench device
+
+**Delivered:** four dosing ViewModels mirroring the WP3 pH card, three new arbiter actuators,
+four typed settings records, four Controle cards, three synoptic tags with leader lines and a
+provenance-aware read-only detail. 350/350 tests (22 new); a live simulator run reached the
+Controle page and connected with zero binding failures. The intensity `× 10` quirk is
+**pH-only** — nutrient and antifoam carry the raw percent. Bioreactor actuation of the pumps
+remains part of the standing hardware gate.
 
 ### WP8 — conditional OUR and gain scheduling — **P1**
 

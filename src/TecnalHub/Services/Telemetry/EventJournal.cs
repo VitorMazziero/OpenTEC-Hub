@@ -60,6 +60,11 @@ public sealed class EventJournal : IEventJournal
             [CommandKeys.FlowSetpoint] = "vazão",
             [CommandKeys.PressureReference] = "pressão",
             [CommandKeys.PHSetpoint] = "pH",
+            // WP7 dosing auxiliaries: one representative key names each subsystem so the
+            // setpoint-audit line reads cleanly without repeating every wire field.
+            [CommandKeys.NutriIntensity] = "nutriente (intensidade %)",
+            [CommandKeys.AntifoamIntensity] = "antiespumante (intensidade %)",
+            [CommandKeys.AgitatorPercent] = "agitador de frasco (intensidade %)",
         };
 
     private readonly Lock _gate = new();

@@ -83,6 +83,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly IDeviceService _device;
     private readonly IAlarmService _alarms;
     private readonly ISettingsService _settings;
+    private readonly NutrientControlViewModel _nutrientControl;
     private readonly IThemeService _theme;
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
@@ -109,6 +110,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         EventsViewModel events,
         SettingsViewModel settings_,
         PHControlViewModel phControl,
+        NutrientControlViewModel nutrientControl,
+        AntifoamControlViewModel antifoamControl,
+        FoamControlViewModel foamControl,
+        FlaskAgitatorViewModel flaskAgitator,
         CalibrationViewModel calibration,
         KlaMappingViewModel klaMapping,
         IDialogService dialogs,
@@ -152,8 +157,24 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Pressure = new ProcessVariableViewModel("pressure", "Pressão", "kPa", decimals: 1, isControllable: false,
             channel: TelemetryChannel.Pressure);
 
+        // WP7 dosing auxiliaries on the synoptic. Nutrient has no telemetry — it is a
+        // commanded-only pump, so it shows a commanded duty cycle. Antifoam's figure has
+        // no documented unit, so it is unitless. Level is the distance/foam sensor in mm.
+        _nutrientControl = nutrientControl;
+        Nutrient = new ProcessVariableViewModel(
+            "nutrient", "Nutriente", "%", decimals: 0, isControllable: false, isCommandedOnly: true,
+            detailNote: "Bomba comandada, sem realimentação — o valor é o ciclo útil. Ajuste a dosagem em Controle → Dosagem — Nutriente.");
+        Antifoam = new ProcessVariableViewModel(
+            "antifoam", "Antiespumante", "", decimals: 2, isControllable: false,
+            channel: TelemetryChannel.Antifoam,
+            detailNote: "Figura sem unidade documentada. Ajuste a bomba em Controle → Dosagem — Antiespumante.");
+        Level = new ProcessVariableViewModel(
+            "level", "Nível", "mm", decimals: 0, isControllable: false,
+            channel: TelemetryChannel.Distance,
+            detailNote: "Nível/espuma pelo sensor de distância. Configure o sensor em Controle → Controle de espuma.");
+
         // KPI-strip order, which is also the variable-rail order.
-        Variables = [Temperature, Ph, Oxygen, Motor, Flow, Pressure];
+        Variables = [Temperature, Ph, Oxygen, Motor, Flow, Pressure, Nutrient, Antifoam, Level];
 
         // Ranges come from docs/PROTOCOL.md section 3.1 and are paired with the
         // command builders, so validation and the wire cannot drift apart.
@@ -211,8 +232,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
-        Control = new ControlViewModel(Subsystems, FlowControl, PHControl, device, settings, dialogs, cascade);
+        Control = new ControlViewModel(
+            Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
+            device, settings, dialogs, cascade);
         CascadeDetail = new CascadeDetailViewModel(cascade);
+
+        // Nutrient is commanded-only: reflect its applied duty cycle onto the synoptic tile.
+        _nutrientControl.PropertyChanged += OnNutrientCommandChanged;
 
         NavigationItems =
         [
@@ -339,6 +365,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public ProcessVariableViewModel Flow { get; }
 
     public ProcessVariableViewModel Pressure { get; }
+
+    /// <summary>Nutrient dosing — commanded-only duty cycle, on the synoptic (WP7).</summary>
+    public ProcessVariableViewModel Nutrient { get; }
+
+    /// <summary>Antifoam figure (unitless), on the synoptic (WP7).</summary>
+    public ProcessVariableViewModel Antifoam { get; }
+
+    /// <summary>Level/foam distance in millimetres, on the synoptic (WP7).</summary>
+    public ProcessVariableViewModel Level { get; }
 
     /// <summary>Controllable subsystems, aligned with <see cref="Variables"/>.</summary>
     public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
@@ -958,6 +993,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SystemStateText));
     }
 
+    private void OnNutrientCommandChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(NutrientControlViewModel.AppliedDutyCyclePercent)
+                           or nameof(NutrientControlViewModel.AppliedIsEnabled))
+        {
+            Nutrient.PushCommanded(
+                _nutrientControl.AppliedIsEnabled ? _nutrientControl.AppliedDutyCyclePercent : null);
+        }
+    }
+
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
         Temperature.Push(snapshot.Temperature);
@@ -965,6 +1010,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Oxygen.Push(snapshot.OxygenCalibrated);
         Flow.Push(snapshot.FlowRate);
         Pressure.Push(snapshot.Pressure);
+        Antifoam.Push(snapshot.Antifoam);
+        Level.Push(snapshot.Distance);
+
+        // Nutrient, like Motor, is deliberately not pushed from telemetry: the device
+        // reports no nutrient feedback. Its tile shows the commanded duty cycle, updated
+        // in OnNutrientCommandChanged.
 
         // Motor is deliberately not pushed here: the device reports no RPM feedback,
         // so there is nothing to measure. Its "value" is whatever was last commanded,
@@ -1071,6 +1122,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.SessionTimeZeroed -= OnSessionTimeZeroed;
+        _nutrientControl.PropertyChanged -= OnNutrientCommandChanged;
         _alarms.Changed -= OnAlarmsChanged;
         _settings.Changed -= OnSettingsChanged;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;

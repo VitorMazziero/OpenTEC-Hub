@@ -529,12 +529,156 @@
                                            Foreground="{DynamicResource TextSecondaryBrush}" Margin="2,8,2,0" LineHeight="15" />
                             </StackPanel>
 
+                            <!-- Controle Cascata Custom Properties Editor -->
+                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsCascadeControl, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
+                                <!-- Setpoint de O₂ -->
+                                <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="12,10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="Setpoint de O₂ (%)" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="65" />
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="False"
+                                                    Value="{Binding SelectedTab.SelectedNode.CascadeSpO2, Mode=TwoWay}"
+                                                    VerticalAlignment="Center" Margin="0,0,10,0" />
+                                            <TextBox Grid.Column="1" Text="{Binding SelectedTab.SelectedNode.CascadeSpO2, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                     Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                     BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" TextAlignment="Center" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Atuadores Habilitados -->
+                                <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="12,10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="Atuadores Habilitados" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" />
+                                        <CheckBox IsChecked="{Binding SelectedTab.SelectedNode.CascadeAtuadorAgitacao, Mode=TwoWay}"
+                                                  Content="Agitação (N_min = 150 a N_max = 350 rpm)" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                        <CheckBox IsChecked="{Binding SelectedTab.SelectedNode.CascadeAtuadorAeracao, Mode=TwoWay}"
+                                                  Content="Aeração (Q_min = 0.5 a Q_max = 5.0 vvm)" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Janelas de Atuação (Diagrama 0 a 100% de esforço) -->
+                                <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="12,10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="Janelas de Atuação (Esforço PID 0–100%)" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" />
+
+                                        <!-- Diagrama Visual de Alocação -->
+                                        <Border Background="{DynamicResource SurfaceCardBrush}" CornerRadius="4" Padding="8,8" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <!-- Barra da Agitação -->
+                                                <DockPanel Margin="0,0,0,4">
+                                                    <TextBlock DockPanel.Dock="Left" Text="Agitação" FontSize="10" Width="50" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                    <Grid Height="14" Background="{DynamicResource SurfaceSunkenBrush}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="{Binding SelectedTab.SelectedNode.AgitationBarStart}" />
+                                                            <ColumnDefinition Width="{Binding SelectedTab.SelectedNode.AgitationBarSpan}" />
+                                                            <ColumnDefinition Width="{Binding SelectedTab.SelectedNode.AgitationBarRest}" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="1" Background="{DynamicResource AccentBrush}" CornerRadius="2"
+                                                                ToolTip="Faixa da Agitação" />
+                                                    </Grid>
+                                                </DockPanel>
+
+                                                <!-- Barra da Aeração -->
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <TextBlock DockPanel.Dock="Left" Text="Aeração" FontSize="10" Width="50" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                    <Grid Height="14" Background="{DynamicResource SurfaceSunkenBrush}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="{Binding SelectedTab.SelectedNode.AerationBarStart}" />
+                                                            <ColumnDefinition Width="{Binding SelectedTab.SelectedNode.AerationBarSpan}" />
+                                                            <ColumnDefinition Width="{Binding SelectedTab.SelectedNode.AerationBarRest}" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="1" Background="{DynamicResource StateOkBrush}" CornerRadius="2"
+                                                                ToolTip="Faixa da Aeração" />
+                                                    </Grid>
+                                                </DockPanel>
+
+                                                <!-- Eixo 0 .. 100 -->
+                                                <Grid Margin="50,0,0,0">
+                                                    <TextBlock Text="0%" FontSize="9" HorizontalAlignment="Left" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                    <TextBlock Text="50%" FontSize="9" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                    <TextBlock Text="100%" FontSize="9" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                </Grid>
+
+                                                <!-- Resumo da sobreposição -->
+                                                <TextBlock Text="{Binding SelectedTab.SelectedNode.CascadeOverlapSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,0" LineHeight="14" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Faixa da Agitação -->
+                                        <TextBlock Text="Faixa de Atuação: Agitação" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" Margin="0,2,0,4" />
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Início (% saída)" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAgitOutMin, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                         Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                         BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Fim (% saída)" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAgitOutMax, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                         Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                         BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Faixa da Aeração -->
+                                        <TextBlock Text="Faixa de Atuação: Aeração" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource StateOkBrush}" Margin="0,2,0,4" />
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Início (% saída)" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAerOutMin, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                         Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                         BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Fim (% saída)" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAerOutMax, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                         Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                         BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Expander de Parâmetros Avançados -->
+                                <Expander Header="Sintonia PID e Ganhos Avançados" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6">
+                                    <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.CascadeAdvancedFields}"
+                                                  ItemTemplate="{StaticResource FieldTemplate}" Margin="0,8,0,0" />
+                                </Expander>
+                            </StackPanel>
+
+                            <!-- Generic Fields (for all other nodes) -->
                             <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.Fields}"
                                           ItemTemplate="{StaticResource FieldTemplate}">
                                 <ItemsControl.Style>
                                     <Style TargetType="ItemsControl">
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedTab.SelectedNode.IsManualIntervention}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedTab.SelectedNode.IsCascadeControl}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>

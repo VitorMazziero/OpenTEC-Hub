@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Services.Recipes;
@@ -412,6 +413,101 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         Summary = BuildSummary();
     }
 
+    public bool IsCascadeControl => Type == NodeType.CascadeControl;
+
+    public double CascadeSpO2
+    {
+        get => Model.Number("spO2");
+        set => SetParam("spO2", value);
+    }
+
+    public bool CascadeAtuadorAgitacao
+    {
+        get => Model.Flag("atuadorAgitacao");
+        set => SetParam("atuadorAgitacao", value);
+    }
+
+    public bool CascadeAtuadorAeracao
+    {
+        get => Model.Flag("atuadorAeracao");
+        set => SetParam("atuadorAeracao", value);
+    }
+
+    public double CascadeAgitOutMin
+    {
+        get => Model.Number("agitacaoOutMin");
+        set => SetParam("agitacaoOutMin", value);
+    }
+
+    public double CascadeAgitOutMax
+    {
+        get => Model.Number("agitacaoOutMax");
+        set => SetParam("agitacaoOutMax", value);
+    }
+
+    public double CascadeAerOutMin
+    {
+        get => Model.Number("aeracaoOutMin");
+        set => SetParam("aeracaoOutMin", value);
+    }
+
+    public double CascadeAerOutMax
+    {
+        get => Model.Number("aeracaoOutMax");
+        set => SetParam("aeracaoOutMax", value);
+    }
+
+    public GridLength AgitationBarStart => new(Math.Clamp(CascadeAgitOutMin, 0, 100), GridUnitType.Star);
+    public GridLength AgitationBarSpan => new(Math.Clamp(CascadeAgitOutMax - CascadeAgitOutMin, 0, 100 - Math.Clamp(CascadeAgitOutMin, 0, 100)), GridUnitType.Star);
+    public GridLength AgitationBarRest => new(Math.Max(0.001, 100 - Math.Clamp(CascadeAgitOutMin, 0, 100) - Math.Clamp(CascadeAgitOutMax - CascadeAgitOutMin, 0, 100 - Math.Clamp(CascadeAgitOutMin, 0, 100))), GridUnitType.Star);
+
+    public GridLength AerationBarStart => new(Math.Clamp(CascadeAerOutMin, 0, 100), GridUnitType.Star);
+    public GridLength AerationBarSpan => new(Math.Clamp(CascadeAerOutMax - CascadeAerOutMin, 0, 100 - Math.Clamp(CascadeAerOutMin, 0, 100)), GridUnitType.Star);
+    public GridLength AerationBarRest => new(Math.Max(0.001, 100 - Math.Clamp(CascadeAerOutMin, 0, 100) - Math.Clamp(CascadeAerOutMax - CascadeAerOutMin, 0, 100 - Math.Clamp(CascadeAerOutMin, 0, 100))), GridUnitType.Star);
+
+    public string CascadeOverlapSummary
+    {
+        get
+        {
+            var ovMin = Math.Max(CascadeAgitOutMin, CascadeAerOutMin);
+            var ovMax = Math.Min(CascadeAgitOutMax, CascadeAerOutMax);
+            if (ovMax > ovMin)
+            {
+                return $"✦ Faixa de sobreposição: {ovMin:0.#}% a {ovMax:0.#}% (Agitação e Aeração atuam juntas)";
+            }
+
+            return "Atuação sequencial (sem sobreposição simultânea).";
+        }
+    }
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadeAdvancedFields =>
+        Fields.Where(f => f.IsVisible && f.Key is not ("spO2" or "atuadorAgitacao" or "atuadorAeracao" or "agitacaoOutMin" or "agitacaoOutMax" or "aeracaoOutMin" or "aeracaoOutMax"));
+
+    private void SetParam(string key, object value)
+    {
+        if (value is double d)
+        {
+            Model.Parameters[key] = d;
+        }
+        else if (value is bool b)
+        {
+            Model.Parameters[key] = b;
+        }
+        else if (value is string s)
+        {
+            Model.Parameters[key] = s;
+        }
+
+        if (Fields.FirstOrDefault(f => f.Key == key) is { } field)
+        {
+            if (value is double num) field.NumberValue = num;
+            else if (value is bool flag) field.BoolValue = flag;
+            else if (value is string str) field.TextValue = str;
+        }
+
+        OnFieldChanged();
+    }
+
     private void OnFieldChanged()
     {
         foreach (var field in Fields)
@@ -425,8 +521,23 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(ManualButtonIcon));
         OnPropertyChanged(nameof(ManualButtonColor));
         OnPropertyChanged(nameof(ManualExplanationText));
+        OnPropertyChanged(nameof(CascadeSpO2));
+        OnPropertyChanged(nameof(CascadeAtuadorAgitacao));
+        OnPropertyChanged(nameof(CascadeAtuadorAeracao));
+        OnPropertyChanged(nameof(CascadeAgitOutMin));
+        OnPropertyChanged(nameof(CascadeAgitOutMax));
+        OnPropertyChanged(nameof(CascadeAerOutMin));
+        OnPropertyChanged(nameof(CascadeAerOutMax));
+        OnPropertyChanged(nameof(AgitationBarStart));
+        OnPropertyChanged(nameof(AgitationBarSpan));
+        OnPropertyChanged(nameof(AgitationBarRest));
+        OnPropertyChanged(nameof(AerationBarStart));
+        OnPropertyChanged(nameof(AerationBarSpan));
+        OnPropertyChanged(nameof(AerationBarRest));
+        OnPropertyChanged(nameof(CascadeOverlapSummary));
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
+        OnPropertyChanged(nameof(CascadeAdvancedFields));
         Changed?.Invoke();
     }
 

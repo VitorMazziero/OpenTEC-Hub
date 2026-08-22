@@ -258,6 +258,12 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         {
             StartCommand.NotifyCanExecuteChanged();
         }
+        else if (e.PropertyName is nameof(RecipeTabViewModel.CanDeleteSelected)
+                 or nameof(RecipeTabViewModel.SelectedNode)
+                 or nameof(RecipeTabViewModel.SelectedConnection))
+        {
+            DeleteSelectedCommand.NotifyCanExecuteChanged();
+        }
     }
 
     private void OnCanvasBoundsChanged()
@@ -280,7 +286,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanEditRecipe))]
     private void AddBlock(NodeType type) => SelectedTab?.AddBlock(type);
 
-    [RelayCommand(CanExecute = nameof(CanEditRecipe))]
+    [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
     private void DeleteSelected() => SelectedTab?.DeleteSelected();
 
     [RelayCommand(CanExecute = nameof(CanEditRecipe))]
@@ -301,6 +307,8 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     }
 
     private bool CanEditRecipe() => IsStopped && ShowCanvas;
+
+    private bool CanDeleteSelected() => CanEditRecipe() && (SelectedTab?.CanDeleteSelected ?? false);
 
     // ── Execution ────────────────────────────────────────────────────────────────
 
@@ -394,12 +402,14 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     }
 
     private static IReadOnlyList<BlockLibraryGroup> BuildLibrary()
-        => [.. Enum.GetValues<BlockCategory>().Select(category => new BlockLibraryGroup(
-            RecipeNodeCatalog.Categories[category].Label,
-            RecipeNodeCatalog.Categories[category].HeaderColor,
-            [.. RecipeNodeCatalog.All
-                .Where(d => d.Category == category)
-                .Select(d => new BlockLibraryItem(d.Type, d.Title, RecipeNodeCatalog.HeaderColor(d.Type)))]))];
+        => [.. Enum.GetValues<BlockCategory>()
+            .Select(category => new BlockLibraryGroup(
+                RecipeNodeCatalog.Categories[category].Label,
+                RecipeNodeCatalog.Categories[category].HeaderColor,
+                [.. RecipeNodeCatalog.All
+                    .Where(d => d.Category == category && d.Type is not (NodeType.Start or NodeType.End))
+                    .Select(d => new BlockLibraryItem(d.Type, d.Title, RecipeNodeCatalog.HeaderColor(d.Type)))]))
+            .Where(g => g.Items.Count > 0)];
 
     public void Dispose()
     {

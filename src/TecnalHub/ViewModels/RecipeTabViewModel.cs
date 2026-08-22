@@ -50,15 +50,20 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNodeSelected))]
+    [NotifyPropertyChangedFor(nameof(CanDeleteSelected))]
     public partial RecipeNodeViewModel? SelectedNode { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasConnectionSelected))]
+    [NotifyPropertyChangedFor(nameof(CanDeleteSelected))]
     public partial RecipeConnectionViewModel? SelectedConnection { get; set; }
 
     public bool HasNodeSelected => SelectedNode is not null;
 
     public bool HasConnectionSelected => SelectedConnection is not null;
+
+    public bool CanDeleteSelected => SelectedConnection is not null
+                                  || (SelectedNode is { } node && node.Type is not (NodeType.Start or NodeType.End));
 
     [ObservableProperty]
     public partial string JsonText { get; set; } = "";
@@ -134,7 +139,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
             return;
         }
 
-        if (SelectedNode is { } node && node.Type != NodeType.Start)
+        if (SelectedNode is { } node && node.Type is not (NodeType.Start or NodeType.End))
         {
             PushHistory();
             Document.Nodes.RemoveAll(n => n.Id == node.Id);

@@ -146,6 +146,28 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
+    public void The_end_block_cannot_be_deleted()
+    {
+        var vm = Build();
+        var end = Tab(vm).Nodes.First(n => n.Type == NodeType.End);
+
+        Tab(vm).SelectNode(end);
+        vm.DeleteSelectedCommand.Execute(null);
+
+        Assert.Contains(Tab(vm).Nodes, n => n.Type == NodeType.End);
+    }
+
+    [Fact]
+    public void Library_does_not_contain_start_or_end_blocks()
+    {
+        var vm = Build();
+        var allLibraryTypes = vm.Library.SelectMany(g => g.Items).Select(i => i.Type).ToList();
+
+        Assert.DoesNotContain(NodeType.Start, allLibraryTypes);
+        Assert.DoesNotContain(NodeType.End, allLibraryTypes);
+    }
+
+    [Fact]
     public void An_out_of_range_setpoint_invalidates_the_recipe()
     {
         var vm = Build();

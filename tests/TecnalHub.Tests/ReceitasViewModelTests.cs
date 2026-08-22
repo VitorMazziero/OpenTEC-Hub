@@ -158,13 +158,14 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
-    public void Library_does_not_contain_start_or_end_blocks()
+    public void Library_does_not_contain_start_end_or_pump_control_blocks()
     {
         var vm = Build();
         var allLibraryTypes = vm.Library.SelectMany(g => g.Items).Select(i => i.Type).ToList();
 
         Assert.DoesNotContain(NodeType.Start, allLibraryTypes);
         Assert.DoesNotContain(NodeType.End, allLibraryTypes);
+        Assert.DoesNotContain(NodeType.PumpControl, allLibraryTypes);
     }
 
     [Fact]
@@ -181,12 +182,12 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
-    public void Library_covers_all_seventeen_authorable_blocks_in_five_categories()
+    public void Library_covers_all_sixteen_authorable_blocks_in_five_categories()
     {
         var vm = Build();
 
         Assert.Equal(5, vm.Library.Count);
-        Assert.Equal(17, vm.Library.Sum(g => g.Items.Count));
+        Assert.Equal(16, vm.Library.Sum(g => g.Items.Count));
     }
 
     [Fact]

@@ -407,7 +407,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
                 RecipeNodeCatalog.Categories[category].Label,
                 RecipeNodeCatalog.Categories[category].HeaderColor,
                 [.. RecipeNodeCatalog.All
-                    .Where(d => d.Category == category && d.Type is not (NodeType.Start or NodeType.End))
+                    .Where(d => d.Category == category && d.Type is not (NodeType.Start or NodeType.End or NodeType.PumpControl))
                     .Select(d => new BlockLibraryItem(d.Type, d.Title, RecipeNodeCatalog.HeaderColor(d.Type)))]))
             .Where(g => g.Items.Count > 0)];
 

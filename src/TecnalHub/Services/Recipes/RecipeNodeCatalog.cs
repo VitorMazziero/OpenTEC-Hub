@@ -110,11 +110,11 @@ public static class RecipeNodeCatalog
 
     private static readonly RecipeOption[] Comparisons =
     [
-        new(nameof(ComparisonOperator.GreaterThan), ">"),
-        new(nameof(ComparisonOperator.LessThan), "<"),
-        new(nameof(ComparisonOperator.GreaterOrEqual), "≥"),
-        new(nameof(ComparisonOperator.LessOrEqual), "≤"),
-        new(nameof(ComparisonOperator.Equal), "="),
+        new(nameof(ComparisonOperator.GreaterThan), "Maior que (>)"),
+        new(nameof(ComparisonOperator.LessThan), "Menor que (<)"),
+        new(nameof(ComparisonOperator.GreaterOrEqual), "Maior ou igual (>=)"),
+        new(nameof(ComparisonOperator.LessOrEqual), "Menor ou igual (<=)"),
+        new(nameof(ComparisonOperator.Equal), "Igual a (=)"),
     ];
 
     private static readonly RecipeOption[] TimeUnits =

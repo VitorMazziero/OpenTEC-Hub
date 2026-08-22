@@ -425,7 +425,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     private string BuildSummary() => Type switch
     {
         NodeType.Timer => $"Aguardar {Model.Number("duracao"):0.##} {OptionLabel("unidade")}",
-        NodeType.MonitorVariable => $"{OptionLabel("variavel")} {OptionLabel("condicao")} {Model.Number("valorAlvo"):0.##}",
+        NodeType.MonitorVariable => $"{OptionLabel("variavel")} {FormatCondition(Model.Enum<ComparisonOperator>("condicao"))} {Model.Number("valorAlvo"):0.##}",
         NodeType.SetSetpoint => $"{OptionLabel("variavel")} → {Model.Number("valor"):0.##}",
         NodeType.SetLoop => $"{OptionLabel("operacao")} {OptionLabel("malha")}",
         NodeType.CascadeControl => $"Cascata O₂: SP {Model.Number("spO2"):0.#} %",
@@ -444,4 +444,14 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         var value = Model.Text(key);
         return Model.Definition.Parameter(key)?.Options.FirstOrDefault(o => o.Value == value)?.Label ?? value;
     }
+
+    private static string FormatCondition(ComparisonOperator op) => op switch
+    {
+        ComparisonOperator.GreaterThan => ">",
+        ComparisonOperator.LessThan => "<",
+        ComparisonOperator.GreaterOrEqual => "≥",
+        ComparisonOperator.LessOrEqual => "≤",
+        ComparisonOperator.Equal => "=",
+        _ => ">=",
+    };
 }

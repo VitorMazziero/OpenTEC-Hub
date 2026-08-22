@@ -76,7 +76,7 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
 
     public bool CanApply => !IsEnabled || IsValid;
 
-    public string AppliedStateText => AppliedIsEnabled ? "Ativo" : "Desligado";
+    public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
     /// <summary>Direction picked as counter-clockwise, for the second radio.</summary>
     public bool CounterClockwise
@@ -115,11 +115,11 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
         ValidateAndRefresh();
     }
 
-    partial void OnIsEnabledChanged(bool value) => ValidateAndRefresh();
+    partial void OnIsEnabledChanged(bool value) { ValidateAndRefresh(); OnPropertyChanged(nameof(StateText)); }
 
     partial void OnIsAutomaticChanged(bool value) => ValidateAndRefresh();
 
-    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(StateText));
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()

@@ -77,9 +77,7 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
     /// <summary>A stop is never blocked by an invalid staged field.</summary>
     public bool CanApply => !IsEnabled || IsValid;
 
-    public string AppliedStateText => AppliedIsEnabled && AppliedSetpoint is { } setpoint
-        ? $"Ativo · SP {setpoint:F2}"
-        : "Desligado";
+    public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
     partial void OnSetpointTextChanged(string value) => ValidateAndRefresh();
 
@@ -91,11 +89,15 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
 
     partial void OnPumpSpeedPercentTextChanged(string value) => ValidateAndRefresh();
 
-    partial void OnIsEnabledChanged(bool value) => ValidateAndRefresh();
+    partial void OnIsEnabledChanged(bool value)
+    {
+        ValidateAndRefresh();
+        OnPropertyChanged(nameof(StateText));
+    }
 
-    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(StateText));
 
-    partial void OnAppliedSetpointChanged(double? value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedSetpointChanged(double? value) => OnPropertyChanged(nameof(StateText));
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()

@@ -13,7 +13,7 @@
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:EqualsToVisibilityConverter x:Key="EqualsToVis" />
 
-        <Style x:Key="SectionHeading" TargetType="TextBlock">
+        <Style x:Key="SectionHeading" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="{DynamicResource FontSizeSubtitle}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,10" />
@@ -63,17 +63,51 @@
                          Background="Transparent" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          AutomationProperties.Name="Seções de configurações">
-                    <ListBox.ItemContainerStyle>
+                                        <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
+                            <Setter Property="Padding" Value="10,7" />
+                            <Setter Property="Cursor" Value="Hand" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
                             <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Chrome" Background="Transparent"
+                                                CornerRadius="{StaticResource RadiusSmall}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <Grid>
+                                                <Border x:Name="Marker" Width="3"
+                                                        HorizontalAlignment="Left" Margin="-6,0,0,0"
+                                                        CornerRadius="2"
+                                                        Background="{DynamicResource AccentBrush}"
+                                                        Visibility="Collapsed" />
+                                                <ContentPresenter />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Chrome" Property="Background"
+                                                        Value="{DynamicResource SurfaceHoverBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Chrome" Property="Background"
+                                                        Value="{DynamicResource SurfaceSelectedBrush}" />
+                                                <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:SettingsSection}">
                             <StackPanel Orientation="Horizontal">
-                                <ctl:Icon Key="{Binding Glyph}" Size="18" Margin="0,0,9,0" />
+                                <ctl:Icon Key="{Binding Glyph}" Size="18" Margin="0,0,9,0" Stroke="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center"
                                            TextWrapping="Wrap" MaxWidth="175" />
                             </StackPanel>
@@ -290,3 +324,6 @@
         </Border>
     </Grid>
 </UserControl>
+
+
+

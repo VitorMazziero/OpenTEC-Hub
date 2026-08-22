@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ScottPlot;
 using ScottPlot.WPF;
 using TecnalHub.ViewModels;
@@ -21,7 +23,7 @@ public partial class KlaMappingView : UserControl
     private ScottPlot.Panels.ColorBar? _surfaceColorBar;
     private ScottPlot.Panels.ColorBar? _headroomColorBar;
     private KlaMappingViewModel? _subscribed;
-    private MediaColor? _lastSurfaceColor;
+    
 
     public KlaMappingView()
     {
@@ -37,6 +39,7 @@ public partial class KlaMappingView : UserControl
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        SubscribeToThemeChanges();
         Attach();
         if (ViewModel is { } viewModel)
         {
@@ -44,23 +47,42 @@ public partial class KlaMappingView : UserControl
         }
 
         Redraw();
-        CompositionTarget.Rendering += OnRendering;
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        CompositionTarget.Rendering -= OnRendering;
+        UnsubscribeFromThemeChanges();
         Detach();
     }
 
-    private void OnRendering(object? sender, EventArgs e)
+    private void SubscribeToThemeChanges()
     {
-        var surface = TryBrush("SurfaceCardBrush")?.Color;
-        if (surface != _lastSurfaceColor)
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
         {
-            Redraw();
+            theme.ThemeChanged -= OnThemeChanged;
+            theme.ThemeChanged += OnThemeChanged;
         }
     }
+
+    private void UnsubscribeFromThemeChanges()
+    {
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
+        {
+            theme.ThemeChanged -= OnThemeChanged;
+        }
+    }
+
+    private void OnThemeChanged(bool isDark)
+        => Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            if (IsLoaded)
+            {
+
+                Redraw();
+            }
+        });
 
     private void Attach()
     {
@@ -85,7 +107,6 @@ public partial class KlaMappingView : UserControl
 
     private void Redraw()
     {
-        _lastSurfaceColor = TryBrush("SurfaceCardBrush")?.Color;
         DrawSurface();
         DrawHeadroom();
     }

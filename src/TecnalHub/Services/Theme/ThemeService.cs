@@ -13,6 +13,9 @@ public interface IThemeService
     /// <summary>True when dark tokens are currently applied.</summary>
     bool IsDark { get; }
 
+    /// <summary>Fired whenever the active theme changes.</summary>
+    event Action<bool>? ThemeChanged;
+
     /// <summary>Applies the preference, resolving <see cref="ThemePreference.System"/>.</summary>
     void Apply(ThemePreference preference);
 }
@@ -70,6 +73,8 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     public bool IsDark { get; private set; }
 
+    public event Action<bool>? ThemeChanged;
+
     public void Apply(ThemePreference preference)
     {
         _preference = preference;
@@ -124,9 +129,17 @@ public sealed class ThemeService : IThemeService, IDisposable
 
         var repainted = RepaintBrushes(merged);
 
+        foreach (Window window in application.Windows)
+        {
+            window.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "SurfaceBaseBrush");
+            window.InvalidateVisual();
+        }
+
         _log.LogInformation(
             "Theme applied: {Theme} ({Count} brushes repainted)",
             dark ? "dark" : "light", repainted);
+
+        ThemeChanged?.Invoke(dark);
     }
 
     /// <summary>
@@ -163,36 +176,53 @@ public sealed class ThemeService : IThemeService, IDisposable
 
         foreach (var dictionary in dictionaries)
         {
-            if (ReferenceEquals(dictionary, _live))
+            repainted += RepaintDictionary(dictionary, BrushSuffix);
+        }
+
+        return repainted;
+    }
+
+    private int RepaintDictionary(ResourceDictionary dictionary, string brushSuffix)
+    {
+        if (ReferenceEquals(dictionary, _live))
+        {
+            return 0;
+        }
+
+        var repainted = 0;
+        var entries = new System.Collections.Generic.List<System.Collections.DictionaryEntry>();
+        foreach (System.Collections.DictionaryEntry entry in dictionary)
+        {
+            entries.Add(entry);
+        }
+
+        foreach (var entry in entries)
+        {
+            if (entry.Key is not string key ||
+                !key.EndsWith(brushSuffix, StringComparison.Ordinal) ||
+                entry.Value is not SolidColorBrush brush)
             {
                 continue;
             }
 
-            foreach (DictionaryEntry entry in dictionary)
+            var colourKey = string.Concat(key.AsSpan(0, key.Length - brushSuffix.Length), "Color");
+
+            if (_live?[colourKey] is Color colour)
             {
-                if (entry.Key is not string key ||
-                    !key.EndsWith(BrushSuffix, StringComparison.Ordinal) ||
-                    entry.Value is not SolidColorBrush brush)
+                if (brush.Color != colour)
                 {
-                    continue;
-                }
-
-                if (brush.IsFrozen)
-                {
-                    // Would throw on assignment. A frozen token brush means someone
-                    // removed its DynamicResource, which silently disables theming.
-                    _log.LogWarning("Token brush {Key} is frozen and cannot follow the theme", key);
-                    continue;
-                }
-
-                var colourKey = string.Concat(key.AsSpan(0, key.Length - BrushSuffix.Length), "Color");
-
-                if (_live?[colourKey] is Color colour && brush.Color != colour)
-                {
-                    brush.Color = colour;
+                    _log.LogInformation("Replacing {Key} to color {New}", key, colour);
+                    var newBrush = new SolidColorBrush(colour);
+                    newBrush.Freeze();
+                    dictionary[key] = newBrush;
                     repainted++;
                 }
             }
+        }
+
+        foreach (var merged in dictionary.MergedDictionaries)
+        {
+            repainted += RepaintDictionary(merged, brushSuffix);
         }
 
         return repainted;

@@ -69,7 +69,7 @@ public sealed partial class AntifoamControlViewModel : ObservableObject, IDispos
 
     public bool CanApply => !IsEnabled || IsValid;
 
-    public string AppliedStateText => AppliedIsEnabled ? "Ativo" : "Desligado";
+    public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
     partial void OnOperationSecondsTextChanged(string value) => ValidateAndRefresh();
 
@@ -77,9 +77,13 @@ public sealed partial class AntifoamControlViewModel : ObservableObject, IDispos
 
     partial void OnPumpSpeedPercentTextChanged(string value) => ValidateAndRefresh();
 
-    partial void OnIsEnabledChanged(bool value) => ValidateAndRefresh();
+    partial void OnIsEnabledChanged(bool value)
+    {
+        ValidateAndRefresh();
+        OnPropertyChanged(nameof(StateText));
+    }
 
-    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(StateText));
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()

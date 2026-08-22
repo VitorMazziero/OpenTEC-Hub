@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -62,7 +63,7 @@ public partial class TrendSpark : UserControl
 
     private readonly WpfPlot _plot = new();
     private readonly DispatcherTimer _redraw = new() { Interval = TimeSpan.FromSeconds(1) };
-    private System.Windows.Media.SolidColorBrush? _themeSentinel;
+    
 
     public TrendSpark()
     {
@@ -148,47 +149,32 @@ public partial class TrendSpark : UserControl
     /// </summary>
     private void SubscribeToThemeChanges()
     {
-        var sentinel = Application.Current?.TryFindResource("SurfaceCardBrush")
-            as System.Windows.Media.SolidColorBrush;
-
-        if (ReferenceEquals(_themeSentinel, sentinel))
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
         {
-            return;
-        }
-
-        UnsubscribeFromThemeChanges();
-        _themeSentinel = sentinel;
-
-        if (_themeSentinel is not null)
-        {
-            _themeSentinel.Changed += OnThemeSentinelChanged;
+            theme.ThemeChanged -= OnThemeChanged;
+            theme.ThemeChanged += OnThemeChanged;
         }
     }
 
     private void UnsubscribeFromThemeChanges()
     {
-        if (_themeSentinel is not null)
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
         {
-            _themeSentinel.Changed -= OnThemeSentinelChanged;
-            _themeSentinel = null;
+            theme.ThemeChanged -= OnThemeChanged;
         }
     }
 
-    private void OnThemeSentinelChanged(object? sender, EventArgs e)
-    {
-        // ThemeService repaints all shared brushes in one synchronous pass. Queueing
-        // after that pass ensures surface, grid, text and series colours are all final.
-        Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+    private void OnThemeChanged(bool isDark)
+        => Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
         {
-            if (!IsLoaded)
+            if (IsLoaded)
             {
-                return;
+                StylePlot();
+                Redraw();
             }
-
-            StylePlot();
-            Redraw();
         });
-    }
 
     private void StylePlot()
     {

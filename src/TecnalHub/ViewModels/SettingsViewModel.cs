@@ -105,6 +105,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
                         previous.PHIntercept != current.PHIntercept;
 
         _persistedCalibration = current;
+
+        // Keep staged Theme in sync if the user toggled it externally (e.g. caption button)
+        // and hasn't made unapplied edits in the settings page.
+        if (!HasChanges && Theme != settings.Theme)
+        {
+            Theme = settings.Theme;
+        }
+
         if (!oxygenChanged && !phChanged)
         {
             return;
@@ -246,10 +254,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsValid))]
     [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
     public partial string? ValidationError { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
     public partial bool HasChanges { get; set; }
 
     [ObservableProperty]
@@ -604,3 +614,4 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _settings.Changed -= OnSettingsChanged;
     }
 }
+

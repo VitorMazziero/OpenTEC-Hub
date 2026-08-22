@@ -38,6 +38,7 @@ public partial class App : Application
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
 
     private ServiceProvider? _services;
+    public IServiceProvider? Services => _services;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -56,10 +57,11 @@ public partial class App : Application
         _services = services.BuildServiceProvider();
 
         var settings = _services.GetRequiredService<ISettingsService>();
-        _services.GetRequiredService<IThemeService>().Apply(settings.Current.Theme);
+        var theme = _services.GetRequiredService<IThemeService>();
+        theme.Apply(settings.Current.Theme);
 
         var shell = _services.GetRequiredService<ShellViewModel>();
-        var window = new MainWindow(settings) { DataContext = shell };
+        var window = new MainWindow(settings, theme) { DataContext = shell };
 
         window.ContentRendered += OnShellRendered;
         MainWindow = window;
@@ -123,6 +125,7 @@ public partial class App : Application
 
         // Only now do we touch hardware.
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
+
     }
 
     private static void ConfigureLogging()

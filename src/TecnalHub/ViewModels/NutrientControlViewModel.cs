@@ -75,9 +75,7 @@ public sealed partial class NutrientControlViewModel : ObservableObject
     /// <summary>A stop is never blocked by an invalid staged field.</summary>
     public bool CanApply => !IsEnabled || IsValid;
 
-    public string AppliedStateText => AppliedIsEnabled && AppliedDutyCyclePercent is { } duty
-        ? string.Create(CultureInfo.CurrentCulture, $"Ativo · ciclo útil {duty:F0}%")
-        : "Desligado";
+    public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
     partial void OnOperationSecondsTextChanged(string value) => ValidateAndRefresh();
 
@@ -89,11 +87,15 @@ public sealed partial class NutrientControlViewModel : ObservableObject
 
     partial void OnPumpSpeedPercentTextChanged(string value) => ValidateAndRefresh();
 
-    partial void OnIsEnabledChanged(bool value) => ValidateAndRefresh();
+    partial void OnIsEnabledChanged(bool value)
+    {
+        ValidateAndRefresh();
+        OnPropertyChanged(nameof(StateText));
+    }
 
-    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedIsEnabledChanged(bool value) => OnPropertyChanged(nameof(StateText));
 
-    partial void OnAppliedDutyCyclePercentChanged(double? value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedDutyCyclePercentChanged(double? value) => OnPropertyChanged(nameof(StateText));
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()

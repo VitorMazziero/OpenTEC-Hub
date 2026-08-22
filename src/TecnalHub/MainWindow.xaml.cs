@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
+using TecnalHub.Services.Theme;
 using TecnalHub.ViewModels;
 
 namespace TecnalHub;
@@ -45,18 +46,25 @@ public partial class MainWindow : Window
     private const double VariableRailMinimumWidth = 1400;
 
     private readonly ISettingsService? _settings;
+    private readonly IThemeService? _themeService;
     private WindowState _lastNonMinimizedState = WindowState.Normal;
     private IInputElement? _focusBeforePalette;
 
     public MainWindow()
-        : this(settings: null)
+        : this(settings: null, themeService: null)
     {
     }
 
-    public MainWindow(ISettingsService? settings)
+    public MainWindow(ISettingsService? settings, IThemeService? themeService = null)
     {
         InitializeComponent();
         _settings = settings;
+        _themeService = themeService;
+
+        if (_themeService is not null)
+        {
+            _themeService.ThemeChanged += OnThemeChanged;
+        }
 
         // Custom chrome: the OS caption is gone, so a maximized window must be told to
         // stop at the work area instead of overhanging its edges and the taskbar.
@@ -68,6 +76,22 @@ public partial class MainWindow : Window
         StateChanged += OnWindowStateChanged;
         Closing += OnClosing;
         PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    private void OnThemeChanged(bool isDark)
+    {
+        // Standard Window chrome reacts poorly to dark mode without explicit overrides
+        // when using the default OS chrome (we use custom chrome later, but this
+        // ensures native dialogs spawned by this window don't blind the user).
+        var dark = isDark ? 1 : 0;
+        DwmSetWindowAttribute(
+            new System.Windows.Interop.WindowInteropHelper(this).Handle,
+            20, // DWMWA_USE_IMMERSIVE_DARK_MODE
+            ref dark,
+            sizeof(int));
     }
 
     private void ApplySavedPlacement()

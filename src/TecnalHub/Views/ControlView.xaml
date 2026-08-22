@@ -79,6 +79,7 @@
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <ctl:StateDot State="{Binding Subsystem.Variable.State}"
                                                                           Size="8"
+                                                                          VerticalAlignment="Center"
                                                                           Label="{Binding Subsystem.DisplayName}" />
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
@@ -93,11 +94,14 @@
                                                                     HorizontalContentAlignment="Left"
                                                                     Command="{Binding DataContext.OpenVariableFromControlCommand,
                                                                               RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding Subsystem.Variable}">
+                                                                    CommandParameter="{Binding Subsystem.Variable}"
+                                                                    VerticalAlignment="Center">
                                                                 <StackPanel Orientation="Horizontal">
-                                                                    <ctl:Icon Key="{Binding IconKey}" Size="18" Margin="0,0,7,0" />
+                                                                    <ctl:Icon Key="{Binding IconKey}" Size="18" Margin="0,0,7,0" VerticalAlignment="Center" />
                                                                     <TextBlock Text="{Binding Subsystem.DisplayName}"
-                                                                               VerticalAlignment="Center" />
+                                                                               FontWeight="SemiBold"
+                                                                               VerticalAlignment="Center"
+                                                                               ToolTip="{Binding Subsystem.Description}" />
                                                                 </StackPanel>
                                                             </Button>
                                                         </DataTemplate>
@@ -107,7 +111,7 @@
                                                 <GridViewColumn Header="PV" Width="95">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <StackPanel>
+                                                            <StackPanel VerticalAlignment="Center">
                                                                 <StackPanel Orientation="Horizontal">
                                                                     <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}"
                                                                                Style="{StaticResource NumericTextStyle}" />
@@ -129,15 +133,17 @@
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <TextBlock Text="{Binding Subsystem.FormattedAppliedSetpoint}"
                                                                        Style="{StaticResource NumericTextStyle}"
+                                                                       VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="Novo SP" Width="96">
+                                                <GridViewColumn Header="Novo SP" Width="106">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <TextBox Width="88"
+                                                                     VerticalAlignment="Center"
                                                                      Text="{Binding Subsystem.SetpointText,
                                                                                     UpdateSourceTrigger=PropertyChanged}"
                                                                      ToolTip="{Binding Subsystem.ValidationError}">
@@ -161,11 +167,12 @@
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="Unidade" Width="55">
+                                                <GridViewColumn Header="Unidade" Width="70">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <TextBlock Text="{Binding Subsystem.Unit}"
                                                                        Style="{StaticResource CaptionTextStyle}"
+                                                                       VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextMutedBrush}" />
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
@@ -176,6 +183,7 @@
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <TextBlock Text="{Binding Subsystem.RangeHint}"
                                                                        Style="{StaticResource CaptionTextStyle}"
+                                                                       VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        ToolTip="{Binding Subsystem.RangeHint}" />
@@ -187,50 +195,18 @@
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                                          VerticalAlignment="Center"
                                                                           IsChecked="{Binding Subsystem.IsEnabled, Mode=TwoWay}" />
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="Modo" Width="105">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <ComboBox Width="95"
-                                                                      ItemsSource="{Binding ModeOptions}"
-                                                                      SelectedItem="{Binding SelectedMode, Mode=TwoWay}">
-                                                                <ComboBox.ItemContainerStyle>
-                                                                    <Style TargetType="ComboBoxItem"
-                                                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
-                                                                        <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
-                                                                        <Setter Property="ToolTip" Value="{Binding UnavailableReason}" />
-                                                                    </Style>
-                                                                </ComboBox.ItemContainerStyle>
-                                                            </ComboBox>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
 
-                                                <GridViewColumn Header="Dono" Width="68">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                                                    BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                                                                    BorderThickness="1"
-                                                                    CornerRadius="3"
-                                                                    Padding="5,2"
-                                                                    HorizontalAlignment="Left">
-                                                                <TextBlock Text="{Binding OwnerText}"
-                                                                           FontSize="10"
-                                                                           Foreground="{DynamicResource TextMutedBrush}" />
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
 
-                                                <GridViewColumn Header=" " Width="134">
+                                                <GridViewColumn Header=" " Width="175">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <StackPanel Orientation="Horizontal">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                                 <Button Content="Aplicar"
                                                                         Padding="8,4"
                                                                         Command="{Binding Subsystem.ApplyCommand}" />
@@ -248,8 +224,11 @@
                                 </DockPanel>
                             </Border>
 
-                            <!-- pH is a five-field atomic state, not another scalar row. -->
-                            <views:PHControlView DataContext="{Binding PHControl}" Margin="0,12,0,0" />
+
+                            <TextBlock Text="Auxiliares de Cultivo"
+                                       FontSize="{DynamicResource FontSizeSubtitle}"
+                                       FontWeight="SemiBold"
+                                       Margin="2,20,0,0" />
 
                             <!-- Valve writes are a complete desired flow state. The vent valve is
                                  read-only because v_Flow is derived and inverted on the wire. -->
@@ -259,14 +238,27 @@
                                     BorderThickness="1"
                                     CornerRadius="{DynamicResource RadiusMedium}"
                                     Padding="16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1.1*" />
-                                        <ColumnDefinition Width="1.1*" />
-                                        <ColumnDefinition Width="1.5*" />
-                                        <ColumnDefinition Width="1.1*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <ctl:Icon Key="Airflow" Size="20" Margin="0,0,8,0" />
+                                            <TextBlock Text="Fluxômetro"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                    
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="1.5*" />
+                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Válvula auxiliar" FontWeight="SemiBold" />
@@ -331,16 +323,13 @@
                                             Style="{StaticResource AccentButtonStyle}"
                                             Command="{Binding ApplyFlowStateCommand}" />
                                 </Grid>
+                                </StackPanel>
                             </Border>
 
-                            <!-- ══ WP7 cultivation auxiliaries ══════════════════════════
+                            <!-- ══ WP7 cultivation auxiliaries ═════════════════════════
                                  Nutrient and antifoam pumps and the flask agitator take part
                                  in the bulk apply and the safe-stop; the level/foam sensor is
                                  configuration and applies on its own. -->
-                            <TextBlock Text="Dosagem e auxiliares de cultivo"
-                                       FontSize="{DynamicResource FontSizeSubtitle}"
-                                       FontWeight="SemiBold"
-                                       Margin="2,20,0,0" />
 
                             <!-- Dosagem — Nutriente -->
                             <Border Margin="0,10,0,0"
@@ -364,7 +353,7 @@
                                                                  VerticalAlignment="Center" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                            <TextBlock Text="{Binding AppliedStateText}" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" />
                                             <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
                                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}"
@@ -446,7 +435,7 @@
                                                        VerticalAlignment="Center" Margin="10,0,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                            <TextBlock Text="{Binding AppliedStateText}" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" />
                                             <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
                                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}"
@@ -518,7 +507,7 @@
                                                        VerticalAlignment="Center" Margin="10,0,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                            <TextBlock Text="{Binding AppliedStateText}" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" />
                                             <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
                                                           IsChecked="{Binding SensorEnabled, Mode=TwoWay}"
@@ -601,7 +590,7 @@
                                                        TextWrapping="Wrap" Margin="0,4,12,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                            <TextBlock Text="{Binding AppliedStateText}" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" />
                                             <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
                                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}"

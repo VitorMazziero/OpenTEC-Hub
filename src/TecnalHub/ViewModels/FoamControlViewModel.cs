@@ -72,9 +72,9 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
 
     public bool CanApply => IsValid;
 
-    public string AppliedStateText => AppliedSensorEnabled ? "Sensor ativo" : "Sensor inativo";
+    public string StateText => SensorEnabled ? "Ativo" : "Desligado";
 
-    partial void OnSensorEnabledChanged(bool value) => ValidateAndRefresh();
+    partial void OnSensorEnabledChanged(bool value) { ValidateAndRefresh(); OnPropertyChanged(nameof(StateText)); }
 
     partial void OnReferenceMillimetresTextChanged(string value) => ValidateAndRefresh();
 
@@ -84,7 +84,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
 
     partial void OnIntervalSecondsTextChanged(string value) => ValidateAndRefresh();
 
-    partial void OnAppliedSensorEnabledChanged(bool value) => OnPropertyChanged(nameof(AppliedStateText));
+    partial void OnAppliedSensorEnabledChanged(bool value) => OnPropertyChanged(nameof(StateText));
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()

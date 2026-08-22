@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -47,6 +48,7 @@ public partial class ChartsView : UserControl
     private readonly WpfPlot _leftPlot = new();
     private readonly WpfPlot _rightPlot = new();
     private readonly DispatcherTimer _redraw = new() { Interval = TimeSpan.FromSeconds(1) };
+    
 
     private ChartsViewModel? _subscribed;
 
@@ -63,23 +65,60 @@ public partial class ChartsView : UserControl
 
         Loaded += (_, _) =>
         {
+            SubscribeToThemeChanges();
             Attach();
             _redraw.Start();
         };
 
-        Unloaded += (_, _) => _redraw.Stop();
+        Unloaded += (_, _) =>
+        {
+            _redraw.Stop();
+            UnsubscribeFromThemeChanges();
+            Detach();
+        };
+
         DataContextChanged += (_, _) => Attach();
     }
 
     private ChartsViewModel? ViewModel => DataContext as ChartsViewModel;
 
+    private void SubscribeToThemeChanges()
+    {
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
+        {
+            theme.ThemeChanged -= OnThemeChanged;
+            theme.ThemeChanged += OnThemeChanged;
+        }
+    }
+
+    private void UnsubscribeFromThemeChanges()
+    {
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
+        {
+            theme.ThemeChanged -= OnThemeChanged;
+        }
+    }
+
+    private void OnThemeChanged(bool isDark)
+        => Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            if (IsLoaded && ViewModel is { } viewModel)
+            {
+                StylePlot(_leftPlot.Plot, viewModel.LeftChannel);
+                if (viewModel.RightChannel is { } right)
+                {
+                    StylePlot(_rightPlot.Plot, right);
+                }
+                Redraw();
+            }
+        });
+
     /// <summary>Subscribes to layout changes so a channel swap re-styles its plot.</summary>
     private void Attach()
     {
-        if (_subscribed is { } previous)
-        {
-            previous.LayoutChanged -= OnLayoutChanged;
-        }
+        Detach();
 
         _subscribed = ViewModel;
         if (_subscribed is { } current)
@@ -88,6 +127,15 @@ public partial class ChartsView : UserControl
         }
 
         OnLayoutChanged();
+    }
+
+    private void Detach()
+    {
+        if (_subscribed is { } previous)
+        {
+            previous.LayoutChanged -= OnLayoutChanged;
+            _subscribed = null;
+        }
     }
 
     private void OnLayoutChanged()

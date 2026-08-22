@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ScottPlot;
 using ScottPlot.WPF;
 using TecnalHub.Services.Calibration;
@@ -17,7 +19,7 @@ public partial class CalibrationView : UserControl
 {
     private readonly WpfPlot _flowPlot = new();
     private FlowCalibrationViewModel? _subscribed;
-    private MediaColor? _lastPlotSurface;
+    
 
     public CalibrationView()
     {
@@ -30,28 +32,44 @@ public partial class CalibrationView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        SubscribeToThemeChanges();
         Attach();
         RedrawFlowCurve();
-        CompositionTarget.Rendering += OnRendering;
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        CompositionTarget.Rendering -= OnRendering;
+        UnsubscribeFromThemeChanges();
         Detach();
     }
 
-    private void OnRendering(object? sender, EventArgs e)
+    private void SubscribeToThemeChanges()
     {
-        // ScottPlot renders into its own surface, so WPF DynamicResource repainting
-        // cannot recolour it. Detect the inexpensive theme-token change here and redraw
-        // once; the normal frame loop does no plotting while the token is unchanged.
-        var surface = TryBrush("SurfaceCardBrush")?.Color;
-        if (surface != _lastPlotSurface)
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
         {
-            RedrawFlowCurve();
+            theme.ThemeChanged -= OnThemeChanged;
+            theme.ThemeChanged += OnThemeChanged;
         }
     }
+
+    private void UnsubscribeFromThemeChanges()
+    {
+        var theme = ((App)Application.Current).Services?.GetService<TecnalHub.Services.Theme.IThemeService>();
+        if (theme != null)
+        {
+            theme.ThemeChanged -= OnThemeChanged;
+        }
+    }
+
+    private void OnThemeChanged(bool isDark)
+        => Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            if (IsLoaded)
+            {
+                RedrawFlowCurve();
+            }
+        });
 
     private void Attach()
     {
@@ -80,7 +98,6 @@ public partial class CalibrationView : UserControl
         var hasCalibrationData = false;
 
         var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
-        _lastPlotSurface = TryBrush("SurfaceCardBrush")?.Color;
         var text = ToPlotColor(TryBrush("TextSecondaryBrush"), MediaColors.Gray);
         var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
         var accent = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);

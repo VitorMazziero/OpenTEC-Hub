@@ -11,19 +11,16 @@
 
     <Grid Width="{Binding Size, ElementName=Root}"
           Height="{Binding Size, ElementName=Root}">
-        <Path Data="{Binding Geometry, ElementName=Root}"
-              Stroke="{Binding Stroke, ElementName=Root}"
-              StrokeThickness="{Binding PenThickness, ElementName=Root}"
-              StrokeLineJoin="Round"
-              StrokeStartLineCap="Round"
-              StrokeEndLineCap="Round"
-              Fill="{x:Null}"
-              VerticalAlignment="Top"
-              HorizontalAlignment="Left">
-            <Path.RenderTransform>
-                <ScaleTransform ScaleX="{Binding Scale, ElementName=Root}"
-                                ScaleY="{Binding Scale, ElementName=Root}" />
-            </Path.RenderTransform>
-        </Path>
+        <Viewbox Stretch="Uniform">
+            <Canvas Width="24" Height="24">
+                <Path Data="{Binding Geometry, ElementName=Root}"
+                      Stroke="{Binding Stroke, ElementName=Root}"
+                      StrokeThickness="{Binding PenThickness, ElementName=Root}"
+                      StrokeLineJoin="Round"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      Fill="{x:Null}" />
+            </Canvas>
+        </Viewbox>
     </Grid>
 </UserControl>

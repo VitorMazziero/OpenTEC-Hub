@@ -209,8 +209,13 @@ public sealed class Wp7Tests
     {
         public bool IsDark { get; private set; }
 
+        public event Action<bool>? ThemeChanged;
+
         public void Apply(ThemePreference preference)
-            => IsDark = preference == ThemePreference.Dark;
+        {
+            IsDark = preference == ThemePreference.Dark;
+            ThemeChanged?.Invoke(IsDark);
+        }
     }
 
     private sealed class RecordingDialogService : IDialogService

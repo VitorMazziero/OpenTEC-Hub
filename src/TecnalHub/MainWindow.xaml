@@ -353,10 +353,7 @@
                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Click="OpenCommandPalette_Click" />
 
-                    <Button Content="Tema" Margin="8,0,0,0" Padding="10,4"
-                            ToolTip="Alternar entre tema claro e escuro"
-                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
-                            Command="{Binding ToggleThemeCommand}" />
+                    <Button Margin="8,0,0,0" Padding="10,4" ToolTip="Alternar entre tema claro e escuro" shell:WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding ToggleThemeCommand}"><ctl:Icon Key="Theme" Size="20" Stroke="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></Button>
                 </StackPanel>
             </Grid>
             </DockPanel>
@@ -527,13 +524,7 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:NavigationItem}">
-                        <StackPanel>
-                            <!-- Group rule, no heading: at four destinations a heading
-                                 per group costs more height than the grouping saves. -->
-                            <Border Height="1" Margin="4,6,4,7"
-                                    Background="{DynamicResource StrokeSubtleBrush}"
-                                    Visibility="{Binding StartsGroup, Converter={StaticResource BoolToVis}}" />
-                            <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal">
                             <ctl:Icon Key="{Binding Glyph}" Size="20"
                                       Stroke="{Binding
                                           RelativeSource={RelativeSource AncestorType=ListBoxItem},
@@ -557,7 +548,6 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            </StackPanel>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -692,18 +682,23 @@
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="Chrome" Background="Transparent"
-                                                CornerRadius="{StaticResource RadiusSmall}"
-                                                Padding="{TemplateBinding Padding}">
-                                            <Grid>
-                                                <Border x:Name="Marker" Width="3"
-                                                        HorizontalAlignment="Left" Margin="-6,0,0,0"
-                                                        CornerRadius="2"
-                                                        Background="{DynamicResource AccentBrush}"
-                                                        Visibility="Collapsed" />
-                                                <ContentPresenter />
-                                            </Grid>
-                                        </Border>
+                                        <StackPanel>
+                                            <Border Height="1" Margin="4,6,4,7"
+                                                    Background="{DynamicResource StrokeSubtleBrush}"
+                                                    Visibility="{Binding StartsGroup, Converter={StaticResource BoolToVis}}" />
+                                            <Border x:Name="Chrome" Background="Transparent"
+                                                    CornerRadius="{StaticResource RadiusSmall}"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <Grid>
+                                                    <Border x:Name="Marker" Width="3"
+                                                            HorizontalAlignment="Left" Margin="-6,0,0,0"
+                                                            CornerRadius="2"
+                                                            Background="{DynamicResource AccentBrush}"
+                                                            Visibility="Collapsed" />
+                                                    <ContentPresenter />
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="Chrome" Property="Background"
@@ -955,3 +950,5 @@
         </Grid>
     </DockPanel>
 </Window>
+
+

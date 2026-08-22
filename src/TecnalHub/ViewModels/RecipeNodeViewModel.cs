@@ -336,6 +336,18 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     {
         get
         {
+            if (Type == NodeType.CascadeControl)
+            {
+                var left = Ports.Count(p => p.IsInput || p.IsLoop);
+                var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
+                return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
+            }
+
+            if (Type is NodeType.Start or NodeType.End or NodeType.And or NodeType.Or)
+            {
+                return 70;
+            }
+
             if (IsManualIntervention)
             {
                 return 155;
@@ -347,18 +359,17 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
                     ? (Model.Parameters["pontos"] is JsonArray a ? a.Count : 0)
                     : (Model.Parameters["controles"] is JsonArray c ? c.Count : 0);
                 var lineCount = Math.Max(1, count);
-                return HeaderHeight + BodyPadding * 2 + lineCount * 20;
+                return HeaderHeight + 12 + lineCount * 18 + 32;
             }
 
             if (Type is NodeType.PhPump or NodeType.AntifoamPump or NodeType.NutrientPump or NodeType.PumpControl)
             {
                 var lineCount = Math.Max(1, Model.Definition.Parameters.Count);
-                return HeaderHeight + BodyPadding * 2 + lineCount * 18;
+                return HeaderHeight + 12 + lineCount * 18 + 32;
             }
 
-            var left = Ports.Count(p => p.IsInput || p.IsLoop);
-            var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
-            return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
+            // Single property blocks (Timer, MonitorVariable, SetSetpoint, SetLoop, DataAcquisition, LogEvent, ResetVariables)
+            return HeaderHeight + 12 + 18 + 32;
         }
     }
 
@@ -423,14 +434,23 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     private void UpdatePortOffsets()
     {
-        if (Type is NodeType.MultiSetpoint or NodeType.MultiLoop
-            or NodeType.PhPump or NodeType.AntifoamPump or NodeType.NutrientPump or NodeType.PumpControl)
+        if (Type == NodeType.CascadeControl)
         {
-            var mid = (HeaderHeight + Height) / 2;
+            var leftCount = 0;
+            var rightCount = 0;
             foreach (var port in Ports)
             {
-                port.OffsetY = mid;
+                var isLeft = port.IsInput || port.IsLoop;
+                var index = isLeft ? leftCount++ : rightCount++;
+                port.OffsetY = HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2;
             }
+            return;
+        }
+
+        var bottomOffset = Height - 16;
+        foreach (var port in Ports)
+        {
+            port.OffsetY = bottomOffset;
         }
     }
 
@@ -445,9 +465,9 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
                          || ConnectorNames.IsLoopOut(port.Name)
                          || ConnectorNames.IsLoopIn(port.Name);
             var index = isLeft ? leftCount++ : rightCount++;
-            var offsetY = model.Type == NodeType.ManualIntervention
-                ? 130
-                : HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2;
+            var offsetY = model.Type == NodeType.CascadeControl
+                ? HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2
+                : 50;
             ports.Add(new RecipePortViewModel(port, offsetY));
         }
 

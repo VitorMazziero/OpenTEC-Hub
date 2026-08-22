@@ -201,10 +201,18 @@ public sealed partial class RecipeListRowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(VisibleFields));
     }
-}/// <summary>A port anchor on a node, for drawing connectors and hit-testing.</summary>
-public sealed class RecipePortViewModel(RecipePort port, double offsetY)
+}
+
+/// <summary>A port anchor on a node, for drawing connectors and hit-testing.</summary>
+public sealed partial class RecipePortViewModel : ObservableObject
 {
-    public RecipePort Port { get; } = port;
+    public RecipePortViewModel(RecipePort port, double offsetY)
+    {
+        Port = port;
+        OffsetY = offsetY;
+    }
+
+    public RecipePort Port { get; }
 
     public string Name => Port.Name;
 
@@ -224,10 +232,13 @@ public sealed class RecipePortViewModel(RecipePort port, double offsetY)
     });
 
     /// <summary>Vertical offset of the port within the node body.</summary>
-    public double OffsetY { get; } = offsetY;
+    public double OffsetY { get; }
 
     /// <summary>Horizontal anchor: the left edge for inputs and loop ports, the right edge for other outputs.</summary>
     public double OffsetX => IsOnLeft ? 0 : RecipeNodeViewModel.Width;
+
+    [ObservableProperty]
+    public partial bool IsConnectableTarget { get; set; }
 }
 
 /// <summary>

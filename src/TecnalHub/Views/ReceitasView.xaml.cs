@@ -86,8 +86,61 @@ public partial class ReceitasView : UserControl
             DragPreviewLine.Y2 = anchor.Y;
             DragPreviewLine.Visibility = Visibility.Visible;
 
+            HighlightConnectablePorts(node, port);
+
             ViewportBorder.CaptureMouse();
             e.Handled = true;
+        }
+    }
+
+    private void HighlightConnectablePorts(RecipeNodeViewModel sourceNode, RecipePortViewModel sourcePort)
+    {
+        var tab = ViewModel?.SelectedTab;
+        if (tab is null) return;
+
+        var existingConnections = tab.Document.Connections;
+
+        foreach (var node in tab.Nodes)
+        {
+            foreach (var port in node.Ports)
+            {
+                if (!port.IsInput)
+                {
+                    port.IsConnectableTarget = false;
+                    continue;
+                }
+
+                var isSameNode = node.Id == sourceNode.Id;
+                var isLoopSelf = isSameNode && ConnectorNames.IsLoopOut(sourcePort.Name) && ConnectorNames.IsLoopIn(port.Name);
+
+                if (isSameNode && !isLoopSelf)
+                {
+                    port.IsConnectableTarget = false;
+                    continue;
+                }
+
+                // Check if this input port is already connected
+                var alreadyConnected = !port.Port.Multiple && existingConnections.Any(c => c.TargetNodeId == node.Id && c.TargetConnector == port.Name);
+
+                // Also check if this exact connection already exists
+                var exactExists = existingConnections.Any(c => c.SourceNodeId == sourceNode.Id && c.SourceConnector == sourcePort.Name && c.TargetNodeId == node.Id && c.TargetConnector == port.Name);
+
+                port.IsConnectableTarget = !alreadyConnected && !exactExists;
+            }
+        }
+    }
+
+    private void ClearConnectablePorts()
+    {
+        var tab = ViewModel?.SelectedTab;
+        if (tab is null) return;
+
+        foreach (var node in tab.Nodes)
+        {
+            foreach (var port in node.Ports)
+            {
+                port.IsConnectableTarget = false;
+            }
         }
     }
 
@@ -148,6 +201,7 @@ public partial class ReceitasView : UserControl
         {
             DragPreviewLine.Visibility = Visibility.Collapsed;
             _connectDragging = false;
+            ClearConnectablePorts();
 
             var position = e.GetPosition(CanvasRoot);
             var targetPort = FindPortAtPosition(position);

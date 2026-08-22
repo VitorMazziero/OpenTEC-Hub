@@ -777,6 +777,16 @@ public sealed class ConnectionManager : IAsyncDisposable
         {
             _parser.MarkPHSent(ph);
         }
+
+        // If dataDelay was updated, keep HttpTransport's poll period aligned.
+        if (transport is HttpTransport http &&
+            payload.GetRawValue(CommandKeys.DataDelay) is { } rawDelay &&
+            int.TryParse(rawDelay, System.Globalization.NumberStyles.Integer,
+                         System.Globalization.CultureInfo.InvariantCulture, out var delayMs) &&
+            delayMs > 0)
+        {
+            http.SetPollPeriod(TimeSpan.FromMilliseconds(delayMs));
+        }
     }
 
     /// <summary>

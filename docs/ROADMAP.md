@@ -182,8 +182,8 @@ project owner; P1 is done, the rest ride along with Phase 1.
 - [ ] Rank ports by USB descriptor (WMI) so the likely adapter is tried first and
       unrelated ports are never opened. The board is a **CH343**, which is not in v.6's
       keyword list and matches only via the `wch` manufacturer string
-- [ ] Stop exposing the mutable `Readings` object; callers should only get `Snapshot()`
-- [ ] Wire `HttpTransport.SetPollPeriod` to the configured `dataDelay`
+- [x] Stop exposing the mutable `Readings` object; callers should only get `Snapshot()` (`ConnectionManager.Readings` is internal)
+- [x] Wire `HttpTransport.SetPollPeriod` to the configured `dataDelay`
 
 ---
 

@@ -250,6 +250,9 @@ public sealed class ReceitasViewModelTests
         var cascade = Tab(vm).Nodes.First(n => n.Type == NodeType.CascadeControl);
 
         Assert.Contains(cascade.Fields, f => f.Key == "spO2" && f.IsNumber);
-        Assert.False(cascade.Fields.First(f => f.Key == "atuadorMisturador").BoolValue); // enrichment deferred
+        Assert.True(cascade.Fields.First(f => f.Key == "atuadorAgitacao").BoolValue);
+        Assert.True(cascade.Fields.First(f => f.Key == "atuadorAeracao").BoolValue);
+        Assert.DoesNotContain(cascade.Fields, f => f.Key == "atuadorMisturador");
+        Assert.DoesNotContain(cascade.Fields, f => f.Key == "loopInfinito");
     }
 }

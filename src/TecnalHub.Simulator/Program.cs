@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using TecnalHub.Simulator;
 
 // ---------------------------------------------------------------------------
@@ -9,6 +9,7 @@ using TecnalHub.Simulator;
 //
 //   tecnal-simulator http [--port 8080]
 //   tecnal-simulator serial COM11
+//   tecnal-simulator headless [--duration 8h] [--output run.csv]
 //
 // Type a scenario name while running to switch behaviour; "?" lists them.
 // ---------------------------------------------------------------------------
@@ -16,7 +17,7 @@ using TecnalHub.Simulator;
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
-if (mode is not ("http" or "serial"))
+if (mode is not ("http" or "serial" or "headless"))
 {
     PrintUsage();
     return 1;
@@ -25,8 +26,71 @@ if (mode is not ("http" or "serial"))
 var quiet = args.Contains("--quiet");
 var httpPort = ReadOption("--port", 8080);
 var dataDelay = ReadOption("--data-delay", 2000);
+var randomSeed = ReadOption("--seed", 20260819);
+var deadTimeSeconds = ReadDoubleOption("--dead-time", 25.0);
+var quantisation = ReadDoubleOption("--quantisation", 0.0);
+var profileName = ReadStringOption("--profile", "default");
+var klaProfilePath = ReadStringOption("--kla-profile", null);
 
-var model = new DeviceModel
+// kLa source
+IKlaSource klaSource;
+if (!string.IsNullOrWhiteSpace(klaProfilePath) && File.Exists(klaProfilePath))
+{
+    try
+    {
+        klaSource = ProfileKla.FromJsonFile(klaProfilePath);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Error] Could not load kLa profile from '{klaProfilePath}': {ex.Message}");
+        return 1;
+    }
+}
+else
+{
+    klaSource = new PowerLawKla();
+}
+
+// Cultivation profile
+var profile = CultivationProfile.FromName(profileName ?? "default");
+
+// Headless Mode
+if (mode == "headless")
+{
+    var durationText = ReadStringOption("--duration", "1h");
+    var durationSeconds = ParseDuration(durationText ?? "1h");
+    var stepSeconds = ReadDoubleOption("--step", 0.2);
+    var outputPath = ReadStringOption("--output", null);
+
+    var headlessClock = new AcceleratedClock();
+    var headlessModel = new DeviceModel(
+        clock: headlessClock,
+        klaSource: klaSource,
+        profile: profile,
+        probeDeadTime: TimeSpan.FromSeconds(deadTimeSeconds),
+        oxygenQuantisation: quantisation,
+        randomSeed: randomSeed)
+    {
+        Scenario = args.Contains("--no-module") ? Scenario.NoModule : Scenario.Normal,
+    };
+
+    if (TryReadScenario(out var s))
+    {
+        headlessModel.Scenario = s;
+    }
+
+    return HeadlessRunner.Run(headlessModel, durationSeconds, stepSeconds, outputPath);
+}
+
+// Real-Time Server Modes (HTTP / Serial)
+var clock = new WallClock();
+var model = new DeviceModel(
+    clock: clock,
+    klaSource: klaSource,
+    profile: profile,
+    probeDeadTime: TimeSpan.FromSeconds(deadTimeSeconds),
+    oxygenQuantisation: quantisation,
+    randomSeed: randomSeed)
 {
     DataDelayMs = dataDelay,
     Scenario = args.Contains("--no-module") ? Scenario.NoModule : Scenario.Normal,
@@ -53,7 +117,12 @@ void Log(string message)
 }
 
 Console.WriteLine("TECNAL device simulator");
+Console.WriteLine($"  mode       : {mode}");
 Console.WriteLine($"  scenario   : {model.Scenario}");
+Console.WriteLine($"  kLa source : {klaSource.Description}");
+Console.WriteLine($"  profile    : {profile.Name} ({profile.Phases.Count} phases)");
+Console.WriteLine($"  deadTime   : {deadTimeSeconds:F1} s");
+Console.WriteLine($"  quantis.   : {(quantisation > 0 ? $"{quantisation:F2}%" : "none")}");
 Console.WriteLine($"  dataDelay  : {dataDelay.ToString(CultureInfo.InvariantCulture)} ms");
 Console.WriteLine();
 
@@ -96,8 +165,7 @@ catch (Exception ex)
     return 2;
 }
 
-// Advance the process on its own cadence, independent of how often it is polled -
-// a bioreactor does not stop reacting because nobody is looking.
+// Advance the process on its own cadence, independent of how often it is polled
 var ticker = Task.Run(async () =>
 {
     while (!cts.Token.IsCancellationRequested)
@@ -168,6 +236,10 @@ await ticker.ConfigureAwait(false);
 Console.WriteLine("stopped.");
 return 0;
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 int ReadOption(string name, int fallback)
 {
     for (var i = 0; i < args.Length - 1; i++)
@@ -180,6 +252,55 @@ int ReadOption(string name, int fallback)
     }
 
     return fallback;
+}
+
+double ReadDoubleOption(string name, double fallback)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] == name &&
+            double.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+    }
+
+    return fallback;
+}
+
+string? ReadStringOption(string name, string? fallback)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] == name)
+        {
+            return args[i + 1];
+        }
+    }
+
+    return fallback;
+}
+
+double ParseDuration(string text)
+{
+    var trimmed = text.Trim().ToLowerInvariant();
+    if (trimmed.EndsWith("h") && double.TryParse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var hours))
+    {
+        return hours * 3600.0;
+    }
+    if (trimmed.EndsWith("m") && double.TryParse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes))
+    {
+        return minutes * 60.0;
+    }
+    if (trimmed.EndsWith("s") && double.TryParse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
+    {
+        return seconds;
+    }
+    if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var rawSeconds))
+    {
+        return rawSeconds;
+    }
+    return 3600.0; // default 1h
 }
 
 bool TryReadScenario(out Scenario scenario)
@@ -201,17 +322,23 @@ static void PrintUsage()
     Console.WriteLine("""
         TECNAL device simulator
 
-          tecnal-simulator http [--port 8080]     serve on 127.0.0.1 - NO SETUP NEEDED
-          tecnal-simulator serial COM11           serve on a virtual COM pair half
+          tecnal-simulator http [--port 8080]       serve on 127.0.0.1 (HTTP)
+          tecnal-simulator serial COM11             serve on a virtual COM pair
+          tecnal-simulator headless [--duration 8h] run batch simulation to CSV
 
         Options:
-          --scenario <name>   start in a scenario
-          --data-delay <ms>   telemetry period (default 2000)
-          --no-module         start with the sensor module offline, as a bare board
-          --quiet             no per-frame console echo
-
-        For http mode, point the app at 127.0.0.1 via the connection chip (Wi-Fi).
-        See docs/SIMULATOR.md.
+          --scenario <name>     start in a scenario (normal, no-module, stall, etc.)
+          --kla-profile <path>  load published kLa mapping profile JSON
+          --profile <name>      cultivation profile (default, batch-ecoli, fed-batch, step-test)
+          --dead-time <sec>     oxygen probe dead time in seconds (default 25)
+          --quantisation <pct>  oxygen sensor quantisation step (default 0)
+          --data-delay <ms>     telemetry period (default 2000)
+          --seed <int>          random number generator seed
+          --duration <time>     (headless only) simulation length (e.g. 8h, 30m, 3600s)
+          --step <sec>          (headless only) integration step dt (default 0.2s)
+          --output <path.csv>   (headless only) write CSV output to file (default stdout)
+          --no-module           start with the sensor module offline
+          --quiet               no per-frame console echo
         """);
 
     PrintScenarios();

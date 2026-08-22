@@ -140,15 +140,15 @@ responds. Full design in [SIMULATOR.md](SIMULATOR.md).
 
 **Phase 2 — the model becomes load-bearing**
 
-- [ ] Replace the placeholder `kLa = k·N^a·Q^b` with the currently published profile
+- [x] Replace the placeholder `kLa = k·N^a·Q^b` with the currently published profile
       produced by the in-app [D-008](DECISIONS.md) mapping workflow. The simulator and
-      controller must consume the same immutable surface/path receipt
-- [ ] Realistic OUR trajectory across a cultivation, rather than a biomass proportion
-- [ ] Configurable probe dead time and measurement quantisation, to reproduce the
-      "staircase" signal the least-squares rate estimator exists to handle
-- [ ] Scripted cultivation profiles for repeatable controller comparison
-- [ ] Headless run mode: fixed seed, accelerated clock, CSV out — so a tuning change
-      can be regression-tested rather than eyeballed
+      controller must consume the same immutable surface/path receipt (`ProfileKla` / `--kla-profile`)
+- [x] Realistic OUR trajectory across a cultivation, rather than a biomass proportion (`CultivationProfile`)
+- [x] Configurable probe dead time and measurement quantisation, to reproduce the
+      "staircase" signal the least-squares rate estimator exists to handle (`--dead-time`, `--quantisation`)
+- [x] Scripted cultivation profiles for repeatable controller comparison (`default`, `batch-ecoli`, `fed-batch`, `step-test`)
+- [x] Headless run mode: fixed seed, accelerated clock, CSV out — so a tuning change
+      can be regression-tested rather than eyeballed (`tecnal-simulator headless`)
 
 **Later**
 

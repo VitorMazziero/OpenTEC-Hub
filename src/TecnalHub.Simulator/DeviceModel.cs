@@ -1,4 +1,4 @@
-namespace TecnalHub.Simulator;
+﻿namespace TecnalHub.Simulator;
 
 /// <summary>Fault-injection modes, switchable while running.</summary>
 public enum Scenario
@@ -39,31 +39,21 @@ public enum Scenario
 /// The simulated bioreactor and its controller state.
 /// </summary>
 /// <remarks>
-/// <para>
-/// First-order dynamics: enough for charts to move, validation to fire and setpoint
-/// changes to visibly take effect. The rigorous model - the bicubic kLa surface from
-/// the manuscript, a real OUR trajectory - is a Phase 2 deliverable, because that is
-/// when it becomes load-bearing.
-/// </para>
-/// <para>
-/// The one piece taken seriously now is the <b>probe dead time</b>. It is the reason
-/// the cascade needs a prediction horizon at all, and a controller tuned against a
-/// zero-lag process oscillates the moment it meets a real polarographic probe.
-/// </para>
-/// <para>See <c>docs/SIMULATOR.md</c> section 7.</para>
+/// Supports realistic kLa surfaces (published mapping receipts), biological cultivation
+/// kinetics with phase transitions, configurable polarographic probe dead time and quantisation,
+/// and accelerated headless simulation.
 /// </remarks>
 public sealed class DeviceModel
 {
-    /// <summary>Polarographic probe lag. Real probes sit in the 20-40 s band.</summary>
-    private static readonly TimeSpan OxygenProbeDeadTime = TimeSpan.FromSeconds(25);
-
-    private readonly Random _random = new(20260819);
-    private readonly DateTimeOffset _bootedAt = DateTimeOffset.UtcNow;
+    private readonly ISimulatorClock _clock;
+    private readonly Random _random;
+    private readonly DateTimeOffset _bootedAt;
 
     /// <summary>Delayed DO samples, so the reported value lags the true one.</summary>
     private readonly Queue<(DateTimeOffset At, double Value)> _oxygenDelayLine = new();
 
-    private DateTimeOffset _lastTick = DateTimeOffset.UtcNow;
+    private DateTimeOffset _lastTick;
+    private double _elapsedSimulationSeconds;
 
     // ---- true process state ------------------------------------------
 
@@ -75,6 +65,48 @@ public sealed class DeviceModel
     private double _biomass = 0.15;          // AU
     private double _pressure;                // kPa
     private double _calibrationDrift;        // Drift scenario only
+
+    public DeviceModel(
+        ISimulatorClock? clock = null,
+        IKlaSource? klaSource = null,
+        CultivationProfile? profile = null,
+        TimeSpan? probeDeadTime = null,
+        double oxygenQuantisation = 0.0,
+        int randomSeed = 20260819)
+    {
+        _clock = clock ?? new WallClock();
+        _bootedAt = _clock.Now;
+        _lastTick = _clock.Now;
+        _random = new Random(randomSeed);
+
+        KlaSource = klaSource ?? new PowerLawKla();
+        Profile = profile ?? CultivationProfile.Default;
+        OxygenProbeDeadTime = probeDeadTime ?? TimeSpan.FromSeconds(25);
+        OxygenQuantisation = Math.Max(0.0, oxygenQuantisation);
+        CurrentPhase = Profile.GetPhase(0);
+    }
+
+    // ---- dynamic & scientific configuration ---------------------------
+
+    public IKlaSource KlaSource { get; set; }
+
+    public CultivationProfile Profile { get; set; }
+
+    public TimeSpan OxygenProbeDeadTime { get; set; }
+
+    public double OxygenQuantisation { get; set; }
+
+    public double TrueOxygen => _oxygenTrue;
+
+    public double ReportedOxygen => _oxygenReported;
+
+    public double CurrentKLa { get; private set; }
+
+    public double CurrentOur { get; private set; }
+
+    public CultivationPhase CurrentPhase { get; private set; }
+
+    public double ElapsedSimulationSeconds => _elapsedSimulationSeconds;
 
     // ---- commanded state ---------------------------------------------
 
@@ -134,7 +166,7 @@ public sealed class DeviceModel
     public bool SensorModuleOnline => Scenario != Scenario.NoModule;
 
     /// <summary>Seconds since simulated boot, as the device reports them.</summary>
-    public double UptimeSeconds => (DateTimeOffset.UtcNow - _bootedAt).TotalSeconds;
+    public double UptimeSeconds => (_clock.Now - _bootedAt).TotalSeconds;
 
     /// <summary>Records that a flow command was accepted, for ack correlation.</summary>
     public void NoteFlowCommand()
@@ -144,20 +176,30 @@ public sealed class DeviceModel
         FlowCommandDeliveries++;
     }
 
-    /// <summary>Advances the process by the elapsed wall time.</summary>
-    public void Tick()
+    /// <summary>Advances the process by the given simulated time step or the elapsed clock time.</summary>
+    public void Tick(double? explicitDt = null)
     {
-        var now = DateTimeOffset.UtcNow;
-        var dt = (now - _lastTick).TotalSeconds;
-        _lastTick = now;
+        double dt;
+        if (explicitDt is { } step && step > 0)
+        {
+            dt = step;
+            _clock.Advance(TimeSpan.FromSeconds(dt));
+            _lastTick = _clock.Now;
+        }
+        else
+        {
+            var now = _clock.Now;
+            dt = (now - _lastTick).TotalSeconds;
+            _lastTick = now;
+            dt = Math.Clamp(dt, 0.0, 5.0);
+        }
 
-        // A pathologically long gap (debugger break, machine sleep) would otherwise
-        // integrate into a wild jump.
-        dt = Math.Clamp(dt, 0.0, 5.0);
         if (dt <= 0)
         {
             return;
         }
+
+        _elapsedSimulationSeconds += dt;
 
         if (Scenario == Scenario.Stall)
         {
@@ -180,11 +222,6 @@ public sealed class DeviceModel
     // Dynamics
     // ------------------------------------------------------------------
 
-    /// <remarks>
-    /// Jacket heating toward the setpoint, plus a constant loss to ambient. The
-    /// asymmetry is real: heating is driven, cooling is passive, so a jacket
-    /// overshoot recovers far more slowly than it developed.
-    /// </remarks>
     private void StepTemperature(double dt)
     {
         const double ambient = 24.0;
@@ -212,23 +249,22 @@ public sealed class DeviceModel
         _pressure += (targetPressure - _pressure) * (dt / 8.0);
     }
 
-    /// <remarks>
-    /// <c>dC/dt = kLa(N,Q)·(C* − C) − OUR</c>, then the reading is taken from a delay
-    /// line so the probe lags the vessel. Oxygen uptake scales with biomass, which is
-    /// what makes DO fall as a cultivation progresses.
-    /// </remarks>
     private void StepOxygen(double dt)
     {
         const double saturation = 100.0;
 
-        var kLa = EstimateKLa(MotorRpm, _flow);
-        var uptake = _biomass * 0.55;
+        CurrentPhase = Profile.GetPhase(_elapsedSimulationSeconds);
+        var kLa = KlaSource.Evaluate(MotorRpm, _flow);
+        CurrentKLa = kLa;
+
+        var uptake = _biomass * CurrentPhase.SpecificOurPerAu;
+        CurrentOur = uptake;
 
         _oxygenTrue += ((kLa * (saturation - _oxygenTrue)) - uptake) * dt;
         _oxygenTrue = Math.Clamp(_oxygenTrue, 0.0, saturation);
 
         // Feed the delay line and read out whatever is old enough to have arrived.
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         _oxygenDelayLine.Enqueue((now, _oxygenTrue));
 
         while (_oxygenDelayLine.Count > 0 &&
@@ -238,34 +274,17 @@ public sealed class DeviceModel
         }
 
         // Cap the queue in case the dead time is ever set absurdly high.
-        while (_oxygenDelayLine.Count > 10_000)
+        while (_oxygenDelayLine.Count > 20_000)
         {
             _oxygenDelayLine.Dequeue();
         }
     }
 
-    /// <summary>
-    /// Volumetric oxygen transfer coefficient as a function of agitation and aeration.
-    /// </summary>
-    /// <remarks>
-    /// A conventional power-law placeholder, <c>kLa = k·N^a·Q^b</c>, monotonic in both
-    /// actuators and with diminishing returns - enough for a controller to have
-    /// something coherent to climb. <b>It is not the manuscript's surface.</b> The
-    /// fitted bicubic B-spline replaces this in Phase 2; anything tuned against this
-    /// placeholder is provisional.
-    /// </remarks>
-    private static double EstimateKLa(int rpm, double flowLpm)
-    {
-        var n = Math.Max(rpm, 0) / 1000.0;
-        var q = Math.Max(flowLpm, 0.0) / 10.0;
-
-        return 0.055 * Math.Pow(n, 0.62) * Math.Pow(q, 0.38);
-    }
-
     private void StepPH(double dt)
     {
-        // Metabolism acidifies; dosing corrects toward the setpoint.
-        _ph -= _biomass * 0.0009 * dt;
+        // Metabolism acidifies according to active cultivation phase; dosing corrects.
+        var phase = CurrentPhase ?? Profile.GetPhase(_elapsedSimulationSeconds);
+        _ph -= _biomass * phase.AcidificationRatePerAu * dt;
 
         if (PHSetpoint > 0 && PHIntensity > 0)
         {
@@ -285,14 +304,16 @@ public sealed class DeviceModel
 
     private void StepBiomass(double dt)
     {
-        const double carryingCapacity = 12.0;
-        const double growthRate = 0.00035;
+        var phase = CurrentPhase ?? Profile.GetPhase(_elapsedSimulationSeconds);
 
         // Growth stalls when oxygen runs out, which is the whole point of controlling it.
         var oxygenLimitation = Math.Clamp(_oxygenTrue / 25.0, 0.0, 1.0);
 
-        _biomass += growthRate * _biomass * (1.0 - (_biomass / carryingCapacity))
-                    * oxygenLimitation * dt;
+        if (phase.SpecificGrowthRatePerSecond > 0 && phase.CarryingCapacityAu > 0)
+        {
+            _biomass += phase.SpecificGrowthRatePerSecond * _biomass * (1.0 - (_biomass / phase.CarryingCapacityAu))
+                        * oxygenLimitation * dt;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -302,13 +323,18 @@ public sealed class DeviceModel
     public double ReadTemperature() => Perturb(_temperature, 0.05);
 
     public double ReadOxygenPercent()
-        => Math.Clamp(Perturb(_oxygenReported + _calibrationDrift, 0.4), 0.0, 100.0);
+    {
+        var value = _oxygenReported + _calibrationDrift;
+        if (OxygenQuantisation > 0.0)
+        {
+            value = Math.Round(value / OxygenQuantisation) * OxygenQuantisation;
+        }
+
+        return Math.Clamp(Perturb(value, 0.4), 0.0, 100.0);
+    }
 
     public double ReadPH() => Perturb(_ph + (_calibrationDrift * 0.05), 0.01);
 
-    // Floored at zero: noise must not push a physically one-sided quantity negative.
-    // A real flowmeter never reports -0.018 L/min, and a client that saw one would be
-    // right to distrust it.
     public double ReadFlow() => Math.Max(0.0, Perturb(_flow, 0.02));
 
     public double ReadPressure() => Math.Max(0.0, Perturb(_pressure, 0.1));

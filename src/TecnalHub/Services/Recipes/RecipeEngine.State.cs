@@ -15,12 +15,39 @@ public sealed partial class RecipeEngine
 
     public bool ApplyLiveTuning(RecipeNode node)
     {
-        return false;
+        ArgumentNullException.ThrowIfNull(node);
+
+        switch (node.Type)
+        {
+            case NodeType.CascadeControl:
+                lock (_lock)
+                {
+                    if (_liveCascades.TryGetValue(node.Id, out var controller))
+                    {
+                        controller.Retune(BuildTuning(node));
+                        controller.OxygenSetpoint = node.Number("spO2");
+                        return true;
+                    }
+                }
+
+                return false;
+
+            case NodeType.MonitorVariable:
+            case NodeType.ManualIntervention:
+                // These blocks re-read their parameters on each pass, so mutating the node is enough.
+                return State is RecipeRunState.Running or RecipeRunState.Paused;
+
+            default:
+                return false;
+        }
     }
 
     public Control.CascadeTerms? CascadeTermsFor(string nodeId)
     {
-        return null;
+        lock (_lock)
+        {
+            return _liveCascades.TryGetValue(nodeId, out var controller) ? controller.LastTerms : null;
+        }
     }
 
     private void SetState(RecipeRunState state, string? reason = null)

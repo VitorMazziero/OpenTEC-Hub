@@ -212,6 +212,9 @@ public partial class App : Application
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<IEventJournal>()));
 
+        // Recipes are saved as versioned JSON in the per-user recipes folder (Minhas Receitas).
+        services.AddSingleton<IRecipeStore>(_ => new RecipeStore(AppPaths.RecipesDirectory));
+
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();
         services.AddSingleton<HistoricalViewModel>();

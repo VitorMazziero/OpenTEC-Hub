@@ -649,6 +649,17 @@ public static class AppPaths
     /// <summary>Operator-created kLa drafts and immutable publication receipts.</summary>
     public static string KlaMappingDirectory => Path.Combine(DataDirectory, "kla-mapping");
 
+    /// <summary>Operator-authored recipes, saved as versioned JSON.</summary>
+    public static string RecipesDirectory
+    {
+        get
+        {
+            var path = Path.Combine(DataDirectory, "recipes");
+            Directory.CreateDirectory(path);
+            return path;
+        }
+    }
+
     public static string LogDirectory
     {
         get

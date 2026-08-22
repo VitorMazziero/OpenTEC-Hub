@@ -1,28 +1,37 @@
+using System.Collections.ObjectModel;
+using System.Text.Json.Nodes;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Services.Recipes;
 
 namespace TecnalHub.ViewModels;
 
 /// <summary>
-/// One editable parameter field, generated from a block's <see cref="RecipeParameter"/> schema.
+/// One editable parameter field, generated from a block's <see cref="RecipeParameter"/> schema and
+/// bound to a JSON value bag (a node's parameters, or a row of a repeating list).
 /// </summary>
 /// <remarks>
-/// This is the "declared once and generated" property editor: rather than a hand-written control
-/// per node type, every field is projected from the catalog schema, reading and writing the node's
-/// <see cref="RecipeNode.Parameters"/> JSON. The <c>IsNumber/IsEnum/IsBool/IsText</c> flags let the
-/// view pick the right control with a data trigger.
+/// The "declared once and generated" property editor: every field is projected from the catalog
+/// schema, reading and writing the <see cref="JsonObject"/> it was given. The
+/// <c>IsNumber/IsEnum/IsBool/IsText/IsList</c> flags let the view pick the control with a trigger.
 /// </remarks>
 public sealed partial class RecipeParameterFieldViewModel : ObservableObject
 {
-    private readonly RecipeNode _node;
+    private readonly JsonObject _bag;
     private readonly Action _onChanged;
 
-    public RecipeParameterFieldViewModel(RecipeNode node, RecipeParameter parameter, Action onChanged)
+    public RecipeParameterFieldViewModel(JsonObject bag, RecipeParameter parameter, Action onChanged)
     {
-        _node = node;
+        _bag = bag;
         _onChanged = onChanged;
         Parameter = parameter;
+        Options = parameter.Options;
         IsVisible = EvaluateVisibility();
+
+        if (parameter.Kind == ParameterKind.List)
+        {
+            RebuildRows();
+        }
     }
 
     public RecipeParameter Parameter { get; }
@@ -35,8 +44,6 @@ public sealed partial class RecipeParameterFieldViewModel : ObservableObject
 
     public string? Group => Parameter.Group;
 
-    public IReadOnlyList<RecipeOption> Options => Parameter.Options;
-
     public bool IsNumber => Parameter.Kind is ParameterKind.Number or ParameterKind.Integer;
 
     public bool IsEnum => Parameter.Kind is ParameterKind.Enum;
@@ -47,61 +54,95 @@ public sealed partial class RecipeParameterFieldViewModel : ObservableObject
 
     public bool IsList => Parameter.Kind is ParameterKind.List;
 
+    /// <summary>Repeating-list rows, for <see cref="ParameterKind.List"/> parameters.</summary>
+    public ObservableCollection<RecipeListRowViewModel> Rows { get; } = [];
+
+    /// <summary>Options for an enum field; can be overridden for context-aware labels.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedOption))]
+    public partial IReadOnlyList<RecipeOption> Options { get; set; }
+
     [ObservableProperty]
     public partial bool IsVisible { get; set; }
 
-    /// <summary>Numeric value, bound for Number/Integer fields.</summary>
     public double NumberValue
     {
-        get => _node.Number(Key);
-        set
-        {
-            _node.Set(Key, value);
-            _onChanged();
-            OnPropertyChanged();
-        }
+        get => ReadNumber(_bag, Key, Parameter);
+        set { _bag[Key] = value; _onChanged(); OnPropertyChanged(); }
     }
 
-    /// <summary>Boolean value, bound for Bool fields.</summary>
     public bool BoolValue
     {
-        get => _node.Flag(Key);
-        set
-        {
-            _node.Set(Key, value);
-            _onChanged();
-            OnPropertyChanged();
-        }
+        get => _bag[Key] is JsonValue v && v.TryGetValue(out bool b) ? b : Parameter.Default is true;
+        set { _bag[Key] = value; _onChanged(); OnPropertyChanged(); }
     }
 
-    /// <summary>Free text, bound for Text fields.</summary>
     public string TextValue
     {
-        get => _node.Text(Key);
-        set
-        {
-            _node.Set(Key, value);
-            _onChanged();
-            OnPropertyChanged();
-        }
+        get => _bag[Key] is JsonValue v && v.TryGetValue(out string? s) && s is not null ? s : Parameter.Default?.ToString() ?? "";
+        set { _bag[Key] = value; _onChanged(); OnPropertyChanged(); }
     }
 
-    /// <summary>Selected option, bound for Enum fields.</summary>
     public RecipeOption? SelectedOption
     {
-        get => Options.FirstOrDefault(o => o.Value == _node.Text(Key)) ?? Options.FirstOrDefault();
+        get
+        {
+            var value = TextValue;
+            return Options.FirstOrDefault(o => o.Value == value) ?? Options.FirstOrDefault();
+        }
         set
         {
-            if (value is not null)
-            {
-                _node.Set(Key, value.Value);
-                _onChanged();
-                OnPropertyChanged();
-            }
+            if (value is not null) { _bag[Key] = value.Value; _onChanged(); OnPropertyChanged(); }
         }
     }
 
-    /// <summary>Re-evaluates the <c>VisibleWhen</c> guard after a sibling field changed.</summary>
+    [RelayCommand]
+    private void AddRow()
+    {
+        var array = ListArray();
+        var row = new JsonObject();
+        foreach (var item in Parameter.ItemSchema)
+        {
+            row[item.Key] = RecipeNode.DefaultValue(item);
+        }
+
+        array.Add(row);
+        Rows.Add(new RecipeListRowViewModel(row, Parameter.ItemSchema, RemoveRow, _onChanged));
+        _onChanged();
+    }
+
+    private void RemoveRow(RecipeListRowViewModel row)
+    {
+        var array = ListArray();
+        var index = Rows.IndexOf(row);
+        if (index >= 0 && index < array.Count)
+        {
+            array.RemoveAt(index);
+            Rows.RemoveAt(index);
+            _onChanged();
+        }
+    }
+
+    private JsonArray ListArray()
+    {
+        if (_bag[Key] is not JsonArray array)
+        {
+            array = [];
+            _bag[Key] = array;
+        }
+
+        return array;
+    }
+
+    private void RebuildRows()
+    {
+        Rows.Clear();
+        foreach (var element in ListArray().OfType<JsonObject>())
+        {
+            Rows.Add(new RecipeListRowViewModel(element, Parameter.ItemSchema, RemoveRow, _onChanged));
+        }
+    }
+
     public void RefreshVisibility() => IsVisible = EvaluateVisibility();
 
     private bool EvaluateVisibility()
@@ -112,20 +153,60 @@ public sealed partial class RecipeParameterFieldViewModel : ObservableObject
         }
 
         var parts = guard.Split('=', 2);
-        return parts.Length == 2 && _node.Text(parts[0]) == parts[1];
+        if (parts.Length != 2)
+        {
+            return true;
+        }
+
+        var current = _bag[parts[0]] is JsonValue v && v.TryGetValue(out string? s) ? s : null;
+        return current == parts[1];
+    }
+
+    internal static double ReadNumber(JsonObject bag, string key, RecipeParameter parameter)
+    {
+        if (bag[key] is JsonValue value && RecipeNode.TryReadNumber(value, out var number))
+        {
+            return number;
+        }
+
+        return Convert.ToDouble(parameter.Default ?? 0.0);
+    }
+}
+
+/// <summary>One row of a repeating-list parameter (Múltiplos Pontos / Múltiplos Controles).</summary>
+public sealed partial class RecipeListRowViewModel : ObservableObject
+{
+    private readonly Action<RecipeListRowViewModel> _remove;
+
+    public RecipeListRowViewModel(
+        JsonObject row, IReadOnlyList<RecipeParameter> schema, Action<RecipeListRowViewModel> remove, Action onChanged)
+    {
+        _remove = remove;
+        Fields = [.. schema.Select(p => new RecipeParameterFieldViewModel(row, p, () => { onChanged(); RefreshVisibility(); }))];
+    }
+
+    public IReadOnlyList<RecipeParameterFieldViewModel> Fields { get; }
+
+    public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible);
+
+    [RelayCommand]
+    private void Remove() => _remove(this);
+
+    private void RefreshVisibility()
+    {
+        foreach (var field in Fields)
+        {
+            field.RefreshVisibility();
+        }
+
+        OnPropertyChanged(nameof(VisibleFields));
     }
 }
 
 /// <summary>A port anchor on a node, for drawing connectors and hit-testing.</summary>
-public sealed class RecipePortViewModel
+public sealed class RecipePortViewModel(RecipePort port, double offsetY)
 {
-    public RecipePortViewModel(RecipePort port, double offsetY)
-    {
-        Port = port;
-        OffsetY = offsetY;
-    }
-
-    public RecipePort Port { get; }
+    public RecipePort Port { get; } = port;
 
     public string Name => Port.Name;
 
@@ -136,7 +217,7 @@ public sealed class RecipePortViewModel
     public bool IsLoop => ConnectorNames.IsLoopIn(Port.Name) || ConnectorNames.IsLoopOut(Port.Name);
 
     /// <summary>Vertical offset of the port within the node body.</summary>
-    public double OffsetY { get; }
+    public double OffsetY { get; } = offsetY;
 
     /// <summary>Horizontal anchor: the left edge for inputs, the right edge for outputs.</summary>
     public double OffsetX => IsInput ? 0 : RecipeNodeViewModel.Width;
@@ -154,15 +235,21 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// <summary>Header band height.</summary>
     public const double HeaderHeight = 34;
 
-    private const double PortPitch = 22;
+    private const double PortPitch = 24;
     private const double BodyPadding = 12;
+
+    private static readonly RecipeOption[] LoopGateOptions =
+    [
+        new(nameof(ManualGateOperation.Hold), "Continuar Cascata"),
+        new(nameof(ManualGateOperation.Pass), "Pular Cascata"),
+    ];
 
     public RecipeNodeViewModel(RecipeNode model)
     {
         Model = model;
         Title = model.Definition.Title;
         HeaderColor = RecipeNodeCatalog.HeaderColor(model.Type);
-        Fields = [.. model.Definition.Parameters.Select(p => new RecipeParameterFieldViewModel(model, p, OnFieldChanged))];
+        Fields = [.. model.Definition.Parameters.Select(p => new RecipeParameterFieldViewModel(model.Parameters, p, OnFieldChanged))];
         Ports = BuildPorts(model);
         X = model.X;
         Y = model.Y;
@@ -184,10 +271,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     public IReadOnlyList<RecipePortViewModel> Ports { get; }
 
-    /// <summary>The visible fields (respecting each field's <c>VisibleWhen</c> guard).</summary>
     public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible);
 
-    /// <summary>Node body height, from the larger of its inbound/outbound port stacks.</summary>
     public double Height
     {
         get
@@ -213,19 +298,26 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     [ObservableProperty]
     public partial string Summary { get; set; }
 
-    /// <summary>Raised when a field value or the position changes, so the page re-validates and re-serialises.</summary>
+    /// <summary>True when this block is the target of a cascade's Saída Loop (its exit condition).</summary>
+    [ObservableProperty]
+    public partial bool IsCascadeLoopCondition { get; set; }
+
+    /// <summary>Raised when a field value or the position changes, so the tab re-validates.</summary>
     public event Action? Changed;
 
-    partial void OnXChanged(double value)
-    {
-        Model.X = value;
-        Changed?.Invoke();
-    }
+    partial void OnXChanged(double value) { Model.X = value; Changed?.Invoke(); }
 
-    partial void OnYChanged(double value)
+    partial void OnYChanged(double value) { Model.Y = value; Changed?.Invoke(); }
+
+    partial void OnIsCascadeLoopConditionChanged(bool value)
     {
-        Model.Y = value;
-        Changed?.Invoke();
+        // An Intervenção Manual wired to the cascade's Saída Loop is the Continuar/Pular switch.
+        if (Type == NodeType.ManualIntervention && Fields.FirstOrDefault(f => f.Key == "operacao") is { } field)
+        {
+            field.Options = value ? LoopGateOptions : RecipeNodeCatalog.Definition(Type).Parameter("operacao")!.Options;
+        }
+
+        Summary = BuildSummary();
     }
 
     private void OnFieldChanged()
@@ -255,7 +347,6 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         return ports;
     }
 
-    /// <summary>A short pt-BR summary line under the header, mirroring the block's key parameters.</summary>
     private string BuildSummary() => Type switch
     {
         NodeType.Timer => $"Aguardar {Model.Number("duracao"):0.##} {OptionLabel("unidade")}",
@@ -263,7 +354,9 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         NodeType.SetSetpoint => $"{OptionLabel("variavel")} → {Model.Number("valor"):0.##}",
         NodeType.SetLoop => $"{OptionLabel("operacao")} {OptionLabel("malha")}",
         NodeType.CascadeControl => $"Cascata O₂: SP {Model.Number("spO2"):0.#} %",
-        NodeType.ManualIntervention => OptionLabel("operacao"),
+        NodeType.ManualIntervention => IsCascadeLoopCondition
+            ? Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "Pular Cascata" : "Continuar Cascata"
+            : OptionLabel("operacao"),
         NodeType.LogEvent => Model.Text("mensagem"),
         NodeType.PhPump => $"Bomba pH: {OptionLabel("operacao")}",
         NodeType.AntifoamPump => $"Antiespuma: {OptionLabel("operacao")}",
@@ -271,7 +364,6 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         _ => Model.Definition.Title,
     };
 
-    /// <summary>The pt-BR label for the option a parameter currently holds (falls back to the raw value).</summary>
     private string OptionLabel(string key)
     {
         var value = Model.Text(key);

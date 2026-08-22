@@ -7,67 +7,6 @@ using TecnalHub.Services.Recipes;
 
 namespace TecnalHub.ViewModels;
 
-/// <summary>One draggable connector between two node ports, with live endpoint geometry.</summary>
-public sealed partial class RecipeConnectionViewModel : ObservableObject
-{
-    private readonly RecipeConnection _model;
-
-    public RecipeConnectionViewModel(RecipeConnection model, RecipeNodeViewModel source, RecipeNodeViewModel target)
-    {
-        _model = model;
-        Source = source;
-        Target = target;
-        source.PropertyChanged += OnEndpointMoved;
-        target.PropertyChanged += OnEndpointMoved;
-    }
-
-    public RecipeConnection Model => _model;
-
-    public RecipeNodeViewModel Source { get; }
-
-    public RecipeNodeViewModel Target { get; }
-
-    [ObservableProperty]
-    public partial bool IsExecuted { get; set; }
-
-    public double X1 => Anchor(Source, _model.SourceConnector).X;
-
-    public double Y1 => Anchor(Source, _model.SourceConnector).Y;
-
-    public double X2 => Anchor(Target, _model.TargetConnector).X;
-
-    public double Y2 => Anchor(Target, _model.TargetConnector).Y;
-
-    private void OnEndpointMoved(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(RecipeNodeViewModel.X) or nameof(RecipeNodeViewModel.Y))
-        {
-            OnPropertyChanged(nameof(X1));
-            OnPropertyChanged(nameof(Y1));
-            OnPropertyChanged(nameof(X2));
-            OnPropertyChanged(nameof(Y2));
-        }
-    }
-
-    private static (double X, double Y) Anchor(RecipeNodeViewModel node, string connector)
-    {
-        var port = node.Ports.FirstOrDefault(p => p.Name == connector)
-                   ?? node.Ports.FirstOrDefault(p =>
-                       (ConnectorNames.IsLoopIn(connector) && ConnectorNames.IsLoopIn(p.Name)) ||
-                       (ConnectorNames.IsLoopOut(connector) && ConnectorNames.IsLoopOut(p.Name)));
-
-        return port is null
-            ? (node.X + RecipeNodeViewModel.Width / 2, node.Y + RecipeNodeViewModel.HeaderHeight / 2)
-            : (node.X + port.OffsetX, node.Y + port.OffsetY);
-    }
-
-    public void Detach()
-    {
-        Source.PropertyChanged -= OnEndpointMoved;
-        Target.PropertyChanged -= OnEndpointMoved;
-    }
-}
-
 /// <summary>A draggable block in the library, grouped by category.</summary>
 public sealed record BlockLibraryItem(NodeType Type, string Title, string CategoryColor);
 
@@ -75,7 +14,8 @@ public sealed record BlockLibraryItem(NodeType Type, string Title, string Catego
 public sealed record BlockLibraryGroup(string Label, string Color, IReadOnlyList<BlockLibraryItem> Items);
 
 /// <summary>
-/// The Receitas page: authoring the node graph, validating it, and running it through the engine.
+/// The Receitas page: open recipes as tabs, the Minhas Receitas library, the block palette, and the
+/// execution controls that drive the engine.
 /// </summary>
 /// <remarks>
 /// Starting switches the whole application to <c>Modo Receita</c> — the engine claims every actuator,
@@ -84,14 +24,15 @@ public sealed record BlockLibraryGroup(string Label, string Color, IReadOnlyList
 public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
 {
     private readonly IRecipeEngine _engine;
+    private readonly IRecipeStore _store;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _elapsedTimer;
-    private RecipeDocument _document = new();
-    private (string NodeId, string Port)? _pendingConnection;
+    private RecipeTabViewModel? _runningTab;
 
-    public ReceitasViewModel(IRecipeEngine engine)
+    public ReceitasViewModel(IRecipeEngine engine, IRecipeStore store)
     {
         _engine = engine;
+        _store = store;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Library = BuildLibrary();
@@ -103,14 +44,15 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _elapsedTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _elapsedTimer.Tick += (_, _) => ElapsedText = _engine.Elapsed.ToString(@"hh\:mm\:ss");
 
+        RefreshLibrary();
         NewRecipe();
     }
 
-    /// <summary>The nodes on the canvas.</summary>
-    public ObservableCollection<RecipeNodeViewModel> Nodes { get; } = [];
+    /// <summary>Open recipes.</summary>
+    public ObservableCollection<RecipeTabViewModel> Tabs { get; } = [];
 
-    /// <summary>The connectors between nodes.</summary>
-    public ObservableCollection<RecipeConnectionViewModel> Connections { get; } = [];
+    /// <summary>Saved recipes on disk, for the Minhas Receitas list.</summary>
+    public ObservableCollection<RecipeSummary> LibraryItems { get; } = [];
 
     /// <summary>Engine log lines, newest last.</summary>
     public ObservableCollection<string> Log { get; } = [];
@@ -118,26 +60,27 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     /// <summary>The block library, grouped by category.</summary>
     public IReadOnlyList<BlockLibraryGroup> Library { get; }
 
-    [ObservableProperty]
-    public partial string RecipeName { get; set; } = "Nova Receita";
+    /// <summary>Raised when a block should be scrolled into view (from a validation finding).</summary>
+    public event Action<RecipeNodeViewModel>? CenterOnNodeRequested;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelection))]
-    public partial RecipeNodeViewModel? SelectedNode { get; set; }
-
-    public bool HasSelection => SelectedNode is not null;
-
-    [ObservableProperty]
-    public partial string JsonText { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool IsValid { get; set; }
+    [NotifyPropertyChangedFor(nameof(ShowCanvas))]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveRecipeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddBlockCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
+    public partial RecipeTabViewModel? SelectedTab { get; set; }
 
     [ObservableProperty]
-    public partial string ValidationSummary { get; set; } = "";
+    [NotifyPropertyChangedFor(nameof(ShowCanvas))]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddBlockCommand))]
+    public partial bool IsLibrarySelected { get; set; }
 
-    /// <summary>The validation findings, for the findings list.</summary>
-    public ObservableCollection<RecipeFinding> Findings { get; } = [];
+    /// <summary>True when a recipe canvas is showing (a tab is active and not the library).</summary>
+    public bool ShowCanvas => !IsLibrarySelected && SelectedTab is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsRunning))]
@@ -145,6 +88,10 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
     [NotifyCanExecuteChangedFor(nameof(PauseCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NewRecipeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveRecipeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddBlockCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
     public partial RecipeRunState RunState { get; set; } = RecipeRunState.Idle;
 
     public bool IsRunning => RunState is RecipeRunState.Running or RecipeRunState.Paused;
@@ -157,122 +104,206 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ElapsedText { get; set; } = "00:00:00";
 
-    // ── Authoring ──────────────────────────────────────────────────────────────
+    // ── Tabs & library ───────────────────────────────────────────────────────────
 
     [RelayCommand(CanExecute = nameof(IsStopped))]
     private void NewRecipe()
     {
-        ClearConnections();
-        Nodes.Clear();
+        var document = new RecipeDocument { Name = $"Nova Receita {Tabs.Count + 1}" };
+        document.Nodes.Add(RecipeNode.Create(NodeType.Start, x: 80, y: 200));
+        document.Nodes.Add(RecipeNode.Create(NodeType.End, x: 520, y: 200));
+        document.Connections.Add(new RecipeConnection(
+            document.Nodes[0].Id, ConnectorNames.Out, document.Nodes[1].Id, ConnectorNames.In));
 
-        _document = new RecipeDocument { Name = "Nova Receita" };
-        RecipeName = _document.Name;
+        var tab = CreateTab(document, fileName: null);
+        Tabs.Add(tab);
+        SelectTab(tab);
+    }
 
-        // Seed a runnable starter graph: Início → Fim, spaced for the canvas.
-        var start = RecipeNode.Create(NodeType.Start, x: 80, y: 200);
-        var end = RecipeNode.Create(NodeType.End, x: 520, y: 200);
-        _document.Nodes.AddRange([start, end]);
-        _document.Connections.Add(new RecipeConnection(start.Id, ConnectorNames.Out, end.Id, ConnectorNames.In));
+    [RelayCommand]
+    private void SelectTab(RecipeTabViewModel tab)
+    {
+        SelectedTab = tab;
+        IsLibrarySelected = false;
+        WatchSelectedTab();
+    }
 
-        Rebuild();
+    [RelayCommand]
+    private void CloseTab(RecipeTabViewModel tab)
+    {
+        if (IsRunning && ReferenceEquals(tab, _runningTab))
+        {
+            return; // cannot close the running recipe
+        }
+
+        var index = Tabs.IndexOf(tab);
+        Tabs.Remove(tab);
+
+        if (ReferenceEquals(SelectedTab, tab))
+        {
+            if (Tabs.Count == 0)
+            {
+                OpenLibrary();
+            }
+            else
+            {
+                SelectTab(Tabs[Math.Min(index, Tabs.Count - 1)]);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLibrary()
+    {
+        RefreshLibrary();
+        IsLibrarySelected = true;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditRecipe))]
+    private void SaveRecipe()
+    {
+        if (SelectedTab is not { } tab)
+        {
+            return;
+        }
+
+        tab.FileName = _store.Save(tab.Document, tab.FileName);
+        tab.IsDirty = false;
+        RefreshLibrary();
     }
 
     [RelayCommand(CanExecute = nameof(IsStopped))]
-    private void AddBlock(NodeType type)
+    private void OpenRecipe(RecipeSummary summary)
     {
-        // Drop near the canvas origin, nudged by the current count so blocks do not stack exactly.
-        var offset = _document.Nodes.Count % 6 * 28;
-        var node = RecipeNode.Create(type, x: 300 + offset, y: 320 + offset);
-        _document.Nodes.Add(node);
-
-        var vm = CreateNodeViewModel(node);
-        Nodes.Add(vm);
-        SelectedNode = vm;
-        Revalidate();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanDelete))]
-    private void DeleteSelected()
-    {
-        if (SelectedNode is not { } node || node.Type == NodeType.Start)
+        if (Tabs.FirstOrDefault(t => t.FileName == summary.FileName) is { } already)
         {
-            return; // the single Início is not deletable
-        }
-
-        _document.Nodes.RemoveAll(n => n.Id == node.Id);
-        _document.Connections.RemoveAll(c => c.SourceNodeId == node.Id || c.TargetNodeId == node.Id);
-        SelectedNode = null;
-        Rebuild();
-    }
-
-    private bool CanDelete() => IsStopped && SelectedNode is not null && SelectedNode.Type != NodeType.Start;
-
-    /// <summary>Click-to-connect: an output port then an input port makes a connection.</summary>
-    public void PortClicked(RecipeNodeViewModel node, RecipePortViewModel port)
-    {
-        if (IsRunning)
-        {
+            SelectTab(already);
             return;
         }
 
-        if (_pendingConnection is null)
-        {
-            if (!port.IsInput)
-            {
-                _pendingConnection = (node.Id, port.Name);
-            }
-
-            return;
-        }
-
-        var (sourceId, sourcePort) = _pendingConnection.Value;
-        _pendingConnection = null;
-
-        // Complete only onto an input port of a different node.
-        if (!port.IsInput || node.Id == sourceId)
-        {
-            return;
-        }
-
-        var connection = new RecipeConnection(sourceId, sourcePort, node.Id, port.Name);
-        if (_document.Connections.Any(c => c.SourceNodeId == sourceId && c.SourceConnector == sourcePort
-            && c.TargetNodeId == node.Id && c.TargetConnector == port.Name))
-        {
-            return; // already connected
-        }
-
-        _document.Connections.Add(connection);
-        AddConnectionViewModel(connection);
-        Revalidate();
-    }
-
-    public void SelectNode(RecipeNodeViewModel? node)
-    {
-        SelectedNode = node;
-        foreach (var candidate in Nodes)
-        {
-            candidate.IsSelected = ReferenceEquals(candidate, node);
-        }
-    }
-
-    // ── Execution ──────────────────────────────────────────────────────────────
-
-    [RelayCommand(CanExecute = nameof(CanStart))]
-    private async Task Start()
-    {
-        Log.Clear();
         try
         {
-            await _engine.StartAsync(_document);
+            var tab = CreateTab(_store.Load(summary.FileName), summary.FileName);
+            Tabs.Add(tab);
+            SelectTab(tab);
+        }
+        catch (Exception ex) when (ex is RecipeFormatException or System.IO.IOException)
+        {
+            StatusText = $"Falha ao abrir: {ex.Message}";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsStopped))]
+    private void DeleteRecipe(RecipeSummary summary)
+    {
+        _store.Delete(summary.FileName);
+        if (Tabs.FirstOrDefault(t => t.FileName == summary.FileName) is { } open)
+        {
+            open.FileName = null; // it no longer maps to a file
+        }
+
+        RefreshLibrary();
+    }
+
+    [RelayCommand(CanExecute = nameof(IsStopped))]
+    private void DuplicateRecipe(RecipeSummary summary)
+    {
+        var document = _store.Load(summary.FileName);
+        document.Name = "Cópia de " + document.Name;
+        _store.Save(document, fileName: null);
+        RefreshLibrary();
+    }
+
+    private void RefreshLibrary()
+    {
+        LibraryItems.Clear();
+        foreach (var summary in _store.List())
+        {
+            LibraryItems.Add(summary);
+        }
+    }
+
+    private RecipeTabViewModel CreateTab(RecipeDocument document, string? fileName)
+    {
+        var tab = new RecipeTabViewModel(document, fileName);
+        tab.CenterRequested += node => OnUi(() => CenterOnNodeRequested?.Invoke(node));
+        return tab;
+    }
+
+    private void WatchSelectedTab()
+    {
+        foreach (var tab in Tabs)
+        {
+            tab.PropertyChanged -= OnSelectedTabChanged;
+        }
+
+        if (SelectedTab is { } selected)
+        {
+            selected.PropertyChanged += OnSelectedTabChanged;
+        }
+    }
+
+    private void OnSelectedTabChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(RecipeTabViewModel.IsValid))
+        {
+            StartCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    // ── Authoring (delegated to the selected tab) ────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanEditRecipe))]
+    private void AddBlock(NodeType type) => SelectedTab?.AddBlock(type);
+
+    [RelayCommand(CanExecute = nameof(CanEditRecipe))]
+    private void DeleteSelected() => SelectedTab?.DeleteSelected();
+
+    [RelayCommand(CanExecute = nameof(CanEditRecipe))]
+    private void Undo() => SelectedTab?.Undo();
+
+    [RelayCommand(CanExecute = nameof(CanEditRecipe))]
+    private void Redo() => SelectedTab?.Redo();
+
+    [RelayCommand]
+    private void RevealFinding(RecipeFinding finding) => SelectedTab?.RevealFinding(finding);
+
+    public void PortClicked(RecipeNodeViewModel node, RecipePortViewModel port)
+    {
+        if (IsStopped)
+        {
+            SelectedTab?.PortClicked(node, port);
+        }
+    }
+
+    private bool CanEditRecipe() => IsStopped && ShowCanvas;
+
+    // ── Execution ────────────────────────────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanStartRecipe))]
+    private async Task Start()
+    {
+        if (SelectedTab is not { } tab)
+        {
+            return;
+        }
+
+        Log.Clear();
+        tab.ResetExecutionState();
+        _runningTab = tab;
+        try
+        {
+            await _engine.StartAsync(tab.Document);
             _elapsedTimer.Start();
         }
         catch (InvalidOperationException ex)
         {
             StatusText = ex.Message;
+            _runningTab = null;
         }
     }
 
-    private bool CanStart() => IsStopped && IsValid;
+    private bool CanStartRecipe() => IsStopped && ShowCanvas && SelectedTab is { IsValid: true };
 
     [RelayCommand(CanExecute = nameof(IsRunning))]
     private void Pause()
@@ -290,88 +321,12 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(IsRunning))]
     private async Task Stop() => await _engine.StopAsync("parada pelo operador");
 
-    // ── Rebuild / validation ────────────────────────────────────────────────────
-
-    private void Rebuild()
-    {
-        ClearConnections();
-        Nodes.Clear();
-
-        foreach (var node in _document.Nodes)
-        {
-            Nodes.Add(CreateNodeViewModel(node));
-        }
-
-        foreach (var connection in _document.Connections)
-        {
-            AddConnectionViewModel(connection);
-        }
-
-        Revalidate();
-    }
-
-    private RecipeNodeViewModel CreateNodeViewModel(RecipeNode node)
-    {
-        var vm = new RecipeNodeViewModel(node);
-        vm.Changed += Revalidate;
-        return vm;
-    }
-
-    private void AddConnectionViewModel(RecipeConnection connection)
-    {
-        var source = Nodes.FirstOrDefault(n => n.Id == connection.SourceNodeId);
-        var target = Nodes.FirstOrDefault(n => n.Id == connection.TargetNodeId);
-        if (source is not null && target is not null)
-        {
-            Connections.Add(new RecipeConnectionViewModel(connection, source, target));
-        }
-    }
-
-    private void ClearConnections()
-    {
-        foreach (var connection in Connections)
-        {
-            connection.Detach();
-        }
-
-        Connections.Clear();
-    }
-
-    private void Revalidate()
-    {
-        _document.Name = RecipeName;
-        var result = RecipeValidator.Validate(_document);
-        IsValid = result.IsValid;
-
-        Findings.Clear();
-        foreach (var finding in result.Findings)
-        {
-            Findings.Add(finding);
-        }
-
-        ValidationSummary = result.IsValid
-            ? (result.Warnings.Count > 0 ? $"✓ Receita válida · {result.Warnings.Count} aviso(s)" : "✓ Receita válida")
-            : $"⚠ {result.Errors.Count} problema(s)";
-
-        JsonText = RecipeSerializer.Serialize(_document);
-        StartCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnRecipeNameChanged(string value) => Revalidate();
-
     // ── Engine events (marshalled to the UI thread) ──────────────────────────────
 
     private void OnNodeStateChanged(string nodeId) => OnUi(() =>
     {
-        if (Nodes.FirstOrDefault(n => n.Id == nodeId) is { } node)
-        {
-            node.ExecutionState = _engine.NodeStateOf(nodeId);
-        }
-
-        foreach (var connection in Connections)
-        {
-            connection.IsExecuted = _engine.WasTraversed(connection.Model);
-        }
+        _runningTab?.ApplyNodeState(nodeId, _engine.NodeStateOf(nodeId));
+        _runningTab?.ApplyExecutedPath(_engine);
     });
 
     private void OnEngineStateChanged() => OnUi(() =>
@@ -428,6 +383,5 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _engine.StateChanged -= OnEngineStateChanged;
         _engine.Logged -= OnEngineLogged;
         _elapsedTimer.Stop();
-        ClearConnections();
     }
 }

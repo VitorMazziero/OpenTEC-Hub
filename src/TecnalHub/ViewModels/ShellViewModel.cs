@@ -9,6 +9,7 @@ using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Recipes;
 using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
 
@@ -87,6 +88,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly IThemeService _theme;
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
+    private readonly IRecipeEngine _recipeEngine;
     private readonly ILogger<ShellViewModel> _log;
     private readonly IReadOnlyList<CommandPaletteEntry> _commandPaletteCatalog;
     private UnitSettings _appliedUnits;
@@ -122,6 +124,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IAlarmService alarms,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
+        IRecipeEngine recipeEngine,
+        ReceitasViewModel receitas,
         ILogger<ShellViewModel> log)
     {
         _device = device;
@@ -139,6 +143,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         PHControl = phControl;
         Calibration = calibration;
         KlaMapping = klaMapping;
+        Receitas = receitas;
+        _recipeEngine = recipeEngine;
+        _recipeEngine.StateChanged += OnRecipeStateChanged;
         _appliedUnits = settings.Current.Units;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1, channel: TelemetryChannel.Temperature);
@@ -246,6 +253,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         [
             new NavigationItem("dashboard", "Painel", "Vessel"),
             new NavigationItem("control", "Controle", "Sliders"),
+            new NavigationItem("recipes", "Receitas", "NodeGraph"),
             new NavigationItem("charts", "Gráficos", "Trend", StartsGroup: true),
             new NavigationItem("history", "Históricos", "Export"),
             new NavigationItem("events", "Eventos", "EventLog"),
@@ -341,6 +349,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>Operator-created kLa experiments, paper path search and publication.</summary>
     public KlaMappingViewModel KlaMapping { get; }
 
+    /// <summary>The graphical recipe editor and its execution engine (WP4).</summary>
+    public ReceitasViewModel Receitas { get; }
+
     /// <summary>All-setpoints and valve-control page.</summary>
     public ControlViewModel Control { get; }
 
@@ -395,8 +406,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         new(CommandOwner.Manual, "Manual", null),
         new(CommandOwner.Automatic, "Automático",
             "A cascata chega na Fase 2. Sem ela, nada além do operador pode escrever setpoints."),
-        new(CommandOwner.Recipe, "Receita",
-            "O motor de receitas chega na Fase 3."),
+        new(CommandOwner.Recipe, "Receita", null),
     ];
 
     [ObservableProperty]
@@ -1059,6 +1069,33 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     private void OnSessionStatusChanged() => OnPropertyChanged(nameof(LoggingSummary));
 
+    /// <summary>
+    /// Reflects the recipe engine's run state onto the shell: while a recipe runs it owns the wire,
+    /// so Modo shows Receita and the status bar names the recipe. Marshalled to the UI thread,
+    /// because the engine raises this from its background run task.
+    /// </summary>
+    private void OnRecipeStateChanged()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            ApplyRecipeState();
+        }
+        else
+        {
+            dispatcher.BeginInvoke(ApplyRecipeState);
+        }
+    }
+
+    private void ApplyRecipeState()
+    {
+        var running = _recipeEngine.State is RecipeRunState.Running or RecipeRunState.Paused;
+        RecipeName = running ? _recipeEngine.Current?.Name ?? "Receita" : "—";
+        SelectedMode = running
+            ? ModeOptions.First(m => m.Owner == CommandOwner.Recipe)
+            : ModeOptions.First(m => m.Owner == CommandOwner.Manual);
+    }
+
     private void ApplyUnits(UnitSettings units)
     {
         var temperatureScale = UnitConversions.TemperatureToDisplay(1, units.Temperature) -
@@ -1131,8 +1168,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _alarms.Changed -= OnAlarmsChanged;
         _settings.Changed -= OnSettingsChanged;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;
+        _recipeEngine.StateChanged -= OnRecipeStateChanged;
         Historical.OpenGraphsRequested -= OnOpenGraphsRequested;
         Settings.Dispose();
+        Receitas.Dispose();
         Control.Dispose();
         CascadeDetail.Dispose();
         Our.Dispose();

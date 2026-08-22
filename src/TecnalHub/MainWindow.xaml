@@ -858,6 +858,13 @@
                                                        RelativeSource={RelativeSource AncestorType=Window},
                                                        Converter={StaticResource EqualsToVis},
                                                        ConverterParameter=kla-mapping}" />
+
+            <!-- Receitas: graphical recipe editor and execution engine (WP4). -->
+            <views:ReceitasView DataContext="{Binding Receitas}"
+                                Visibility="{Binding DataContext.SelectedNavigationId,
+                                                     RelativeSource={RelativeSource AncestorType=Window},
+                                                     Converter={StaticResource EqualsToVis},
+                                                     ConverterParameter=recipes}" />
         </Grid>
 
         <!-- Ctrl+K command palette. It stays a Popup so it overlays every destination

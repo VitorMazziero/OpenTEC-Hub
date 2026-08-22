@@ -1,0 +1,300 @@
+<UserControl x:Class="TecnalHub.Views.ReceitasView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
+             xmlns:vm="clr-namespace:TecnalHub.ViewModels"
+             mc:Ignorable="d"
+             d:DesignHeight="900" d:DesignWidth="1600">
+
+    <UserControl.Resources>
+        <conv:HexToBrushConverter x:Key="HexToBrush" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- One generated editor per parameter, picking a control from the schema kind. -->
+        <DataTemplate x:Key="FieldTemplate" DataType="{x:Type vm:RecipeParameterFieldViewModel}">
+            <StackPanel Margin="0,0,0,10" Visibility="{Binding IsVisible, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding Label}" FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3" />
+                <TextBox Text="{Binding NumberValue, UpdateSourceTrigger=LostFocus}"
+                         Visibility="{Binding IsNumber, Converter={StaticResource BoolToVis}}"
+                         Background="{DynamicResource SurfaceInputBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="6,4" />
+                <TextBox Text="{Binding TextValue, UpdateSourceTrigger=LostFocus}"
+                         Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}"
+                         Background="{DynamicResource SurfaceInputBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="6,4" />
+                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                          DisplayMemberPath="Label"
+                          Visibility="{Binding IsEnum, Converter={StaticResource BoolToVis}}" />
+                <CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" Content="{Binding Label}"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          Visibility="{Binding IsBool, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="Lista editável na próxima etapa" FontSize="11" FontStyle="Italic"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding IsList, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource SurfaceBaseBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ── Page action bar ─────────────────────────────────────────────── -->
+        <Border Grid.Row="0" Padding="16,8" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Receitas" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    <Button Content="+ Nova Receita" Command="{Binding NewRecipeCommand}" Margin="20,0,0,0"
+                            Padding="12,6" />
+                    <Button Content="Excluir bloco" Command="{Binding DeleteSelectedCommand}" Margin="8,0,0,0"
+                            Padding="12,6" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ValidationSummary}" VerticalAlignment="Center" Margin="0,0,16,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Content="▶ Iniciar" Command="{Binding StartCommand}" Padding="12,6"
+                            Background="{DynamicResource StateOkBrush}" Foreground="{DynamicResource TextOnAccentBrush}" />
+                    <Button Content="⏸ Pausar / Retomar" Command="{Binding PauseCommand}" Margin="8,0,0,0"
+                            Padding="12,6" Background="{DynamicResource StateWarningBrush}" Foreground="{DynamicResource TextOnAccentBrush}" />
+                    <Button Content="⏹ Parar" Command="{Binding StopCommand}" Margin="8,0,0,0"
+                            Padding="12,6" Background="{DynamicResource StateAlarmBrush}" Foreground="{DynamicResource TextOnAccentBrush}" />
+                    <Border Margin="16,0,0,0" Padding="10,4" CornerRadius="{DynamicResource RadiusSmall}"
+                            Background="{DynamicResource SurfaceSunkenBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding ElapsedText}" Margin="12,0,0,0"
+                                       FontFamily="{DynamicResource FontMono}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── Library │ Canvas │ Properties ───────────────────────────────── -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="212" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="340" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Block library -->
+            <Border Grid.Column="0" BorderThickness="0,0,1,0"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Library}" Margin="8">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:BlockLibraryGroup}">
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="4,4,0,4" />
+                                    <ItemsControl ItemsSource="{Binding Items}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:BlockLibraryItem}">
+                                                <Button Command="{Binding DataContext.AddBlockCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding Type}"
+                                                        HorizontalContentAlignment="Left"
+                                                        Background="Transparent" BorderThickness="0" Padding="6,5"
+                                                        ToolTip="Adicionar bloco">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                                 Fill="{Binding CategoryColor, Converter={StaticResource HexToBrush}}" />
+                                                        <TextBlock Text="{Binding Title}" Margin="8,0,0,0"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Canvas -->
+            <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                          Background="{DynamicResource SurfaceSunkenBrush}">
+                <Grid x:Name="CanvasRoot" Width="2400" Height="1400"
+                      MouseMove="OnCanvasMouseMove" MouseLeftButtonUp="OnCanvasMouseUp" Background="Transparent">
+
+                    <!-- Connections (behind the nodes) -->
+                    <ItemsControl ItemsSource="{Binding Connections}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:RecipeConnectionViewModel}">
+                                <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}"
+                                      StrokeThickness="2">
+                                    <Line.Style>
+                                        <Style TargetType="Line">
+                                            <Setter Property="Stroke" Value="{DynamicResource StrokeStrongBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExecuted}" Value="True">
+                                                    <Setter Property="Stroke" Value="{DynamicResource StateOkBrush}" />
+                                                    <Setter Property="StrokeThickness" Value="2.5" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Line.Style>
+                                </Line>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Nodes -->
+                    <ItemsControl ItemsSource="{Binding Nodes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:RecipeNodeViewModel}">
+                                <Border Width="234" Height="{Binding Height}" CornerRadius="6"
+                                        Background="{DynamicResource SurfaceCardBrush}"
+                                        MouseLeftButtonDown="OnNodeMouseDown">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ExecutionState}" Value="Evaluating">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateActuatingBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ExecutionState}" Value="Completed">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateOkBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ExecutionState}" Value="Error">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+
+                                    <Grid>
+                                        <StackPanel>
+                                            <Border CornerRadius="6,6,0,0" Height="34"
+                                                    Background="{Binding HeaderColor, Converter={StaticResource HexToBrush}}">
+                                                <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextOnAccentBrush}" FontWeight="SemiBold"
+                                                           FontSize="13" VerticalAlignment="Center" Margin="12,0" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Summary}" FontSize="12" Margin="12,8,12,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </StackPanel>
+
+                                        <!-- Ports overlay, anchored absolutely to match the connector maths. -->
+                                        <ItemsControl ItemsSource="{Binding Ports}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding OffsetX}" />
+                                                    <Setter Property="Canvas.Top" Value="{Binding OffsetY}" />
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:RecipePortViewModel}">
+                                                    <Ellipse Width="11" Height="11" Fill="{DynamicResource StrokeStrongBrush}"
+                                                             Stroke="{DynamicResource SurfaceCardBrush}" StrokeThickness="1.5"
+                                                             Margin="-5.5,-5.5,0,0" Cursor="Cross"
+                                                             ToolTip="{Binding Label}"
+                                                             MouseLeftButtonDown="OnPortMouseDown" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- Properties pane -->
+            <Border Grid.Column="2" BorderThickness="1,0,0,0"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}">
+                <Grid>
+                    <TextBlock Text="Selecione um bloco para editar suas propriedades."
+                               Margin="16" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Margin="16">
+                            <TextBlock Text="{Binding SelectedNode.Title}" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
+                            <TextBlock Text="Propriedades do Bloco" FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,12" />
+                            <ItemsControl ItemsSource="{Binding SelectedNode.Fields}"
+                                          ItemTemplate="{StaticResource FieldTemplate}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ── JSON panel + findings ───────────────────────────────────────── -->
+        <Border Grid.Row="2" Height="150" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="360" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0">
+                    <TextBlock DockPanel.Dock="Top" Text="JSON da Receita" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="12,6" />
+                    <TextBox Text="{Binding JsonText, Mode=OneWay}" IsReadOnly="True"
+                             FontFamily="{DynamicResource FontMono}" FontSize="11"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             Background="{DynamicResource SurfaceSunkenBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
+                             BorderThickness="0" Margin="12,0,12,12" />
+                </DockPanel>
+
+                <DockPanel Grid.Column="1">
+                    <TextBlock DockPanel.Dock="Top" Text="Validação" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="12,6" />
+                    <ListBox ItemsSource="{Binding Findings}" Background="Transparent" BorderThickness="0"
+                             Margin="12,0,12,12" Foreground="{DynamicResource TextPrimaryBrush}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

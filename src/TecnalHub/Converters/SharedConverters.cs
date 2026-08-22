@@ -171,6 +171,39 @@ public sealed class DoubleToStarConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>
+/// An <c>#RRGGBB</c> hex string to a frozen <see cref="SolidColorBrush"/>.
+/// </summary>
+/// <remarks>
+/// The recipe block category colours are declared once, as hex, in
+/// <c>RecipeNodeCatalog</c> — data shared by the model, not a themed token — so the view
+/// converts them here rather than the ViewModel exposing a brush.
+/// </remarks>
+public sealed class HexToBrushConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is string hex && !string.IsNullOrWhiteSpace(hex))
+        {
+            try
+            {
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                brush.Freeze();
+                return brush;
+            }
+            catch (FormatException)
+            {
+                // Fall through to the neutral default below.
+            }
+        }
+
+        return Brushes.Gray;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>True when the bound value equals the parameter. Used for nav-rail selection.</summary>
 public sealed class EqualsConverter : IValueConverter
 {

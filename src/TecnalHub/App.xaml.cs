@@ -12,6 +12,7 @@ using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
+using TecnalHub.Services.Recipes;
 using TecnalHub.Services.Telemetry;
 using TecnalHub.Services.Theme;
 using TecnalHub.ViewModels;
@@ -201,6 +202,16 @@ public partial class App : Application
         services.AddSingleton<IAlarmAnnunciator, AlarmAnnunciator>();
         services.AddSingleton<IAlarmService, AlarmService>();
 
+        // The recipe execution engine (Phase 3 WP4). It drives the same arbiter as manual control
+        // under CommandOwner.Recipe, so starting a recipe claims the wire and deactivates the
+        // manual surfaces; a link loss safe-aborts it.
+        services.AddSingleton<IRecipeEngine>(sp => new RecipeEngine(
+            sp.GetRequiredService<ICommandArbiter>(),
+            sp.GetRequiredService<IDeviceService>(),
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<IEventJournal>()));
+
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();
         services.AddSingleton<HistoricalViewModel>();
@@ -213,6 +224,7 @@ public partial class App : Application
         services.AddSingleton<FlaskAgitatorViewModel>();
         services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();
+        services.AddSingleton<ReceitasViewModel>();
         services.AddSingleton<ShellViewModel>();
     }
 

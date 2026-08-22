@@ -784,9 +784,15 @@ and it is hygiene rather than a gate — so WP6 live actuation is unblocked.
       audit history and an audible indication with a timed silence — not a permanent mute
 - [x] Operator **Zerar tempo da sessão**: store a local display/log offset exactly as v.6
       does; never reset the device clock or rewrite prior samples
-- [ ] Finish the Phase 0 P2/P3 link work: safe busy-port handling, WMI/CH343 ranking,
-      immutable telemetry snapshots, configured HTTP poll period and truthful round-trip
-      naming/correlation *(hygiene; not a gate on WP6)*
+- [~] Finish the Phase 0 P2/P3 link work *(hygiene; not a gate on WP6)*:
+  - [x] **Immutable telemetry snapshots** — `ConnectionManager.Readings` is now `internal`; callers
+        get the immutable `SensorSnapshot` from `TelemetryReceived` or the new `Snapshot()` accessor
+  - [x] **Configured HTTP poll period** — `DeviceService.ConnectWiFi` sets the transport's poll
+        period from `Connection.DataDelayMs` (was fixed at the 1 s default), so Wi-Fi polls at the
+        telemetry cadence
+  - [ ] **Safe busy-port handling**, **WMI/CH343 port ranking** and **truthful round-trip
+        naming/correlation** remain — each needs real ports/adapter/echo to validate, so they ride
+        the hardware gate ([HARDWARE_VALIDATION.md](HARDWARE_VALIDATION.md) Block A-6/A-7/A-8)
 
 **Part 1 delivered — [D-015](DECISIONS.md):**
 

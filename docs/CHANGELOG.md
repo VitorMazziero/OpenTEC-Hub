@@ -10,6 +10,27 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.20.1] - 2026-08-22
+
+Two of the WP4 Phase-0 link-hygiene items — the software-only ones that need no hardware to
+validate. This closes the Phase 2 **software** scope; the remaining link items and every
+process behaviour ride the bioreactor gate ([HARDWARE_VALIDATION.md](HARDWARE_VALIDATION.md)).
+
+### Changed
+- **Immutable telemetry snapshots.** `ConnectionManager.Readings` (the parser's mutable state) is
+  now `internal`; consumers get the immutable `SensorSnapshot` from `TelemetryReceived` or the new
+  `ConnectionManager.Snapshot()` accessor, so no caller can mutate live readings.
+- **Configured Wi-Fi poll period.** `DeviceService.ConnectWiFi` now sets the HTTP transport's poll
+  period from `Connection.DataDelayMs` (it was fixed at the 1 s default), so Wi-Fi polls at the
+  device's telemetry cadence rather than faster than the shared response buffer refreshes.
+
+### Added
+- **[HARDWARE_VALIDATION.md](HARDWARE_VALIDATION.md)** — the consolidated bioreactor test plan:
+  every hardware-gated behaviour across Phase 0-2, in dependency order, with prerequisites, steps
+  and pass criteria, plus the v.6 baselines to capture first.
+
+---
+
 ## [0.20.0] - 2026-08-21
 
 Phase 2 WP8 (part 2) — controller gain scheduling. This closes WP8, and with it the Phase 2

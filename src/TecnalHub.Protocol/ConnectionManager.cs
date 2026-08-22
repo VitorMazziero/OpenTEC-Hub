@@ -192,8 +192,15 @@ public sealed class ConnectionManager : IAsyncDisposable
         get { lock (_stateLock) { return _state; } }
     }
 
-    /// <summary>Live readings. Prefer the snapshot delivered by <see cref="TelemetryReceived"/>.</summary>
-    public SensorReadings Readings => _parser.Readings;
+    /// <summary>
+    /// The live mutable readings, kept <b>internal</b> so no caller outside the protocol can mutate
+    /// the parser's state. Consumers receive the immutable <see cref="SensorSnapshot"/> delivered by
+    /// <see cref="TelemetryReceived"/>, or ask for one on demand via <see cref="Snapshot"/>.
+    /// </summary>
+    internal SensorReadings Readings => _parser.Readings;
+
+    /// <summary>An immutable copy of the current readings, safe to hand to another thread.</summary>
+    public SensorSnapshot Snapshot() => _parser.Readings.Snapshot();
 
     /// <summary>Counters for the connection popover.</summary>
     public LinkDiagnostics Diagnostics => new()

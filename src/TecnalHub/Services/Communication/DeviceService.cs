@@ -185,7 +185,15 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
             },
         });
 
-        _manager.ConnectWiFi(new HttpTransportConfig { IpAddress = ipAddress });
+        // Poll the device at its configured emission period (dataDelay) rather than the 1 s
+        // default, so the Wi-Fi transport matches the telemetry cadence instead of polling the
+        // shared response buffer faster than it refreshes. A floor keeps a tiny value sane.
+        var pollMs = Math.Max(_settings.Current.Connection.DataDelayMs, 250);
+        _manager.ConnectWiFi(new HttpTransportConfig
+        {
+            IpAddress = ipAddress,
+            MinimumPollPeriod = TimeSpan.FromMilliseconds(pollMs),
+        });
     }
 
     public void Disconnect() => _manager.Disconnect();

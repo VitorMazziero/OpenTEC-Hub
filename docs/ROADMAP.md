@@ -995,9 +995,25 @@ add the automation that v.6 never had.
 - [ ] Run every v.6 operator action against real hardware, capture command/telemetry/event
       receipts, and resolve the remaining protocol questions before declaring parity
 
-### WP4 — Receitas — **new capability after the parity gate**
+### WP4 — Receitas — **software-complete (parts 1-3, v0.23.0); polish + hardware remain**
 
-- [ ] Node canvas, validator, execution engine and versioned JSON persistence
+- [x] **Node canvas, validator, execution engine and versioned JSON persistence.**
+      **Part 1** — the pure domain: the nineteen blocks declared once in `RecipeNodeCatalog`
+      (category, ports, parameter schema), the graph model with parameter values in a
+      schema-keyed `JsonObject`, `RecipeSerializer` (versioned from v1 with a migration hook,
+      tolerant of legacy type/connector spellings), and `RecipeValidator` (every §5.3.13 rule).
+      **Part 2** — the sliced `RecipeEngine` driving the shared `ICommandArbiter` under
+      `CommandOwner.Recipe`: starting a recipe claims every actuator, which deactivates the manual
+      surfaces; link/feedback loss safe-aborts the run; the cascade block drives the ported
+      `CascadeController` under Recipe ownership. **Part 3** — the `Receitas` nav destination:
+      block library, draggable node canvas with click-to-connect, a property pane generated from
+      the schema, a live validation strip, the JSON panel and the Iniciar/Pausar/Parar controls;
+      Modo → Receita. [D-023](DECISIONS.md).
+- [ ] **Remaining polish:** drag-from-library, pan/zoom/minimap, repeating-list (`Múltiplos…`)
+      editing, recipe tabs and the library tab, save/load to disk, and the live cascade P/I/D
+      readout in the properties pane during a run.
+- [ ] **Hardware confirmation:** the pump-block field mapping (`pHOperation`/`nutriIntensity`/…),
+      the `Controle da Bomba` external-pump target (WP2), and the vvm→L/min aeration coupling.
 
 On recipes: the concept and the engine architecture come from ReceitasTECNAL —
 node graph, validator, engine sliced by responsibility. The **UI, visual language

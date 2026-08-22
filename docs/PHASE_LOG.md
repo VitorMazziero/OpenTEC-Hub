@@ -1259,3 +1259,49 @@ disabled schedule keeps the single base tuning).
 
 **Boundary:** the breakpoint gain values are provisional simulator numbers; field values ride the
 standing bioreactor gate. This closes the Phase 2 software scope.
+
+---
+
+## Phase 3 — remaining subsystems and recipes
+
+### P3-03 · Receitas: one owner, declared-once blocks, and a re-targeted engine
+
+**Decided:** build Receitas — the graphical experimental-protocol editor — in three tested parts
+(domain, engine, page) on one feature branch, porting ReceitasTECNAL's node graph, validator and
+engine slicing while re-targeting everything to the ESP32-S3. See [D-021](DECISIONS.md).
+
+**Starting a recipe is what deactivates manual control.** The engine drives the same
+`ICommandArbiter` as the operator, under `CommandOwner.Recipe`. On start it **claims every
+actuator**, so the arbiter refuses any Manual dispatch and the manual surfaces go inert — the
+mechanism behind §5.3.3's "manual controls the recipe owns are disabled." Proven headless: after
+`StartAsync` every actuator reads `Recipe` and a Manual `MotorSetpoint` is refused; a link loss
+revokes ownership and the run safe-aborts; stopping returns every actuator to Manual.
+
+**The cascade block owns a controller in-process rather than reusing `CascadeService`.** That
+service claims the oxygen actuators as `Automatic`, which would fight the recipe's `Recipe`
+ownership. So the `.Cascade` slice steps a ported `CascadeController` on each valid-oxygen frame and
+dispatches the combined frame under `Recipe`, firing the loop body per iteration and terminating on
+a settle (finite loop) or a loop-body *Pular Cascata* (infinite). The controller — the manuscript's
+velocity-form PID with prediction and windowed rate — is reused, not re-derived.
+
+**Nineteen blocks, declared once.** `RecipeNodeCatalog` holds each block's category, ports and
+parameter schema in one place; the library, the generated property editor and the per-node defaults
+all read from it, replacing ReceitasTECNAL's model+viewmodel+view triple per type. The property pane
+is projected from the schema at runtime, with `VisibleWhen` guards driving field visibility (pH
+histerese, the gas-mixer cycle period). Recipe JSON is versioned from v1 with a migration hook.
+
+**Re-targeted, not re-skinned.** The VNC screen driver, the Modbus register map, the ×10/×100 scale
+factors, `IntervaloAtuacaoVnc` and the robot panel are gone — this machine has no HMI to scrape.
+Setpoints carry engineering units; loops map to the subsystem enable; pumps map to the ESP32 dosing
+keys; the O₂-enrichment gas mixer ships disabled (deferred). The canvas colours the defined graph
+neutral and only the executed path green, so an idle recipe never looks like a running one.
+
+**Evidence:** 47 new tests — 29 domain (catalog completeness, versioned round-trip + tolerances,
+every validator rule), 8 engine (control deactivation, dispatch under Recipe, monitor reacting to
+telemetry, safe-abort, stop), 10 view-model (authoring, click-to-connect, validation, library,
+generated fields). Full suite 429 passed / 1 skipped, green after each committed part.
+
+**Boundary:** deferred to polish — drag-from-library, pan/zoom/minimap, repeating-list editing,
+recipe tabs/library, save/load to disk, and the in-pane live cascade P/I/D readout. The pump-block
+field mapping and the vvm→L/min aeration coupling await hardware confirmation. (WP1 biomass and WP2
+external pump live on their own branch; reconcile the Phase-3 log numbering when the branches merge.)

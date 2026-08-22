@@ -512,6 +512,55 @@ provisional gains are not a field tuning.
 
 ---
 
+### D-023 · The recipe engine owns the wire under `CommandOwner.Recipe`; the cascade block drives the ported controller in-process, and blocks are declared once
+**Status:** Accepted and implemented · 2026-08-22 · see [PHASE_LOG P3-03](PHASE_LOG.md#p3-03--receitas-one-owner-declared-once-blocks-and-a-re-targeted-engine)
+
+> Numbering note: D-021/D-022 are WP1 biomass / WP2 external pump on the `codex/phase3-wp1-wp2-biomass-pump`
+> branch; this Receitas branch is based below that commit, so its ADR takes D-023 to sit above them on merge.
+
+WP4 adds Receitas — the graphical experimental-protocol editor. Its concept and engine slicing
+come from ReceitasTECNAL, but that app drives a **different machine** (a TECNAL HMI over Modbus,
+with setpoints written by screen-scraping over VNC), so what ports over is the node graph, the
+validator and the control mathematics — never the transport.
+
+**One command queue, one owner.** The engine drives the **same** `ICommandArbiter` as manual
+control, under `CommandOwner.Recipe`. Starting a recipe **claims every actuator**, which is the
+mechanism that deactivates the manual surfaces: the arbiter then refuses any Manual dispatch, so a
+running recipe and an operator cannot fight over the link. A link or feedback loss revokes ownership
+and safe-aborts the run; stopping safe-stops the declared subsystems and returns the wire to Manual.
+This is why the `Recipe` owner was reserved back in Phase 2 WP4 rather than retrofitted here.
+
+**The cascade block drives `CascadeController` in-process, not `CascadeService`.** `CascadeService`
+claims the oxygen actuators as `Automatic`, which would fight the recipe's `Recipe` ownership and
+break the one-owner rule. So the engine's `.Cascade` slice owns a `CascadeController` (the ported
+science) directly, steps it on each valid-oxygen frame, and dispatches the combined frame under
+`Recipe`. The loop pair (`Saída Loop`/`Entrada Loop`) fires the loop body each iteration; a finite
+loop ends when O₂ settles at the setpoint, an infinite one when a loop-body `Intervenção Manual`
+passes (*Pular Cascata*).
+
+**Blocks are declared once and generated.** ReceitasTECNAL hand-wrote a model + viewmodel + view
+triple per node type (~10 near-duplicates). `RecipeNodeCatalog` declares each of the nineteen blocks
+once — category, ports, parameter schema — and the library rows, the property editor and the
+per-node defaults are all projected from it. Recipe JSON is versioned from v1 with a migration hook,
+and canonical type/connector names are written while legacy spellings are only read.
+
+**Re-targeted to the ESP32-S3.** Dropped entirely: the VNC layer, the Modbus register map, the
+×10/×100 `ScaleType` factors, `IntervaloAtuacaoVnc`, and the pipetting-robot panel — the hardware
+here has no HMI to scrape, so blocks send JSON straight to the ESP32 over the existing protocol.
+Setpoints carry engineering units; loops map to the subsystem's own enable (`flowmeterComm`) or a
+zero setpoint; the pump blocks map to the ESP32 dosing keys. The **O₂-enrichment (gas-mixer) path
+is deferred** ([Explicitly deferred](ROADMAP.md#explicitly-deferred)) — an O₂ setpoint writes
+`oxygenMonitor` only, and the gas mixer ships disabled.
+
+*Rejected:* a second command source that bypasses the arbiter (defeats the one-owner guarantee);
+reusing `CascadeService` for the recipe cascade (its `Automatic` ownership fights `Recipe`); a
+hand-written triple per block (the near-duplication the roadmap calls out); porting the VNC/Modbus
+transport or the ×10/×100 scaling (a different machine's artefacts); shipping the enrichment path
+(needs the manuscript's changes, and is deferred). Pump-block field mapping and the vvm→L/min
+aeration coupling ride the standing bioreactor gate.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

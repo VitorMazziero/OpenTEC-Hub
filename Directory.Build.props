@@ -17,7 +17,7 @@
       On release, change ONLY this line, then mirror it in docs/CHANGELOG.md
       and in the installer script.
     -->
-    <Version>0.20.1</Version>
+    <Version>0.23.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Label="Product metadata">

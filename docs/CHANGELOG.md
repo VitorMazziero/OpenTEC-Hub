@@ -10,6 +10,47 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.23.0] - 2026-08-22
+
+**Phase 3 WP4 — Receitas.** The graphical experimental-protocol editor, integrated directly into
+the controller: author a node graph, validate it, and run it through an engine that owns the wire.
+Ported from ReceitasTECNAL's node graph, validator and engine slicing, and **re-targeted to the
+ESP32-S3** — no Modbus, no VNC screen driver, no ×10/×100 scale factors, no robot panel, and no
+O₂-enrichment path. See [UI_DESIGN §5.3](UI_DESIGN.md#53-receitas) and [D-023](DECISIONS.md).
+
+### Added
+- **Recipe domain (part 1).** `RecipeNodeCatalog` declares the nineteen blocks **once** — category,
+  ports and parameter schema — replacing ReceitasTECNAL's hand-written model+viewmodel+view triple
+  per type; one declaration drives editing, validation and the JSON panel. `RecipeDocument` holds
+  the graph with parameter values in a schema-keyed `JsonObject`. `RecipeSerializer` versions the
+  JSON from v1 with a migration hook and tolerates legacy type/connector spellings (canonical is
+  written, historical only read). `RecipeValidator` implements every §5.3.13 rule — graph structure
+  (one Início, ≥1 Fim, reachability, path-to-Fim, cycle-outside-loop) and per-block, including
+  `Monitorar` refusing actuation variables and the cascade actuator-window checks.
+- **Recipe engine (part 2).** The sliced `RecipeEngine` (`.Flow`/`.Nodes`/`.Actuation`/`.Pumps`/
+  `.Cascade`/`.Safety`/`.State`) drives the **same** `ICommandArbiter` as manual control under
+  `CommandOwner.Recipe`. Starting a recipe **claims every actuator**, so the manual surfaces go
+  inert and only the recipe writes to the wire; a link/feedback loss revokes ownership and
+  safe-aborts the run; stopping safe-stops the declared subsystems and returns the wire to Manual.
+  The cascade block drives the ported `CascadeController` under Recipe ownership and fires its loop
+  body per iteration; live gain tuning during a run.
+- **Receitas page (part 3).** A new nav destination: block library grouped by category, a draggable
+  node canvas with click-to-connect ports and connectors (neutral for the defined graph, green only
+  for the executed path), a property pane generated from the block schema, a live validation strip,
+  the JSON panel, and Iniciar/Pausar/Parar execution controls. `Modo` now offers **Receita** and
+  reflects the running recipe.
+
+### Changed
+- **`Modo → Receita` is real.** The command-ownership vocabulary reserved in Phase 2 WP4 is now
+  driven end to end; selecting it (or starting a recipe) hands the wire to the engine.
+
+### Notes
+- Deliberately deferred to polish: drag-from-library, pan/zoom/minimap, repeating-list editing,
+  recipe tabs/library, save/load to disk, and the in-pane live cascade readout. The pump-block
+  field mapping and the vvm→L/min aeration coupling await hardware confirmation.
+
+---
+
 ## [0.20.1] - 2026-08-22
 
 Two of the WP4 Phase-0 link-hygiene items — the software-only ones that need no hardware to

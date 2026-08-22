@@ -341,6 +341,26 @@
                                             <TextBlock Text="{Binding Summary}" FontSize="12" Margin="12,8,12,0"
                                                        Visibility="{Binding ShowSummary, Converter={StaticResource BoolToVis}}"
                                                        TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                            <!-- Intervenção Manual button & explanation -->
+                                            <StackPanel Visibility="{Binding IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="10,8,10,0">
+                                                <Button Background="{Binding ManualButtonColor, Converter={StaticResource HexToBrush}}"
+                                                        BorderThickness="0" Padding="8,6" Cursor="Hand"
+                                                        Command="{Binding ToggleManualGateCommand}">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                                    <TextBlock Text="{Binding ManualButtonIcon}" Foreground="White" FontWeight="Bold" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                                    <TextBlock Text="{Binding ManualButtonText}" Foreground="White" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                                <TextBlock Text="{Binding ManualExplanationText}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" Margin="2,6,2,0" LineHeight="13" />
+                                            </StackPanel>
                                         </StackPanel>
                                         <ItemsControl ItemsSource="{Binding Ports}">
                                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -444,8 +464,39 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
                             <TextBlock Text="Propriedades do Bloco" FontSize="11"
                                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,12" />
+
+                            <!-- Intervenção Manual properties button & explanation -->
+                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
+                                <Button Background="{Binding SelectedTab.SelectedNode.ManualButtonColor, Converter={StaticResource HexToBrush}}"
+                                        BorderThickness="0" Padding="12,8" Cursor="Hand"
+                                        Command="{Binding SelectedTab.SelectedNode.ToggleManualGateCommand}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <TextBlock Text="{Binding SelectedTab.SelectedNode.ManualButtonIcon}" Foreground="White" FontWeight="Bold" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding SelectedTab.SelectedNode.ManualButtonText}" Foreground="White" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <TextBlock Text="{Binding SelectedTab.SelectedNode.ManualExplanationText}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" Margin="2,8,2,0" LineHeight="15" />
+                            </StackPanel>
+
                             <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.Fields}"
-                                          ItemTemplate="{StaticResource FieldTemplate}" />
+                                          ItemTemplate="{StaticResource FieldTemplate}">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedTab.SelectedNode.IsManualIntervention}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                            </ItemsControl>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

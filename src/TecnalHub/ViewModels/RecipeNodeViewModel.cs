@@ -280,12 +280,54 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible);
 
-    public bool ShowSummary => Type is not (NodeType.CascadeControl or NodeType.Start or NodeType.End or NodeType.And or NodeType.Or);
+    public bool ShowSummary => Type is not (NodeType.CascadeControl or NodeType.Start or NodeType.End or NodeType.And or NodeType.Or or NodeType.ManualIntervention);
+
+    public bool IsManualIntervention => Type == NodeType.ManualIntervention;
+
+    public string ManualButtonText => IsCascadeLoopCondition
+        ? (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "PULAR CASCATA" : "CONTINUAR CASCATA")
+        : (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "PASSAR" : "BLOQUEAR");
+
+    public string ManualButtonIcon => IsCascadeLoopCondition
+        ? (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "⏩" : "▶")
+        : (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "▶" : "🔒");
+
+    public string ManualButtonColor => IsCascadeLoopCondition
+        ? (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "#2563D9" : "#16A34A")
+        : (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "#16A34A" : "#DC2626");
+
+    public string ManualExplanationText => IsCascadeLoopCondition
+        ? "No loop da cascata: em Continuar Cascata a cascata opera; mude para Pular Cascata para encerrá-la e avançar ao próximo bloco (ajustável ao vivo durante a execução)."
+        : "Bloqueado: a receita fica em standby neste bloco até Passar (ajustável ao vivo durante a execução).";
+
+    [RelayCommand]
+    public void ToggleManualGate()
+    {
+        var current = Model.Enum<ManualGateOperation>("operacao");
+        var next = current == ManualGateOperation.Hold ? ManualGateOperation.Pass : ManualGateOperation.Hold;
+        Model.Parameters["operacao"] = next.ToString();
+        if (Fields.FirstOrDefault(f => f.Key == "operacao") is { } field)
+        {
+            field.TextValue = next.ToString();
+        }
+
+        OnPropertyChanged(nameof(ManualButtonText));
+        OnPropertyChanged(nameof(ManualButtonIcon));
+        OnPropertyChanged(nameof(ManualButtonColor));
+        OnPropertyChanged(nameof(ManualExplanationText));
+        Summary = BuildSummary();
+        Changed?.Invoke();
+    }
 
     public double Height
     {
         get
         {
+            if (IsManualIntervention)
+            {
+                return 155;
+            }
+
             var left = Ports.Count(p => p.IsInput || p.IsLoop);
             var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
             return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
@@ -326,6 +368,10 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
             field.Options = value ? LoopGateOptions : RecipeNodeCatalog.Definition(Type).Parameter("operacao")!.Options;
         }
 
+        OnPropertyChanged(nameof(ManualButtonText));
+        OnPropertyChanged(nameof(ManualButtonIcon));
+        OnPropertyChanged(nameof(ManualButtonColor));
+        OnPropertyChanged(nameof(ManualExplanationText));
         Summary = BuildSummary();
     }
 
@@ -336,6 +382,10 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
             field.RefreshVisibility();
         }
 
+        OnPropertyChanged(nameof(ManualButtonText));
+        OnPropertyChanged(nameof(ManualButtonIcon));
+        OnPropertyChanged(nameof(ManualButtonColor));
+        OnPropertyChanged(nameof(ManualExplanationText));
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
         Changed?.Invoke();
@@ -352,7 +402,9 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
                          || ConnectorNames.IsLoopOut(port.Name)
                          || ConnectorNames.IsLoopIn(port.Name);
             var index = isLeft ? leftCount++ : rightCount++;
-            var offsetY = HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2;
+            var offsetY = model.Type == NodeType.ManualIntervention
+                ? 130
+                : HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2;
             ports.Add(new RecipePortViewModel(port, offsetY));
         }
 

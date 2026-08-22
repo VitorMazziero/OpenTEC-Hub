@@ -480,8 +480,26 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         }
     }
 
-    public IEnumerable<RecipeParameterFieldViewModel> CascadeAdvancedFields =>
-        Fields.Where(f => f.IsVisible && f.Key is not ("spO2" or "atuadorAgitacao" or "atuadorAeracao" or "agitacaoOutMin" or "agitacaoOutMax" or "aeracaoOutMin" or "aeracaoOutMax"));
+    public RecipeParameterFieldViewModel? CascadeIntervalField =>
+        Fields.FirstOrDefault(f => f.Key == "intervaloPidS");
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadeExternalGainsFields =>
+        Fields.Where(f => f.IsVisible && f.Key is "kDot" or "horizonteTPredS" or "janelaPreditorAmostras" or "tauDFiltroS");
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadeInternalPidFields =>
+        Fields.Where(f => f.IsVisible && f.Key is "kp" or "ki" or "kd");
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadeAntiWindupFields =>
+        Fields.Where(f => f.IsVisible && f.Key is "iMin" or "iMax" or "janelaIntegradorS");
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadePhysicalLimitsFields =>
+        Fields.Where(f => f.IsVisible && f.Key is "nMinRpm" or "nMaxRpm" or "qMinVvm" or "qMaxVvm");
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadeRelativeGainsFields =>
+        Fields.Where(f => f.IsVisible && f.Key is "agitacaoGanho" or "aeracaoGanho");
+
+    public IEnumerable<RecipeParameterFieldViewModel> CascadeRateEstimationFields =>
+        Fields.Where(f => f.IsVisible && f.Key is "metodoTaxa" or "janelaMediaAmostras");
 
     private void SetParam(string key, object value)
     {
@@ -535,9 +553,15 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(AerationBarSpan));
         OnPropertyChanged(nameof(AerationBarRest));
         OnPropertyChanged(nameof(CascadeOverlapSummary));
+        OnPropertyChanged(nameof(CascadeIntervalField));
+        OnPropertyChanged(nameof(CascadeExternalGainsFields));
+        OnPropertyChanged(nameof(CascadeInternalPidFields));
+        OnPropertyChanged(nameof(CascadeAntiWindupFields));
+        OnPropertyChanged(nameof(CascadePhysicalLimitsFields));
+        OnPropertyChanged(nameof(CascadeRelativeGainsFields));
+        OnPropertyChanged(nameof(CascadeRateEstimationFields));
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
-        OnPropertyChanged(nameof(CascadeAdvancedFields));
         Changed?.Invoke();
     }
 

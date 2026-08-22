@@ -181,12 +181,12 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
-    public void Library_covers_all_nineteen_blocks_in_six_categories()
+    public void Library_covers_all_seventeen_authorable_blocks_in_five_categories()
     {
         var vm = Build();
 
-        Assert.Equal(6, vm.Library.Count);
-        Assert.Equal(19, vm.Library.Sum(g => g.Items.Count));
+        Assert.Equal(5, vm.Library.Count);
+        Assert.Equal(17, vm.Library.Sum(g => g.Items.Count));
     }
 
     [Fact]

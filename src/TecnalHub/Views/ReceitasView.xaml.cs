@@ -63,7 +63,7 @@ public partial class ReceitasView : UserControl
             _dragStart = e.GetPosition(CanvasRoot);
             _originX = node.X;
             _originY = node.Y;
-            CanvasRoot.CaptureMouse();
+            ViewportBorder.CaptureMouse();
             e.Handled = true;
         }
     }
@@ -86,7 +86,7 @@ public partial class ReceitasView : UserControl
             DragPreviewLine.Y2 = anchor.Y;
             DragPreviewLine.Visibility = Visibility.Visible;
 
-            CanvasRoot.CaptureMouse();
+            ViewportBorder.CaptureMouse();
             e.Handled = true;
         }
     }
@@ -111,7 +111,7 @@ public partial class ReceitasView : UserControl
         _panStart = e.GetPosition(this);
         _panOriginX = PanTransform.X;
         _panOriginY = PanTransform.Y;
-        CanvasRoot.CaptureMouse();
+        ViewportBorder.CaptureMouse();
     }
 
     private void OnCanvasMouseMove(object sender, MouseEventArgs e)
@@ -163,14 +163,14 @@ public partial class ReceitasView : UserControl
 
             _connectSourceNode = null;
             _connectSourcePort = null;
-            CanvasRoot.ReleaseMouseCapture();
+            ViewportBorder.ReleaseMouseCapture();
             e.Handled = true;
             return;
         }
 
         _dragNode = null;
         _panning = false;
-        CanvasRoot.ReleaseMouseCapture();
+        ViewportBorder.ReleaseMouseCapture();
     }
 
     private (RecipeNodeViewModel Node, RecipePortViewModel Port)? FindPortAtPosition(Point position)
@@ -198,7 +198,7 @@ public partial class ReceitasView : UserControl
     {
         var oldScale = ZoomTransform.ScaleX <= 0 ? 1 : ZoomTransform.ScaleX;
         var factor = e.Delta > 0 ? 1.1 : 1 / 1.1;
-        var newScale = Math.Clamp(oldScale * factor, 0.25, 4.0);
+        var newScale = Math.Clamp(oldScale * factor, 0.05, 5.0);
 
         // The content-space point under the cursor stays fixed as the scale changes.
         var cursor = e.GetPosition(CanvasRoot);

@@ -117,8 +117,46 @@
         <Border Grid.Row="1" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}"
                 BorderThickness="0,0,0,1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
             <DockPanel>
-                <ToggleButton DockPanel.Dock="Left" Content="Minhas Receitas" IsChecked="{Binding IsLibrarySelected, Mode=OneWay}"
-                              Command="{Binding OpenLibraryCommand}" Padding="12,5" Margin="0,0,4,0" />
+                <ToggleButton DockPanel.Dock="Left" Content="Minhas Receitas"
+                              IsChecked="{Binding IsLibrarySelected, Mode=OneWay}"
+                              Command="{Binding OpenLibraryCommand}" Padding="14,5" Margin="0,0,6,0">
+                    <ToggleButton.Style>
+                        <Style TargetType="ToggleButton">
+                            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+                            <Setter Property="BorderThickness" Value="1,1,1,0" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="Cursor" Value="Hand" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Chrome"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="4,4,0,0"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource StrokeStrongBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                <Setter TargetName="Chrome" Property="BorderThickness" Value="1,1,1,2" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ToggleButton.Style>
+                </ToggleButton>
                 <Button DockPanel.Dock="Right" Content="+ Nova Receita" Command="{Binding NewRecipeCommand}" Padding="12,5"
                         Background="{DynamicResource StateOkBrush}" Foreground="{DynamicResource TextOnAccentBrush}" Margin="4,0,0,0" />
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -198,11 +236,12 @@
             </Border>
 
             <!-- Canvas -->
-            <Border Grid.Column="1" ClipToBounds="True" Background="{DynamicResource SurfaceSunkenBrush}"
+            <Border Grid.Column="1" x:Name="ViewportBorder" ClipToBounds="True" Background="{DynamicResource SurfaceSunkenBrush}"
                     Visibility="{Binding ShowCanvas, Converter={StaticResource BoolToVis}}"
+                    MouseLeftButtonDown="OnCanvasMouseDown" MouseMove="OnCanvasMouseMove" MouseLeftButtonUp="OnCanvasMouseUp"
                     MouseWheel="OnViewportWheel">
-                <Grid x:Name="CanvasRoot" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" Background="Transparent"
-                      MouseLeftButtonDown="OnCanvasMouseDown" MouseMove="OnCanvasMouseMove" MouseLeftButtonUp="OnCanvasMouseUp">
+                <Grid x:Name="CanvasRoot" HorizontalAlignment="Left" VerticalAlignment="Top"
+                      Width="100000" Height="100000" Background="Transparent">
                     <Grid.RenderTransform>
                         <TransformGroup>
                             <ScaleTransform x:Name="ZoomTransform" />
@@ -235,7 +274,21 @@
                                             </Style>
                                         </Path.Style>
                                     </Path>
-                                    <Polygon Points="{Binding ArrowPoints}" Fill="{DynamicResource StrokeStrongBrush}" IsHitTestVisible="False" />
+                                    <Polygon Points="{Binding ArrowPoints}" IsHitTestVisible="False">
+                                        <Polygon.Style>
+                                            <Style TargetType="Polygon">
+                                                <Setter Property="Fill" Value="{DynamicResource StrokeStrongBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsExecuted}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource StateOkBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Polygon.Style>
+                                    </Polygon>
                                 </Canvas>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

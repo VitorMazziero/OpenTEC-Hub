@@ -63,14 +63,14 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
         var isLoop = ConnectorNames.IsLoopOut(Model.SourceConnector);
         RouteGeometry = isLoop ? BuildLoopGeometry(sx, sy, tx, ty) : BuildRouteGeometry(sx, sy, tx, ty);
 
-        // Arrow direction depends on whether the target port is on the left or right side.
-        var targetPort = Target.Ports.FirstOrDefault(p => p.Name == Model.TargetConnector)
-                         ?? Target.Ports.FirstOrDefault(p =>
-                             ConnectorNames.IsLoopIn(Model.TargetConnector) && ConnectorNames.IsLoopIn(p.Name));
-        var targetOnLeft = targetPort is null || targetPort.OffsetX == 0;
-        ArrowPoints = targetOnLeft
-            ? new PointCollection { new(tx + 9, ty - 5), new(tx, ty), new(tx + 9, ty + 5) }
-            : new PointCollection { new(tx - 9, ty - 5), new(tx, ty), new(tx - 9, ty + 5) };
+        // Arrow points rightward (→) into the port on the left of the node:
+        // Tip is at (tx, ty), wings are at (tx - 8, ty ± 4) so the arrow sits outside the node.
+        ArrowPoints = new PointCollection
+        {
+            new(tx - 8, ty - 4),
+            new(tx, ty),
+            new(tx - 8, ty + 4)
+        };
     }
 
     /// <summary>Builds a geometry for normal (non-loop) connections using orthogonal segments.</summary>

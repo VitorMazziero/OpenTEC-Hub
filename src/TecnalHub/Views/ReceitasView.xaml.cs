@@ -154,11 +154,17 @@ public partial class ReceitasView : UserControl
             if (targetPort is { Port: var port, Node: var node }
                 && port.IsInput
                 && _connectSourceNode is not null
-                && _connectSourcePort is not null
-                && node.Id != _connectSourceNode.Id)
+                && _connectSourcePort is not null)
             {
-                ViewModel?.PortClicked(_connectSourceNode, _connectSourcePort);
-                ViewModel?.PortClicked(node, port);
+                var isLoopSelfConnection = node.Id == _connectSourceNode.Id &&
+                                           ConnectorNames.IsLoopOut(_connectSourcePort.Name) &&
+                                           ConnectorNames.IsLoopIn(port.Name);
+
+                if (node.Id != _connectSourceNode.Id || isLoopSelfConnection)
+                {
+                    ViewModel?.PortClicked(_connectSourceNode, _connectSourcePort);
+                    ViewModel?.PortClicked(node, port);
+                }
             }
 
             _connectSourceNode = null;

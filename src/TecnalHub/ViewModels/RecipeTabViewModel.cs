@@ -161,7 +161,11 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         var (sourceId, sourcePort) = _pendingConnection.Value;
         _pendingConnection = null;
 
-        if (!port.IsInput || node.Id == sourceId)
+        var isLoopSelfConnection = node.Id == sourceId &&
+                                   ConnectorNames.IsLoopOut(sourcePort) &&
+                                   ConnectorNames.IsLoopIn(port.Name);
+
+        if (!port.IsInput || (node.Id == sourceId && !isLoopSelfConnection))
         {
             return;
         }

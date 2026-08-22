@@ -201,26 +201,33 @@ public sealed partial class RecipeListRowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(VisibleFields));
     }
-}
-
-/// <summary>A port anchor on a node, for drawing connectors and hit-testing.</summary>
+}/// <summary>A port anchor on a node, for drawing connectors and hit-testing.</summary>
 public sealed class RecipePortViewModel(RecipePort port, double offsetY)
 {
     public RecipePort Port { get; } = port;
 
     public string Name => Port.Name;
 
-    public string Label => Port.Label ?? Port.Name;
-
     public bool IsInput => Port.Direction == PortDirection.In;
 
     public bool IsLoop => ConnectorNames.IsLoopIn(Port.Name) || ConnectorNames.IsLoopOut(Port.Name);
+
+    public bool IsOnLeft => IsInput || IsLoop;
+
+    public string Label => Port.Label ?? (Name switch
+    {
+        ConnectorNames.In => "Entrada",
+        ConnectorNames.Out => "Saída",
+        ConnectorNames.LoopOut => "Saída do Loop",
+        ConnectorNames.LoopIn => "Entrada do Loop",
+        _ => Port.Name
+    });
 
     /// <summary>Vertical offset of the port within the node body.</summary>
     public double OffsetY { get; } = offsetY;
 
     /// <summary>Horizontal anchor: the left edge for inputs and loop ports, the right edge for other outputs.</summary>
-    public double OffsetX => IsInput || IsLoop ? 0 : RecipeNodeViewModel.Width;
+    public double OffsetX => IsOnLeft ? 0 : RecipeNodeViewModel.Width;
 }
 
 /// <summary>
@@ -272,6 +279,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     public IReadOnlyList<RecipePortViewModel> Ports { get; }
 
     public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible);
+
+    public bool ShowSummary => Type is not (NodeType.CascadeControl or NodeType.Start or NodeType.End or NodeType.And or NodeType.Or);
 
     public double Height
     {

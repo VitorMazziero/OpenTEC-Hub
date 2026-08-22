@@ -1259,3 +1259,82 @@ disabled schedule keeps the single base tuning).
 
 **Boundary:** the breakpoint gain values are provisional simulator numbers; field values ride the
 standing bioreactor gate. This closes the Phase 2 software scope.
+
+---
+
+## Phase 3 — remaining subsystems
+
+### P3-1 · Biomass sensor and guided procedure
+
+**Decided:** deliver WP1 as an owned biomass actuator with a Controle card and a guided Calibrações
+procedure, taking the wire contract from the firmware rather than v.6's Python. See
+[D-021](DECISIONS.md).
+
+**The firmware was the source of truth this time.** The owner pointed me at the v.6 tree *and* the
+ESP32 firmware (`TECNAL_ESP32_v7.ino`). v.6's biomass block sends `biomassComm`, `blank`, `start`,
+`stop` and `{low,high,opt}`; the firmware's command router forwards exactly those (its `biomassCommand`
+assembly lists `start`, `stop`, `blank`, `low`, `high`, `opt`, `test_period`). `start`/`stop` had never
+been written down — they are on the wire, so they became `CommandKeys.BiomassStart`/`BiomassStop` and
+got golden strings. `test_period` exists in the firmware but v.6 never sends it, so neither do we.
+
+**The open question is answered: there is no HD-mode.** The WP asked whether the firmware exposes an
+HD-mode state before we display one. A grep of the `.ino` for HD/hd_mode found nothing — biomass state
+is `biomassCommOn`, absorbance, raw, integration time and PWM, full stop. So the card and the procedure
+show none.
+
+**Owned, but not safe-stopped.** `ActuatorId.Biomass` joins the arbiter so a future recipe cannot fight
+the operator over the blank or the thresholds. But the operator safe-stop deliberately leaves it running:
+it is an optical measurement, and stopping it is not a safety action — it just blinds monitoring, the
+same call made for the level/foam sensor in WP7. The enable is an immediate toggle (v.6's behaviour, and
+the firmware gates the sub-commands on it); the thresholds stage and apply atomically.
+
+**The Calibrações tab is a thin guide, because biomass has no coefficient.** Unlike pH/oxygen there is
+nothing to fit on the PC — "calibration" is capturing the blank against a clear medium and setting the
+integration thresholds. `BiomassCalibrationViewModel` walks enable → capture blank → confirm Abs ≈ 0 →
+thresholds, with the live absorbance shown and a link-loss refusal.
+
+**Evidence:** biomass golden strings and key order; the ViewModel's immediate enable, gated momentary
+actions, atomic threshold apply/persist, incoherent-threshold refusal and no-data-until-absorbance
+readouts; the actuator/key mapping. Part of the 417/417 run. Live actuation rides the bioreactor gate.
+
+### P3-2 · External pump: profiles, preview and proportional gas
+
+**Decided:** deliver WP2 as the five firmware profile modes with a live preview, a versioned profile,
+the safe disabled frame and the proportional-gas coupling — arbitrated as flow. See
+[D-022](DECISIONS.md).
+
+**Byte-parity turned up two dropped keys.** Reading `pump_mode_window.send_commands` against the earlier
+protocol table showed every v.6 pump frame carries `init_t` and `final_t` (the operating window in
+minutes) that the table had omitted, and the firmware's `simpleKeys` forwards them. They are on every
+profile frame now, `t' = t − init_t`, flow zero before the start. The disable frame keeps v.6's
+`speed:0` even though the firmware forwards `pump_speed` and ignores `speed` — parity over tidiness,
+and the reasoning is written into `CommandKeys.Speed`'s doc.
+
+**The math is v.6's, extracted so it is testable.** `PumpProfileMath` is a pure port of the simulation
+(constant/linear/exp/Horner-polynomial/interp-piecewise, clamped non-negative, volume as the trapezoid
+integral). It feeds both the theme-aware `PumpPreviewChart` and, through one `BuildCommand` dispatch,
+the send path — so the preview and the wire can never diverge.
+
+**Proportional gas is aeration, and the arbiter proves it.** `Q_g = (V₀ + PumpVol/1000)·vvm` is an air
+flow, so it goes out as a standard aeration frame through the arbiter, owned as `Aeration`. That makes it
+*refused* when the cascade owns aeration, which is the single-owner model doing its job — a test pins it.
+It resends only on a material change. v.6's proportional path opened the nitrogen valve at zero flow;
+that contradicts the safe-stop rule and reads as an oversight, so TECNAL-Hub closes both valves and the
+deviation is recorded in [D-022](DECISIONS.md).
+
+**Validation is the firmware's own bounds.** Rather than guess a byte cap for the still-open max-payload
+question, the app validates against the `.ino` arrays: 1–21 coefficients, 2–100 segments, `t0 = 0` and
+strictly increasing times. `PumpControlSettings` is versioned and keeps every mode's parameters; the
+operating window is shared across modes rather than stored per mode as v.6 did — the window is *when*, not
+*what shape*.
+
+**Evidence:** the profile golden strings and key order (including the interleaved piecewise), the
+`PumpProfileMath` per-mode values and the constant-profile volume, the ViewModel's mode visibility,
+validation and version bump, the proportional-gas coupling driving aeration from pump volume (and going
+silent when disabled or the pump is off), and the arbiter refusing a Manual pump frame the cascade owns.
+417/417 total. The simulator ignores the profile keys (unknown-key tolerant), so live connect is
+unaffected; pump actuation and the proportional flow ride the bioreactor gate.
+
+**Boundary — synoptic placement.** The biomass and pump tags were added to the reactor drawing at
+reasonable anchors, but their exact positions want a live visual review against the render, exactly as
+the Phase 1 equipment asset was validated with evidence screenshots.

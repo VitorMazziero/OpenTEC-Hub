@@ -255,6 +255,20 @@
                 <Ellipse Canvas.Left="348" Canvas.Top="296" Width="8" Height="8"
                          Fill="{DynamicResource PathInstrumentBrush}" />
 
+                <!-- Phase 3 callouts: biomass optical sensor (instrument) on the vessel wall and
+                     the external feed pump (feed). Anchor positions are provisional pending a live
+                     visual review against the reactor render. -->
+                <Polyline Points="460,390 412,390 360,378"
+                          Stroke="{DynamicResource PathInstrumentBrush}" StrokeThickness="1.4"
+                          StrokeLineJoin="Round" Fill="Transparent" />
+                <Polyline Points="140,428 210,428 300,414"
+                          Stroke="{DynamicResource PathFeedBrush}" StrokeThickness="1.4"
+                          StrokeLineJoin="Round" Fill="Transparent" />
+                <Ellipse Canvas.Left="356" Canvas.Top="374" Width="8" Height="8"
+                         Fill="{DynamicResource PathInstrumentBrush}" />
+                <Ellipse Canvas.Left="296" Canvas.Top="410" Width="8" Height="8"
+                         Fill="{DynamicResource PathFeedBrush}" />
+
                 <!-- Temperature, tied to the jacket/probe zone. -->
                 <Button Canvas.Left="8" Canvas.Top="100"
                         Style="{StaticResource InstrumentTagStyle}"
@@ -344,6 +358,26 @@
                         Command="{Binding DataContext.SelectByIdCommand,
                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="level" />
+
+                <!-- Biomass optical sensor on the vessel wall (WP1). -->
+                <Button Canvas.Left="460" Canvas.Top="372"
+                        Style="{StaticResource InstrumentTagStyle}"
+                        DataContext="{Binding Biomass}" Content="{Binding}"
+                        AutomationProperties.Name="{Binding DisplayName}"
+                        ToolTip="Sensor óptico de biomassa (absorbância)"
+                        Command="{Binding DataContext.SelectByIdCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="biomass" />
+
+                <!-- External feed pump, dosed through a low vessel port (WP2). -->
+                <Button Canvas.Left="8" Canvas.Top="410"
+                        Style="{StaticResource InstrumentTagStyle}"
+                        DataContext="{Binding Pump}" Content="{Binding}"
+                        AutomationProperties.Name="{Binding DisplayName}"
+                        ToolTip="Bomba externa (vazão informada)"
+                        Command="{Binding DataContext.SelectByIdCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="pump" />
             </Canvas>
         </Viewbox>
 
@@ -384,7 +418,7 @@
                     <TextBlock Text="Antiespuma" FontSize="9"
                                Foreground="{DynamicResource TextMutedBrush}" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Text="Nível/espuma pelo sensor de distância, quando ativo · agitador de frasco em Controle"
+                <TextBlock Grid.Column="1" Text="Biomassa em absorbância · bomba externa em mL/min · agitador de frasco em Controle"
                            Margin="16,0,0,0" FontSize="9" FontWeight="SemiBold"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
             </Grid>

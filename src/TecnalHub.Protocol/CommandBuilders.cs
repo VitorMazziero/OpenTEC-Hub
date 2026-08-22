@@ -242,6 +242,141 @@ public static class CommandBuilders
     public static TecnalCommand FlaskAgitatorReEnablePot()
         => TecnalCommand.Create().Set(CommandKeys.AgitatorReEnablePot, 1);
 
+    // ── Biomass (Phase 3 WP1) ────────────────────────────────────────────────
+
+    /// <summary>Enables or disables the biomass optical sensor: <c>{"biomassComm":1/0}</c>.</summary>
+    /// <remarks>
+    /// Enable/disable is handled on the hub itself. While disabled, the hub drops the
+    /// blank/start/stop/threshold sub-commands rather than forwarding them, so the operator
+    /// enables the sensor before those take effect. See <c>docs/PROTOCOL.md</c> §3.4.
+    /// </remarks>
+    public static TecnalCommand BiomassComm(bool on)
+        => TecnalCommand.Create().Set(CommandKeys.BiomassComm, on);
+
+    /// <summary>Momentary: capture the blank (zero-absorbance) reference — <c>{"blank":1}</c>.</summary>
+    public static TecnalCommand BiomassBlank()
+        => TecnalCommand.Create().Set(CommandKeys.Blank, 1);
+
+    /// <summary>Momentary: start the biomass acquisition loop — <c>{"start":1}</c>.</summary>
+    public static TecnalCommand BiomassStart()
+        => TecnalCommand.Create().Set(CommandKeys.BiomassStart, 1);
+
+    /// <summary>Momentary: stop the biomass acquisition loop — <c>{"stop":1}</c>.</summary>
+    public static TecnalCommand BiomassStop()
+        => TecnalCommand.Create().Set(CommandKeys.BiomassStop, 1);
+
+    /// <summary>
+    /// The three integration-time thresholds, emitted atomically: <c>{"low":..,"high":..,"opt":..}</c>.
+    /// </summary>
+    /// <remarks>
+    /// Raw ADC counts, integers, sent together exactly as v.6's <c>send_biomass_config</c> does.
+    /// </remarks>
+    public static TecnalCommand BiomassThresholds(int low, int high, int optimal)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.Low, low)
+            .Set(CommandKeys.High, high)
+            .Set(CommandKeys.Opt, optimal);
+
+    // ── External pump (Phase 3 WP2) ──────────────────────────────────────────
+
+    /// <summary>Enables the external pump's command routing on the hub: <c>{"pumpComm":1}</c>.</summary>
+    public static TecnalCommand PumpEnable()
+        => TecnalCommand.Create().Set(CommandKeys.PumpComm, 1);
+
+    /// <summary>
+    /// The safe disabled frame: <c>{"pumpComm":0,"mode":0,"speed":0}</c>.
+    /// </summary>
+    /// <remarks>
+    /// Byte-identical to v.6's <c>send_extern_pump_comm(false)</c>. The firmware ignores the
+    /// vestigial <c>speed</c> key (it forwards <c>pump_speed</c>), and drops <c>mode</c> once
+    /// <c>pumpComm:0</c> has cleared routing; both are reproduced only for parity.
+    /// </remarks>
+    public static TecnalCommand PumpDisable()
+        => TecnalCommand.Create()
+            .Set(CommandKeys.PumpComm, 0)
+            .Set(CommandKeys.Mode, 0)
+            .Set(CommandKeys.Speed, 0);
+
+    /// <summary>Mode-1 constant profile: <c>Q(t') = λ</c> mL/min.</summary>
+    public static TecnalCommand PumpConstant(double initMinutes, double finalMinutes, double lambda)
+        => PumpHeader(PumpProfileMode.Constant, initMinutes, finalMinutes)
+            .Set(CommandKeys.LambdaConst, lambda);
+
+    /// <summary>Mode-2 linear profile: <c>Q(t') = λ + φ·t'</c>.</summary>
+    public static TecnalCommand PumpLinear(double initMinutes, double finalMinutes, double lambda, double phi)
+        => PumpHeader(PumpProfileMode.Linear, initMinutes, finalMinutes)
+            .Set(CommandKeys.LambdaLinear, lambda)
+            .Set(CommandKeys.PhiLinear, phi);
+
+    /// <summary>Mode-3 exponential profile: <c>Q(t') = λ·e^(φ·t')</c>.</summary>
+    public static TecnalCommand PumpExponential(double initMinutes, double finalMinutes, double lambda, double phi)
+        => PumpHeader(PumpProfileMode.Exponential, initMinutes, finalMinutes)
+            .Set(CommandKeys.LambdaExp, lambda)
+            .Set(CommandKeys.PhiExp, phi);
+
+    /// <summary>
+    /// Mode-4 polynomial profile: <c>Q(t') = p0 + p1·t' + … + pN·t'^N</c>, one key per coefficient.
+    /// </summary>
+    /// <param name="coefficients"><c>p0..pN</c>, low order first. 1 to 21 values (firmware holds p0..p20).</param>
+    public static TecnalCommand PumpPolynomial(
+        double initMinutes, double finalMinutes, IReadOnlyList<double> coefficients)
+    {
+        ArgumentNullException.ThrowIfNull(coefficients);
+        if (coefficients.Count is < 1 or > CommandKeys.MaxPolynomialCoefficientIndex + 1)
+        {
+            throw new ArgumentException(
+                $"Polynomial mode takes 1 to {CommandKeys.MaxPolynomialCoefficientIndex + 1} coefficients.",
+                nameof(coefficients));
+        }
+
+        var command = PumpHeader(PumpProfileMode.Polynomial, initMinutes, finalMinutes);
+        for (var i = 0; i < coefficients.Count; i++)
+        {
+            command.Set(CommandKeys.PolynomialCoefficient(i), coefficients[i]);
+        }
+
+        return command;
+    }
+
+    /// <summary>
+    /// Mode-5 piecewise profile: linear interpolation through <paramref name="times"/> (minutes,
+    /// <c>t0 = 0</c>, strictly increasing) and <paramref name="flows"/> (mL/min), sent as
+    /// <c>num_segments</c> then interleaved <c>t0,q0,t1,q1,…</c> exactly as v.6 does.
+    /// </summary>
+    public static TecnalCommand PumpPiecewise(
+        double initMinutes, double finalMinutes, IReadOnlyList<double> times, IReadOnlyList<double> flows)
+    {
+        ArgumentNullException.ThrowIfNull(times);
+        ArgumentNullException.ThrowIfNull(flows);
+        if (times.Count != flows.Count)
+        {
+            throw new ArgumentException("Piecewise times and flows must have the same count.", nameof(flows));
+        }
+
+        if (times.Count is < 2 or > CommandKeys.MaxPiecewiseSegments)
+        {
+            throw new ArgumentException(
+                $"Piecewise mode takes 2 to {CommandKeys.MaxPiecewiseSegments} points.", nameof(times));
+        }
+
+        var command = PumpHeader(PumpProfileMode.Piecewise, initMinutes, finalMinutes)
+            .Set(CommandKeys.NumSegments, times.Count);
+        for (var i = 0; i < times.Count; i++)
+        {
+            command.Set(CommandKeys.PiecewiseTime(i), times[i]);
+            command.Set(CommandKeys.PiecewiseFlow(i), flows[i]);
+        }
+
+        return command;
+    }
+
+    /// <summary>The common <c>mode</c>/<c>init_t</c>/<c>final_t</c> header every profile carries.</summary>
+    private static TecnalCommand PumpHeader(PumpProfileMode mode, double initMinutes, double finalMinutes)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.Mode, (int)mode)
+            .Set(CommandKeys.InitT, initMinutes)
+            .Set(CommandKeys.FinalT, finalMinutes);
+
     /// <summary>
     /// Flow setpoint shape used while acquiring a calibration point in v.6.
     /// Both optional gas valves are closed and the inverted vent flag is derived.

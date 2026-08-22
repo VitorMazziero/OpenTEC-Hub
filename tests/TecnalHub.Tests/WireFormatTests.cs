@@ -125,6 +125,70 @@ public class WireFormatTests
         Assert.Equal("""{"restart":1}""", CommandBuilders.Restart().ToJson());
     }
 
+    // ── Biomass (Phase 3 WP1) ────────────────────────────────────────────────
+
+    [Fact]
+    public void Biomass_enable_and_momentary_actions_match_v6()
+    {
+        Assert.Equal("""{"biomassComm":1}""", CommandBuilders.BiomassComm(true).ToJson());
+        Assert.Equal("""{"biomassComm":0}""", CommandBuilders.BiomassComm(false).ToJson());
+        Assert.Equal("""{"blank":1}""", CommandBuilders.BiomassBlank().ToJson());
+        Assert.Equal("""{"start":1}""", CommandBuilders.BiomassStart().ToJson());
+        Assert.Equal("""{"stop":1}""", CommandBuilders.BiomassStop().ToJson());
+    }
+
+    [Fact]
+    public void Biomass_thresholds_are_one_atomic_integer_frame()
+        => Assert.Equal(
+            """{"low":10000,"high":40000,"opt":25000}""",
+            CommandBuilders.BiomassThresholds(10000, 40000, 25000).ToJson());
+
+    // ── External pump (Phase 3 WP2) ──────────────────────────────────────────
+
+    [Fact]
+    public void Pump_enable_and_safe_disable_match_v6()
+    {
+        Assert.Equal("""{"pumpComm":1}""", CommandBuilders.PumpEnable().ToJson());
+        // v.6's send_extern_pump_comm(false): the safe frame with the vestigial speed:0.
+        Assert.Equal("""{"pumpComm":0,"mode":0,"speed":0}""", CommandBuilders.PumpDisable().ToJson());
+    }
+
+    [Fact]
+    public void Pump_profile_frames_match_v6_key_order()
+    {
+        Assert.Equal(
+            """{"mode":1,"init_t":0.0,"final_t":60.0,"lambda_const":1.5}""",
+            CommandBuilders.PumpConstant(0, 60, 1.5).ToJson());
+
+        Assert.Equal(
+            """{"mode":2,"init_t":0.0,"final_t":60.0,"lambda_linear":1.0,"phi_linear":0.5}""",
+            CommandBuilders.PumpLinear(0, 60, 1.0, 0.5).ToJson());
+
+        Assert.Equal(
+            """{"mode":3,"init_t":0.0,"final_t":60.0,"lambda_exp":1.0,"phi_exp":0.1}""",
+            CommandBuilders.PumpExponential(0, 60, 1.0, 0.1).ToJson());
+
+        Assert.Equal(
+            """{"mode":4,"init_t":0.0,"final_t":60.0,"p0":1.0,"p1":0.5,"p2":0.1}""",
+            CommandBuilders.PumpPolynomial(0, 60, [1.0, 0.5, 0.1]).ToJson());
+
+        // Piecewise interleaves t0,q0,t1,q1,… exactly as v.6's send loop does.
+        Assert.Equal(
+            """{"mode":5,"init_t":0.0,"final_t":60.0,"num_segments":3,"t0":0.0,"q0":1.0,"t1":30.0,"q1":2.0,"t2":60.0,"q2":3.0}""",
+            CommandBuilders.PumpPiecewise(0, 60, [0.0, 30.0, 60.0], [1.0, 2.0, 3.0]).ToJson());
+    }
+
+    [Fact]
+    public void Pump_profile_rejects_out_of_range_coefficient_counts()
+    {
+        Assert.Throws<ArgumentException>(() => CommandBuilders.PumpPolynomial(0, 60, []));
+        Assert.Throws<ArgumentException>(
+            () => CommandBuilders.PumpPolynomial(0, 60, [.. Enumerable.Repeat(1.0, 22)]));
+        Assert.Throws<ArgumentException>(() => CommandBuilders.PumpPiecewise(0, 60, [0.0], [1.0]));
+        Assert.Throws<ArgumentException>(
+            () => CommandBuilders.PumpPiecewise(0, 60, [0.0, 1.0], [1.0]));
+    }
+
     /// <summary>
     /// Python floats always serialise with a decimal point. Matching that keeps a
     /// captured v.6 trace byte-comparable against ours, which is the Phase 0 exit

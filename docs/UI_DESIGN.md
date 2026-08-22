@@ -863,8 +863,8 @@ Below the table, cards for subsystems that are not simple setpoints:
 | **Dosagem — Nutriente** | `Operação` · `Mistura` · `Ciclo op.` · `Ciclo mist.` · `Intensidade %` · `Ativo` | 2 |
 | **Dosagem — Antiespumante** | `Operação` 0-999 · `Mistura` 1-999 · `Intensidade` 0-99 · `Ativo` | 2 |
 | **Controle de espuma** | `Sensor ativo` · `Referência (mm)` · `Atraso inicial (s)` · `Pulso (s)` · `Intervalo (s)` | 2 |
-| **Bomba externa** | `Ativa` · `Modo ▾` `Constante`/`Linear`/`Exponencial`/`Polinomial`/`Por segmentos` · parameters per mode · **profile preview chart** | 3 |
-| **Biomassa** | `Ativo` · `Capturar branco` · `Limiar baixo`/`alto`/`ótimo` · live `Abs`, `Raw`, `IT`, `PWM` | 3 |
+| **Bomba externa** | `Ativa` · `Modo ▾` `Constante`/`Linear`/`Exponencial`/`Polinomial`/`Por segmentos` · parameters per mode · **profile preview chart** · gás proporcional | 3 WP2 — built |
+| **Biomassa** | `Ativo` · `Capturar branco`/`Iniciar`/`Parar` · `Limiar baixo`/`alto`/`ótimo` · live `Abs`, `Raw`, `IT`, `PWM` | 3 WP1 — built |
 
 > The polynomial pump mode takes `p0..p20` — 21 coefficients. Present it as a compact
 > grid with a live curve preview, not 21 stacked labelled fields. Piecewise takes
@@ -1562,6 +1562,7 @@ explicit apply/send action visible together at 1280×800. The full operational c
 | **pH** | App parser; accepted values return to the module as quoted `pHCal` | One point keeps the current slope; two points replace the pair. Twenty accepted raw frames establish stability (`sample σ < 5` by default), then twenty distinct frames are averaged |
 | **Oxigênio** | App parser only; there is no v.6 coefficient command | Direct two-point zero/span capture with the live raw and decoded values beside the current equation |
 | **Vazão de ar** | Dedicated flowmeter firmware | Certified real-flow rows, prepare/fine-adjust controls, ten-frame `FlowVoltage` average, live plot and the fixed two-segment 0.0545 V curve |
+| **Biomassa** *(WP1)* | Sensor module; no PC-side coefficient | Guided blank capture with a live absorbance readout to confirm Abs ≈ 0, then the low/high/optimal integration thresholds (raw counts). No HD-mode state exists in the firmware, so none is shown |
 
 #### pH control and calibration interlock
 
@@ -1597,8 +1598,9 @@ flow safe-stop.
 > 2. Coefficients are applied as a pair. A calculated result remains merely proposed until
 >    the operator explicitly applies it; a flow curve remains local until explicitly sent.
 
-**Deferred:** known-level reference, biomass blank/thresholds, calibration history and
-rollback. They must use the same ownership and explicit-apply language when introduced.
+**Delivered in WP1:** the biomass blank/threshold procedure (the tab above). **Still deferred:** the
+known-level reference, calibration history and rollback. They must use the same ownership and
+explicit-apply language when introduced.
 
 ---
 

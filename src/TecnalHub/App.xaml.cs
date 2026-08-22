@@ -211,6 +211,8 @@ public partial class App : Application
         services.AddSingleton<AntifoamControlViewModel>();
         services.AddSingleton<FoamControlViewModel>();
         services.AddSingleton<FlaskAgitatorViewModel>();
+        services.AddSingleton<BiomassControlViewModel>();
+        services.AddSingleton<PumpControlViewModel>();
         services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();
         services.AddSingleton<ShellViewModel>();

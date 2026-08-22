@@ -442,6 +442,120 @@
                     </Border>
                 </Grid>
             </TabItem>
+
+            <!-- Biomass blank / threshold procedure (Phase 3 WP1) -->
+            <TabItem Header="Biomassa" Style="{StaticResource SegmentedItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,12,0,0" DataContext="{Binding Biomass}">
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusSmall}"
+                                Padding="12"
+                                Margin="0,0,0,12">
+                            <TextBlock TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="A biomassa não tem coeficiente no aplicativo: a calibração é capturar o branco (absorbância zero) contra um meio claro e definir os limiares de integração (contagens brutas). O firmware não expõe um modo HD, portanto ele não é mostrado." />
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.05*" />
+                                <ColumnDefinition Width="1.15*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left: guided blank capture -->
+                            <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
+                                <StackPanel>
+                                    <TextBlock Text="1 · Branco"
+                                               FontSize="{DynamicResource FontSizeSubtitle}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Com o meio de branco no caminho óptico, ative o sensor e capture o branco. Confirme que a absorbância se aproxima de zero."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                      IsChecked="{Binding SensorEnabled, Mode=TwoWay}"
+                                                      IsEnabled="{Binding IsConnected}"
+                                                      VerticalAlignment="Center" />
+                                        <TextBlock Text="Sensor de biomassa ativo" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    </StackPanel>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Absorbância ao vivo" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentAbsorbanceText}" Style="{StaticResource NumericTextStyle}"
+                                                       FontSize="{DynamicResource FontSizeSubtitle}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Raw" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}"
+                                                       FontSize="{DynamicResource FontSizeSubtitle}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Capturar branco"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding CaptureBlankCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Parar" Command="{Binding StopCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Right: integration thresholds -->
+                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="2 · Limiares de integração"
+                                               FontSize="{DynamicResource FontSizeSubtitle}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Contagens brutas. O baixo deve ser menor que o alto e o ótimo deve ficar entre eles."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <Grid IsEnabled="{Binding CanApplyThresholds}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="Baixo" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding LowThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                            <TextBlock Text="Alto" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding HighThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Ótimo" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Button Content="Aplicar limiares"
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            HorizontalAlignment="Right" Margin="0,12,0,0"
+                                            Command="{Binding ApplyThresholdsCommand}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="{Binding StatusText}"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,12,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </Grid>
 </UserControl>

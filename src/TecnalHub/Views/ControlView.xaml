@@ -663,6 +663,270 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+
+                            <!-- Biomassa (Phase 3 WP1) — an optical sensor, so it stays out of the safe-stop -->
+                            <Border Margin="0,12,0,0"
+                                    Background="{DynamicResource SurfaceCardBrush}"
+                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{DynamicResource RadiusMedium}"
+                                    Padding="16"
+                                    DataContext="{Binding BiomassControl}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <ctl:Icon Key="Biomass" Size="20" Margin="0,0,8,0" />
+                                            <TextBlock Text="Biomassa"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Right" />
+                                            <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                          HorizontalAlignment="Right" Margin="0,6,0,0"
+                                                          ToolTip="Ativar o sensor de biomassa" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Live readouts -->
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <StackPanel Width="110" Margin="0,0,10,10">
+                                            <TextBlock Text="Abs (AU)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBlock Text="{Binding AbsorbanceText}" Style="{StaticResource NumericTextStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Width="110" Margin="0,0,10,10">
+                                            <TextBlock Text="Raw" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBlock Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Width="110" Margin="0,0,10,10">
+                                            <TextBlock Text="IT (ms)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBlock Text="{Binding IntegrationTimeText}" Style="{StaticResource NumericTextStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Width="110" Margin="0,0,10,10">
+                                            <TextBlock Text="PWM (%)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBlock Text="{Binding PwmText}" Style="{StaticResource NumericTextStyle}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+
+                                    <!-- Momentary actions (enabled only while the sensor is on) -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <Button Content="Capturar branco" Command="{Binding BlankCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Parar" Command="{Binding StopCommand}" />
+                                    </StackPanel>
+
+                                    <!-- Integration thresholds (raw counts), applied atomically -->
+                                    <WrapPanel Margin="0,14,0,0">
+                                        <StackPanel Width="150" Margin="0,0,10,10">
+                                            <TextBlock Text="Limiar baixo" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding LowThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Contagens brutas; menor que o alto" />
+                                        </StackPanel>
+                                        <StackPanel Width="150" Margin="0,0,10,10">
+                                            <TextBlock Text="Limiar alto" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding HighThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Contagens brutas; maior que o baixo" />
+                                        </StackPanel>
+                                        <StackPanel Width="150" Margin="0,0,10,10">
+                                            <TextBlock Text="Limiar ótimo" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Contagens brutas; entre baixo e alto" />
+                                        </StackPanel>
+                                    </WrapPanel>
+                                    <TextBlock Text="Contagens brutas de integração, não unidades de engenharia. O sensor permanece ativo mesmo em parada segura."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="{Binding ValidationError}"
+                                               Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                               FontSize="{DynamicResource FontSizeCaption}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
+                                            <Button Content="Aplicar limiares" Style="{StaticResource AccentButtonStyle}"
+                                                    Command="{Binding ApplyThresholdsCommand}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Bomba externa (Phase 3 WP2) -->
+                            <Border Margin="0,12,0,0"
+                                    Background="{DynamicResource SurfaceCardBrush}"
+                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{DynamicResource RadiusMedium}"
+                                    Padding="16"
+                                    DataContext="{Binding PumpControl}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <ctl:Icon Key="Pump" Size="20" Margin="0,0,8,0" />
+                                            <TextBlock Text="Bomba externa"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding PumpFlowText, StringFormat='Vazão: {0} mL/min'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                            <TextBlock Text="{Binding PumpVolumeText, StringFormat='Volume: {0} mL'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Right" />
+                                            <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                          HorizontalAlignment="Right" Margin="0,6,0,0"
+                                                          ToolTip="Ativar a bomba externa (pumpComm)" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <StackPanel Width="170" Margin="0,0,10,10">
+                                            <TextBlock Text="Modo" Style="{StaticResource DosingFieldLabel}" />
+                                            <ComboBox ItemsSource="{Binding ModeOptions}"
+                                                      SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}"
+                                                      DisplayMemberPath="Label" />
+                                        </StackPanel>
+                                        <StackPanel Width="130" Margin="0,0,10,10">
+                                            <TextBlock Text="Tempo inicial (min)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding InitMinutesText, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Minutos ≥ 0" />
+                                        </StackPanel>
+                                        <StackPanel Width="130" Margin="0,0,10,10">
+                                            <TextBlock Text="Tempo final (min)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding FinalMinutesText, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Maior que o inicial" />
+                                        </StackPanel>
+                                    </WrapPanel>
+
+                                    <!-- Per-mode parameters -->
+                                    <WrapPanel Visibility="{Binding ShowConstant, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Width="160" Margin="0,0,10,10">
+                                            <TextBlock Text="λ (mL/min)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding LambdaConstText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+                                    <WrapPanel Visibility="{Binding ShowLinear, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Width="160" Margin="0,0,10,10">
+                                            <TextBlock Text="λ (mL/min)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding LambdaLinearText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Width="160" Margin="0,0,10,10">
+                                            <TextBlock Text="φ (mL/min²)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding PhiLinearText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+                                    <WrapPanel Visibility="{Binding ShowExponential, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Width="160" Margin="0,0,10,10">
+                                            <TextBlock Text="λ (mL/min)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding LambdaExpText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Width="160" Margin="0,0,10,10">
+                                            <TextBlock Text="φ (1/min)" Style="{StaticResource DosingFieldLabel}" />
+                                            <TextBox Text="{Binding PhiExpText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+                                    <StackPanel Visibility="{Binding ShowPolynomial, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="Coeficientes p0..p20 (vírgula)" Style="{StaticResource DosingFieldLabel}" />
+                                        <TextBox Text="{Binding PolynomialCoefficientsText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="p0, p1, p2, … — até 21 valores, ordem crescente de grau"
+                                                 Margin="0,0,0,10" />
+                                    </StackPanel>
+                                    <StackPanel Visibility="{Binding ShowPiecewise, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="Tempos t0..tN [min] (vírgula; t0 = 0, crescentes)" Style="{StaticResource DosingFieldLabel}" />
+                                        <TextBox Text="{Binding PiecewiseTimesText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                        <TextBlock Text="Vazões q0..qN [mL/min] (vírgula)" Style="{StaticResource DosingFieldLabel}" />
+                                        <TextBox Text="{Binding PiecewiseFlowsText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+                                    </StackPanel>
+
+                                    <!-- Flow / accumulated-volume preview -->
+                                    <ctl:PumpPreviewChart Preview="{Binding Preview}" PlotHeight="200" Margin="0,4,0,0" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                        <TextBlock Text="{Binding PeakFlowText, StringFormat='Pico: {0} mL/min'}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,16,0" />
+                                        <TextBlock Text="{Binding TotalVolumeText, StringFormat='Volume total: {0} mL'}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+
+                                    <!-- Proportional-gas coupling: drives the air flow from the pump volume -->
+                                    <Border Margin="0,12,0,0" Padding="12"
+                                            Background="{DynamicResource SurfaceSunkenBrush}"
+                                            CornerRadius="{DynamicResource RadiusSmall}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                              IsChecked="{Binding GasProportionalEnabled, Mode=TwoWay}"
+                                                              VerticalAlignment="Center" />
+                                                <TextBlock Text="Gás proporcional — Q_g = (V₀ + Vol/1000)·vvm"
+                                                           VerticalAlignment="Center" Margin="10,0,0,0" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <WrapPanel Margin="0,10,0,0">
+                                                <StackPanel Width="150" Margin="0,0,10,10">
+                                                    <TextBlock Text="Vol. inicial V₀ (L)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding InitialVolumeText, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel Width="150" Margin="0,0,10,10">
+                                                    <TextBlock Text="vvm" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding VvmText, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel Width="150" Margin="0,0,10,10">
+                                                    <TextBlock Text="Q_g calculado (L/min)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBlock Text="{Binding GasFlowText}" Style="{StaticResource NumericTextStyle}" />
+                                                </StackPanel>
+                                            </WrapPanel>
+                                            <TextBlock Text="Quando ativo, comanda a aeração pelo mesmo árbitro do controle manual/cascata. É recusado se a cascata detiver a aeração."
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap" Margin="0,0,0,0" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="{Binding ValidationError}"
+                                               Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                               FontSize="{DynamicResource FontSizeCaption}"
+                                               TextWrapping="Wrap" Margin="0,10,0,8" />
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
+                                            <Button Content="Aplicar perfil" Style="{StaticResource AccentButtonStyle}"
+                                                    Command="{Binding ApplyProfileCommand}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 

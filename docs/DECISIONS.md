@@ -512,6 +512,74 @@ provisional gains are not a field tuning.
 
 ---
 
+### D-021 · Biomass is an owned actuator but stays out of the safe-stop; no HD-mode is shown
+**Status:** Accepted and implemented · 2026-08-22 · see [PHASE_LOG P3-1](PHASE_LOG.md#p3-1--biomass-sensor-and-guided-procedure)
+
+Phase 3 WP1 adds the biomass optical sensor: enable, the momentary blank/start/stop, the integration
+thresholds and the live Abs/Raw/IT/PWM readouts, plus a guided Calibrações procedure.
+
+**The wire contract came from the firmware, not v.6's Python.** v.6's biomass block issues
+`biomassComm`, `blank`, `start`, `stop` and `{low,high,opt}`, and `TECNAL_ESP32_v7.ino` forwards
+exactly those (plus a `test_period` v.6 never sends). `start`/`stop` were absent from the earlier
+protocol notes; they are on the wire, so they are now `CommandKeys.BiomassStart`/`BiomassStop` and
+golden-string pinned. **The firmware exposes no HD-mode state** — the WP asked us to confirm this
+before displaying one, and the answer is no, so none is shown.
+
+**Owned for arbitration, excluded from the safe-stop for safety.** Biomass is a *measurement*, but
+its blank/threshold commands are things a future recipe could issue concurrently with the operator,
+so `ActuatorId.Biomass` is an owned arbiter actuator — a recipe claiming it blocks a manual blank,
+and vice versa. It is nonetheless left out of the operator safe-stop: stopping an optical read is not
+a safety action and blinds a measurement, the same reasoning that keeps the level/foam sensor running
+through a stop ([D-018](DECISIONS.md)).
+
+**The enable is immediate; thresholds are staged.** The enable toggle sends `biomassComm` at once, as
+v.6's checkbox does and because the firmware gates the sub-commands on it. The three thresholds are
+staged and applied together (`{low,high,opt}`), matching the app's dosing-card discipline. The
+Calibrações procedure is a thin guided wrapper — enable → capture blank → confirm Abs ≈ 0 → thresholds
+— with a link-loss refusal, since biomass has no PC-side coefficient to fit.
+
+*Rejected:* leaving biomass unowned like pure config (a recipe and the operator could then both drive
+the blank with no arbitration); including it in the safe-stop (blinds monitoring); inventing an
+HD-mode toggle the firmware does not have.
+
+---
+
+### D-022 · The external pump keeps v.6's exact profile frames; proportional gas is arbitrated as flow
+**Status:** Accepted and implemented · 2026-08-22 · see [PHASE_LOG P3-2](PHASE_LOG.md#p3-2--external-pump-profiles-preview-and-proportional-gas)
+
+Phase 3 WP2 adds the external pump: the five firmware profile modes with a live preview, the safe
+disabled frame, versioned persistence and the optional proportional-gas coupling.
+
+**Byte-parity restored two keys the docs had dropped.** Every v.6 pump-mode frame carries `init_t`
+and `final_t` (the operating window in minutes), and the firmware forwards them; earlier protocol
+revisions omitted them. They are now on every profile frame, and `t' = t − init_t` with flow zero
+before the start. The disable frame reproduces v.6's `speed:0` even though the firmware forwards
+`pump_speed` and ignores `speed` — parity over tidiness.
+
+**Proportional gas is aeration, not a pump command.** `Q_g = (V₀ + PumpVol/1000)·vvm` computes an air
+flow, so it is dispatched as a standard aeration frame through the command arbiter, owned as
+`Aeration` — which means it is refused when the cascade owns aeration, exactly as the single-owner
+model requires. It resends only on a material change to avoid flooding the bus. v.6's proportional
+path opened the nitrogen valve at zero flow (`valve_2:1`), which contradicts the safe-stop rule and
+looks like an oversight; TECNAL-Hub closes both valves on the frame and records the deviation here.
+
+**Payload-size validation is the firmware's array bounds.** The `.ino` holds `p0..p20` and
+`t0..t99`/`q0..q99`, so the app validates 1–21 coefficients and 2–100 segments (with `t0 = 0` and
+strictly increasing times) rather than guessing a byte cap for the still-open payload question
+([PROTOCOL Q2](PROTOCOL.md#5-open-questions-for-hardware-verification)).
+
+**One shared operating window, not v.6's per-mode windows.** v.6 stored `t_initial`/`t_final`
+separately under each mode; TECNAL-Hub shares one window across modes, because the window is *when the
+profile runs*, independent of its shape, and per-mode windows are a data-entry trap. `PumpControlSettings`
+is versioned (each applied send bumps it) and keeps every mode's parameters so switching mode loses
+nothing.
+
+*Rejected:* omitting `init_t`/`final_t` (breaks byte-parity); reproducing the nitrogen-open-at-zero
+quirk (unsafe); a background sender that resends identical flow frames every cycle; per-mode operating
+windows. Pump actuation and the proportional flow ride the standing bioreactor gate.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

@@ -232,7 +232,8 @@ public sealed partial class RecipePortViewModel : ObservableObject
     });
 
     /// <summary>Vertical offset of the port within the node body.</summary>
-    public double OffsetY { get; }
+    [ObservableProperty]
+    public partial double OffsetY { get; set; }
 
     /// <summary>Horizontal anchor: the left edge for inputs and loop ports, the right edge for other outputs.</summary>
     public double OffsetX => IsOnLeft ? 0 : RecipeNodeViewModel.Width;
@@ -272,6 +273,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         X = model.X;
         Y = model.Y;
         Summary = BuildSummary();
+        UpdatePortOffsets();
     }
 
     public RecipeNode Model { get; }
@@ -339,6 +341,15 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
                 return 155;
             }
 
+            if (Type is NodeType.MultiSetpoint or NodeType.MultiLoop)
+            {
+                var count = Type == NodeType.MultiSetpoint
+                    ? (Model.Parameters["pontos"] is JsonArray a ? a.Count : 0)
+                    : (Model.Parameters["controles"] is JsonArray c ? c.Count : 0);
+                var lineCount = Math.Max(1, count);
+                return HeaderHeight + BodyPadding * 2 + lineCount * 20;
+            }
+
             var left = Ports.Count(p => p.IsInput || p.IsLoop);
             var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
             return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
@@ -393,6 +404,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
             field.RefreshVisibility();
         }
 
+        UpdatePortOffsets();
+        OnPropertyChanged(nameof(Height));
         OnPropertyChanged(nameof(ManualButtonText));
         OnPropertyChanged(nameof(ManualButtonIcon));
         OnPropertyChanged(nameof(ManualButtonColor));
@@ -400,6 +413,18 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
         Changed?.Invoke();
+    }
+
+    private void UpdatePortOffsets()
+    {
+        if (Type is NodeType.MultiSetpoint or NodeType.MultiLoop)
+        {
+            var mid = (HeaderHeight + Height) / 2;
+            foreach (var port in Ports)
+            {
+                port.OffsetY = mid;
+            }
+        }
     }
 
     private static IReadOnlyList<RecipePortViewModel> BuildPorts(RecipeNode model)
@@ -436,8 +461,57 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         NodeType.PhPump => $"Bomba pH: {OptionLabel("operacao")}",
         NodeType.AntifoamPump => $"Antiespuma: {OptionLabel("operacao")}",
         NodeType.NutrientPump => $"Nutrientes: {OptionLabel("operacao")}",
+        NodeType.MultiSetpoint => FormatMultiSetpoint(Model),
+        NodeType.MultiLoop => FormatMultiLoop(Model),
         _ => Model.Definition.Title,
     };
+
+    private static string FormatMultiSetpoint(RecipeNode node)
+    {
+        if (node.Parameters["pontos"] is not JsonArray array || array.Count == 0)
+        {
+            return "Nenhum ponto de ajuste";
+        }
+
+        var lines = new List<string>();
+        var varOptions = RecipeNodeCatalog.Definition(NodeType.MultiSetpoint).Parameter("pontos")?.ItemSchema.FirstOrDefault(p => p.Key == "variavel")?.Options;
+
+        foreach (var item in array.OfType<JsonObject>())
+        {
+            var varKey = item["variavel"]?.ToString() ?? "";
+            var varLabel = varOptions?.FirstOrDefault(o => o.Value == varKey)?.Label ?? varKey;
+            var val = item["valor"] is JsonValue v && RecipeNode.TryReadNumber(v, out var n) ? n : 0.0;
+            lines.Add($"{varLabel} → {val:0.##}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    private static string FormatMultiLoop(RecipeNode node)
+    {
+        if (node.Parameters["controles"] is not JsonArray array || array.Count == 0)
+        {
+            return "Nenhum controle";
+        }
+
+        var lines = new List<string>();
+        var schema = RecipeNodeCatalog.Definition(NodeType.MultiLoop).Parameter("controles")?.ItemSchema;
+        var malhaOptions = schema?.FirstOrDefault(p => p.Key == "malha")?.Options;
+        var opOptions = schema?.FirstOrDefault(p => p.Key == "operacao")?.Options;
+
+        foreach (var item in array.OfType<JsonObject>())
+        {
+            var malhaKey = item["malha"]?.ToString() ?? "";
+            var malhaLabel = malhaOptions?.FirstOrDefault(o => o.Value == malhaKey)?.Label ?? malhaKey;
+
+            var opKey = item["operacao"]?.ToString() ?? "";
+            var opLabel = opOptions?.FirstOrDefault(o => o.Value == opKey)?.Label ?? opKey;
+
+            lines.Add($"{opLabel} {malhaLabel}");
+        }
+
+        return string.Join("\n", lines);
+    }
 
     private string OptionLabel(string key)
     {

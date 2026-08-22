@@ -201,6 +201,7 @@ public sealed class ReceitasViewModelTests
         pontos.AddRowCommand.Execute(null);
         Assert.Equal(2, pontos.Rows.Count);
         Assert.Contains(pontos.Rows[0].Fields, f => f.Key == "variavel");
+        Assert.Contains("Temperatura → 25", node.Summary);
 
         pontos.Rows[0].RemoveCommand.Execute(null);
         Assert.Single(pontos.Rows);

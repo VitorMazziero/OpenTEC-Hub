@@ -344,9 +344,9 @@
                                                 <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextOnAccentBrush}"
                                                            FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Margin="12,0" />
                                             </Border>
-                                            <TextBlock Text="{Binding Summary}" FontSize="12" Margin="12,8,12,0"
+                                            <TextBlock Text="{Binding Summary}" FontSize="12" Margin="12,8,12,8"
                                                        Visibility="{Binding ShowSummary, Converter={StaticResource BoolToVis}}"
-                                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                       TextWrapping="Wrap" LineHeight="16" Foreground="{DynamicResource TextSecondaryBrush}" />
 
                                             <!-- Intervenção Manual button & explanation -->
                                             <StackPanel Visibility="{Binding IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="10,8,10,0">

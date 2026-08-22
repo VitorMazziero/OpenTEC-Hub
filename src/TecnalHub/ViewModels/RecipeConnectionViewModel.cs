@@ -49,7 +49,7 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
 
     private void OnEndpointMoved(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(RecipeNodeViewModel.X) or nameof(RecipeNodeViewModel.Y))
+        if (e.PropertyName is nameof(RecipeNodeViewModel.X) or nameof(RecipeNodeViewModel.Y) or nameof(RecipeNodeViewModel.Height))
         {
             Recompute();
         }

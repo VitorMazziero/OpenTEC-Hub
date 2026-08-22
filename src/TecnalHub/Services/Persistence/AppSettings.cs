@@ -73,6 +73,9 @@ public sealed record AppSettings
     /// <summary>Conditional-OUR soft-sensor tuning (WP8). Observation only; it never actuates.</summary>
     public OurSettings Our { get; init; } = new();
 
+    /// <summary>Versioned gain schedule for the oxygen cascade (WP8). Off by default.</summary>
+    public GainScheduleSettings GainSchedule { get; init; } = new();
+
     /// <summary>Named, operator-saved cascade tunings. Loading one only stages the fields.</summary>
     public CascadeTuningPreset[] CascadeTuningPresets { get; init; } = [];
 
@@ -495,6 +498,40 @@ public sealed record OurSettings
     /// <summary>Causal least-squares window for dDOT/dt, in seconds.</summary>
     public double RateWindowSeconds { get; init; } = 900.0;
 }
+
+/// <summary>
+/// A versioned gain schedule for the oxygen cascade (WP8): PID gains as a function of the control
+/// effort, with a bounded transition rate. Plain data; the mapping onto the controller lives in
+/// <c>CascadeService</c>.
+/// </summary>
+/// <remarks>
+/// <b>Off by default</b> — the manuscript's single robust gain set is workable without scheduling,
+/// so this is an opt-in refinement. The default breakpoints scale the gains up with effort (the
+/// loop gain scales as 1/kLa and effort maps onto kLa), and are provisional simulator values, not a
+/// field tuning. <see cref="Version"/> is bumped on every applied edit so a change is auditable.
+/// </remarks>
+public sealed record GainScheduleSettings
+{
+    /// <summary>Bumped on each applied edit, so a schedule change is a versioned, journalled event.</summary>
+    public int Version { get; init; } = 1;
+
+    /// <summary>Whether the schedule drives the cascade gains. Off keeps the single base tuning.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>Largest change in any gain per second — the bound on a transition.</summary>
+    public double MaxGainSlewPerSecond { get; init; } = 0.05;
+
+    /// <summary>Breakpoints of (effort %, Kp, Ki, Kd), ordered by effort.</summary>
+    public GainScheduleBreakpointSettings[] Breakpoints { get; init; } =
+    [
+        new(0.0, 0.15, 0.012, 0.0),
+        new(50.0, 0.25, 0.020, 0.0),
+        new(100.0, 0.40, 0.032, 0.0),
+    ];
+}
+
+/// <summary>One persisted gain-schedule breakpoint: gains pinned to a control-effort percent.</summary>
+public sealed record GainScheduleBreakpointSettings(double EffortPercent, double Kp, double Ki, double Kd);
 
 /// <summary>
 /// Shell layout choices the operator makes and expects to find again.

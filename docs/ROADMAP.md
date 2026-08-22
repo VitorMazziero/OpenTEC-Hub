@@ -922,21 +922,24 @@ Controle page and connected with zero binding failures. The intensity `× 10` qu
 **pH-only** — nutrient and antifoam carry the raw percent. Bioreactor actuation of the pumps
 remains part of the standing hardware gate.
 
-### WP8 — conditional OUR and gain scheduling — **P1 · part 1 (OUR) done 2026-08-21 · D-019**
+### WP8 — conditional OUR and gain scheduling — **done 2026-08-21 · P1 · D-019, D-020**
 
 - [x] Implement the paper-defined conditional OUR soft sensor on live data, with explicit
       quasi-steady acceptance/refusal states and `estimado` provenance (`OurSoftSensor` +
       `OurSoftSensorService`; the manuscript's `OUR = kLa·C*·(1 − DOT/100)` inversion, gated by
       DOT-band and a causal |dDOT/dt| — the offline Savitzky-Golay derivative becomes the
-      `LeastSquaresRateEstimator`)
+      `LeastSquaresRateEstimator`) *(part 1)*
 - [x] Keep conditional OUR separate from total cultivation oxygen consumption and never
       fill refused intervals with zero (a refused frame carries **no value**, and the
-      accepted-interval integral never advances across a refused sample)
-- [ ] Add gain scheduling as a versioned controller profile whose transitions are visible,
-      bounded and journalled *(part 2)*
+      accepted-interval integral never advances across a refused sample) *(part 1)*
+- [x] Add gain scheduling as a versioned controller profile whose transitions are visible,
+      bounded and journalled (`GainSchedule` + `GainScheduler`; gains as a piecewise-linear
+      function of the control effort, slew-limited transitions, segment crossings journalled to
+      Eventos, a versioned schedule off by default) *(part 2)*
 - [~] Validate with reference traces, replay and the real cultivation receipt after WP6
-      *(part 1: 40-row cross-language parity against the manuscript's own OUR output pins the
-      inversion and the acceptance rule; the bioreactor receipt remains the field gate)*
+      *(software: 40-row cross-language parity pins the OUR inversion and the acceptance rule, and
+      the schedule + scheduler are unit- and integration-tested; the bioreactor receipt remains
+      the field gate)*
 
 **Part 1 delivered — [D-019](DECISIONS.md):** the conditional-OUR soft sensor as a pure core
 (`OurSoftSensor`, tested headlessly) plus a live service that reads DOT and airflow from telemetry,
@@ -946,6 +949,15 @@ value while accepted, the reason while refused, the kLa behind it and the accept
 366/366 tests (13 new, incl. paper parity); a live simulator run rendered the panel with the honest
 `Aguardando o DOT atingir o setpoint` refusal and zero binding failures
 (`docs/evidence/ui/phase2-wp8-our-panel.png`).
+
+**Part 2 delivered — [D-020](DECISIONS.md):** gain scheduling. The manuscript's loop gain scales as
+1/kLa and effort maps onto kLa, so the gains follow the control effort along a versioned
+piecewise-linear schedule (`GainSchedule`), and a `GainScheduler` slew-limits the effective gains so
+even a fast effort excursion cannot step-change them. `CascadeService` retunes the velocity-form
+controller each armed frame — bumplessly, without disturbing the probe history — and journals every
+segment crossing to Eventos. **Off by default**, because the paper shows a single robust set is
+workable without scheduling. The tuning workspace gains an `Escalonamento de ganho` card: the
+enable, the transition bound, the versioned breakpoints and the live active gains and segment.
 
 ---
 

@@ -52,6 +52,7 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         _settings = settings;
 
         LoadFrom(settings.Current.Cascade);
+        LoadSchedule(settings.Current.GainSchedule);
 
         foreach (var preset in settings.Current.CascadeTuningPresets
                      .Where(p => !string.IsNullOrWhiteSpace(p.Name))
@@ -195,6 +196,79 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
     [ObservableProperty]
     public partial bool IsSaturated { get; set; }
+
+    // ── Gain scheduling (WP8) ────────────────────────────────────────────────
+    // Off by default: the manuscript's single robust gain set works without it. When on, the
+    // gains follow the control effort along a versioned schedule, with a bounded transition rate.
+
+    [ObservableProperty]
+    public partial bool GainScheduleEnabled { get; set; }
+
+    /// <summary>Largest change in any gain per second — the bound on a transition.</summary>
+    [ObservableProperty]
+    public partial double MaxGainSlew { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasScheduleChange { get; set; }
+
+    /// <summary>The versioned schedule breakpoints, shown read-only (their gains come from tuning).</summary>
+    public ObservableCollection<GainScheduleBreakpointSettings> ScheduleBreakpoints { get; } = [];
+
+    /// <summary>True while a schedule is actively driving the gains this run.</summary>
+    public bool IsGainSchedulingActive => _cascade.IsGainSchedulingEnabled;
+
+    public string GainScheduleSummary =>
+        $"Perfil v{_cascade.GainScheduleVersion} · {ScheduleBreakpoints.Count} pontos por esforço";
+
+    /// <summary>The gains the schedule is currently applying, or an em dash when off.</summary>
+    public string ScheduledGainsText => _cascade.ScheduledGains is { } g
+        ? string.Create(CultureInfo.CurrentCulture, $"Kp {g.Kp:F3} · Ki {g.Ki:F4} · Kd {g.Kd:F3}")
+        : "—";
+
+    public string GainScheduleSegmentText => _cascade.IsGainSchedulingEnabled
+        ? $"Segmento {_cascade.GainScheduleSegment}/{_cascade.GainScheduleSegmentCount}"
+        : "—";
+
+    partial void OnGainScheduleEnabledChanged(bool value) => RefreshScheduleChange();
+
+    partial void OnMaxGainSlewChanged(double value) => RefreshScheduleChange();
+
+    [RelayCommand]
+    private void ApplyGainSchedule()
+    {
+        if (!double.IsFinite(MaxGainSlew) || MaxGainSlew <= 0)
+        {
+            StatusText = "O limite de variação do ganho deve ser um valor positivo.";
+            return;
+        }
+
+        var current = _settings.Current.GainSchedule;
+        var changed = current.Enabled != GainScheduleEnabled ||
+                      Math.Abs(current.MaxGainSlewPerSecond - MaxGainSlew) > 1e-12;
+
+        var schedule = current with
+        {
+            Enabled = GainScheduleEnabled,
+            MaxGainSlewPerSecond = MaxGainSlew,
+            // Each applied edit is a new version, so a schedule change is auditable.
+            Version = changed ? current.Version + 1 : current.Version,
+        };
+
+        _cascade.ConfigureGainSchedule(schedule);
+        _settings.Update(s => s with { GainSchedule = schedule });
+        HasScheduleChange = false;
+        RefreshScheduleLive();
+        StatusText = GainScheduleEnabled
+            ? $"Escalonamento de ganho ativado (perfil v{schedule.Version})."
+            : "Escalonamento de ganho desativado; a cascata usa a sintonia única.";
+    }
+
+    [RelayCommand]
+    private void RevertGainSchedule()
+    {
+        LoadSchedule(_settings.Current.GainSchedule);
+        StatusText = "Alterações do escalonamento de ganho revertidas.";
+    }
 
     // ── Allocation bar (0-100 % effort track, in star units) ─────────────────
 
@@ -491,6 +565,7 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
     private void OnCascadeUpdated()
     {
         RefreshLive();
+        RefreshScheduleLive();
         if (IsArmed != _cascade.IsArmed)
         {
             IsArmed = _cascade.IsArmed;
@@ -499,6 +574,42 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         // A safe abort disengages the cascade from under the operator; keep the button and
         // the kLa readout in step with the service.
         RefreshEngage();
+    }
+
+    private void LoadSchedule(GainScheduleSettings s)
+    {
+        _loading = true;
+        GainScheduleEnabled = s.Enabled;
+        MaxGainSlew = s.MaxGainSlewPerSecond;
+        ScheduleBreakpoints.Clear();
+        foreach (var breakpoint in s.Breakpoints.OrderBy(b => b.EffortPercent))
+        {
+            ScheduleBreakpoints.Add(breakpoint);
+        }
+
+        _loading = false;
+        HasScheduleChange = false;
+        RefreshScheduleLive();
+    }
+
+    private void RefreshScheduleChange()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        var current = _settings.Current.GainSchedule;
+        HasScheduleChange = current.Enabled != GainScheduleEnabled ||
+                            Math.Abs(current.MaxGainSlewPerSecond - MaxGainSlew) > 1e-12;
+    }
+
+    private void RefreshScheduleLive()
+    {
+        OnPropertyChanged(nameof(IsGainSchedulingActive));
+        OnPropertyChanged(nameof(ScheduledGainsText));
+        OnPropertyChanged(nameof(GainScheduleSegmentText));
+        OnPropertyChanged(nameof(GainScheduleSummary));
     }
 
     private void RefreshLive()

@@ -1222,3 +1222,40 @@ Off-map points yield no kLa rather than an extrapolation.
 
 **Boundary:** the OUR trace against a real cultivation is part of the standing bioreactor gate;
 the simulator's placeholder kLa is not biological validation.
+
+---
+
+### P2-14 · Gain scheduling is opt-in, effort-scheduled and slew-bounded
+
+**Decided:** close WP8 with gain scheduling as an opt-in, versioned refinement — a pure
+`GainSchedule` + `GainScheduler`, driven by `CascadeService` — rather than a change to the control
+law. See [D-020](DECISIONS.md).
+
+**The paper argued me out of making it the default.** `PID_tunning/RESULTS.md` shows the loop gain
+scales as 1/kLa and the closed-loop sensitivity is nearly flat across a fourteen-fold kLa change,
+"which is what makes a single fixed gain set workable without gain scheduling." So the honest
+baseline is the single robust set, and scheduling ships **off** — the operator turns it on.
+
+**Effort is the scheduling variable because it is always there.** kLa needs an active published
+map; the control effort is the loop's own output and exists every frame, and along the path it
+tracks kLa. Raising the gains with effort is therefore the causal analogue of the 1/kLa scaling.
+`GainSchedule` interpolates linearly between (effort, Kp, Ki, Kd) breakpoints and holds flat outside
+them.
+
+**Bounded means slew-limited, and the velocity form makes it bumpless.** `GainScheduler` moves the
+effective gains toward the scheduled target no faster than a per-second limit, so a fast effort
+excursion cannot step the gains. Because the controller is velocity-form, swapping gains does not
+jump the output, so `CascadeService` retunes each armed frame without disturbing the rate window or
+the probe history — verified end to end: driving the effort past a 50 % breakpoint raised Kp above
+the base and wrote one journal entry per crossing.
+
+**Journalled and versioned for auditability.** Each segment crossing goes to Eventos under
+`Aplicação`, and the schedule carries a version bumped on every applied edit. A gain change is a
+line in the record, not an invisible shift.
+
+**Evidence:** 376/376 tests (14 new): the schedule maths and validation, the scheduler's slew and
+single-crossing report, and the cascade integration (gains rise with effort and are journalled; a
+disabled schedule keeps the single base tuning).
+
+**Boundary:** the breakpoint gain values are provisional simulator numbers; field values ride the
+standing bioreactor gate. This closes the Phase 2 software scope.

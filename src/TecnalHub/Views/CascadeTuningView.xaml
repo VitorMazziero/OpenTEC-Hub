@@ -25,7 +25,7 @@
             <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="Margin" Value="0,0,0,7" />
         </Style>
-        <Style x:Key="CardTitle" TargetType="TextBlock">
+        <Style x:Key="CardTitle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="{DynamicResource FontSizeSubtitle}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,10" />
@@ -91,8 +91,6 @@
                                       ToolTip="Sempre ativa nesta fase; a alocação divide o esforço entre agitação e aeração." />
                             <CheckBox Content="Aeração" IsChecked="True" IsEnabled="False" Margin="0,4,0,0"
                                       ToolTip="Sempre ativa nesta fase." />
-                            <CheckBox Content="Enriquecimento (N₂)" IsChecked="False" IsEnabled="False" Margin="0,4,0,0"
-                                      ToolTip="Requer a validação do caminho de enriquecimento (Fase 2, depois da cascata base)." />
                         </StackPanel>
                     </Border>
 
@@ -142,6 +140,93 @@
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="{DynamicResource FontSizeCaption}"
                                        Text="A saída é integrada: Saída[i] = Saída[i−1] + dSaída[i]. O horizonte de predição compensa o tempo morto da sonda; por isso Kp é pequeno — Kp × horizonte é a ação derivativa efetiva." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Escalonamento de ganho (WP8) -->
+                    <Border Background="{DynamicResource SurfaceCardBrush}"
+                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                            Padding="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Escalonamento de ganho" Style="{StaticResource CardTitle}" />
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                              IsChecked="{Binding GainScheduleEnabled, Mode=TwoWay}"
+                                              ToolTip="Fazer os ganhos seguirem o esforço de controle" />
+                            </Grid>
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       Text="Os ganhos seguem o esforço de controle (∝ kLa), com transição limitada. Desligado, a cascata usa a sintonia única — o conjunto robusto do manuscrito, suficiente sem escalonamento." />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Limite de variação (/s)" Style="{StaticResource FieldLabel}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Style="{StaticResource TuningBox}" Text="{Binding MaxGainSlew}" Margin="8,0,0,0" />
+                            </StackPanel>
+
+                            <!-- Versioned schedule breakpoints (read-only; gains come from tuning). -->
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Esforço" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Grid.Column="1" Text="Kp" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Grid.Column="2" Text="Ki" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Grid.Column="3" Text="Kd" Style="{StaticResource FieldLabel}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding ScheduleBreakpoints}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Style="{StaticResource TermValue}"
+                                                       HorizontalAlignment="Left"
+                                                       Text="{Binding EffortPercent, StringFormat={}{0:F0} %}" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource TermValue}"
+                                                       HorizontalAlignment="Left"
+                                                       Text="{Binding Kp, StringFormat=F3}" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource TermValue}"
+                                                       HorizontalAlignment="Left"
+                                                       Text="{Binding Ki, StringFormat=F4}" />
+                                            <TextBlock Grid.Column="3" Style="{StaticResource TermValue}"
+                                                       HorizontalAlignment="Left"
+                                                       Text="{Binding Kd, StringFormat=F3}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Separator Margin="0,8" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Ganhos ativos" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ScheduledGainsText}" Style="{StaticResource TermValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Segmento" Style="{StaticResource TermLabel}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding GainScheduleSegmentText}" Style="{StaticResource TermValue}" />
+                            </Grid>
+                            <TextBlock Text="{Binding GainScheduleSummary}" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="{DynamicResource FontSizeCaption}" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                <Button Content="Reverter" Margin="0,0,6,0" Command="{Binding RevertGainScheduleCommand}" />
+                                <Button Content="Aplicar escalonamento" Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding ApplyGainScheduleCommand}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -489,3 +574,4 @@
         </Border>
     </Grid>
 </UserControl>
+

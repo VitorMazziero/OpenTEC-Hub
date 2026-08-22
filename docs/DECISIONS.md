@@ -475,6 +475,43 @@ of the OUR trace rides the standing hardware gate.
 
 ---
 
+### D-020 · Gain scheduling is opt-in, scheduled by effort, with slew-bounded and journalled transitions
+**Status:** Accepted and implemented · 2026-08-21 · see [PHASE_LOG P2-14](PHASE_LOG.md#p2-14--gain-scheduling-is-opt-in-effort-scheduled-and-slew-bounded)
+
+WP8 part 2 adds gain scheduling to the oxygen cascade. It is a controller refinement, not a
+requirement, and it never changes what the cascade sends beyond the gains it uses.
+
+**Off by default, because the manuscript says a single set is enough.** The paper's tuning study
+shows the loop gain scales as 1/kLa and the closed-loop sensitivity is nearly flat across a
+fourteen-fold kLa change, which is what makes one fixed, robust gain set workable *without*
+scheduling. So `GainScheduleSettings.Enabled` defaults to false — the cascade keeps its single base
+tuning ([D-013](DECISIONS.md)) unless an operator turns scheduling on.
+
+**Scheduled by the control effort, which maps onto kLa.** The effort is the loop's own output and
+is always available, and along the published path it increases monotonically with kLa — so raising
+the gains with effort is the causal way to hold the loop gain roughly constant. `GainSchedule` is a
+piecewise-linear map of effort → (Kp, Ki, Kd), interpolated between breakpoints and held flat
+outside them; the default breakpoints scale the gains up with effort and are provisional simulator
+values, not a field tuning.
+
+**Bounded transitions, bumpless substitution.** `GainScheduler` slew-limits the effective gains so
+even a fast effort excursion cannot step-change the loop's responsiveness. The velocity-form
+controller makes the substitution bumpless in the output — the gains multiply the increment, not
+the absolute output — so `CascadeService.Retune` swaps gains each armed frame without touching the
+rate window or the probe history.
+
+**Versioned and journalled.** The schedule carries a version bumped on every applied edit, and each
+segment crossing (the effort passing a breakpoint) is written to Eventos, so a change in the active
+gains is auditable rather than invisible.
+
+*Rejected:* baking the schedule into the controller (it must stay a pure, single-tuning law);
+scheduling by raw kLa (unavailable without an active map, whereas effort always is); an unbounded
+gain change on an effort excursion; making scheduling the default (the paper's single set is the
+honest baseline). Field breakpoint values ride the standing bioreactor gate; the simulator's
+provisional gains are not a field tuning.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

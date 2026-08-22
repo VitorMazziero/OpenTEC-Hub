@@ -1,7 +1,9 @@
+using System.Globalization;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Telemetry;
 
 namespace TecnalHub.Services.Control;
 
@@ -98,6 +100,24 @@ public interface ICascadeService
 
     /// <summary>Clears the reported integral contribution while the loop keeps running.</summary>
     void ResetIntegral();
+
+    /// <summary>True when a gain schedule is driving the cascade gains (WP8).</summary>
+    bool IsGainSchedulingEnabled { get; }
+
+    /// <summary>The gains the schedule is currently applying, or null when scheduling is off.</summary>
+    GainSet? ScheduledGains { get; }
+
+    /// <summary>The active schedule segment (1-based for display), or 0 when off.</summary>
+    int GainScheduleSegment { get; }
+
+    /// <summary>The number of schedule segments, or 0 when off.</summary>
+    int GainScheduleSegmentCount { get; }
+
+    /// <summary>The active schedule version, for the versioned-profile display.</summary>
+    int GainScheduleVersion { get; }
+
+    /// <summary>Applies a new gain schedule (WP8), rebuilding the scheduler around the base tuning.</summary>
+    void ConfigureGainSchedule(GainScheduleSettings schedule);
 }
 
 /// <inheritdoc cref="ICascadeService"/>
@@ -113,6 +133,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
     private readonly IKlaProfileStore _store;
+    private readonly IEventJournal? _journal;
     private readonly TimeProvider _time;
     private readonly double _nominalStepSeconds;
 
@@ -120,6 +141,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
     private CascadeController _controller;
     private CascadeSettings _configuration;
+    private GainScheduleSettings _gainSchedule;
+    private GainScheduler? _scheduler;
     private DateTimeOffset? _lastStepAt;
     private IReadOnlyList<KlaPublishedProfile> _availablePaths = [];
     private int _staleOxygenFrames;
@@ -129,7 +152,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         ICommandArbiter arbiter,
         ISettingsService settings,
         IKlaProfileStore store,
-        TimeProvider time)
+        TimeProvider time,
+        IEventJournal? journal = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(arbiter);
@@ -140,10 +164,13 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _device = device;
         _arbiter = arbiter;
         _store = store;
+        _journal = journal;
         _time = time;
         _configuration = settings.Current.Cascade;
+        _gainSchedule = settings.Current.GainSchedule;
         _nominalStepSeconds = Math.Max(settings.Current.Connection.DataDelayMs, 250) / 1000.0;
         _controller = Build(_configuration);
+        RebuildScheduler();
 
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.OwnershipChanged += OnOwnershipChanged;
@@ -176,6 +203,16 @@ public sealed class CascadeService : ICascadeService, IDisposable
     public double? LatestOxygen { get; private set; }
 
     public CascadeTrend Trend => _trend;
+
+    public bool IsGainSchedulingEnabled => _scheduler is not null;
+
+    public GainSet? ScheduledGains => _scheduler?.Effective;
+
+    public int GainScheduleSegment => _scheduler is { } s ? s.Segment + 1 : 0;
+
+    public int GainScheduleSegmentCount => _scheduler is not null ? _gainSchedule.Breakpoints.Length - 1 : 0;
+
+    public int GainScheduleVersion => _gainSchedule.Version;
 
     public event Action? Updated;
 
@@ -237,7 +274,60 @@ public sealed class CascadeService : ICascadeService, IDisposable
             _controller.OxygenSetpoint = settings.OxygenSetpointPercent;
         }
 
+        // The base tuning changed, so a live schedule must ramp from the new base.
+        RebuildScheduler();
         Updated?.Invoke();
+    }
+
+    public void ConfigureGainSchedule(GainScheduleSettings schedule)
+    {
+        ArgumentNullException.ThrowIfNull(schedule);
+
+        _gainSchedule = schedule;
+        RebuildScheduler();
+        Updated?.Invoke();
+    }
+
+    /// <summary>
+    /// (Re)builds the gain scheduler from the current schedule settings and base tuning. An invalid
+    /// or disabled schedule leaves the controller on its single base tuning.
+    /// </summary>
+    private void RebuildScheduler()
+    {
+        if (!_gainSchedule.Enabled)
+        {
+            _scheduler = null;
+            return;
+        }
+
+        var breakpoints = ToSchedule(_gainSchedule);
+        if (GainSchedule.ValidateBreakpoints(breakpoints).Count > 0)
+        {
+            _scheduler = null;
+            return;
+        }
+
+        var baseTuning = ToTuning(_configuration);
+        _scheduler = new GainScheduler(
+            new GainSchedule(breakpoints),
+            baseTuning,
+            Math.Max(_gainSchedule.MaxGainSlewPerSecond, 1e-6),
+            new GainSet(baseTuning.Kp, baseTuning.Ki, baseTuning.Kd));
+    }
+
+    private static IReadOnlyList<GainScheduleBreakpoint> ToSchedule(GainScheduleSettings s)
+        => [.. s.Breakpoints.Select(b => new GainScheduleBreakpoint(b.EffortPercent, b.Kp, b.Ki, b.Kd))];
+
+    private void JournalGainTransition(GainScheduleUpdate update)
+    {
+        var c = CultureInfo.CurrentCulture;
+        _journal?.Add(
+            AuditSource.Application,
+            AuditSeverity.Information,
+            $"Escalonamento de ganho da cascata: segmento {update.Segment + 1}/{_gainSchedule.Breakpoints.Length - 1} " +
+            $"em esforço {update.EffortPercent.ToString("F0", c)} %.",
+            $"Kp={update.Effective.Kp.ToString("F3", c)}, Ki={update.Effective.Ki.ToString("F4", c)}, " +
+            $"Kd={update.Effective.Kd.ToString("F3", c)} (perfil v{_gainSchedule.Version}).");
     }
 
     public void SelectMode(CascadeMode mode)
@@ -463,6 +553,19 @@ public sealed class CascadeService : ICascadeService, IDisposable
         if (dt <= 0)
         {
             dt = _nominalStepSeconds;
+        }
+
+        // Gain scheduling (WP8): drive the controller's gains from the current control effort,
+        // with a bounded transition, before this step's update. Only the gains change — the rate
+        // window is untouched, so the probe history is preserved.
+        if (_scheduler is { } scheduler)
+        {
+            var scheduled = scheduler.Step(_controller.Effort, dt);
+            _controller.Retune(scheduled.Tuning);
+            if (scheduled.SegmentChanged)
+            {
+                JournalGainTransition(scheduled);
+            }
         }
 
         LastActuation = _controller.Update(oxygen, dt);

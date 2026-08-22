@@ -10,6 +10,38 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.20.0] - 2026-08-21
+
+Phase 2 WP8 (part 2) — controller gain scheduling. This closes WP8, and with it the Phase 2
+software scope. Advisory/actuation behaviour is otherwise unchanged; a bioreactor run is the
+remaining gate.
+
+### Added
+- **`GainSchedule`** — PID gains as a piecewise-linear function of the control effort. The
+  manuscript's loop gain scales as 1/kLa and the effort maps onto kLa along the published path, so
+  a schedule that raises the gains with effort holds the loop gain roughly constant across the
+  operating range. Gains interpolate between breakpoints and hold flat outside them.
+- **`GainScheduler`** — drives the schedule against the live effort with **bounded** transitions:
+  the effective gains move toward the scheduled target no faster than a slew limit, so even a fast
+  effort excursion cannot step-change the loop's responsiveness. Reports the schedule segment so a
+  crossing can be journalled.
+- **`CascadeService` integration** — when a schedule is enabled, the service retunes the
+  velocity-form controller each armed frame (bumpless: only the gains change, the rate window and
+  probe history are untouched) and journals every segment crossing to Eventos.
+- **`GainScheduleSettings`** — a **versioned** schedule (enable, slew bound, breakpoints), **off by
+  default**, since the paper shows a single robust gain set is workable without scheduling. Each
+  applied edit bumps the version.
+- **`Escalonamento de ganho` card** on `Controle → Cascata e sintonia`: the enable toggle, the
+  transition bound, the versioned breakpoint table and the live active gains and segment.
+
+### Verified
+- 376/376 tests pass (14 new): the schedule's interpolation/clamping/segment mapping and validation,
+  the scheduler's bounded slew and single segment-crossing report, and — end to end — the cascade
+  driving the gains up with effort across a breakpoint and journalling it, plus a disabled schedule
+  leaving the single base tuning.
+
+---
+
 ## [0.19.0] - 2026-08-21
 
 Phase 2 WP8 (part 1) — the conditional-OUR soft sensor. The manuscript's oxygen-uptake-rate

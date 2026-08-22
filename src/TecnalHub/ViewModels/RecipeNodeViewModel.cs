@@ -350,6 +350,12 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
                 return HeaderHeight + BodyPadding * 2 + lineCount * 20;
             }
 
+            if (Type is NodeType.PhPump or NodeType.AntifoamPump or NodeType.NutrientPump or NodeType.PumpControl)
+            {
+                var lineCount = Math.Max(1, Model.Definition.Parameters.Count);
+                return HeaderHeight + BodyPadding * 2 + lineCount * 18;
+            }
+
             var left = Ports.Count(p => p.IsInput || p.IsLoop);
             var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
             return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
@@ -417,7 +423,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     private void UpdatePortOffsets()
     {
-        if (Type is NodeType.MultiSetpoint or NodeType.MultiLoop)
+        if (Type is NodeType.MultiSetpoint or NodeType.MultiLoop
+            or NodeType.PhPump or NodeType.AntifoamPump or NodeType.NutrientPump or NodeType.PumpControl)
         {
             var mid = (HeaderHeight + Height) / 2;
             foreach (var port in Ports)
@@ -458,13 +465,45 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
             ? Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "Pular Cascata" : "Continuar Cascata"
             : OptionLabel("operacao"),
         NodeType.LogEvent => Model.Text("mensagem"),
-        NodeType.PhPump => $"Bomba pH: {OptionLabel("operacao")}",
-        NodeType.AntifoamPump => $"Antiespuma: {OptionLabel("operacao")}",
-        NodeType.NutrientPump => $"Nutrientes: {OptionLabel("operacao")}",
+        NodeType.PhPump => FormatPump(Model),
+        NodeType.AntifoamPump => FormatPump(Model),
+        NodeType.NutrientPump => FormatPump(Model),
+        NodeType.PumpControl => FormatPump(Model),
         NodeType.MultiSetpoint => FormatMultiSetpoint(Model),
         NodeType.MultiLoop => FormatMultiLoop(Model),
         _ => Model.Definition.Title,
     };
+
+    private string FormatPump(RecipeNode node)
+    {
+        var lines = new List<string>();
+        foreach (var param in node.Definition.Parameters)
+        {
+            var key = param.Key;
+            var label = param.Label;
+            if (param.Kind == ParameterKind.Enum)
+            {
+                var optLabel = OptionLabel(key);
+                lines.Add($"{label}: {optLabel}");
+            }
+            else if (param.Kind is ParameterKind.Number or ParameterKind.Integer)
+            {
+                var val = node.Number(key);
+                var unit = string.IsNullOrEmpty(param.Unit) ? "" : " " + param.Unit;
+                lines.Add($"{label}: {val:0.##}{unit}");
+            }
+            else if (param.Kind == ParameterKind.Text)
+            {
+                var text = node.Text(key);
+                if (!string.IsNullOrEmpty(text))
+                {
+                    lines.Add($"{label}: {text}");
+                }
+            }
+        }
+
+        return string.Join("\n", lines);
+    }
 
     private static string FormatMultiSetpoint(RecipeNode node)
     {

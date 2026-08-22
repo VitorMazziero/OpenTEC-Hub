@@ -1009,9 +1009,13 @@ add the automation that v.6 never had.
       block library, draggable node canvas with click-to-connect, a property pane generated from
       the schema, a live validation strip, the JSON panel and the Iniciar/Pausar/Parar controls;
       Modo → Receita. [D-023](DECISIONS.md).
-- [ ] **Remaining polish:** drag-from-library, pan/zoom/minimap, repeating-list (`Múltiplos…`)
-      editing, recipe tabs and the library tab, save/load to disk, and the live cascade P/I/D
-      readout in the properties pane during a run.
+- [x] **Canvas editor finalized (v0.24.0):** recipe tabs + Minhas Receitas library with save/load,
+      wheel-zoom/drag-pan, orthogonal connectors with arrows, block/connection select+delete,
+      undo/redo, repeating-list (`Múltiplos…`) editing, click-a-finding-to-centre, pt-BR labels, and
+      the cascade loop corrected to the original (Saída Loop → a Monitorar/Intervenção Manual exit
+      condition). [D-023](DECISIONS.md).
+- [ ] **Minor polish deferred:** drag-from-library (click-to-add works today), a minimap, an
+      editable JSON panel, and the live cascade P/I/D readout in the properties pane during a run.
 - [ ] **Hardware confirmation:** the pump-block field mapping (`pHOperation`/`nutriIntensity`/…),
       the `Controle da Bomba` external-pump target (WP2), and the vvm→L/min aeration coupling.
 

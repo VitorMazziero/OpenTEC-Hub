@@ -10,6 +10,32 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ---
 
+## [0.24.0] - 2026-08-22
+
+**Receitas finalization.** After a first operator run of the page, the canvas becomes a real
+editor: recipe tabs and a Minhas Receitas library, zoom/pan, orthogonal connectors with arrows,
+block and connection deletion, undo/redo, repeating-list editing, and the cascade loop corrected to
+the ReceitasTECNAL semantics. See [D-023](DECISIONS.md).
+
+### Added
+- **Recipe tabs + Minhas Receitas library.** `Nova Receita` opens a new tab instead of replacing the
+  current one; recipes are saved as versioned JSON in the per-user recipes folder (`RecipeStore`),
+  listed in a library tab with `Abrir` / `Duplicar` / `Excluir`; `Salvar` / `Carregar` wired.
+- **Canvas interaction.** Wheel-zoom toward the cursor and drag-to-pan; orthogonal (90°) connectors
+  with arrowheads; click a connection to select and `Delete` to remove it; click a block + `Delete`
+  to remove it; undo/redo (`Ctrl+Z` / `Ctrl+Y`); clicking a validation finding centres its block.
+- **`Múltiplos Pontos de Ajuste` / `Múltiplos Controles`.** Repeating-row editing (add/remove),
+  generated from the block's item schema.
+
+### Changed
+- **Cascade loop matches the original.** The `Saída Loop` wires to the loop's exit *condition* — a
+  `Monitorar Variável` (automatic exit) or an `Intervenção Manual` (a Continuar/Pular switch) — read
+  each iteration, rather than run as a subgraph. `Intervenção Manual` is dual-role by wiring.
+- **pt-BR everywhere.** Option dropdowns show their labels (not `RecipeOption { … }`), and block
+  summaries read in pt-BR (e.g. `pH < 0`, not `Ph LessThan 0`).
+
+---
+
 ## [0.23.0] - 2026-08-22
 
 **Phase 3 WP4 — Receitas.** The graphical experimental-protocol editor, integrated directly into

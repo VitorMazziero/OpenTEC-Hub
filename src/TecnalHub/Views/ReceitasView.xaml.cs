@@ -42,19 +42,31 @@ public partial class ReceitasView : UserControl
         if (e.OldValue is ReceitasViewModel old)
         {
             old.CenterOnNodeRequested -= CenterOnNode;
+            old.RequestViewportCenter -= GetViewportCenter;
         }
 
         if (e.NewValue is ReceitasViewModel current)
         {
             current.CenterOnNodeRequested += CenterOnNode;
+            current.RequestViewportCenter += GetViewportCenter;
         }
+    }
+
+    private (double X, double Y) GetViewportCenter()
+    {
+        var scale = ZoomTransform.ScaleX <= 0 ? 1 : ZoomTransform.ScaleX;
+        var width = ViewportBorder.ActualWidth > 0 ? ViewportBorder.ActualWidth : 800;
+        var height = ViewportBorder.ActualHeight > 0 ? ViewportBorder.ActualHeight : 500;
+        var cx = (-PanTransform.X + width / 2) / scale - RecipeNodeViewModel.Width / 2;
+        var cy = (-PanTransform.Y + height / 2) / scale - 40;
+        return (cx, cy);
     }
 
     // ── Node drag ─────────────────────────────────────────────────────────────
 
     private void OnNodeMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: RecipeNodeViewModel node })
+        if (e.ChangedButton == MouseButton.Left && sender is FrameworkElement { DataContext: RecipeNodeViewModel node })
         {
             Focus();
             ViewModel?.SelectedTab?.SelectNode(node);
@@ -65,6 +77,10 @@ public partial class ReceitasView : UserControl
             _originY = node.Y;
             ViewportBorder.CaptureMouse();
             e.Handled = true;
+        }
+        else if (e.ChangedButton is MouseButton.Right or MouseButton.Middle)
+        {
+            OnViewportMouseDown(sender, e);
         }
     }
 
@@ -156,10 +172,14 @@ public partial class ReceitasView : UserControl
 
     // ── Canvas: pan on empty drag, plus node move ──────────────────────────────
 
-    private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
+    private void OnViewportMouseDown(object sender, MouseButtonEventArgs e)
     {
         Focus();
-        ViewModel?.SelectedTab?.SelectNode(null);
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            ViewModel?.SelectedTab?.SelectNode(null);
+        }
+
         _panning = true;
         _panStart = e.GetPosition(this);
         _panOriginX = PanTransform.X;
@@ -184,8 +204,8 @@ public partial class ReceitasView : UserControl
             }
 
             var position = e.GetPosition(CanvasRoot);
-            _dragNode.X = Math.Max(0, _originX + (position.X - _dragStart.X));
-            _dragNode.Y = Math.Max(0, _originY + (position.Y - _dragStart.Y));
+            _dragNode.X = _originX + (position.X - _dragStart.X);
+            _dragNode.Y = _originY + (position.Y - _dragStart.Y);
         }
         else if (_panning)
         {
@@ -195,7 +215,7 @@ public partial class ReceitasView : UserControl
         }
     }
 
-    private void OnCanvasMouseUp(object sender, MouseButtonEventArgs e)
+    private void OnViewportMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (_connectDragging)
         {

@@ -90,6 +90,7 @@
                     <Button Content="Excluir bloco" Command="{Binding DeleteSelectedCommand}" Padding="12,6" />
                     <Button Content="↶" ToolTip="Desfazer (Ctrl+Z)" Command="{Binding UndoCommand}" Margin="8,0,0,0" Padding="10,6" />
                     <Button Content="↷" ToolTip="Refazer (Ctrl+Y)" Command="{Binding RedoCommand}" Margin="4,0,0,0" Padding="10,6" />
+                    <ToggleButton Content="📋 JSON &amp; Validação" IsChecked="{Binding ShowJsonPanel, Mode=TwoWay}" Margin="12,0,0,0" Padding="10,6" ToolTip="Exibir ou ocultar o painel inferior de JSON e Validação" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -238,16 +239,15 @@
             <!-- Canvas -->
             <Border Grid.Column="1" x:Name="ViewportBorder" ClipToBounds="True" Background="{DynamicResource SurfaceSunkenBrush}"
                     Visibility="{Binding ShowCanvas, Converter={StaticResource BoolToVis}}"
-                    MouseLeftButtonDown="OnCanvasMouseDown" MouseMove="OnCanvasMouseMove" MouseLeftButtonUp="OnCanvasMouseUp"
+                    MouseDown="OnViewportMouseDown" MouseMove="OnCanvasMouseMove" MouseUp="OnViewportMouseUp"
                     MouseWheel="OnViewportWheel">
-                <Grid x:Name="CanvasRoot" HorizontalAlignment="Left" VerticalAlignment="Top"
-                      Width="100000" Height="100000" Background="Transparent">
-                    <Grid.RenderTransform>
+                <Canvas x:Name="CanvasRoot" Background="Transparent">
+                    <Canvas.RenderTransform>
                         <TransformGroup>
                             <ScaleTransform x:Name="ZoomTransform" />
                             <TranslateTransform x:Name="PanTransform" />
                         </TransformGroup>
-                    </Grid.RenderTransform>
+                    </Canvas.RenderTransform>
 
                     <!-- Connections -->
                     <ItemsControl ItemsSource="{Binding SelectedTab.Connections}">
@@ -450,7 +450,7 @@
                     <Line x:Name="DragPreviewLine" Visibility="Collapsed"
                           Stroke="{DynamicResource StrokeStrongBrush}" StrokeThickness="2"
                           StrokeDashArray="4 2" IsHitTestVisible="False" />
-                </Grid>
+                </Canvas>
             </Border>
 
             <!-- Minhas Receitas library list -->
@@ -548,7 +548,8 @@
         </Grid>
 
         <!-- ── JSON + findings ─────────────────────────────────────────────── -->
-        <Border Grid.Row="3" Height="150" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}">
+        <Border Grid.Row="3" Height="150" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                Visibility="{Binding ShowJsonPanel, Converter={StaticResource BoolToVis}}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

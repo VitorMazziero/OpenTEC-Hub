@@ -63,6 +63,12 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     /// <summary>Raised when a block should be scrolled into view (from a validation finding).</summary>
     public event Action<RecipeNodeViewModel>? CenterOnNodeRequested;
 
+    /// <summary>Queries the view for the current viewport center coordinates in canvas space.</summary>
+    public event Func<(double X, double Y)>? RequestViewportCenter;
+
+    [ObservableProperty]
+    public partial bool ShowJsonPanel { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowCanvas))]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
@@ -116,8 +122,8 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     private void NewRecipe()
     {
         var document = new RecipeDocument { Name = $"Nova Receita {Tabs.Count + 1}" };
-        document.Nodes.Add(RecipeNode.Create(NodeType.Start, x: 80, y: 200));
-        document.Nodes.Add(RecipeNode.Create(NodeType.End, x: 520, y: 200));
+        document.Nodes.Add(RecipeNode.Create(NodeType.Start, x: 100, y: 150));
+        document.Nodes.Add(RecipeNode.Create(NodeType.End, x: 500, y: 150));
         document.Connections.Add(new RecipeConnection(
             document.Nodes[0].Id, ConnectorNames.Out, document.Nodes[1].Id, ConnectorNames.In));
 
@@ -284,7 +290,19 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     // ── Authoring (delegated to the selected tab) ────────────────────────────────
 
     [RelayCommand(CanExecute = nameof(CanEditRecipe))]
-    private void AddBlock(NodeType type) => SelectedTab?.AddBlock(type);
+    private void AddBlock(NodeType type)
+    {
+        if (SelectedTab is null) return;
+        if (RequestViewportCenter?.Invoke() is { } center)
+        {
+            var offset = (SelectedTab.Nodes.Count % 5) * 24;
+            SelectedTab.AddBlock(type, center.X + offset, center.Y + offset);
+        }
+        else
+        {
+            SelectedTab.AddBlock(type);
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
     private void DeleteSelected() => SelectedTab?.DeleteSelected();

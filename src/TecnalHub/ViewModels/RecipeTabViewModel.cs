@@ -110,11 +110,12 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     // ── Editing ────────────────────────────────────────────────────────────────
 
-    public void AddBlock(NodeType type)
+    public void AddBlock(NodeType type, double? x = null, double? y = null)
     {
         PushHistory();
-        var offset = Document.Nodes.Count % 6 * 28;
-        var node = RecipeNode.Create(type, x: 320 + offset, y: 300 + offset);
+        var posX = x ?? (Nodes.Count > 0 ? Nodes.Max(n => n.X) + 80 : 320);
+        var posY = y ?? (Nodes.Count > 0 ? Nodes.Average(n => n.Y) : 200);
+        var node = RecipeNode.Create(type, x: posX, y: posY);
         Document.Nodes.Add(node);
 
         var vm = CreateNodeViewModel(node);

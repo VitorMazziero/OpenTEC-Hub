@@ -25,7 +25,15 @@ public enum ParameterKind
 /// <summary>One selectable option for an <see cref="ParameterKind.Enum"/> parameter.</summary>
 /// <param name="Value">Stable value written to JSON.</param>
 /// <param name="Label">pt-BR text shown to the operator.</param>
-public sealed record RecipeOption(string Value, string Label);
+/// <remarks>
+/// <see cref="ToString"/> returns the <see cref="Label"/> so a <c>ComboBox</c> that falls back to
+/// the item's string form (rather than honouring <c>DisplayMemberPath</c>) still shows the pt-BR
+/// text, never the record's default <c>"RecipeOption { … }"</c> rendering.
+/// </remarks>
+public sealed record RecipeOption(string Value, string Label)
+{
+    public override string ToString() => Label;
+}
 
 /// <summary>
 /// One parameter of a block, declared once in <see cref="RecipeNodeCatalog"/>.

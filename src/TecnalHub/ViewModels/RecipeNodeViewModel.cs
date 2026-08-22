@@ -258,14 +258,23 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// <summary>A short pt-BR summary line under the header, mirroring the block's key parameters.</summary>
     private string BuildSummary() => Type switch
     {
-        NodeType.Timer => $"Aguardar {Model.Number("duracao"):0.##} {Model.Text("unidade")}",
-        NodeType.MonitorVariable => $"{Model.Text("variavel")} {Model.Text("condicao")} {Model.Number("valorAlvo"):0.##}",
-        NodeType.SetSetpoint => $"{Model.Text("variavel")} → {Model.Number("valor"):0.##}",
+        NodeType.Timer => $"Aguardar {Model.Number("duracao"):0.##} {OptionLabel("unidade")}",
+        NodeType.MonitorVariable => $"{OptionLabel("variavel")} {OptionLabel("condicao")} {Model.Number("valorAlvo"):0.##}",
+        NodeType.SetSetpoint => $"{OptionLabel("variavel")} → {Model.Number("valor"):0.##}",
+        NodeType.SetLoop => $"{OptionLabel("operacao")} {OptionLabel("malha")}",
         NodeType.CascadeControl => $"Cascata O₂: SP {Model.Number("spO2"):0.#} %",
+        NodeType.ManualIntervention => OptionLabel("operacao"),
         NodeType.LogEvent => Model.Text("mensagem"),
-        NodeType.PhPump => "Bomba pH",
-        NodeType.AntifoamPump => "Bomba antiespuma",
-        NodeType.NutrientPump => "Bomba nutrientes",
+        NodeType.PhPump => $"Bomba pH: {OptionLabel("operacao")}",
+        NodeType.AntifoamPump => $"Antiespuma: {OptionLabel("operacao")}",
+        NodeType.NutrientPump => $"Nutrientes: {OptionLabel("operacao")}",
         _ => Model.Definition.Title,
     };
+
+    /// <summary>The pt-BR label for the option a parameter currently holds (falls back to the raw value).</summary>
+    private string OptionLabel(string key)
+    {
+        var value = Model.Text(key);
+        return Model.Definition.Parameter(key)?.Options.FirstOrDefault(o => o.Value == value)?.Label ?? value;
+    }
 }

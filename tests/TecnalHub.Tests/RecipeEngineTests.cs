@@ -137,6 +137,47 @@ public sealed class RecipeEngineTests
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
 
+    [Fact]
+    public async Task Cascade_loop_exits_when_its_saida_loop_manual_gate_passes()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithGateRecipe(out var gate);
+
+        await engine.StartAsync(recipe);
+        // A couple of frames while the gate holds Continuar Cascata (Bloquear) — the loop runs.
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25); await Task.Delay(10); }
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        // Operator flips the gate to Pular Cascata (Passar): the loop must end and the recipe finish.
+        gate.Set("operacao", nameof(ManualGateOperation.Pass));
+        PushFrame(device, clock, oxygen: 25);
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_loop_exits_when_its_saida_loop_monitor_condition_is_met()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40);
+
+        await engine.StartAsync(recipe);
+        // Oxygen valid so the cascade runs; temperature below 40 keeps the loop going.
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        // Temperature reaches the exit condition.
+        PushFrame(device, clock, oxygen: 25, temperature: 45);
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    private static void PushFrame(RecordingDeviceService device, TestClock clock, double oxygen, double temperature = 0)
+    {
+        clock.Advance(TimeSpan.FromSeconds(3));
+        device.PushTelemetry(new SensorSnapshot { OxygenCalibrated = oxygen, Temperature = temperature });
+    }
+
     // ── Recipe fixtures ────────────────────────────────────────────────────────
 
     /// <summary>Start → Monitor (never satisfied) → Fim: holds until stopped or aborted.</summary>
@@ -186,6 +227,45 @@ public sealed class RecipeEngineTests
 
         recipe.Nodes.AddRange([start, cascade, end]);
         recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "casc", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.Out, "end", ConnectorNames.In));
+        return recipe;
+    }
+
+    /// <summary>Start → Cascade → End, with the cascade's Saída Loop wired to a manual gate and back.</summary>
+    private static RecipeDocument CascadeWithGateRecipe(out RecipeNode gate)
+    {
+        var recipe = new RecipeDocument { Name = "Cascata com portão" };
+        var start = RecipeNode.Create(NodeType.Start, id: "start");
+        var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
+        cascade.Set("loopInfinito", true);
+        gate = RecipeNode.Create(NodeType.ManualIntervention, id: "gate"); // default Hold = Continuar Cascata
+        var end = RecipeNode.Create(NodeType.End, id: "end");
+
+        recipe.Nodes.AddRange([start, cascade, gate, end]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "casc", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.LoopOut, "gate", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("gate", ConnectorNames.Out, "casc", ConnectorNames.LoopIn));
+        recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.Out, "end", ConnectorNames.In));
+        return recipe;
+    }
+
+    /// <summary>Start → Cascade → End, with the cascade's Saída Loop wired to a monitor exit condition.</summary>
+    private static RecipeDocument CascadeWithMonitorRecipe(MeasuredVariable variable, ComparisonOperator op, double target)
+    {
+        var recipe = new RecipeDocument { Name = "Cascata com condição" };
+        var start = RecipeNode.Create(NodeType.Start, id: "start");
+        var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
+        cascade.Set("loopInfinito", true);
+        var monitor = RecipeNode.Create(NodeType.MonitorVariable, id: "mon");
+        monitor.Set("variavel", variable.ToString());
+        monitor.Set("condicao", op.ToString());
+        monitor.Set("valorAlvo", target);
+        var end = RecipeNode.Create(NodeType.End, id: "end");
+
+        recipe.Nodes.AddRange([start, cascade, monitor, end]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "casc", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.LoopOut, "mon", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("mon", ConnectorNames.Out, "casc", ConnectorNames.LoopIn));
         recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.Out, "end", ConnectorNames.In));
         return recipe;
     }

@@ -5,15 +5,16 @@ using TecnalHub.Services.Control;
 namespace TecnalHub.Services.Recipes;
 
 // Cascade: the oxygen kLa cascade block — the scientific core. It drives the ported CascadeController
-// under CommandOwner.Recipe (one owner, one queue), fires the loop body each iteration, and holds or
-// terminates per the block's Laço setting. The gas mixer (enrichment) is deferred, so only the
-// agitation and aeration windows are configured.
+// under CommandOwner.Recipe (one owner, one queue) and computes/actuates each PID interval. Its
+// Saída Loop wires to the loop's EXIT CONDITION — a Monitor (automatic) or an Intervenção Manual
+// (a Continuar/Pular switch), read each iteration — mirroring ReceitasTECNAL's RecipeEngine.Cascade.
+// The gas mixer (enrichment) is deferred, so only the agitation and aeration windows are configured.
 public sealed partial class RecipeEngine
 {
-    /// <summary>How close to the O₂ setpoint counts as settled, for a finite (non-infinite) loop.</summary>
+    /// <summary>How close to the O₂ setpoint counts as settled, when no exit condition is wired.</summary>
     private const double CascadeSettleTolerancePercent = 2.0;
 
-    /// <summary>Consecutive settled frames that end a finite loop.</summary>
+    /// <summary>Consecutive settled frames that end a loop with no exit condition.</summary>
     private const int CascadeSettleFrames = 3;
 
     /// <summary>Live controllers, keyed by cascade block id, for the live-terms readout and tuning.</summary>
@@ -27,13 +28,12 @@ public sealed partial class RecipeEngine
             _liveCascades[node.Id] = controller;
         }
 
-        Log(RecipeLogSeverity.Info, $"Cascata O₂ iniciada (SP {node.Number("spO2"):0.#} %).", node.Id);
-
+        // The Saída Loop wires to the loop's exit condition: a Monitor (automatic) or an Intervenção
+        // Manual (a manual Continuar/Pular switch). It is read here, never executed as a flow block.
+        var condition = LoopConditionNode(node);
         var loopInfinite = node.Flag("loopInfinito");
-        var loopEdges = Current!.Connections
-            .Where(c => c.SourceNodeId == node.Id && ConnectorNames.IsLoopOut(c.SourceConnector))
-            .ToList();
-        var bodyNodes = CollectLoopBody(node, loopEdges);
+        Log(RecipeLogSeverity.Info,
+            $"Cascata O₂ iniciada (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition)}).", node.Id);
 
         DateTimeOffset? lastStep = null;
         var settled = 0;
@@ -45,10 +45,26 @@ public sealed partial class RecipeEngine
                 ct.ThrowIfCancellationRequested();
                 _pauseGate.Wait(ct);
 
+                // Manual exit: the operator flipped the gate to Pular Cascata (Passar). Checked before
+                // the frame wait so a skip takes effect promptly.
+                if (condition is { Type: NodeType.ManualIntervention } gate &&
+                    gate.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass)
+                {
+                    Log(RecipeLogSeverity.Info, "Cascata encerrada pelo operador (Pular Cascata).", node.Id);
+                    break;
+                }
+
                 await WaitNextFrameAsync(ct).ConfigureAwait(false);
                 if (_latest is not { } snapshot || snapshot.OxygenCalibrated <= SensorReadings.NotReceived)
                 {
                     continue; // flying blind without a usable O₂ reading; wait for the next frame
+                }
+
+                // Automatic exit: the monitored variable met the condition.
+                if (condition is { Type: NodeType.MonitorVariable } monitor && MonitorConditionMet(monitor, snapshot))
+                {
+                    Log(RecipeLogSeverity.Info, "Cascata: condição de saída atingida.", node.Id);
+                    break;
                 }
 
                 var now = _time.GetUtcNow();
@@ -62,7 +78,7 @@ public sealed partial class RecipeEngine
 
                 // The one place the recipe cascade meets the wire, under Recipe ownership.
                 var result = controller.Update(snapshot.OxygenCalibrated, dt);
-                NodeStateChanged?.Invoke(node.Id); // refresh the live P/I/D/Saída terms pane
+                NodeStateChanged?.Invoke(node.Id); // refresh the live P/I/D/Saída terms
 
                 if (!_arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result)).Accepted)
                 {
@@ -70,26 +86,9 @@ public sealed partial class RecipeEngine
                     break;
                 }
 
-                // Fire the loop body once per iteration, resetting it so it re-runs each pass.
-                if (loopEdges.Count > 0)
-                {
-                    ResetLoopBody(bodyNodes);
-                    foreach (var edge in loopEdges)
-                    {
-                        MarkTraversed(edge);
-                        await ExecuteFlowAsync(Current.Node(edge.TargetNodeId), edge, ct).ConfigureAwait(false);
-                    }
-
-                    if (LoopBodyRequestsExit(bodyNodes))
-                    {
-                        Log(RecipeLogSeverity.Info, "Cascata encerrada pelo operador (Pular Cascata).", node.Id);
-                        break;
-                    }
-                }
-
-                // A finite loop ends once O₂ has held at the setpoint; an infinite loop holds until
-                // stopped, or until a loop-body Intervenção Manual passes (handled above).
-                if (!loopInfinite)
+                // With no exit condition wired, a finite loop settles at the setpoint and an infinite
+                // one runs until stopped.
+                if (condition is null && !loopInfinite)
                 {
                     settled = Math.Abs(snapshot.OxygenCalibrated - node.Number("spO2")) <= CascadeSettleTolerancePercent
                         ? settled + 1
@@ -110,6 +109,28 @@ public sealed partial class RecipeEngine
                 _liveCascades.Remove(node.Id);
             }
         }
+    }
+
+    /// <summary>The node wired to the cascade's Saída Loop — its exit condition, or null.</summary>
+    private RecipeNode? LoopConditionNode(RecipeNode cascade)
+    {
+        var loopEdge = Current!.Connections.FirstOrDefault(c =>
+            c.SourceNodeId == cascade.Id && ConnectorNames.IsLoopOut(c.SourceConnector));
+        return loopEdge is null ? null : Current.Node(loopEdge.TargetNodeId);
+    }
+
+    private static string DescribeCondition(RecipeNode? condition) => condition?.Type switch
+    {
+        NodeType.MonitorVariable => ", saída por condição",
+        NodeType.ManualIntervention => ", saída manual",
+        _ => "",
+    };
+
+    private static bool MonitorConditionMet(RecipeNode monitor, SensorSnapshot snapshot)
+    {
+        var value = MeasuredValue(snapshot, monitor.Enum<MeasuredVariable>("variavel"));
+        return value is { } reading
+            && Satisfies(reading, monitor.Enum<ComparisonOperator>("condicao"), monitor.Number("valorAlvo"));
     }
 
     /// <summary>Builds a controller from the block's parameters (§5.3.7 defaults on a fresh block).</summary>
@@ -145,53 +166,4 @@ public sealed partial class RecipeEngine
         RateWindowSeconds = Math.Max(1.0, node.Number("janelaMediaAmostras") * node.Number("intervaloPidS")),
         IntervalSeconds = Math.Clamp(node.Number("intervaloPidS"), 0.1, 60),
     };
-
-    /// <summary>The block ids inside the cascade's loop, reachable from its Saída Loop port.</summary>
-    private HashSet<string> CollectLoopBody(RecipeNode cascade, IReadOnlyList<RecipeConnection> loopEdges)
-    {
-        var body = new HashSet<string>();
-        var stack = new Stack<string>(loopEdges.Select(e => e.TargetNodeId));
-        while (stack.Count > 0)
-        {
-            var id = stack.Pop();
-            if (id == cascade.Id || !body.Add(id))
-            {
-                continue;
-            }
-
-            foreach (var edge in Current!.Connections.Where(c =>
-                         c.SourceNodeId == id && !ConnectorNames.IsLoopIn(c.TargetConnector) && c.TargetNodeId != cascade.Id))
-            {
-                stack.Push(edge.TargetNodeId);
-            }
-        }
-
-        return body;
-    }
-
-    /// <summary>Resets the loop body's block and join state so it re-runs cleanly next iteration.</summary>
-    private void ResetLoopBody(HashSet<string> bodyNodes)
-    {
-        lock (_lock)
-        {
-            foreach (var id in bodyNodes)
-            {
-                _joinFired.Remove(id);
-                _joinArrivals.Remove(id);
-                _orWinner.Remove(id);
-            }
-        }
-
-        foreach (var id in bodyNodes)
-        {
-            SetNodeState(id, NodeState.Waiting);
-        }
-    }
-
-    /// <summary>True when a loop-body Intervenção Manual is set to Passar ("Pular Cascata").</summary>
-    private bool LoopBodyRequestsExit(HashSet<string> bodyNodes)
-        => bodyNodes
-            .Select(id => Current!.Node(id))
-            .Any(n => n is { Type: NodeType.ManualIntervention }
-                      && n.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass);
 }

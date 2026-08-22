@@ -396,33 +396,17 @@ public static class RecipeValidator
 
         var agitation = node.Flag("atuadorAgitacao");
         var aeration = node.Flag("atuadorAeracao");
-        var mixer = node.Flag("atuadorMisturador");
 
-        if (!agitation && !aeration && !mixer)
+        if (!agitation && !aeration)
         {
-            findings.Add(Error("Selecione ao menos um atuador para a cascata.", node.Id));
-        }
-        else if (!agitation && !aeration && mixer)
-        {
-            // Only the deferred enrichment path is selected — nothing would actuate.
-            findings.Add(Error(
-                "Apenas o misturador de gases está selecionado, mas seu caminho está adiado; selecione Agitação e/ou Aeração.",
-                node.Id));
-        }
-
-        if (mixer)
-        {
-            findings.Add(Warning(
-                "O misturador de gases (enriquecimento de N₂) está adiado e não atuará.", node.Id));
+            findings.Add(Error("Selecione ao menos um atuador para a cascata (Agitação e/ou Aeração).", node.Id));
         }
 
         CheckOrdered(node, "nMinRpm", "nMaxRpm", "As faixas de agitação (N_min/N_max)", findings);
         CheckOrdered(node, "qMinVvm", "qMaxVvm", "As faixas de aeração (Q_min/Q_max)", findings);
-        CheckOrdered(node, "o2MinPct", "o2MaxPct", "As faixas de O₂ (O₂_min/O₂_max)", findings);
 
         CheckWindow(node, "agitacaoOutMin", "agitacaoOutMax", "Agitação", findings);
         CheckWindow(node, "aeracaoOutMin", "aeracaoOutMax", "Aeração", findings);
-        CheckWindow(node, "misturadorOutMin", "misturadorOutMax", "Misturador", findings);
     }
 
     private static void CheckOrdered(

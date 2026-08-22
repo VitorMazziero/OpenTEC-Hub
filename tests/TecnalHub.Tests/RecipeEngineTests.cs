@@ -221,7 +221,6 @@ public sealed class RecipeEngineTests
         var recipe = new RecipeDocument { Name = "Cascata" };
         var start = RecipeNode.Create(NodeType.Start, id: "start");
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
-        cascade.Set("loopInfinito", false); // finite: settle at the setpoint and exit
         cascade.Set("spO2", 30.0);
         var end = RecipeNode.Create(NodeType.End, id: "end");
 
@@ -237,7 +236,6 @@ public sealed class RecipeEngineTests
         var recipe = new RecipeDocument { Name = "Cascata com portão" };
         var start = RecipeNode.Create(NodeType.Start, id: "start");
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
-        cascade.Set("loopInfinito", true);
         gate = RecipeNode.Create(NodeType.ManualIntervention, id: "gate"); // default Hold = Continuar Cascata
         var end = RecipeNode.Create(NodeType.End, id: "end");
 
@@ -255,7 +253,6 @@ public sealed class RecipeEngineTests
         var recipe = new RecipeDocument { Name = "Cascata com condição" };
         var start = RecipeNode.Create(NodeType.Start, id: "start");
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
-        cascade.Set("loopInfinito", true);
         var monitor = RecipeNode.Create(NodeType.MonitorVariable, id: "mon");
         monitor.Set("variavel", variable.ToString());
         monitor.Set("condicao", op.ToString());

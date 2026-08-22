@@ -446,27 +446,19 @@ public static class RecipeNodeCatalog
 
             Bool("atuadorAgitacao", "Agitação", true, group: "Atuadores"),
             Bool("atuadorAeracao", "Aeração", true, group: "Atuadores"),
-            Bool("atuadorMisturador", "Misturador de gases", false, group: "Atuadores"),
 
             Num("nMinRpm", "N_min", 150, min: 0, unit: "rpm", group: "Faixas físicas"),
             Num("nMaxRpm", "N_max", 350, min: 0, unit: "rpm", group: "Faixas físicas"),
             Num("qMinVvm", "Q_min", 0.5, min: 0, unit: "vvm", group: "Faixas físicas"),
             Num("qMaxVvm", "Q_max", 5.0, min: 0, unit: "vvm", group: "Faixas físicas"),
-            Num("o2MinPct", "O₂_min", 0, min: 0, max: 100, unit: "%", group: "Faixas físicas"),
-            Num("o2MaxPct", "O₂_max", 90, min: 0, max: 100, unit: "%", group: "Faixas físicas"),
 
             Num("agitacaoOutMin", "Agitação OutMin", 0, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
             Num("agitacaoOutMax", "Agitação OutMax", 40, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
             Num("aeracaoOutMin", "Aeração OutMin", 30, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
             Num("aeracaoOutMax", "Aeração OutMax", 70, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
-            Num("misturadorOutMin", "Misturador OutMin", 60, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
-            Num("misturadorOutMax", "Misturador OutMax", 100, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
 
             Num("agitacaoGanho", "Agitação (ganho relativo)", 1.0, min: 0, group: "Ganhos relativos"),
             Num("aeracaoGanho", "Aeração (ganho relativo)", 1.43, min: 0, group: "Ganhos relativos"),
-            Num("misturadorGanho", "Misturador (ganho relativo)", 1.2, min: 0, group: "Ganhos relativos"),
-
-            Bool("loopInfinito", "Loop infinito", true, group: "Laço"),
         ],
     };
 

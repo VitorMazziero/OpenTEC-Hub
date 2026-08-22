@@ -293,7 +293,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible);
 
-    public bool ShowSummary => Type is not (NodeType.CascadeControl or NodeType.Start or NodeType.End or NodeType.And or NodeType.Or or NodeType.ManualIntervention);
+    public bool ShowSummary => Type is not (NodeType.Start or NodeType.End or NodeType.And or NodeType.Or or NodeType.ManualIntervention);
 
     public bool IsManualIntervention => Type == NodeType.ManualIntervention;
 
@@ -338,9 +338,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         {
             if (Type == NodeType.CascadeControl)
             {
-                var left = Ports.Count(p => p.IsInput || p.IsLoop);
-                var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
-                return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
+                return HeaderHeight + 12 + 2 * 18 + 12 + 48 + 16;
             }
 
             if (Type is NodeType.Start or NodeType.End or NodeType.And or NodeType.Or)
@@ -436,13 +434,25 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     {
         if (Type == NodeType.CascadeControl)
         {
-            var leftCount = 0;
-            var rightCount = 0;
+            var topOffset = HeaderHeight + 12 + 2 * 18 + 12;
             foreach (var port in Ports)
             {
-                var isLeft = port.IsInput || port.IsLoop;
-                var index = isLeft ? leftCount++ : rightCount++;
-                port.OffsetY = HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2;
+                if (port.Port.Name == ConnectorNames.In)
+                {
+                    port.OffsetY = topOffset;
+                }
+                else if (port.Port.Name == ConnectorNames.LoopOut)
+                {
+                    port.OffsetY = topOffset + 24;
+                }
+                else if (port.Port.Name == ConnectorNames.LoopIn)
+                {
+                    port.OffsetY = topOffset + 48;
+                }
+                else if (port.Port.Name == ConnectorNames.Out)
+                {
+                    port.OffsetY = topOffset + 48;
+                }
             }
             return;
         }
@@ -457,16 +467,17 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     private static IReadOnlyList<RecipePortViewModel> BuildPorts(RecipeNode model)
     {
         var ports = new List<RecipePortViewModel>();
-        var leftCount = 0;
-        var rightCount = 0;
+        var topOffset = HeaderHeight + 12 + 2 * 18 + 12;
         foreach (var port in model.Definition.Ports)
         {
-            var isLeft = port.Direction == PortDirection.In
-                         || ConnectorNames.IsLoopOut(port.Name)
-                         || ConnectorNames.IsLoopIn(port.Name);
-            var index = isLeft ? leftCount++ : rightCount++;
             var offsetY = model.Type == NodeType.CascadeControl
-                ? HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2
+                ? port.Name switch
+                {
+                    ConnectorNames.In => topOffset,
+                    ConnectorNames.LoopOut => topOffset + 24,
+                    ConnectorNames.LoopIn => topOffset + 48,
+                    _ => topOffset + 48,
+                }
                 : 50;
             ports.Add(new RecipePortViewModel(port, offsetY));
         }
@@ -480,7 +491,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         NodeType.MonitorVariable => $"{OptionLabel("variavel")} {FormatCondition(Model.Enum<ComparisonOperator>("condicao"))} {Model.Number("valorAlvo"):0.##}",
         NodeType.SetSetpoint => $"{OptionLabel("variavel")} → {Model.Number("valor"):0.##}",
         NodeType.SetLoop => $"{OptionLabel("operacao")} {OptionLabel("malha")}",
-        NodeType.CascadeControl => $"Cascata O₂: SP {Model.Number("spO2"):0.#} %",
+        NodeType.CascadeControl => FormatCascade(Model),
         NodeType.ManualIntervention => IsCascadeLoopCondition
             ? Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "Pular Cascata" : "Continuar Cascata"
             : OptionLabel("operacao"),
@@ -493,6 +504,23 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         NodeType.MultiLoop => FormatMultiLoop(Model),
         _ => Model.Definition.Title,
     };
+
+    private static string FormatCascade(RecipeNode node)
+    {
+        var sp = node.Number("spO2");
+        var agit = node.Flag("atuadorAgitacao");
+        var aer = node.Flag("atuadorAeracao");
+
+        var modo = (agit, aer) switch
+        {
+            (true, true) => "Agitação + Aeração (Mapa)",
+            (true, false) => "Agitação",
+            (false, true) => "Aeração",
+            (false, false) => "Nenhum",
+        };
+
+        return $"SP: {sp:0.##} %\nModo: {modo}";
+    }
 
     private string FormatPump(RecipeNode node)
     {

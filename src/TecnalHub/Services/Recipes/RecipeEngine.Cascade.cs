@@ -31,7 +31,6 @@ public sealed partial class RecipeEngine
         // The Saída Loop wires to the loop's exit condition: a Monitor (automatic) or an Intervenção
         // Manual (a manual Continuar/Pular switch). It is read here, never executed as a flow block.
         var condition = LoopConditionNode(node);
-        var loopInfinite = node.Flag("loopInfinito");
         Log(RecipeLogSeverity.Info,
             $"Cascata O₂ iniciada (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition)}).", node.Id);
 
@@ -86,9 +85,8 @@ public sealed partial class RecipeEngine
                     break;
                 }
 
-                // With no exit condition wired, a finite loop settles at the setpoint and an infinite
-                // one runs until stopped.
-                if (condition is null && !loopInfinite)
+                // With no exit condition wired, the cascade settles once the O2 stabilizes at the setpoint.
+                if (condition is null)
                 {
                     settled = Math.Abs(snapshot.OxygenCalibrated - node.Number("spO2")) <= CascadeSettleTolerancePercent
                         ? settled + 1

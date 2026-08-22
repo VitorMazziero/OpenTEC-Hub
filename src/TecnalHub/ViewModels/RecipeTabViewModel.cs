@@ -67,6 +67,9 @@ public sealed partial class RecipeTabViewModel : ObservableObject
     public partial bool IsValid { get; set; }
 
     [ObservableProperty]
+    public partial bool IsRenaming { get; set; }
+
+    [ObservableProperty]
     public partial string ValidationSummary { get; set; } = "";
 
     public bool CanUndo => _undo.Count > 0;
@@ -75,6 +78,30 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     /// <summary>Raised when a block should be scrolled into view (from a validation finding).</summary>
     public event Action<RecipeNodeViewModel>? CenterRequested;
+
+    /// <summary>Raised when the furthest-out node changes, so the canvas can grow.</summary>
+    public event Action? CanvasBoundsChanged;
+
+    private const double MinCanvasWidth = 3200;
+    private const double MinCanvasHeight = 2000;
+    private const double CanvasMargin = 400;
+    private const double MaxCanvasSize = 10000;
+
+    /// <summary>Computes the required canvas size to fit all nodes, with margin, capped at <see cref="MaxCanvasSize"/>.</summary>
+    public (double Width, double Height) ComputeCanvasBounds()
+    {
+        double maxX = 0, maxY = 0;
+        foreach (var node in Nodes)
+        {
+            var right = node.X + RecipeNodeViewModel.Width + CanvasMargin;
+            var bottom = node.Y + node.Height + CanvasMargin;
+            if (right > maxX) maxX = right;
+            if (bottom > maxY) maxY = bottom;
+        }
+
+        return (Math.Min(MaxCanvasSize, Math.Max(MinCanvasWidth, maxX)),
+                Math.Min(MaxCanvasSize, Math.Max(MinCanvasHeight, maxY)));
+    }
 
     // ── Editing ────────────────────────────────────────────────────────────────
 
@@ -303,6 +330,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         MarkDirty();
         RefreshGateRoles();
         Revalidate();
+        CanvasBoundsChanged?.Invoke();
     }
 
     /// <summary>

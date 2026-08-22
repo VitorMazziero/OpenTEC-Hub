@@ -104,6 +104,12 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ElapsedText { get; set; } = "00:00:00";
 
+    [ObservableProperty]
+    public partial double CanvasWidth { get; set; } = 3200;
+
+    [ObservableProperty]
+    public partial double CanvasHeight { get; set; } = 2000;
+
     // ── Tabs & library ───────────────────────────────────────────────────────────
 
     [RelayCommand(CanExecute = nameof(IsStopped))]
@@ -235,11 +241,14 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         foreach (var tab in Tabs)
         {
             tab.PropertyChanged -= OnSelectedTabChanged;
+            tab.CanvasBoundsChanged -= OnCanvasBoundsChanged;
         }
 
         if (SelectedTab is { } selected)
         {
             selected.PropertyChanged += OnSelectedTabChanged;
+            selected.CanvasBoundsChanged += OnCanvasBoundsChanged;
+            RefreshCanvasSize(selected);
         }
     }
 
@@ -249,6 +258,21 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         {
             StartCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    private void OnCanvasBoundsChanged()
+    {
+        if (SelectedTab is { } tab)
+        {
+            RefreshCanvasSize(tab);
+        }
+    }
+
+    private void RefreshCanvasSize(RecipeTabViewModel tab)
+    {
+        var (w, h) = tab.ComputeCanvasBounds();
+        CanvasWidth = w;
+        CanvasHeight = h;
     }
 
     // ── Authoring (delegated to the selected tab) ────────────────────────────────
@@ -383,5 +407,9 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _engine.StateChanged -= OnEngineStateChanged;
         _engine.Logged -= OnEngineLogged;
         _elapsedTimer.Stop();
+        foreach (var tab in Tabs)
+        {
+            tab.CanvasBoundsChanged -= OnCanvasBoundsChanged;
+        }
     }
 }

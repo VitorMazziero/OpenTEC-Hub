@@ -13,6 +13,7 @@ namespace TecnalHub.ViewModels;
 public sealed partial class RecipeConnectionViewModel : ObservableObject
 {
     private const double Stub = 22;
+    private const double CornerRadius = 12;
 
     public RecipeConnectionViewModel(RecipeConnection model, RecipeNodeViewModel source, RecipeNodeViewModel target)
     {
@@ -38,9 +39,9 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
-    /// <summary>The orthogonal route, as a polyline point list.</summary>
+    /// <summary>The route geometry, rendered by a <c>Path</c> in the view.</summary>
     [ObservableProperty]
-    public partial PointCollection RoutePoints { get; set; } = new();
+    public partial Geometry RouteGeometry { get; set; } = Geometry.Empty;
 
     /// <summary>The arrowhead triangle at the target port.</summary>
     [ObservableProperty]
@@ -59,37 +60,106 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
         var (sx, sy) = Anchor(Source, Model.SourceConnector);
         var (tx, ty) = Anchor(Target, Model.TargetConnector);
 
-        RoutePoints = Route(sx, sy, tx, ty);
+        var isLoop = ConnectorNames.IsLoopOut(Model.SourceConnector);
+        RouteGeometry = isLoop ? BuildLoopGeometry(sx, sy, tx, ty) : BuildRouteGeometry(sx, sy, tx, ty);
 
-        // The arrow arrives pointing right into the target's left-edge input port.
-        ArrowPoints = new PointCollection { new(tx - 9, ty - 5), new(tx, ty), new(tx - 9, ty + 5) };
+        // Arrow direction depends on whether the target port is on the left or right side.
+        var targetPort = Target.Ports.FirstOrDefault(p => p.Name == Model.TargetConnector)
+                         ?? Target.Ports.FirstOrDefault(p =>
+                             ConnectorNames.IsLoopIn(Model.TargetConnector) && ConnectorNames.IsLoopIn(p.Name));
+        var targetOnLeft = targetPort is null || targetPort.OffsetX == 0;
+        ArrowPoints = targetOnLeft
+            ? new PointCollection { new(tx + 9, ty - 5), new(tx, ty), new(tx + 9, ty + 5) }
+            : new PointCollection { new(tx - 9, ty - 5), new(tx, ty), new(tx - 9, ty + 5) };
     }
 
-    private PointCollection Route(double sx, double sy, double tx, double ty)
+    /// <summary>Builds a geometry for normal (non-loop) connections using orthogonal segments.</summary>
+    private Geometry BuildRouteGeometry(double sx, double sy, double tx, double ty)
     {
-        var points = new PointCollection();
-        if (tx >= sx + 2 * Stub)
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
         {
-            // Forward connection: right, down/up, right — a single S-bend at the midpoint.
-            var midX = (sx + tx) / 2;
-            points.Add(new Point(sx, sy));
-            points.Add(new Point(midX, sy));
-            points.Add(new Point(midX, ty));
-            points.Add(new Point(tx, ty));
-        }
-        else
-        {
-            // Backward/loop-return connection: route around the underside of both blocks.
-            var below = Math.Max(Source.Y + Source.Height, Target.Y + Target.Height) + 28;
-            points.Add(new Point(sx, sy));
-            points.Add(new Point(sx + Stub, sy));
-            points.Add(new Point(sx + Stub, below));
-            points.Add(new Point(tx - Stub, below));
-            points.Add(new Point(tx - Stub, ty));
-            points.Add(new Point(tx, ty));
+            ctx.BeginFigure(new Point(sx, sy), false, false);
+
+            if (tx >= sx + 2 * Stub)
+            {
+                // Forward connection: right, down/up, right — a single S-bend at the midpoint.
+                var midX = (sx + tx) / 2;
+                ctx.LineTo(new Point(midX, sy), true, false);
+                ctx.LineTo(new Point(midX, ty), true, false);
+                ctx.LineTo(new Point(tx, ty), true, false);
+            }
+            else
+            {
+                // Backward connection: route around the underside of both blocks.
+                var below = Math.Max(Source.Y + Source.Height, Target.Y + Target.Height) + 28;
+                ctx.LineTo(new Point(sx + Stub, sy), true, false);
+                ctx.LineTo(new Point(sx + Stub, below), true, false);
+                ctx.LineTo(new Point(tx - Stub, below), true, false);
+                ctx.LineTo(new Point(tx - Stub, ty), true, false);
+                ctx.LineTo(new Point(tx, ty), true, false);
+            }
         }
 
-        return points;
+        geometry.Freeze();
+        return geometry;
+    }
+
+    /// <summary>
+    /// Builds a smooth-arc geometry for loop connections (Saída Loop → Entrada Loop),
+    /// mirroring ReceitasTECNAL's <c>LeftLoopConnection</c>. The wire exits left from
+    /// the source port, curves vertically with rounded corners, and enters the target
+    /// from the left.
+    /// </summary>
+    private Geometry BuildLoopGeometry(double sx, double sy, double tx, double ty)
+    {
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            var leftX = Math.Min(sx, tx) - Stub;
+            var yDir = Math.Sign(ty - sy);
+            var r = Math.Min(CornerRadius, Math.Abs(ty - sy) / 2);
+
+            ctx.BeginFigure(new Point(sx, sy), false, false);
+
+            // Line: horizontal out to the left
+            ctx.LineTo(new Point(leftX + r, sy), true, false);
+
+            // Arc: turn downward (or upward)
+            if (r > 0)
+            {
+                ctx.ArcTo(
+                    new Point(leftX, sy + r * yDir),
+                    new Size(r, r),
+                    rotationAngle: 0,
+                    isLargeArc: false,
+                    sweepDirection: yDir > 0 ? SweepDirection.Counterclockwise : SweepDirection.Clockwise,
+                    isStroked: true,
+                    isSmoothJoin: true);
+            }
+
+            // Line: vertical
+            ctx.LineTo(new Point(leftX, ty - r * yDir), true, false);
+
+            // Arc: turn right toward the target
+            if (r > 0)
+            {
+                ctx.ArcTo(
+                    new Point(leftX + r, ty),
+                    new Size(r, r),
+                    rotationAngle: 0,
+                    isLargeArc: false,
+                    sweepDirection: yDir > 0 ? SweepDirection.Counterclockwise : SweepDirection.Clockwise,
+                    isStroked: true,
+                    isSmoothJoin: true);
+            }
+
+            // Line: horizontal into the target
+            ctx.LineTo(new Point(tx, ty), true, false);
+        }
+
+        geometry.Freeze();
+        return geometry;
     }
 
     private static (double X, double Y) Anchor(RecipeNodeViewModel node, string connector)

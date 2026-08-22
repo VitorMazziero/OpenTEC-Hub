@@ -219,8 +219,8 @@ public sealed class RecipePortViewModel(RecipePort port, double offsetY)
     /// <summary>Vertical offset of the port within the node body.</summary>
     public double OffsetY { get; } = offsetY;
 
-    /// <summary>Horizontal anchor: the left edge for inputs, the right edge for outputs.</summary>
-    public double OffsetX => IsInput ? 0 : RecipeNodeViewModel.Width;
+    /// <summary>Horizontal anchor: the left edge for inputs and loop ports, the right edge for other outputs.</summary>
+    public double OffsetX => IsInput || IsLoop ? 0 : RecipeNodeViewModel.Width;
 }
 
 /// <summary>
@@ -277,9 +277,9 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     {
         get
         {
-            var inputs = Ports.Count(p => p.IsInput);
-            var outputs = Ports.Count(p => !p.IsInput);
-            return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(inputs, outputs)) * PortPitch;
+            var left = Ports.Count(p => p.IsInput || p.IsLoop);
+            var right = Ports.Count(p => !p.IsInput && !p.IsLoop);
+            return HeaderHeight + BodyPadding * 2 + Math.Max(1, Math.Max(left, right)) * PortPitch;
         }
     }
 
@@ -335,11 +335,14 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     private static IReadOnlyList<RecipePortViewModel> BuildPorts(RecipeNode model)
     {
         var ports = new List<RecipePortViewModel>();
-        var inputs = 0;
-        var outputs = 0;
+        var leftCount = 0;
+        var rightCount = 0;
         foreach (var port in model.Definition.Ports)
         {
-            var index = port.Direction == PortDirection.In ? inputs++ : outputs++;
+            var isLeft = port.Direction == PortDirection.In
+                         || ConnectorNames.IsLoopOut(port.Name)
+                         || ConnectorNames.IsLoopIn(port.Name);
+            var index = isLeft ? leftCount++ : rightCount++;
             var offsetY = HeaderHeight + BodyPadding + index * PortPitch + PortPitch / 2;
             ports.Add(new RecipePortViewModel(port, offsetY));
         }

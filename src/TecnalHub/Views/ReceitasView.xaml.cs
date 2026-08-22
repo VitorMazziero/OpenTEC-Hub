@@ -24,6 +24,11 @@ public partial class ReceitasView : UserControl
     private double _panOriginX;
     private double _panOriginY;
 
+    private bool _connectDragging;
+    private RecipeNodeViewModel? _connectSourceNode;
+    private RecipePortViewModel? _connectSourcePort;
+    private Point _connectStart;
+
     public ReceitasView()
     {
         InitializeComponent();
@@ -65,9 +70,23 @@ public partial class ReceitasView : UserControl
 
     private void OnPortMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: RecipePortViewModel port } element && FindNode(element) is { } node)
+        if (sender is FrameworkElement { DataContext: RecipePortViewModel port } element
+            && FindNode(element) is { } node && !port.IsInput)
         {
-            ViewModel?.PortClicked(node, port);
+            _connectDragging = true;
+            _connectSourceNode = node;
+            _connectSourcePort = port;
+
+            var anchor = new Point(node.X + port.OffsetX, node.Y + port.OffsetY);
+            _connectStart = anchor;
+
+            DragPreviewLine.X1 = anchor.X;
+            DragPreviewLine.Y1 = anchor.Y;
+            DragPreviewLine.X2 = anchor.X;
+            DragPreviewLine.Y2 = anchor.Y;
+            DragPreviewLine.Visibility = Visibility.Visible;
+
+            CanvasRoot.CaptureMouse();
             e.Handled = true;
         }
     }
@@ -97,7 +116,13 @@ public partial class ReceitasView : UserControl
 
     private void OnCanvasMouseMove(object sender, MouseEventArgs e)
     {
-        if (_dragNode is not null)
+        if (_connectDragging)
+        {
+            var position = e.GetPosition(CanvasRoot);
+            DragPreviewLine.X2 = position.X;
+            DragPreviewLine.Y2 = position.Y;
+        }
+        else if (_dragNode is not null)
         {
             if (!_dragMoved)
             {
@@ -119,9 +144,52 @@ public partial class ReceitasView : UserControl
 
     private void OnCanvasMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (_connectDragging)
+        {
+            DragPreviewLine.Visibility = Visibility.Collapsed;
+            _connectDragging = false;
+
+            var position = e.GetPosition(CanvasRoot);
+            var targetPort = FindPortAtPosition(position);
+            if (targetPort is { Port: var port, Node: var node }
+                && port.IsInput
+                && _connectSourceNode is not null
+                && _connectSourcePort is not null
+                && node.Id != _connectSourceNode.Id)
+            {
+                ViewModel?.PortClicked(_connectSourceNode, _connectSourcePort);
+                ViewModel?.PortClicked(node, port);
+            }
+
+            _connectSourceNode = null;
+            _connectSourcePort = null;
+            CanvasRoot.ReleaseMouseCapture();
+            e.Handled = true;
+            return;
+        }
+
         _dragNode = null;
         _panning = false;
         CanvasRoot.ReleaseMouseCapture();
+    }
+
+    private (RecipeNodeViewModel Node, RecipePortViewModel Port)? FindPortAtPosition(Point position)
+    {
+        const double hitRadius = 12;
+        foreach (var node in ViewModel?.SelectedTab?.Nodes ?? [])
+        {
+            foreach (var port in node.Ports)
+            {
+                var px = node.X + port.OffsetX;
+                var py = node.Y + port.OffsetY;
+                var dist = Math.Sqrt(Math.Pow(position.X - px, 2) + Math.Pow(position.Y - py, 2));
+                if (dist <= hitRadius)
+                {
+                    return (node, port);
+                }
+            }
+        }
+        return null;
     }
 
     // ── Wheel zoom, toward the cursor ──────────────────────────────────────────
@@ -153,6 +221,64 @@ public partial class ReceitasView : UserControl
         if (sender is ListBox { SelectedItem: RecipeFinding finding } && ViewModel is { } vm)
         {
             vm.RevealFindingCommand.Execute(finding);
+        }
+    }
+
+    // ── Tab rename ────────────────────────────────────────────────────────────
+
+    private void OnTabTitleDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: RecipeTabViewModel tab })
+        {
+            tab.IsRenaming = true;
+            e.Handled = true;
+        }
+    }
+
+    private void OnTabRenameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is TextBox textBox)
+        {
+            CommitRename(textBox);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && sender is TextBox tb)
+        {
+            if (tb.DataContext is RecipeTabViewModel tab)
+            {
+                tab.IsRenaming = false;
+            }
+
+            e.Handled = true;
+        }
+    }
+
+    private void OnTabRenameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            CommitRename(textBox);
+        }
+    }
+
+    private void OnTabRenameVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox textBox && textBox.IsVisible)
+        {
+            textBox.Focus();
+            textBox.SelectAll();
+        }
+    }
+
+    private static void CommitRename(TextBox textBox)
+    {
+        // Force the binding to update
+        var binding = textBox.GetBindingExpression(TextBox.TextProperty);
+        binding?.UpdateSource();
+
+        if (textBox.DataContext is RecipeTabViewModel tab)
+        {
+            tab.IsRenaming = false;
         }
     }
 

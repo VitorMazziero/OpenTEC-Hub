@@ -23,6 +23,11 @@ public enum TelemetryChannel
     Biomass,
     PumpFlow,
     PumpVolume,
+    CascadeEffort,
+    CascadePredictedO2,
+    CascadeRateSetpoint,
+    CascadeRateMeasured,
+    CascadeKlaDemand,
 }
 
 /// <summary>Downsampled series ready for a chart.</summary>
@@ -46,6 +51,9 @@ public interface ITelemetryHistory
 
     /// <summary>Records a frame.</summary>
     void Add(SensorSnapshot snapshot, double commandedRpm);
+
+    /// <summary>Records cascade control terms for the latest frame.</summary>
+    void RecordCascade(double effort, double predictedO2, double rateSetpoint, double rateMeasured, double? klaDemand);
 
     /// <summary>Discards everything, e.g. when a new run starts.</summary>
     void Clear();
@@ -125,6 +133,13 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             Set(TelemetryChannel.PumpFlow, i, snapshot.PumpFlow);
             Set(TelemetryChannel.PumpVolume, i, snapshot.PumpVolume);
 
+            // Default cascade control channels to NaN until written
+            _series[(int)TelemetryChannel.CascadeEffort][i] = double.NaN;
+            _series[(int)TelemetryChannel.CascadePredictedO2][i] = double.NaN;
+            _series[(int)TelemetryChannel.CascadeRateSetpoint][i] = double.NaN;
+            _series[(int)TelemetryChannel.CascadeRateMeasured][i] = double.NaN;
+            _series[(int)TelemetryChannel.CascadeKlaDemand][i] = double.NaN;
+
             // Agitation has no feedback path, so what is charted is what was
             // commanded. Zero means "not commanded", not "measured zero".
             _series[(int)TelemetryChannel.MotorRpm][i] =
@@ -135,6 +150,24 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             {
                 _count++;
             }
+        }
+    }
+
+    public void RecordCascade(double effort, double predictedO2, double rateSetpoint, double rateMeasured, double? klaDemand)
+    {
+        lock (_gate)
+        {
+            if (_count == 0)
+            {
+                return;
+            }
+
+            var i = (_head - 1 + capacity) % capacity;
+            _series[(int)TelemetryChannel.CascadeEffort][i] = double.IsFinite(effort) ? effort : double.NaN;
+            _series[(int)TelemetryChannel.CascadePredictedO2][i] = double.IsFinite(predictedO2) ? predictedO2 : double.NaN;
+            _series[(int)TelemetryChannel.CascadeRateSetpoint][i] = double.IsFinite(rateSetpoint) ? rateSetpoint : double.NaN;
+            _series[(int)TelemetryChannel.CascadeRateMeasured][i] = double.IsFinite(rateMeasured) ? rateMeasured : double.NaN;
+            _series[(int)TelemetryChannel.CascadeKlaDemand][i] = klaDemand.HasValue && double.IsFinite(klaDemand.Value) ? klaDemand.Value : double.NaN;
         }
     }
 

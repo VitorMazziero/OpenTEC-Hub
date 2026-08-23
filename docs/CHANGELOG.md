@@ -9,18 +9,20 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
-- **Unified Oxygen Control.** 4-mode control (`Agitação`, `Aeração`, `Cascata`, `Mapa`) integrated across `Controle` and `Receitas`.
-- **Bidirectional synchronization.** Edits in `Controle de oxigênio` directly update the active recipe's `Controle Cascata O2` block and reconfigure the running controller.
-- **Single activation point.** Toggling `Ativo` on the Oxygen row in `Controle` engages the cascade, locking overridden actuators with `cascata` provenance badges.
+- **Modal Pop-up Configuration (`OxygenConfigDialog`).** Replaced the secondary "Controle de oxigênio" tab in `Controle` with a modal configuration window opened via the ⚙ button on the Oxygen row.
+- **Independent 4-Mode PID Settings.** Each mode (`Agitação`, `Aeração`, `Cascata`, `Mapa`) maintains and stores independent PID parameters in `AppSettings` and runtime structures.
+- **Dual-Loop PID Cascade Controller (`CascadeTwoLoopPidController`).** Ported from industrial standard (`BlocosDeControle`) with outer predicted oxygen error loop, inner velocity-form rate error PID, low-pass derivative filter, sliding-window anti-windup, and actuator gain scheduling.
+- **Cascade Channels in Charts.** Registered `CascadeEffort`, `CascadePredictedO2`, `CascadeRateSetpoint`, `CascadeRateMeasured`, and `CascadeKlaDemand` in `ChartsViewModel` and telemetry history.
+- **Real-Time Input Validation.** Added visual error banner and validation rules for physical limits, effort windows, and PID parameters in `OxygenConfigDialog`.
 
 ### Changed
-- **Renamed workspace.** "Cascata e sintonia" renamed to "Controle de oxigênio" across the entire application.
-- **Grouped PID controls.** PID settings and Gain Scheduling organized into expandable sections in the tuning interface.
-- **Recipe cascade block `modo`.** Replaced boolean actuator flags with the `modo` enum parameter, updating card summary and validator.
+- **Process Parameters Table Layout.** Moved "Modo" column to the last column in `ControlView.xaml`.
+- **Removed per-row "Reverter".** Cleaned up process parameter rows to keep per-row "Aplicar" and global "Reverter tudo".
+- **Gain Scheduling Restriction.** Confined advanced gain scheduling factor and controls strictly to `Cascata` mode.
 
 ### Removed
-- **Gas mixer & O₂ enrichment.** Removed gas mixer loop option, limits, and parameters from recipes and execution engine.
-- **Advisory "Consultiva" surface.** Removed advisory arming panel and terminology in favor of direct active control.
+- **`CascadeTuningView`, `CascadeTuningViewModel`, `CascadeChart`.** Deleted obsolete view/viewmodel/control files.
+- **Embedded graphs in configuration window.** Graphs are now consolidated in the dedicated `Gráficos` workspace.
 
 ---
 

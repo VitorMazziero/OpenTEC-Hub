@@ -133,6 +133,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
     private readonly IKlaProfileStore _store;
+    private readonly ITelemetryHistory? _history;
     private readonly IEventJournal? _journal;
     private readonly TimeProvider _time;
     private readonly double _nominalStepSeconds;
@@ -153,6 +154,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         ISettingsService settings,
         IKlaProfileStore store,
         TimeProvider time,
+        ITelemetryHistory? history = null,
         IEventJournal? journal = null)
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -164,12 +166,14 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _device = device;
         _arbiter = arbiter;
         _store = store;
+        _history = history;
         _journal = journal;
         _time = time;
         _configuration = settings.Current.Cascade;
+        Mode = settings.Current.Cascade.Mode;
         _gainSchedule = settings.Current.GainSchedule;
         _nominalStepSeconds = Math.Max(settings.Current.Connection.DataDelayMs, 250) / 1000.0;
-        _controller = Build(_configuration);
+        _controller = Build(_configuration, Mode);
         RebuildScheduler();
 
         _device.TelemetryReceived += OnTelemetry;
@@ -256,7 +260,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         if (windowsChanged)
         {
-            _controller = Build(settings);
+            _controller = Build(settings, Mode);
             if (IsArmed)
             {
                 _lastStepAt = null;
@@ -270,7 +274,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         }
         else
         {
-            _controller.Retune(ToTuning(settings));
+            _controller.Retune(ToTuning(settings, Mode));
             _controller.OxygenSetpoint = settings.OxygenSetpointPercent;
         }
 
@@ -307,7 +311,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
             return;
         }
 
-        var baseTuning = ToTuning(_configuration);
+        var baseTuning = ToTuning(_configuration, Mode);
         _scheduler = new GainScheduler(
             new GainSchedule(breakpoints),
             baseTuning,
@@ -338,6 +342,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         }
 
         Mode = mode;
+        _controller.Retune(ToTuning(_configuration, mode));
+        RebuildScheduler();
         Updated?.Invoke();
     }
 
@@ -411,6 +417,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         }
 
         _controller.SetAllocation(allocation);
+        _controller.Retune(ToTuning(_configuration, Mode));
 
         // Bumpless: place the loop at the effort that reproduces the actuator the operator
         // left running, so the first automatic frame nudges from there rather than jumping.
@@ -447,25 +454,48 @@ public sealed class CascadeService : ICascadeService, IDisposable
         Updated?.Invoke();
     }
 
-    /// <summary>Projects persisted settings onto the controller's tuning record.</summary>
-    public static CascadeTuning ToTuning(CascadeSettings c) => new()
+    /// <summary>Returns the specific PID settings for the given mode from the configuration.</summary>
+    public static ModePidSettings GetPidForMode(CascadeMode mode, CascadeSettings cfg) => mode switch
     {
-        Kp = c.Kp,
-        Ki = c.Ki,
-        Kd = c.Kd,
-        IntegralMin = c.IntegralMin,
-        IntegralMax = c.IntegralMax,
+        CascadeMode.AgitationOnly => cfg.AgitationPid,
+        CascadeMode.AerationOnly => cfg.AerationPid,
+        CascadeMode.DualCascade => cfg.CascadePid,
+        CascadeMode.KlaPath => cfg.MapPid,
+        _ => cfg.CascadePid,
+    };
+
+    /// <summary>Projects mode PID settings onto the controller's tuning record.</summary>
+    public static CascadeTuning ToTuning(ModePidSettings p) => new()
+    {
+        KDot = p.KDot,
+        Kp = p.Kp,
+        Ki = p.Ki,
+        Kd = p.Kd,
+        PredictionHorizonSeconds = p.TPred,
+        TauD = p.TauD,
+        IntegralMin = p.IMin,
+        IntegralMax = p.IMax,
+        MWindow = p.MWindow,
+        JAvg = p.JAvg,
+        NPred = p.NPred,
+        IntervalSeconds = p.IntervalSeconds,
+        FatorGanhoAeracao = p.FatorGanhoAeracao,
+        HabilitarGainScheduling = p.HabilitarGainScheduling,
         OutputMin = 0,
         OutputMax = 100,
-        PredictionHorizonSeconds = c.PredictionHorizonSeconds,
-        RateWindowSeconds = c.RateWindowSeconds,
-        IntervalSeconds = c.IntervalSeconds,
     };
+
+    /// <summary>Projects persisted settings onto the controller's tuning record for dual cascade.</summary>
+    public static CascadeTuning ToTuning(CascadeSettings c) => ToTuning(GetPidForMode(CascadeMode.DualCascade, c));
+
+    /// <summary>Projects persisted settings onto the controller's tuning record for a specific mode.</summary>
+    public static CascadeTuning ToTuning(CascadeSettings c, CascadeMode mode) => ToTuning(GetPidForMode(mode, c));
 
     private void StartComputing()
     {
         _controller.Reset();
         _controller.OxygenSetpoint = _configuration.OxygenSetpointPercent;
+        _controller.Retune(ToTuning(_configuration, Mode));
         _lastStepAt = null;
         _trend.Clear();
         Terms = CascadeTerms.Empty;
@@ -501,8 +531,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _ => "trajetória kLa",
     };
 
-    private static CascadeController Build(CascadeSettings c) => new(
-        ToTuning(c),
+    private static CascadeController Build(CascadeSettings c, CascadeMode mode = CascadeMode.DualCascade) => new(
+        ToTuning(c, mode),
         new ActuatorWindow(
             CascadeController.AgitationActuator,
             c.AgitationMinRpm, c.AgitationMaxRpm, c.AgitationEffortStart, c.AgitationEffortEnd),
@@ -519,8 +549,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         a.AerationMinLpm == b.AerationMinLpm &&
         a.AerationMaxLpm == b.AerationMaxLpm &&
         a.AerationEffortStart == b.AerationEffortStart &&
-        a.AerationEffortEnd == b.AerationEffortEnd &&
-        a.RateWindowSeconds == b.RateWindowSeconds;
+        a.AerationEffortEnd == b.AerationEffortEnd;
 
     private void OnTelemetry(SensorSnapshot snapshot)
     {
@@ -587,6 +616,13 @@ public sealed class CascadeService : ICascadeService, IDisposable
                 Disengage("aborto seguro: posse dos atuadores perdida");
             }
         }
+
+        _history?.RecordCascade(
+            Terms.Output,
+            Terms.PredictedMeasurement,
+            Terms.Error + Terms.PredictedMeasurement,
+            Terms.MeasurementRate,
+            ActiveKlaDemand);
 
         _trend.Add(oxygen, _controller.OxygenSetpoint, ActiveKlaDemand, Terms.Output,
             now.ToUnixTimeMilliseconds() / 60000.0);

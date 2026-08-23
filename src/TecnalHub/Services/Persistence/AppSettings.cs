@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json.Serialization;
 using TecnalHub.Protocol;
+using TecnalHub.Services.Control;
 
 namespace TecnalHub.Services.Persistence;
 
@@ -431,38 +432,207 @@ public sealed record SetpointPreset
 }
 
 /// <summary>
+/// Persisted PID and rate-filter tuning for a specific oxygen control mode.
+/// </summary>
+public sealed record ModePidSettings
+{
+    public double KDot { get; init; } = 0.07;
+    public double Kp { get; init; } = 0.065;
+    public double Ki { get; init; } = 0.001;
+    public double Kd { get; init; } = 0.50;
+    public double TPred { get; init; } = 60.0;
+    public double TauD { get; init; } = 20.0;
+    public double IMin { get; init; } = -30.0;
+    public double IMax { get; init; } = 30.0;
+    public int MWindow { get; init; } = 120;
+    public int JAvg { get; init; } = 9;
+    public int NPred { get; init; } = 7;
+    public double IntervalSeconds { get; init; } = 3.0;
+    public double FatorGanhoAeracao { get; init; } = 1.43;
+    public bool HabilitarGainScheduling { get; init; } = true;
+}
+
+/// <summary>
 /// Persisted oxygen-cascade tuning.
 /// </summary>
-/// <remarks>
-/// Plain data: the mapping onto the controller's <c>CascadeTuning</c> and
-/// <c>ActuatorWindow</c> lives in <c>CascadeService</c>, so this record does not depend on
-/// the control layer. The defaults mirror the controller's own provisional simulator
-/// defaults (<c>CascadeTuning</c> and <c>CascadeController.CreateDefault</c>); they are a
-/// coherent starting point, not a validated field tuning.
-/// </remarks>
 public sealed record CascadeSettings
 {
-    public double Kp { get; init; } = 0.25;
-    public double Ki { get; init; } = 0.02;
-    public double Kd { get; init; }
-    public double IntegralMin { get; init; }
-    public double IntegralMax { get; init; } = 100.0;
-    public double PredictionHorizonSeconds { get; init; } = 25.0;
-    public double RateWindowSeconds { get; init; } = 25.0;
-    public double IntervalSeconds { get; init; } = 2.0;
-
-    /// <summary>The dissolved-oxygen target the cascade holds, in percent.</summary>
     public double OxygenSetpointPercent { get; init; } = 30.0;
+    public CascadeMode Mode { get; init; } = CascadeMode.KlaPath;
 
     public double AgitationMinRpm { get; init; } = 200;
     public double AgitationMaxRpm { get; init; } = 800;
-    public double AgitationEffortStart { get; init; }
-    public double AgitationEffortEnd { get; init; } = 65;
+    public double AgitationEffortStart { get; init; } = 0;
+    public double AgitationEffortEnd { get; init; } = 40;
 
     public double AerationMinLpm { get; init; } = 0.5;
     public double AerationMaxLpm { get; init; } = 5.0;
-    public double AerationEffortStart { get; init; } = 35;
-    public double AerationEffortEnd { get; init; } = 100;
+    public double AerationEffortStart { get; init; } = 30;
+    public double AerationEffortEnd { get; init; } = 70;
+
+    public ModePidSettings AgitationPid { get; init; } = new()
+    {
+        KDot = 0.10,
+        Kp = 0.10,
+        Ki = 0.002,
+        Kd = 0.75,
+        TPred = 30.0,
+        TauD = 40.0,
+        IMin = -200.0,
+        IMax = 200.0,
+        MWindow = 180,
+        JAvg = 10,
+        NPred = 10,
+        IntervalSeconds = 3.0,
+        HabilitarGainScheduling = false,
+    };
+
+    public ModePidSettings AerationPid { get; init; } = new()
+    {
+        KDot = 0.10,
+        Kp = 0.001,
+        Ki = 0.0002,
+        Kd = 0.0075,
+        TPred = 30.0,
+        TauD = 40.0,
+        IMin = -200.0,
+        IMax = 200.0,
+        MWindow = 180,
+        JAvg = 10,
+        NPred = 10,
+        IntervalSeconds = 3.0,
+        HabilitarGainScheduling = false,
+    };
+
+    public ModePidSettings CascadePid { get; init; } = new()
+    {
+        KDot = 0.07,
+        Kp = 0.065,
+        Ki = 0.001,
+        Kd = 0.50,
+        TPred = 60.0,
+        TauD = 20.0,
+        IMin = -30.0,
+        IMax = 30.0,
+        MWindow = 120,
+        JAvg = 9,
+        NPred = 7,
+        IntervalSeconds = 3.0,
+        FatorGanhoAeracao = 1.43,
+        HabilitarGainScheduling = true,
+    };
+
+    public ModePidSettings MapPid { get; init; } = new()
+    {
+        KDot = 0.15,
+        Kp = 0.75,
+        Ki = 0.10,
+        Kd = 0.50,
+        TPred = 30.0,
+        TauD = 40.0,
+        IMin = -500.0,
+        IMax = 500.0,
+        MWindow = 60,
+        JAvg = 5,
+        NPred = 5,
+        IntervalSeconds = 2.0,
+        HabilitarGainScheduling = false,
+    };
+
+    // Legacy fields for backward compatibility
+    [Obsolete("Migrated to CascadePid")]
+    public double Kp
+    {
+        get => CascadePid.Kp;
+        init
+        {
+            CascadePid = CascadePid with { Kp = value };
+            MapPid = MapPid with { Kp = value };
+            AgitationPid = AgitationPid with { Kp = value };
+            AerationPid = AerationPid with { Kp = value };
+        }
+    }
+
+    [Obsolete("Migrated to CascadePid")]
+    public double Ki
+    {
+        get => CascadePid.Ki;
+        init
+        {
+            CascadePid = CascadePid with { Ki = value };
+            MapPid = MapPid with { Ki = value };
+            AgitationPid = AgitationPid with { Ki = value };
+            AerationPid = AerationPid with { Ki = value };
+        }
+    }
+
+    [Obsolete("Migrated to CascadePid")]
+    public double Kd
+    {
+        get => CascadePid.Kd;
+        init
+        {
+            CascadePid = CascadePid with { Kd = value };
+            MapPid = MapPid with { Kd = value };
+            AgitationPid = AgitationPid with { Kd = value };
+            AerationPid = AerationPid with { Kd = value };
+        }
+    }
+
+    [Obsolete("Migrated to CascadePid")]
+    public double IntegralMin
+    {
+        get => CascadePid.IMin;
+        init
+        {
+            CascadePid = CascadePid with { IMin = value };
+            MapPid = MapPid with { IMin = value };
+            AgitationPid = AgitationPid with { IMin = value };
+            AerationPid = AerationPid with { IMin = value };
+        }
+    }
+
+    [Obsolete("Migrated to CascadePid")]
+    public double IntegralMax
+    {
+        get => CascadePid.IMax;
+        init
+        {
+            CascadePid = CascadePid with { IMax = value };
+            MapPid = MapPid with { IMax = value };
+            AgitationPid = AgitationPid with { IMax = value };
+            AerationPid = AerationPid with { IMax = value };
+        }
+    }
+
+    [Obsolete("Migrated to CascadePid")]
+    public double PredictionHorizonSeconds
+    {
+        get => CascadePid.TPred;
+        init
+        {
+            CascadePid = CascadePid with { TPred = value };
+            MapPid = MapPid with { TPred = value };
+            AgitationPid = AgitationPid with { TPred = value };
+            AerationPid = AerationPid with { TPred = value };
+        }
+    }
+
+    [Obsolete("Migrated to CascadePid")]
+    public double RateWindowSeconds { get; init; } = 25.0;
+
+    [Obsolete("Migrated to CascadePid")]
+    public double IntervalSeconds
+    {
+        get => CascadePid.IntervalSeconds;
+        init
+        {
+            CascadePid = CascadePid with { IntervalSeconds = value };
+            MapPid = MapPid with { IntervalSeconds = value };
+            AgitationPid = AgitationPid with { IntervalSeconds = value };
+            AerationPid = AerationPid with { IntervalSeconds = value };
+        }
+    }
 }
 
 /// <summary>A named cascade tuning. Loading one stages fields; it never actuates.</summary>

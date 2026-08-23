@@ -305,3 +305,108 @@ public class VelocityPidControllerTests
             "Retuning gains discarded the rate history it should have kept.");
     }
 }
+
+/// <summary>
+/// The dual-loop cascade PID (ReceitasTECNAL / v6 standard), verifying prediction loop,
+/// rate setpoint, inner velocity PID, gain scheduling, and anti-windup.
+/// </summary>
+public class CascadeTwoLoopPidControllerTests
+{
+    private static CascadeTuning DefaultTuning() => new()
+    {
+        KDot = 0.070,
+        Kp = 0.065,
+        Ki = 0.0010,
+        Kd = 0.500,
+        TPred = 60.0,
+        TauD = 20.0,
+        IMin = -30.0,
+        IMax = 30.0,
+        MWindow = 120,
+        JAvg = 9,
+        NPred = 7,
+        OutputMin = 0.0,
+        OutputMax = 100.0,
+        FatorGanhoAeracao = 1.43,
+        HabilitarGainScheduling = true,
+    };
+
+    [Fact]
+    public void Outer_loop_predicts_oxygen_and_computes_rate_setpoint()
+    {
+        var pid = new CascadeTwoLoopPidController(DefaultTuning(), setpoint: 40.0);
+
+        // Feed steady ramp: 10, 11, 12, 13, 14, 15, 16 (dt=3s -> slope ~ 0.333 %/s)
+        CascadeTerms terms = CascadeTerms.Empty;
+        for (var i = 0; i < 7; i++)
+        {
+            terms = pid.Update(measurement: 10.0 + i, dtSeconds: 3.0);
+        }
+
+        Assert.True(terms.MeasurementRate > 0.3 && terms.MeasurementRate < 0.35,
+            $"Expected rate ~0.333, got {terms.MeasurementRate}");
+        
+        // Predicted measurement = 16.0 + 0.333 * 60 = 36.0
+        Assert.True(terms.PredictedMeasurement > 30.0 && terms.PredictedMeasurement < 40.0,
+            $"Predicted: {terms.PredictedMeasurement}");
+
+        // Rate setpoint = KDot * (40 - PredictedMeasurement)
+        Assert.True(terms.RateSetpoint > 0, "Rate setpoint should be positive when below SP");
+    }
+
+    [Fact]
+    public void Anti_windup_bounds_integrator_term()
+    {
+        var pid = new CascadeTwoLoopPidController(DefaultTuning(), setpoint: 95.0);
+
+        for (var i = 0; i < 500; i++)
+        {
+            var terms = pid.Update(measurement: 10.0, dtSeconds: 3.0);
+            Assert.True(terms.Integral >= -30.0 && terms.Integral <= 30.0,
+                $"Integral term exceeded bounds: {terms.Integral}");
+            Assert.True(terms.Output <= 100.0);
+        }
+    }
+
+    [Fact]
+    public void Gain_scheduling_scales_with_actuator_regime()
+    {
+        var tuning = DefaultTuning();
+        var pid = new CascadeTwoLoopPidController(tuning, setpoint: 40.0);
+        var windows = new ActuatorWindow[]
+        {
+            new("Agitation", Min: 150, Max: 350, EffortStart: 0.0, EffortEnd: 40.0),
+            new("Aeration", Min: 0.5, Max: 5.0, EffortStart: 30.0, EffortEnd: 70.0),
+        };
+
+        // Preload in agitation region (< 30% effort)
+        pid.Preload(20.0);
+        var termsAgit = pid.Update(measurement: 35.0, dtSeconds: 3.0, isCascadeMode: true, windows: windows);
+        Assert.Equal(1.0, termsAgit.GainFactor, precision: 3);
+
+        // Preload in aeration region (> 40% effort)
+        pid.Preload(80.0);
+        var termsAer = pid.Update(measurement: 35.0, dtSeconds: 3.0, isCascadeMode: true, windows: windows);
+        Assert.Equal(1.43, termsAer.GainFactor, precision: 3);
+    }
+
+    [Fact]
+    public void Closed_loop_converges_to_setpoint()
+    {
+        var tuning = DefaultTuning();
+        var pid = new CascadeTwoLoopPidController(tuning, setpoint: 30.0);
+        var plant = new FirstOrderDeadTimePlant(initialOxygen: 5.0, deadTimeSeconds: 15, uptake: 1.2);
+
+        double measured = 5.0;
+        for (var i = 0; i < 1500; i++)
+        {
+            var terms = pid.Update(measured, dtSeconds: 3.0);
+            var kLa = 0.0005 * terms.Output;
+            measured = plant.Step(kLa, dt: 3.0);
+        }
+
+        Assert.True(Math.Abs(measured - 30.0) < 2.0,
+            $"Closed loop settled at {measured}, expected ~30.0");
+    }
+}
+

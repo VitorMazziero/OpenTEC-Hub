@@ -582,6 +582,28 @@ surface framing are removed from both UI and backend recipes, leaving a clean, r
 
 ---
 
+### D-025 · Dissolved Oxygen UI Simplification (Modal Pop-up ⚙, Process Table Reorganization, and Dual-Loop PID Controller Architecture)
+**Status:** Accepted and implemented · 2026-08-23 · see [UI_DESIGN.md §5.2](UI_DESIGN.md#52-controle)
+
+**Process table reorganization in `Controle`.**
+1. The "Modo" selector is positioned as the **last column** in the Process Parameters table.
+2. Individual per-row "Reverter" buttons are removed, keeping the per-row "Aplicar" and the global "Reverter tudo" in the footer.
+3. On the Oxygen parameter row, a gear button (**⚙**) directly opens the modal configuration dialog (`OxygenConfigDialog`).
+
+**Modal configuration pop-up (`OxygenConfigDialog`).**
+The secondary tab "Controle de oxigênio" inside the Control view is removed in favor of a clean, dedicated pop-up window:
+- **Independent 4-Mode PID gains:** Each mode (`Agitação`, `Aeração`, `Cascata`, `Mapa`) maintains and persists its own independent PID tuning parameters ($K_{DOT}$, $K_P$, $K_I$, $K_D$, $T_{pred}$, $\tau_D$, $I_{min}$, $I_{max}$, $M_{WINDOW}$, $J_{AVG}$, $N_{PRED}$).
+- **Gain Scheduling:** Confined exclusively to `Cascata` mode (sequential agitation + aeration).
+- **No embedded charts:** The pop-up is focused entirely on configuration. Live cascade control signals (`CascadeEffort`, `CascadePredictedO2`, `CascadeRateSetpoint`, `CascadeRateMeasured`, `CascadeKlaDemand`) are streamed directly to the main `Gráficos` (Charts) tab for telemetry visualization and CSV export.
+
+**Dual-Loop Cascade Controller Architecture (`CascadeTwoLoopPidController.cs`).**
+Replaced single-loop PID with the industrial standard ported from `BlocosDeControle`:
+1. **Outer loop:** Least-squares linear regression slope estimation and dead-time compensation ($DOT_{pred} = DOT + \text{rate}_{pred} \cdot T_{pred}$) generating rate setpoint $r_{SP} = K_{DOT} \cdot (SP - DOT_{pred})$.
+2. **Inner loop:** Velocity-form PID on the rate error ($e = r_{SP} - \text{rate}$), with derivative low-pass filtering ($\tau_D$) and sliding-window integrator anti-windup ($M_{WINDOW}$).
+3. **Actuator Gain Scheduling:** Smooth gain factor transition ($g$) across agitation and aeration windows.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

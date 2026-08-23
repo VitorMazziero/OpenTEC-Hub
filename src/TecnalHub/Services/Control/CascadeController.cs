@@ -16,26 +16,9 @@ public sealed record CascadeActuationResult(
     CascadeTerms Terms);
 
 /// <summary>
-/// The oxygen cascade: a velocity-form PID whose scalar effort is split across the
+/// The oxygen cascade: a dual-loop PID controller whose scalar effort is split across the
 /// agitation and aeration actuators.
 /// </summary>
-/// <remarks>
-/// <para>
-/// This composes the control law (<see cref="VelocityPidController"/>) with the actuator
-/// split (<see cref="ActuatorWindowAllocator"/>) and produces exactly the three values
-/// the combined cascade frame carries - flow, oxygen setpoint and motor rpm - so its
-/// output maps straight onto <see cref="CommandBuilders.CascadeActuation"/>.
-/// </para>
-/// <para>
-/// <b>What is deferred.</b> The effort split is a linear window allocation here. The
-/// manuscript's kLa gradient-path allocation - fit a bicubic B-spline of kLa over
-/// agitation × aeration, start at maximum actuator headroom, then track steepest ascent -
-/// is a later Phase 2 work package gated on the surface export decision
-/// (<c>docs/DECISIONS.md</c> D-008). It will replace the allocator, not the controller.
-/// Gain scheduling and the OUR soft sensor are likewise still to come. The default
-/// actuator bands below are provisional simulator values, not a field configuration.
-/// </para>
-/// </remarks>
 public sealed class CascadeController
 {
     /// <summary>Actuator name for agitation, shared with the allocator and the wire mapping.</summary>
@@ -44,7 +27,7 @@ public sealed class CascadeController
     /// <summary>Actuator name for aeration.</summary>
     public const string AerationActuator = "aeration";
 
-    private readonly VelocityPidController _pid;
+    private readonly CascadeTwoLoopPidController _pid;
     private CascadeAllocation _allocation;
 
     public CascadeController(
@@ -57,7 +40,7 @@ public sealed class CascadeController
         ArgumentNullException.ThrowIfNull(agitation);
         ArgumentNullException.ThrowIfNull(aeration);
 
-        _pid = new VelocityPidController(tuning, oxygenSetpoint);
+        _pid = new CascadeTwoLoopPidController(tuning, oxygenSetpoint);
         _allocation = new WindowAllocation(
             agitation with { Name = AgitationActuator },
             aeration with { Name = AerationActuator });
@@ -66,17 +49,11 @@ public sealed class CascadeController
     /// <summary>
     /// A ready-to-run oxygen cascade with provisional actuator bands.
     /// </summary>
-    /// <remarks>
-    /// Agitation carries the low half of the effort and aeration the high half, sharing a
-    /// deliberate overlap so the two hand over smoothly rather than stepping. The numbers
-    /// are simulator defaults; the field configuration and the kLa-driven split arrive
-    /// with the surface (see the class remarks).
-    /// </remarks>
     public static CascadeController CreateDefault(double oxygenSetpoint = 30.0)
         => new(
             new CascadeTuning(),
-            new ActuatorWindow(AgitationActuator, Min: 200, Max: 800, EffortStart: 0, EffortEnd: 65),
-            new ActuatorWindow(AerationActuator, Min: 0.5, Max: 5.0, EffortStart: 35, EffortEnd: 100),
+            new ActuatorWindow(AgitationActuator, Min: 200, Max: 800, EffortStart: 0, EffortEnd: 40),
+            new ActuatorWindow(AerationActuator, Min: 0.5, Max: 5.0, EffortStart: 30, EffortEnd: 70),
             oxygenSetpoint);
 
     /// <summary>The dissolved-oxygen target, in percent.</summary>
@@ -98,12 +75,11 @@ public sealed class CascadeController
     /// <summary>The active effort-to-actuator mapping.</summary>
     public CascadeAllocation Allocation => _allocation;
 
-    /// <summary>The configured actuator windows, for the tuning workspace's stacked bar.</summary>
+    /// <summary>The configured actuator windows.</summary>
     public IReadOnlyList<ActuatorWindow> Windows => _allocation.Windows;
 
     /// <summary>
-    /// Swaps the effort-to-actuator mapping — the linear windows, a single-actuator fallback
-    /// or the published kLa path — without disturbing the controller's probe history.
+    /// Swaps the effort-to-actuator mapping without disturbing the controller's probe history.
     /// </summary>
     public void SetAllocation(CascadeAllocation allocation)
         => _allocation = allocation ?? throw new ArgumentNullException(nameof(allocation));
@@ -114,7 +90,12 @@ public sealed class CascadeController
     /// </summary>
     public CascadeActuationResult Update(double dissolvedOxygenPercent, double dtSeconds)
     {
-        var terms = _pid.Update(dissolvedOxygenPercent, dtSeconds);
+        var terms = _pid.Update(
+            dissolvedOxygenPercent,
+            dtSeconds,
+            _allocation.Windows,
+            isCascadeMode: _allocation is WindowAllocation);
+
         var (rpm, flow) = _allocation.Allocate(terms.Output);
 
         return new CascadeActuationResult(
@@ -127,13 +108,6 @@ public sealed class CascadeController
     /// <summary>
     /// Builds the combined cascade frame for a step's result.
     /// </summary>
-    /// <remarks>
-    /// The one place the cascade meets the wire. It goes through
-    /// <see cref="CommandBuilders.CascadeActuation"/> so the frozen key order and the
-    /// inverted <c>v_Flow</c> rule are applied in exactly one tested location, never
-    /// re-derived here. It does not send: the caller queues it on the shared command
-    /// queue, so a running cascade and an operator cannot fight over the link.
-    /// </remarks>
     public static TecnalCommand BuildCommand(CascadeActuationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);

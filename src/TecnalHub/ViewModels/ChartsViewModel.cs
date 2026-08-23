@@ -73,6 +73,11 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.Biomass, "Biomassa", "Abs", "Series3Brush"),
             new(TelemetryChannel.PumpFlow, "Bomba — vazão", "mL/min", "Series4Brush"),
             new(TelemetryChannel.PumpVolume, "Bomba — volume", "mL", "Series5Brush"),
+            new(TelemetryChannel.CascadeEffort, "Cascata — Saída PID", "%", "Series1Brush"),
+            new(TelemetryChannel.CascadePredictedO2, "Cascata — O₂ Predito", "%", "Series2Brush"),
+            new(TelemetryChannel.CascadeRateSetpoint, "Cascata — SP de Taxa", "%/s", "Series3Brush"),
+            new(TelemetryChannel.CascadeRateMeasured, "Cascata — Taxa Medida", "%/s", "Series4Brush"),
+            new(TelemetryChannel.CascadeKlaDemand, "Cascata — Demanda kLa", "h⁻¹", "Series5Brush"),
         ];
 
         LeftChannel = Channels[0];

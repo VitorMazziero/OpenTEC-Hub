@@ -72,20 +72,6 @@ public partial class App : Application
     /// <summary>
     /// Routes WPF data-binding failures into the log.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>A failed binding is silent.</b> WPF resolves it to nothing, the property keeps
-    /// its default, and the window renders looking almost right. That is how
-    /// <c>{Binding SelectedSubsystem, RelativeSource={RelativeSource AncestorType=Window}}</c>
-    /// - which asks the Window object for a property only its DataContext has - put two
-    /// detail panes on screen at once during Phase 1b, with nothing anywhere reporting a
-    /// problem.
-    /// </para>
-    /// <para>
-    /// Debug only: the listener costs a trace hop per binding failure, and a shipped
-    /// build should have none left to report.
-    /// </para>
-    /// </remarks>
     [Conditional("DEBUG")]
     private static void WireBindingDiagnostics()
     {
@@ -126,7 +112,6 @@ public partial class App : Application
 
         // Only now do we touch hardware.
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
-
     }
 
     private static void ConfigureLogging()
@@ -184,6 +169,8 @@ public partial class App : Application
         services.AddSingleton<IDeviceService>(sp => sp.GetRequiredService<CommandArbiter>());
         services.AddSingleton<ICommandArbiter>(sp => sp.GetRequiredService<CommandArbiter>());
 
+        services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
+
         // The oxygen cascade subscribes to telemetry and actuates only while engaged,
         // after command ownership and connection preconditions are satisfied.
         services.AddSingleton<ICascadeService, CascadeService>();
@@ -192,7 +179,6 @@ public partial class App : Application
         // agitation against the active published kLa map; it never actuates.
         services.AddSingleton<IOurSoftSensor, OurSoftSensorService>();
 
-        services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
         services.AddSingleton<ISessionLogger, SessionLogger>();
         services.AddSingleton<ISessionFileService, SessionFileService>();
         services.AddSingleton<IEventJournal, EventJournal>();

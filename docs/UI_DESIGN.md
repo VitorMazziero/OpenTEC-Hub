@@ -820,10 +820,9 @@ Full width, no detail pane and no variable rail: the table already carries every
 so a second variable display would be redundant and would hide the action columns at the
 1280 px acceptance width. Two tabs.
 
-#### Tab 1 — `Parâmetros`
+#### Parâmetros de Processo (`ControlView.xaml`)
 
-A dense table, one row per controllable subsystem. This is where an operator checks a run
-before pressing start.
+A dense table, one row per controllable subsystem. This is where an operator checks and adjusts the process before and during a run.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -834,68 +833,33 @@ before pressing start.
 | `Novo SP` | inline `TextBox`, 88 px | Inline validation; `AccentBorder` when dirty |
 | `Unidade` | 11 px `TextMuted` | |
 | `Faixa` | 11 px `TextMuted` | e.g. `15,0-60,0 °C` |
-| `Ativo` | `ToggleSwitch` | **Blue when on, never green** (3.3) |
-| `Modo` | `ComboBox` | `Manual` · `Automático` · `Receita` — per subsystem |
+| `Ativo` | `ToggleSwitch` | **Blue when on, never green** (3.3). On Oxygen row, directly engages/disengages cascade |
 | `Dono` | 11 px badge | Who currently owns the command: operator, cascade, recipe |
-| ` ` | `Aplicar` / `Reverter` | Per row |
+| ` ` | `Aplicar` | Per row action button |
+| `Modo` | `ComboBox` / ⚙ button | **Last column**. On Oxygen row: mode selector (`Agitação`, `Aeração`, `Cascata`, `Mapa`) + gear button (⚙) opening the configuration modal |
 
 Page footer:
 
 | Control | Type | Behaviour |
 |---|---|---|
-| `Aplicar alterações (n)` | primary button | Sends only dirty rows, **combined into one command object** where the protocol allows — it reduces round trips on the shared UART |
+| `Aplicar alterações (n)` | primary button | Sends only dirty rows, **combined into one command object** where the protocol allows |
 | `Reverter tudo` | secondary | Restores acknowledged values |
 | `Salvar como predefinição…` | secondary | Named setpoint set |
 | `Carregar predefinição ▾` | dropdown | Fills fields; **does not send** |
-| `⛔ Parada segura` | **danger** | Confirmation dialog (7.2). Sends every subsystem's safe-off, including the flow safe-stop that forces both valves closed and the complete pH-off state |
+| `⛔ Parada segura` | **danger** | Confirmation dialog (7.2). Sends every subsystem's safe-off, disengaging cascade cleanly |
 
-> **`Parada segura` is the only red button in the application.** Flow disable is not
-> merely zero flow: `flowmeterComm:0, flowSetpoint:0, v_Flow:1, valve_1:0, valve_2:0`,
-> because leaving a nitrogen valve open through a stop is a hazard.
+#### Janela Modal de Configuração de Oxigênio (`OxygenConfigDialog.xaml`)
 
-Below the table, cards for subsystems that are not simple setpoints:
-
-| Card | Controls | Phase |
-|---|---|---|
-| **Válvulas** | `valve_1` aux toggle · `valve_2` N₂ toggle · `v_Flow` vent state (read-only, **derived and inverted** — shown so nobody has to remember the inversion) · `maxFlow` entry | 1 |
-| **Agitador de frasco** | `Ativo` · `Automático` · `Intensidade` 0-100 slider + entry · `Sentido` `Horário`/`Anti-horário` radio · `Reativar potenciômetro` button | 2 |
-| **Controle de pH** | `Setpoint` · `Banda inativa` · `Bomba ligada (s)` · `Repouso/mistura (s)` · `Velocidade %` · `Ativo`; all five wire fields are atomic | 2 WP3 — built |
-| **Dosagem — Nutriente** | `Operação` · `Mistura` · `Ciclo op.` · `Ciclo mist.` · `Intensidade %` · `Ativo` | 2 |
-| **Dosagem — Antiespumante** | `Operação` 0-999 · `Mistura` 1-999 · `Intensidade` 0-99 · `Ativo` | 2 |
-| **Controle de espuma** | `Sensor ativo` · `Referência (mm)` · `Atraso inicial (s)` · `Pulso (s)` · `Intervalo (s)` | 2 |
-| **Bomba externa** | `Ativa` · `Modo ▾` `Constante`/`Linear`/`Exponencial`/`Polinomial`/`Por segmentos` · parameters per mode · **profile preview chart** | 3 |
-| **Biomassa** | `Ativo` · `Capturar branco` · `Limiar baixo`/`alto`/`ótimo` · live `Abs`, `Raw`, `IT`, `PWM` | 3 |
-
-> The polynomial pump mode takes `p0..p20` — 21 coefficients. Present it as a compact
-> grid with a live curve preview, not 21 stacked labelled fields. Piecewise takes
-> `num_segments` with `t0..tN` / `q0..qN`: an editable two-column point table plus the
-> same preview.
-
-#### Tab 2 — `Controle de oxigênio` *(Phase 2/3 · [D-024](DECISIONS.md))*
-
-The scientific payload gets a dedicated, unified workspace structured into 3 distinct zones:
-
-- **1. Lido (Telemetria ao vivo):** Live PV (`Oxigênio dissolvido`), SP, actuation effort, and running state. Always visible alongside the live `CascadeChart`.
-- **2. Inferido (Modo Mapa):** Demand kLa, OUR soft sensor, and predicted DO (active only in `Mapa` mode; hidden otherwise).
-- **3. Parâmetros do Usuário:**
-  - **Malha & Modo:** 4 mutually exclusive modes — `Agitação`, `Aeração`, `Cascata` (percentage windows), and `Mapa` (published kLa path).
-  - **Controle PID (Expansível):** `Kp` · `Ki` · `Kd` · `I_min` · `I_max` · `Horizonte de predição (s)` · `Intervalo (s)`.
-  - **Ganhos Avançados (Expansível):** Gain scheduling segments and adaptive gain parameters.
-  - **Janelas de Atuação / Faixas Físicas:** Dynamic configuration per mode (`N_min`/`N_max`, `Q_min`/`Q_max`, and effort percentage windows `0-100 %`).
-
-**Bidirectional synchronization:** When an active recipe has a `Controle Cascata O2` block, this tab directly inspects and edits the recipe node's parameters and reconfigures the running controller on `Aplicar`. In the absence of an active recipe, it edits global `AppSettings.Cascade`.
-
-| Controls | Role |
-|---|---|
-| `Modo ▾` | `Agitação` · `Aeração` · `Cascata` · `Mapa` |
-| `Ativar / Desativar Controle` | Engages/disengages live automatic cascade actuation (`CommandOwner.Automatic`) |
-| `Zerar integral` | Resets the integrator contribution bumplessly |
-| `Aplicar` · `Reverter` · `Salvar controle…` · `Carregar controle ▾` | User parameter staging and persistence |
-
-The form makes the corrected design visible rather than hiding it: `I_min`/`I_max` exist
-because v.6 wound up over long transients; the prediction horizon exists because the
-polarographic probe has 20-40 s of dead time; the output is **velocity-form**, so the
-displayed `Saída` is `Saída[i-1] + dSaída[i]` and the label says so.
+Triggered by the ⚙ button on the Oxygen row. A clean, dedicated configuration window ([D-025](DECISIONS.md)):
+- **Modos Suportados:**
+  - `Agitação`: Controle exclusivo por rotação do motor (RPM).
+  - `Aeração`: Controle exclusivo por vazão de ar comprimido (L/min).
+  - `Cascata`: Atuação sequencial conjunta por janelas de esforço (0–100%) com sobreposição suave.
+  - `Mapa`: Atuação ao longo da trajetória na superfície kLa calibrada.
+- **Sintonia PID Independente:** Cada um dos 4 modos retém seu próprio conjunto de ganhos e limites ($K_{DOT}$, $K_P$, $K_I$, $K_D$, $T_{pred}$, $\tau_D$, limites integral, anti-windup por janela deslizante $M_{WINDOW}$, janelas de amostragem $J_{AVG}$ e $N_{PRED}$).
+- **Ganhos Avançados (Gain Scheduling):** Exclusivo para o modo `Cascata`.
+- **Validação de Entrada:** Banner de alerta automático para inconsistências físicas ou de parametrização.
+- **Telemetria e Gráficos:** Sem gráficos embutidos no diálogo; as séries de controle são direcionadas à aba `Gráficos` (`ChartsView.xaml`).
 
 ---
 

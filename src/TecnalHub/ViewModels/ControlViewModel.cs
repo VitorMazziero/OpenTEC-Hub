@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Protocol;
@@ -148,7 +150,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControl = antifoamControl;
         FoamControl = foamControl;
         FlaskAgitator = flaskAgitator;
-        Tuning = new CascadeTuningViewModel(cascade, settings, receitas);
 
         Rows =
         [
@@ -215,9 +216,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public FlaskAgitatorViewModel FlaskAgitator { get; }
 
     public SubsystemViewModel FlowSubsystem => _flowSubsystem;
-
-    /// <summary>Tab 2: the oxygen-cascade tuning workspace.</summary>
-    public CascadeTuningViewModel Tuning { get; }
 
     public ObservableCollection<SetpointPreset> Presets { get; } = [];
 
@@ -383,6 +381,26 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void OpenOxygenConfig()
+    {
+        var vm = new OxygenConfigViewModel(_cascade, _settings);
+        var dialog = new Views.Dialogs.OxygenConfigDialog(vm)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            var oxygenRow = Rows.FirstOrDefault(r => r.IsOxygenRow);
+            if (oxygenRow != null)
+            {
+                oxygenRow.SelectedOxygenMode = vm.SelectedMode.Label;
+            }
+            StatusText = "Parâmetros de oxigênio aplicados.";
+        }
+    }
+
+    [RelayCommand]
     private void SavePreset()
     {
         var name = PresetName.Trim();
@@ -490,13 +508,14 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         // being rejected for actuators the cascade still owns.
         _cascade.Disengage("parada segura");
         _device.Send(command);
+
         foreach (var row in Rows)
         {
             row.Subsystem.IsEnabled = false;
             row.Subsystem.CommitPendingCommand();
         }
 
-        FlowControl.CommitRequested(flowEnabled: false);
+        FlowControl.CommitRequested(false);
         PHControl.IsEnabled = false;
         PHControl.CommitPendingCommand();
         NutrientControl.IsEnabled = false;
@@ -505,52 +524,40 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControl.CommitPendingCommand();
         FlaskAgitator.IsEnabled = false;
         FlaskAgitator.CommitPendingCommand();
+
         PersistAppliedSetpoints();
-        StatusText = "Parada segura enviada; todos os subsistemas foram comandados para o estado seguro.";
+        StatusText = "Parada segura executada. Atuadores e dosagens desativados.";
         RefreshState();
     }
 
     private bool TryBuildCombinedCommand(out TecnalCommand combined)
     {
         combined = TecnalCommand.Create();
-        var flowNeedsCommand = _flowSubsystem.HasPendingChange || FlowControl.HasPendingChange;
 
-        foreach (var row in Rows)
+        foreach (var row in Rows.Where(r => r.Subsystem.HasPendingChange))
         {
-            var subsystem = row.Subsystem;
-            if (ReferenceEquals(subsystem, _flowSubsystem))
-            {
-                if (!flowNeedsCommand)
-                {
-                    continue;
-                }
-
-                var setpoint = 0.0;
-                if (subsystem.IsEnabled && !subsystem.TryGetStagedValue(out setpoint))
-                {
-                    return false;
-                }
-
-                if (!FlowControl.TryBuildRequested(setpoint, subsystem.IsEnabled, out var flowCommand))
-                {
-                    return false;
-                }
-
-                combined.Merge(flowCommand);
-                continue;
-            }
-
-            if (!subsystem.HasPendingChange)
-            {
-                continue;
-            }
-
-            if (!subsystem.TryBuildPendingCommand(out var command))
+            if (!row.Subsystem.TryBuildPendingCommand(out var fragment))
             {
                 return false;
             }
 
-            combined.Merge(command);
+            combined.Merge(fragment);
+        }
+
+        if (_flowSubsystem.HasPendingChange || FlowControl.HasPendingChange)
+        {
+            var targetFlow = _flowSubsystem.AppliedSetpoint ?? 0.0;
+            if (_flowSubsystem.IsEnabled && !_flowSubsystem.TryGetStagedValue(out targetFlow))
+            {
+                return false;
+            }
+
+            if (!FlowControl.TryBuildRequested(targetFlow, _flowSubsystem.IsEnabled, out var flowCommand))
+            {
+                return false;
+            }
+
+            combined.Merge(flowCommand);
         }
 
         if (PHControl.HasPendingChange)
@@ -614,7 +621,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         return FlowControl.IsValid;
     }
 
-    private void OnStagedStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnStagedStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SubsystemViewModel.IsEnabled))
         {
@@ -629,10 +636,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         RefreshState();
     }
 
-    private void OnOxygenRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnOxygenRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ControlParameterRowViewModel.SelectedOxygenMode))
         {
+            var oxygenRow = Rows[2];
+            _cascade.SelectMode(oxygenRow.SelectedOxygenCascadeMode);
             RefreshCascadeOverrides();
         }
     }
@@ -709,7 +718,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         RefreshState();
     }
 
-    private void OnFlowStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnFlowStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(FlowControlViewModel.MaxFlowText) &&
             FlowControl.TryGetStagedMaxFlow(out var maximum))
@@ -720,10 +729,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         RefreshState();
     }
 
-    private void OnPHStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnPHStateChanged(object? sender, PropertyChangedEventArgs e)
         => RefreshState();
 
-    private void OnDosingStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)
         => RefreshState();
 
     private void RefreshState()
@@ -787,6 +796,5 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FoamControl.PropertyChanged -= OnDosingStateChanged;
         FlaskAgitator.PropertyChanged -= OnDosingStateChanged;
         _cascade.Updated -= OnCascadeUpdated;
-        Tuning.Dispose();
     }
 }

@@ -135,7 +135,7 @@ public sealed class GainScheduleTests
         var clock = new TestClock(DateTimeOffset.UnixEpoch);
         var arbiter = new CommandArbiter(device, clock);
         using var journal = new EventJournal(arbiter, arbiter, settings);
-        using var service = new CascadeService(arbiter, arbiter, settings, new FakeKlaProfileStore(), clock, journal);
+        using var service = new CascadeService(arbiter, arbiter, settings, new FakeKlaProfileStore(), clock, journal: journal);
 
         Assert.True(service.IsGainSchedulingEnabled);
         service.Arm();

@@ -11,6 +11,7 @@
     <UserControl.Resources>
         <conv:HexToBrushConverter x:Key="HexToBrush" />
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
 
         <!-- One scalar editor, chosen from the schema kind. -->
         <DataTemplate x:Key="ScalarFieldTemplate" DataType="{x:Type vm:RecipeParameterFieldViewModel}">

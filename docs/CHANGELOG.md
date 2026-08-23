@@ -8,6 +8,20 @@ All notable changes to TECNAL-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Added
+- **Unified Oxygen Control.** 4-mode control (`Agitação`, `Aeração`, `Cascata`, `Mapa`) integrated across `Controle` and `Receitas`.
+- **Bidirectional synchronization.** Edits in `Controle de oxigênio` directly update the active recipe's `Controle Cascata O2` block and reconfigure the running controller.
+- **Single activation point.** Toggling `Ativo` on the Oxygen row in `Controle` engages the cascade, locking overridden actuators with `cascata` provenance badges.
+
+### Changed
+- **Renamed workspace.** "Cascata e sintonia" renamed to "Controle de oxigênio" across the entire application.
+- **Grouped PID controls.** PID settings and Gain Scheduling organized into expandable sections in the tuning interface.
+- **Recipe cascade block `modo`.** Replaced boolean actuator flags with the `modo` enum parameter, updating card summary and validator.
+
+### Removed
+- **Gas mixer & O₂ enrichment.** Removed gas mixer loop option, limits, and parameters from recipes and execution engine.
+- **Advisory "Consultiva" surface.** Removed advisory arming panel and terminology in favor of direct active control.
+
 ---
 
 ## [0.24.0] - 2026-08-22

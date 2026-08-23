@@ -561,6 +561,27 @@ aeration coupling ride the standing bioreactor gate.
 
 ---
 
+### D-024 · Unified Oxygen Control (Controle ↔ Receitas sync, single activation, and removal of gas-mixer/consultiva)
+**Status:** Accepted and implemented · 2026-08-23 · see [UI_DESIGN.md §5.2](UI_DESIGN.md#52-controle) and [§5.3.7](UI_DESIGN.md#537-the-cascade-block)
+
+**Four distinct allocation modes.** Oxygen control is unified across the application under four mutually exclusive modes:
+`Agitação` (`AgitationOnly`), `Aeração` (`AerationOnly`), `Cascata` (`DualCascade`), and `Mapa` (`KlaPath`).
+The recipe block parameter is standardized on enum `modo` rather than disjoint boolean flags.
+
+**Single activation point (Toggle "Ativo" = Engate).** Turning on the "Ativo" toggle on the Oxygen row in `Controle`
+or clicking the action button in `Controle de oxigênio` is the single point of activation that engages `CascadeService`
+under `CommandOwner.Automatic`. Overridden actuators (Agitation / Aeration depending on mode) are locked in the `ON` state and
+disabled from manual edits, displaying provenance badges. Safe Stop disengages the cascade cleanly.
+
+**Bidirectional synchronization.** When an active recipe tab has a `Controle Cascata O2` block, the `Controle de oxigênio`
+workspace reads from and applies directly to the recipe node, while simultaneously reconfiguring the running controller.
+When no recipe is active, it seamlessly falls back to editing global `AppSettings.Cascade`.
+
+**Removal of Gas Mixer and "Consultiva".** The unsupported gas mixer / O₂ enrichment loop and the legacy "consultiva/advisory"
+surface framing are removed from both UI and backend recipes, leaving a clean, responsive control interface.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

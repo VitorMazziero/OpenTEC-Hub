@@ -242,7 +242,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
-            device, settings, dialogs, cascade);
+            device, settings, dialogs, cascade, receitas);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 

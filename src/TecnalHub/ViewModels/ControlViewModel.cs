@@ -17,11 +17,14 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
         Subsystem = subsystem;
         IconKey = iconKey;
         SelectedMode = ModeOptions[0];
+        SelectedOxygenMode = OxygenModeOptions[0];
     }
 
     public SubsystemViewModel Subsystem { get; }
 
     public string IconKey { get; }
+
+    public bool IsOxygenRow => IconKey == "Oxygen";
 
     public IReadOnlyList<CommandOwnerOption> ModeOptions { get; } =
     [
@@ -30,9 +33,24 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
         new(CommandOwner.Recipe, "Receita", "O motor de receitas chega na Fase 3."),
     ];
 
+    public IReadOnlyList<string> OxygenModeOptions { get; } =
+    [
+        "Agitação",
+        "Aeração",
+        "Cascata",
+        "Mapa"
+    ];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OwnerText))]
     public partial CommandOwnerOption SelectedMode { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedOxygenMode { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveActive))]
+    public partial bool IsOverriddenByCascade { get; set; }
 
     public string OwnerText => SelectedMode.Owner switch
     {
@@ -40,6 +58,54 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
         CommandOwner.Recipe => "Receita",
         _ => "Operador",
     };
+
+    // ── Oxygen-cascade engagement (wired by ControlViewModel for the oxygen row) ──
+
+    /// <summary>Reads live cascade engagement; supplied by the owner for the oxygen row.</summary>
+    internal Func<bool>? CascadeEngagedGetter { get; set; }
+
+    /// <summary>Requests engage (true) or disengage (false); supplied by the owner for the oxygen row.</summary>
+    internal Action<bool>? CascadeEngageRequested { get; set; }
+
+    /// <summary>The selected oxygen mode as a <see cref="CascadeMode"/>.</summary>
+    public CascadeMode SelectedOxygenCascadeMode => SelectedOxygenMode switch
+    {
+        "Agitação" => CascadeMode.AgitationOnly,
+        "Aeração" => CascadeMode.AerationOnly,
+        "Mapa" => CascadeMode.KlaPath,
+        _ => CascadeMode.DualCascade,
+    };
+
+    /// <summary>
+    /// The oxygen row's "Ativo" state: engaging the cascade. Toggling requests engage/disengage
+    /// through the owner, which reverts this on a refusal (offline, or map mode with no map).
+    /// </summary>
+    public bool IsCascadeEngaged
+    {
+        get => CascadeEngagedGetter?.Invoke() ?? false;
+        set => CascadeEngageRequested?.Invoke(value);
+    }
+
+    /// <summary>The mode may only change while the cascade is not engaged.</summary>
+    public bool CanEditOxygenMode => !IsCascadeEngaged;
+
+    /// <summary>
+    /// A non-oxygen row's "Ativo" state: its subsystem enable, forced on (and locked) while the
+    /// oxygen cascade drives this actuator, so the operator sees it running under the cascade.
+    /// </summary>
+    public bool EffectiveActive
+    {
+        get => IsOverriddenByCascade || Subsystem.IsEnabled;
+        set => Subsystem.IsEnabled = value;
+    }
+
+    /// <summary>Re-reads the engagement-derived states after a cascade or enable change.</summary>
+    public void NotifyActiveChanged()
+    {
+        OnPropertyChanged(nameof(EffectiveActive));
+        OnPropertyChanged(nameof(IsCascadeEngaged));
+        OnPropertyChanged(nameof(CanEditOxygenMode));
+    }
 }
 
 /// <summary>
@@ -50,6 +116,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private readonly IDeviceService _device;
     private readonly ISettingsService _settings;
     private readonly IDialogService _dialogs;
+    private readonly ICascadeService _cascade;
     private readonly SubsystemViewModel _flowSubsystem;
 
     public ControlViewModel(
@@ -63,7 +130,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         IDeviceService device,
         ISettingsService settings,
         IDialogService dialogs,
-        ICascadeService cascade)
+        ICascadeService cascade,
+        ReceitasViewModel? receitas = null)
     {
         if (subsystems.Count != 5)
         {
@@ -73,13 +141,14 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _device = device;
         _settings = settings;
         _dialogs = dialogs;
+        _cascade = cascade;
         FlowControl = flowControl;
         PHControl = phControl;
         NutrientControl = nutrientControl;
         AntifoamControl = antifoamControl;
         FoamControl = foamControl;
         FlaskAgitator = flaskAgitator;
-        Tuning = new CascadeTuningViewModel(cascade, settings);
+        Tuning = new CascadeTuningViewModel(cascade, settings, receitas);
 
         Rows =
         [
@@ -94,7 +163,18 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         foreach (var row in Rows)
         {
             row.Subsystem.PropertyChanged += OnStagedStateChanged;
+            if (row.IsOxygenRow)
+            {
+                row.PropertyChanged += OnOxygenRowPropertyChanged;
+            }
         }
+
+        // The oxygen row's "Ativo" toggle is the single activation point for the cascade:
+        // turning it on selects the mode and engages live actuation.
+        var oxygenRow = Rows[2];
+        oxygenRow.CascadeEngagedGetter = () => _cascade.IsEngaged;
+        oxygenRow.CascadeEngageRequested = OnOxygenEngageRequested;
+        _cascade.Updated += OnCascadeUpdated;
 
         FlowControl.PropertyChanged += OnFlowStateChanged;
         PHControl.PropertyChanged += OnPHStateChanged;
@@ -112,6 +192,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         SelectedPreset = Presets.FirstOrDefault();
         RefreshState();
+        OnCascadeUpdated();
     }
 
     public IReadOnlyList<ControlParameterRowViewModel> Rows { get; }
@@ -405,6 +486,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Release the cascade first so the safe frame lands as a manual command rather than
+        // being rejected for actuators the cascade still owns.
+        _cascade.Disengage("parada segura");
         _device.Send(command);
         foreach (var row in Rows)
         {
@@ -531,7 +615,99 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     }
 
     private void OnStagedStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        => RefreshState();
+    {
+        if (e.PropertyName == nameof(SubsystemViewModel.IsEnabled))
+        {
+            foreach (var row in Rows)
+            {
+                row.NotifyActiveChanged();
+            }
+
+            RefreshCascadeOverrides();
+        }
+
+        RefreshState();
+    }
+
+    private void OnOxygenRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ControlParameterRowViewModel.SelectedOxygenMode))
+        {
+            RefreshCascadeOverrides();
+        }
+    }
+
+    private void RefreshCascadeOverrides()
+    {
+        var oxygenRow = Rows[2]; // Oxygen
+        var agitationRow = Rows[1]; // Impeller
+        var aerationRow = Rows[3]; // Airflow
+
+        var engaged = _cascade.IsEngaged;
+        var mode = oxygenRow.SelectedOxygenCascadeMode;
+
+        var drivesAgitation = mode is CascadeMode.AgitationOnly or CascadeMode.DualCascade or CascadeMode.KlaPath;
+        var drivesAeration = mode is CascadeMode.AerationOnly or CascadeMode.DualCascade or CascadeMode.KlaPath;
+
+        agitationRow.IsOverriddenByCascade = engaged && drivesAgitation;
+        aerationRow.IsOverriddenByCascade = engaged && drivesAeration;
+    }
+
+    /// <summary>
+    /// Handles the oxygen row's "Ativo" toggle: engaging selects the mode and claims the oxygen
+    /// actuators; a refusal (offline, or a map mode with no published map) reverts the toggle and
+    /// reports why.
+    /// </summary>
+    private void OnOxygenEngageRequested(bool engage)
+    {
+        var oxygenRow = Rows[2];
+        if (engage)
+        {
+            _cascade.SelectMode(oxygenRow.SelectedOxygenCascadeMode);
+            if (!_cascade.CanEngage(out var reason))
+            {
+                StatusText = reason ?? "Não é possível ativar o controle de oxigênio agora.";
+                oxygenRow.NotifyActiveChanged(); // snap the toggle back to off
+                return;
+            }
+
+            var setpoints = _settings.Current.Setpoints;
+            _cascade.Engage(setpoints.MotorRpm, setpoints.FlowLitresPerMinute);
+            StatusText = "Controle de oxigênio ativado; a cascata assumiu agitação e aeração.";
+        }
+        else
+        {
+            _cascade.Disengage("operador desativou o controle de oxigênio");
+            StatusText = "Controle de oxigênio desativado; o comando voltou ao operador.";
+        }
+        // The cascade's Updated event refreshes the overrides and the toggles.
+    }
+
+    /// <summary>Keeps the oxygen row and the actuator locks in step with the running cascade.</summary>
+    private void OnCascadeUpdated()
+    {
+        var oxygenRow = Rows[2];
+        var modeLabel = _cascade.Mode switch
+        {
+            CascadeMode.AgitationOnly => "Agitação",
+            CascadeMode.AerationOnly => "Aeração",
+            CascadeMode.DualCascade => "Cascata",
+            CascadeMode.KlaPath => "Mapa",
+            _ => oxygenRow.SelectedOxygenMode,
+        };
+        if (oxygenRow.SelectedOxygenMode != modeLabel)
+        {
+            oxygenRow.SelectedOxygenMode = modeLabel;
+        }
+
+        RefreshCascadeOverrides();
+        foreach (var row in Rows)
+        {
+            row.NotifyActiveChanged();
+        }
+
+        RefreshState();
+    }
 
     private void OnFlowStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -598,6 +774,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         foreach (var row in Rows)
         {
             row.Subsystem.PropertyChanged -= OnStagedStateChanged;
+            if (row.IsOxygenRow)
+            {
+                row.PropertyChanged -= OnOxygenRowPropertyChanged;
+            }
         }
 
         FlowControl.PropertyChanged -= OnFlowStateChanged;
@@ -606,6 +786,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControl.PropertyChanged -= OnDosingStateChanged;
         FoamControl.PropertyChanged -= OnDosingStateChanged;
         FlaskAgitator.PropertyChanged -= OnDosingStateChanged;
+        _cascade.Updated -= OnCascadeUpdated;
         Tuning.Dispose();
     }
 }

@@ -1305,3 +1305,27 @@ generated fields). Full suite 429 passed / 1 skipped, green after each committed
 recipe tabs/library, save/load to disk, and the in-pane live cascade P/I/D readout. The pump-block
 field mapping and the vvm→L/min aeration coupling await hardware confirmation. (WP1 biomass and WP2
 external pump live on their own branch; reconcile the Phase-3 log numbering when the branches merge.)
+
+---
+
+### P3-04 · Unified Oxygen Control & Receitas UX Integration
+
+**Decided:** unify the four oxygen cascade modes (`Agitação`, `Aeração`, `Cascata`, `Mapa`) across
+`Controle` and `Receitas`, establish bidirectional synchronization between the active recipe's
+cascade block and the tuning workspace, remove gas-mixer / O₂-enrichment and legacy "consultiva"
+framing, and wire single-toggle engagement on the oxygen parameter row. See [D-024](DECISIONS.md).
+
+**Key achievements:**
+1. **Modo migration & Validator:** migrated recipe cascade blocks to enum `modo` (AgitationOnly,
+   AerationOnly, DualCascade, KlaPath). Card summary dynamically reports `Modo: <Nome>` and SP.
+2. **Single activation point (Toggle "Ativo" = Engate):** toggling the O₂ row in Controle engages
+   `CascadeService` and locks overridden actuators in the `ON` state with `cascata` provenance badges.
+3. **Bidirectional sync:** `CascadeTuningViewModel` binds to the active recipe tab's `Controle Cascata O2`
+   node when present (re-applying settings directly to the node model and reconfiguring the controller),
+   falling back to `AppSettings.Cascade` globally.
+4. **UI Overhaul & 3 Zones:** renamed tab to "Controle de oxigênio", grouped PID and gain scheduling into
+   expanders, and removed advisory "consultiva" arming.
+5. **Cleaned gas mixer & infinite loop:** removed gas mixer loop and parameters from engine, catalog,
+   and validator.
+
+**Evidence:** 441 unit tests passing (0 failed, 1 skipped). All acceptance criteria validated.

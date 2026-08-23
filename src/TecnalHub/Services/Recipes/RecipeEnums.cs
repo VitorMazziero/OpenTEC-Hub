@@ -162,8 +162,7 @@ public enum SetpointVariable
 /// <remarks>
 /// Re-targeted from ReceitasTECNAL's Modbus control-word bits: there is no control word on
 /// the wire, so enabling a loop means the subsystem's own enable (<c>flowmeterComm:1</c>) or
-/// a setpoint of <c>0</c> to disable. The gas mixer is present for shape but its enrichment
-/// path ships disabled.
+/// a setpoint of <c>0</c> to disable.
 /// </remarks>
 public enum ControlLoop
 {
@@ -178,9 +177,6 @@ public enum ControlLoop
 
     /// <summary>Nutrient dosing loop.</summary>
     Nutrient,
-
-    /// <summary>Gas mixer (nitrogen enrichment) — deferred; disabled.</summary>
-    GasMixer,
 }
 
 /// <summary>Comparison operators for <see cref="NodeType.MonitorVariable"/>.</summary>

@@ -10,7 +10,7 @@
 
         <!-- A blank chart and a chart of nothing look identical; only one is honest. -->
         <TextBlock x:Name="EmptyNotice"
-                   Text="Inicie a cascata (consultiva ou Automático) para ver PV, SP, saída e kLa."
+                   Text="Ative o controle de oxigênio para ver PV, SP, saída e kLa."
                    TextWrapping="Wrap" TextAlignment="Center" MaxWidth="300"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Style="{StaticResource CaptionTextStyle}"

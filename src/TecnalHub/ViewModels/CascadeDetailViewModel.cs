@@ -10,7 +10,7 @@ namespace TecnalHub.ViewModels;
 /// </summary>
 /// <remarks>
 /// It formats <see cref="ICascadeService"/> state for a glance on the synoptic; the controls
-/// that change it — tune, arm, engage — live on <c>Controle → Cascata e sintonia</c>, so this
+/// that change it live on <c>Controle → Controle de oxigênio</c>, so this
 /// pane never actuates. Only oxygen has these tabs, because it is the only device with an
 /// app-side controller whose terms and output the application can observe.
 /// </remarks>

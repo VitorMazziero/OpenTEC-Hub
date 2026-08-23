@@ -13,17 +13,17 @@ namespace TecnalHub.Services.Control;
 /// <remarks>
 /// <para>
 /// Owns a <see cref="CascadeController"/> and drives it from live dissolved-oxygen telemetry.
-/// It has two roles. <b>Advisory</b> (<see cref="Arm"/>): it computes what it would command so
-/// the operator can watch and tune it, and never sends — the WP2 behaviour. <b>Live</b>
-/// (<see cref="Engage"/>, WP6): it claims ownership of the oxygen actuators through the
-/// <see cref="ICommandArbiter"/>, allocates the control effort with the selected mode — a
-/// single-actuator fallback or the published kLa path — and dispatches the combined frame each
-/// step, safe-aborting on stale oxygen, link loss or a loss of ownership.
+/// Engaging (<see cref="Engage"/>) claims ownership of the oxygen actuators through the
+/// <see cref="ICommandArbiter"/>, allocates the control effort with the selected mode
+/// (agitation-only, aeration-only, the percentage-window cascade, or the published kLa path)
+/// and dispatches the combined frame each step, safe-aborting on stale oxygen, link loss or a
+/// loss of ownership. Computation only runs while engaged; <see cref="Arm"/> is a test seam that
+/// starts the loop without actuating.
 /// </para>
 /// </remarks>
 public interface ICascadeService
 {
-    /// <summary>True while the loop is computing on each telemetry frame (advisory or live).</summary>
+    /// <summary>True while the loop is computing on each telemetry frame.</summary>
     bool IsArmed { get; }
 
     /// <summary>True while the loop is actuating under <see cref="CommandOwner.Automatic"/> ownership.</summary>
@@ -68,10 +68,10 @@ public interface ICascadeService
     /// <summary>Raised on the UI thread after each processed frame or state change.</summary>
     event Action? Updated;
 
-    /// <summary>Begins advisory computation, resetting loop state. Never sends.</summary>
+    /// <summary>Test seam: starts loop computation without actuating, resetting loop state. Never sends.</summary>
     void Arm();
 
-    /// <summary>Stops advisory computation and clears the live terms. Disengages first if live.</summary>
+    /// <summary>Stops computation and clears the live terms. Disengages first if engaged.</summary>
     void Disarm();
 
     /// <summary>Loads a new configuration, preserving probe history for a gains-only change.</summary>
@@ -95,7 +95,7 @@ public interface ICascadeService
     /// </summary>
     void Engage(double currentAgitationRpm, double currentAerationLpm);
 
-    /// <summary>Releases ownership and stops actuating; advisory computation continues.</summary>
+    /// <summary>Releases ownership and stops actuation.</summary>
     void Disengage(string reason);
 
     /// <summary>Clears the reported integral contribution while the loop keeps running.</summary>
@@ -479,6 +479,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
             _configuration.AgitationMinRpm, _configuration.AgitationMaxRpm, currentAerationLpm),
         CascadeMode.AerationOnly => SingleActuatorAllocation.Aeration(
             _configuration.AerationMinLpm, _configuration.AerationMaxLpm, currentAgitationRpm),
+        CascadeMode.DualCascade => BuildWindowAllocation(),
         _ => new KlaPathAllocation(
             (ActivePath ?? throw new InvalidOperationException("No published kLa path is selected."))
                 .Payload.Allocation),
@@ -496,6 +497,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
     {
         CascadeMode.AgitationOnly => "somente agitação",
         CascadeMode.AerationOnly => "somente aeração",
+        CascadeMode.DualCascade => "cascata (percentuais)",
         _ => "trajetória kLa",
     };
 

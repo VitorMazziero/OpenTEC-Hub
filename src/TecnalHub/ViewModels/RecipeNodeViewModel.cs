@@ -421,17 +421,18 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         set => SetParam("spO2", value);
     }
 
-    public bool CascadeAtuadorAgitacao
-    {
-        get => Model.Flag("atuadorAgitacao");
-        set => SetParam("atuadorAgitacao", value);
-    }
+    /// <summary>Allocation mode, spelled as <see cref="Services.Control.CascadeMode"/> member names.</summary>
+    public string CascadeModo => Model.Text("modo");
 
-    public bool CascadeAtuadorAeracao
-    {
-        get => Model.Flag("atuadorAeracao");
-        set => SetParam("atuadorAeracao", value);
-    }
+    /// <summary>The mode enum field, for the block editor's mode selector.</summary>
+    public RecipeParameterFieldViewModel? CascadeModoField =>
+        Fields.FirstOrDefault(f => f.Key == "modo");
+
+    /// <summary>Only the Cascata mode (percentage windows) uses the % actuation windows.</summary>
+    public bool CascadeUsesWindows => CascadeModo == "DualCascade";
+
+    /// <summary>The kLa-map trajectory mode.</summary>
+    public bool CascadeUsesMap => CascadeModo == "KlaPath";
 
     public double CascadeAgitOutMin
     {
@@ -501,7 +502,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     public IEnumerable<RecipeParameterFieldViewModel> CascadeRateEstimationFields =>
         Fields.Where(f => f.IsVisible && f.Key is "metodoTaxa" or "janelaMediaAmostras");
 
-    private void SetParam(string key, object value)
+    internal void SetParam(string key, object value)
     {
         if (value is double d)
         {
@@ -540,8 +541,10 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(ManualButtonColor));
         OnPropertyChanged(nameof(ManualExplanationText));
         OnPropertyChanged(nameof(CascadeSpO2));
-        OnPropertyChanged(nameof(CascadeAtuadorAgitacao));
-        OnPropertyChanged(nameof(CascadeAtuadorAeracao));
+        OnPropertyChanged(nameof(CascadeModo));
+        OnPropertyChanged(nameof(CascadeModoField));
+        OnPropertyChanged(nameof(CascadeUsesWindows));
+        OnPropertyChanged(nameof(CascadeUsesMap));
         OnPropertyChanged(nameof(CascadeAgitOutMin));
         OnPropertyChanged(nameof(CascadeAgitOutMax));
         OnPropertyChanged(nameof(CascadeAerOutMin));
@@ -643,15 +646,13 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     private static string FormatCascade(RecipeNode node)
     {
         var sp = node.Number("spO2");
-        var agit = node.Flag("atuadorAgitacao");
-        var aer = node.Flag("atuadorAeracao");
-
-        var modo = (agit, aer) switch
+        var modo = node.Text("modo") switch
         {
-            (true, true) => "Agitação + Aeração (Mapa)",
-            (true, false) => "Agitação",
-            (false, true) => "Aeração",
-            (false, false) => "Nenhum",
+            "AgitationOnly" => "Agitação",
+            "AerationOnly" => "Aeração",
+            "DualCascade" => "Cascata",
+            "KlaPath" => "Mapa",
+            _ => "Cascata",
         };
 
         return $"SP: {sp:0.##} %\nModo: {modo}";

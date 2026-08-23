@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Recipes;
 
 namespace TecnalHub.ViewModels;
 
@@ -16,19 +17,19 @@ public sealed record CascadeModeOption(CascadeMode Mode, string Label)
 }
 
 /// <summary>
-/// The <c>Controle → Cascata e sintonia</c> workspace: edit the oxygen cascade's tuning
-/// and watch its live terms.
+/// The <c>Controle → Controle de oxigênio</c> workspace: edit the oxygen cascade's control
+/// parameters and watch what it reads, infers and commands.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The cascade runs in an advisory role here (<see cref="ICascadeService"/>): arming it
-/// computes what it would command against live dissolved-oxygen telemetry, without sending
-/// anything. That lets the operator tune against a real process before any actuation is
-/// permitted. See <c>docs/UI_DESIGN.md</c> section 5.2.
+/// When a recipe with a <c>Controle Cascata O₂</c> block is open, the editable parameters are
+/// bound to that block, so edits on this page and on the recipe canvas stay in step; otherwise
+/// they edit the global machine configuration (<see cref="ISettingsService"/>). See
+/// <c>docs/UI_DESIGN.md</c> §5.2.
 /// </para>
 /// <para>
-/// Editable fields are staged; only <see cref="ApplyCommand"/> reaches the running
-/// controller and persists. Saving and loading a named tuning never actuates.
+/// Editable fields are staged; only <see cref="ApplyCommand"/> reaches the running controller
+/// and the bound source. Engaging is the single activation shared with the Controle screen.
 /// </para>
 /// </remarks>
 public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposable
@@ -44,14 +45,23 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
     private readonly ICascadeService _cascade;
     private readonly ISettingsService _settings;
+    private readonly ReceitasViewModel? _receitas;
+    private RecipeNodeViewModel? _activeRecipeBlock;
     private bool _loading;
 
-    public CascadeTuningViewModel(ICascadeService cascade, ISettingsService settings)
+    public CascadeTuningViewModel(ICascadeService cascade, ISettingsService settings, ReceitasViewModel? receitas = null)
     {
+        _loading = true;
         _cascade = cascade;
         _settings = settings;
+        _receitas = receitas;
 
-        LoadFrom(settings.Current.Cascade);
+        if (_receitas != null)
+        {
+            _receitas.PropertyChanged += OnReceitasPropertyChanged;
+        }
+        LoadAppropriateSettings();
+
         LoadSchedule(settings.Current.GainSchedule);
 
         foreach (var preset in settings.Current.CascadeTuningPresets
@@ -62,7 +72,10 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         }
 
         SelectedPreset = Presets.FirstOrDefault();
-        SelectedModeOption = Modes.FirstOrDefault(m => m.Mode == cascade.Mode) ?? Modes[0];
+        if (_receitas?.SelectedTab?.Nodes.FirstOrDefault(n => n.Type == TecnalHub.Services.Recipes.NodeType.CascadeControl) is null)
+        {
+            SelectedModeOption = Modes.FirstOrDefault(m => m.Mode == cascade.Mode) ?? Modes[0];
+        }
 
         _cascade.Updated += OnCascadeUpdated;
         RefreshWindows();
@@ -71,6 +84,90 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         _loading = false;
 
         LoadPathsSafe();
+    }
+
+    private void OnReceitasPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ReceitasViewModel.SelectedTab))
+        {
+            LoadAppropriateSettings();
+        }
+    }
+
+    private void LoadAppropriateSettings()
+    {
+        var activeCascadeBlock = _receitas?.SelectedTab?.Nodes.FirstOrDefault(n => n.Type == TecnalHub.Services.Recipes.NodeType.CascadeControl);
+        if (!ReferenceEquals(_activeRecipeBlock, activeCascadeBlock))
+        {
+            if (_activeRecipeBlock is not null)
+            {
+                _activeRecipeBlock.PropertyChanged -= OnActiveRecipeBlockPropertyChanged;
+            }
+
+            _activeRecipeBlock = activeCascadeBlock;
+            if (_activeRecipeBlock is not null)
+            {
+                _activeRecipeBlock.PropertyChanged += OnActiveRecipeBlockPropertyChanged;
+            }
+        }
+
+        if (activeCascadeBlock is not null)
+        {
+            LoadFromRecipe(activeCascadeBlock);
+        }
+        else
+        {
+            LoadFrom(_settings.Current.Cascade);
+        }
+    }
+
+    private void OnActiveRecipeBlockPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_loading || e.PropertyName is not (nameof(RecipeNodeViewModel.CascadeSpO2) or
+            nameof(RecipeNodeViewModel.CascadeModo) or nameof(RecipeNodeViewModel.Summary)))
+        {
+            return;
+        }
+
+        // Recipe field editors notify the node after mutating the shared parameter bag. Reloading
+        // here keeps this workspace current even when the edit originated on the recipe canvas.
+        LoadFromRecipe(_activeRecipeBlock!);
+    }
+
+    private void LoadFromRecipe(TecnalHub.ViewModels.RecipeNodeViewModel node)
+    {
+        _loading = true;
+
+        var m = node.Model;
+        Kp = m.Number("kp");
+        Ki = m.Number("ki");
+        Kd = m.Number("kd");
+        IntegralMin = m.Number("iMin");
+        IntegralMax = m.Number("iMax");
+        PredictionHorizonSeconds = m.Number("horizonteTPredS");
+        RateWindowSeconds = _settings.Current.Cascade.RateWindowSeconds;
+        IntervalSeconds = m.Number("intervaloPidS");
+        OxygenSetpoint = node.CascadeSpO2;
+        AgitationMinRpm = m.Number("nMinRpm");
+        AgitationMaxRpm = m.Number("nMaxRpm");
+        AgitationEffortStart = m.Number("agitacaoOutMin");
+        AgitationEffortEnd = m.Number("agitacaoOutMax");
+        AerationMinLpm = m.Number("qMinVvm");
+        AerationMaxLpm = m.Number("qMaxVvm");
+        AerationEffortStart = m.Number("aeracaoOutMin");
+        AerationEffortEnd = m.Number("aeracaoOutMax");
+
+        var modeName = m.Parameters.ContainsKey("modo") ? m.Text("modo") : _cascade.Mode.ToString();
+        var matchingMode = Modes.FirstOrDefault(x => x.Mode.ToString() == modeName);
+        if (matchingMode != null)
+        {
+            SelectedModeOption = matchingMode;
+        }
+
+        _loading = false;
+
+        Validate();
+        HasPendingChange = false;
     }
 
     // ── Editable tuning (staged) ─────────────────────────────────────────────
@@ -120,20 +217,15 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
     // ── Live terms (advisory) ────────────────────────────────────────────────
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ArmLabel))]
-    public partial bool IsArmed { get; set; }
-
-    public string ArmLabel => IsArmed ? "Parar cascata consultiva" : "Simular cascata (não envia)";
-
     // ── Automatic actuation (WP6) ────────────────────────────────────────────
 
-    /// <summary>The three operator modes offered by the mode selector.</summary>
+    /// <summary>The four operator modes offered by the mode selector.</summary>
     public IReadOnlyList<CascadeModeOption> Modes { get; } =
     [
-        new(CascadeMode.KlaPath, "Trajetória kLa (agitação + aeração)"),
-        new(CascadeMode.AgitationOnly, "Somente agitação"),
-        new(CascadeMode.AerationOnly, "Somente aeração"),
+        new(CascadeMode.AgitationOnly, "Agitação"),
+        new(CascadeMode.AerationOnly, "Aeração"),
+        new(CascadeMode.DualCascade, "Cascata"),
+        new(CascadeMode.KlaPath, "Mapa"),
     ];
 
     [ObservableProperty]
@@ -260,7 +352,7 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         RefreshScheduleLive();
         StatusText = GainScheduleEnabled
             ? $"Escalonamento de ganho ativado (perfil v{schedule.Version})."
-            : "Escalonamento de ganho desativado; a cascata usa a sintonia única.";
+            : "Escalonamento de ganho desativado; a cascata usa a configuração única.";
     }
 
     [RelayCommand]
@@ -285,20 +377,7 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
     // ── Commands ─────────────────────────────────────────────────────────────
 
-    [RelayCommand]
-    private void ToggleArm()
-    {
-        if (_cascade.IsArmed)
-        {
-            _cascade.Disarm();
-            StatusText = "Cascata consultiva parada.";
-        }
-        else
-        {
-            _cascade.Arm();
-            StatusText = "Cascata consultiva iniciada. Ela calcula, mas não envia comandos.";
-        }
-    }
+
 
     partial void OnSelectedModeOptionChanged(CascadeModeOption? value)
     {
@@ -337,6 +416,11 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         }
         else if (_cascade.CanEngage(out var reason))
         {
+            if (SelectedModeOption is { } selectedMode)
+            {
+                _cascade.SelectMode(selectedMode.Mode);
+            }
+
             var setpoints = _settings.Current.Setpoints;
             _cascade.Engage(setpoints.MotorRpm, setpoints.FlowLitresPerMinute);
             StatusText = "Automático ativado. A cascata assumiu agitação, aeração e o monitor de O₂.";
@@ -409,18 +493,45 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
         var settings = BuildSettings();
         _cascade.Configure(settings);
-        _settings.Update(s => s with { Cascade = settings });
+
+        var activeCascadeBlock = _receitas?.SelectedTab?.Nodes.FirstOrDefault(n => n.Type == TecnalHub.Services.Recipes.NodeType.CascadeControl);
+        if (activeCascadeBlock is not null)
+        {
+            activeCascadeBlock.SetParam("spO2", settings.OxygenSetpointPercent);
+            activeCascadeBlock.SetParam("kp", settings.Kp);
+            activeCascadeBlock.SetParam("ki", settings.Ki);
+            activeCascadeBlock.SetParam("kd", settings.Kd);
+            activeCascadeBlock.SetParam("iMin", settings.IntegralMin);
+            activeCascadeBlock.SetParam("iMax", settings.IntegralMax);
+            activeCascadeBlock.SetParam("horizonteTPredS", settings.PredictionHorizonSeconds);
+            activeCascadeBlock.SetParam("intervaloPidS", settings.IntervalSeconds);
+            activeCascadeBlock.SetParam("nMinRpm", settings.AgitationMinRpm);
+            activeCascadeBlock.SetParam("nMaxRpm", settings.AgitationMaxRpm);
+            activeCascadeBlock.SetParam("agitacaoOutMin", settings.AgitationEffortStart);
+            activeCascadeBlock.SetParam("agitacaoOutMax", settings.AgitationEffortEnd);
+            activeCascadeBlock.SetParam("qMinVvm", settings.AerationMinLpm);
+            activeCascadeBlock.SetParam("qMaxVvm", settings.AerationMaxLpm);
+            activeCascadeBlock.SetParam("aeracaoOutMin", settings.AerationEffortStart);
+            activeCascadeBlock.SetParam("aeracaoOutMax", settings.AerationEffortEnd);
+            activeCascadeBlock.SetParam("modo", SelectedModeOption?.Mode.ToString() ?? "DualCascade");
+
+            StatusText = "Configuração de controle aplicada ao bloco da receita ativa e ao controlador.";
+        }
+        else
+        {
+            _settings.Update(s => s with { Cascade = settings });
+            StatusText = "Configuração de controle aplicada à cascata global.";
+        }
 
         HasPendingChange = false;
-        StatusText = "Sintonia aplicada à cascata consultiva. Nada foi enviado ao equipamento.";
         RefreshWindows();
     }
 
     [RelayCommand]
     private void Revert()
     {
-        LoadFrom(_settings.Current.Cascade);
-        StatusText = "Alterações de sintonia revertidas.";
+        LoadAppropriateSettings();
+        StatusText = "Alterações de controle revertidas.";
     }
 
     [RelayCommand]
@@ -429,14 +540,14 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         var name = PresetName.Trim();
         if (name.Length == 0)
         {
-            StatusText = "Informe um nome para a sintonia.";
+            StatusText = "Informe um nome para o controle.";
             return;
         }
 
         Validate();
         if (!CanApply)
         {
-            StatusText = "Corrija os campos antes de salvar a sintonia.";
+            StatusText = "Corrija os campos antes de salvar o controle.";
             return;
         }
 
@@ -457,7 +568,7 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
             string.Equals(p.Name, name, StringComparison.CurrentCultureIgnoreCase));
         PresetName = "";
         _settings.Update(s => s with { CascadeTuningPresets = [.. Presets] });
-        StatusText = $"Sintonia “{name}” salva. Nenhum comando foi enviado.";
+        StatusText = $"Configuração “{name}” salva. Nenhum comando foi enviado.";
     }
 
     [RelayCommand]
@@ -465,15 +576,46 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
     {
         if (SelectedPreset is not { } preset)
         {
-            StatusText = "Selecione uma sintonia para carregar.";
+            StatusText = "Selecione uma configuração para carregar.";
             return;
         }
 
         LoadFrom(preset.Settings, markPending: true);
-        StatusText = $"Sintonia “{preset.Name}” carregada nos campos; nada foi aplicado nem enviado.";
+        StatusText = $"Configuração “{preset.Name}” carregada nos campos; nada foi aplicado nem enviado.";
     }
 
     // ── Internals ────────────────────────────────────────────────────────────
+
+    private CascadeSettings CurrentSourceSettings()
+    {
+        var activeCascadeBlock = _receitas?.SelectedTab?.Nodes.FirstOrDefault(n => n.Type == TecnalHub.Services.Recipes.NodeType.CascadeControl);
+        if (activeCascadeBlock is not null)
+        {
+            var m = activeCascadeBlock.Model;
+            return new CascadeSettings
+            {
+                Kp = m.Number("kp"),
+                Ki = m.Number("ki"),
+                Kd = m.Number("kd"),
+                IntegralMin = m.Number("iMin"),
+                IntegralMax = m.Number("iMax"),
+                PredictionHorizonSeconds = m.Number("horizonteTPredS"),
+                RateWindowSeconds = RateWindowSeconds,
+                IntervalSeconds = m.Number("intervaloPidS"),
+                OxygenSetpointPercent = activeCascadeBlock.CascadeSpO2,
+                AgitationMinRpm = m.Number("nMinRpm"),
+                AgitationMaxRpm = m.Number("nMaxRpm"),
+                AgitationEffortStart = m.Number("agitacaoOutMin"),
+                AgitationEffortEnd = m.Number("agitacaoOutMax"),
+                AerationMinLpm = m.Number("qMinVvm"),
+                AerationMaxLpm = m.Number("qMaxVvm"),
+                AerationEffortStart = m.Number("aeracaoOutMin"),
+                AerationEffortEnd = m.Number("aeracaoOutMax"),
+            };
+        }
+
+        return _settings.Current.Cascade;
+    }
 
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
@@ -485,7 +627,7 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         }
 
         Validate();
-        HasPendingChange = !BuildSettings().Equals(_settings.Current.Cascade);
+        HasPendingChange = !BuildSettings().Equals(CurrentSourceSettings());
     }
 
     private void Validate()
@@ -566,10 +708,6 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
     {
         RefreshLive();
         RefreshScheduleLive();
-        if (IsArmed != _cascade.IsArmed)
-        {
-            IsArmed = _cascade.IsArmed;
-        }
 
         // A safe abort disengages the cascade from under the operator; keep the button and
         // the kLa readout in step with the service.
@@ -614,13 +752,11 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
 
     private void RefreshLive()
     {
-        IsArmed = _cascade.IsArmed;
-
         var c = CultureInfo.CurrentCulture;
         LiveOxygen = _cascade.LatestOxygen is { } o ? o.ToString("F1", c) + " %" : "—";
 
         var terms = _cascade.Terms;
-        if (!_cascade.IsArmed)
+        if (!_cascade.IsEngaged)
         {
             LivePredicted = LiveRate = LiveError = LiveProportional = LiveIntegral =
                 LiveDerivative = LiveDeltaOutput = LiveOutput = LiveAgitation = LiveAeration = "—";
@@ -680,5 +816,17 @@ public sealed partial class CascadeTuningViewModel : ObservableObject, IDisposab
         }
     }
 
-    public void Dispose() => _cascade.Updated -= OnCascadeUpdated;
+    public void Dispose()
+    {
+        _cascade.Updated -= OnCascadeUpdated;
+        if (_receitas is not null)
+        {
+            _receitas.PropertyChanged -= OnReceitasPropertyChanged;
+        }
+
+        if (_activeRecipeBlock is not null)
+        {
+            _activeRecipeBlock.PropertyChanged -= OnActiveRecipeBlockPropertyChanged;
+        }
+    }
 }

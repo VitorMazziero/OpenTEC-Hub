@@ -871,19 +871,26 @@ Below the table, cards for subsystems that are not simple setpoints:
 > `num_segments` with `t0..tN` / `q0..qN`: an editable two-column point table plus the
 > same preview.
 
-#### Tab 2 — `Cascata e sintonia` *(Phase 2)*
+#### Tab 2 — `Controle de oxigênio` *(Phase 2/3 · [D-024](DECISIONS.md))*
 
-The scientific payload gets a real workspace.
+The scientific payload gets a dedicated, unified workspace structured into 3 distinct zones:
 
-| Group | Controls |
+- **1. Lido (Telemetria ao vivo):** Live PV (`Oxigênio dissolvido`), SP, actuation effort, and running state. Always visible alongside the live `CascadeChart`.
+- **2. Inferido (Modo Mapa):** Demand kLa, OUR soft sensor, and predicted DO (active only in `Mapa` mode; hidden otherwise).
+- **3. Parâmetros do Usuário:**
+  - **Malha & Modo:** 4 mutually exclusive modes — `Agitação`, `Aeração`, `Cascata` (percentage windows), and `Mapa` (published kLa path).
+  - **Controle PID (Expansível):** `Kp` · `Ki` · `Kd` · `I_min` · `I_max` · `Horizonte de predição (s)` · `Intervalo (s)`.
+  - **Ganhos Avançados (Expansível):** Gain scheduling segments and adaptive gain parameters.
+  - **Janelas de Atuação / Faixas Físicas:** Dynamic configuration per mode (`N_min`/`N_max`, `Q_min`/`Q_max`, and effort percentage windows `0-100 %`).
+
+**Bidirectional synchronization:** When an active recipe has a `Controle Cascata O2` block, this tab directly inspects and edits the recipe node's parameters and reconfigures the running controller on `Aplicar`. In the absence of an active recipe, it edits global `AppSettings.Cascade`.
+
+| Controls | Role |
 |---|---|
-| **Malha** | `Controlada ▾` (O₂) · `Manipuladas` checklist: `Agitação` · `Aeração` · `Enriquecimento (N₂)` — the last disabled until the enrichment path is validated |
-| **Janelas de atuação** | Per actuator: `Mín` · `Máx` · `Prioridade` · overlap band, with a stacked bar showing the allocation |
-| **Perfil kLa ativo** | Published profile selector · version/fingerprint · kLa range · selected-start/headroom summary · read-only path thumbnail · `Abrir Mapeamento kLa`. No fitted surface is created or silently loaded inside Controle |
-| **PID** | `Kp` · `Ki` · `Kd` · `I_min` · `I_max` · `Horizonte de predição (s)` 30-60 · `Janela de estimativa de taxa (s)` |
-| **Termos ao vivo** | Read-only tabular: `P` · `I` · `D` · `dSaída` · `Saída` · `DOT_pred`, updating at 1 Hz |
-| **Gráfico de sintonia** | Role palette (3.5): PV solid blue, SP dashed green, output dotted orange, limits thin red |
-| Footer | `Aplicar` · `Reverter` · `Salvar sintonia…` · `Carregar sintonia ▾` |
+| `Modo ▾` | `Agitação` · `Aeração` · `Cascata` · `Mapa` |
+| `Ativar / Desativar Controle` | Engages/disengages live automatic cascade actuation (`CommandOwner.Automatic`) |
+| `Zerar integral` | Resets the integrator contribution bumplessly |
+| `Aplicar` · `Reverter` · `Salvar controle…` · `Carregar controle ▾` | User parameter staging and persistence |
 
 The form makes the corrected design visible rather than hiding it: `I_min`/`I_max` exist
 because v.6 wound up over long transients; the prediction horizon exists because the
@@ -1142,11 +1149,10 @@ Properties, grouped in the pane:
 | **Predição** | `Horizonte t_pred (s)` · `Janela do preditor (amostras)` · `τ_D do filtro (s)` | 60 · 7 · 20 |
 | **Estimativa de taxa** | `Método ▾` `Mínimos quadrados`/`Diferença de extremos` · `Janela da média (amostras)` | Mínimos quadrados · 9 |
 | **Temporização** | `Intervalo de cálculo do PID (s)` | 3.0 |
-| **Atuadores** | `Agitação` ☑ `Aeração` ☑ `Misturador de gases` ☐ | — |
-| **Faixas físicas** | `N_min`/`N_max` rpm · `Q_min`/`Q_max` vvm · `O₂_min`/`O₂_max` % | 150-350 · 0.5-5.0 · 0-90 |
-| **Janelas de atuação** | Per actuator `OutMin`/`OutMax` on a 0-100 % control axis | Agitação 0-40 · Aeração 30-70 · Misturador 60-100 |
-| **Ganhos relativos** | Per actuator gain factor | 1.0 · 1.43 · 1.2 |
-| **Laço** | `Loop infinito` | true |
+| **Atuadores** | `Modo ▾` `Agitação`/`Aeração`/`Cascata (percentuais)`/`Mapa (trajetória kLa)` | Cascata (percentuais) |
+| **Faixas físicas** | `N_min`/`N_max` rpm · `Q_min`/`Q_max` vvm | 150-350 · 0.5-5.0 |
+| **Janelas de atuação** | Per actuator `OutMin`/`OutMax` on a 0-100 % control axis (Cascata mode) | Agitação 0-40 · Aeração 30-70 |
+| **Ganhos relativos** | Per actuator gain factor | 1.0 · 1.43 |
 
 Three things the form must make visible rather than hide, because each one is a fix for a
 specific v.6 defect:

@@ -286,7 +286,7 @@
                             <TextBlock TextWrapping="Wrap" Margin="0,10,0,0"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        Style="{StaticResource CaptionTextStyle}"
-                                       Text="Sintonia, modo e ativação ficam em Controle → Cascata e sintonia." />
+                                       Text="Sintonia, modo e ativação ficam em Controle → Controle de oxigênio." />
                         </StackPanel>
                     </TabItem>
                     <TabItem Header="PID"

@@ -5,7 +5,7 @@ namespace TecnalHub.Services.Control;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every field here maps to a control on <c>Controle → Cascata e sintonia</c>
+/// Every field here maps to a control on <c>Controle → Controle de oxigênio</c>
 /// (<c>docs/UI_DESIGN.md</c> section 5.2). The form deliberately exposes the corrected
 /// design rather than hiding it: <see cref="IntegralMin"/>/<see cref="IntegralMax"/>
 /// exist because v.6 wound its integral up over long transients, and

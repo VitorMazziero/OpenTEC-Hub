@@ -162,6 +162,75 @@ public sealed class ControlViewModelTests
         Assert.Equal(0, fixture.Control.DirtyCount);
     }
 
+    [Fact]
+    public void Oxygen_toggle_engages_cascade_and_locks_overridden_actuators()
+    {
+        using var fixture = new ControlFixture();
+        var oxygenRow = fixture.Control.Rows[2];
+        var agitationRow = fixture.Control.Rows[1];
+        var aerationRow = fixture.Control.Rows[3];
+
+        oxygenRow.SelectedOxygenMode = "Agitação";
+        oxygenRow.IsCascadeEngaged = true;
+
+        Assert.True(fixture.Cascade.IsEngaged);
+        Assert.True(oxygenRow.IsCascadeEngaged);
+        Assert.False(oxygenRow.CanEditOxygenMode);
+        Assert.True(agitationRow.IsOverriddenByCascade);
+        Assert.False(aerationRow.IsOverriddenByCascade);
+        Assert.True(agitationRow.EffectiveActive);
+
+        // Disengage via toggle
+        oxygenRow.IsCascadeEngaged = false;
+        Assert.False(fixture.Cascade.IsEngaged);
+        Assert.False(oxygenRow.IsCascadeEngaged);
+        Assert.True(oxygenRow.CanEditOxygenMode);
+        Assert.False(agitationRow.IsOverriddenByCascade);
+    }
+
+    [Fact]
+    public void Oxygen_toggle_reverts_when_cannot_engage()
+    {
+        using var fixture = new ControlFixture();
+        var oxygenRow = fixture.Control.Rows[2];
+
+        // Disconnect device to make CanEngage fail
+        fixture.Device.PushState(ConnectionState.Faulted);
+
+        oxygenRow.IsCascadeEngaged = true;
+
+        Assert.False(fixture.Cascade.IsEngaged);
+        Assert.False(oxygenRow.IsCascadeEngaged);
+        Assert.Contains("Conecte-se", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Safe_stop_disengages_cascade()
+    {
+        using var fixture = new ControlFixture();
+        fixture.Dialogs.ConfirmResult = true;
+        var oxygenRow = fixture.Control.Rows[2];
+
+        oxygenRow.SelectedOxygenMode = "Agitação";
+        oxygenRow.IsCascadeEngaged = true;
+        Assert.True(fixture.Cascade.IsEngaged);
+
+        fixture.Control.SafeStopCommand.Execute(null);
+
+        Assert.False(fixture.Cascade.IsEngaged);
+        Assert.False(oxygenRow.IsCascadeEngaged);
+    }
+
+    [Fact]
+    public void Oxygen_mode_selector_tracks_a_mode_changed_from_the_other_workspace()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Cascade.SelectMode(CascadeMode.KlaPath);
+
+        Assert.Equal("Mapa", fixture.Control.Rows[2].SelectedOxygenMode);
+    }
+
     private sealed class ControlFixture : IDisposable
     {
         public ControlFixture(AppSettings? initialSettings = null)

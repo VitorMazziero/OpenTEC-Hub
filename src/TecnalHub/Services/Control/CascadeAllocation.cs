@@ -2,11 +2,12 @@ using TecnalHub.Services.KlaMapping;
 
 namespace TecnalHub.Services.Control;
 
-/// <summary>The three explicit operator modes for the oxygen cascade (WP6).</summary>
+/// <summary>The four operator modes for the oxygen cascade.</summary>
 /// <remarks>
-/// v.6 kept agitation-only and aeration-only fallback modes for when one actuator must be
-/// held; the scientific mode is the simultaneous kLa-path allocation from the published
-/// receipt. Nitrogen enrichment stays out until its own path is proven.
+/// Agitation-only and aeration-only drive a single actuator while the other is held; the
+/// percentage-window cascade (<see cref="DualCascade"/>) splits the control effort across both
+/// actuators by overlapping % windows; the map mode (<see cref="KlaPath"/>) follows the
+/// published kLa gradient path.
 /// </remarks>
 public enum CascadeMode
 {
@@ -15,6 +16,9 @@ public enum CascadeMode
 
     /// <summary>Only aeration follows the effort; agitation is held at its engaged value.</summary>
     AerationOnly,
+
+    /// <summary>Both actuators follow overlapping effort windows (percentages).</summary>
+    DualCascade,
 
     /// <summary>Both actuators follow the published kLa gradient-path allocation.</summary>
     KlaPath,

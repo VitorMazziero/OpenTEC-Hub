@@ -341,17 +341,9 @@ public static class RecipeValidator
 
     private static void ValidateLoop(RecipeNode node, string loopName, List<RecipeFinding> findings)
     {
-        if (!Enum.TryParse<ControlLoop>(loopName, out var loop))
+        if (!Enum.TryParse<ControlLoop>(loopName, out _))
         {
             findings.Add(Error($"Malha de controle inválida: {loopName}.", node.Id));
-            return;
-        }
-
-        if (loop == ControlLoop.GasMixer)
-        {
-            findings.Add(Warning(
-                "O misturador de gases (enriquecimento) está adiado; esta malha não atua no equipamento.",
-                node.Id));
         }
     }
 
@@ -394,19 +386,39 @@ public static class RecipeValidator
             findings.Add(Error("O intervalo de cálculo do PID deve estar entre 0,1 e 60 s.", node.Id));
         }
 
-        var agitation = node.Flag("atuadorAgitacao");
-        var aeration = node.Flag("atuadorAeracao");
-
-        if (!agitation && !aeration)
+        var modo = node.Text("modo");
+        if (modo is not ("AgitationOnly" or "AerationOnly" or "DualCascade" or "KlaPath"))
         {
-            findings.Add(Error("Selecione ao menos um atuador para a cascata (Agitação e/ou Aeração).", node.Id));
+            findings.Add(Error($"Modo de controle de O₂ inválido: {modo}.", node.Id));
+            return;
         }
 
-        CheckOrdered(node, "nMinRpm", "nMaxRpm", "As faixas de agitação (N_min/N_max)", findings);
-        CheckOrdered(node, "qMinVvm", "qMaxVvm", "As faixas de aeração (Q_min/Q_max)", findings);
+        var drivesAgitation = modo is "AgitationOnly" or "DualCascade" or "KlaPath";
+        var drivesAeration = modo is "AerationOnly" or "DualCascade" or "KlaPath";
 
-        CheckWindow(node, "agitacaoOutMin", "agitacaoOutMax", "Agitação", findings);
-        CheckWindow(node, "aeracaoOutMin", "aeracaoOutMax", "Aeração", findings);
+        if (drivesAgitation)
+        {
+            CheckOrdered(node, "nMinRpm", "nMaxRpm", "As faixas de agitação (N_min/N_max)", findings);
+        }
+
+        if (drivesAeration)
+        {
+            CheckOrdered(node, "qMinVvm", "qMaxVvm", "As faixas de aeração (Q_min/Q_max)", findings);
+        }
+
+        // The percentage actuation windows only apply to the Cascata mode.
+        if (modo == "DualCascade")
+        {
+            CheckWindow(node, "agitacaoOutMin", "agitacaoOutMax", "Agitação", findings);
+            CheckWindow(node, "aeracaoOutMin", "aeracaoOutMax", "Aeração", findings);
+
+            var overlapStart = Math.Max(node.Number("agitacaoOutMin"), node.Number("aeracaoOutMin"));
+            var overlapEnd = Math.Min(node.Number("agitacaoOutMax"), node.Number("aeracaoOutMax"));
+            if (overlapEnd <= overlapStart)
+            {
+                findings.Add(Error("As janelas de atuação de Agitação e Aeração devem se sobrepor no modo Cascata.", node.Id));
+            }
+        }
     }
 
     private static void CheckOrdered(

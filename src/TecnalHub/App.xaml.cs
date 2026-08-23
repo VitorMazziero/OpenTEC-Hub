@@ -184,8 +184,8 @@ public partial class App : Application
         services.AddSingleton<IDeviceService>(sp => sp.GetRequiredService<CommandArbiter>());
         services.AddSingleton<ICommandArbiter>(sp => sp.GetRequiredService<CommandArbiter>());
 
-        // The advisory oxygen cascade. It subscribes to telemetry and computes, but never
-        // sends - live actuation waits for command ownership and the bioreactor.
+        // The oxygen cascade subscribes to telemetry and actuates only while engaged,
+        // after command ownership and connection preconditions are satisfied.
         services.AddSingleton<ICascadeService, CascadeService>();
 
         // The conditional-OUR soft sensor (WP8). Observes DOT, airflow and the commanded

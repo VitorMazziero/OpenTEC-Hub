@@ -34,7 +34,7 @@ public sealed record CascadeTrendSnapshot(
 /// </summary>
 /// <remarks>
 /// Owned by <see cref="CascadeService"/> and filled on every armed step, so the chart shows
-/// the loop tracking whether it is merely advisory or actually engaged. Fixed capacity,
+/// the loop tracking whether it is computing and whether it is engaged. Fixed capacity,
 /// allocated once — a long run must not grow memory, the same discipline the telemetry ring
 /// buffers keep.
 /// </remarks>

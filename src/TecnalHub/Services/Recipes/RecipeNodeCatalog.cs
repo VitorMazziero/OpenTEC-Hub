@@ -105,7 +105,6 @@ public static class RecipeNodeCatalog
         new(nameof(ControlLoop.Ph), "pH"),
         new(nameof(ControlLoop.Antifoam), "Antiespuma"),
         new(nameof(ControlLoop.Nutrient), "Nutrientes"),
-        new(nameof(ControlLoop.GasMixer), "Misturador de gases"),
     ];
 
     private static readonly RecipeOption[] Comparisons =
@@ -290,8 +289,6 @@ public static class RecipeNodeCatalog
             [
                 EnumP("malha", "Malha", nameof(ControlLoop.Aeration), ControlLoops),
                 EnumP("operacao", "Operação", nameof(LoopOperation.Enable), LoopOperations),
-                Num("periodoCicloS", "Período de ciclo", 30, min: 10, max: 30, unit: "s",
-                    visibleWhen: $"malha={nameof(ControlLoop.GasMixer)}"),
             ],
         },
         new()
@@ -441,11 +438,15 @@ public static class RecipeNodeCatalog
 
             EnumP("metodoTaxa", "Método", "LeastSquares", RateMethods, group: "Estimativa de taxa"),
             Int("janelaMediaAmostras", "Janela da média", 9, min: 2, unit: "amostras", group: "Estimativa de taxa"),
-
             Num("intervaloPidS", "Intervalo de cálculo do PID", 3.0, min: 0.1, max: 60, unit: "s", group: "Temporização"),
 
-            Bool("atuadorAgitacao", "Agitação", true, group: "Atuadores"),
-            Bool("atuadorAeracao", "Aeração", true, group: "Atuadores"),
+            EnumP("modo", "Modo de atuação", "DualCascade", new RecipeOption[]
+            {
+                new("AgitationOnly", "Agitação"),
+                new("AerationOnly", "Aeração"),
+                new("DualCascade", "Cascata (percentuais)"),
+                new("KlaPath", "Mapa (trajetória kLa)")
+            }, group: "Atuadores"),
 
             Num("nMinRpm", "N_min", 150, min: 0, unit: "rpm", group: "Faixas físicas"),
             Num("nMaxRpm", "N_max", 350, min: 0, unit: "rpm", group: "Faixas físicas"),

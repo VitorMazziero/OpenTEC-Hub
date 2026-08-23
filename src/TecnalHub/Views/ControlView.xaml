@@ -139,30 +139,37 @@
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="Novo SP" Width="106">
+                                                <GridViewColumn Header="Novo SP" Width="160">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <TextBox Width="88"
-                                                                     VerticalAlignment="Center"
-                                                                     Text="{Binding Subsystem.SetpointText,
-                                                                                    UpdateSourceTrigger=PropertyChanged}"
-                                                                     ToolTip="{Binding Subsystem.ValidationError}">
-                                                                <TextBox.Style>
-                                                                    <Style TargetType="TextBox"
-                                                                           BasedOn="{StaticResource {x:Type TextBox}}">
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding Subsystem.HasPendingChange}" Value="True">
-                                                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
-                                                                                <Setter Property="BorderThickness" Value="2" />
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding Subsystem.IsValid}" Value="False">
-                                                                                <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
-                                                                                <Setter Property="BorderThickness" Value="2" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBox.Style>
-                                                            </TextBox>
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBox Width="88"
+                                                                         VerticalAlignment="Center"
+                                                                         Text="{Binding Subsystem.SetpointText, UpdateSourceTrigger=PropertyChanged}"
+                                                                         ToolTip="{Binding Subsystem.ValidationError}">
+                                                                    <TextBox.Style>
+                                                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Subsystem.HasPendingChange}" Value="True">
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Subsystem.IsValid}" Value="False">
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                                                    <Setter Property="IsEnabled" Value="False" />
+                                                                                    <Setter Property="ToolTip" Value="Controle bloqueado pela cascata de oxigênio." />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBox.Style>
+                                                                </TextBox>
+                                                                <ctl:ProvenanceBadge Text="cascata"
+                                                                                     Margin="4,0,0,0"
+                                                                                     Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                                            </StackPanel>
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
@@ -191,12 +198,45 @@
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
+                                                <GridViewColumn Header="Modo" Width="100">
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
+                                                            <ComboBox ItemsSource="{Binding OxygenModeOptions}"
+                                                                      SelectedItem="{Binding SelectedOxygenMode}"
+                                                                      Visibility="{Binding IsOxygenRow, Converter={StaticResource BoolToVis}}"
+                                                                      IsEnabled="{Binding CanEditOxygenMode}"
+                                                                      ToolTip="Trave: o modo só muda com o controle de oxigênio desativado."
+                                                                      VerticalAlignment="Center" />
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+
                                                 <GridViewColumn Header="Ativo" Width="58">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
-                                                                          VerticalAlignment="Center"
-                                                                          IsChecked="{Binding Subsystem.IsEnabled, Mode=TwoWay}" />
+                                                            <Grid VerticalAlignment="Center">
+                                                                <!-- Non-oxygen rows: subsystem enable, forced on and locked while the cascade drives it -->
+                                                                <ToggleButton VerticalAlignment="Center"
+                                                                              Visibility="{Binding IsOxygenRow, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}"
+                                                                              IsChecked="{Binding EffectiveActive, Mode=TwoWay}">
+                                                                    <ToggleButton.Style>
+                                                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                                                    <Setter Property="IsEnabled" Value="False" />
+                                                                                    <Setter Property="ToolTip" Value="Controlado pela cascata de oxigênio." />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </ToggleButton.Style>
+                                                                </ToggleButton>
+                                                                <!-- Oxygen row: engages/disengages the cascade (single activation point) -->
+                                                                <ToggleButton VerticalAlignment="Center"
+                                                                              Visibility="{Binding IsOxygenRow, Converter={StaticResource BoolToVis}}"
+                                                                              Style="{StaticResource ToggleSwitchStyle}"
+                                                                              IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}"
+                                                                              ToolTip="Ativa o controle automático de oxigênio (cascata)." />
+                                                            </Grid>
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
@@ -710,7 +750,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Cascata e sintonia" Style="{StaticResource SegmentedItemStyle}">
+            <TabItem Header="Controle de oxigênio" Style="{StaticResource SegmentedItemStyle}">
                 <views:CascadeTuningView DataContext="{Binding Tuning}" />
             </TabItem>
         </TabControl>

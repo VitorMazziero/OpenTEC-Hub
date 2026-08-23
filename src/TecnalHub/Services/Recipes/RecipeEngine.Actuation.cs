@@ -89,14 +89,8 @@ public sealed partial class RecipeEngine
             ControlLoop.Ph => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.PHIntensity, 0.0),
             ControlLoop.Antifoam => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.AntifoamIntensity, 0.0),
             ControlLoop.Nutrient => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.NutriIntensity, 0.0),
-            _ => TecnalCommand.Create(), // GasMixer: enrichment deferred
+            _ => TecnalCommand.Create(),
         };
-
-        if (loop == ControlLoop.GasMixer)
-        {
-            Log(RecipeLogSeverity.Warning, "Misturador de gases adiado (enriquecimento); malha ignorada.", node.Id);
-            return;
-        }
 
         if (enable && loop is ControlLoop.Ph or ControlLoop.Antifoam or ControlLoop.Nutrient)
         {
@@ -148,7 +142,6 @@ public sealed partial class RecipeEngine
         ControlLoop.Ph => "pH",
         ControlLoop.Antifoam => "antiespuma",
         ControlLoop.Nutrient => "nutrientes",
-        ControlLoop.GasMixer => "misturador de gases",
         _ => loop.ToString(),
     };
 }

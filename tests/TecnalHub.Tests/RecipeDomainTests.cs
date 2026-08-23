@@ -54,12 +54,11 @@ public sealed class RecipeDomainTests
     }
 
     [Fact]
-    public void Gas_mixer_actuator_defaults_to_disabled_enrichment_is_deferred()
+    public void Cascade_mode_defaults_to_dual_cascade()
     {
         var node = RecipeNode.Create(NodeType.CascadeControl);
-        Assert.True(node.Flag("atuadorAgitacao"));
-        Assert.True(node.Flag("atuadorAeracao"));
-        Assert.False(node.Flag("atuadorMisturador"));
+        Assert.Equal("DualCascade", node.Text("modo"));
+        Assert.DoesNotContain(node.Definition.Parameters, p => p.Key is "atuadorAgitacao" or "atuadorAeracao");
     }
 
     [Fact]
@@ -312,13 +311,13 @@ public sealed class RecipeDomainTests
     }
 
     [Fact]
-    public void Cascade_with_no_actuator_is_rejected()
+    public void Cascade_with_inverted_agitation_range_is_rejected()
     {
         var recipe = SampleRecipe();
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
-        cascade.Set("atuadorAgitacao", false);
-        cascade.Set("atuadorAeracao", false);
-        cascade.Set("atuadorMisturador", false);
+        cascade.Set("modo", "AgitationOnly");
+        cascade.Set("nMinRpm", 400);
+        cascade.Set("nMaxRpm", 200);
         recipe.Nodes.Add(cascade);
         recipe.Connections.Add(new RecipeConnection("timer", ConnectorNames.Out, "casc", ConnectorNames.In));
 
@@ -336,6 +335,38 @@ public sealed class RecipeDomainTests
         recipe.Connections.Add(new RecipeConnection("timer", ConnectorNames.Out, "casc", ConnectorNames.In));
 
         Assert.False(RecipeValidator.Validate(recipe).IsValid);
+    }
+
+    [Fact]
+    public void Cascade_rejects_an_unknown_mode()
+    {
+        var recipe = SampleRecipe();
+        var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
+        cascade.Set("modo", "Unknown");
+        recipe.Nodes.Add(cascade);
+        recipe.Connections.Add(new RecipeConnection("timer", ConnectorNames.Out, "casc", ConnectorNames.In));
+
+        var result = RecipeValidator.Validate(recipe);
+
+        Assert.Contains(result.Errors, e => e.NodeId == "casc" && e.Message.Contains("inválido"));
+    }
+
+    [Fact]
+    public void Dual_cascade_requires_overlapping_actuation_windows()
+    {
+        var recipe = SampleRecipe();
+        var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
+        cascade.Set("modo", "DualCascade");
+        cascade.Set("agitacaoOutMin", 0);
+        cascade.Set("agitacaoOutMax", 40);
+        cascade.Set("aeracaoOutMin", 60);
+        cascade.Set("aeracaoOutMax", 100);
+        recipe.Nodes.Add(cascade);
+        recipe.Connections.Add(new RecipeConnection("timer", ConnectorNames.Out, "casc", ConnectorNames.In));
+
+        var result = RecipeValidator.Validate(recipe);
+
+        Assert.Contains(result.Errors, e => e.NodeId == "casc" && e.Message.Contains("sobrepor"));
     }
 
     // ── Fixtures ───────────────────────────────────────────────────────────────

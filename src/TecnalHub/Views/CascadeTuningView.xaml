@@ -65,7 +65,7 @@
                             BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
                             Padding="16" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Gráfico de sintonia" Style="{StaticResource CardTitle}" />
+                            <TextBlock Text="Resposta do controle" Style="{StaticResource CardTitle}" />
                             <ctl:CascadeChart PlotHeight="220" Trend="{Binding Trend}" />
                         </StackPanel>
                     </Border>
@@ -94,13 +94,13 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- PID -->
-                    <Border Background="{DynamicResource SurfaceCardBrush}"
-                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                            Padding="16" Margin="0,0,0,12">
-                        <StackPanel>
-                            <TextBlock Text="PID — forma de velocidade" Style="{StaticResource CardTitle}" />
+                    <!-- Controle PID -->
+                    <Expander Background="{DynamicResource SurfaceCardBrush}"
+                              BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                              BorderThickness="1"
+                              Header="Controle PID"
+                              Margin="0,0,0,12" IsExpanded="True">
+                        <StackPanel Margin="16">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -133,22 +133,21 @@
 
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Intervalo (s)" Style="{StaticResource FieldLabel}" />
                                 <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource TuningBox}" Text="{Binding IntervalSeconds}" />
-                                <TextBlock Grid.Row="3" Grid.Column="3" Text="Janela taxa (s)" Style="{StaticResource FieldLabel}" />
-                                <TextBox Grid.Row="3" Grid.Column="4" Style="{StaticResource TuningBox}" Text="{Binding RateWindowSeconds}" />
                             </Grid>
                             <TextBlock TextWrapping="Wrap" Margin="0,2,0,0"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="{DynamicResource FontSizeCaption}"
                                        Text="A saída é integrada: Saída[i] = Saída[i−1] + dSaída[i]. O horizonte de predição compensa o tempo morto da sonda; por isso Kp é pequeno — Kp × horizonte é a ação derivativa efetiva." />
                         </StackPanel>
-                    </Border>
+                    </Expander>
 
                     <!-- Escalonamento de ganho (WP8) -->
-                    <Border Background="{DynamicResource SurfaceCardBrush}"
-                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                            Padding="16" Margin="0,12,0,0">
-                        <StackPanel>
+                    <Expander Background="{DynamicResource SurfaceCardBrush}"
+                              BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                              BorderThickness="1"
+                              Header="Ganhos Avançados"
+                              Margin="0,0,0,12">
+                        <StackPanel Margin="16">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -162,7 +161,7 @@
                             <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="{DynamicResource FontSizeCaption}"
-                                       Text="Os ganhos seguem o esforço de controle (∝ kLa), com transição limitada. Desligado, a cascata usa a sintonia única — o conjunto robusto do manuscrito, suficiente sem escalonamento." />
+                                       Text="Os ganhos seguem o esforço de controle (∝ kLa), com transição limitada. Desligado, a cascata usa a configuração única — o conjunto robusto do manuscrito, suficiente sem escalonamento." />
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Limite de variação (/s)" Style="{StaticResource FieldLabel}"
@@ -228,7 +227,7 @@
                                         Command="{Binding ApplyGainScheduleCommand}" />
                             </StackPanel>
                         </StackPanel>
-                    </Border>
+                    </Expander>
 
                     <!-- Janelas de atuação -->
                     <Border Background="{DynamicResource SurfaceCardBrush}"
@@ -299,7 +298,7 @@
                                 </StackPanel>
 
                                 <!-- Current-effort marker, drawn across both bars -->
-                                <Grid Visibility="{Binding IsArmed, Converter={StaticResource BoolToVis}}">
+                                <Grid Visibility="{Binding IsEngaged, Converter={StaticResource BoolToVis}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="{Binding EffortMarker, Converter={StaticResource Star}}" />
                                         <ColumnDefinition Width="{Binding EffortRest, Converter={StaticResource Star}}" />
@@ -323,34 +322,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Right: advisory monitor ───────────────────────────────── -->
+                <!-- ── Right: live control monitor ───────────────────────────── -->
                 <StackPanel Grid.Column="1">
-
-                    <!-- Advisory arming -->
-                    <Border Background="{DynamicResource SurfaceCardBrush}"
-                            BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                            BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                            Padding="16" Margin="0,0,0,12">
-                        <StackPanel>
-                            <TextBlock Text="Cascata consultiva" Style="{StaticResource CardTitle}" />
-                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       FontSize="{DynamicResource FontSizeCaption}"
-                                       Text="A cascata calcula o que comandaria a partir do O₂ ao vivo, mas não envia nada ao equipamento. Para enviar comandos ao equipamento, use o Automático abaixo." />
-                            <Button Content="{Binding ArmLabel}"
-                                    HorizontalAlignment="Left"
-                                    Style="{StaticResource AccentButtonStyle}"
-                                    Command="{Binding ToggleArmCommand}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
-                                        Visibility="{Binding IsArmed, Converter={StaticResource BoolToVis}}">
-                                <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
-                                        Background="{DynamicResource StateActuatingBrush}" />
-                                <TextBlock Text="Calculando (consultivo)" Margin="6,0,0,0"
-                                           Foreground="{DynamicResource StateActuatingTextBrush}"
-                                           FontSize="{DynamicResource FontSizeCaption}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
 
                     <!-- Automatic actuation (WP6): the cascade owns the O₂ actuators and sends -->
                     <Border Background="{DynamicResource SurfaceCardBrush}"
@@ -358,7 +331,7 @@
                             BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
                             Padding="16" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Automático — atuação da cascata" Style="{StaticResource CardTitle}" />
+                            <TextBlock Text="Controle" Style="{StaticResource CardTitle}" />
                             <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="{DynamicResource FontSizeCaption}"
@@ -386,7 +359,7 @@
                                         ToolTip="{Binding EngageBlockedReason}"
                                         Command="{Binding ToggleEngageCommand}" />
                                 <Button Content="Zerar integral"
-                                        IsEnabled="{Binding IsArmed}"
+                                        IsEnabled="{Binding IsEngaged}"
                                         ToolTip="Zera a contribuição integral sem parar a malha."
                                         Command="{Binding ResetIntegralCommand}" />
                             </WrapPanel>
@@ -551,14 +524,14 @@
                 <WrapPanel>
                     <TextBox Width="170"
                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Nome da nova sintonia" />
-                    <Button Content="Salvar sintonia" Margin="6,0,12,0" Command="{Binding SaveTuningCommand}" />
+                             ToolTip="Nome da nova configuração" />
+                    <Button Content="Salvar configuração" Margin="6,0,12,0" Command="{Binding SaveTuningCommand}" />
                     <ComboBox Width="180" ItemsSource="{Binding Presets}"
                               SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
                               DisplayMemberPath="Name" />
-                    <Button Content="Carregar sintonia" Margin="6,0,12,0" Command="{Binding LoadTuningCommand}" />
+                    <Button Content="Carregar configuração" Margin="6,0,12,0" Command="{Binding LoadTuningCommand}" />
                     <Button Content="Reverter" Margin="0,0,12,0" Command="{Binding RevertCommand}" />
-                    <Button Content="Aplicar sintonia" Style="{StaticResource AccentButtonStyle}"
+                    <Button Content="Aplicar configuração" Style="{StaticResource AccentButtonStyle}"
                             Command="{Binding ApplyCommand}" />
                 </WrapPanel>
                 <TextBlock Text="{Binding ValidationError}"

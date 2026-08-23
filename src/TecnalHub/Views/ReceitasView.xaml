@@ -567,13 +567,14 @@
                                     <Expander Header="Atuadores e Faixas de Atuação" IsExpanded="True"
                                               FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
                                         <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="Atuadores Habilitados" FontSize="10" FontWeight="SemiBold"
+                                            <TextBlock Text="Modo de atuação" FontSize="10" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6" />
-                                            <CheckBox IsChecked="{Binding SelectedTab.SelectedNode.CascadeAtuadorAgitacao, Mode=TwoWay}"
-                                                      Content="Agitação" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                            <CheckBox IsChecked="{Binding SelectedTab.SelectedNode.CascadeAtuadorAeracao, Mode=TwoWay}"
-                                                      Content="Aeração" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                                            <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.CascadeModoField.Options}"
+                                                      SelectedItem="{Binding SelectedTab.SelectedNode.CascadeModoField.SelectedOption, Mode=TwoWay}"
+                                                      DisplayMemberPath="Label" Margin="0,0,0,8" />
 
+                                            <!-- Janelas percentuais de alocação: só no modo Cascata -->
+                                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.CascadeUsesWindows, Converter={StaticResource BoolToVis}}">
                                             <!-- Diagrama Visual de Alocação -->
                                             <Border Background="{DynamicResource SurfaceCardBrush}" CornerRadius="4" Padding="8,8" Margin="0,0,0,8">
                                                 <StackPanel>
@@ -661,6 +662,7 @@
                                                              BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
                                                 </StackPanel>
                                             </Grid>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Expander>
                                 </Border>

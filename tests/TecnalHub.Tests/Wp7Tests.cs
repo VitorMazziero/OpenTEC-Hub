@@ -229,6 +229,12 @@ public sealed class Wp7Tests
             ExactCommand = exactCommand;
             return ConfirmResult;
         }
+
+        public bool PromptInput(string title, string message, out string response, string initialValue = "")
+        {
+            response = "";
+            return false;
+        }
     }
 
     private sealed class RecordingSessionLogger : ISessionLogger

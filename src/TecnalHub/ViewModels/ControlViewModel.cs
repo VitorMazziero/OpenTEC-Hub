@@ -184,7 +184,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FoamControl.PropertyChanged += OnDosingStateChanged;
         FlaskAgitator.PropertyChanged += OnDosingStateChanged;
 
-        foreach (var preset in settings.Current.SetpointPresets
+        var presetsSource = settings.Current.SetpointPresets.Length > 0
+            ? settings.Current.SetpointPresets
+            : [SetpointPreset.DefaultPreset];
+
+        foreach (var preset in presetsSource
                      .Where(p => !string.IsNullOrWhiteSpace(p.Name))
                      .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase))
         {
@@ -403,13 +407,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SavePreset()
     {
-        var name = PresetName.Trim();
-        if (name.Length == 0)
-        {
-            StatusText = "Informe um nome para a predefinição.";
-            return;
-        }
-
         if (!TryReadAllStagedValues(out var values) ||
             !PHControl.TryGetStagedSettings(out var phSettings) ||
             FlowRequestError is not null)
@@ -417,6 +414,14 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             StatusText = "Corrija os campos antes de salvar a predefinição.";
             return;
         }
+
+        if (!_dialogs.PromptInput("Salvar Predefinição", "Digite um nome para a predefinição:", out var name, PresetName) ||
+            string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        name = name.Trim();
 
         var preset = new SetpointPreset
         {
@@ -427,6 +432,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             MotorEnabled = Rows[1].Subsystem.IsEnabled,
             OxygenPercent = values[2],
             OxygenEnabled = Rows[2].Subsystem.IsEnabled,
+            OxygenMode = Rows[2].SelectedOxygenMode,
+            Cascade = _settings.Current.Cascade,
             PHControl = phSettings,
             PHControlEnabled = PHControl.IsEnabled,
             FlowLitresPerMinute = values[3],
@@ -474,6 +481,17 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         PHControl.Stage(preset.PHControl, preset.PHControlEnabled);
         Rows[3].Subsystem.Stage(preset.FlowLitresPerMinute, preset.FlowEnabled);
         Rows[4].Subsystem.Stage(preset.PressureKilopascal, preset.PressureEnabled);
+
+        if (!string.IsNullOrWhiteSpace(preset.OxygenMode))
+        {
+            Rows[2].SelectedOxygenMode = preset.OxygenMode;
+        }
+
+        if (preset.Cascade is not null)
+        {
+            _settings.Update(s => s with { Cascade = preset.Cascade });
+            _cascade.Configure(preset.Cascade);
+        }
 
         StatusText = $"Predefinição “{preset.Name}” carregada nos campos; nada foi enviado.";
         RefreshState();

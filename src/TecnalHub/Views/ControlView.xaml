@@ -253,7 +253,7 @@
                                                                         Padding="6,4"
                                                                         ToolTip="Configuração do Controle de Oxigênio"
                                                                         Command="{Binding DataContext.OpenOxygenConfigCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                                                    <ctl:Icon Key="Settings" Size="14" />
+                                                                    <ctl:Icon Key="Gear" Size="14" />
                                                                 </Button>
                                                             </StackPanel>
                                                         </DataTemplate>
@@ -713,33 +713,74 @@
                             BorderBrush="{DynamicResource StrokeDefaultBrush}"
                             BorderThickness="1"
                             CornerRadius="{DynamicResource RadiusMedium}"
-                            Padding="12">
+                            Padding="14,10">
                         <StackPanel>
-                            <WrapPanel>
-                                <TextBox Width="170"
-                                         Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Nome da nova predefinição" />
-                                <Button Content="Salvar como predefinição"
-                                        Margin="6,0,12,0"
-                                        Command="{Binding SavePresetCommand}" />
-                                <ComboBox Width="190"
-                                          ItemsSource="{Binding Presets}"
-                                          SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
-                                          DisplayMemberPath="Name" />
-                                <Button Content="Carregar predefinição"
-                                        Margin="6,0,12,0"
-                                        Command="{Binding LoadPresetCommand}" />
-                                <Button Content="Reverter tudo"
-                                        Margin="0,0,12,0"
-                                        Command="{Binding RevertAllCommand}" />
-                                <Button Content="{Binding ApplyAllLabel}"
-                                        Style="{StaticResource AccentButtonStyle}"
-                                        Command="{Binding ApplyAllCommand}" />
-                                <Button Content="Parada segura"
-                                        Margin="12,0,0,0"
-                                        Style="{StaticResource DangerButtonStyle}"
-                                        Command="{Binding SafeStopCommand}" />
-                            </WrapPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Predefinições Group -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Predefinição:"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <ComboBox Width="200"
+                                              ItemsSource="{Binding Presets}"
+                                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                              Margin="0,0,6,0">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Content="Carregar"
+                                            ToolTip="Carregar valores da predefinição selecionada"
+                                            Command="{Binding LoadPresetCommand}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="Salvar como..."
+                                            ToolTip="Salvar configuração atual em uma nova predefinição"
+                                            Command="{Binding SavePresetCommand}"
+                                            Margin="0,0,16,0" />
+                                </StackPanel>
+
+                                <!-- Spacer -->
+                                <Grid Grid.Column="1" />
+
+                                <!-- Ações em Lote -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Ações:"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <Button Content="Reverter tudo"
+                                            ToolTip="Reverter todas as alterações pendentes"
+                                            Command="{Binding RevertAllCommand}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="{Binding ApplyAllLabel}"
+                                            ToolTip="Aplicar todas as alterações pendentes ao biorreator"
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            Command="{Binding ApplyAllCommand}"
+                                            Margin="0,0,16,0" />
+                                </StackPanel>
+
+                                <!-- Parada Segura / Emergência -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Segurança:"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <Button Content="Parada segura"
+                                            ToolTip="Desliga todos os atuadores com segurança"
+                                            Style="{StaticResource DangerButtonStyle}"
+                                            Command="{Binding SafeStopCommand}" />
+                                </StackPanel>
+                            </Grid>
 
                             <TextBlock Text="{Binding StatusText}"
                                        Foreground="{DynamicResource TextSecondaryBrush}"

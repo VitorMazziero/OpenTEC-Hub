@@ -64,7 +64,7 @@ public sealed record AppSettings
     /// Named, operator-created core-loop configurations. Loading one only stages
     /// fields in the Controle page; it never sends a command by itself.
     /// </summary>
-    public SetpointPreset[] SetpointPresets { get; init; } = [];
+    public SetpointPreset[] SetpointPresets { get; init; } = [SetpointPreset.DefaultPreset];
 
     public LoggingSettings Logging { get; init; } = new();
 
@@ -414,8 +414,10 @@ public sealed record SetpointPreset
     public int MotorRpm { get; init; } = 300;
     public bool MotorEnabled { get; init; }
 
-    public double OxygenPercent { get; init; } = 40.0;
+    public double OxygenPercent { get; init; } = 30.0;
     public bool OxygenEnabled { get; init; }
+    public string OxygenMode { get; init; } = "Cascata";
+    public CascadeSettings? Cascade { get; init; }
 
     public PHControlSettings PHControl { get; init; } = new();
 
@@ -427,8 +429,68 @@ public sealed record SetpointPreset
     public bool Valve1Open { get; init; }
     public bool Valve2Open { get; init; }
 
-    public double PressureKilopascal { get; init; } = 100.0;
+    public double PressureKilopascal { get; init; } = 101.3;
     public bool PressureEnabled { get; init; }
+
+    public static SetpointPreset DefaultPreset => new()
+    {
+        Name = "Padrão de Cultivo",
+        TemperatureCelsius = 37.0,
+        TemperatureEnabled = true,
+        MotorRpm = 300,
+        MotorEnabled = true,
+        OxygenPercent = 30.0,
+        OxygenEnabled = true,
+        OxygenMode = "Cascata",
+        FlowLitresPerMinute = 1.0,
+        MaxFlowLitresPerMinute = 50.0,
+        FlowEnabled = true,
+        Valve1Open = true,
+        Valve2Open = false,
+        PressureKilopascal = 101.3,
+        PressureEnabled = true,
+        PHControl = new PHControlSettings
+        {
+            Setpoint = 7.0,
+            InactiveBand = 0.15,
+            OperationSeconds = 1,
+            MixSeconds = 60,
+            PumpSpeedPercent = 80.0
+        },
+        PHControlEnabled = true,
+        Cascade = new CascadeSettings
+        {
+            OxygenSetpointPercent = 30.0,
+            Mode = CascadeMode.DualCascade,
+            AgitationMinRpm = 150,
+            AgitationMaxRpm = 350,
+            AgitationEffortStart = 0,
+            AgitationEffortEnd = 40,
+            AerationMinLpm = 0.5,
+            AerationMaxLpm = 5.0,
+            AerationEffortStart = 30,
+            AerationEffortEnd = 70,
+            CascadePid = new ModePidSettings
+            {
+                KDot = 0.07,
+                Kp = 0.065,
+                Ki = 0.001,
+                Kd = 0.50,
+                TPred = 60.0,
+                TauD = 20.0,
+                IMin = -30.0,
+                IMax = 30.0,
+                MWindow = 120,
+                JAvg = 9,
+                NPred = 7,
+                IntervalSeconds = 3.0,
+                FatorGanhoAeracao = 1.43,
+                HabilitarGainScheduling = true,
+            }
+        }
+    };
+
+    public override string ToString() => Name;
 }
 
 /// <summary>
@@ -641,6 +703,8 @@ public sealed record CascadeTuningPreset
     public string Name { get; init; } = "";
 
     public CascadeSettings Settings { get; init; } = new();
+
+    public override string ToString() => Name;
 }
 
 /// <summary>

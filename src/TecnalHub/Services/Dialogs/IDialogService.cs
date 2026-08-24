@@ -8,4 +8,9 @@ public interface IDialogService
     /// the exact JSON that will be queued and defaults to cancellation.
     /// </summary>
     bool ConfirmDestructive(string title, string consequence, string exactCommand);
+
+    /// <summary>
+    /// Prompts the operator for a text input via a modal dialog window.
+    /// </summary>
+    bool PromptInput(string title, string message, out string response, string initialValue = "");
 }

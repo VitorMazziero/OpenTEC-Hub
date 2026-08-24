@@ -15,4 +15,21 @@ public sealed class DialogService : IDialogService
 
         return dialog.ShowDialog() == true;
     }
+
+    public bool PromptInput(string title, string message, out string response, string initialValue = "")
+    {
+        var dialog = new InputDialog(title, message, initialValue)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            response = dialog.InputText;
+            return true;
+        }
+
+        response = "";
+        return false;
+    }
 }

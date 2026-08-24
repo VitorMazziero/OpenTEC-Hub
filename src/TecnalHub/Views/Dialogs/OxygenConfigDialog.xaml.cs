@@ -15,4 +15,14 @@ public partial class OxygenConfigDialog : Window
             Close();
         };
     }
+
+    private void OnMinimizeWindow(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void OnCloseWindow(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 }

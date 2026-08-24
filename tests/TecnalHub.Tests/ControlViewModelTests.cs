@@ -231,6 +231,53 @@ public sealed class ControlViewModelTests
         Assert.Equal("Mapa", fixture.Control.Rows[2].SelectedOxygenMode);
     }
 
+    [Fact]
+    public void Default_preset_is_loaded_on_initialization_when_no_presets_exist()
+    {
+        using var fixture = new ControlFixture(new AppSettings { SetpointPresets = [] });
+
+        Assert.NotEmpty(fixture.Control.Presets);
+        Assert.NotNull(fixture.Control.SelectedPreset);
+        Assert.Equal(SetpointPreset.DefaultPreset.Name, fixture.Control.SelectedPreset.Name);
+    }
+
+    [Fact]
+    public void Saving_and_loading_preset_preserves_cascade_pid_and_oxygen_mode()
+    {
+        using var fixture = new ControlFixture();
+
+        var customCascade = new CascadeSettings
+        {
+            OxygenSetpointPercent = 45.0,
+            CascadePid = new ModePidSettings
+            {
+                Kp = 0.88,
+                Ki = 0.045,
+                Kd = 0.12,
+            }
+        };
+        fixture.Settings.Update(s => s with { Cascade = customCascade });
+        fixture.Control.Rows[2].SelectedOxygenMode = "Aeração";
+
+        fixture.Dialogs.PromptResponse = "Teste PID";
+        fixture.Control.SavePresetCommand.Execute(null);
+
+        var saved = Assert.Single(fixture.Control.Presets, p => p.Name == "Teste PID");
+        Assert.Equal("Aeração", saved.OxygenMode);
+        Assert.NotNull(saved.Cascade);
+        Assert.Equal(0.88, saved.Cascade.CascadePid.Kp);
+
+        // Modify current and load saved
+        fixture.Control.Rows[2].SelectedOxygenMode = "Agitação";
+        fixture.Settings.Update(s => s with { Cascade = new CascadeSettings { CascadePid = new ModePidSettings { Kp = 0.1 } } });
+
+        fixture.Control.SelectedPreset = saved;
+        fixture.Control.LoadPresetCommand.Execute(null);
+
+        Assert.Equal("Aeração", fixture.Control.Rows[2].SelectedOxygenMode);
+        Assert.Equal(0.88, fixture.Settings.Current.Cascade.CascadePid.Kp);
+    }
+
     private sealed class ControlFixture : IDisposable
     {
         public ControlFixture(AppSettings? initialSettings = null)
@@ -250,6 +297,8 @@ public sealed class ControlViewModelTests
                     value => CommandBuilders.MotorSetpoint((int)value),
                     () => CommandBuilders.MotorSetpoint(0),
                     Settings.Current.Setpoints.MotorRpm),
+
+
                 Create("oxygen", "Oxigênio", "%", 1, 0, 100, false,
                     value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, value),
                     () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0),
@@ -322,12 +371,21 @@ public sealed class ControlViewModelTests
         public bool ConfirmResult { get; set; }
         public int Calls { get; private set; }
         public string ExactCommand { get; private set; } = "";
+        public bool PromptResult { get; set; } = true;
+        public string PromptResponse { get; set; } = "";
 
         public bool ConfirmDestructive(string title, string consequence, string exactCommand)
         {
             Calls++;
             ExactCommand = exactCommand;
             return ConfirmResult;
+        }
+
+        public bool PromptInput(string title, string message, out string response, string initialValue = "")
+        {
+            Calls++;
+            response = PromptResponse;
+            return PromptResult;
         }
     }
 }

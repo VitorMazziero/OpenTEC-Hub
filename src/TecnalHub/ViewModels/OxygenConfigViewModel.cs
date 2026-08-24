@@ -7,7 +7,10 @@ using TecnalHub.Services.Persistence;
 
 namespace TecnalHub.ViewModels;
 
-public sealed record CascadeModeOption(CascadeMode Mode, string Label);
+public sealed record CascadeModeOption(CascadeMode Mode, string Label)
+{
+    public override string ToString() => Label;
+}
 
 public sealed partial class OxygenConfigViewModel : ObservableObject
 {

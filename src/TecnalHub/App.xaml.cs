@@ -144,6 +144,7 @@ public partial class App : Application
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IFileInteractionService, FileInteractionService>();
+        services.AddSingleton<IBackupService, BackupService>();
         services.AddSingleton<IKlaMappingEngine, KlaMappingEngine>();
         services.AddSingleton<IKlaProfileStore>(_ => new KlaProfileStore(AppPaths.KlaMappingDirectory));
 
@@ -196,7 +197,8 @@ public partial class App : Application
             sp.GetRequiredService<IDeviceService>(),
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<IEventJournal>()));
+            sp.GetRequiredService<IEventJournal>(),
+            klaStore: sp.GetService<IKlaProfileStore>()));
 
         // Recipes are saved as versioned JSON in the per-user recipes folder (Minhas Receitas).
         services.AddSingleton<IRecipeStore>(_ => new RecipeStore(AppPaths.RecipesDirectory));

@@ -176,5 +176,7 @@ public sealed class Wp8Tests
         }
 
         public Task SaveNowAsync() => Task.CompletedTask;
+
+        public void Reload() => Changed?.Invoke(Current);
     }
 }

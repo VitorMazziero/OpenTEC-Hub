@@ -362,6 +362,14 @@ public partial class ReceitasView : UserControl
         }
     }
 
+    private void OnKlaDropDownOpened(object? sender, EventArgs e)
+    {
+        if (DataContext is ReceitasViewModel { SelectedTab.SelectedNode: { } node })
+        {
+            node.LoadAvailableKlaPaths();
+        }
+    }
+
     private static RecipeNodeViewModel? FindNode(DependencyObject start)
     {
         for (var current = start; current is not null; current = VisualTreeHelper.GetParent(current))

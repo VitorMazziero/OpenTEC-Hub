@@ -100,7 +100,7 @@ public enum BlockCategory
     /// <summary>Início · Fim. Slate.</summary>
     Flow,
 
-    /// <summary>Sincronizar · Qualquer · Controle Cascata O₂. Violet.</summary>
+    /// <summary>Sincronizar · Qualquer · Controle de O₂. Violet.</summary>
     Logic,
 
     /// <summary>Temporizador · Monitorar Variável · Intervenção Manual. Blue.</summary>

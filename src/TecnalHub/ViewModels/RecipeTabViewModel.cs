@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.KlaMapping;
+using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Recipes;
 
 namespace TecnalHub.ViewModels;
@@ -11,13 +14,24 @@ namespace TecnalHub.ViewModels;
 /// </summary>
 public sealed partial class RecipeTabViewModel : ObservableObject
 {
+    private readonly ISettingsService? _settings;
+    private readonly IDialogService? _dialogs;
+    private readonly IKlaProfileStore? _klaStore;
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
     private (string NodeId, string Port)? _pendingConnection;
     private bool _restoring;
 
-    public RecipeTabViewModel(RecipeDocument document, string? fileName)
+    public RecipeTabViewModel(
+        RecipeDocument document,
+        string? fileName,
+        ISettingsService? settings = null,
+        IDialogService? dialogs = null,
+        IKlaProfileStore? klaStore = null)
     {
+        _settings = settings;
+        _dialogs = dialogs;
+        _klaStore = klaStore;
         Document = document;
         FileName = fileName;
         Name = document.Name;
@@ -52,6 +66,15 @@ public sealed partial class RecipeTabViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasNodeSelected))]
     [NotifyPropertyChangedFor(nameof(CanDeleteSelected))]
     public partial RecipeNodeViewModel? SelectedNode { get; set; }
+
+    partial void OnSelectedNodeChanged(RecipeNodeViewModel? value)
+    {
+        if (value is { Type: NodeType.CascadeControl } cascade)
+        {
+            cascade.RefreshPresets();
+            cascade.LoadAvailableKlaPaths();
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasConnectionSelected))]
@@ -320,7 +343,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     private RecipeNodeViewModel CreateNodeViewModel(RecipeNode node)
     {
-        var vm = new RecipeNodeViewModel(node);
+        var vm = new RecipeNodeViewModel(node, _settings, _dialogs, _klaStore);
         vm.Changed += OnNodeChanged;
         return vm;
     }

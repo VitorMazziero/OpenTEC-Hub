@@ -400,6 +400,10 @@ public sealed record KlaPublishedProfile
     public required KlaPublicationPayload Payload { get; init; }
 
     public required string ReceiptFingerprint { get; init; }
+
+    public string Name => Payload.Name;
+
+    public override string ToString() => Name;
 }
 
 internal static class KlaFingerprint

@@ -530,7 +530,7 @@
                                            Foreground="{DynamicResource TextSecondaryBrush}" Margin="2,8,2,0" LineHeight="15" />
                             </StackPanel>
 
-                            <!-- Controle Cascata Custom Properties Editor (Dividido em Submenus) -->
+                            <!-- Controle de Oxigênio Custom Properties Editor (Dividido em Submenus) -->
                             <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsCascadeControl, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
                                 
                                 <!-- 1. Parâmetros de Operação -->
@@ -573,6 +573,16 @@
                                             <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.CascadeModoField.Options}"
                                                       SelectedItem="{Binding SelectedTab.SelectedNode.CascadeModoField.SelectedOption, Mode=TwoWay}"
                                                       DisplayMemberPath="Label" Margin="0,0,0,8" />
+
+                                            <!-- Trajetória kLa Publicada: só no modo Mapa -->
+                                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.CascadeUsesMap, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
+                                                <TextBlock Text="Trajetória kLa Publicada" FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                                                <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.AvailableKlaPaths}"
+                                                          SelectedItem="{Binding SelectedTab.SelectedNode.SelectedKlaPath, Mode=TwoWay}"
+                                                          DisplayMemberPath="Name"
+                                                          DropDownOpened="OnKlaDropDownOpened" />
+                                            </StackPanel>
 
                                             <!-- Janelas percentuais de alocação: só no modo Cascata -->
                                             <StackPanel Visibility="{Binding SelectedTab.SelectedNode.CascadeUsesWindows, Converter={StaticResource BoolToVis}}">
@@ -668,19 +678,76 @@
                                     </Expander>
                                 </Border>
 
-                                <!-- 3. Limites Físicos dos Atuadores -->
+                                <!-- 3. Limites Físicos dos Atuadores (Redesenhado de forma intuitiva) -->
                                 <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
                                         BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
-                                    <Expander Header="Limites dos Atuadores" IsExpanded="False"
+                                    <Expander Header="Limites dos Atuadores" IsExpanded="True"
                                               FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
-                                        <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.CascadePhysicalLimitsFields}"
-                                                      ItemTemplate="{StaticResource FieldTemplate}" Margin="0,8,0,0" />
+                                        <StackPanel Margin="0,8,0,0">
+                                            <!-- Agitação Limits -->
+                                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.CascadeShowsAgitationLimits, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
+                                                <TextBlock Text="Agitação (RPM)" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" Margin="0,0,0,4" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Mínima (N_min)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                        <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAgitMinRpm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                                 IsReadOnly="{Binding SelectedTab.SelectedNode.CascadeIsLimitsReadOnly}"
+                                                                 Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                 BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Máxima (N_max)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                        <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAgitMaxRpm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                                 IsReadOnly="{Binding SelectedTab.SelectedNode.CascadeIsLimitsReadOnly}"
+                                                                 Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                 BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- Aeração Limits -->
+                                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.CascadeShowsAerationLimits, Converter={StaticResource BoolToVis}}" Margin="0,0,0,4">
+                                                <TextBlock Text="Aeração (L/min ou vvm)" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource StateOkBrush}" Margin="0,0,0,4" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Mínima (Q_min)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                        <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAerMinLpm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                                 IsReadOnly="{Binding SelectedTab.SelectedNode.CascadeIsLimitsReadOnly}"
+                                                                 Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                 BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Máxima (Q_max)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                        <TextBox Text="{Binding SelectedTab.SelectedNode.CascadeAerMaxLpm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.##}'}"
+                                                                 IsReadOnly="{Binding SelectedTab.SelectedNode.CascadeIsLimitsReadOnly}"
+                                                                 Background="{DynamicResource SurfaceInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                 BorderBrush="{DynamicResource StrokeDefaultBrush}" Padding="4,3" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <TextBlock Text="ℹ Limites derivados do mapa kLa selecionado (informativo)."
+                                                       FontSize="10" FontStyle="Italic" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Visibility="{Binding SelectedTab.SelectedNode.CascadeIsLimitsReadOnly, Converter={StaticResource BoolToVis}}"
+                                                       Margin="0,4,0,0" TextWrapping="Wrap" />
+                                        </StackPanel>
                                     </Expander>
                                 </Border>
 
                                 <!-- 4. Ganhos por Atuador -->
                                 <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
-                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8"
+                                        Visibility="{Binding SelectedTab.SelectedNode.CascadeUsesWindows, Converter={StaticResource BoolToVis}}">
                                     <Expander Header="Fatores de Ganho por Atuador" IsExpanded="False"
                                               FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
                                         <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.CascadeRelativeGainsFields}"
@@ -725,6 +792,38 @@
                                               FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
                                         <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.CascadeRateEstimationFields}"
                                                       ItemTemplate="{StaticResource FieldTemplate}" Margin="0,8,0,0" />
+                                    </Expander>
+                                </Border>
+
+                                <!-- 9. Predefinições de Oxigênio (Presets) -->
+                                <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
+                                    <Expander Header="Predefinições de Oxigênio" IsExpanded="True"
+                                              FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="Predefinição Salva:" FontSize="10" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                                            <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.AvailablePresets}"
+                                                      SelectedItem="{Binding SelectedTab.SelectedNode.SelectedPreset, Mode=TwoWay}"
+                                                      DisplayMemberPath="Name" Margin="0,0,0,8" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button Grid.Column="0" Content="Carregar"
+                                                        Command="{Binding SelectedTab.SelectedNode.LoadPresetCommand}"
+                                                        Padding="8,5" Background="{DynamicResource SurfaceCardBrush}"
+                                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                                        ToolTip="Carrega os parâmetros da predefinição selecionada para este bloco" />
+                                                <Button Grid.Column="2" Content="Salvar como..."
+                                                        Command="{Binding SelectedTab.SelectedNode.SavePresetCommand}"
+                                                        Padding="8,5" Background="{DynamicResource SurfaceCardBrush}"
+                                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                                        ToolTip="Salva as configurações atuais deste bloco como uma nova predefinição" />
+                                            </Grid>
+                                        </StackPanel>
                                     </Expander>
                                 </Border>
 

@@ -63,6 +63,10 @@ public sealed partial class OxygenConfigViewModel : ObservableObject
         LoadPidFieldsForMode(SelectedMode.Mode);
 
         LoadAvailablePaths();
+        if (_store != null)
+        {
+            _store.ProfilePublished += OnProfilePublished;
+        }
     }
 
     public IReadOnlyList<CascadeModeOption> Modes { get; }
@@ -213,6 +217,18 @@ public sealed partial class OxygenConfigViewModel : ObservableObject
             AvailablePaths = paths;
             SelectedPath = paths.FirstOrDefault(p => p.ReceiptFingerprint == _cascade.ActivePath?.ReceiptFingerprint)
                            ?? paths.FirstOrDefault();
+        }
+    }
+
+    private void OnProfilePublished(KlaPublishedProfile profile)
+    {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher)
+        {
+            dispatcher.InvokeAsync(LoadAvailablePaths);
+        }
+        else
+        {
+            LoadAvailablePaths();
         }
     }
 

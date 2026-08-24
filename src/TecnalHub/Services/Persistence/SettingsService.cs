@@ -19,6 +19,9 @@ public interface ISettingsService
 
     /// <summary>Writes immediately, e.g. on shutdown.</summary>
     Task SaveNowAsync();
+
+    /// <summary>Reloads the settings from disk, e.g. after a backup restore.</summary>
+    void Reload();
 }
 
 /// <summary>
@@ -98,6 +101,19 @@ public sealed class SettingsService : ISettingsService, IAsyncDisposable
         }
 
         await WriteAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    public void Reload()
+    {
+        CancelPendingSave();
+        AppSettings loaded;
+        lock (_gate)
+        {
+            loaded = Load();
+            Current = loaded;
+        }
+
+        Changed?.Invoke(loaded);
     }
 
     public async ValueTask DisposeAsync()

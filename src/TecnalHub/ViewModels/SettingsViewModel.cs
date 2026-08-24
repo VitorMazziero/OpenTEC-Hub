@@ -5,6 +5,7 @@ using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Platform;
 using TecnalHub.Services.Theme;
 
 namespace TecnalHub.ViewModels;
@@ -39,6 +40,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IThemeService _theme;
     private readonly IDeviceService _device;
     private readonly IDialogService _dialogs;
+    private readonly IBackupService? _backup;
+    private readonly IFileInteractionService? _files;
 
     private bool _loading;
     private CalibrationSettings _persistedCalibration = new();
@@ -47,12 +50,16 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         ISettingsService settings,
         IThemeService theme,
         IDeviceService device,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        IBackupService? backup = null,
+        IFileInteractionService? files = null)
     {
         _settings = settings;
         _theme = theme;
         _device = device;
         _dialogs = dialogs;
+        _backup = backup;
+        _files = files;
 
         ThemeOptions = [ThemePreference.System, ThemePreference.Light, ThemePreference.Dark];
         Sections =
@@ -62,6 +69,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("acquisition", "Aquisição", "Trend"),
             new("units", "Unidades", "Pressure"),
             new("logging", "Registro e aparência", "EventLog"),
+            new("backup", "Backup e dados", "File"),
             new("device", "Comandos do equipamento", "Gear"),
         ];
         SelectedSection = Sections[0];
@@ -607,6 +615,81 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>Round-trip format, so no precision is lost by displaying a value.</summary>
     private static string FormatPrecise(double value)
         => value.ToString("R", CultureInfo.CurrentCulture);
+
+    [RelayCommand]
+    private async Task ExportBackupAsync()
+    {
+        if (_backup is null || _files is null)
+        {
+            return;
+        }
+
+        var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HHmm", CultureInfo.InvariantCulture);
+        var path = _files.ChooseSavePath(
+            "Exportar Backup do Sistema",
+            $"Backup_Tecnal_{timestamp}.tecbkp",
+            "Backup TECNAL (*.tecbkp;*.zip)|*.tecbkp;*.zip|Todos os arquivos (*.*)|*.*",
+            ".tecbkp");
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        StatusMessage = "Exportando backup do sistema...";
+        var result = await _backup.ExportBackupAsync(path).ConfigureAwait(true);
+        if (result.Success)
+        {
+            StatusMessage = $"Backup exportado com sucesso ({result.RecipesCount} receitas, {result.MapsCount} mapas).";
+        }
+        else
+        {
+            StatusMessage = result.Message;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportBackupAsync()
+    {
+        if (_backup is null || _files is null)
+        {
+            return;
+        }
+
+        var path = _files.ChooseOpenPath(
+            "Importar Backup do Sistema",
+            "Backup TECNAL (*.tecbkp;*.zip)|*.tecbkp;*.zip|Todos os arquivos (*.*)|*.*",
+            ".tecbkp");
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        var confirmed = _dialogs.ConfirmDestructive(
+            "Restaurar Backup",
+            "Esta ação restaurará todas as receitas, predefinições e mapas kLa contidos no arquivo de backup. " +
+            "Os dados locais existentes serão substituídos. Deseja continuar?",
+            path);
+
+        if (!confirmed)
+        {
+            StatusMessage = "Importação de backup cancelada.";
+            return;
+        }
+
+        StatusMessage = "Importando e restaurando dados...";
+        var result = await _backup.ImportBackupAsync(path).ConfigureAwait(true);
+        if (result.Success)
+        {
+            StatusMessage = $"Backup importado com sucesso ({result.RecipesCount} receitas, {result.MapsCount} mapas restaurados).";
+            Load(_settings.Current);
+        }
+        else
+        {
+            StatusMessage = result.Message;
+        }
+    }
 
     public void Dispose()
     {

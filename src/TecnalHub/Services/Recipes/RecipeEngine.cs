@@ -1,6 +1,7 @@
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
+using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Telemetry;
 
@@ -17,6 +18,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
     private readonly ISettingsService _settings;
     private readonly TimeProvider _time;
     private readonly IEventJournal? _journal;
+    private readonly IKlaProfileStore? _klaStore;
 
     /// <summary>How a block waits — injected so tests run without wall-clock sleeps.</summary>
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
@@ -43,7 +45,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
         ISettingsService settings,
         TimeProvider time,
         IEventJournal? journal = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        IKlaProfileStore? klaStore = null)
     {
         ArgumentNullException.ThrowIfNull(arbiter);
         ArgumentNullException.ThrowIfNull(device);
@@ -56,6 +59,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         _time = time;
         _journal = journal;
         _delay = delay ?? ((ts, ct) => Task.Delay(ts, ct));
+        _klaStore = klaStore;
 
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.OwnershipRevoked += OnOwnershipRevoked;

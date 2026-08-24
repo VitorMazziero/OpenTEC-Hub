@@ -36,6 +36,9 @@ public interface IKlaProfileStore
     Task<KlaExperimentSnapshot> ImportReceiptAsDraftAsync(
         string sourcePath,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Raised whenever a new kLa profile is successfully published.</summary>
+    event Action<KlaPublishedProfile>? ProfilePublished;
 }
 
 /// <summary>
@@ -49,6 +52,8 @@ public sealed class KlaProfileStore : IKlaProfileStore
     private readonly string _root;
     private readonly string _receipts;
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    public event Action<KlaPublishedProfile>? ProfilePublished;
 
     public KlaProfileStore(string root)
     {
@@ -207,6 +212,7 @@ public sealed class KlaProfileStore : IKlaProfileStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
+            ProfilePublished?.Invoke(profile);
             return profile;
         }
         finally

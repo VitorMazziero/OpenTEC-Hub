@@ -172,6 +172,38 @@ public sealed class RecipeEngineTests
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
 
+    [Fact]
+    public async Task Cascade_executes_in_agitation_only_mode()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40);
+        var cascadeNode = recipe.Nodes.First(n => n.Type == NodeType.CascadeControl);
+        cascadeNode.Set("modo", nameof(TecnalHub.Services.Control.CascadeMode.AgitationOnly));
+
+        await engine.StartAsync(recipe);
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        PushFrame(device, clock, oxygen: 25, temperature: 45);
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_executes_in_aeration_only_mode()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40);
+        var cascadeNode = recipe.Nodes.First(n => n.Type == NodeType.CascadeControl);
+        cascadeNode.Set("modo", nameof(TecnalHub.Services.Control.CascadeMode.AerationOnly));
+
+        await engine.StartAsync(recipe);
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        PushFrame(device, clock, oxygen: 25, temperature: 45);
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
     private static void PushFrame(RecordingDeviceService device, TestClock clock, double oxygen, double temperature = 0)
     {
         clock.Advance(TimeSpan.FromSeconds(3));

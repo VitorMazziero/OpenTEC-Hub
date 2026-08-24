@@ -123,6 +123,8 @@ internal sealed class MemorySettingsService(AppSettings initial) : ISettingsServ
     }
 
     public Task SaveNowAsync() => Task.CompletedTask;
+
+    public void Reload() => Changed?.Invoke(Current);
 }
 
 /// <summary>

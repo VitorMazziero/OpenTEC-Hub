@@ -203,6 +203,8 @@ public sealed class Wp7Tests
         }
 
         public Task SaveNowAsync() => Task.CompletedTask;
+
+        public void Reload() => Changed?.Invoke(Current);
     }
 
     private sealed class RecordingThemeService : IThemeService

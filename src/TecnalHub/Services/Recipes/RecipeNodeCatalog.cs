@@ -410,7 +410,7 @@ public static class RecipeNodeCatalog
     private static RecipeNodeDefinition BuildCascade() => new()
     {
         Type = NodeType.CascadeControl,
-        Title = "Controle Cascata O₂",
+        Title = "Controle de O₂",
         Category = BlockCategory.Logic,
         Ports =
         [
@@ -447,6 +447,8 @@ public static class RecipeNodeCatalog
                 new("DualCascade", "Cascata (percentuais)"),
                 new("KlaPath", "Mapa (trajetória kLa)")
             }, group: "Atuadores"),
+
+            Text("klaMapId", "ID do Mapa kLa", ""),
 
             Num("nMinRpm", "N_min", 150, min: 0, unit: "rpm", group: "Faixas físicas"),
             Num("nMaxRpm", "N_max", 350, min: 0, unit: "rpm", group: "Faixas físicas"),

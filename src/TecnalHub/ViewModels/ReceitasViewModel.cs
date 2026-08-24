@@ -3,6 +3,9 @@ using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.KlaMapping;
+using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Recipes;
 
 namespace TecnalHub.ViewModels;
@@ -25,14 +28,25 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
 {
     private readonly IRecipeEngine _engine;
     private readonly IRecipeStore _store;
+    private readonly ISettingsService? _settings;
+    private readonly IDialogService? _dialogs;
+    private readonly IKlaProfileStore? _klaStore;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _elapsedTimer;
     private RecipeTabViewModel? _runningTab;
 
-    public ReceitasViewModel(IRecipeEngine engine, IRecipeStore store)
+    public ReceitasViewModel(
+        IRecipeEngine engine,
+        IRecipeStore store,
+        ISettingsService? settings = null,
+        IDialogService? dialogs = null,
+        IKlaProfileStore? klaStore = null)
     {
         _engine = engine;
         _store = store;
+        _settings = settings;
+        _dialogs = dialogs;
+        _klaStore = klaStore;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Library = BuildLibrary();
@@ -237,7 +251,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
 
     private RecipeTabViewModel CreateTab(RecipeDocument document, string? fileName)
     {
-        var tab = new RecipeTabViewModel(document, fileName);
+        var tab = new RecipeTabViewModel(document, fileName, _settings, _dialogs, _klaStore);
         tab.CenterRequested += node => OnUi(() => CenterOnNodeRequested?.Invoke(node));
         return tab;
     }

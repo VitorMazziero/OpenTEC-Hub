@@ -3,6 +3,10 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TecnalHub.Services.Control;
+using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.KlaMapping;
+using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Recipes;
 
 namespace TecnalHub.ViewModels;
@@ -264,9 +268,20 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         new(nameof(ManualGateOperation.Pass), "Pular Cascata"),
     ];
 
-    public RecipeNodeViewModel(RecipeNode model)
+    private readonly ISettingsService? _settings;
+    private readonly IDialogService? _dialogs;
+    private readonly IKlaProfileStore? _klaStore;
+
+    public RecipeNodeViewModel(
+        RecipeNode model,
+        ISettingsService? settings = null,
+        IDialogService? dialogs = null,
+        IKlaProfileStore? klaStore = null)
     {
         Model = model;
+        _settings = settings;
+        _dialogs = dialogs;
+        _klaStore = klaStore;
         Title = model.Definition.Title;
         HeaderColor = RecipeNodeCatalog.HeaderColor(model.Type);
         Fields = [.. model.Definition.Parameters.Select(p => new RecipeParameterFieldViewModel(model.Parameters, p, OnFieldChanged))];
@@ -275,6 +290,16 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         Y = model.Y;
         Summary = BuildSummary();
         UpdatePortOffsets();
+
+        if (Type == NodeType.CascadeControl)
+        {
+            RefreshPresets();
+            LoadAvailableKlaPaths();
+            if (_klaStore != null)
+            {
+                _klaStore.ProfilePublished += OnProfilePublished;
+            }
+        }
     }
 
     public RecipeNode Model { get; }
@@ -434,6 +459,44 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// <summary>The kLa-map trajectory mode.</summary>
     public bool CascadeUsesMap => CascadeModo == "KlaPath";
 
+    public bool CascadeShowsAgitationLimits => CascadeModo != "AerationOnly";
+
+    public bool CascadeShowsAerationLimits => CascadeModo != "AgitationOnly";
+
+    public bool CascadeIsLimitsReadOnly => CascadeModo == "KlaPath";
+
+    public bool CascadeShowsGains => CascadeModo != "KlaPath";
+
+    public double CascadeAgitMinRpm
+    {
+        get => Model.Number("nMinRpm");
+        set => SetParam("nMinRpm", value);
+    }
+
+    public double CascadeAgitMaxRpm
+    {
+        get => Model.Number("nMaxRpm");
+        set => SetParam("nMaxRpm", value);
+    }
+
+    public double CascadeAerMinLpm
+    {
+        get => Model.Number("qMinVvm");
+        set => SetParam("qMinVvm", value);
+    }
+
+    public double CascadeAerMaxLpm
+    {
+        get => Model.Number("qMaxVvm");
+        set => SetParam("qMaxVvm", value);
+    }
+
+    public string CascadeKlaMapId
+    {
+        get => Model.Text("klaMapId");
+        set => SetParam("klaMapId", value);
+    }
+
     public double CascadeAgitOutMin
     {
         get => Model.Number("agitacaoOutMin");
@@ -502,6 +565,213 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     public IEnumerable<RecipeParameterFieldViewModel> CascadeRateEstimationFields =>
         Fields.Where(f => f.IsVisible && f.Key is "metodoTaxa" or "janelaMediaAmostras");
 
+    // ── Kla Profiles ──
+
+    public ObservableCollection<KlaPublishedProfile> AvailableKlaPaths { get; } = [];
+
+    private KlaPublishedProfile? _selectedKlaPath;
+    public KlaPublishedProfile? SelectedKlaPath
+    {
+        get => _selectedKlaPath;
+        set
+        {
+            if (SetProperty(ref _selectedKlaPath, value))
+            {
+                if (value != null)
+                {
+                    CascadeKlaMapId = value.ReceiptFingerprint;
+                    if (value.Payload?.Domain is { } domain)
+                    {
+                        CascadeAgitMinRpm = domain.AgitationMinimumRpm;
+                        CascadeAgitMaxRpm = domain.AgitationMaximumRpm;
+                        CascadeAerMinLpm = domain.AirflowMinimumLpm;
+                        CascadeAerMaxLpm = domain.AirflowMaximumLpm;
+                    }
+                }
+            }
+        }
+    }
+
+    public async void LoadAvailableKlaPaths()
+    {
+        if (_klaStore != null)
+        {
+            try
+            {
+                var paths = await _klaStore.LoadPublishedAsync().ConfigureAwait(true);
+                AvailableKlaPaths.Clear();
+                foreach (var path in paths)
+                {
+                    AvailableKlaPaths.Add(path);
+                }
+
+                if (!string.IsNullOrWhiteSpace(CascadeKlaMapId))
+                {
+                    SelectedKlaPath = AvailableKlaPaths.FirstOrDefault(p =>
+                        string.Equals(p.ReceiptFingerprint, CascadeKlaMapId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(p.Name, CascadeKlaMapId, StringComparison.OrdinalIgnoreCase))
+                        ?? AvailableKlaPaths.FirstOrDefault();
+                }
+                else
+                {
+                    SelectedKlaPath = AvailableKlaPaths.FirstOrDefault();
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
+
+    private void OnProfilePublished(KlaPublishedProfile profile)
+    {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher)
+        {
+            dispatcher.InvokeAsync(LoadAvailableKlaPaths);
+        }
+        else
+        {
+            LoadAvailableKlaPaths();
+        }
+    }
+
+    // ── Presets ──
+
+    public ObservableCollection<CascadeTuningPreset> AvailablePresets { get; } = [];
+
+    [ObservableProperty]
+    public partial CascadeTuningPreset? SelectedPreset { get; set; }
+
+    public void RefreshPresets()
+    {
+        AvailablePresets.Clear();
+        if (_settings != null)
+        {
+            foreach (var p in _settings.Current.CascadeTuningPresets)
+            {
+                AvailablePresets.Add(p);
+            }
+            SelectedPreset = AvailablePresets.FirstOrDefault();
+        }
+    }
+
+    [RelayCommand]
+    public void LoadPreset(CascadeTuningPreset? preset = null)
+    {
+        preset ??= SelectedPreset;
+        if (preset is null) return;
+
+        var s = preset.Settings;
+        CascadeSpO2 = s.OxygenSetpointPercent;
+        SetParam("modo", s.Mode.ToString());
+        CascadeAgitMinRpm = s.AgitationMinRpm;
+        CascadeAgitMaxRpm = s.AgitationMaxRpm;
+        CascadeAgitOutMin = s.AgitationEffortStart;
+        CascadeAgitOutMax = s.AgitationEffortEnd;
+        CascadeAerMinLpm = s.AerationMinLpm;
+        CascadeAerMaxLpm = s.AerationMaxLpm;
+        CascadeAerOutMin = s.AerationEffortStart;
+        CascadeAerOutMax = s.AerationEffortEnd;
+
+        var pid = s.Mode switch
+        {
+            CascadeMode.AgitationOnly => s.AgitationPid,
+            CascadeMode.AerationOnly => s.AerationPid,
+            CascadeMode.DualCascade => s.CascadePid,
+            CascadeMode.KlaPath => s.MapPid,
+            _ => s.CascadePid,
+        };
+
+        SetParam("kDot", pid.KDot);
+        SetParam("kp", pid.Kp);
+        SetParam("ki", pid.Ki);
+        SetParam("kd", pid.Kd);
+        SetParam("iMin", pid.IMin);
+        SetParam("iMax", pid.IMax);
+        SetParam("janelaIntegradorS", (double)pid.MWindow);
+        SetParam("horizonteTPredS", pid.TPred);
+        SetParam("janelaPreditorAmostras", (double)pid.NPred);
+        SetParam("tauDFiltroS", pid.TauD);
+        SetParam("janelaMediaAmostras", (double)pid.JAvg);
+        SetParam("intervaloPidS", pid.IntervalSeconds);
+        SetParam("aeracaoGanho", pid.FatorGanhoAeracao);
+
+        OnFieldChanged();
+    }
+
+    [RelayCommand]
+    public void SavePreset()
+    {
+        if (_dialogs == null || _settings == null) return;
+
+        if (!_dialogs.PromptInput("Salvar Predefinição", "Digite um nome para a predefinição:", out var name, "Minha Predefinição") ||
+            string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        name = name.Trim();
+        var mode = Model.Enum<CascadeMode>("modo");
+
+        var currentPid = new ModePidSettings
+        {
+            KDot = Model.Number("kDot"),
+            Kp = Model.Number("kp"),
+            Ki = Model.Number("ki"),
+            Kd = Model.Number("kd"),
+            IMin = Model.Number("iMin"),
+            IMax = Model.Number("iMax"),
+            MWindow = (int)Model.Number("janelaIntegradorS"),
+            TPred = Model.Number("horizonteTPredS"),
+            NPred = (int)Model.Number("janelaPreditorAmostras"),
+            TauD = Model.Number("tauDFiltroS"),
+            JAvg = (int)Model.Number("janelaMediaAmostras"),
+            IntervalSeconds = Model.Number("intervaloPidS"),
+            FatorGanhoAeracao = Model.Number("aeracaoGanho"),
+            HabilitarGainScheduling = mode == CascadeMode.DualCascade,
+        };
+
+        var settings = new CascadeSettings
+        {
+            OxygenSetpointPercent = CascadeSpO2,
+            Mode = mode,
+            AgitationMinRpm = CascadeAgitMinRpm,
+            AgitationMaxRpm = CascadeAgitMaxRpm,
+            AgitationEffortStart = CascadeAgitOutMin,
+            AgitationEffortEnd = CascadeAgitOutMax,
+            AerationMinLpm = CascadeAerMinLpm,
+            AerationMaxLpm = CascadeAerMaxLpm,
+            AerationEffortStart = CascadeAerOutMin,
+            AerationEffortEnd = CascadeAerOutMax,
+            AgitationPid = mode == CascadeMode.AgitationOnly ? currentPid : _settings.Current.Cascade.AgitationPid,
+            AerationPid = mode == CascadeMode.AerationOnly ? currentPid : _settings.Current.Cascade.AerationPid,
+            CascadePid = mode == CascadeMode.DualCascade ? currentPid : _settings.Current.Cascade.CascadePid,
+            MapPid = mode == CascadeMode.KlaPath ? currentPid : _settings.Current.Cascade.MapPid,
+        };
+
+        var preset = new CascadeTuningPreset
+        {
+            Name = name,
+            Settings = settings,
+        };
+
+        var list = _settings.Current.CascadeTuningPresets.ToList();
+        var existingIdx = list.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existingIdx >= 0)
+        {
+            list[existingIdx] = preset;
+        }
+        else
+        {
+            list.Add(preset);
+        }
+
+        _settings.Update(s => s with { CascadeTuningPresets = [.. list] });
+        RefreshPresets();
+        SelectedPreset = AvailablePresets.FirstOrDefault(p => p.Name == name);
+    }
+
     internal void SetParam(string key, object value)
     {
         if (value is double d)
@@ -545,6 +815,15 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(CascadeModoField));
         OnPropertyChanged(nameof(CascadeUsesWindows));
         OnPropertyChanged(nameof(CascadeUsesMap));
+        OnPropertyChanged(nameof(CascadeShowsAgitationLimits));
+        OnPropertyChanged(nameof(CascadeShowsAerationLimits));
+        OnPropertyChanged(nameof(CascadeIsLimitsReadOnly));
+        OnPropertyChanged(nameof(CascadeShowsGains));
+        OnPropertyChanged(nameof(CascadeAgitMinRpm));
+        OnPropertyChanged(nameof(CascadeAgitMaxRpm));
+        OnPropertyChanged(nameof(CascadeAerMinLpm));
+        OnPropertyChanged(nameof(CascadeAerMaxLpm));
+        OnPropertyChanged(nameof(CascadeKlaMapId));
         OnPropertyChanged(nameof(CascadeAgitOutMin));
         OnPropertyChanged(nameof(CascadeAgitOutMax));
         OnPropertyChanged(nameof(CascadeAerOutMin));
@@ -565,6 +844,12 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(CascadeRateEstimationFields));
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
+
+        if (Type == NodeType.CascadeControl && CascadeUsesMap)
+        {
+            LoadAvailableKlaPaths();
+        }
+
         Changed?.Invoke();
     }
 

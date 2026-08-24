@@ -279,6 +279,40 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Gerenciamento e Backup de Dados -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=backup}">
+                    <StackPanel>
+                        <TextBlock Text="Gerenciamento de Dados e Backup" Style="{StaticResource SectionHeading}" />
+                        <TextBlock Text="Exporte ou importe todas as predefinições de controle, receitas e mapeamentos kLa experimentais em um único arquivo compactado para portabilidade entre computadores e restauração do sistema."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16" />
+
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Exportar Backup do Sistema" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBlock Text="Gera um pacote com as predefinições de controle, todas as receitas salvas e mapas de kLa publicados."
+                                           Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <Button Content="Exportar Backup..." HorizontalAlignment="Left"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding ExportBackupCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="14">
+                            <StackPanel>
+                                <TextBlock Text="Importar e Restaurar Backup" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBlock Text="Restaura receitas, mapas de kLa e parâmetros de controle a partir de um arquivo .tecbkp ou .zip."
+                                           Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <Button Content="Importar Backup..." HorizontalAlignment="Left"
+                                        Command="{Binding ImportBackupCommand}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
                 <!-- Equipamento -->
                 <Border Style="{StaticResource Card}"
                         Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},

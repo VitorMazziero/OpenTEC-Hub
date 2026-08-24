@@ -22,17 +22,14 @@ public sealed partial class RecipeEngine
 
     private async Task ExecuteCascadeAsync(RecipeNode node, CancellationToken ct)
     {
-        var controller = BuildCascadeController(node);
-        lock (_lock)
-        {
-            _liveCascades[node.Id] = controller;
-        }
+        CascadeController? controller = null;
 
         // The Saída Loop wires to the loop's exit condition: a Monitor (automatic) or an Intervenção
         // Manual (a manual Continuar/Pular switch). It is read here, never executed as a flow block.
         var condition = LoopConditionNode(node);
+        var mode = node.Enum<CascadeMode>("modo");
         Log(RecipeLogSeverity.Info,
-            $"Cascata O₂ iniciada (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition)}).", node.Id);
+            $"Controle de O₂ [{ModeLabel(mode)}] iniciado (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition)}).", node.Id);
 
         DateTimeOffset? lastStep = null;
         var settled = 0;
@@ -49,7 +46,7 @@ public sealed partial class RecipeEngine
                 if (condition is { Type: NodeType.ManualIntervention } gate &&
                     gate.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass)
                 {
-                    Log(RecipeLogSeverity.Info, "Cascata encerrada pelo operador (Pular Cascata).", node.Id);
+                    Log(RecipeLogSeverity.Info, "Controle de O₂ encerrado pelo operador (Pular).", node.Id);
                     break;
                 }
 
@@ -59,10 +56,28 @@ public sealed partial class RecipeEngine
                     continue; // flying blind without a usable O₂ reading; wait for the next frame
                 }
 
+                if (controller is null)
+                {
+                    try
+                    {
+                        controller = BuildCascadeController(node, snapshot);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log(RecipeLogSeverity.Error, $"Erro ao inicializar controle de O₂: {ex.Message}", node.Id);
+                        throw;
+                    }
+
+                    lock (_lock)
+                    {
+                        _liveCascades[node.Id] = controller;
+                    }
+                }
+
                 // Automatic exit: the monitored variable met the condition.
                 if (condition is { Type: NodeType.MonitorVariable } monitor && MonitorConditionMet(monitor, snapshot))
                 {
-                    Log(RecipeLogSeverity.Info, "Cascata: condição de saída atingida.", node.Id);
+                    Log(RecipeLogSeverity.Info, "Controle de O₂: condição de saída atingida.", node.Id);
                     break;
                 }
 
@@ -81,7 +96,7 @@ public sealed partial class RecipeEngine
 
                 if (!_arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result)).Accepted)
                 {
-                    Log(RecipeLogSeverity.Warning, "Cascata: posse dos atuadores perdida; encerrando.", node.Id);
+                    Log(RecipeLogSeverity.Warning, "Controle de O₂: posse dos atuadores perdida; encerrando.", node.Id);
                     break;
                 }
 
@@ -94,7 +109,7 @@ public sealed partial class RecipeEngine
 
                     if (settled >= CascadeSettleFrames)
                     {
-                        Log(RecipeLogSeverity.Info, "Cascata: O₂ estabilizado no setpoint.", node.Id);
+                        Log(RecipeLogSeverity.Info, "Controle de O₂: O₂ estabilizado no setpoint.", node.Id);
                         break;
                     }
                 }
@@ -108,6 +123,15 @@ public sealed partial class RecipeEngine
             }
         }
     }
+
+    private static string ModeLabel(CascadeMode mode) => mode switch
+    {
+        CascadeMode.AgitationOnly => "Agitação",
+        CascadeMode.AerationOnly => "Aeração",
+        CascadeMode.DualCascade => "Cascata (percentuais)",
+        CascadeMode.KlaPath => "Mapa (trajetória kLa)",
+        _ => mode.ToString(),
+    };
 
     /// <summary>The node wired to the cascade's Saída Loop — its exit condition, or null.</summary>
     private RecipeNode? LoopConditionNode(RecipeNode cascade)
@@ -132,8 +156,10 @@ public sealed partial class RecipeEngine
     }
 
     /// <summary>Builds a controller from the block's parameters (§5.3.7 defaults on a fresh block).</summary>
-    private static CascadeController BuildCascadeController(RecipeNode node)
+    private CascadeController BuildCascadeController(RecipeNode node, SensorSnapshot? snapshot = null)
     {
+        var mode = node.Enum<CascadeMode>("modo");
+
         var agitation = new ActuatorWindow(
             CascadeController.AgitationActuator,
             node.Number("nMinRpm"), node.Number("nMaxRpm"),
@@ -146,22 +172,71 @@ public sealed partial class RecipeEngine
             node.Number("qMinVvm"), node.Number("qMaxVvm"),
             node.Number("aeracaoOutMin"), node.Number("aeracaoOutMax"));
 
-        return new CascadeController(BuildTuning(node), agitation, aeration, node.Number("spO2"));
+        var controller = new CascadeController(BuildTuning(node), agitation, aeration, node.Number("spO2"));
+
+        var currentAgitation = node.Number("nMinRpm");
+        var currentAeration = snapshot?.FlowRate is { } fr && fr >= 0 ? fr : node.Number("qMinVvm");
+
+        CascadeAllocation allocation = mode switch
+        {
+            CascadeMode.AgitationOnly => SingleActuatorAllocation.Agitation(
+                node.Number("nMinRpm"), node.Number("nMaxRpm"), currentAeration),
+            CascadeMode.AerationOnly => SingleActuatorAllocation.Aeration(
+                node.Number("qMinVvm"), node.Number("qMaxVvm"), currentAgitation),
+            CascadeMode.DualCascade => new WindowAllocation(agitation, aeration),
+            CascadeMode.KlaPath => BuildKlaPathAllocation(node),
+            _ => new WindowAllocation(agitation, aeration),
+        };
+
+        controller.SetAllocation(allocation);
+        return controller;
+    }
+
+    private CascadeAllocation BuildKlaPathAllocation(RecipeNode node)
+    {
+        var mapId = node.Text("klaMapId");
+        if (_klaStore != null && !string.IsNullOrWhiteSpace(mapId))
+        {
+            try
+            {
+                var profiles = _klaStore.LoadPublishedAsync().GetAwaiter().GetResult();
+                var profile = profiles.FirstOrDefault(p =>
+                    string.Equals(p.ReceiptFingerprint, mapId, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p.Name, mapId, StringComparison.OrdinalIgnoreCase));
+                if (profile != null)
+                {
+                    return new KlaPathAllocation(profile.Payload.Allocation);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log(RecipeLogSeverity.Error, $"Falha ao carregar mapa kLa '{mapId}': {ex.Message}", node.Id);
+                throw;
+            }
+        }
+
+        throw new InvalidOperationException($"Mapeamento kLa '{mapId}' não encontrado para o bloco de O₂.");
     }
 
     /// <summary>Projects the block's gain/anti-windup/prediction parameters onto the controller tuning.</summary>
-    private static CascadeTuning BuildTuning(RecipeNode node) => new()
+    private static CascadeTuning BuildTuning(RecipeNode node)
     {
-        Kp = node.Number("kp"),
-        Ki = node.Number("ki"),
-        Kd = node.Number("kd"),
-        IntegralMin = node.Number("iMin"),
-        IntegralMax = node.Number("iMax"),
-        OutputMin = 0,
-        OutputMax = 100,
-        PredictionHorizonSeconds = node.Number("horizonteTPredS"),
-        // The rate-estimation window in seconds ≈ the sample count × the PID interval.
-        RateWindowSeconds = Math.Max(1.0, node.Number("janelaMediaAmostras") * node.Number("intervaloPidS")),
-        IntervalSeconds = Math.Clamp(node.Number("intervaloPidS"), 0.1, 60),
-    };
+        var mode = node.Enum<CascadeMode>("modo");
+        return new CascadeTuning
+        {
+            Kp = node.Number("kp"),
+            Ki = node.Number("ki"),
+            Kd = node.Number("kd"),
+            IntegralMin = node.Number("iMin"),
+            IntegralMax = node.Number("iMax"),
+            OutputMin = 0,
+            OutputMax = 100,
+            PredictionHorizonSeconds = node.Number("horizonteTPredS"),
+            // The rate-estimation window in seconds ≈ the sample count × the PID interval.
+            RateWindowSeconds = Math.Max(1.0, node.Number("janelaMediaAmostras") * node.Number("intervaloPidS")),
+            IntervalSeconds = Math.Clamp(node.Number("intervaloPidS"), 0.1, 60),
+            FatorGanhoAeracao = node.Number("aeracaoGanho"),
+            HabilitarGainScheduling = mode == CascadeMode.DualCascade,
+        };
+    }
 }

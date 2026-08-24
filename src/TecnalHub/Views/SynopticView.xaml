@@ -123,7 +123,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="SINÓPTICO DO BIORREATOR"
+                    <TextBlock Text="RESUMO DO BIORREATOR"
                                FontSize="11" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                     <TextBlock Text="Visão física · leituras e comandos ao vivo"
@@ -149,202 +149,139 @@
         </Border>
 
         <Viewbox Grid.Row="1" Stretch="Uniform" Margin="8,4">
-            <Canvas Width="600" Height="470">
-                <!-- Equipment bay: a token-driven stage behind the transparent asset. -->
-                <Border Canvas.Left="144" Canvas.Top="2" Width="312" Height="466"
-                        CornerRadius="150"
-                        Background="{DynamicResource SurfaceSunkenBrush}"
-                        BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                        BorderThickness="1" Opacity="0.72" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <!-- Bundled fallback shown only if the raster resource cannot decode. -->
-                <Canvas x:Name="VectorFallback" Visibility="Collapsed"
-                        IsHitTestVisible="False">
-                    <Border Canvas.Left="190" Canvas.Top="130" Width="220" Height="250"
-                            CornerRadius="32" BorderThickness="6"
-                            BorderBrush="{DynamicResource StrokeStrongBrush}"
-                            Background="Transparent" />
-                    <Border Canvas.Left="199" Canvas.Top="140" Width="202" Height="230"
-                            CornerRadius="26" BorderThickness="2"
-                            BorderBrush="{DynamicResource TextSecondaryBrush}"
-                            Background="{DynamicResource SurfaceSunkenBrush}" />
-                    <Rectangle Canvas.Left="180" Canvas.Top="117" Width="240" Height="16"
-                               RadiusX="5" RadiusY="5"
-                               Fill="{DynamicResource StrokeStrongBrush}" />
-                    <Border Canvas.Left="266" Canvas.Top="20" Width="68" Height="82"
-                            CornerRadius="8" BorderThickness="2"
-                            BorderBrush="{DynamicResource StrokeStrongBrush}"
-                            Background="{DynamicResource SurfaceElevatedBrush}" />
-                    <Rectangle Canvas.Left="296" Canvas.Top="98" Width="8" Height="210"
-                               Fill="{DynamicResource TextSecondaryBrush}" />
-                    <Rectangle Canvas.Left="261" Canvas.Top="222" Width="78" Height="7"
-                               RadiusX="2" RadiusY="2"
-                               Fill="{DynamicResource TextSecondaryBrush}" />
-                    <Rectangle Canvas.Left="261" Canvas.Top="286" Width="78" Height="7"
-                               RadiusX="2" RadiusY="2"
-                               Fill="{DynamicResource TextSecondaryBrush}" />
-                    <Ellipse Canvas.Left="249" Canvas.Top="336" Width="102" Height="18"
-                             Stroke="{DynamicResource PathGasBrush}" StrokeThickness="3"
-                             Fill="Transparent" />
-                    <Polyline Points="350,345 382,345 382,128"
-                              Stroke="{DynamicResource PathGasBrush}" StrokeThickness="2"
-                              Fill="Transparent" />
-                    <Rectangle Canvas.Left="237" Canvas.Top="128" Width="6" Height="150"
-                               Fill="{DynamicResource PathInstrumentBrush}" />
-                    <Rectangle Canvas.Left="356" Canvas.Top="128" Width="6" Height="138"
-                               Fill="{DynamicResource PathInstrumentBrush}" />
+                <!-- Cards on the left (Two columns) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,32,0">
+                    
+                    <!-- First Column -->
+                    <StackPanel Margin="0,0,8,0">
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Motor}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Rotação comandada; sem realimentação de RPM"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="motor" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Temperature}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Temperatura do processo e da camisa térmica"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="temperature" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Ph}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Sonda de pH"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="ph" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Oxygen}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Sonda de oxigênio dissolvido"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="oxygen" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Pressure}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Pressão do headspace"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="pressure" Margin="0,0,0,8" />
+                    </StackPanel>
+
+                    <!-- Second Column -->
+                    <StackPanel>
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Nutrient}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Dosagem de nutriente (comando sem realimentação)"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="nutrient" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Antifoam}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Dosagem de antiespumante"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="antifoam" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Flow}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Aeração pelo sparger anular"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="flow" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Level}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Sensor de nível/espuma (distância)"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="level" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Canvas Grid.Column="1" Width="312" Height="470">
+                    <!-- Equipment bay: a token-driven stage behind the transparent asset. -->
+                    <Border Canvas.Left="0" Canvas.Top="2" Width="312" Height="466"
+                            CornerRadius="150"
+                            Background="{DynamicResource SurfaceSunkenBrush}"
+                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                            BorderThickness="1" Opacity="0.72" />
+
+                    <!-- Bundled fallback shown only if the raster resource cannot decode. -->
+                    <Canvas x:Name="VectorFallback" Visibility="Collapsed"
+                            IsHitTestVisible="False" Canvas.Left="-144" Canvas.Top="0">
+                        <Border Canvas.Left="190" Canvas.Top="130" Width="220" Height="250"
+                                CornerRadius="32" BorderThickness="6"
+                                BorderBrush="{DynamicResource StrokeStrongBrush}"
+                                Background="Transparent" />
+                        <Border Canvas.Left="199" Canvas.Top="140" Width="202" Height="230"
+                                CornerRadius="26" BorderThickness="2"
+                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                Background="{DynamicResource SurfaceSunkenBrush}" />
+                        <Rectangle Canvas.Left="180" Canvas.Top="117" Width="240" Height="16"
+                                   RadiusX="5" RadiusY="5"
+                                   Fill="{DynamicResource StrokeStrongBrush}" />
+                        <Border Canvas.Left="266" Canvas.Top="20" Width="68" Height="82"
+                                CornerRadius="8" BorderThickness="2"
+                                BorderBrush="{DynamicResource StrokeStrongBrush}"
+                                Background="{DynamicResource SurfaceElevatedBrush}" />
+                        <Rectangle Canvas.Left="296" Canvas.Top="98" Width="8" Height="210"
+                                   Fill="{DynamicResource TextSecondaryBrush}" />
+                        <Rectangle Canvas.Left="261" Canvas.Top="222" Width="78" Height="7"
+                                   RadiusX="2" RadiusY="2"
+                                   Fill="{DynamicResource TextSecondaryBrush}" />
+                        <Rectangle Canvas.Left="261" Canvas.Top="286" Width="78" Height="7"
+                                   RadiusX="2" RadiusY="2"
+                                   Fill="{DynamicResource TextSecondaryBrush}" />
+                        <Ellipse Canvas.Left="249" Canvas.Top="336" Width="102" Height="18"
+                                 Stroke="{DynamicResource PathGasBrush}" StrokeThickness="3"
+                                 Fill="Transparent" />
+                        <Polyline Points="350,345 382,345 382,128"
+                                  Stroke="{DynamicResource PathGasBrush}" StrokeThickness="2"
+                                  Fill="Transparent" />
+                        <Rectangle Canvas.Left="237" Canvas.Top="128" Width="6" Height="150"
+                                   Fill="{DynamicResource PathInstrumentBrush}" />
+                        <Rectangle Canvas.Left="356" Canvas.Top="128" Width="6" Height="138"
+                                   Fill="{DynamicResource PathInstrumentBrush}" />
+                    </Canvas>
+
+                    <Image x:Name="ReactorRender"
+                           Canvas.Left="6" Canvas.Top="10" Width="300" Height="450"
+                           Source="/TecnalHub;component/Resources/Images/reactor-tank.png"
+                           Stretch="Uniform" IsHitTestVisible="False"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           AutomationProperties.Name="Biorreator TECNAL" />
+
+                    <!-- Impelidores sobrepostos -->
+                    <Image x:Name="ReactorImpellers"
+                           Canvas.Left="6" Canvas.Top="10" Width="300" Height="450"
+                           Source="/TecnalHub;component/Resources/Images/reactor-impellers.png"
+                           Stretch="Uniform" IsHitTestVisible="False"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
                 </Canvas>
-
-                <Image x:Name="ReactorRender"
-                       Canvas.Left="150" Canvas.Top="10" Width="300" Height="450"
-                       Source="/TecnalHub;component/Resources/Images/reactor-neutral.png"
-                       Stretch="Uniform" IsHitTestVisible="False"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       AutomationProperties.Name="Biorreator TECNAL em estado visual neutro"
-                       ImageFailed="OnReactorRenderFailed" />
-
-                <!-- Calibrated leader lines. State colour remains confined to card dots. -->
-                <Polyline Points="140,129 188,129 255,231"
-                          Stroke="{DynamicResource PathHeatingBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="140,244 190,244 279,285"
-                          Stroke="{DynamicResource PathInstrumentBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="140,377 198,377 300,370"
-                          Stroke="{DynamicResource PathGasBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="460,43 414,43 300,64"
-                          Stroke="{DynamicResource PathPipingBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="460,134 414,134 360,172"
-                          Stroke="{DynamicResource PathPipingBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="460,249 412,249 336,253"
-                          Stroke="{DynamicResource PathInstrumentBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-
-                <!-- Small terminal marks make the source of each callout unambiguous. -->
-                <Ellipse Canvas.Left="251" Canvas.Top="227" Width="8" Height="8"
-                         Fill="{DynamicResource PathHeatingBrush}" />
-                <Ellipse Canvas.Left="275" Canvas.Top="281" Width="8" Height="8"
-                         Fill="{DynamicResource PathInstrumentBrush}" />
-                <Ellipse Canvas.Left="296" Canvas.Top="366" Width="8" Height="8"
-                         Fill="{DynamicResource PathGasBrush}" />
-                <Ellipse Canvas.Left="296" Canvas.Top="60" Width="8" Height="8"
-                         Fill="{DynamicResource PathPipingBrush}" />
-                <Ellipse Canvas.Left="356" Canvas.Top="168" Width="8" Height="8"
-                         Fill="{DynamicResource PathPipingBrush}" />
-                <Ellipse Canvas.Left="332" Canvas.Top="249" Width="8" Height="8"
-                         Fill="{DynamicResource PathInstrumentBrush}" />
-
-                <!-- WP7 dosing callouts: nutrient feed (green), antifoam (purple) and the
-                     level/foam distance sensor (instrument). -->
-                <Polyline Points="140,57 205,57 288,60"
-                          Stroke="{DynamicResource PathFeedBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="140,311 198,311 300,300"
-                          Stroke="{DynamicResource PathAntifoamBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Polyline Points="460,329 405,329 352,300"
-                          Stroke="{DynamicResource PathInstrumentBrush}" StrokeThickness="1.4"
-                          StrokeLineJoin="Round" Fill="Transparent" />
-                <Ellipse Canvas.Left="284" Canvas.Top="56" Width="8" Height="8"
-                         Fill="{DynamicResource PathFeedBrush}" />
-                <Ellipse Canvas.Left="296" Canvas.Top="296" Width="8" Height="8"
-                         Fill="{DynamicResource PathAntifoamBrush}" />
-                <Ellipse Canvas.Left="348" Canvas.Top="296" Width="8" Height="8"
-                         Fill="{DynamicResource PathInstrumentBrush}" />
-
-                <!-- Temperature, tied to the jacket/probe zone. -->
-                <Button Canvas.Left="8" Canvas.Top="100"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Temperature}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Temperatura do processo e da camisa térmica"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="temperature" />
-
-                <!-- pH, previously missing from the vector synoptic. -->
-                <Button Canvas.Left="8" Canvas.Top="215"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Ph}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Sonda de pH"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="ph" />
-
-                <!-- Air flow, tied to the independent annular sparger. -->
-                <Button Canvas.Left="8" Canvas.Top="348"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Flow}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Aeração pelo sparger anular"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="flow" />
-
-                <!-- Motor command. Firmware does not return measured RPM. -->
-                <Button Canvas.Left="460" Canvas.Top="14"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Motor}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Rotação comandada; sem realimentação de RPM"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="motor" />
-
-                <!-- Headspace pressure. -->
-                <Button Canvas.Left="460" Canvas.Top="105"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Pressure}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Pressão do headspace"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="pressure" />
-
-                <!-- Dissolved oxygen, tied to the right-hand probe zone. -->
-                <Button Canvas.Left="460" Canvas.Top="220"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Oxygen}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Sonda de oxigênio dissolvido"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="oxygen" />
-
-                <!-- Nutrient feed. Commanded-only pump, dosed through a headplate port. -->
-                <Button Canvas.Left="8" Canvas.Top="28"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Nutrient}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Dosagem de nutriente (comando sem realimentação)"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="nutrient" />
-
-                <!-- Antifoam pump, dosed through a vessel port. -->
-                <Button Canvas.Left="8" Canvas.Top="282"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Antifoam}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Dosagem de antiespumante"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="antifoam" />
-
-                <!-- Level / foam distance sensor on the headplate. -->
-                <Button Canvas.Left="460" Canvas.Top="300"
-                        Style="{StaticResource InstrumentTagStyle}"
-                        DataContext="{Binding Level}" Content="{Binding}"
-                        AutomationProperties.Name="{Binding DisplayName}"
-                        ToolTip="Sensor de nível/espuma (distância)"
-                        Command="{Binding DataContext.SelectByIdCommand,
-                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="level" />
-            </Canvas>
+            </Grid>
         </Viewbox>
 
         <!-- Honest process legend: the generated equipment carries no live state. -->

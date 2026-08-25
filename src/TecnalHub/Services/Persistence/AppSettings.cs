@@ -467,10 +467,10 @@ public sealed record SetpointPreset
         PHControl = new PHControlSettings
         {
             Setpoint = 7.0,
-            InactiveBand = 0.15,
-            OperationSeconds = 1,
-            MixSeconds = 60,
-            PumpSpeedPercent = 80.0
+            InactiveBand = 0.17,
+            OperationSeconds = 3,
+            MixSeconds = 10,
+            PumpSpeedPercent = 99.0
         },
         PHControlEnabled = true,
         Cascade = new CascadeSettings

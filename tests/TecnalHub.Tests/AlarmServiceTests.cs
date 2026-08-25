@@ -125,6 +125,55 @@ public sealed class AlarmServiceTests
         Assert.False(alarm.Acknowledged);
     }
 
+    [Fact]
+    public void Manual_disconnect_resolves_link_loss_and_stops_the_annunciator()
+    {
+        using var h = new Harness();
+
+        h.Device.PushState(ConnectionState.Faulted, cause: ConnectionTransitionCause.LinkLost);
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.1));
+        Assert.True(h.Latched(AlarmId.LinkLost));
+        Assert.True(h.Annunciator.Sounding);
+
+        h.Device.PushState(
+            ConnectionState.Disconnected,
+            "desconectado pelo usuário",
+            ConnectionTransitionCause.UserDisconnect);
+
+        Assert.False(h.Latched(AlarmId.LinkLost));
+        Assert.False(h.Service.IsAudible);
+        Assert.False(h.Annunciator.Sounding);
+        Assert.Contains(h.Journal.Entries, entry =>
+            entry.Message.Contains("Link perdido", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Manual_disconnect_does_not_erase_an_unacknowledged_process_alarm()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            OxygenCalibrated = SensorReadings.NotReceived,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(5.1));
+        Assert.True(h.Latched(AlarmId.SensorAbsent));
+
+        h.Device.PushState(ConnectionState.Faulted, cause: ConnectionTransitionCause.LinkLost);
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.1));
+
+        Assert.True(h.Latched(AlarmId.LinkLost));
+        Assert.True(h.Latched(AlarmId.SensorAbsent));
+
+        h.Device.PushState(
+            ConnectionState.Disconnected,
+            "desconectado pelo usuário",
+            ConnectionTransitionCause.UserDisconnect);
+
+        Assert.False(h.Latched(AlarmId.LinkLost));
+        Assert.True(h.Latched(AlarmId.SensorAbsent));
+        Assert.False(h.Service.IsAudible);
+    }
+
     // ── Acknowledge / latch / deadband ───────────────────────────────────────
 
     [Fact]

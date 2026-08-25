@@ -16,6 +16,7 @@ public partial class ControlView : UserControl
         AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(OnPreviewKeyDown), true);
         AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler(OnToggleChanged), true);
         AddHandler(ToggleButton.UncheckedEvent, new RoutedEventHandler(OnToggleChanged), true);
+        AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler(OnSliderDragCompleted), true);
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -35,6 +36,9 @@ public partial class ControlView : UserControl
     private void OnTextBoxCompleted(object sender, KeyboardFocusChangedEventArgs e)
         => ApplyFor((e.OriginalSource as FrameworkElement)?.DataContext);
 
+    private void OnSliderDragCompleted(object sender, DragCompletedEventArgs e)
+        => ApplyFor((e.OriginalSource as FrameworkElement)?.DataContext);
+
     private void OnToggleChanged(object sender, RoutedEventArgs e)
     {
         if (e.OriginalSource is FrameworkElement fe && fe.Tag?.ToString() == "ExpanderToggle")
@@ -46,6 +50,17 @@ public partial class ControlView : UserControl
         // engagement path in ControlParameterRowViewModel.
         if ((e.OriginalSource as FrameworkElement)?.DataContext is ControlParameterRowViewModel row && row.IsOxygenRow)
         {
+            return;
+        }
+
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is BiomassControlViewModel biomass)
+        {
+            if (DataContext is ControlViewModel controlPage && controlPage.CanActuate &&
+                biomass.ApplyCommunicationCommand.CanExecute(null))
+            {
+                biomass.ApplyCommunicationCommand.Execute(null);
+            }
+
             return;
         }
 

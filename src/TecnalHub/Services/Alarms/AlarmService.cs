@@ -420,19 +420,11 @@ public sealed class AlarmService : IAlarmService
     {
         _state = change.State;
 
-        if (change.Cause == ConnectionTransitionCause.UserDisconnect)
+        if (change.Cause == ConnectionTransitionCause.UserDisconnect &&
+            _conditions[AlarmId.LinkLost].Resolve())
         {
-            var resolvedAny = false;
-            foreach (var condition in _conditions.Values)
-            {
-                resolvedAny |= condition.Resolve();
-            }
-
-            if (resolvedAny)
-            {
-                _journal.Add(AuditSource.Alarm, AuditSeverity.Information,
-                    "Alarmes encerrados pelo operador ao desconectar.");
-            }
+            _journal.Add(AuditSource.Alarm, AuditSeverity.Information,
+                "Alarme encerrado pelo operador ao desconectar: Link perdido.");
         }
 
         // A clean disconnect or a fresh connection resets the telemetry snapshot so a stale

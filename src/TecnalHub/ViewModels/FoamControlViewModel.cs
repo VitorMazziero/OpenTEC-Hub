@@ -55,6 +55,10 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool AppliedSensorEnabled { get; set; }
 
+    /// <summary>Last distance reference actually queued for the device.</summary>
+    [ObservableProperty]
+    public partial double? AppliedReferenceMillimetres { get; set; }
+
     [ObservableProperty]
     public partial bool HasPendingChange { get; set; }
 
@@ -109,6 +113,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         _committed = staged;
         _settings.Update(settings => settings with { FoamControl = staged });
         AppliedSensorEnabled = staged.SensorEnabled;
+        AppliedReferenceMillimetres = staged.ReferenceMillimetres;
         HasPendingChange = false;
         StatusText = staged.SensorEnabled
             ? "Configuração do sensor de nível/espuma enviada."

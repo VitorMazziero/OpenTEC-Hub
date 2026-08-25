@@ -62,6 +62,10 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
     [ObservableProperty]
     public partial bool AppliedIsEnabled { get; set; }
 
+    /// <summary>Last magnitude actually queued for the device.</summary>
+    [ObservableProperty]
+    public partial double? AppliedMagnitudePercent { get; set; }
+
     [ObservableProperty]
     public partial bool HasPendingChange { get; set; }
 
@@ -193,6 +197,7 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
         }
 
         AppliedIsEnabled = IsEnabled;
+        AppliedMagnitudePercent = IsEnabled ? _committed.MagnitudePercent : 0.0;
         HasPendingChange = false;
     }
 

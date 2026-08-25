@@ -181,9 +181,7 @@ public sealed class RecipeEngineTests
         cascadeNode.Set("modo", nameof(TecnalHub.Services.Control.CascadeMode.AgitationOnly));
 
         await engine.StartAsync(recipe);
-        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(20); }
-        await Task.Delay(20);
-        PushFrame(device, clock, oxygen: 25, temperature: 45);
+        await DriveCascadeUntilCompletion(engine, device, clock);
 
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
@@ -198,12 +196,24 @@ public sealed class RecipeEngineTests
         cascadeNode.Set("modo", nameof(TecnalHub.Services.Control.CascadeMode.AerationOnly));
 
         await engine.StartAsync(recipe);
-        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(20); }
-        await Task.Delay(20);
-        PushFrame(device, clock, oxygen: 25, temperature: 45);
+        await DriveCascadeUntilCompletion(engine, device, clock);
 
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    private static async Task DriveCascadeUntilCompletion(
+        RecipeEngine engine,
+        RecordingDeviceService device,
+        TestClock clock)
+    {
+        // Keep publishing the satisfied monitor state until the async cascade loop has
+        // consumed it. A one-shot frame can arrive before the loop subscribes on a busy CI host.
+        for (var i = 0; i < 50 && !engine.Completion.IsCompleted; i++)
+        {
+            PushFrame(device, clock, oxygen: 25, temperature: i < 2 ? 30 : 45);
+            await Task.Delay(10);
+        }
     }
 
     private static void PushFrame(RecordingDeviceService device, TestClock clock, double oxygen, double temperature = 0)

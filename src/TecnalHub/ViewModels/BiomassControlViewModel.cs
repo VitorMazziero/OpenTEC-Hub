@@ -24,15 +24,22 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     }
 
     [ObservableProperty] public partial bool IsEnabled { get; set; }
+    [ObservableProperty] public partial bool AppliedIsEnabled { get; set; }
     [ObservableProperty] public partial string LowText { get; set; } = "10000";
     [ObservableProperty] public partial string HighText { get; set; } = "40000";
     [ObservableProperty] public partial string OptimalText { get; set; } = "25000";
+    [ObservableProperty] public partial int? AppliedOptimalThreshold { get; set; }
     [ObservableProperty] public partial string AbsorbanceText { get; set; } = "—";
     [ObservableProperty] public partial string RawText { get; set; } = "—";
     [ObservableProperty] public partial string IntegrationTimeText { get; set; } = "—";
     [ObservableProperty] public partial string PwmText { get; set; } = "—";
 
-    partial void OnIsEnabledChanged(bool value) => _device.Send(CommandBuilders.BiomassCommunication(value));
+    [RelayCommand]
+    private void ApplyCommunication()
+    {
+        _device.Send(CommandBuilders.BiomassCommunication(IsEnabled));
+        AppliedIsEnabled = IsEnabled;
+    }
 
     [RelayCommand]
     private void ApplyThresholds()
@@ -44,6 +51,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         }
         _device.Send(CommandBuilders.BiomassThresholds(low, high, optimal));
         _settings.Update(s => s with { BiomassControl = new BiomassControlSettings { LowThreshold = low, HighThreshold = high, OptimalThreshold = optimal } });
+        AppliedOptimalThreshold = optimal;
     }
 
     [RelayCommand] private void Blank() => _device.Send(CommandBuilders.BiomassBlank());

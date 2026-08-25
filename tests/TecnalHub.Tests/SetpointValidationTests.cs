@@ -90,10 +90,13 @@ internal sealed class RecordingDeviceService : IDeviceService
     public void PushTelemetry(SensorSnapshot snapshot) => TelemetryReceived?.Invoke(snapshot);
 
     /// <summary>Raises a link transition and updates the state exposed to commands.</summary>
-    public void PushState(ConnectionState state, string reason = "test")
+    public void PushState(
+        ConnectionState state,
+        string reason = "test",
+        ConnectionTransitionCause cause = ConnectionTransitionCause.Routine)
     {
         State = state;
-        StateChanged?.Invoke(new ConnectionStateChange(state, Medium, Endpoint, reason));
+        StateChanged?.Invoke(new ConnectionStateChange(state, Medium, Endpoint, reason, cause));
     }
 
     /// <summary>Silences the unused-event warnings; nothing here raises them.</summary>

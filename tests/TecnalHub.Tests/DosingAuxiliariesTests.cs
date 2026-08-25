@@ -142,6 +142,7 @@ public sealed class DosingAuxiliariesTests
         Assert.Equal(60.0, settings.Current.NutrientControl.PumpSpeedPercent);
         Assert.True(vm.AppliedIsEnabled);
         Assert.Equal(75.0, vm.AppliedDutyCyclePercent); // 30 / (30 + 10)
+        Assert.Equal(60.0, vm.AppliedPumpSpeedPercent);
     }
 
     [Fact]
@@ -181,6 +182,7 @@ public sealed class DosingAuxiliariesTests
         Assert.Equal(
             """{"antifoamOperation":5.0,"antifoamMix":40.0,"antifoamIntensity":30.0}""",
             Assert.Single(device.Sent));
+        Assert.Equal(30.0, vm.AppliedPumpSpeedPercent);
     }
 
     [Fact]
@@ -205,6 +207,7 @@ public sealed class DosingAuxiliariesTests
             json);
         Assert.DoesNotContain("antifoam", json, StringComparison.Ordinal);
         Assert.True(settings.Current.FoamControl.SensorEnabled);
+        Assert.Equal(120.0, vm.AppliedReferenceMillimetres);
     }
 
     [Fact]
@@ -225,6 +228,7 @@ public sealed class DosingAuxiliariesTests
             """{"agitatorOn":1,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":0}""",
             Assert.Single(device.Sent));
         Assert.False(vm.Clockwise);
+        Assert.Equal(80.0, vm.AppliedMagnitudePercent);
     }
 
     [Fact]
@@ -251,6 +255,28 @@ public sealed class DosingAuxiliariesTests
 
         vm.MagnitudePercentText = "17";
         Assert.Equal(17.0, vm.MagnitudePercent);
+    }
+
+    [Fact]
+    public void Biomass_communication_and_thresholds_are_separate_responsive_actions()
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new BiomassControlViewModel(device, new MemorySettingsService())
+        {
+            IsEnabled = true,
+            LowText = "12000",
+            HighText = "36000",
+            OptimalText = "24000",
+        };
+
+        Assert.Empty(device.Sent);
+        vm.ApplyCommunicationCommand.Execute(null);
+        Assert.Equal("""{"biomassComm":1}""", Assert.Single(device.Sent));
+        Assert.True(vm.AppliedIsEnabled);
+
+        vm.ApplyThresholdsCommand.Execute(null);
+        Assert.Equal(2, device.Sent.Count);
+        Assert.Equal(24000, vm.AppliedOptimalThreshold);
     }
 
     /// <summary>The wire must never see a pt-BR comma: the builder formats invariantly.</summary>

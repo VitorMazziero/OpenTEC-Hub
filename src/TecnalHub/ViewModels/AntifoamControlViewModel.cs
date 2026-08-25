@@ -52,6 +52,10 @@ public sealed partial class AntifoamControlViewModel : ObservableObject, IDispos
     [ObservableProperty]
     public partial bool AppliedIsEnabled { get; set; }
 
+    /// <summary>Last pump intensity actually queued for the device.</summary>
+    [ObservableProperty]
+    public partial double? AppliedPumpSpeedPercent { get; set; }
+
     [ObservableProperty]
     public partial bool HasPendingChange { get; set; }
 
@@ -150,6 +154,7 @@ public sealed partial class AntifoamControlViewModel : ObservableObject, IDispos
         }
 
         AppliedIsEnabled = IsEnabled;
+        AppliedPumpSpeedPercent = IsEnabled ? _committed.PumpSpeedPercent : 0.0;
         HasPendingChange = false;
     }
 

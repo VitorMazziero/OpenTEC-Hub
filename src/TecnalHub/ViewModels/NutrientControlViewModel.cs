@@ -60,6 +60,10 @@ public sealed partial class NutrientControlViewModel : ObservableObject
     [ObservableProperty]
     public partial double? AppliedDutyCyclePercent { get; set; }
 
+    /// <summary>Last pump intensity actually queued for the device.</summary>
+    [ObservableProperty]
+    public partial double? AppliedPumpSpeedPercent { get; set; }
+
     [ObservableProperty]
     public partial bool HasPendingChange { get; set; }
 
@@ -169,6 +173,7 @@ public sealed partial class NutrientControlViewModel : ObservableObject
 
         AppliedIsEnabled = IsEnabled;
         AppliedDutyCyclePercent = IsEnabled ? DutyCycle(_committed) : 0.0;
+        AppliedPumpSpeedPercent = IsEnabled ? _committed.PumpSpeedPercent : 0.0;
         HasPendingChange = false;
     }
 

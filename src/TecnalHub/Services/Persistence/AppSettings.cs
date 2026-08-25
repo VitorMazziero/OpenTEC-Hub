@@ -53,6 +53,9 @@ public sealed record AppSettings
     /// <summary>Staged flask-agitator parameters (WP7). Restoring them never sends a command.</summary>
     public FlaskAgitatorSettings FlaskAgitator { get; init; } = new();
 
+    /// <summary>Staged biomass-sensor communication and integration thresholds.</summary>
+    public BiomassControlSettings BiomassControl { get; init; } = new();
+
     public FilterSettings Filters { get; init; } = new();
 
     /// <summary>Presentation units. Values on the wire remain in the protocol units.</summary>
@@ -196,13 +199,13 @@ public sealed record PHControlSettings
 {
     public double Setpoint { get; init; } = 7.0;
 
-    public double InactiveBand { get; init; } = 0.15;
+    public double InactiveBand { get; init; } = 0.17;
 
-    public int OperationSeconds { get; init; } = 1;
+    public int OperationSeconds { get; init; } = 3;
 
-    public int MixSeconds { get; init; } = 60;
+    public int MixSeconds { get; init; } = 10;
 
-    public double PumpSpeedPercent { get; init; } = 80.0;
+    public double PumpSpeedPercent { get; init; } = 99.0;
 }
 
 /// <summary>
@@ -216,15 +219,15 @@ public sealed record PHControlSettings
 /// </remarks>
 public sealed record NutrientControlSettings
 {
-    public int OperationSeconds { get; init; } = 1;
+    public int OperationSeconds { get; init; } = 999;
 
-    public int MixSeconds { get; init; } = 60;
+    public int MixSeconds { get; init; } = 1;
 
-    public int OperationCycles { get; init; } = 1;
+    public int OperationCycles { get; init; } = 500;
 
     public int MixCycles { get; init; } = 1;
 
-    public double PumpSpeedPercent { get; init; } = 80.0;
+    public double PumpSpeedPercent { get; init; } = 99.0;
 }
 
 /// <summary>
@@ -237,9 +240,9 @@ public sealed record NutrientControlSettings
 /// </remarks>
 public sealed record AntifoamControlSettings
 {
-    public int OperationSeconds { get; init; } = 5;
+    public int OperationSeconds { get; init; } = 2;
 
-    public int MixSeconds { get; init; } = 60;
+    public int MixSeconds { get; init; } = 2;
 
     public double PumpSpeedPercent { get; init; } = 50.0;
 }
@@ -283,6 +286,13 @@ public sealed record FlaskAgitatorSettings
     public bool Automatic { get; init; }
 }
 
+public sealed record BiomassControlSettings
+{
+    public int LowThreshold { get; init; } = 10000;
+    public int HighThreshold { get; init; } = 40000;
+    public int OptimalThreshold { get; init; } = 25000;
+}
+
 /// <summary>
 /// Spike-filter tuning, per channel.
 /// </summary>
@@ -324,7 +334,7 @@ public enum TemperatureUnitPreference
 /// </summary>
 public sealed record UnitSettings
 {
-    public PressureUnitPreference Pressure { get; init; } = PressureUnitPreference.KPa;
+    public PressureUnitPreference Pressure { get; init; } = PressureUnitPreference.MmHg;
 
     public TemperatureUnitPreference Temperature { get; init; } = TemperatureUnitPreference.Celsius;
 
@@ -389,11 +399,16 @@ public static class UnitConversions
 public sealed record SetpointSettings
 {
     public double TemperatureCelsius { get; init; } = 30.0;
+    public bool TemperatureEnabled { get; init; }
     public int MotorRpm { get; init; } = 300;
+    public bool MotorEnabled { get; init; }
     public double OxygenPercent { get; init; } = 40.0;
+    public bool OxygenEnabled { get; init; }
     public double FlowLitresPerMinute { get; init; } = 1.0;
     public double MaxFlowLitresPerMinute { get; init; } = 50.0;
+    public bool FlowEnabled { get; init; }
     public double PressureKilopascal { get; init; } = 100.0;
+    public bool PressureEnabled { get; init; }
 }
 
 /// <summary>

@@ -106,7 +106,7 @@
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="PV" Width="95">
+                                                <GridViewColumn Header="Valor Lido" Width="95">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <StackPanel VerticalAlignment="Center">
@@ -126,10 +126,11 @@
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="SP aplicado" Width="90">
+                                                <GridViewColumn Header="Setpoint" Width="90">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
                                                             <TextBlock Text="{Binding Subsystem.FormattedAppliedSetpoint}"
+                                                                       Visibility="{Binding Subsystem.HasSetpointEntry, Converter={StaticResource BoolToVis}}"
                                                                        Style="{StaticResource NumericTextStyle}"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -137,10 +138,11 @@
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
 
-                                                <GridViewColumn Header="Novo SP" Width="160">
+                                                <GridViewColumn Header="Novo Setpoint" Width="160">
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                                        Visibility="{Binding Subsystem.HasSetpointEntry, Converter={StaticResource BoolToVis}}">
                                                                 <TextBox Width="88"
                                                                          VerticalAlignment="Center"
                                                                          Text="{Binding Subsystem.SetpointText, UpdateSourceTrigger=PropertyChanged}"
@@ -222,17 +224,6 @@
                                                                               IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}"
                                                                               ToolTip="Ativa o controle automático de oxigênio (cascata)." />
                                                             </Grid>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-
-                                                <GridViewColumn Header=" " Width="90">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate DataType="{x:Type vm:ControlParameterRowViewModel}">
-                                                            <Button Content="Aplicar"
-                                                                    Padding="12,4"
-                                                                    VerticalAlignment="Center"
-                                                                    Command="{Binding Subsystem.ApplyCommand}" />
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
@@ -702,6 +693,35 @@
                                                     Command="{Binding ApplyCommand}" />
                                         </StackPanel>
                                     </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,12,0,0" Padding="12"
+                                    Background="{DynamicResource SurfaceCardBrush}"
+                                    BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource RadiusMedium}">
+                                <StackPanel DataContext="{Binding BiomassControl}">
+                                    <TextBlock Text="Dispositivos Externos · Sensor de Biomassa"
+                                               FontWeight="SemiBold" />
+                                    <ToggleButton Margin="0,8,0,8" Style="{StaticResource ToggleSwitchStyle}"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                    <WrapPanel>
+                                        <TextBlock Text="Abs: " /><TextBlock Text="{Binding AbsorbanceText}" Margin="0,0,14,0" />
+                                        <TextBlock Text="Raw: " /><TextBlock Text="{Binding RawText}" Margin="0,0,14,0" />
+                                        <TextBlock Text="IT: " /><TextBlock Text="{Binding IntegrationTimeText}" Margin="0,0,14,0" />
+                                        <TextBlock Text="PWM: " /><TextBlock Text="{Binding PwmText}" />
+                                    </WrapPanel>
+                                    <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Margin="0,0,6,0" Text="{Binding LowText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Min Alcance" />
+                                        <TextBox Grid.Column="1" Margin="0,0,6,0" Text="{Binding HighText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Max Alcance" />
+                                        <TextBox Grid.Column="2" Text="{Binding OptimalText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Optimal Raw" />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="Atualizar thresholds" Command="{Binding ApplyThresholdsCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Branco" Command="{Binding BlankCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Parar" Command="{Binding StopCommand}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

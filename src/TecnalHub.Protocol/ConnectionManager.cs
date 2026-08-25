@@ -135,7 +135,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     private int _livenessProbes;
     private int _attemptsUsb;
     private int _attemptsWiFi;
-    private double? _lastRoundTripMs;
+    private double? _lastWriteMs;
     private string _lastError = "";
     private DateTimeOffset? _lastFrameAt;
 
@@ -213,7 +213,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         LivenessProbes = Volatile.Read(ref _livenessProbes),
         ConnectAttemptsUsb = Volatile.Read(ref _attemptsUsb),
         ConnectAttemptsWiFi = Volatile.Read(ref _attemptsWiFi),
-        LastRoundTripMs = _lastRoundTripMs,
+        LastWriteMs = _lastWriteMs,
         LastError = _lastError,
         LastFrameAt = _lastFrameAt,
     };
@@ -433,8 +433,11 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     private async Task HandleDisconnectAsync()
     {
+        // Announce the operator's intent before a broken physical transport has finished
+        // disposing.  This stops recovery and any link-loss annunciation immediately.
+        Transition(ConnectionState.Disconnected, _medium, _endpoint, "desconectado pelo usuário",
+            ConnectionTransitionCause.UserDisconnect);
         await TeardownTransportAsync().ConfigureAwait(false);
-        Transition(ConnectionState.Disconnected, _medium, _endpoint, "desconectado pelo usuário");
     }
 
     private async Task HandleLinkLostAsync(string reason, CancellationToken token)
@@ -442,7 +445,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         _log.LogWarning("{Medium}: link lost ({Reason})", _medium, reason);
         _lastError = reason;
         await TeardownTransportAsync().ConfigureAwait(false);
-        await EnterRecoveryAsync(reason, token).ConfigureAwait(false);
+        await EnterRecoveryAsync(reason, ConnectionTransitionCause.LinkLost, token).ConfigureAwait(false);
     }
 
     private Task OnConnectFailedAsync(TransportMedium medium, string reason, CancellationToken token)
@@ -453,18 +456,18 @@ public sealed class ConnectionManager : IAsyncDisposable
             _samePortFailures++;
         }
 
-        return EnterRecoveryAsync(reason, token);
+        return EnterRecoveryAsync(reason, ConnectionTransitionCause.ConnectFailed, token);
     }
 
-    private async Task EnterRecoveryAsync(string reason, CancellationToken token)
+    private async Task EnterRecoveryAsync(string reason, ConnectionTransitionCause cause, CancellationToken token)
     {
         if (!_options.BackupEnabled)
         {
-            Transition(ConnectionState.Faulted, _medium, _endpoint, reason);
+            Transition(ConnectionState.Faulted, _medium, _endpoint, reason, cause);
             return;
         }
 
-        Transition(ConnectionState.Reconnecting, _medium, _endpoint, reason);
+        Transition(ConnectionState.Reconnecting, _medium, _endpoint, reason, cause);
         await RunReconnectCycleAsync(token).ConfigureAwait(false);
     }
 
@@ -765,7 +768,7 @@ public sealed class ConnectionManager : IAsyncDisposable
             return;
         }
 
-        _lastRoundTripMs = stopwatch.Elapsed.TotalMilliseconds;
+        _lastWriteMs = stopwatch.Elapsed.TotalMilliseconds;
         Interlocked.Increment(ref _commandsSent);
         _log.LogDebug("TX {Payload}", json);
         CommandSent?.Invoke(json);
@@ -937,7 +940,8 @@ public sealed class ConnectionManager : IAsyncDisposable
         _lastError = "";
     }
 
-    private void Transition(ConnectionState state, TransportMedium? medium, string endpoint, string reason = "")
+    private void Transition(ConnectionState state, TransportMedium? medium, string endpoint, string reason = "",
+        ConnectionTransitionCause cause = ConnectionTransitionCause.Routine)
     {
         lock (_stateLock)
         {
@@ -954,7 +958,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         _log.LogInformation("State -> {State} [{Medium} {Endpoint}] {Reason}",
             state, medium, endpoint, reason);
 
-        StateChanged?.Invoke(new ConnectionStateChange(state, medium, endpoint, reason));
+        StateChanged?.Invoke(new ConnectionStateChange(state, medium, endpoint, reason, cause));
     }
 
     public async ValueTask DisposeAsync()

@@ -116,6 +116,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         AntifoamControlViewModel antifoamControl,
         FoamControlViewModel foamControl,
         FlaskAgitatorViewModel flaskAgitator,
+        BiomassControlViewModel biomassControl,
         CalibrationViewModel calibration,
         KlaMappingViewModel klaMapping,
         IDialogService dialogs,
@@ -196,7 +197,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 new SubsystemSpec(15, 60, IsInteger: false,
                     value => TecnalCommand.Create().Set(CommandKeys.TempSetpoint, value),
                     () => TecnalCommand.Create().Set(CommandKeys.TempSetpoint, 0.0)),
-                device, setpoints.TemperatureCelsius),
+                device, setpoints.TemperatureCelsius, setpoints.TemperatureEnabled),
 
             new SubsystemViewModel(Motor,
                 new SubsystemSpec(50, 1000, IsInteger: true,
@@ -205,17 +206,17 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     // The wire carries no RPM key at all, so there is no signal whose
                     // health could be reported.
                     HasHealth: false),
-                device, setpoints.MotorRpm),
+                device, setpoints.MotorRpm, setpoints.MotorEnabled),
 
             new SubsystemViewModel(Oxygen,
                 new SubsystemSpec(0, 100, IsInteger: false,
-                    value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, value),
+                    value => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 100.0),
                     () => TecnalCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0),
                     // Oxygen is the one device with an app-side controller the app can observe,
                     // so it carries the Cascata / PID / Saída tabs. Their content is the live
                     // cascade state (ShellViewModel.CascadeDetail); it is controlled on Controle.
-                    HasOutput: true, HasCascade: true, HasPid: true, HasCalibration: true),
-                device, setpoints.OxygenPercent),
+                    HasOutput: true, HasCascade: true, HasPid: true, HasCalibration: true, HasSetpointEntry: false),
+                device, 100.0, setpoints.OxygenEnabled),
 
             new SubsystemViewModel(Flow,
                 new SubsystemSpec(0, maxFlow, IsInteger: false,
@@ -227,13 +228,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     // can show what the actuator is doing rather than only what it asked.
                     HasOutput: true, HasCalibration: true,
                     OnCommitted: (_, enabled) => FlowControl.CommitFromFlowSetpoint(enabled)),
-                device, setpoints.FlowLitresPerMinute),
+                device, setpoints.FlowLitresPerMinute, setpoints.FlowEnabled),
 
             new SubsystemViewModel(Pressure,
                 new SubsystemSpec(1, 380, IsInteger: false,
                     value => TecnalCommand.Create().Set(CommandKeys.PressureReference, value),
                     () => TecnalCommand.Create().Set(CommandKeys.PressureReference, 0.0)),
-                device, setpoints.PressureKilopascal),
+                device, setpoints.PressureKilopascal, setpoints.PressureEnabled),
         ];
 
         ApplyUnits(_appliedUnits);
@@ -241,7 +242,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
-            Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
+            Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator, biomassControl,
             device, settings, dialogs, cascade, receitas);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);

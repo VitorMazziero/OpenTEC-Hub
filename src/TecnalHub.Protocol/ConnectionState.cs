@@ -36,6 +36,16 @@ public enum ConnectionState
     Faulted,
 }
 
+/// <summary>Why a connection state was entered.</summary>
+public enum ConnectionTransitionCause
+{
+    Routine,
+    UserDisconnect,
+    LinkLost,
+    ConnectFailed,
+    Shutdown,
+}
+
 /// <summary>A state transition, published to observers.</summary>
 /// <param name="State">The state just entered.</param>
 /// <param name="Medium">Which link it applies to.</param>
@@ -45,7 +55,8 @@ public readonly record struct ConnectionStateChange(
     ConnectionState State,
     TransportMedium? Medium,
     string Endpoint,
-    string Reason = "");
+    string Reason = "",
+    ConnectionTransitionCause Cause = ConnectionTransitionCause.Routine);
 
 /// <summary>Counters for the connection popover and for diagnosing field problems.</summary>
 public sealed record LinkDiagnostics
@@ -65,7 +76,7 @@ public sealed record LinkDiagnostics
     public int LivenessProbes { get; init; }
     public int ConnectAttemptsUsb { get; init; }
     public int ConnectAttemptsWiFi { get; init; }
-    public double? LastRoundTripMs { get; init; }
+    public double? LastWriteMs { get; init; }
     public string LastError { get; init; } = "";
     public DateTimeOffset? LastFrameAt { get; init; }
 }

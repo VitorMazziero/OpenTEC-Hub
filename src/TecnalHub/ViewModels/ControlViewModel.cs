@@ -122,6 +122,17 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private readonly SubsystemViewModel _flowSubsystem;
 
     public ControlViewModel(
+        IReadOnlyList<SubsystemViewModel> subsystems, FlowControlViewModel flowControl,
+        PHControlViewModel phControl, NutrientControlViewModel nutrientControl,
+        AntifoamControlViewModel antifoamControl, FoamControlViewModel foamControl,
+        FlaskAgitatorViewModel flaskAgitator, IDeviceService device, ISettingsService settings,
+        IDialogService dialogs, ICascadeService cascade, ReceitasViewModel? receitas = null)
+        : this(subsystems, flowControl, phControl, nutrientControl, antifoamControl, foamControl,
+            flaskAgitator, null, device, settings, dialogs, cascade, receitas)
+    {
+    }
+
+    public ControlViewModel(
         IReadOnlyList<SubsystemViewModel> subsystems,
         FlowControlViewModel flowControl,
         PHControlViewModel phControl,
@@ -129,6 +140,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControlViewModel antifoamControl,
         FoamControlViewModel foamControl,
         FlaskAgitatorViewModel flaskAgitator,
+        BiomassControlViewModel? biomassControl,
         IDeviceService device,
         ISettingsService settings,
         IDialogService dialogs,
@@ -150,6 +162,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControl = antifoamControl;
         FoamControl = foamControl;
         FlaskAgitator = flaskAgitator;
+        BiomassControl = biomassControl;
 
         Rows =
         [
@@ -218,6 +231,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     /// <summary>Separate flask-agitator card (WP7).</summary>
     public FlaskAgitatorViewModel FlaskAgitator { get; }
+
+    public BiomassControlViewModel? BiomassControl { get; }
 
     public SubsystemViewModel FlowSubsystem => _flowSubsystem;
 
@@ -769,16 +784,24 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         double Applied(int index, double fallback)
             => Rows[index].Subsystem.AppliedSetpoint ?? fallback;
 
+        bool IsEnabled(int index, bool fallback)
+            => Rows[index].Subsystem.AppliedIsEnabled;
+
         _settings.Update(s => s with
         {
             Setpoints = s.Setpoints with
             {
                 TemperatureCelsius = Applied(0, s.Setpoints.TemperatureCelsius),
+                TemperatureEnabled = IsEnabled(0, s.Setpoints.TemperatureEnabled),
                 MotorRpm = (int)Applied(1, s.Setpoints.MotorRpm),
+                MotorEnabled = IsEnabled(1, s.Setpoints.MotorEnabled),
                 OxygenPercent = Applied(2, s.Setpoints.OxygenPercent),
+                OxygenEnabled = IsEnabled(2, s.Setpoints.OxygenEnabled),
                 FlowLitresPerMinute = Applied(3, s.Setpoints.FlowLitresPerMinute),
+                FlowEnabled = IsEnabled(3, s.Setpoints.FlowEnabled),
                 MaxFlowLitresPerMinute = FlowControl.AppliedMaxFlow,
                 PressureKilopascal = Applied(4, s.Setpoints.PressureKilopascal),
+                PressureEnabled = IsEnabled(4, s.Setpoints.PressureEnabled),
             },
         });
     }

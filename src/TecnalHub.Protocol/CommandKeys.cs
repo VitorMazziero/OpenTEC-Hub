@@ -83,6 +83,8 @@ public static class CommandKeys
     // ---- Biomass (Phase 3) -----------------------------------------------
     public const string BiomassComm = "biomassComm";
     public const string Blank = "blank";
+    public const string Start = "start";
+    public const string Stop = "stop";
     public const string Low = "low";
     public const string High = "high";
     public const string Opt = "opt";

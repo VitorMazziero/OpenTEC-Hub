@@ -116,6 +116,19 @@ internal sealed class AlarmCondition(AlarmDefinition definition)
         AcknowledgedAt,
         Detail);
 
+    /// <summary>Clears a latched occurrence by an explicit operator intervention.</summary>
+    public bool Resolve()
+    {
+        if (!Latched && _pendingSince is null)
+        {
+            return false;
+        }
+
+        ConditionActive = false;
+        Reset();
+        return true;
+    }
+
     private void Reset()
     {
         Latched = false;
@@ -406,6 +419,13 @@ public sealed class AlarmService : IAlarmService
     private void OnStateChanged(ConnectionStateChange change)
     {
         _state = change.State;
+
+        if (change.Cause == ConnectionTransitionCause.UserDisconnect &&
+            _conditions[AlarmId.LinkLost].Resolve())
+        {
+            _journal.Add(AuditSource.Alarm, AuditSeverity.Information,
+                "Alarme encerrado pelo operador ao desconectar: Link perdido.");
+        }
 
         // A clean disconnect or a fresh connection resets the telemetry snapshot so a stale
         // module/flowmeter/sensor reading from before the gap cannot linger as a condition.

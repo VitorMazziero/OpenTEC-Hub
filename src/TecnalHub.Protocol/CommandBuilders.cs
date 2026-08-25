@@ -242,6 +242,19 @@ public static class CommandBuilders
     public static TecnalCommand FlaskAgitatorReEnablePot()
         => TecnalCommand.Create().Set(CommandKeys.AgitatorReEnablePot, 1);
 
+    /// <summary>Biomass sensor communication enable.</summary>
+    public static TecnalCommand BiomassCommunication(bool enabled)
+        => TecnalCommand.Create().Set(CommandKeys.BiomassComm, enabled);
+
+    /// <summary>Biomass integration-time thresholds, always sent as one desired state.</summary>
+    public static TecnalCommand BiomassThresholds(int low, int high, int optimal)
+        => TecnalCommand.Create()
+            .Set(CommandKeys.Low, low)
+            .Set(CommandKeys.High, high)
+            .Set(CommandKeys.Opt, optimal);
+
+    public static TecnalCommand BiomassBlank() => TecnalCommand.Create().Set(CommandKeys.Blank, 1);
+
     /// <summary>
     /// Flow setpoint shape used while acquiring a calibration point in v.6.
     /// Both optional gas valves are closed and the inverted vent flag is derived.

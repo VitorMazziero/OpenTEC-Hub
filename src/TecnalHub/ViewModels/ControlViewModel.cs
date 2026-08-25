@@ -221,6 +221,36 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public IReadOnlyList<ControlParameterRowViewModel> DisplayRows
         => [Rows[1], Rows[0], Rows[4], Rows[2], Rows[3]];
 
+    public ControlParameterRowViewModel AgitationRow => Rows[1];
+    public ControlParameterRowViewModel TemperatureRow => Rows[0];
+    public ControlParameterRowViewModel PressureRow => Rows[4];
+    public ControlParameterRowViewModel OxygenRow => Rows[2];
+    public ControlParameterRowViewModel FlowRow => Rows[3];
+
+    [ObservableProperty]
+    public partial bool IsExpandedPH { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedNutrient { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedAntifoam { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedFlow { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedDistance { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedExternalPump { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedBiomass { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedFlaskAgitator { get; set; }
+
     public FlowControlViewModel FlowControl { get; }
 
     /// <summary>Full five-field pH state; separate from probe calibration.</summary>

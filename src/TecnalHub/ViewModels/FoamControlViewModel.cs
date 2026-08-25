@@ -74,7 +74,11 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
 
     public string StateText => SensorEnabled ? "Ativo" : "Desligado";
 
-    partial void OnSensorEnabledChanged(bool value) { ValidateAndRefresh(); OnPropertyChanged(nameof(StateText)); }
+    partial void OnSensorEnabledChanged(bool value)
+    {
+        ValidateAndRefresh();
+        OnPropertyChanged(nameof(StateText));
+    }
 
     partial void OnReferenceMillimetresTextChanged(string value) => ValidateAndRefresh();
 

@@ -289,9 +289,58 @@ public sealed class SerialTransport(
     {
         try
         {
-            return [.. SerialPort.GetPortNames()
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static p => p, StringComparer.OrdinalIgnoreCase)];
+            var ports = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            
+            if (OperatingSystem.IsWindows())
+            {
+                var portDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+#pragma warning disable CA1416 // Validate platform compatibility
+                    using var searcher = new System.Management.ManagementObjectSearcher(
+                        "SELECT Name, Description, Manufacturer FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
+                    foreach (var obj in searcher.Get())
+                    {
+                        if (obj["Name"] is string name)
+                        {
+                            var start = name.LastIndexOf("(COM", StringComparison.OrdinalIgnoreCase);
+                            if (start >= 0)
+                            {
+                                var end = name.IndexOf(')', start);
+                                if (end > start)
+                                {
+                                    var com = name.Substring(start + 1, end - start - 1);
+                                    portDescriptions[com] = $"{obj["Description"]} {obj["Manufacturer"]}";
+                                }
+                            }
+                        }
+                    }
+#pragma warning restore CA1416
+                }
+                catch (Exception) { /* WMI might be disabled or unavailable */ }
+
+                var ranked = new List<string>();
+                var unranked = new List<string>();
+
+                foreach (var port in ports)
+                {
+                    if (portDescriptions.TryGetValue(port, out var desc) && 
+                        EspKeywords.Any(k => desc.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        ranked.Add(port);
+                    }
+                    else
+                    {
+                        unranked.Add(port);
+                    }
+                }
+
+                ranked.Sort(StringComparer.OrdinalIgnoreCase);
+                unranked.Sort(StringComparer.OrdinalIgnoreCase);
+                return [.. ranked, .. unranked];
+            }
+
+            return [.. ports.OrderBy(static p => p, StringComparer.OrdinalIgnoreCase)];
         }
         catch (Exception)
         {

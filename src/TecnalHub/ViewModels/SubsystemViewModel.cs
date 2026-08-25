@@ -47,6 +47,7 @@ public sealed record SubsystemSpec(
     bool HasPid = false,
     bool HasCalibration = false,
     bool HasHealth = true,
+    bool HasSetpointEntry = true,
     Action<double, bool>? OnCommitted = null);
 
 /// <summary>
@@ -85,13 +86,25 @@ public sealed partial class SubsystemViewModel : ObservableObject
         ProcessVariableViewModel variable,
         SubsystemSpec spec,
         IDeviceService device,
-        double initialSetpoint)
+        double initialSetpoint,
+        bool initialIsEnabled = false)
     {
         Variable = variable;
         _spec = spec;
         _device = device;
 
         SetpointText = Format(initialSetpoint);
+        IsEnabled = initialIsEnabled;
+        AppliedIsEnabled = initialIsEnabled;
+        AppliedSetpoint = initialIsEnabled ? initialSetpoint : 0.0;
+        
+        Variable.IsEnabled = IsEnabled;
+        Variable.Setpoint = AppliedSetpoint;
+        if (Variable.IsCommandedOnly)
+        {
+            Variable.PushCommanded(AppliedSetpoint);
+        }
+
         Validate();
 
         // FormattedDeviation is computed from the variable's reading and setpoint, so it
@@ -129,6 +142,8 @@ public sealed partial class SubsystemViewModel : ObservableObject
 
     public bool HasHealth => _spec.HasHealth;
 
+    public bool HasSetpointEntry => _spec.HasSetpointEntry;
+
     /// <summary>
     /// True when there is more than one section, so the segmented strip earns its space.
     /// </summary>
@@ -146,7 +161,7 @@ public sealed partial class SubsystemViewModel : ObservableObject
     /// <summary>Human-readable range, shown beside the field.</summary>
     public string RangeHint => _spec.IsInteger
         ? string.Create(CultureInfo.CurrentCulture,
-            $"{Variable.ToDisplay(_spec.Minimum):F0}–{Variable.ToDisplay(_spec.Maximum):F0} {Unit} (0 = desligado)")
+            $"{Variable.ToDisplay(_spec.Minimum):F0}–{Variable.ToDisplay(_spec.Maximum):F0} {Unit}")
         : string.Create(CultureInfo.CurrentCulture,
             $"{Variable.ToDisplay(_spec.Minimum):F1}–{Variable.ToDisplay(_spec.Maximum):F1} {Unit}");
 

@@ -382,6 +382,26 @@ public sealed class TelemetryParser
     // JSON helpers
     // ------------------------------------------------------------------
 
+    private static bool TryGetPropertyCaseInsensitive(JsonElement root, string key, out JsonElement value)
+    {
+        if (root.TryGetProperty(key, out value))
+        {
+            return true;
+        }
+        
+        foreach (var property in root.EnumerateObject())
+        {
+            if (string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
     /// <remarks>
     /// The firmware is not consistent about quoting numerics, so a string that
     /// parses as a number is accepted. Parsing is always invariant.
@@ -389,7 +409,7 @@ public sealed class TelemetryParser
     private static bool TryGetDouble(JsonElement root, string key, out double value)
     {
         value = 0;
-        if (!root.TryGetProperty(key, out var element))
+        if (!TryGetPropertyCaseInsensitive(root, key, out var element))
         {
             return false;
         }
@@ -401,7 +421,7 @@ public sealed class TelemetryParser
 
             case JsonValueKind.String:
                 return double.TryParse(
-                    element.GetString(),
+                    element.GetString()?.Replace(',', '.'),
                     NumberStyles.Float,
                     CultureInfo.InvariantCulture,
                     out value);
@@ -414,7 +434,7 @@ public sealed class TelemetryParser
     private static bool TryGetBool(JsonElement root, string key, out bool value)
     {
         value = false;
-        if (!root.TryGetProperty(key, out var element))
+        if (!TryGetPropertyCaseInsensitive(root, key, out var element))
         {
             return false;
         }
@@ -440,7 +460,7 @@ public sealed class TelemetryParser
 
     private static void AssignInt(JsonElement root, string key, Action<int> assign)
     {
-        if (!root.TryGetProperty(key, out var element))
+        if (!TryGetPropertyCaseInsensitive(root, key, out var element))
         {
             return;
         }
@@ -457,7 +477,7 @@ public sealed class TelemetryParser
                 break;
 
             case JsonValueKind.String when int.TryParse(
-                element.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed):
+                element.GetString()?.Replace(',', '.'), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed):
                 assign(parsed);
                 break;
 

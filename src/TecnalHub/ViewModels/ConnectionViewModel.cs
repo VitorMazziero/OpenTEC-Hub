@@ -246,7 +246,7 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         FramesReceived = diagnostics.FramesReceived;
         CommandsSent = diagnostics.CommandsSent;
 
-        LatencyText = diagnostics.LastRoundTripMs is { } ms
+        LatencyText = diagnostics.LastWriteMs is { } ms
             ? ms.ToString("F0", CultureInfo.CurrentCulture) + " ms"
             : "—";
     }

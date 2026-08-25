@@ -181,7 +181,8 @@ public sealed class RecipeEngineTests
         cascadeNode.Set("modo", nameof(TecnalHub.Services.Control.CascadeMode.AgitationOnly));
 
         await engine.StartAsync(recipe);
-        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(20); }
+        await Task.Delay(20);
         PushFrame(device, clock, oxygen: 25, temperature: 45);
 
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
@@ -197,7 +198,8 @@ public sealed class RecipeEngineTests
         cascadeNode.Set("modo", nameof(TecnalHub.Services.Control.CascadeMode.AerationOnly));
 
         await engine.StartAsync(recipe);
-        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(20); }
+        await Task.Delay(20);
         PushFrame(device, clock, oxygen: 25, temperature: 45);
 
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));

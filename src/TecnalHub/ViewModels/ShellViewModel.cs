@@ -163,7 +163,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Ph = new ProcessVariableViewModel("ph", "pH", "", decimals: 2, channel: TelemetryChannel.PH);
         Oxygen = new ProcessVariableViewModel("oxygen", "Oxigênio", "%", decimals: 1, channel: TelemetryChannel.Oxygen);
         Flow = new ProcessVariableViewModel("flow", "Vazão", "L/min", decimals: 2, channel: TelemetryChannel.Flow);
-        Pressure = new ProcessVariableViewModel("pressure", "Pressão", "kPa", decimals: 1, isControllable: false,
+        Pressure = new ProcessVariableViewModel("pressure", "Pressão", "mmHg", decimals: 1, isControllable: false,
             channel: TelemetryChannel.Pressure);
 
         // WP7 dosing auxiliaries on the synoptic. Nutrient has no telemetry — it is a

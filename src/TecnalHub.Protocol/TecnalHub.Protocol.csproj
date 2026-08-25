@@ -18,6 +18,7 @@
     <!-- Serial (USB CDC) support. Not in the base framework since .NET Core. -->
     <PackageReference Include="System.IO.Ports" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="System.Management" Version="10.0.11" />
   </ItemGroup>
 
 </Project>

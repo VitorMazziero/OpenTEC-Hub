@@ -10,6 +10,8 @@ namespace TecnalHub.Tests;
 internal sealed class FakeKlaProfileStore : IKlaProfileStore
 {
     public List<KlaPublishedProfile> Published { get; } = [];
+    
+    public event Action<KlaPublishedProfile>? ProfilePublished;
 
     public Task<IReadOnlyList<KlaPublishedProfile>> LoadPublishedAsync(
         CancellationToken cancellationToken = default)

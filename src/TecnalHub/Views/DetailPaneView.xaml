@@ -43,7 +43,8 @@
              paths cannot drift. -->
         <DataTemplate x:Key="SetpointSectionTemplate" DataType="{x:Type vm:SubsystemViewModel}">
             <StackPanel>
-                <ctl:SetpointField Label="Setpoint" />
+                <ctl:SetpointField Label="Setpoint"
+                                   Visibility="{Binding HasSetpointEntry, Converter={StaticResource BoolToVis}}" />
 
                 <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                     <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
@@ -64,7 +65,8 @@
                             IsEnabled="{Binding HasPendingChange}" />
                 </StackPanel>
 
-                <Grid Margin="0,16,0,0">
+                <Grid Margin="0,16,0,0"
+                      Visibility="{Binding HasSetpointEntry, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -183,14 +185,16 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,16,3">
+                    <StackPanel Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,16,3"
+                                Visibility="{Binding HasSetpointEntry, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="SP" Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Text="{Binding Variable.FormattedSetpoint}"
                                    Style="{StaticResource NumericTextStyle}"
                                    FontSize="18" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="3" VerticalAlignment="Bottom" Margin="0,0,0,3">
+                    <StackPanel Grid.Column="3" VerticalAlignment="Bottom" Margin="0,0,0,3"
+                                Visibility="{Binding HasSetpointEntry, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="Δ" Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Text="{Binding FormattedDeviation}"
                                    Style="{StaticResource NumericTextStyle}"

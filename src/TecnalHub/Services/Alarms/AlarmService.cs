@@ -275,7 +275,7 @@ public sealed class AlarmService : IAlarmService
 
     public bool HasActiveAlarms => _conditions.Values.Any(c => c.Latched);
 
-    public bool IsAudible => AnnunciatingCount > 0 && _time.GetUtcNow() >= _silencedUntil;
+    public bool IsAudible => _state != ConnectionState.Disconnected && AnnunciatingCount > 0 && _time.GetUtcNow() >= _silencedUntil;
 
     public void Acknowledge(AlarmId id)
     {
@@ -420,11 +420,19 @@ public sealed class AlarmService : IAlarmService
     {
         _state = change.State;
 
-        if (change.Cause == ConnectionTransitionCause.UserDisconnect &&
-            _conditions[AlarmId.LinkLost].Resolve())
+        if (change.Cause == ConnectionTransitionCause.UserDisconnect)
         {
-            _journal.Add(AuditSource.Alarm, AuditSeverity.Information,
-                "Alarme encerrado pelo operador ao desconectar: Link perdido.");
+            var resolvedAny = false;
+            foreach (var condition in _conditions.Values)
+            {
+                resolvedAny |= condition.Resolve();
+            }
+
+            if (resolvedAny)
+            {
+                _journal.Add(AuditSource.Alarm, AuditSeverity.Information,
+                    "Alarmes encerrados pelo operador ao desconectar.");
+            }
         }
 
         // A clean disconnect or a fresh connection resets the telemetry snapshot so a stale

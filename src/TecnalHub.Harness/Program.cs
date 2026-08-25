@@ -312,7 +312,7 @@ static async Task ReadCommandsAsync(ConnectionManager manager, WireTrace trace, 
                 var d = manager.Diagnostics;
                 Console.WriteLine($"[diag] frames={d.FramesReceived} tx={d.CommandsSent} " +
                                   $"parseFail={d.ParseFailures} esp32Log={d.DeviceLogLines} " +
-                                  $"rttMs={d.LastRoundTripMs?.ToString("F1", CultureInfo.InvariantCulture) ?? "-"} " +
+                                  $"rttMs={d.LastWriteMs?.ToString("F1", CultureInfo.InvariantCulture) ?? "-"} " +
                                   $"lastError={(string.IsNullOrEmpty(d.LastError) ? "-" : d.LastError)}");
                 break;
 

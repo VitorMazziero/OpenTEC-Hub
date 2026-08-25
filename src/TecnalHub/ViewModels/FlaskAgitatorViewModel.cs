@@ -115,7 +115,11 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
         ValidateAndRefresh();
     }
 
-    partial void OnIsEnabledChanged(bool value) { ValidateAndRefresh(); OnPropertyChanged(nameof(StateText)); }
+    partial void OnIsEnabledChanged(bool value)
+    {
+        ValidateAndRefresh();
+        OnPropertyChanged(nameof(StateText));
+    }
 
     partial void OnIsAutomaticChanged(bool value) => ValidateAndRefresh();
 

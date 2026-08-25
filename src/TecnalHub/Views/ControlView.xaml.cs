@@ -37,6 +37,11 @@ public partial class ControlView : UserControl
 
     private void OnToggleChanged(object sender, RoutedEventArgs e)
     {
+        if (e.OriginalSource is FrameworkElement fe && fe.Tag?.ToString() == "ExpanderToggle")
+        {
+            return;
+        }
+
         // Do not interfere with the oxygen cascade toggle: it has an intentional
         // engagement path in ControlParameterRowViewModel.
         if ((e.OriginalSource as FrameworkElement)?.DataContext is ControlParameterRowViewModel row && row.IsOxygenRow)
@@ -59,6 +64,9 @@ public partial class ControlView : UserControl
             case ControlParameterRowViewModel row when row.Subsystem.ApplyCommand.CanExecute(null):
                 row.Subsystem.ApplyCommand.Execute(null);
                 break;
+            case SubsystemViewModel sub when sub.ApplyCommand.CanExecute(null):
+                sub.ApplyCommand.Execute(null);
+                break;
             case PHControlViewModel ph when ph.ApplyCommand.CanExecute(null):
                 ph.ApplyCommand.Execute(null);
                 break;
@@ -74,7 +82,13 @@ public partial class ControlView : UserControl
             case FlaskAgitatorViewModel agitator when agitator.ApplyCommand.CanExecute(null):
                 agitator.ApplyCommand.Execute(null);
                 break;
+            case BiomassControlViewModel biomass when biomass.ApplyThresholdsCommand.CanExecute(null):
+                biomass.ApplyThresholdsCommand.Execute(null);
+                break;
             case FlowControlViewModel when DataContext is ControlViewModel control && control.ApplyFlowStateCommand.CanExecute(null):
+                control.ApplyFlowStateCommand.Execute(null);
+                break;
+            case ControlViewModel control when control.ApplyFlowStateCommand.CanExecute(null):
                 control.ApplyFlowStateCommand.Execute(null);
                 break;
         }

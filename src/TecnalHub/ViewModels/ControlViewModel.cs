@@ -217,6 +217,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<ControlParameterRowViewModel> Rows { get; }
 
+    /// <summary>Operator-facing order; command indexes remain stable in <see cref="Rows"/>.</summary>
+    public IReadOnlyList<ControlParameterRowViewModel> DisplayRows
+        => [Rows[1], Rows[0], Rows[4], Rows[2], Rows[3]];
+
     public FlowControlViewModel FlowControl { get; }
 
     /// <summary>Full five-field pH state; separate from probe calibration.</summary>

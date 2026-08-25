@@ -57,7 +57,7 @@
                                                FontWeight="SemiBold"
                                                Margin="4,0,0,8" />
 
-                                    <ListView ItemsSource="{Binding Rows}"
+                                    <ListView ItemsSource="{Binding DisplayRows}"
                                               Height="286"
                                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -254,10 +254,13 @@
                                         </ListView.View>
                                     </ListView>
                                 </DockPanel>
-                            </Border>
+							</Border>
 
+							<!-- pH is a core process parameter; its detailed pump settings stay
+							     immediately below the process table instead of being buried in auxiliaries. -->
+							<views:PHControlView DataContext="{Binding PHControl}" Margin="0,12,0,0" />
 
-                            <TextBlock Text="Auxiliares de Cultivo"
+							<TextBlock Text="Dosagem e dispositivos externos"
                                        FontSize="{DynamicResource FontSizeSubtitle}"
                                        FontWeight="SemiBold"
                                        Margin="2,20,0,0" />
@@ -278,7 +281,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <ctl:Icon Key="Airflow" Size="20" Margin="0,0,8,0" />
-                                            <TextBlock Text="Fluxômetro"
+											<TextBlock Text="Vazão de Ar · Fluxômetro de massa"
                                                        FontWeight="SemiBold" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Grid>
@@ -363,7 +366,7 @@
                                  in the bulk apply and the safe-stop; the level/foam sensor is
                                  configuration and applies on its own. -->
 
-                            <!-- Dosagem — Nutriente -->
+							<!-- Dosagem de Nutrientes -->
                             <Border Margin="0,10,0,0"
                                     Background="{DynamicResource SurfaceCardBrush}"
                                     BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -379,7 +382,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <ctl:Icon Key="Nutrient" Size="20" Margin="0,0,8,0" />
-                                            <TextBlock Text="Dosagem — Nutriente"
+											<TextBlock Text="Dosagem de Nutrientes"
                                                        FontWeight="SemiBold" VerticalAlignment="Center" />
                                             <ctl:ProvenanceBadge Text="comandado" Margin="10,0,0,0"
                                                                  VerticalAlignment="Center" />
@@ -434,7 +437,7 @@
                                                    Style="{StaticResource CaptionTextStyle}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+										<StackPanel Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed">
                                             <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
                                             <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}"
                                                     Command="{Binding ApplyCommand}" />
@@ -443,7 +446,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Dosagem — Antiespumante -->
+							<!-- Dosagem de Antiespumante -->
                             <Border Margin="0,12,0,0"
                                     Background="{DynamicResource SurfaceCardBrush}"
                                     BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -459,7 +462,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <ctl:Icon Key="Foam" Size="20" Margin="0,0,8,0" />
-                                            <TextBlock Text="Dosagem — Antiespumante"
+											<TextBlock Text="Dosagem de Antiespumante"
                                                        FontWeight="SemiBold" VerticalAlignment="Center" />
                                             <TextBlock Text="{Binding LiveAntifoamText, StringFormat='Antifoam: {0}'}"
                                                        Style="{StaticResource CaptionTextStyle}"
@@ -506,7 +509,7 @@
                                                    Style="{StaticResource CaptionTextStyle}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+										<StackPanel Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed">
                                             <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
                                             <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}"
                                                     Command="{Binding ApplyCommand}" />
@@ -515,7 +518,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Controle de espuma (level/foam sensor + automatic response) -->
+							<!-- Sensor de Distância (sensor de espuma + resposta automática) -->
                             <Border Margin="0,12,0,0"
                                     Background="{DynamicResource SurfaceCardBrush}"
                                     BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -531,7 +534,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <ctl:Icon Key="Level" Size="20" Margin="0,0,8,0" />
-                                            <TextBlock Text="Controle de espuma"
+											<TextBlock Text="Sensor de Distância · Controle de espuma"
                                                        FontWeight="SemiBold" VerticalAlignment="Center" />
                                             <TextBlock Text="{Binding LiveDistanceText, StringFormat='Nível: {0} mm'}"
                                                        Style="{StaticResource CaptionTextStyle}"
@@ -587,7 +590,7 @@
                                                    Style="{StaticResource CaptionTextStyle}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+										<StackPanel Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed">
                                             <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
                                             <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}"
                                                     Command="{Binding ApplyCommand}" />
@@ -596,7 +599,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Agitador de frasco (a separate bench device) -->
+							<!-- Frasco Agitador (dispositivo de bancada) -->
                             <Border Margin="0,12,0,0"
                                     Background="{DynamicResource SurfaceCardBrush}"
                                     BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -613,7 +616,7 @@
                                         <StackPanel Grid.Column="0">
                                             <StackPanel Orientation="Horizontal">
                                                 <ctl:Icon Key="Impeller" Size="20" Margin="0,0,8,0" />
-                                                <TextBlock Text="Agitador de frasco"
+												<TextBlock Text="Frasco Agitador"
                                                            FontWeight="SemiBold" VerticalAlignment="Center" />
                                             </StackPanel>
                                             <TextBlock Text="Dispositivo de bancada separado; não é o impelidor do reator."
@@ -688,13 +691,25 @@
                                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                                             <Button Content="Reativar potenciômetro"
                                                     Command="{Binding ReEnablePotCommand}" Margin="0,0,6,0" />
-                                            <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
-                                            <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}"
-                                                    Command="{Binding ApplyCommand}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
+											<Button Content="Reverter" Visibility="Collapsed" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
+											<Button Content="Aplicar" Visibility="Collapsed" Style="{StaticResource AccentButtonStyle}"
+													Command="{Binding ApplyCommand}" />
+										</StackPanel>
+									</Grid>
+								</StackPanel>
+							</Border>
+
+							<Border Margin="0,12,0,0" Padding="16" IsEnabled="False"
+									Background="{DynamicResource SurfaceCardBrush}"
+									BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1"
+									CornerRadius="{DynamicResource RadiusMedium}">
+								<StackPanel>
+									<TextBlock Text="Dispositivo Externo · Bomba Dosadora Externa" FontWeight="SemiBold" />
+									<TextBlock Text="Disponível na lista para identificação; o controle ainda não está implementado."
+										Style="{StaticResource CaptionTextStyle}"
+										Foreground="{DynamicResource TextMutedBrush}" Margin="0,6,0,0" />
+								</StackPanel>
+							</Border>
 
                             <Border Margin="0,12,0,0" Padding="12"
                                     Background="{DynamicResource SurfaceCardBrush}"

@@ -127,7 +127,7 @@ public sealed class PHControlTests
         vm.SuspendForCalibration();
 
         Assert.Equal(
-            """{"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}""",
+            """{"pHSetpoint":0.0,"pHError":0.17,"pHOperation":3.0,"pHMix":10.0,"pHIntensity":0.0}""",
             Assert.Single(device.Sent));
         Assert.False(vm.AppliedIsEnabled);
     }

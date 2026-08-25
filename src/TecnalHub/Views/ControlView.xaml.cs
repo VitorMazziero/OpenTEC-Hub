@@ -49,6 +49,11 @@ public partial class ControlView : UserControl
 
     private void ApplyFor(object? dataContext)
     {
+        if (DataContext is ControlViewModel controlPage && !controlPage.CanActuate)
+        {
+            return;
+        }
+
         switch (dataContext)
         {
             case ControlParameterRowViewModel row when row.Subsystem.ApplyCommand.CanExecute(null):

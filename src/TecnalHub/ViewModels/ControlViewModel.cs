@@ -120,6 +120,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private readonly IDialogService _dialogs;
     private readonly ICascadeService _cascade;
     private readonly SubsystemViewModel _flowSubsystem;
+    private bool _switchingSharedPump;
 
     public ControlViewModel(
         IReadOnlyList<SubsystemViewModel> subsystems, FlowControlViewModel flowControl,
@@ -189,6 +190,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         oxygenRow.CascadeEngagedGetter = () => _cascade.IsEngaged;
         oxygenRow.CascadeEngageRequested = OnOxygenEngageRequested;
         _cascade.Updated += OnCascadeUpdated;
+        _device.StateChanged += OnDeviceStateChanged;
 
         FlowControl.PropertyChanged += OnFlowStateChanged;
         PHControl.PropertyChanged += OnPHStateChanged;
@@ -233,6 +235,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public FlaskAgitatorViewModel FlaskAgitator { get; }
 
     public BiomassControlViewModel? BiomassControl { get; }
+
+    public bool CanActuate => _device.State == ConnectionState.Connected;
 
     public SubsystemViewModel FlowSubsystem => _flowSubsystem;
 
@@ -765,8 +769,40 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private void OnPHStateChanged(object? sender, PropertyChangedEventArgs e)
         => RefreshState();
 
+    private void OnDeviceStateChanged(ConnectionStateChange _) => OnPropertyChanged(nameof(CanActuate));
+
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)
-        => RefreshState();
+    {
+        // The distance/foam firmware routine actuates the physical nutrient pump.
+        // Never allow it to contend with the operator's nutrient dosing schedule.
+        if (!_switchingSharedPump)
+        {
+            _switchingSharedPump = true;
+            try
+            {
+                if (sender == NutrientControl && e.PropertyName == nameof(NutrientControlViewModel.IsEnabled) &&
+                    NutrientControl.IsEnabled && FoamControl.SensorEnabled)
+                {
+                    FoamControl.SensorEnabled = false;
+                    FoamControl.ApplyCommand.Execute(null);
+                    StatusText = "Sensor de distância desativado: a bomba de nutrientes foi selecionada para dosagem.";
+                }
+                else if (sender == FoamControl && e.PropertyName == nameof(FoamControlViewModel.SensorEnabled) &&
+                         FoamControl.SensorEnabled && NutrientControl.IsEnabled)
+                {
+                    NutrientControl.IsEnabled = false;
+                    NutrientControl.ApplyCommand.Execute(null);
+                    StatusText = "Dosagem de nutrientes desativada: o sensor de distância usa a mesma bomba.";
+                }
+            }
+            finally
+            {
+                _switchingSharedPump = false;
+            }
+        }
+
+        RefreshState();
+    }
 
     private void RefreshState()
     {
@@ -775,6 +811,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(FlowRequestError));
         OnPropertyChanged(nameof(CanApplyAll));
         OnPropertyChanged(nameof(CanApplyFlowState));
+        OnPropertyChanged(nameof(CanActuate));
         ApplyAllCommand.NotifyCanExecuteChanged();
         ApplyFlowStateCommand.NotifyCanExecuteChanged();
     }
@@ -837,5 +874,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FoamControl.PropertyChanged -= OnDosingStateChanged;
         FlaskAgitator.PropertyChanged -= OnDosingStateChanged;
         _cascade.Updated -= OnCascadeUpdated;
+        _device.StateChanged -= OnDeviceStateChanged;
     }
 }

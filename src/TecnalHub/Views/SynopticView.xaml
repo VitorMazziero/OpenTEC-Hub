@@ -269,7 +269,8 @@
 
                     <Image x:Name="ReactorRender"
                            Canvas.Left="6" Canvas.Top="10" Width="300" Height="450"
-                           Source="/TecnalHub;component/Resources/Images/reactor-tank.png"
+                           Source="/TecnalHub;component/Resources/Images/reactor-neutral.png"
+                           ImageFailed="OnReactorRenderFailed"
                            Stretch="Uniform" IsHitTestVisible="False"
                            RenderOptions.BitmapScalingMode="HighQuality"
                            AutomationProperties.Name="Biorreator TECNAL" />

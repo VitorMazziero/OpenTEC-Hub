@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +8,7 @@ using System.Windows.Threading;
 using ScottPlot;
 using ScottPlot.WPF;
 using TecnalHub.Services.KlaTesting;
+using TecnalHub.Services.Theme;
 using TecnalHub.ViewModels;
 
 using MediaColor = System.Windows.Media.Color;
@@ -36,6 +38,7 @@ public partial class KlaDeterminationView : UserControl
 
         Loaded += (_, _) =>
         {
+            SubscribeToThemeChanges();
             ApplyThemeToPlots();
             _redrawTimer.Start();
         };
@@ -43,21 +46,51 @@ public partial class KlaDeterminationView : UserControl
         Unloaded += (_, _) =>
         {
             _redrawTimer.Stop();
+            UnsubscribeFromThemeChanges();
         };
     }
 
+    private void SubscribeToThemeChanges()
+    {
+        var theme = ((App)Application.Current).Services?.GetService<IThemeService>();
+        if (theme != null)
+        {
+            theme.ThemeChanged -= OnThemeChanged;
+            theme.ThemeChanged += OnThemeChanged;
+        }
+    }
+
+    private void UnsubscribeFromThemeChanges()
+    {
+        var theme = ((App)Application.Current).Services?.GetService<IThemeService>();
+        if (theme != null)
+        {
+            theme.ThemeChanged -= OnThemeChanged;
+        }
+    }
+
+    private void OnThemeChanged(bool isDark)
+        => Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            if (IsLoaded)
+            {
+                ApplyThemeToPlots();
+                RedrawPlots();
+            }
+        });
+
     private void ApplyThemeToPlots()
     {
-        StyleSinglePlot(_plotDo.Plot, "Oxigênio Dissolvido (OD)", "OD (%)", "Tempo (s)");
-        StyleSinglePlot(_plotLogLinear.Plot, "Regressão Log-Linear: ln(Ceq - C)", "ln(Ceq - C)", "Tempo (s)");
-        StyleSinglePlot(_plotInstantKla.Plot, "kLa Instantâneo Diagnóstico", "kLa (h⁻¹)", "Tempo (s)");
+        StyleSinglePlot(_plotDo.Plot, "OD (%)", "Tempo (s)");
+        StyleSinglePlot(_plotLogLinear.Plot, "ln(Ceq - C)", "Tempo (s)");
+        StyleSinglePlot(_plotInstantKla.Plot, "kLa (h⁻¹)", "Tempo (s)");
 
         _plotDo.Refresh();
         _plotLogLinear.Refresh();
         _plotInstantKla.Refresh();
     }
 
-    private static void StyleSinglePlot(Plot plot, string title, string yLabel, string xLabel)
+    private static void StyleSinglePlot(Plot plot, string yLabel, string xLabel)
     {
         var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
         var text = ToPlotColor(TryBrush("TextSecondaryBrush"), MediaColors.Gray);
@@ -69,14 +102,28 @@ public partial class KlaDeterminationView : UserControl
         plot.Axes.Color(text);
         plot.Grid.MajorLineColor = grid.WithAlpha(0.45);
 
+        // Minimal vertical padding: remove top axis frame and title space
+        plot.Axes.Title.Label.Text = string.Empty;
+        plot.Axes.Title.Label.IsVisible = false;
+        plot.Axes.Top.FrameLineStyle.Width = 0;
+        plot.Axes.Top.TickLabelStyle.IsVisible = false;
+
         plot.Axes.Bottom.Label.Text = xLabel;
         plot.Axes.Left.Label.Text = yLabel;
-        plot.Axes.Title.Label.Text = title;
-        plot.Axes.Title.Label.ForeColor = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
-        plot.Axes.Title.Label.FontSize = 13;
 
-        plot.Axes.Bottom.Label.FontSize = 11;
-        plot.Axes.Left.Label.FontSize = 11;
+        plot.Axes.Bottom.Label.FontSize = 10;
+        plot.Axes.Left.Label.FontSize = 10;
+
+        // Horizontal single-line legend placed at the lower-left corner
+        plot.Legend.IsVisible = true;
+        plot.Legend.Alignment = Alignment.LowerLeft;
+        plot.Legend.Orientation = ScottPlot.Orientation.Horizontal;
+        plot.Legend.FontSize = 9.5f;
+        plot.Legend.BackgroundColor = surface.WithAlpha(0.85);
+        plot.Legend.FontColor = text;
+        plot.Legend.OutlineColor = grid.WithAlpha(0.5);
+        plot.Legend.OutlineWidth = 0.5f;
+        plot.Legend.ShadowColor = ScottPlot.Colors.Transparent;
     }
 
     private void RedrawPlots()

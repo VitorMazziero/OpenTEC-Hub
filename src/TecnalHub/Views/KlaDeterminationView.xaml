@@ -36,14 +36,14 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="8,6">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- ── Top Header Strip ──────────────────────────────────────────────── -->
-        <Border Grid.Row="0" Margin="0,0,0,12" Style="{StaticResource KlaCard}">
+        <Border Grid.Row="0" Margin="0,0,0,6" Style="{StaticResource KlaCard}" Padding="10,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -54,8 +54,8 @@
                 <!-- Left: Title & Active Test info -->
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Determinação de kLa" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <Border Margin="12,0,0,0" Background="{DynamicResource AccentSubtleBrush}"
+                        <TextBlock Text="Determinação de kLa" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Border Margin="10,0,0,0" Background="{DynamicResource AccentSubtleBrush}"
                                 BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="8,2" VerticalAlignment="Center">
                             <TextBlock Text="{Binding DisplayPhase}" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource AccentBrush}" />
@@ -244,135 +244,160 @@
             <!-- ── Right Column: 3 Synchronized Plots & Review Drawer ────────── -->
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="2*" />
-                    <RowDefinition Height="2*" />
-                    <RowDefinition Height="1.5*" />
+                    <RowDefinition Height="1*" MinHeight="80" />
+                    <RowDefinition Height="1*" MinHeight="80" />
+                    <RowDefinition Height="1*" MinHeight="80" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Chart 1: DO vs Time -->
-                <Border x:Name="ChartDoHost" Grid.Row="0" Margin="0,0,0,6" Style="{StaticResource KlaCard}" />
+                <Border x:Name="ChartDoHost" Grid.Row="0" Margin="0,0,0,4"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="2" />
 
                 <!-- Chart 2: Log-Linear OLS Fit -->
-                <Border x:Name="ChartLogLinearHost" Grid.Row="1" Margin="0,0,0,6" Style="{StaticResource KlaCard}" />
+                <Border x:Name="ChartLogLinearHost" Grid.Row="1" Margin="0,0,0,4"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="2" />
 
                 <!-- Chart 3: Instantaneous kLa -->
-                <Border x:Name="ChartInstantKlaHost" Grid.Row="2" Margin="0,0,0,6" Style="{StaticResource KlaCard}" />
+                <Border x:Name="ChartInstantKlaHost" Grid.Row="2" Margin="0,0,0,4"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="2" />
 
                 <!-- ── Review Drawer (Visible during Review) ─────────────────── -->
-                <Border Grid.Row="3" Style="{StaticResource KlaCard}" Background="{DynamicResource SurfaceCardBrush}"
+                <Border Grid.Row="3" Margin="0,2,0,0" Padding="10,6"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
                         Visibility="{Binding IsReviewOpen, Converter={StaticResource BoolToVis}}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Drawer Header -->
-                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                            <TextBlock Text="Revisão Científica e Aceite da Corrida" FontWeight="Bold" FontSize="14" />
-                            <Border DockPanel.Dock="Right" HorizontalAlignment="Right"
-                                    Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentBorderBrush}"
-                                    BorderThickness="1" CornerRadius="4" Padding="8,2">
-                                <TextBlock Text="{Binding ReviewQuality}" FontWeight="SemiBold" FontSize="11" />
-                            </Border>
-                        </DockPanel>
-
-                        <!-- Drawer Parameters & Scientific Results -->
-                        <Grid Grid.Row="1" Margin="0,4">
+                        <!-- Drawer Header & Action Buttons (Single Row) -->
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="280" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Revisão Científica e Aceite" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+
+                            <Border Grid.Column="1" Margin="10,0,0,0" Background="{DynamicResource AccentSubtleBrush}"
+                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ReviewQuality}" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+                            </Border>
+
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="Repetir Corrida" Margin="3,0" Padding="8,2" FontSize="11" Height="26" Command="{Binding RepeatCurrentRunCommand}" />
+                                <Button Content="Rejeitar Corrida" Margin="3,0" Padding="8,2" FontSize="11" Height="26" Command="{Binding RejectCurrentRunCommand}" />
+                                <Button Content="Aceitar Corrida (Salvar e Avançar)" Margin="3,0" Padding="10,2" FontSize="11" Height="26" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptCurrentRunCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Parameters & Metrics in a single horizontal row -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="8" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Interactive Tuning Controls -->
-                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                <Grid Margin="0,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Ceq (%)" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" />
-                                    <CheckBox Grid.Column="1" Content="Manual" IsChecked="{Binding ReviewCeqIsManual}" />
-                                </Grid>
-                                <TextBox Text="{Binding ReviewCeq, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ReviewCeqIsManual}" />
+                            <!-- Parameters Tuning Grid -->
+                            <Grid Grid.Column="0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="65" />
+                                    <ColumnDefinition Width="65" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                                <Grid Margin="0,6,0,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                        <TextBlock Text="Ceq t_ini (s)" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBox Text="{Binding ReviewCeqTStart, UpdateSourceTrigger=PropertyChanged}" />
+                                <!-- Row 0: Ceq, t_ini, t_fim -->
+                                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Ceq (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                        <CheckBox Margin="4,0,0,0" IsChecked="{Binding ReviewCeqIsManual}" ToolTip="Ajuste Manual" VerticalAlignment="Center" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                        <TextBlock Text="Ceq t_fim (s)" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBox Text="{Binding ReviewCeqTEnd, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                </Grid>
+                                    <TextBox Text="{Binding ReviewCeq, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ReviewCeqIsManual}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
 
-                                <Grid Margin="0,6,0,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                        <TextBlock Text="t_ini (s)" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBox Text="{Binding ReviewTStart, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                        <TextBlock Text="t_fim (s)" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBox Text="{Binding ReviewTEnd, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                </Grid>
+                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="2,0,4,3">
+                                    <TextBlock Text="t_ini (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                    <TextBox Text="{Binding ReviewTStart, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
 
-                                <Button Content="Recalcular OLS" Margin="0,6,0,0" Command="{Binding RecomputeReviewAnalysisCommand}" />
-                            </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2" Margin="2,0,4,3">
+                                    <TextBlock Text="t_fim (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                    <TextBox Text="{Binding ReviewTEnd, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
 
-                            <!-- Scientific Fit Metrics -->
-                            <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6" Padding="12">
+                                <!-- Row 1: Ceq t_ini, Ceq t_fim, Recalculate button -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Ceq t_ini (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                    <TextBox Text="{Binding ReviewCeqTStart, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Margin="2,0,4,0">
+                                    <TextBlock Text="Ceq t_fim (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                    <TextBox Text="{Binding ReviewCeqTEnd, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+
+                                <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="3" Content="Recalcular&#x0a;OLS" Margin="2,12,0,0"
+                                        Padding="8,2" FontSize="10" Height="46" VerticalAlignment="Bottom"
+                                        Command="{Binding RecomputeReviewAnalysisCommand}" />
+                            </Grid>
+
+                            <!-- Metrics Card -->
+                            <Border Grid.Column="2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6" Padding="8,4">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="1.1*" />
+                                        <ColumnDefinition Width="1.1*" />
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="1.6*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="kLa Estimado" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBlock Text="{Binding ReviewKla, StringFormat={}{0:F1} h⁻¹}" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
-                                        <TextBlock Margin="0,4,0,0" Text="{Binding ReviewCi95Low, StringFormat={}IC 95%: [{0:F1}; }" Style="{StaticResource CaptionTextStyle}" />
+                                    <StackPanel Grid.Column="0" Margin="2,0">
+                                        <TextBlock Text="kLa Estimado" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                        <TextBlock Text="{Binding ReviewKla, StringFormat={}{0:F1} h⁻¹}" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                                        <TextBlock Margin="0,1,0,0" Text="{Binding ReviewCi95Low, StringFormat={}IC 95%: [{0:F1}; }" Style="{StaticResource CaptionTextStyle}" FontSize="9.5" />
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="Qualidade do Ajuste" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBlock Text="{Binding ReviewR2, StringFormat='R²: {0:F4}'}" Style="{StaticResource KlaHeaderValue}" />
-                                        <TextBlock Margin="0,4,0,0" Text="{Binding ReviewRmse, StringFormat='RMSE: {0:F4}'}" Style="{StaticResource CaptionTextStyle}" />
+                                    <StackPanel Grid.Column="1" Margin="2,0">
+                                        <TextBlock Text="Qualidade do Ajuste" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                        <TextBlock Text="{Binding ReviewR2, StringFormat='R²: {0:F4}'}" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
+                                        <TextBlock Margin="0,1,0,0" Text="{Binding ReviewRmse, StringFormat='RMSE: {0:F4}'}" Style="{StaticResource CaptionTextStyle}" FontSize="9.5" />
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Sensibilidade Ceq ± 1%" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBlock Text="{Binding ReviewSensLow, StringFormat={}[{0:F1}; }" Style="{StaticResource KlaHeaderValue}" />
-                                        <TextBlock Text="{Binding ReviewSensHigh, StringFormat={}{0:F1}] h⁻¹}" Style="{StaticResource KlaHeaderValue}" />
+                                    <StackPanel Grid.Column="2" Margin="2,0">
+                                        <TextBlock Text="Sensibilidade Ceq ± 1%" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                        <TextBlock Text="{Binding ReviewSensLow, StringFormat={}[{0:F1}; }" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
+                                        <TextBlock Text="{Binding ReviewSensHigh, StringFormat={}{0:F1}] h⁻¹}" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="3">
-                                        <TextBlock Text="Justificativa / Motivo" Style="{StaticResource KlaHeaderLabel}" />
-                                        <TextBox Text="{Binding ReviewRejectionReason, UpdateSourceTrigger=PropertyChanged}" Height="45" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="3" Margin="2,0">
+                                        <TextBlock Text="Justificativa / Motivo" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                        <TextBox Text="{Binding ReviewRejectionReason, UpdateSourceTrigger=PropertyChanged}" Height="34" FontSize="10" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
                         </Grid>
-
-                        <!-- Drawer Action Buttons -->
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                            <Button Content="Repetir Corrida" Margin="4,0" Command="{Binding RepeatCurrentRunCommand}" />
-                            <Button Content="Rejeitar Corrida" Margin="4,0" Command="{Binding RejectCurrentRunCommand}" />
-                            <Button Content="Aceitar Corrida (Salvar e Avançar)" Margin="4,0" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptCurrentRunCommand}" />
-                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>

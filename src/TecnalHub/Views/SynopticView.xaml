@@ -210,14 +210,14 @@
                                     Padding="5,1" CornerRadius="3" IsHitTestVisible="False"
                                     Background="{DynamicResource SurfaceSunkenBrush}"
                                     BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
-                                    Visibility="{Binding FlowControl.ShowPendingChip, Converter={StaticResource BoolToVis}}">
+                                    Visibility="{Binding FlowControl.ShowPendingChip, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="aguardando" FontSize="10" Foreground="{DynamicResource StateWarningTextBrush}" />
                             </Border>
                             <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
                                     Padding="5,1" CornerRadius="3" IsHitTestVisible="False"
                                     Background="{DynamicResource SurfaceSunkenBrush}"
                                     BorderBrush="{DynamicResource StateAlarmBrush}" BorderThickness="1"
-                                    Visibility="{Binding FlowControl.IsFlowmeterOffline, Converter={StaticResource BoolToVis}}">
+                                    Visibility="{Binding FlowControl.IsFlowmeterOffline, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="desconectado" FontSize="10" Foreground="{DynamicResource StateAlarmTextBrush}" />
                             </Border>
                         </Grid>

@@ -42,7 +42,7 @@
                                Margin="0,4,12,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding AppliedStateText}"
+                    <TextBlock Text="{Binding StateText}"
                                FontWeight="SemiBold"
                                HorizontalAlignment="Right" />
                     <ToggleButton Style="{StaticResource ToggleSwitchStyle}"

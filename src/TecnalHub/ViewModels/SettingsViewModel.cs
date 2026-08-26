@@ -68,7 +68,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("calibration", "Calibração", "Target"),
             new("acquisition", "Aquisição", "Trend"),
             new("units", "Unidades", "Pressure"),
-            new("logging", "Registro e aparência", "EventLog"),
+            new("logging", "Aparência", "Trend"),
             new("backup", "Backup e dados", "File"),
             new("device", "Comandos do equipamento", "Gear"),
         ];
@@ -669,11 +669,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var confirmed = _dialogs.ConfirmDestructive(
+        var confirmed = _dialogs.Confirm(
             "Restaurar Backup",
             "Esta ação restaurará todas as receitas, predefinições e mapas kLa contidos no arquivo de backup. " +
             "Os dados locais existentes serão substituídos. Deseja continuar?",
-            path);
+            confirmText: "Restaurar",
+            cancelText: "Cancelar",
+            isDanger: true);
 
         if (!confirmed)
         {
@@ -742,12 +744,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var confirmed = _dialogs.ConfirmDestructive(
+        var confirmed = _dialogs.Confirm(
             "Alterar Diretório de Trabalho (Workspace)",
             "Atenção: Os dados locais existentes NÃO serão migrados automaticamente.\n\n" +
             "Os arquivos antigos se manterão no diretório antigo e novos dados serão salvos no novo diretório.\n\n" +
             "Deseja selecionar uma nova pasta raiz?",
-            WorkspaceDirectory);
+            confirmText: "Continuar",
+            cancelText: "Cancelar");
 
         if (!confirmed)
         {

@@ -401,10 +401,12 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     private async Task DeleteExperimentAsync()
     {
         if (SelectedExperiment is not { } selected ||
-            !_dialogs.ConfirmDestructive(
+            !_dialogs.Confirm(
                 "Excluir experimento kLa",
                 $"O experimento “{selected.Name}” será removido do disco.",
-                "Nenhum comando será enviado ao equipamento."))
+                confirmText: "Excluir",
+                cancelText: "Cancelar",
+                isDanger: true))
         {
             return;
         }

@@ -248,6 +248,8 @@ public sealed class FlowmeterV05SyncTests
     {
         public bool ConfirmDestructive(string title, string consequence, string exactCommand) => false;
 
+        public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false) => false;
+
         public bool PromptInput(
             string title,
             string message,

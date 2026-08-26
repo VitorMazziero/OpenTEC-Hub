@@ -16,6 +16,22 @@ public sealed class DialogService : IDialogService
         return dialog.ShowDialog() == true;
     }
 
+    public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false)
+    {
+        var dialog = new DestructiveConfirmationDialog(
+            title,
+            message,
+            exactCommand: null,
+            confirmText: confirmText,
+            cancelText: cancelText,
+            isDanger: isDanger)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        return dialog.ShowDialog() == true;
+    }
+
     public bool PromptInput(string title, string message, out string response, string initialValue = "")
     {
         var dialog = new InputDialog(title, message, initialValue)

@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="TecnalHub.Views.ChartsView"
+<UserControl x:Class="TecnalHub.Views.ChartsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:TecnalHub.Converters"
@@ -52,6 +52,15 @@
 
                 <Button Content="{Binding CursorLabel}" Margin="6,0,0,0"
                         Command="{Binding ToggleCursorCommand}" />
+
+                <Button Content="Nova Etapa" Margin="12,0,0,0"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Command="{Binding NewSessionCommand}"
+                        ToolTip="Inicia um novo arquivo de sessão para nova condição de processo e zera a contagem relativa." />
+
+                <Button Content="Marcar Evento" Margin="6,0,0,0"
+                        Command="{Binding AnnotateEventCommand}"
+                        ToolTip="Adiciona uma anotação textual no registro de eventos do processo." />
 
                 <Button Content="Exportar PNG" Margin="12,0,0,0"
                         Click="ExportPng_Click" />

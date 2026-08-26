@@ -1,7 +1,10 @@
 using System.Globalization;
+using System.IO;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TecnalHub.Services.Communication;
+using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Telemetry;
 
@@ -41,13 +44,27 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     private const int ExportPointLimit = 100_000;
 
     private readonly ISettingsService _settings;
+    private readonly IDeviceService? _device;
+    private readonly ISessionLogger? _sessionLogger;
+    private readonly IEventJournal? _journal;
+    private readonly IDialogService? _dialogs;
     private UnitSettings _units;
     private SessionFileData? _loadedSession;
 
-    public ChartsViewModel(ITelemetryHistory history, ISettingsService settings)
+    public ChartsViewModel(
+        ITelemetryHistory history,
+        ISettingsService settings,
+        IDeviceService? device = null,
+        ISessionLogger? sessionLogger = null,
+        IEventJournal? journal = null,
+        IDialogService? dialogs = null)
     {
         History = history;
         _settings = settings;
+        _device = device;
+        _sessionLogger = sessionLogger;
+        _journal = journal;
+        _dialogs = dialogs;
         _units = settings.Current.Units;
 
         Windows =
@@ -326,6 +343,78 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     partial void OnRightChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
 
     partial void OnSelectedWindowChanged(ChartWindow value) => LayoutChanged?.Invoke();
+
+    [RelayCommand]
+    private void NewSession()
+    {
+        if (_dialogs is null || _sessionLogger is null)
+        {
+            return;
+        }
+
+        var defaultName = $"Ensaio_{DateTime.Now:yyyy-MM-dd_HHmm}";
+        if (!_dialogs.PromptInput(
+            "Nova Corrida / Etapa de Processo",
+            "Digite o nome ou rótulo da condição do ensaio (ex: pH_Condicao_A, Ensaio_200rpm):",
+            out var response,
+            defaultName))
+        {
+            return;
+        }
+
+        var cleanName = string.IsNullOrWhiteSpace(response)
+            ? defaultName
+            : string.Join("_", response.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+
+        if (string.IsNullOrWhiteSpace(cleanName))
+        {
+            cleanName = defaultName;
+        }
+
+        var fileName = cleanName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) || cleanName.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase)
+            ? cleanName
+            : $"{cleanName}.txt";
+
+        var path = Path.Combine(AppPaths.SessionsDirectory, fileName);
+
+        _sessionLogger.Stop();
+        _settings.Update(settings => settings with
+        {
+            Logging = settings.Logging with { SessionLogPath = path },
+        });
+        _sessionLogger.Start(path);
+
+        if (_device?.State is Protocol.ConnectionState.Connected)
+        {
+            _device.ZeroSessionTime();
+        }
+
+        _journal?.Add(
+            AuditSource.Application,
+            AuditSeverity.Information,
+            $"Nova corrida/etapa iniciada: {cleanName}",
+            path);
+    }
+
+    [RelayCommand]
+    private void AnnotateEvent()
+    {
+        if (_dialogs is null)
+        {
+            return;
+        }
+
+        if (_dialogs.PromptInput(
+            "Marcar Evento / Anotação",
+            "Digite a descrição do evento de processo (ex: Alteração de pH para 6.8, Agitação 400 rpm):",
+            out var note) && !string.IsNullOrWhiteSpace(note))
+        {
+            _journal?.Add(
+                AuditSource.Application,
+                AuditSeverity.Information,
+                $"[Anotação de Processo] {note.Trim()}");
+        }
+    }
 
     private static string FormatCsvValue(double value)
         => double.IsNaN(value) ? "" : value.ToString("R", CultureInfo.InvariantCulture);

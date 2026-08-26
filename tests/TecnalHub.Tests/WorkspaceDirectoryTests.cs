@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -241,6 +241,14 @@ public sealed class WorkspaceDirectoryTests : IDisposable
             ConfirmCalled = true;
             LastTitle = title;
             LastConsequence = consequence;
+            return ConfirmResult;
+        }
+
+        public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false)
+        {
+            ConfirmCalled = true;
+            LastTitle = title;
+            LastConsequence = message;
             return ConfirmResult;
         }
 

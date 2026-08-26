@@ -10,6 +10,11 @@ public interface IDialogService
     bool ConfirmDestructive(string title, string consequence, string exactCommand);
 
     /// <summary>
+    /// Confirms an action or displays a warning without showing an equipment command box.
+    /// </summary>
+    bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false);
+
+    /// <summary>
     /// Prompts the operator for a text input via a modal dialog window.
     /// </summary>
     bool PromptInput(string title, string message, out string response, string initialValue = "");

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -89,6 +90,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly IThemeService _theme;
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
+    private readonly IDialogService _dialogs;
     private readonly IRecipeEngine _recipeEngine;
     private readonly ILogger<ShellViewModel> _log;
     private readonly IReadOnlyList<CommandPaletteEntry> _commandPaletteCatalog;
@@ -138,6 +140,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _theme = theme;
         _history = history;
         _sessionLogger = sessionLogger;
+        _dialogs = dialogs;
         _log = log;
         Connection = connection;
         Charts = charts;
@@ -972,6 +975,59 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     {
         _device.ZeroSessionTime();
         ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+    }
+
+    /// <summary>
+    /// Starts a named run/step in a new session log file and zeroes the relative time.
+    /// </summary>
+    [RelayCommand]
+    private void StartQuickSession()
+    {
+        var defaultName = $"Ensaio_{DateTime.Now:yyyy-MM-dd_HHmm}";
+        if (!_dialogs.PromptInput(
+            "Nova Corrida / Etapa de Processo",
+            "Digite o nome ou rótulo da condição do ensaio (ex: pH_Condicao_A, Ensaio_200rpm):",
+            out var response,
+            defaultName))
+        {
+            return;
+        }
+
+        var cleanName = string.IsNullOrWhiteSpace(response)
+            ? defaultName
+            : string.Join("_", response.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+
+        if (string.IsNullOrWhiteSpace(cleanName))
+        {
+            cleanName = defaultName;
+        }
+
+        var fileName = cleanName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) || cleanName.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase)
+            ? cleanName
+            : $"{cleanName}.txt";
+
+        var path = Path.Combine(AppPaths.SessionsDirectory, fileName);
+
+        _sessionLogger.Stop();
+        _settings.Update(settings => settings with
+        {
+            Logging = settings.Logging with { SessionLogPath = path },
+        });
+        _sessionLogger.Start(path);
+
+        if (CanZeroSessionTime)
+        {
+            _device.ZeroSessionTime();
+        }
+        ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+
+        Events.Journal.Add(
+            AuditSource.Application,
+            AuditSeverity.Information,
+            $"Nova corrida/etapa iniciada: {cleanName}",
+            path);
+
+        _log.LogInformation("Nova corrida/etapa iniciada com sucesso em {Path}", path);
     }
 
     /// <summary>

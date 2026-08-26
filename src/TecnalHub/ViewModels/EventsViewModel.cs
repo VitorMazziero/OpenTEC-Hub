@@ -62,6 +62,8 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
     private long _clearedThroughSequence;
     private bool _filtersReady;
 
+    public IEventJournal Journal => _journal;
+
     public EventsViewModel(
         IEventJournal journal,
         ISessionLogger sessionLogger,

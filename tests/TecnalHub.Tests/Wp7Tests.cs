@@ -232,6 +232,11 @@ public sealed class Wp7Tests
             return ConfirmResult;
         }
 
+        public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false)
+        {
+            return ConfirmResult;
+        }
+
         public bool PromptInput(string title, string message, out string response, string initialValue = "")
         {
             response = "";

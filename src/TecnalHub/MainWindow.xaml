@@ -213,6 +213,14 @@
                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Command="{Binding ZeroSessionTimeCommand}"
                             ToolTip="Zera o tempo da sessão (deslocamento local; não altera o relógio do equipamento nem os dados já gravados)." />
+                    <Button Content="Nova Etapa / Corrida"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Margin="8,0,0,0" Padding="8,2"
+                            FontSize="{DynamicResource FontSizeCaption}"
+                            VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                            Command="{Binding StartQuickSessionCommand}"
+                            ToolTip="Inicia uma nova etapa de ensaio com nome personalizado em um novo arquivo e zera o tempo do processo." />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">

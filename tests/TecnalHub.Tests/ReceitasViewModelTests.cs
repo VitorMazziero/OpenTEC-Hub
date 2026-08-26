@@ -20,7 +20,7 @@ public sealed class ReceitasViewModelTests
         public TimeSpan Elapsed => TimeSpan.Zero;
         public Task Completion => Task.CompletedTask;
         public bool CanStart(RecipeDocument recipe, out string? reason) { reason = null; return true; }
-        public Task StartAsync(RecipeDocument recipe, CancellationToken ct = default) => Task.CompletedTask;
+        public Task StartAsync(RecipeDocument recipe, bool resetLoopsBeforeStart = false, CancellationToken ct = default) => Task.CompletedTask;
         public void Pause() { }
         public void Resume() { }
         public Task StopAsync(string reason) => Task.CompletedTask;

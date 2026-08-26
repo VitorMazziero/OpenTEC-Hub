@@ -355,12 +355,24 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
             return;
         }
 
+        var resetLoops = false;
+        if (_dialogs is not null)
+        {
+            var choice = _dialogs.PromptRecipeStart(tab.Document.Name);
+            if (choice == RecipeStartOption.Cancel)
+            {
+                return;
+            }
+
+            resetLoops = choice == RecipeStartOption.ResetAndStart;
+        }
+
         Log.Clear();
         tab.ResetExecutionState();
         _runningTab = tab;
         try
         {
-            await _engine.StartAsync(tab.Document);
+            await _engine.StartAsync(tab.Document, resetLoopsBeforeStart: resetLoops);
             _elapsedTimer.Start();
         }
         catch (InvalidOperationException ex)

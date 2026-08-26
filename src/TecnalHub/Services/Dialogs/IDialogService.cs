@@ -1,5 +1,12 @@
 namespace TecnalHub.Services.Dialogs;
 
+public enum RecipeStartOption
+{
+    Cancel,
+    ResetAndStart,
+    StartPreserving,
+}
+
 /// <summary>Operator dialogs used by view-models.</summary>
 public interface IDialogService
 {
@@ -18,4 +25,9 @@ public interface IDialogService
     /// Prompts the operator for a text input via a modal dialog window.
     /// </summary>
     bool PromptInput(string title, string message, out string response, string initialValue = "");
+
+    /// <summary>
+    /// Prompts the operator to choose how a recipe should start (reset loops vs start preserving current state).
+    /// </summary>
+    RecipeStartOption PromptRecipeStart(string recipeName);
 }

@@ -105,7 +105,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         return true;
     }
 
-    public async Task StartAsync(RecipeDocument recipe, CancellationToken cancellationToken = default)
+    public async Task StartAsync(RecipeDocument recipe, bool resetLoopsBeforeStart = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(recipe);
 
@@ -132,6 +132,17 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
         // Claiming every actuator is what deactivates manual control (§5.3.3 / WP4 point 3).
         ClaimAllActuators($"receita '{recipe.Name}' iniciada");
+
+        if (resetLoopsBeforeStart)
+        {
+            var maxFlow = _settings.Current.Setpoints.MaxFlowLitresPerMinute;
+            var stop = CommandBuilders.CoreSafeStop(maxFlow)
+                .Set(CommandKeys.PHIntensity, 0.0)
+                .Set(CommandKeys.NutriIntensity, 0.0)
+                .Set(CommandKeys.AntifoamIntensity, 0.0);
+            _arbiter.Dispatch(CommandOwner.Recipe, stop);
+        }
+
         SetState(RecipeRunState.Running);
         Log(RecipeLogSeverity.Info, $"Receita '{recipe.Name}' iniciada.");
 

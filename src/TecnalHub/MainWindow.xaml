@@ -425,9 +425,7 @@
                  parse time. -->
             <DockPanel>
 
-            <!-- ══ Rail footer: command ownership ══
-                 Load-bearing, not decoration. One command queue, one owner: a running
-                 recipe and an operator must never be able to fight over the link. -->
+            <!-- ══ Rail footer: Active Session Name ══ -->
             <Border DockPanel.Dock="Bottom"
                     BorderBrush="{DynamicResource StrokeSubtleBrush}"
                     BorderThickness="0,1,0,0"
@@ -436,24 +434,21 @@
                                          Converter={StaticResource BoolToVis},
                                          ConverterParameter=Invert}">
                 <StackPanel>
-                    <TextBlock Text="Modo" Style="{StaticResource CaptionTextStyle}" />
-                    <ComboBox Margin="0,4,0,0"
-                              ItemsSource="{Binding ModeOptions}"
-                              SelectedItem="{Binding SelectedMode, Mode=TwoWay}">
-                        <ComboBox.ItemContainerStyle>
-                            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
-                                <!-- Disabled with the reason, never hidden: the model the
-                                     application is built around should be visible from
-                                     the start. -->
-                                <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
-                                <Setter Property="ToolTip" Value="{Binding UnavailableReason}" />
-                            </Style>
-                        </ComboBox.ItemContainerStyle>
-                    </ComboBox>
-                    <TextBlock Text="{Binding ModeDetail}"
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <ctl:Icon Key="File" Size="14" Margin="0,0,6,0" Stroke="{DynamicResource TextSecondaryBrush}" />
+                        <TextBlock Text="Nome da Sessão" Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                    <TextBox Text="{Binding ActiveSessionName, UpdateSourceTrigger=LostFocus}"
+                             ToolTip="Nome da sessão gravada em Sessoes/. Pressione Enter para aplicar."
+                             AutomationProperties.Name="Nome da Sessão Ativa">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding UpdateActiveSessionNameCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <TextBlock Text="{Binding LoggingSummary}"
                                Style="{StaticResource CaptionTextStyle}"
                                Foreground="{DynamicResource TextMutedBrush}"
-                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
                                Margin="0,6,0,0" />
                 </StackPanel>
             </Border>

@@ -193,6 +193,24 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         Assert.Contains(Path.Combine(workspace, "Receitas"), savedRecipePath);
     }
 
+    [Fact]
+    public void FormatSessionFileName_Appends_Timestamp_Chronologically()
+    {
+        var fixedTime = new DateTime(2026, 8, 26, 18, 30, 0);
+
+        // Null / Empty gives Ensaio_YYYY-MM-DD_HHmm.txt
+        Assert.Equal("Ensaio_2026-08-26_1830.txt", AppPaths.FormatSessionFileName(null, fixedTime));
+        Assert.Equal("Ensaio_2026-08-26_1830.txt", AppPaths.FormatSessionFileName("", fixedTime));
+
+        // Custom name without timestamp gets timestamp appended
+        Assert.Equal("Condicao_A_2026-08-26_1830.txt", AppPaths.FormatSessionFileName("Condicao_A", fixedTime));
+        Assert.Equal("Ensaio_500rpm_2026-08-26_1830.txt", AppPaths.FormatSessionFileName("Ensaio_500rpm", fixedTime));
+
+        // Name with existing timestamp does not duplicate it
+        Assert.Equal("Ensaio_2026-08-26_1830.txt", AppPaths.FormatSessionFileName("Ensaio_2026-08-26_1830", fixedTime));
+        Assert.Equal("Condicao_A_2026-08-26_1830.txt", AppPaths.FormatSessionFileName("Condicao_A_2026-08-26_1830.txt", fixedTime));
+    }
+
     private static (SettingsViewModel vm, MockDialogService dialogs, MockFileInteraction files) CreateSettingsViewModel()
     {
         var settingsService = new MemorySettingsService(new AppSettings());
@@ -257,6 +275,8 @@ public sealed class WorkspaceDirectoryTests : IDisposable
             response = initialValue;
             return true;
         }
+
+        public TecnalHub.Services.Dialogs.RecipeStartOption PromptRecipeStart(string recipeName) => TecnalHub.Services.Dialogs.RecipeStartOption.StartPreserving;
     }
 
     private sealed class MockFileInteraction : IFileInteractionService

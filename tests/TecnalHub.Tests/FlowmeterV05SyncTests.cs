@@ -259,5 +259,7 @@ public sealed class FlowmeterV05SyncTests
             response = initialValue;
             return false;
         }
+
+        public TecnalHub.Services.Dialogs.RecipeStartOption PromptRecipeStart(string recipeName) => TecnalHub.Services.Dialogs.RecipeStartOption.StartPreserving;
     }
 }

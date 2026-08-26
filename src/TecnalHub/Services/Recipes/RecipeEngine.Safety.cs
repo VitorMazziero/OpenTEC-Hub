@@ -19,26 +19,10 @@ public sealed partial class RecipeEngine
         => _arbiter.Claim(CommandOwner.Recipe, CommandActuators.All, reason);
 
     /// <summary>
-    /// Safe-stops the subsystems the recipe could have driven, then returns every actuator it still
-    /// holds to Manual. Resilient: if a safe-abort already revoked ownership, the stop frame is
-    /// simply refused and the release is a no-op.
+    /// Returns every actuator the recipe holds back to Manual without altering what the recipe configured.
     /// </summary>
     private void SafeStopAndRelease(string reason)
     {
-        var maxFlow = _settings.Current.Setpoints.MaxFlowLitresPerMinute;
-
-        // Core loop safe-stop (temp/motor/oxygen/flow/pressure) plus dosing pumps to zero
-        // intensity. Sent as one frame; the arbiter refuses harmlessly if we no longer own it.
-        var stop = CommandBuilders.CoreSafeStop(maxFlow)
-            .Set(CommandKeys.PHIntensity, 0.0)
-            .Set(CommandKeys.NutriIntensity, 0.0)
-            .Set(CommandKeys.AntifoamIntensity, 0.0);
-
-        if (_arbiter.OwnerOf(ActuatorId.Temperature) == CommandOwner.Recipe)
-        {
-            _arbiter.Dispatch(CommandOwner.Recipe, stop);
-        }
-
         _arbiter.Release(CommandOwner.Recipe, reason);
     }
 }

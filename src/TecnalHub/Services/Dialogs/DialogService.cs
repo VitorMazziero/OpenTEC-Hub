@@ -48,4 +48,14 @@ public sealed class DialogService : IDialogService
         response = "";
         return false;
     }
+
+    public RecipeStartOption PromptRecipeStart(string recipeName)
+    {
+        var dialog = new StartRecipeDialog(recipeName)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        return dialog.ShowDialog() == true ? dialog.Result : RecipeStartOption.Cancel;
+    }
 }

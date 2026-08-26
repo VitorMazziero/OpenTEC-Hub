@@ -242,6 +242,8 @@ public sealed class Wp7Tests
             response = "";
             return false;
         }
+
+        public TecnalHub.Services.Dialogs.RecipeStartOption PromptRecipeStart(string recipeName) => TecnalHub.Services.Dialogs.RecipeStartOption.StartPreserving;
     }
 
     private sealed class RecordingSessionLogger : ISessionLogger

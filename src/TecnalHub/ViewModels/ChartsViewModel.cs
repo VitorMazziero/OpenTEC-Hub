@@ -352,30 +352,19 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var defaultName = $"Ensaio_{DateTime.Now:yyyy-MM-dd_HHmm}";
+        var defaultPrefix = "Ensaio";
         if (!_dialogs.PromptInput(
             "Nova Corrida / Etapa de Processo",
             "Digite o nome ou rótulo do ensaio / etapa:",
             out var response,
-            defaultName))
+            defaultPrefix))
         {
             return;
         }
 
-        var cleanName = string.IsNullOrWhiteSpace(response)
-            ? defaultName
-            : string.Join("_", response.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-
-        if (string.IsNullOrWhiteSpace(cleanName))
-        {
-            cleanName = defaultName;
-        }
-
-        var fileName = cleanName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) || cleanName.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase)
-            ? cleanName
-            : $"{cleanName}.txt";
-
+        var fileName = AppPaths.FormatSessionFileName(response);
         var path = Path.Combine(AppPaths.SessionsDirectory, fileName);
+        var cleanName = Path.GetFileNameWithoutExtension(path);
 
         _sessionLogger.Stop();
         _settings.Update(settings => settings with

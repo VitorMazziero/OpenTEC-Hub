@@ -72,7 +72,7 @@ public interface IRecipeEngine : IDisposable
     bool CanStart(RecipeDocument recipe, out string? reason);
 
     /// <summary>Validates, claims every actuator and begins executing the recipe.</summary>
-    Task StartAsync(RecipeDocument recipe, CancellationToken cancellationToken = default);
+    Task StartAsync(RecipeDocument recipe, bool resetLoopsBeforeStart = false, CancellationToken cancellationToken = default);
 
     /// <summary>Pauses execution between blocks. In-flight actuation continues holding.</summary>
     void Pause();

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Control;
 
@@ -1056,5 +1057,42 @@ public static class AppPaths
         {
             // Ignore bootstrap write failure
         }
+    }
+
+    /// <summary>
+    /// Formats a session file name ensuring it incorporates a timestamp suffix (_yyyy-MM-dd_HHmm)
+    /// for clear chronological ordering.
+    /// </summary>
+    public static string FormatSessionFileName(string? rawName, DateTime? timestamp = null)
+    {
+        var time = timestamp ?? DateTime.Now;
+        var timeSuffix = time.ToString("yyyy-MM-dd_HHmm");
+
+        if (string.IsNullOrWhiteSpace(rawName))
+        {
+            return $"Ensaio_{timeSuffix}.txt";
+        }
+
+        var clean = string.Join("_", rawName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+        if (clean.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = clean[..^4];
+        }
+        else if (clean.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = clean[..^4];
+        }
+
+        if (string.IsNullOrWhiteSpace(clean))
+        {
+            return $"Ensaio_{timeSuffix}.txt";
+        }
+
+        if (Regex.IsMatch(clean, @"\d{4}-\d{2}-\d{2}_\d{4}"))
+        {
+            return $"{clean}.txt";
+        }
+
+        return $"{clean}_{timeSuffix}.txt";
     }
 }

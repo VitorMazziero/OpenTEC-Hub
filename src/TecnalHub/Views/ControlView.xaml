@@ -86,10 +86,27 @@
                        FontFamily="{DynamicResource FontDisplay}"
                        FontSize="{DynamicResource FontSizeTitle}"
                        FontWeight="SemiBold" />
+
+            <!-- Recipe Running Lockout Banner -->
+            <Border Visibility="{Binding IsRecipeRunning, Converter={StaticResource BoolToVis}}"
+                    Background="{DynamicResource StateWarningBrush}"
+                    BorderBrush="{DynamicResource StateWarningTextBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Padding="16,10"
+                    Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ctl:Icon Key="NodeGraph" Size="20" Margin="0,0,10,0" Stroke="{DynamicResource StateWarningTextBrush}" />
+                    <TextBlock Text="{Binding RecipeRunningNotice}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource StateWarningTextBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!-- Main Body -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" IsEnabled="{Binding IsManualOperationEnabled}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />

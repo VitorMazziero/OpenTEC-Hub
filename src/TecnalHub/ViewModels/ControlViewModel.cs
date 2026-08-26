@@ -210,10 +210,29 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             Presets.Add(preset);
         }
 
+        Receitas = receitas;
+        if (receitas is not null)
+        {
+            receitas.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(ReceitasViewModel.IsRunning) or nameof(ReceitasViewModel.RunState))
+                {
+                    OnPropertyChanged(nameof(IsRecipeRunning));
+                    OnPropertyChanged(nameof(IsManualOperationEnabled));
+                    OnPropertyChanged(nameof(RecipeRunningNotice));
+                }
+            };
+        }
+
         SelectedPreset = Presets.FirstOrDefault();
         RefreshState();
         OnCascadeUpdated();
     }
+
+    public ReceitasViewModel? Receitas { get; }
+    public bool IsRecipeRunning => Receitas?.IsRunning ?? false;
+    public bool IsManualOperationEnabled => !IsRecipeRunning;
+    public string RecipeRunningNotice => $"Receita em execução ({Receitas?.StatusText}) — Todas as entradas manuais que enviam comandos ao biorreator estão bloqueadas pela automação.";
 
     public IReadOnlyList<ControlParameterRowViewModel> Rows { get; }
 

@@ -403,5 +403,11 @@ public sealed class ControlViewModelTests
             response = PromptResponse;
             return PromptResult;
         }
+
+        public TecnalHub.Services.Dialogs.RecipeStartOption PromptRecipeStart(string recipeName)
+        {
+            Calls++;
+            return TecnalHub.Services.Dialogs.RecipeStartOption.StartPreserving;
+        }
     }
 }

@@ -299,8 +299,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             ? settings.Current.Ui.LastPage
             : "dashboard";
 
-        SelectedMode = ModeOptions[0];
-
         // Pinned set: what the operator last chose, else every variable this phase has.
         var pinned = settings.Current.Ui.PinnedKpis;
         foreach (var id in OrderedIds(pinned))
@@ -326,6 +324,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _settings.Changed += OnSettingsChanged;
         _sessionLogger.StatusChanged += OnSessionStatusChanged;
         Historical.OpenGraphsRequested += OnOpenGraphsRequested;
+
+        var sessionPath = settings.Current.Logging.SessionLogPath;
+        if (string.IsNullOrWhiteSpace(sessionPath) || !File.Exists(sessionPath))
+        {
+            var initialFileName = AppPaths.FormatSessionFileName(null);
+            sessionPath = Path.Combine(AppPaths.SessionsDirectory, initialFileName);
+            settings.Update(s => s with
+            {
+                Logging = s.Logging with { SessionLogPath = sessionPath }
+            });
+        }
+        _sessionLogger.Start(sessionPath);
+        _activeSessionName = Path.GetFileNameWithoutExtension(sessionPath);
 
         // 1 Hz: fast enough to notice a stalled link within one emission period, slow
         // enough to cost nothing. The device emits every 2 s.
@@ -424,28 +435,40 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<CommandPaletteEntry> CommandPaletteResults { get; } = [];
 
-    // ── Command ownership ────────────────────────────────────────────────────
-
-    /// <summary>Owners offered by the rail footer, including the ones not yet built.</summary>
-    public IReadOnlyList<CommandOwnerOption> ModeOptions { get; } =
-    [
-        new(CommandOwner.Manual, "Manual", null),
-        new(CommandOwner.Automatic, "Automático",
-            "A cascata chega na Fase 2. Sem ela, nada além do operador pode escrever setpoints."),
-        new(CommandOwner.Recipe, "Receita", null),
-    ];
-
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ModeDetail))]
-    public partial CommandOwnerOption SelectedMode { get; set; }
+    private string _activeSessionName = "";
 
-    /// <summary>What the current owner is actually doing, or an em dash.</summary>
-    public string ModeDetail => SelectedMode.Owner switch
+    [RelayCommand]
+    private void UpdateActiveSessionName()
     {
-        CommandOwner.Automatic => "Cascata kLa ativa",
-        CommandOwner.Recipe => RecipeName is { Length: > 0 } name ? name : "Receita em execução",
-        _ => "Operador no comando",
-    };
+        if (string.IsNullOrWhiteSpace(ActiveSessionName))
+        {
+            ActiveSessionName = Path.GetFileNameWithoutExtension(_sessionLogger.CurrentPath) ?? Path.GetFileNameWithoutExtension(AppPaths.FormatSessionFileName(null));
+            return;
+        }
+
+        var fileName = AppPaths.FormatSessionFileName(ActiveSessionName);
+        var path = Path.Combine(AppPaths.SessionsDirectory, fileName);
+
+        if (string.Equals(_sessionLogger.CurrentPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _sessionLogger.Stop();
+        _settings.Update(s => s with
+        {
+            Logging = s.Logging with { SessionLogPath = path }
+        });
+        _sessionLogger.Start(path);
+        ActiveSessionName = Path.GetFileNameWithoutExtension(path);
+
+        Events.Journal.Add(
+            AuditSource.Application,
+            AuditSeverity.Information,
+            $"Sessão alterada para: {ActiveSessionName}",
+            path);
+    }
 
     // ── KPI strip configuration ──────────────────────────────────────────────
 
@@ -509,9 +532,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     // ── Status bar ───────────────────────────────────────────────────────────
 
-    /// <summary>Running recipe. Phase 3; an em dash until then.</summary>
+    /// <summary>Running recipe.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ModeDetail))]
     public partial string RecipeName { get; set; } = "—";
 
     [ObservableProperty]
@@ -983,30 +1005,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void StartQuickSession()
     {
-        var defaultName = $"Ensaio_{DateTime.Now:yyyy-MM-dd_HHmm}";
+        var defaultPrefix = "Ensaio";
         if (!_dialogs.PromptInput(
             "Nova Corrida / Etapa de Processo",
             "Digite o nome ou rótulo do ensaio / etapa:",
             out var response,
-            defaultName))
+            defaultPrefix))
         {
             return;
         }
 
-        var cleanName = string.IsNullOrWhiteSpace(response)
-            ? defaultName
-            : string.Join("_", response.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-
-        if (string.IsNullOrWhiteSpace(cleanName))
-        {
-            cleanName = defaultName;
-        }
-
-        var fileName = cleanName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) || cleanName.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase)
-            ? cleanName
-            : $"{cleanName}.txt";
-
+        var fileName = AppPaths.FormatSessionFileName(response);
         var path = Path.Combine(AppPaths.SessionsDirectory, fileName);
+        var cleanName = Path.GetFileNameWithoutExtension(path);
 
         _sessionLogger.Stop();
         _settings.Update(settings => settings with
@@ -1148,12 +1159,38 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         ApplyUnits(_appliedUnits);
     }
 
-    private void OnSessionStatusChanged() => OnPropertyChanged(nameof(LoggingSummary));
+    private void OnSessionStatusChanged()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            ApplySessionStatus();
+        }
+        else
+        {
+            dispatcher.BeginInvoke(ApplySessionStatus);
+        }
+    }
+
+    private void ApplySessionStatus()
+    {
+        OnPropertyChanged(nameof(LoggingSummary));
+        if (!string.IsNullOrWhiteSpace(_sessionLogger.CurrentPath))
+        {
+            var name = Path.GetFileNameWithoutExtension(_sessionLogger.CurrentPath);
+            if (!string.Equals(ActiveSessionName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                ActiveSessionName = name;
+            }
+        }
+    }
+
+    public bool IsRecipeRunning => _recipeEngine?.State is RecipeRunState.Running or RecipeRunState.Paused;
+    public bool IsManualOperationEnabled => !IsRecipeRunning;
 
     /// <summary>
-    /// Reflects the recipe engine's run state onto the shell: while a recipe runs it owns the wire,
-    /// so Modo shows Receita and the status bar names the recipe. Marshalled to the UI thread,
-    /// because the engine raises this from its background run task.
+    /// Reflects the recipe engine's run state onto the shell: while a recipe runs it owns the wire.
+    /// Marshalled to the UI thread, because the engine raises this from its background run task.
     /// </summary>
     private void OnRecipeStateChanged()
     {
@@ -1170,11 +1207,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     private void ApplyRecipeState()
     {
-        var running = _recipeEngine.State is RecipeRunState.Running or RecipeRunState.Paused;
-        RecipeName = running ? _recipeEngine.Current?.Name ?? "Receita" : "—";
-        SelectedMode = running
-            ? ModeOptions.First(m => m.Owner == CommandOwner.Recipe)
-            : ModeOptions.First(m => m.Owner == CommandOwner.Manual);
+        var running = IsRecipeRunning;
+        RecipeName = running ? _recipeEngine?.Current?.Name ?? "Receita" : "—";
+        OnPropertyChanged(nameof(IsRecipeRunning));
+        OnPropertyChanged(nameof(IsManualOperationEnabled));
     }
 
     private void ApplyUnits(UnitSettings units)

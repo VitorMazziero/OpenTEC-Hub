@@ -7,30 +7,14 @@ C# / WPF on .NET 10, rebuilding the working Python application at
 `_Wifi Hub/Software/_Windows App/v.6` — faster to start, with a UI that scales to the
 full instrument, and without ever changing the firmware protocol.
 
-> **Status:** v0.17.0 — Phase 1 and Phase 1b are software-complete, and **Phase 2 is under
-> way**. WP1 landed the cascade controller core — velocity-form PID, prediction horizon,
-> least-squares rate estimation and actuator-window allocation — as pure, headlessly
-> validated math against a simulated DOT plant with dead time. WP2 wires it into the
-> `Controle → Cascata e sintonia` tuning workspace in an **advisory** role: it computes
-> against live oxygen telemetry and is tunable on screen, but does not actuate. WP3 adds
-> the complete five-field pH dosing state and guided pH, oxygen and airflow calibration,
-> including the pH safe-stop interlock and the app-to-module `pHCal` display echo. **WP4
-> part 1** opens the P0 safety kernel: one `CommandArbiter` now owns the wire, with
-> per-actuator ownership, an honest command lifecycle, safe abort on link loss and the
-> operator session clock. **WP4 part 2** completes the safety-kernel alarm gate: the six
-> system alarms latch, are acknowledgeable and journalled, and sound an audible indication
-> under a timed silence, surfaced by a shell alarm banner. **WP5** adds the dedicated
-> `Mapeamento kLa` workspace, which estimates `kLa(Q_g,N)` from operator-entered
-> measurements, reproduces the paper's normalized gradient/headroom search, and publishes a
-> reviewed, immutable allocation receipt. It ships no production surface and never sends a
-> device command. **WP6 part 1** then took the cascade live: with the alarm gate closed, it
-> replaces the linear allocator with the published kLa path, claims the oxygen actuators through
-> the arbiter and actuates — three operator modes, a bumpless engage, an integral reset, and a
-> safe abort on stale oxygen, link loss or a loss of ownership. **WP6 part 2** then made the loop
-> observable — the oxygen `Cascata`/`PID`/`Saída` detail tabs and a live PV/SP/kLa/output tuning
-> chart — completing WP6. Field actuation on a real bioreactor remains the hardware gate. USB and Wi-Fi were validated against a real ESP32-S3; live-sensor and
-> full-cultivation validation still need the bioreactor and remain the hardware gate. v.6
-> remains the production application until TECNAL-Hub has completed a full cultivation run.
+> **Status:** v0.24.0. The application core now includes the Phase 1/1b shell, manual control,
+> safety/alarm kernel, kLa mapping, live oxygen cascade, conditional OUR and gain scheduling,
+> cultivation auxiliaries, biomass, the external pump and the Receitas editor/engine. The
+> 2026-08-26 post-merge audit classifies it as **feature-complete but not field-release-ready**:
+> active-recipe safe-stop and ownership-feedback defects must be fixed before the planned
+> v0.25.0 stabilization/UI-polish release. Real-hardware parity, a full cultivation, packaging
+> and operator validation remain open. v.6 stays installed as the production fallback. See
+> [CURRENT_STATUS.md](docs/CURRENT_STATUS.md) for evidence, findings and the release plan.
 
 ---
 
@@ -40,6 +24,7 @@ Read in this order:
 
 | Document | What it covers |
 |---|---|
+| [CURRENT_STATUS.md](docs/CURRENT_STATUS.md) | **Current audited state.** Release posture, defects, verification evidence and the v0.25.0 stabilization plan |
 | [ROADMAP.md](docs/ROADMAP.md) | **Start here.** Phases, scope per phase, non-functional targets, what is deferred |
 | [PROTOCOL.md](docs/PROTOCOL.md) | The frozen ESP32-S3 wire contract. Every key, unit, range and timing constant |
 | [CALIBRATION.md](docs/CALIBRATION.md) | Calibration ownership, pH/O₂/airflow procedures, interlocks and refusal states |

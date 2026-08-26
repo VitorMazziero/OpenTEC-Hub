@@ -1268,7 +1268,7 @@ standing bioreactor gate. This closes the Phase 2 software scope.
 
 **Decided:** build Receitas — the graphical experimental-protocol editor — in three tested parts
 (domain, engine, page) on one feature branch, porting ReceitasTECNAL's node graph, validator and
-engine slicing while re-targeting everything to the ESP32-S3. See [D-021](DECISIONS.md).
+engine slicing while re-targeting everything to the ESP32-S3. See [D-023](DECISIONS.md).
 
 **Starting a recipe is what deactivates manual control.** The engine drives the same
 `ICommandArbiter` as the operator, under `CommandOwner.Recipe`. On start it **claims every
@@ -1405,3 +1405,32 @@ unaffected; pump actuation and the proportional flow ride the bioreactor gate.
 **Boundary — synoptic placement.** The biomass and pump tags were added to the reactor drawing at
 reasonable anchors, but their exact positions want a live visual review against the render, exactly as
 the Phase 1 equipment asset was validated with evidence screenshots.
+
+---
+
+### P3-05 · Post-merge integration and release audit
+
+**Audited 2026-08-26:** `main` at `846a0f5` contains both sides of the history that diverged at
+`codex/v6-parity-roadmap`: the Receitas/cascade line and the biomass/external-pump line. The working
+tree was clean and every listed `codex/*` branch was already merged into `main`. The authoritative
+version remains **0.24.0**; **0.25.0** is the next gated stabilization/UI-polish milestone.
+
+**Verification evidence:** Release tests passed **499/500** (499 passed, one hosted-WPF theme test
+skipped); the package vulnerability scan reported no known vulnerable packages. Two Release startup
+smoke runs reached the first frame without a logged binding failure, fatal exception or unhandled
+exception. First-frame time was not stable, however: 1.788 s and 6.011 s against the `< 2 s` target.
+The build retains the transitive `SkiaSharp.Views.WPF 3.119.0` `NU1701` compatibility warning, and
+`dotnet format --verify-no-changes --no-restore` does not yet pass.
+
+**Release-blocking correction to the earlier ownership claim:** a recipe does claim every actuator
+and the arbiter refuses conflicting Manual frames, but the Controle surfaces do not currently expose
+that ownership as a visible disabled/read-only state. More seriously, the global safe-stop is sent as
+a Manual combined frame; while Recipe owns the wire, the arbiter atomically refuses it, the `void`
+adapter hides the result, and `ControlViewModel` still commits a stopped UI and reports success. This
+is a P0 release blocker, not completed safe-stop behavior.
+
+**Merged-feature findings:** rejected manual dispatches are generally not observable to view-models;
+the external pump records a proportional-gas target as sent even when the cascade refuses it; and
+biomass threshold fields invoke their explicit atomic apply command on generic text-box focus loss.
+These corrections, dependency/build cleanup, the full UI matrix, hardware receipts and packaging are
+specified with acceptance gates in [CURRENT_STATUS.md](CURRENT_STATUS.md).

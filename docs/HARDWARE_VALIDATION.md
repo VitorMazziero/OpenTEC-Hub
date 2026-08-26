@@ -186,6 +186,25 @@ manuscript's *B. subtilis* / *Serratia* conditions for a direct comparison.
 
 ---
 
+## Block H — Biomass, external pump and Receitas ownership (Phase 3)
+
+**Goal:** close the merged Phase 3 hardware behavior and prove that the recipe owner, manual UI and
+global safety action agree about what reached the wire.
+
+**Prerequisites:** Blocks A–D passed. Biomass probe and external pump connected; a short validated
+recipe that actuates at least one core actuator and one dosing/pump path.
+
+| # | Test | Pass criteria |
+|---|---|---|
+| H-1 | **Biomass procedure** | Enable → blank → start → stop and low/high/optimal thresholds reach the firmware exactly; live raw/Abs/IT/PWM update; focus loss alone does not send staged thresholds |
+| H-2 | **External-pump profiles** | Constant, linear, exponential, polynomial and piecewise frames match the preview and physical flow/accumulated volume within the agreed tolerance |
+| H-3 | **Proportional gas** | `Q_g=(V_0+V_p)·vvm` reaches aeration when Manual owns it; a cascade-owned refusal is shown honestly and the unchanged target retries after ownership returns |
+| H-4 | **Recipe UI ownership** | Starting a recipe visibly disables every conflicting manual editor/action with `receita` provenance; stopping/aborting restores it without losing staged values |
+| H-5 | **Global safe-stop during Recipe** | Pressing `Parada segura` during an active recipe produces one accepted safe frame under valid ownership, stops the recipe, returns owners to Manual and never reports success after refusal/failure |
+| H-6 | **Recipe pump mapping** | Pump-block fields, the external-pump target and vvm→L/min coupling actuate the intended physical subsystem with captured command/event receipts |
+
+---
+
 ## What the simulator already covered (so hardware can skip re-proving it)
 
 The device simulator ([SIMULATOR.md](SIMULATOR.md)) already exercised, headlessly and against a
@@ -204,5 +223,6 @@ electrical actuation, the real sensors, the timing and the audio**, which no sim
 2. **Block C (core-loop cultivation)** — the Phase 1 exit; earns closing v.6.
 3. **Block E (cascade DOT tracking vs v.6)** — the scientific gate the paper depends on.
 4. **Block D (safety on a real link loss + audio)** — required before trusting automatic control.
-5. **Blocks F, G, and A-6/A-7/A-8** — the remaining auxiliaries, the OUR/scheduling field tuning,
+5. **Block H** — the merged Phase 3 devices and Recipe/global-stop ownership boundary.
+6. **Blocks F, G, and A-6/A-7/A-8** — the remaining auxiliaries, the OUR/scheduling field tuning,
    and the last link-hygiene items.

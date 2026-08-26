@@ -1005,7 +1005,10 @@ because the control is the process action:
 | `Status:` | state chip | `● Parado` · `● Executando` · `● Pausado` · `● Falhou` |
 | `Tempo:` | tabular readout | `00:00:00` |
 
-Starting switches `Modo` to `Receita` and disables the manual controls the recipe owns.
+Starting switches `Modo` to `Receita` and **must visibly disable** every manual control the recipe
+owns, with `receita` provenance and a reason. The arbiter already refuses conflicting frames, but the
+2026-08-26 audit found that this read-only/disabled UI state is not yet implemented; see AUD-002 in
+[CURRENT_STATUS.md](CURRENT_STATUS.md).
 
 #### 5.3.4 Recipe tabs
 

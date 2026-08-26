@@ -1,10 +1,16 @@
 # TECNAL-Hub — Build Roadmap
 
-> **Version:** 0.22.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-22
+> **Version:** 0.24.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-26
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
 > without ever losing a working link to the ESP32-S3.
 >
-> **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md) · [Conventions](CONVENTIONS.md)
+> **Docs:** [Current status](CURRENT_STATUS.md) · [README](README.md) · [Architecture](ARCHITECTURE.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md) · [Conventions](CONVENTIONS.md)
+
+> **Audited status — 2026-08-26.** The core feature inventory is built on `main` at v0.24.0,
+> including both Receitas/cascade and biomass/external-pump histories. The next milestone is
+> v0.25.0 stabilization and UI polish, not a new subsystem phase. Two P0 ownership/safe-stop
+> defects block a field release; hardware parity, full cultivation and packaging also remain
+> open. See [CURRENT_STATUS.md](CURRENT_STATUS.md) for evidence, findings and exit gates.
 
 ---
 
@@ -49,7 +55,7 @@ Every phase is measured against these. They are acceptance criteria, not aspirat
 
 ---
 
-## Remaining v.6 parity — priority order *(audit 2026-08-20)*
+## Remaining v.6 parity — priority order *(updated audit 2026-08-26)*
 
 The communication contract, the Phase 1 core loop, dual graphs, persistence, pH control
 and the pH/O₂/airflow procedures are already present. The following list is the remaining
@@ -60,14 +66,14 @@ and dependency, not on implementation size.
 |---|---|---|---|
 | **P0** | Field protocol closure: captured byte comparison, live-sensor/calibration run, command acknowledgement timing, safe COM discovery and configured Wi-Fi poll period | Partial; software/simulator complete, hardware gate open | Phase 0 follow-ups + Phase 2 WP4 |
 | **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | **Done (WP4):** six latching system alarms with deadband, acknowledgement, timed audible silence, journal and a shell banner; session-time zero. Full Alarmes page is Phase 5 | Phase 2 WP4 |
-| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and later `Receita`, including safe abort on link/feedback loss | **Done (WP4 part 1):** per-actuator arbiter, journalled bumpless transfer and safe abort. `Automático` stays disabled until live actuation | Phase 2 WP4/WP6 |
+| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and `Receita`, including safe abort on link/feedback loss | Arbiter/engine complete, but **release blocker open:** global Manual safe-stop can be atomically refused while Recipe owns the wire, and manual controls do not visibly lock. See AUD-001/AUD-002 | v0.25.0 stabilization |
 | **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | **Done (WP5):** blank-start experiment, paper/custom identity, headroom workspace and immutable receipts | Phase 2 WP5 — [D-008](DECISIONS.md) |
 | **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | **Done (WP6):** kLa-path allocation, three modes, ownership handshake, bumpless engage, integral reset, safe abort, the O₂ detail tabs and the live tuning chart. Bioreactor run is the field gate | Phase 2 WP6 |
-| **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | Protocol keys documented; no operator controls or safe-stop aggregation | Phase 2 WP7 |
-| **P1** | Conditional OUR soft sensor and controller gain scheduling | Absent | Phase 2 WP8 |
+| **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | **Done (WP7):** operator controls, ownership, safe-stop aggregation and synoptic coverage; hardware receipt remains | Phase 2 WP7 |
+| **P1** | Conditional OUR soft sensor and controller gain scheduling | **Done (WP8):** conditional estimator, explicit validity gate and scheduled cascade gains; cultivation receipt remains | Phase 2 WP8 |
 | **P2** | Biomass sensor: enable, blank/start/stop, thresholds, live raw/Abs/IT/PWM and calibration procedure | **Done (Phase 3 WP1):** owned actuator, Controle card, guided Calibrações procedure, live readouts | Phase 3 WP1 |
 | **P2** | External pump: five firmware profiles, curve/volume preview and proportional-gas coupling `Q_g=(V_0+V_p)·vvm` | **Done (Phase 3 WP2):** all five profiles, live preview, arbiter-owned proportional gas, safe frame | Phase 3 WP2 |
-| **P2** | Remaining level and biomass calibration plus full v.6 parity/bench receipt | Calibration page exists but these procedures do not | Phase 3 WP3 |
+| **P2** | Remaining level reference plus full v.6 parity/bench receipt | Biomass procedure is done; known-level reference and complete real-hardware receipt remain | Phase 3 WP3 |
 
 The following v.6 code is **not** parity work: neural/gassing-out estimation remains a
 standalone project ([D-010](DECISIONS.md)); `HubStations` waits for a real second module;
@@ -633,7 +639,7 @@ Plus: rate estimation by **least squares** over the window rather than endpoint
 difference, which cancels the probe's quantisation staircase.
 
 **kLa gradient-path allocation.** The method from
-[the submitted manuscript](../../../Doutorado_CNPq/_Artigos_e_Coorientacoes/Artigos/04_Cascata_kLa):
+[the submitted manuscript](../../../../Doutorado_CNPq/_Artigos_e_Coorientacoes/Artigos/04_Cascata_kLa):
 the operator enters experimental `(Q_g,N,kLa)` points, the app estimates the continuous
 `kLa(Q_g,N)` surface, evaluates derivatives in normalized actuator coordinates, selects
 the initial point by maximum mean actuator headroom and constructs the bidirectional
@@ -647,19 +653,16 @@ gradient path used by the cascade PID.
 
 **Deliverables**
 
-- [~] `CascadeController` — velocity-form, anti-windup, prediction horizon *(WP1 done; **gain
-      scheduling** deferred to a later WP)*
-- [~] Actuator-window allocation — agitation / aeration overlapping windows *(WP1 done;
-      **enrichment (N₂)** window rides with the enrichment path)*
-- [ ] In-app kLa mapping, surface estimation and gradient/headroom path publication
+- [x] `CascadeController` — velocity-form, anti-windup, prediction horizon and conditional gain
+      scheduling *(WP1/WP8 done; real-cultivation gate remains)*
+- [x] Actuator-window allocation — agitation / aeration overlapping windows and published kLa path
+      *(nitrogen enrichment remains explicitly deferred)*
+- [x] In-app kLa mapping, surface estimation and gradient/headroom path publication
       *([D-008](DECISIONS.md); replaces the WP1 linear allocator without touching the
       controller)*
-- [ ] OUR soft sensor
-- [~] Dosing subsystems — **pH delivered in WP3**; Nutrient · Antifoam · Distance-foam ·
-      Agitator flask remain
-- [~] Controller tuning UI with live term display (P, I, D contributions visible) *(WP2 done,
-      **advisory**: it computes on live telemetry and is tunable, but does not actuate; the
-      kLa contour and a live tuning chart ride with later WPs)*
+- [x] Conditional OUR soft sensor with explicit validity gate
+- [x] Dosing/cultivation subsystems — pH, nutrient, antifoam, distance/foam and flask agitator
+- [x] Controller tuning UI and live chart; the cascade is live under arbiter ownership
 
 > **The UI for this phase is already specified**, so none of it needs designing twice.
 > Tuning lives on **Controle → `Cascata e sintonia`**
@@ -1021,12 +1024,12 @@ safe-stop. Pump actuation rides the bioreactor gate.
 
 ### WP3 — remaining calibration and v.6 parity receipt — **P2**
 
-- [ ] Known-level reference plus biomass blank/threshold procedure. pH, oxygen and airflow
-      were delivered early in Phase 2 WP3
+- [ ] Known-level reference. Biomass blank/threshold was delivered in WP1; pH, oxygen and
+      airflow were delivered early in Phase 2 WP3
 - [ ] Run every v.6 operator action against real hardware, capture command/telemetry/event
       receipts, and resolve the remaining protocol questions before declaring parity
 
-### WP4 — Receitas — **software-complete (parts 1-3, v0.23.0); polish + hardware remain**
+### WP4 — Receitas — **feature-complete; v0.25.0 safety stabilization + polish + hardware remain**
 
 - [x] **Node canvas, validator, execution engine and versioned JSON persistence.**
       **Part 1** — the pure domain: the nineteen blocks declared once in `RecipeNodeCatalog`
@@ -1034,8 +1037,8 @@ safe-stop. Pump actuation rides the bioreactor gate.
       schema-keyed `JsonObject`, `RecipeSerializer` (versioned from v1 with a migration hook,
       tolerant of legacy type/connector spellings), and `RecipeValidator` (every §5.3.13 rule).
       **Part 2** — the sliced `RecipeEngine` driving the shared `ICommandArbiter` under
-      `CommandOwner.Recipe`: starting a recipe claims every actuator, which deactivates the manual
-      surfaces; link/feedback loss safe-aborts the run; the cascade block drives the ported
+      `CommandOwner.Recipe`: starting a recipe claims every actuator, which makes the arbiter refuse
+      conflicting Manual frames; link/feedback loss safe-aborts the run; the cascade block drives the ported
       `CascadeController` under Recipe ownership. **Part 3** — the `Receitas` nav destination:
       block library, draggable node canvas with click-to-connect, a property pane generated from
       the schema, a live validation strip, the JSON panel and the Iniciar/Pausar/Parar controls;
@@ -1049,6 +1052,11 @@ safe-stop. Pump actuation rides the bioreactor gate.
       editable JSON panel, and the live cascade P/I/D readout in the properties pane during a run.
 - [ ] **Hardware confirmation:** the pump-block field mapping (`pHOperation`/`nutriIntensity`/…),
       the `Controle da Bomba` external-pump target (WP2), and the vvm→L/min aeration coupling.
+
+> **Post-merge audit correction:** ownership is enforced at dispatch, but the Controle surfaces do
+> not yet visibly deactivate, and the global Manual safe-stop can be refused while Recipe owns the
+> wire. These are the v0.25.0 P0 findings AUD-001/AUD-002 in
+> [CURRENT_STATUS.md](CURRENT_STATUS.md), not completed behavior.
 
 On recipes: the concept and the engine architecture come from ReceitasTECNAL —
 node graph, validator, engine sliced by responsibility. The **UI, visual language
@@ -1110,9 +1118,10 @@ make while re-implementing, rather than copying forward:
 
 ### Synoptic coverage
 
-- [ ] The drawing covers the core loop only. Dosing pumps, level/foam, biomass and the
-      external pump gain their positions **alongside the subsystems that introduce them**
-      in Phases 2 and 3, not in a single later pass.
+- [x] Dosing pumps, level/foam, biomass and the external pump have synoptic positions alongside
+      their delivered subsystems.
+- [ ] Complete the live visual review of all anchors at the supported resolutions/DPI values;
+      biomass and external-pump placement remains provisional.
 - [ ] The flask agitator is a **separate bench device** and must not appear on the reactor
       drawing.
 

@@ -9,6 +9,9 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Post-merge release audit and v0.25.0 stabilization plan.** Added
+  [CURRENT_STATUS.md](CURRENT_STATUS.md) with verified Git/version/build/runtime evidence, the
+  ownership/safe-stop and merged biomass/pump findings, UI/build gates and the extended release plan.
 - **Modal Pop-up Configuration (`OxygenConfigDialog`).** Replaced the secondary "Controle de oxigênio" tab in `Controle` with a modal configuration window opened via the ⚙ button on the Oxygen row.
 - **Independent 4-Mode PID Settings.** Each mode (`Agitação`, `Aeração`, `Cascata`, `Mapa`) maintains and stores independent PID parameters in `AppSettings` and runtime structures.
 - **Dual-Loop PID Cascade Controller (`CascadeTwoLoopPidController`).** Ported from industrial standard (`BlocosDeControle`) with outer predicted oxygen error loop, inner velocity-form rate error PID, low-pass derivative filter, sliding-window anti-windup, and actuator gain scheduling.
@@ -16,6 +19,9 @@ All notable changes to TECNAL-Hub. Version numbers follow
 - **Real-Time Input Validation.** Added visual error banner and validation rules for physical limits, effort windows, and PID parameters in `OxygenConfigDialog`.
 
 ### Changed
+- **Current documentation synchronized to v0.24.0.** README and roadmap now distinguish the built
+  feature inventory from field-release readiness and identify v0.25.0 as the gated stabilization/UI
+  polish milestone; the assembly version has not been bumped.
 - **Process Parameters Table Layout.** Moved "Modo" column to the last column in `ControlView.xaml`.
 - **Removed per-row "Reverter".** Cleaned up process parameter rows to keep per-row "Aplicar" and global "Reverter tudo".
 - **Gain Scheduling Restriction.** Confined advanced gain scheduling factor and controls strictly to `Cascata` mode.

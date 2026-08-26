@@ -525,10 +525,15 @@ validator and the control mathematics — never the transport.
 
 **One command queue, one owner.** The engine drives the **same** `ICommandArbiter` as manual
 control, under `CommandOwner.Recipe`. Starting a recipe **claims every actuator**, which is the
-mechanism that deactivates the manual surfaces: the arbiter then refuses any Manual dispatch, so a
+mechanism that must deactivate the manual surfaces: the arbiter then refuses any Manual dispatch, so a
 running recipe and an operator cannot fight over the link. A link or feedback loss revokes ownership
 and safe-aborts the run; stopping safe-stops the declared subsystems and returns the wire to Manual.
 This is why the `Recipe` owner was reserved back in Phase 2 WP4 rather than retrofitted here.
+
+> **Implementation audit — 2026-08-26:** dispatch exclusivity is implemented, but the manual UI does
+> not yet visibly disable from Recipe ownership, and the shell/global Manual safe-stop can be refused
+> while Recipe owns the wire. D-023 remains the target architecture; AUD-001/AUD-002 in
+> [CURRENT_STATUS.md](CURRENT_STATUS.md) are required corrections before field release.
 
 **The cascade block drives `CascadeController` in-process, not `CascadeService`.** `CascadeService`
 claims the oxygen actuators as `Automatic`, which would fight the recipe's `Recipe` ownership and

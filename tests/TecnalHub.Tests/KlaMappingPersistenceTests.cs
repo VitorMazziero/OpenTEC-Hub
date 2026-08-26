@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using TecnalHub.Services.KlaMapping;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed class KlaMappingPersistenceTests
     ];
 
     [Fact]
-    public async Task Draft_store_preserves_blank_and_invalid_editor_rows_exactly()
+    public async Task Experiment_store_saves_and_loads_individual_experiment_files()
     {
         await WithStoreAsync(async store =>
         {
@@ -25,22 +26,26 @@ public sealed class KlaMappingPersistenceTests
                 new KlaAnchorDraft("2", "800", ""),
                 new KlaAnchorDraft("7,0", "800", "em medição"),
             };
-            await store.SaveExperimentAsync(new KlaExperimentDocument
+            var doc = new KlaExperimentDocument
             {
                 Snapshot = snapshot with { Anchors = [] },
                 DraftRows = rows,
-                ReviewNote = "aguardando bancada",
-            });
+            };
+            await store.SaveExperimentAsync(doc);
+
+            var filePath = store.GetExperimentFilePath(snapshot.Id);
+            Assert.True(File.Exists(filePath));
 
             var loaded = Assert.Single(await store.LoadExperimentsAsync());
-            Assert.Equal(rows, loaded.DraftRows);
-            Assert.Equal("aguardando bancada", loaded.ReviewNote);
+            Assert.Equal(snapshot.Id, loaded.Snapshot.Id);
+            Assert.Equal(rows.Length, loaded.DraftRows.Length);
+            Assert.Equal(rows[0].Airflow, loaded.DraftRows[0].Airflow);
             Assert.Empty(loaded.Snapshot.Anchors);
         });
     }
 
     [Fact]
-    public async Task Publication_is_versioned_integrity_checked_and_reopens_byte_for_byte()
+    public async Task Publication_makes_profile_available_for_control_and_exportable()
     {
         await WithStoreAsync(async store =>
         {
@@ -48,68 +53,106 @@ public sealed class KlaMappingPersistenceTests
             var surface = new KlaMappingEngine().Reconstruct(input);
             var path = BuildFixturePath(surface);
 
-            var missingReview = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.PublishAsync(input, surface, path, "   "));
-            Assert.Contains("nota de revisão", missingReview.Message, StringComparison.Ordinal);
+            var doc = new KlaExperimentDocument
+            {
+                Snapshot = input,
+                DraftRows = input.Anchors.Select(a => new KlaAnchorDraft(
+                    a.AirflowLpm.ToString(), a.AgitationRpm.ToString(), a.KlaPerHour.ToString())).ToArray(),
+                SurfaceData = new KlaSurfaceData(surface.Diagnostics, surface.Fingerprint),
+                PathData = new KlaPathData(
+                    path.Path.ToArray(),
+                    path.Allocation.ToArray(),
+                    path.HeadroomScores.ToArray(),
+                    path.HeadroomResolution,
+                    path.Diagnostics,
+                    path.SourceSurfaceFingerprint,
+                    path.Fingerprint),
+            };
 
-            var first = await store.PublishAsync(input, surface, path, "revisão A");
-            var firstBytes = await store.ReadReceiptBytesAsync(first.ReceiptFingerprint);
-            var reopened = Assert.Single(await store.LoadPublishedAsync());
-            Assert.Equal(first.ReceiptFingerprint, reopened.ReceiptFingerprint);
-            Assert.Equal(1, reopened.Payload.Version);
+            var publishedProfile = await store.PublishAsync(doc);
+            Assert.NotNull(publishedProfile);
+            Assert.Equal(input.Name, publishedProfile.Name);
 
-            var export = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.kla.json");
+            var publishedList = await store.LoadPublishedAsync();
+            var reopened = Assert.Single(publishedList);
+            Assert.Equal(publishedProfile.Name, reopened.Name);
+            Assert.Equal(path.Allocation.Count, reopened.Payload.Allocation.Length);
+
+            var exportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.kla.json");
             try
             {
-                await store.ExportReceiptAsync(first.ReceiptFingerprint, export);
-                Assert.Equal(firstBytes, await File.ReadAllBytesAsync(export));
+                await store.ExportExperimentAsync(input.Id, exportPath);
+                Assert.True(File.Exists(exportPath));
 
-                var imported = await store.ImportReceiptAsDraftAsync(export);
-                Assert.NotEqual(input.Id, imported.Id);
-                Assert.Equal(input.Anchors, imported.Anchors);
-                Assert.Contains("Revisão local obrigatória", imported.Notes, StringComparison.Ordinal);
-
-                var original = Encoding.UTF8.GetString(firstBytes);
-                var altered = original.Replace("\"version\": 1", "\"version\": 9", StringComparison.Ordinal);
-                Assert.NotEqual(original, altered);
-                await File.WriteAllTextAsync(export, altered, new UTF8Encoding(false));
-                await Assert.ThrowsAsync<InvalidDataException>(
-                    () => store.ImportReceiptAsDraftAsync(export));
+                var imported = await store.ImportExperimentAsync(exportPath);
+                Assert.NotEqual(input.Id, imported.Snapshot.Id);
+                Assert.Contains("importado", imported.Snapshot.Name);
             }
             finally
             {
-                if (File.Exists(export))
+                if (File.Exists(exportPath))
                 {
-                    File.Delete(export);
+                    File.Delete(exportPath);
                 }
             }
-
-            var second = await store.PublishAsync(input, surface, path, "revisão B");
-            Assert.Equal(2, second.Payload.Version);
-            Assert.Equal(first.Payload.ProfileId, second.Payload.ProfileId);
-            Assert.NotEqual(first.ReceiptFingerprint, second.ReceiptFingerprint);
-            Assert.Equal(2, (await store.LoadPublishedAsync()).Count);
         });
     }
 
     [Fact]
-    public async Task Clean_store_has_no_bundled_profile_and_custom_method_cannot_publish()
+    public async Task Clean_store_has_no_bundled_profiles_and_rejects_publishing_without_trajectory()
     {
         await WithStoreAsync(async store =>
         {
             Assert.Empty(await store.LoadExperimentsAsync());
             Assert.Empty(await store.LoadPublishedAsync());
 
-            var input = ReferenceInput() with
+            var input = ReferenceInput();
+            var doc = new KlaExperimentDocument
             {
-                Algorithm = new KlaAlgorithmSettings { SurfaceGridResolution = 100 },
+                Snapshot = input,
+                DraftRows = [],
+                Stage = KlaWorkflowStage.Draft,
             };
-            var surface = new KlaMappingEngine().Reconstruct(input);
-            var path = BuildFixturePath(surface);
+
             var error = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.PublishAsync(input, surface, path, "preview"));
-            Assert.Contains("referência", error.Message, StringComparison.Ordinal);
+                () => store.PublishAsync(doc));
+            Assert.Contains("trajetória", error.Message, StringComparison.OrdinalIgnoreCase);
         });
+    }
+
+    [Fact]
+    public async Task Legacy_experiments_and_receipts_are_migrated_automatically()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"tecnalhub-kla-mig-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var legacySnap = ReferenceInput();
+            var legacyDocs = new[]
+            {
+                new KlaExperimentDocument
+                {
+                    Snapshot = legacySnap,
+                    DraftRows = [],
+                    Stage = KlaWorkflowStage.Draft,
+                }
+            };
+            var legacyJson = JsonSerializer.Serialize(legacyDocs, KlaFingerprint.JsonOptions);
+            await File.WriteAllTextAsync(Path.Combine(directory, "experiments.json"), legacyJson);
+
+            var store = new KlaProfileStore(directory);
+            var loaded = await store.LoadExperimentsAsync();
+            var doc = Assert.Single(loaded);
+            Assert.Equal(legacySnap.Id, doc.Snapshot.Id);
+            Assert.True(File.Exists(store.GetExperimentFilePath(legacySnap.Id)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     private static KlaPathResult BuildFixturePath(KlaSurface surface)
@@ -177,3 +220,4 @@ public sealed class KlaMappingPersistenceTests
         }
     }
 }
+

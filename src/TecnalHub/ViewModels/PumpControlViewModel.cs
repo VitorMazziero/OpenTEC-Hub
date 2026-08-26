@@ -57,11 +57,11 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
         ModeOptions =
         [
-            new(PumpProfileMode.Constant, "Constante"),
+            new(PumpProfileMode.Constant, "Const"),
             new(PumpProfileMode.Linear, "Linear"),
-            new(PumpProfileMode.Exponential, "Exponencial"),
-            new(PumpProfileMode.Polynomial, "Polinomial"),
-            new(PumpProfileMode.Piecewise, "Por segmentos"),
+            new(PumpProfileMode.Exponential, "Exp"),
+            new(PumpProfileMode.Polynomial, "Poli"),
+            new(PumpProfileMode.Piecewise, "Segmentos"),
         ];
 
         Load(_committed);

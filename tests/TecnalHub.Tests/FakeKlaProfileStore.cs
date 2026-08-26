@@ -9,6 +9,12 @@ namespace TecnalHub.Tests;
 /// </summary>
 internal sealed class FakeKlaProfileStore : IKlaProfileStore
 {
+    public string RootDirectory { get; set; } = "C:\\fake\\kla";
+    public string ExperimentsDirectory { get; set; } = "C:\\fake\\kla\\experiments";
+
+    public string GetExperimentFilePath(Guid experimentId) =>
+        $"{ExperimentsDirectory}\\{experimentId}.kla.json";
+
     public List<KlaPublishedProfile> Published { get; } = [];
     
     public event Action<KlaPublishedProfile>? ProfilePublished;
@@ -30,17 +36,13 @@ internal sealed class FakeKlaProfileStore : IKlaProfileStore
         => Task.CompletedTask;
 
     public Task<KlaPublishedProfile> PublishAsync(
-        KlaExperimentSnapshot experiment, KlaSurface surface, KlaPathResult path,
-        string reviewNote, CancellationToken cancellationToken = default)
+        KlaExperimentDocument experiment, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
-    public Task<byte[]> ReadReceiptBytesAsync(string receiptFingerprint, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-
-    public Task ExportReceiptAsync(string receiptFingerprint, string destinationPath, CancellationToken cancellationToken = default)
+    public Task ExportExperimentAsync(Guid experimentId, string destinationPath, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
-    public Task<KlaExperimentSnapshot> ImportReceiptAsDraftAsync(string sourcePath, CancellationToken cancellationToken = default)
+    public Task<KlaExperimentDocument> ImportExperimentAsync(string sourcePath, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 }
 

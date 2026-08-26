@@ -12,7 +12,6 @@ public enum KlaWorkflowStage
     Draft,
     SurfaceEstimated,
     PathValid,
-    Reviewed,
     Published,
 }
 
@@ -179,7 +178,20 @@ public sealed record KlaExperimentSnapshot
     });
 }
 
-/// <summary>Persisted draft metadata. Computed surfaces are deliberately rebuilt.</summary>
+public sealed record KlaSurfaceData(
+    KlaSurfaceDiagnostics Diagnostics,
+    string Fingerprint);
+
+public sealed record KlaPathData(
+    KlaPathPoint[] Path,
+    KlaAllocationSample[] Allocation,
+    double[] HeadroomScores,
+    int HeadroomResolution,
+    KlaPathDiagnostics Diagnostics,
+    string SourceSurfaceFingerprint,
+    string Fingerprint);
+
+/// <summary>Persisted experiment document containing raw observations and computed data.</summary>
 public sealed record KlaExperimentDocument
 {
     public required KlaExperimentSnapshot Snapshot { get; init; }
@@ -189,6 +201,15 @@ public sealed record KlaExperimentDocument
 
     public KlaWorkflowStage Stage { get; init; } = KlaWorkflowStage.Draft;
 
+    public bool IsAvailableForControl { get; init; }
+
+    public DateTimeOffset? LastPublishedAtUtc { get; init; }
+
+    public KlaPathData? PathData { get; init; }
+
+    public KlaSurfaceData? SurfaceData { get; init; }
+
+    /// <summary>Legacy receipt fingerprint if migrated from old format.</summary>
     public string? LatestReceiptFingerprint { get; init; }
 
     public string ReviewNote { get; init; } = "";

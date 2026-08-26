@@ -193,6 +193,25 @@ public sealed class KlaMappingScientificTests
         Assert.Contains(issues, issue => issue.Contains("horizonte", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Anchor_rows_support_proper_numerical_sorting()
+    {
+        var row50 = new TecnalHub.ViewModels.KlaAnchorRowViewModel { Agitation = "50", Airflow = "2.0", Kla = "10" };
+        var row400 = new TecnalHub.ViewModels.KlaAnchorRowViewModel { Agitation = "400", Airflow = "2.0", Kla = "20" };
+        var row750 = new TecnalHub.ViewModels.KlaAnchorRowViewModel { Agitation = "750", Airflow = "2.0", Kla = "30" };
+
+        Assert.Equal(50, row50.AgitationValue);
+        Assert.Equal(400, row400.AgitationValue);
+        Assert.Equal(750, row750.AgitationValue);
+
+        var list = new List<TecnalHub.ViewModels.KlaAnchorRowViewModel> { row400, row750, row50 };
+        var sorted = list.OrderBy(r => r.AgitationValue).ToList();
+
+        Assert.Same(row50, sorted[0]);
+        Assert.Same(row400, sorted[1]);
+        Assert.Same(row750, sorted[2]);
+    }
+
     private static KlaExperimentSnapshot ReferenceInput() => new()
     {
         Name = "fixture only",
@@ -202,3 +221,4 @@ public sealed class KlaMappingScientificTests
 
     private sealed record Probe(double Q, double N, double Value, double Dq, double Dn);
 }
+

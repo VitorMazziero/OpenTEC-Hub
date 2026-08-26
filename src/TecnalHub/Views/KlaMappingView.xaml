@@ -158,8 +158,8 @@
                                     IsEnabled="{Binding HasExperiment}" />
                             <Button Content="Excluir" Margin="6,0,0,0" Padding="8,4"
                                     Command="{Binding DeleteExperimentCommand}" IsEnabled="{Binding HasExperiment}" />
-                            <Button Content="Importar recibo" Margin="6,0,0,0" Padding="8,4"
-                                    Command="{Binding ImportReceiptCommand}" />
+                            <Button Content="Importar..." Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding ImportExperimentCommand}" />
                         </StackPanel>
 
                         <TextBlock Text="IDENTIFICAÇÃO" Style="{StaticResource KlaSectionLabel}" />
@@ -219,11 +219,14 @@
                                   AutoGenerateColumns="False"
                                   AutomationProperties.Name="Tabela de pontos experimentais kLa">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Qg" Width="*"
-                                    Binding="{Binding Airflow, UpdateSourceTrigger=PropertyChanged}" />
-                                <DataGridTextColumn Header="N" Width="*"
+                                <DataGridTextColumn Header="N (rpm)" Width="*"
+                                    SortMemberPath="AgitationValue"
                                     Binding="{Binding Agitation, UpdateSourceTrigger=PropertyChanged}" />
-                                <DataGridTextColumn Header="kLa" Width="*"
+                                <DataGridTextColumn Header="Qg (L/min)" Width="*"
+                                    SortMemberPath="AirflowValue"
+                                    Binding="{Binding Airflow, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGridTextColumn Header="kLa (h⁻¹)" Width="*"
+                                    SortMemberPath="KlaValue"
                                     Binding="{Binding Kla, UpdateSourceTrigger=PropertyChanged}" />
                                 <DataGridTemplateColumn Header="" Width="34">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -240,8 +243,10 @@
                         </DataGrid>
                         <WrapPanel Margin="0,7,0,0">
                             <Button Content="+ Ponto" Padding="8,4" Command="{Binding AddAnchorCommand}" />
-                            <Button Content="Criar desenho 3² vazio" Margin="6,0,0,0" Padding="8,4"
+                            <Button Content="Desenho 3²" Margin="6,0,0,0" Padding="8,4"
                                     Command="{Binding CreateFactorialDesignCommand}" />
+                            <Button Content="Ordenar" Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding SortAnchorsCommand}" ToolTip="Ordenar por N e depois Qg" />
                         </WrapPanel>
                         <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
                                    Text="O desenho 3² cria apenas coordenadas; kLa permanece em branco."
@@ -407,31 +412,25 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="REVISÃO" Style="{StaticResource KlaSectionLabel}" />
-                        <TextBlock Text="Nota da versão publicada" Style="{StaticResource CaptionTextStyle}" />
-                        <TextBox Text="{Binding ReviewNote, UpdateSourceTrigger=PropertyChanged}"
-                                 AcceptsReturn="True" MinHeight="48" TextWrapping="Wrap"
-                                 AutomationProperties.Name="Nota de revisão do perfil kLa" />
-                        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
-                                   Text="Marcar como revisada é explícito. Publicar cria um novo recibo; não ativa controle."
-                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="CONTROLE E ARQUIVO" Style="{StaticResource KlaSectionLabel}" />
+                        <TextBlock Text="Disponibilidade para controle" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding PublishedStatusText}" FontWeight="SemiBold"
+                                   Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Última publicação" Margin="0,4,0,0" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding LastPublishedDateText}" Style="{StaticResource KlaDiagnosticValue}" />
 
-                        <TextBlock Text="RECIBOS PUBLICADOS" Style="{StaticResource KlaSectionLabel}" />
-                        <ComboBox ItemsSource="{Binding PublishedProfiles}"
-                                  SelectedItem="{Binding SelectedPublishedProfile, Mode=TwoWay}"
-                                  DisplayMemberPath="Display"
-                                  AutomationProperties.Name="Perfis kLa publicados" />
-                        <Grid Margin="0,6,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding SelectedPublishedProfile.FingerprintShort}"
-                                       FontFamily="{DynamicResource FontMono}" FontSize="11"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <Button Grid.Column="1" Content="Exportar" Padding="8,4"
-                                    Command="{Binding ExportReceiptCommand}" />
-                        </Grid>
+                        <TextBlock Text="Arquivo no disco" Margin="0,8,0,0" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding ExperimentFilePath, Mode=OneWay}" IsReadOnly="True"
+                                 FontSize="11" FontFamily="{DynamicResource FontMono}"
+                                 TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,6,0,0">
+                            <Button Content="Copiar caminho" Padding="8,4"
+                                    Command="{Binding CopyFilePathCommand}" />
+                            <Button Content="Abrir pasta" Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding OpenFolderCommand}" />
+                            <Button Content="Exportar..." Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding ExportExperimentCommand}" />
+                        </WrapPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -463,7 +462,7 @@
                     </Grid>
                 </StackPanel>
                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
-                    <Button Content="Salvar rascunho" Padding="10,6" Command="{Binding SaveDraftCommand}"
+                    <Button Content="Salvar experimento" Padding="10,6" Command="{Binding SaveExperimentCommand}"
                             IsEnabled="{Binding HasExperiment}" />
                     <Button Content="Estimar superfície" Margin="7,0,0,0" Padding="10,6"
                             Command="{Binding EstimateSurfaceCommand}" />
@@ -472,10 +471,8 @@
                     <Button Content="Cancelar" Margin="7,0,0,0" Padding="10,6"
                             Command="{Binding CancelWorkCommand}"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                    <Button Content="Marcar revisada" Margin="7,0,0,0" Padding="10,6"
-                            Command="{Binding MarkReviewedCommand}" />
-                    <Button Content="Publicar perfil" Margin="7,0,0,0" Padding="12,6"
-                            Style="{StaticResource AccentButtonStyle}" Command="{Binding PublishCommand}" />
+                    <Button Content="Publicar para controle" Margin="7,0,0,0" Padding="12,6"
+                            Style="{StaticResource AccentButtonStyle}" Command="{Binding PublishForControlCommand}" />
                 </WrapPanel>
             </Grid>
         </Border>

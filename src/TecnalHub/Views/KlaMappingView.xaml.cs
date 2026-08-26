@@ -154,7 +154,7 @@ public partial class KlaMappingView : UserControl
             var heatmap = plot.Add.Heatmap(heatmapValues);
             heatmap.Rectangle = new CoordinateRect(qMinimum, qMaximum, nMinimum, nMaximum);
             heatmap.Colormap = new ScottPlot.Colormaps.Viridis();
-            heatmap.FlipVertically = false;
+            heatmap.FlipVertically = true;
             _surfaceColorBar = plot.Add.ColorBar(heatmap);
             _surfaceColorBar.Label = "kLa (h⁻¹)";
 
@@ -265,11 +265,26 @@ public partial class KlaMappingView : UserControl
 
         var resolution = path.HeadroomResolution;
         var scores = new double[resolution, resolution];
+        var minScore = double.PositiveInfinity;
+        var maxScore = double.NegativeInfinity;
         for (var row = 0; row < resolution; row++)
         {
             for (var column = 0; column < resolution; column++)
             {
-                scores[row, column] = path.HeadroomScores[(row * resolution) + column];
+                var score = path.HeadroomScores[(row * resolution) + column];
+                scores[row, column] = score;
+                if (double.IsFinite(score))
+                {
+                    if (score < minScore)
+                    {
+                        minScore = score;
+                    }
+
+                    if (score > maxScore)
+                    {
+                        maxScore = score;
+                    }
+                }
             }
         }
 
@@ -282,8 +297,19 @@ public partial class KlaMappingView : UserControl
         var heatmap = plot.Add.Heatmap(scores);
         heatmap.Rectangle = new CoordinateRect(qMinimum, qMaximum, nMinimum, nMaximum);
         heatmap.Colormap = new ScottPlot.Colormaps.Magma();
-        heatmap.ManualRange = new ScottPlot.Range(0, 0.5);
-        heatmap.FlipVertically = false;
+        if (double.IsFinite(minScore) && double.IsFinite(maxScore) && (maxScore - minScore) > 1e-6)
+        {
+            heatmap.ManualRange = new ScottPlot.Range(minScore, maxScore);
+        }
+        else if (double.IsFinite(maxScore) && maxScore > 0)
+        {
+            heatmap.ManualRange = new ScottPlot.Range(0, maxScore);
+        }
+        else
+        {
+            heatmap.ManualRange = new ScottPlot.Range(0, 0.5);
+        }
+        heatmap.FlipVertically = true;
         _headroomColorBar = plot.Add.ColorBar(heatmap);
         _headroomColorBar.Label = "H médio";
 

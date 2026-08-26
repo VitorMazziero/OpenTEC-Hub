@@ -70,8 +70,6 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("<Setter Property=\"Width\" Value=\"18\" />", xaml, StringComparison.Ordinal);
         Assert.Contains("<Setter Property=\"Margin\" Value=\"0,0,8,0\" />", xaml, StringComparison.Ordinal);
         Assert.Equal(14, Count(xaml, "<ColumnDefinition Width=\"160\" />"));
-        Assert.Contains("Width=\"120\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Width=\"140\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Width=\"90\"", xaml, StringComparison.Ordinal);
     }
 

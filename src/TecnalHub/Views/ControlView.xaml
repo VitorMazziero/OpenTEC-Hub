@@ -438,15 +438,16 @@
                                     <ComboBox ItemsSource="{Binding OxygenModeOptions}"
                                               SelectedItem="{Binding SelectedOxygenMode}"
                                               IsEnabled="{Binding CanEditOxygenMode}"
-                                              Width="120"
+                                              Width="90"
+                                              Height="40"
                                               ToolTip="Modo: Agitação, Aeração, Cascata ou Mapa"
                                               VerticalAlignment="Center" />
                                     <Button Margin="4,0,0,0"
                                             Padding="4,3"
-                                            Width="24" Height="26"
+                                            Width="40" Height="40"
                                             ToolTip="Configuração do Controle de Oxigênio"
                                             Command="{Binding DataContext.OpenOxygenConfigCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                        <ctl:Icon Key="Gear" Size="13" />
+                                        <ctl:Icon Key="Gear" Size="18" />
                                     </Button>
                                 </StackPanel>
                                 
@@ -971,14 +972,15 @@
                                     <TextBlock Grid.Column="3" Text="{Binding PumpFlowText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding PumpVolumeText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <ComboBox Grid.Column="5"
-                                              Width="140"
+                                              Width="90"
+                                              Height="40"
                                               HorizontalAlignment="Left"
                                               ItemsSource="{Binding ModeOptions}"
                                               SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}"
                                               DisplayMemberPath="Label"
                                               ToolTip="Modo do perfil de dosagem" />
                                     <TextBlock Grid.Column="6" Text="mL/min" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="7" Text="5 perfis + gás prop." Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="7" Text="5 perfis" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar a bomba externa" />
                                 </Grid>

@@ -32,13 +32,22 @@ public sealed partial class KlaAnchorRowViewModel : ObservableObject
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AirflowValue))]
     public partial string Airflow { get; set; } = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AgitationValue))]
     public partial string Agitation { get; set; } = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(KlaValue))]
     public partial string Kla { get; set; } = "";
+
+    public double? AirflowValue => TryParse(Airflow, out var val) ? val : null;
+
+    public double? AgitationValue => TryParse(Agitation, out var val) ? val : null;
+
+    public double? KlaValue => TryParse(Kla, out var val) ? val : null;
 
     public bool TryBuild(out KlaAnchor anchor)
     {
@@ -59,16 +68,16 @@ public sealed partial class KlaAnchorRowViewModel : ObservableObject
            double.TryParse(text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 }
 
-public sealed record KlaExperimentListItem(Guid Id, string Name, KlaWorkflowStage Stage)
+public sealed record KlaExperimentListItem(Guid Id, string Name, KlaWorkflowStage Stage, bool IsAvailableForControl = false)
 {
-    public string StageLabel => Stage switch
-    {
-        KlaWorkflowStage.SurfaceEstimated => "Superfície",
-        KlaWorkflowStage.PathValid => "Trajetória",
-        KlaWorkflowStage.Reviewed => "Revisada",
-        KlaWorkflowStage.Published => "Publicada",
-        _ => "Rascunho",
-    };
+    public string StageLabel => IsAvailableForControl || Stage == KlaWorkflowStage.Published
+        ? "Publicada"
+        : Stage switch
+        {
+            KlaWorkflowStage.SurfaceEstimated => "Superfície",
+            KlaWorkflowStage.PathValid => "Trajetória",
+            _ => "Rascunho",
+        };
 }
 
 public sealed record KlaPublishedListItem(
@@ -230,11 +239,25 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     public string StageLabel => Stage switch
     {
         KlaWorkflowStage.SurfaceEstimated => "2 · Superfície estimada",
-        KlaWorkflowStage.PathValid => "4 · Trajetória válida",
-        KlaWorkflowStage.Reviewed => "5 · Revisada",
-        KlaWorkflowStage.Published => "5 · Publicada",
+        KlaWorkflowStage.PathValid => "3 · Trajetória calculada",
+        KlaWorkflowStage.Published => "4 · Publicada para controle",
         _ => "1 · Rascunho experimental",
     };
+
+    public string ExperimentFilePath => SelectedExperiment is not null
+        ? _store.GetExperimentFilePath(SelectedExperiment.Id)
+        : "";
+
+    public bool IsPublishedForControl => _documents.TryGetValue(SelectedExperiment?.Id ?? Guid.Empty, out var doc) &&
+        (doc.IsAvailableForControl || doc.Stage == KlaWorkflowStage.Published);
+
+    public string PublishedStatusText => IsPublishedForControl
+        ? "Disponível para controle"
+        : "Não publicado para controle";
+
+    public string LastPublishedDateText => _documents.TryGetValue(SelectedExperiment?.Id ?? Guid.Empty, out var doc) && doc.LastPublishedAtUtc is { } dt
+        ? dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+        : "—";
 
     public string AlgorithmIdentity => KlaMappingEngine.AlgorithmIdentity(BuildAlgorithm());
 
@@ -290,7 +313,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             var warnings = new List<string>();
             if (!IsPaperReference)
             {
-                warnings.Add("Parâmetros personalizados: restaure a referência antes da revisão/publicação como método do artigo.");
+                warnings.Add("Parâmetros personalizados: restaure a referência antes da publicação como método do artigo.");
             }
 
             if (Surface is not null)
@@ -311,16 +334,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
     public bool CanCalculatePath => !IsBusy && Surface is not null && ResultIsCurrent();
 
-    public bool CanReview => !IsBusy && Stage == KlaWorkflowStage.PathValid &&
-                             PathResult is not null && IsPaperReference &&
-                             !string.IsNullOrWhiteSpace(ReviewNote) &&
-                             !PathResult.Diagnostics.Warnings.Any(warning =>
-                                 warning.Contains("recusada", StringComparison.OrdinalIgnoreCase));
-
-    public bool CanPublish => !IsBusy && Stage == KlaWorkflowStage.Reviewed &&
-                              PathResult is not null && Surface is not null &&
-                              ResultIsCurrent() && IsPaperReference &&
-                              !string.IsNullOrWhiteSpace(ReviewNote);
+    public bool CanPublishForControl => HasExperiment && !IsBusy && PathResult is not null && Surface is not null && ResultIsCurrent();
 
     [RelayCommand]
     public async Task InitializeAsync()
@@ -338,11 +352,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             _documents.Clear();
             foreach (var document in documents)
             {
-                // Computed arrays are intentionally not mutable-draft state. After a
-                // restart they must be recomputed; only a published receipt is durable.
-                _documents[document.Snapshot.Id] = document.Stage == KlaWorkflowStage.Published
-                    ? document
-                    : document with { Stage = KlaWorkflowStage.Draft };
+                _documents[document.Snapshot.Id] = document;
             }
 
             RebuildExperimentList();
@@ -393,7 +403,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         if (SelectedExperiment is not { } selected ||
             !_dialogs.ConfirmDestructive(
                 "Excluir experimento kLa",
-                $"O rascunho “{selected.Name}” será removido. Recibos já publicados permanecem imutáveis.",
+                $"O experimento “{selected.Name}” será removido do disco.",
                 "Nenhum comando será enviado ao equipamento."))
         {
             return;
@@ -427,7 +437,15 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         {
             Snapshot = copy,
             DraftRows = Anchors.Select(row => row.ToDraft()).ToArray(),
-            ReviewNote = ReviewNote,
+            SurfaceData = Surface is not null ? new KlaSurfaceData(Surface.Diagnostics, Surface.Fingerprint) : null,
+            PathData = PathResult is not null ? new KlaPathData(
+                PathResult.Path.ToArray(),
+                PathResult.Allocation.ToArray(),
+                PathResult.HeadroomScores.ToArray(),
+                PathResult.HeadroomResolution,
+                PathResult.Diagnostics,
+                PathResult.SourceSurfaceFingerprint,
+                PathResult.Fingerprint) : null,
         };
         _documents[copy.Id] = document;
         await _store.SaveExperimentAsync(document);
@@ -436,11 +454,11 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task ImportReceiptAsync()
+    private async Task ImportExperimentAsync()
     {
         var path = _files.ChooseOpenPath(
-            "Importar recibo kLa como novo rascunho",
-            "Recibo kLa (*.kla.json)|*.kla.json|JSON (*.json)|*.json",
+            "Importar experimento kLa",
+            "Experimento kLa (*.kla.json)|*.kla.json|JSON (*.json)|*.json",
             ".kla.json");
         if (path is null)
         {
@@ -449,14 +467,11 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
         try
         {
-            var snapshot = await _store.ImportReceiptAsDraftAsync(path);
-            snapshot = snapshot with { Name = UniqueName(snapshot.Name) };
-            var document = new KlaExperimentDocument { Snapshot = snapshot };
-            _documents[snapshot.Id] = document;
-            await _store.SaveExperimentAsync(document);
-            RebuildExperimentList();
-            SelectedExperiment = Experiments.Single(item => item.Id == snapshot.Id);
-            StatusMessage = "Recibo importado como rascunho; cálculo e revisão locais continuam obrigatórios.";
+            var document = await _store.ImportExperimentAsync(path);
+            _documents[document.Snapshot.Id] = document;
+            RebuildExperimentList(document.Snapshot.Id);
+            SelectedExperiment = Experiments.FirstOrDefault(e => e.Id == document.Snapshot.Id);
+            StatusMessage = $"Experimento “{document.Snapshot.Name}” importado com sucesso.";
         }
         catch (Exception exception)
         {
@@ -465,22 +480,43 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task ExportReceiptAsync()
+    private async Task ExportExperimentAsync()
     {
-        if (SelectedPublishedProfile is not { } profile)
+        if (SelectedExperiment is not { } selected)
         {
             return;
         }
 
         var destination = _files.ChooseSavePath(
-            "Exportar recibo kLa",
-            $"{SafeFileName(profile.Name)}_v{profile.Version}.kla.json",
-            "Recibo kLa (*.kla.json)|*.kla.json",
+            "Exportar experimento kLa",
+            $"{SafeFileName(selected.Name)}.kla.json",
+            "Experimento kLa (*.kla.json)|*.kla.json",
             ".kla.json");
         if (destination is not null)
         {
-            await _store.ExportReceiptAsync(profile.ReceiptFingerprint, destination);
-            StatusMessage = "Recibo exportado byte por byte.";
+            await _store.ExportExperimentAsync(selected.Id, destination);
+            StatusMessage = $"Experimento exportado para {Path.GetFileName(destination)}.";
+        }
+    }
+
+    [RelayCommand]
+    private void CopyFilePath()
+    {
+        var path = ExperimentFilePath;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            _files.CopyText(path);
+            StatusMessage = "Caminho do arquivo copiado para a área de transferência.";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenFolder()
+    {
+        var path = ExperimentFilePath;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            _files.OpenFolder(path);
         }
     }
 
@@ -514,15 +550,15 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
         Anchors.Clear();
         var airflow = new[] { AirflowMinimum, (AirflowMinimum + AirflowMaximum) / 2, AirflowMaximum };
-        var agitation = new[] { AgitationMaximum, (AgitationMinimum + AgitationMaximum) / 2, AgitationMinimum };
+        var agitation = new[] { AgitationMinimum, (AgitationMinimum + AgitationMaximum) / 2, AgitationMaximum };
         foreach (var n in agitation)
         {
             foreach (var q in airflow)
             {
                 AddRow(new KlaAnchorRowViewModel
                 {
-                    Airflow = q.ToString("G12", CultureInfo.CurrentCulture),
                     Agitation = n.ToString("G12", CultureInfo.CurrentCulture),
+                    Airflow = q.ToString("G12", CultureInfo.CurrentCulture),
                     Kla = "",
                 });
             }
@@ -530,6 +566,28 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
         InvalidateScientificResult();
         StatusMessage = "Desenho 3² criado com kLa em branco; nenhum valor do artigo foi carregado.";
+    }
+
+    [RelayCommand]
+    public void SortAnchors()
+    {
+        var sorted = Anchors
+            .OrderBy(a => a.AgitationValue is null ? 1 : 0)
+            .ThenBy(a => a.AgitationValue ?? double.MaxValue)
+            .ThenBy(a => a.AirflowValue is null ? 1 : 0)
+            .ThenBy(a => a.AirflowValue ?? double.MaxValue)
+            .ThenBy(a => a.KlaValue is null ? 1 : 0)
+            .ThenBy(a => a.KlaValue ?? double.MaxValue)
+            .ToList();
+
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var oldIndex = Anchors.IndexOf(sorted[i]);
+            if (oldIndex != i)
+            {
+                Anchors.Move(oldIndex, i);
+            }
+        }
     }
 
     [RelayCommand]
@@ -553,11 +611,11 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         });
         _loading = false;
         InvalidateScientificResult();
-        StatusMessage = "Prévia rápida selecionada. Restaure os parâmetros do artigo antes de revisar.";
+        StatusMessage = "Prévia rápida selecionada. Restaure os parâmetros do artigo antes de publicar.";
     }
 
     [RelayCommand]
-    private async Task SaveDraftAsync()
+    private async Task SaveExperimentAsync()
     {
         if (!TryBuildSnapshot(out var snapshot, out var issues, validateScientific: false))
         {
@@ -565,8 +623,9 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             return;
         }
 
+        SortAnchors();
         await PersistCurrentAsync(snapshot);
-        StatusMessage = "Rascunho salvo. Salvar não calcula nem envia comandos.";
+        StatusMessage = "Experimento salvo em disco.";
     }
 
     [RelayCommand(CanExecute = nameof(CanEstimate))]
@@ -584,6 +643,8 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             ValidationMessage = validation[0];
             return;
         }
+
+        SortAnchors();
 
         await RunWorkAsync(
             "Reconstruindo Clough–Tocher, filtro gaussiano e spline…",
@@ -640,7 +701,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
                 PathResult = result;
                 Stage = KlaWorkflowStage.PathValid;
                 ProgressPercent = 100;
-                StatusMessage = "Trajetória válida, orientada de baixo para alto kLa. A revisão ainda é explícita.";
+                StatusMessage = "Trajetória calculada e válida, orientada de baixo para alto kLa.";
                 RefreshComputedProperties();
                 VisualizationChanged?.Invoke();
                 if (TryBuildSnapshot(out var snapshot, out _))
@@ -653,25 +714,12 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CancelWork() => _workCancellation?.Cancel();
 
-    [RelayCommand(CanExecute = nameof(CanReview))]
-    private async Task MarkReviewedAsync()
-    {
-        Stage = KlaWorkflowStage.Reviewed;
-        if (TryBuildSnapshot(out var snapshot, out _))
-        {
-            await PersistCurrentAsync(snapshot);
-        }
-
-        StatusMessage = "Resultado marcado como revisado. Publicar criará um recibo imutável; não enviará comandos.";
-        UpdateCommands();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanPublish))]
-    private async Task PublishAsync()
+    [RelayCommand(CanExecute = nameof(CanPublishForControl))]
+    private async Task PublishForControlAsync()
     {
         if (Surface is not { } surface || PathResult is not { } path)
         {
-            ValidationMessage = "Não há resultado atual para publicar.";
+            ValidationMessage = "Calcule uma superfície e trajetória válidas antes de publicar para controle.";
             return;
         }
 
@@ -683,34 +731,36 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
         try
         {
-            var profile = await _store.PublishAsync(snapshot, surface, path, ReviewNote);
-            Stage = KlaWorkflowStage.Published;
-            HasUnsavedChanges = false;
             var document = new KlaExperimentDocument
             {
                 Snapshot = snapshot,
                 DraftRows = Anchors.Select(row => row.ToDraft()).ToArray(),
-                Stage = Stage,
-                LatestReceiptFingerprint = profile.ReceiptFingerprint,
-                ReviewNote = ReviewNote,
+                Stage = KlaWorkflowStage.Published,
+                IsAvailableForControl = true,
+                LastPublishedAtUtc = DateTimeOffset.UtcNow,
+                SurfaceData = new KlaSurfaceData(surface.Diagnostics, surface.Fingerprint),
+                PathData = new KlaPathData(
+                    path.Path.ToArray(),
+                    path.Allocation.ToArray(),
+                    path.HeadroomScores.ToArray(),
+                    path.HeadroomResolution,
+                    path.Diagnostics,
+                    path.SourceSurfaceFingerprint,
+                    path.Fingerprint),
             };
+
+            var profile = await _store.PublishAsync(document);
             _documents[snapshot.Id] = document;
-            await _store.SaveExperimentAsync(document);
-            PublishedProfiles.Insert(0, new KlaPublishedListItem(
-                profile.ReceiptFingerprint,
-                profile.Payload.Name,
-                profile.Payload.Version,
-                profile.Payload.PublishedAtUtc));
-            SelectedPublishedProfile = PublishedProfiles[0];
+            Stage = KlaWorkflowStage.Published;
+            HasUnsavedChanges = false;
             RebuildExperimentList(snapshot.Id);
             _journal.Add(
                 AuditSource.Application,
                 AuditSeverity.Information,
-                $"Perfil kLa publicado: {profile.Payload.Name} v{profile.Payload.Version}.",
-                $"Recibo {profile.ReceiptFingerprint}; superfície {surface.Fingerprint}; trajetória {path.Fingerprint}. " +
-                "Nenhum comando foi enviado.");
-            StatusMessage = $"Perfil publicado: v{profile.Payload.Version} · {KlaFingerprint.Short(profile.ReceiptFingerprint)}.";
-            UpdateCommands();
+                $"Perfil kLa publicado para controle: {profile.Payload.Name}.",
+                $"Superfície {surface.Fingerprint}; trajetória {path.Fingerprint}.");
+            StatusMessage = $"Experimento publicado para controle com sucesso em {DateTime.Now:HH:mm:ss}.";
+            RefreshComputedProperties();
         }
         catch (Exception exception)
         {
@@ -877,7 +927,6 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         Broth = snapshot.Broth;
         RunCode = snapshot.RunCode;
         Notes = snapshot.Notes;
-        ReviewNote = document.ReviewNote;
         AirflowMinimum = snapshot.Domain.AirflowMinimumLpm;
         AirflowMaximum = snapshot.Domain.AirflowMaximumLpm;
         AgitationMinimum = snapshot.Domain.AgitationMinimumRpm;
@@ -904,15 +953,43 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             }
         }
 
+        SortAnchors();
+
         Surface = null;
         PathResult = null;
         _resultInputFingerprint = null;
+
+        if (snapshot.Anchors.Length >= 6 && _engine.Validate(snapshot).Count == 0)
+        {
+            try
+            {
+                Surface = _engine.Reconstruct(snapshot);
+                _resultInputFingerprint = snapshot.ScientificFingerprint();
+            }
+            catch
+            {
+                Surface = null;
+            }
+        }
+
+        if (document.PathData is { } pd && pd.Allocation.Length > 0)
+        {
+            PathResult = new KlaPathResult(
+                pd.Path,
+                pd.Allocation,
+                pd.HeadroomScores,
+                pd.HeadroomResolution,
+                pd.Diagnostics,
+                pd.SourceSurfaceFingerprint,
+                pd.Fingerprint);
+        }
+
         Stage = document.Stage;
         HasUnsavedChanges = false;
         ValidationMessage = null;
-        StatusMessage = document.Stage == KlaWorkflowStage.Published
-            ? "Recibo publicado preservado. Reestime para iniciar uma nova versão."
-            : "Experimento carregado; resultados não publicados são recalculados para evitar estado numérico obsoleto.";
+        StatusMessage = document.IsAvailableForControl || document.Stage == KlaWorkflowStage.Published
+            ? "Experimento publicado para controle carregado."
+            : "Experimento carregado.";
         _loading = false;
         RefreshComputedProperties();
         VisualizationChanged?.Invoke();
@@ -921,7 +998,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     private void ClearEditor()
     {
         _loading = true;
-        ExperimentName = Broth = RunCode = Notes = ReviewNote = "";
+        ExperimentName = Broth = RunCode = Notes = "";
         foreach (var row in Anchors)
         {
             row.PropertyChanged -= OnAnchorChanged;
@@ -954,11 +1031,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         }
 
         HasUnsavedChanges = true;
-        if (Stage == KlaWorkflowStage.Reviewed)
-        {
-            Stage = KlaWorkflowStage.PathValid;
-        }
-        else if (Stage == KlaWorkflowStage.Published)
+        if (Stage == KlaWorkflowStage.Published)
         {
             Stage = PathResult is null ? KlaWorkflowStage.Draft : KlaWorkflowStage.PathValid;
         }
@@ -979,7 +1052,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         _resultInputFingerprint = null;
         Stage = KlaWorkflowStage.Draft;
         HasUnsavedChanges = true;
-        StatusMessage = "Dados científicos alterados: superfície, trajetória e revisão foram invalidadas.";
+        StatusMessage = "Dados científicos alterados: superfície e trajetória foram invalidadas.";
         ValidationMessage = null;
         RefreshComputedProperties();
         VisualizationChanged?.Invoke();
@@ -993,20 +1066,39 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
     private async Task PersistCurrentAsync(KlaExperimentSnapshot snapshot)
     {
+        KlaSurfaceData? surfaceData = Surface is not null
+            ? new KlaSurfaceData(Surface.Diagnostics, Surface.Fingerprint)
+            : _documents.TryGetValue(snapshot.Id, out var existingDoc) ? existingDoc.SurfaceData : null;
+
+        KlaPathData? pathData = PathResult is not null
+            ? new KlaPathData(
+                PathResult.Path.ToArray(),
+                PathResult.Allocation.ToArray(),
+                PathResult.HeadroomScores.ToArray(),
+                PathResult.HeadroomResolution,
+                PathResult.Diagnostics,
+                PathResult.SourceSurfaceFingerprint,
+                PathResult.Fingerprint)
+            : _documents.TryGetValue(snapshot.Id, out var existingDoc2) ? existingDoc2.PathData : null;
+
+        var isPublished = _documents.TryGetValue(snapshot.Id, out var prev) && prev.IsAvailableForControl;
+        var publishedAt = _documents.TryGetValue(snapshot.Id, out var prev2) ? prev2.LastPublishedAtUtc : null;
+
         var document = new KlaExperimentDocument
         {
             Snapshot = snapshot,
             DraftRows = Anchors.Select(row => row.ToDraft()).ToArray(),
             Stage = Stage,
-            LatestReceiptFingerprint = _documents.TryGetValue(snapshot.Id, out var prior)
-                ? prior.LatestReceiptFingerprint
-                : null,
-            ReviewNote = ReviewNote,
+            IsAvailableForControl = isPublished || Stage == KlaWorkflowStage.Published,
+            LastPublishedAtUtc = publishedAt,
+            SurfaceData = surfaceData,
+            PathData = pathData,
         };
         _documents[snapshot.Id] = document;
         await _store.SaveExperimentAsync(document);
         HasUnsavedChanges = false;
         RebuildExperimentList(snapshot.Id);
+        RefreshComputedProperties();
     }
 
     private void RebuildExperimentList(Guid? keepSelected = null)
@@ -1019,7 +1111,8 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             Experiments.Add(new KlaExperimentListItem(
                 document.Snapshot.Id,
                 document.Snapshot.Name,
-                document.Stage));
+                document.Stage,
+                document.IsAvailableForControl));
         }
 
         if (selectedId is { } id)
@@ -1067,6 +1160,10 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PathSummaryText));
         OnPropertyChanged(nameof(NumericalParametersText));
         OnPropertyChanged(nameof(WarningText));
+        OnPropertyChanged(nameof(ExperimentFilePath));
+        OnPropertyChanged(nameof(IsPublishedForControl));
+        OnPropertyChanged(nameof(PublishedStatusText));
+        OnPropertyChanged(nameof(LastPublishedDateText));
         UpdateCommands();
     }
 
@@ -1074,12 +1171,10 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(CanEstimate));
         OnPropertyChanged(nameof(CanCalculatePath));
-        OnPropertyChanged(nameof(CanReview));
-        OnPropertyChanged(nameof(CanPublish));
+        OnPropertyChanged(nameof(CanPublishForControl));
         EstimateSurfaceCommand.NotifyCanExecuteChanged();
         CalculatePathCommand.NotifyCanExecuteChanged();
-        MarkReviewedCommand.NotifyCanExecuteChanged();
-        PublishCommand.NotifyCanExecuteChanged();
+        PublishForControlCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()

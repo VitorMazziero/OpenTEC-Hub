@@ -5,6 +5,12 @@ namespace TecnalHub.Services.KlaMapping;
 
 public interface IKlaProfileStore
 {
+    string RootDirectory { get; }
+
+    string ExperimentsDirectory { get; }
+
+    string GetExperimentFilePath(Guid experimentId);
+
     Task<IReadOnlyList<KlaExperimentDocument>> LoadExperimentsAsync(
         CancellationToken cancellationToken = default);
 
@@ -15,43 +21,42 @@ public interface IKlaProfileStore
     Task DeleteExperimentAsync(Guid experimentId, CancellationToken cancellationToken = default);
 
     Task<KlaPublishedProfile> PublishAsync(
-        KlaExperimentSnapshot experiment,
-        KlaSurface surface,
-        KlaPathResult path,
-        string reviewNote,
+        KlaExperimentDocument experiment,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<KlaPublishedProfile>> LoadPublishedAsync(
         CancellationToken cancellationToken = default);
 
-    Task<byte[]> ReadReceiptBytesAsync(
-        string receiptFingerprint,
-        CancellationToken cancellationToken = default);
-
-    Task ExportReceiptAsync(
-        string receiptFingerprint,
+    Task ExportExperimentAsync(
+        Guid experimentId,
         string destinationPath,
         CancellationToken cancellationToken = default);
 
-    Task<KlaExperimentSnapshot> ImportReceiptAsDraftAsync(
+    Task<KlaExperimentDocument> ImportExperimentAsync(
         string sourcePath,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Raised whenever a new kLa profile is successfully published.</summary>
+    /// <summary>Raised whenever a new kLa profile is successfully published for control.</summary>
     event Action<KlaPublishedProfile>? ProfilePublished;
 }
 
 /// <summary>
-/// File-backed experiment and receipt store. Drafts are mutable operator work; published
-/// JSON receipts are create-only and named by their SHA-256 fingerprint.
+/// File-backed store saving whole kLa experiments in individual JSON files
+/// under <c>experiments/&lt;guid&gt;.kla.json</c>.
 /// </summary>
 public sealed class KlaProfileStore : IKlaProfileStore
 {
-    private const string DraftFileName = "experiments.json";
+    private const string LegacyDraftFileName = "experiments.json";
 
     private readonly string _root;
+    private readonly string _experiments;
     private readonly string _receipts;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private bool _migrated;
+
+    public string RootDirectory => _root;
+
+    public string ExperimentsDirectory => _experiments;
 
     public event Action<KlaPublishedProfile>? ProfilePublished;
 
@@ -59,8 +64,12 @@ public sealed class KlaProfileStore : IKlaProfileStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         _root = root;
+        _experiments = Path.Combine(root, "experiments");
         _receipts = Path.Combine(root, "receipts");
     }
+
+    public string GetExperimentFilePath(Guid experimentId) =>
+        Path.Combine(_experiments, $"{experimentId}.kla.json");
 
     public async Task<IReadOnlyList<KlaExperimentDocument>> LoadExperimentsAsync(
         CancellationToken cancellationToken = default)
@@ -68,7 +77,8 @@ public sealed class KlaProfileStore : IKlaProfileStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await LoadDraftsUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            await EnsureMigratedUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            return await LoadExperimentsUnsafeAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -84,18 +94,7 @@ public sealed class KlaProfileStore : IKlaProfileStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var drafts = (await LoadDraftsUnsafeAsync(cancellationToken).ConfigureAwait(false)).ToList();
-            var index = drafts.FindIndex(item => item.Snapshot.Id == experiment.Snapshot.Id);
-            if (index >= 0)
-            {
-                drafts[index] = experiment;
-            }
-            else
-            {
-                drafts.Add(experiment);
-            }
-
-            await SaveDraftsUnsafeAsync(drafts, cancellationToken).ConfigureAwait(false);
+            await SaveExperimentUnsafeAsync(experiment, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -110,10 +109,11 @@ public sealed class KlaProfileStore : IKlaProfileStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var drafts = (await LoadDraftsUnsafeAsync(cancellationToken).ConfigureAwait(false))
-                .Where(item => item.Snapshot.Id != experimentId)
-                .ToList();
-            await SaveDraftsUnsafeAsync(drafts, cancellationToken).ConfigureAwait(false);
+            var filePath = GetExperimentFilePath(experimentId);
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
         }
         finally
         {
@@ -122,96 +122,28 @@ public sealed class KlaProfileStore : IKlaProfileStore
     }
 
     public async Task<KlaPublishedProfile> PublishAsync(
-        KlaExperimentSnapshot experiment,
-        KlaSurface surface,
-        KlaPathResult path,
-        string reviewNote,
+        KlaExperimentDocument document,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(experiment);
-        ArgumentNullException.ThrowIfNull(surface);
-        ArgumentNullException.ThrowIfNull(path);
-        if (string.IsNullOrWhiteSpace(reviewNote))
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (document.PathData is null || document.PathData.Allocation.Length == 0)
         {
-            throw new InvalidOperationException(
-                "Informe uma nota de revisão antes de publicar o perfil kLa.");
+            throw new InvalidOperationException("Calcule uma trajetória válida antes de publicar o experimento para controle.");
         }
 
-        if (surface.Input.ScientificFingerprint() != experiment.ScientificFingerprint())
+        var publishedDoc = document with
         {
-            throw new InvalidOperationException("A superfície não pertence à revisão atual do experimento.");
-        }
-
-        if (!string.Equals(path.SourceSurfaceFingerprint, surface.Fingerprint, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("A trajetória não pertence à superfície atual.");
-        }
-
-        if (!experiment.Algorithm.IsPaperReference)
-        {
-            throw new InvalidOperationException(
-                "Somente o conjunto numérico de referência pode ser publicado como método do artigo.");
-        }
-
-        if (path.Diagnostics.Warnings.Any(warning => warning.Contains("recusada", StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new InvalidOperationException(string.Join(" ", path.Diagnostics.Warnings));
-        }
+            Stage = KlaWorkflowStage.Published,
+            IsAvailableForControl = true,
+            LastPublishedAtUtc = DateTimeOffset.UtcNow,
+        };
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var existing = await LoadPublishedUnsafeAsync(cancellationToken).ConfigureAwait(false);
-            var prior = existing
-                .Where(profile => profile.Payload.ExperimentId == experiment.Id)
-                .OrderByDescending(profile => profile.Payload.Version)
-                .FirstOrDefault();
-            var payload = new KlaPublicationPayload
-            {
-                ProfileId = prior?.Payload.ProfileId ?? Guid.NewGuid(),
-                ExperimentId = experiment.Id,
-                Version = (prior?.Payload.Version ?? 0) + 1,
-                PublishedAtUtc = DateTimeOffset.UtcNow,
-                Name = experiment.Name.Trim(),
-                Broth = experiment.Broth.Trim(),
-                RunCode = experiment.RunCode.Trim(),
-                Notes = experiment.Notes.Trim(),
-                ReviewNote = reviewNote.Trim(),
-                Domain = experiment.Domain,
-                Anchors = experiment.Anchors
-                    .OrderByDescending(anchor => anchor.AgitationRpm)
-                    .ThenBy(anchor => anchor.AirflowLpm)
-                    .ToArray(),
-                Algorithm = experiment.Algorithm,
-                AlgorithmIdentity = KlaMappingEngine.AlgorithmIdentity(experiment.Algorithm),
-                SurfaceFingerprint = surface.Fingerprint,
-                PathFingerprint = path.Fingerprint,
-                SurfaceDiagnostics = surface.Diagnostics,
-                PathDiagnostics = path.Diagnostics,
-                Allocation = path.Allocation.ToArray(),
-            };
-            var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload, KlaFingerprint.JsonOptions);
-            var profile = new KlaPublishedProfile
-            {
-                Payload = payload,
-                ReceiptFingerprint = KlaFingerprint.ForBytes(payloadBytes),
-            };
-            var receiptBytes = JsonSerializer.SerializeToUtf8Bytes(profile, KlaFingerprint.JsonOptions);
-
-            Directory.CreateDirectory(_receipts);
-            var receiptPath = ReceiptPath(profile.ReceiptFingerprint);
-            await using (var stream = new FileStream(
-                receiptPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.Read,
-                bufferSize: 64 * 1024,
-                useAsync: true))
-            {
-                await stream.WriteAsync(receiptBytes, cancellationToken).ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-            }
-
+            await SaveExperimentUnsafeAsync(publishedDoc, cancellationToken).ConfigureAwait(false);
+            var profile = ToPublishedProfile(publishedDoc);
             ProfilePublished?.Invoke(profile);
             return profile;
         }
@@ -227,7 +159,15 @@ public sealed class KlaProfileStore : IKlaProfileStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await LoadPublishedUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            await EnsureMigratedUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            var experiments = await LoadExperimentsUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            var published = experiments
+                .Where(doc => doc.IsAvailableForControl || doc.Stage == KlaWorkflowStage.Published)
+                .Select(ToPublishedProfile)
+                .OrderBy(profile => profile.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            return published;
         }
         finally
         {
@@ -235,82 +175,144 @@ public sealed class KlaProfileStore : IKlaProfileStore
         }
     }
 
-    public async Task<byte[]> ReadReceiptBytesAsync(
-        string receiptFingerprint,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateFingerprint(receiptFingerprint);
-        var bytes = await File.ReadAllBytesAsync(ReceiptPath(receiptFingerprint), cancellationToken)
-            .ConfigureAwait(false);
-        _ = ReadAndVerifyReceipt(bytes, receiptFingerprint, "recibo solicitado");
-        return bytes;
-    }
-
-    public async Task ExportReceiptAsync(
-        string receiptFingerprint,
+    public async Task ExportExperimentAsync(
+        Guid experimentId,
         string destinationPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
-        var bytes = await ReadReceiptBytesAsync(receiptFingerprint, cancellationToken).ConfigureAwait(false);
-        await File.WriteAllBytesAsync(destinationPath, bytes, cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var sourcePath = GetExperimentFilePath(experimentId);
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException($"Experimento não encontrado em {sourcePath}", sourcePath);
+            }
+
+            var bytes = await File.ReadAllBytesAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(destinationPath, bytes, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
-    public async Task<KlaExperimentSnapshot> ImportReceiptAsDraftAsync(
+    public async Task<KlaExperimentDocument> ImportExperimentAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         var bytes = await File.ReadAllBytesAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-        var profile = ReadAndVerifyReceipt(bytes, expectedFingerprint: null, "arquivo importado");
 
-        // Import is intentionally a new local draft. The foreign review/publication is
-        // retained as a note but never becomes an active operational profile silently.
-        return new KlaExperimentSnapshot
+        KlaExperimentDocument importedDoc;
+        try
+        {
+            importedDoc = JsonSerializer.Deserialize<KlaExperimentDocument>(bytes, KlaFingerprint.JsonOptions)
+                ?? throw new InvalidDataException("Arquivo de experimento kLa inválido ou vazio.");
+        }
+        catch
+        {
+            // Tenta importar como recibo legado
+            try
+            {
+                var legacyProfile = JsonSerializer.Deserialize<KlaPublishedProfile>(bytes, KlaFingerprint.JsonOptions)
+                    ?? throw new InvalidDataException("Arquivo de recibo kLa inválido.");
+
+                var payload = legacyProfile.Payload;
+                importedDoc = new KlaExperimentDocument
+                {
+                    Snapshot = new KlaExperimentSnapshot
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = payload.Name,
+                        Broth = payload.Broth,
+                        RunCode = payload.RunCode,
+                        Notes = payload.Notes,
+                        Domain = payload.Domain,
+                        Anchors = payload.Anchors,
+                        Algorithm = payload.Algorithm,
+                        UpdatedAtUtc = DateTimeOffset.UtcNow,
+                    },
+                    DraftRows = payload.Anchors.Select(a => new KlaAnchorDraft(
+                        a.AirflowLpm.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        a.AgitationRpm.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        a.KlaPerHour.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray(),
+                    Stage = KlaWorkflowStage.Published,
+                    IsAvailableForControl = true,
+                    LastPublishedAtUtc = payload.PublishedAtUtc,
+                    PathData = new KlaPathData(
+                        [],
+                        payload.Allocation,
+                        [],
+                        0,
+                        payload.PathDiagnostics,
+                        payload.SurfaceFingerprint,
+                        payload.PathFingerprint),
+                    SurfaceData = new KlaSurfaceData(payload.SurfaceDiagnostics, payload.SurfaceFingerprint),
+                };
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException($"Não foi possível importar o arquivo kLa: {ex.Message}", ex);
+            }
+        }
+
+        var newSnapshot = importedDoc.Snapshot with
         {
             Id = Guid.NewGuid(),
-            Name = profile.Payload.Name + " · importado",
-            Broth = profile.Payload.Broth,
-            RunCode = profile.Payload.RunCode,
-            Notes = $"Importado de {profile.ReceiptFingerprint}. Revisão local obrigatória. " +
-                    profile.Payload.Notes,
-            Domain = profile.Payload.Domain,
-            Anchors = profile.Payload.Anchors,
-            Algorithm = profile.Payload.Algorithm,
+            Name = importedDoc.Snapshot.Name + " · importado",
             UpdatedAtUtc = DateTimeOffset.UtcNow,
         };
+
+        var finalDoc = importedDoc with
+        {
+            Snapshot = newSnapshot,
+        };
+
+        await SaveExperimentAsync(finalDoc, cancellationToken).ConfigureAwait(false);
+        return finalDoc;
     }
 
-    private async Task<IReadOnlyList<KlaExperimentDocument>> LoadDraftsUnsafeAsync(
+    private async Task<IReadOnlyList<KlaExperimentDocument>> LoadExperimentsUnsafeAsync(
         CancellationToken cancellationToken)
     {
-        var path = Path.Combine(_root, DraftFileName);
-        if (!File.Exists(path))
+        if (!Directory.Exists(_experiments))
         {
             return [];
         }
 
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 64 * 1024,
-            useAsync: true);
-        return await JsonSerializer.DeserializeAsync<KlaExperimentDocument[]>(
-                   stream,
-                   KlaFingerprint.JsonOptions,
-                   cancellationToken).ConfigureAwait(false)
-               ?? [];
+        var list = new List<KlaExperimentDocument>();
+        foreach (var file in Directory.EnumerateFiles(_experiments, "*.kla.json"))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+                var doc = await JsonSerializer.DeserializeAsync<KlaExperimentDocument>(stream, KlaFingerprint.JsonOptions, cancellationToken).ConfigureAwait(false);
+                if (doc is not null)
+                {
+                    list.Add(doc);
+                }
+            }
+            catch
+            {
+                // Ignora arquivo corrompido para não quebrar a listagem inteira
+            }
+        }
+
+        return list.OrderBy(d => d.Snapshot.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
-    private async Task SaveDraftsUnsafeAsync(
-        IReadOnlyList<KlaExperimentDocument> drafts,
+    private async Task SaveExperimentUnsafeAsync(
+        KlaExperimentDocument experiment,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_root);
-        var path = Path.Combine(_root, DraftFileName);
-        var temporaryPath = path + ".tmp";
+        Directory.CreateDirectory(_experiments);
+        var filePath = GetExperimentFilePath(experiment.Snapshot.Id);
+        var temporaryPath = filePath + ".tmp";
+
         await using (var stream = new FileStream(
             temporaryPath,
             FileMode.Create,
@@ -321,77 +323,141 @@ public sealed class KlaProfileStore : IKlaProfileStore
         {
             await JsonSerializer.SerializeAsync(
                 stream,
-                drafts.OrderBy(item => item.Snapshot.Name, StringComparer.CurrentCultureIgnoreCase).ToArray(),
+                experiment,
                 KlaFingerprint.JsonOptions,
                 cancellationToken).ConfigureAwait(false);
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        File.Move(temporaryPath, path, overwrite: true);
+        File.Move(temporaryPath, filePath, overwrite: true);
     }
 
-    private async Task<IReadOnlyList<KlaPublishedProfile>> LoadPublishedUnsafeAsync(
-        CancellationToken cancellationToken)
+    private async Task EnsureMigratedUnsafeAsync(CancellationToken cancellationToken)
     {
-        if (!Directory.Exists(_receipts))
+        if (_migrated)
         {
-            return [];
+            return;
         }
 
-        var profiles = new List<KlaPublishedProfile>();
-        foreach (var path in Directory.EnumerateFiles(_receipts, "*.kla.json").Order())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            var fileName = Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(path));
-            var profile = ReadAndVerifyReceipt(bytes, fileName, Path.GetFileName(path));
+        _migrated = true;
+        Directory.CreateDirectory(_experiments);
 
-            profiles.Add(profile);
+        var legacyDraftPath = Path.Combine(_root, LegacyDraftFileName);
+        if (!File.Exists(legacyDraftPath))
+        {
+            return;
         }
 
-        return profiles
-            .OrderBy(profile => profile.Payload.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ThenByDescending(profile => profile.Payload.Version)
-            .ToArray();
-    }
-
-    private string ReceiptPath(string fingerprint) =>
-        Path.Combine(_receipts, fingerprint + ".kla.json");
-
-    private static KlaPublishedProfile ReadAndVerifyReceipt(
-        ReadOnlySpan<byte> bytes,
-        string? expectedFingerprint,
-        string description)
-    {
-        KlaPublishedProfile profile;
         try
         {
-            profile = JsonSerializer.Deserialize<KlaPublishedProfile>(bytes, KlaFingerprint.JsonOptions)
-                      ?? throw new InvalidDataException($"Recibo kLa ilegível: {description}.");
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException($"Recibo kLa ilegível: {description}.", exception);
-        }
+            await using var stream = new FileStream(legacyDraftPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+            var legacyDocs = await JsonSerializer.DeserializeAsync<KlaExperimentDocument[]>(stream, KlaFingerprint.JsonOptions, cancellationToken).ConfigureAwait(false);
+            if (legacyDocs is null || legacyDocs.Length == 0)
+            {
+                return;
+            }
 
-        var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(profile.Payload, KlaFingerprint.JsonOptions);
-        var computed = KlaFingerprint.ForBytes(payloadBytes);
-        if (!string.Equals(computed, profile.ReceiptFingerprint, StringComparison.Ordinal) ||
-            (expectedFingerprint is not null &&
-             !string.Equals(expectedFingerprint, profile.ReceiptFingerprint, StringComparison.Ordinal)))
-        {
-            throw new InvalidDataException($"Recibo kLa alterado: {description}.");
-        }
+            var receiptsMap = new Dictionary<string, KlaPublishedProfile>(StringComparer.OrdinalIgnoreCase);
+            if (Directory.Exists(_receipts))
+            {
+                foreach (var rPath in Directory.EnumerateFiles(_receipts, "*.kla.json"))
+                {
+                    try
+                    {
+                        var bytes = await File.ReadAllBytesAsync(rPath, cancellationToken).ConfigureAwait(false);
+                        var profile = JsonSerializer.Deserialize<KlaPublishedProfile>(bytes, KlaFingerprint.JsonOptions);
+                        if (profile is not null)
+                        {
+                            receiptsMap[profile.ReceiptFingerprint] = profile;
+                        }
+                    }
+                    catch
+                    {
+                        // Ignora recibo ilegível
+                    }
+                }
+            }
 
-        return profile;
+            foreach (var doc in legacyDocs)
+            {
+                var targetPath = GetExperimentFilePath(doc.Snapshot.Id);
+                if (File.Exists(targetPath))
+                {
+                    continue;
+                }
+
+                var migratedDoc = doc;
+                if (!string.IsNullOrEmpty(doc.LatestReceiptFingerprint) && receiptsMap.TryGetValue(doc.LatestReceiptFingerprint, out var matchingProfile))
+                {
+                    migratedDoc = doc with
+                    {
+                        Stage = KlaWorkflowStage.Published,
+                        IsAvailableForControl = true,
+                        LastPublishedAtUtc = matchingProfile.Payload.PublishedAtUtc,
+                        PathData = new KlaPathData(
+                            [],
+                            matchingProfile.Payload.Allocation,
+                            [],
+                            0,
+                            matchingProfile.Payload.PathDiagnostics,
+                            matchingProfile.Payload.SurfaceFingerprint,
+                            matchingProfile.Payload.PathFingerprint),
+                        SurfaceData = new KlaSurfaceData(matchingProfile.Payload.SurfaceDiagnostics, matchingProfile.Payload.SurfaceFingerprint),
+                    };
+                }
+
+                await SaveExperimentUnsafeAsync(migratedDoc, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Preserva backup renomeando
+            var backupPath = legacyDraftPath + ".bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Move(legacyDraftPath, backupPath);
+            }
+        }
+        catch
+        {
+            // Falha na migração não impede inicialização
+        }
     }
 
-    private static void ValidateFingerprint(string fingerprint)
+    public static KlaPublishedProfile ToPublishedProfile(KlaExperimentDocument doc)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
-        if (fingerprint.Length != 64 || fingerprint.Any(character => !Uri.IsHexDigit(character)))
+        var snapshot = doc.Snapshot;
+        var allocation = doc.PathData?.Allocation ?? [];
+        var pathDiag = doc.PathData?.Diagnostics ?? new KlaPathDiagnostics(
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, allocation.Length, []);
+        var surfaceDiag = doc.SurfaceData?.Diagnostics ?? new KlaSurfaceDiagnostics(
+            0, 0, 0, 0, 0, 0, true, []);
+
+        var payload = new KlaPublicationPayload
         {
-            throw new ArgumentException("Invalid receipt fingerprint.", nameof(fingerprint));
-        }
+            ProfileId = snapshot.Id,
+            ExperimentId = snapshot.Id,
+            Version = 1,
+            PublishedAtUtc = doc.LastPublishedAtUtc ?? doc.Snapshot.UpdatedAtUtc,
+            Name = snapshot.Name.Trim(),
+            Broth = snapshot.Broth.Trim(),
+            RunCode = snapshot.RunCode.Trim(),
+            Notes = snapshot.Notes.Trim(),
+            ReviewNote = doc.ReviewNote,
+            Domain = snapshot.Domain,
+            Anchors = snapshot.Anchors,
+            Algorithm = snapshot.Algorithm,
+            AlgorithmIdentity = KlaMappingEngine.AlgorithmIdentity(snapshot.Algorithm),
+            SurfaceFingerprint = doc.SurfaceData?.Fingerprint ?? "",
+            PathFingerprint = doc.PathData?.Fingerprint ?? "",
+            SurfaceDiagnostics = surfaceDiag,
+            PathDiagnostics = pathDiag,
+            Allocation = allocation,
+        };
+
+        var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload, KlaFingerprint.JsonOptions);
+        return new KlaPublishedProfile
+        {
+            Payload = payload,
+            ReceiptFingerprint = doc.LatestReceiptFingerprint ?? KlaFingerprint.ForBytes(payloadBytes),
+        };
     }
 }

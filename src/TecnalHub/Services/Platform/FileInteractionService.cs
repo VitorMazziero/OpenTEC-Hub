@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using Microsoft.Win32;
+using TecnalHub.Services.Persistence;
 
 namespace TecnalHub.Services.Platform;
 
@@ -43,6 +44,20 @@ public sealed class FileInteractionService : IFileInteractionService
 
         return dialog.ShowDialog(Application.Current?.MainWindow) == true
             ? dialog.FileName
+            : null;
+    }
+
+    public string? ChooseFolder(string title, string? initialDirectory = null)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = title,
+            InitialDirectory = initialDirectory ?? AppPaths.DataDirectory,
+            Multiselect = false,
+        };
+
+        return dialog.ShowDialog(Application.Current?.MainWindow) == true
+            ? dialog.FolderName
             : null;
     }
 

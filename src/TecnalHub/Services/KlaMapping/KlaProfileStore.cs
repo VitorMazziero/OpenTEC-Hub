@@ -64,8 +64,16 @@ public sealed class KlaProfileStore : IKlaProfileStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         _root = root;
-        _experiments = Path.Combine(root, "experiments");
-        _receipts = Path.Combine(root, "receipts");
+        _experiments = Directory.Exists(Path.Combine(root, "Experimentos"))
+            ? Path.Combine(root, "Experimentos")
+            : (Directory.Exists(Path.Combine(root, "experiments"))
+                ? Path.Combine(root, "experiments")
+                : Path.Combine(root, "Experimentos"));
+        _receipts = Directory.Exists(Path.Combine(root, "Recibos"))
+            ? Path.Combine(root, "Recibos")
+            : (Directory.Exists(Path.Combine(root, "receipts"))
+                ? Path.Combine(root, "receipts")
+                : Path.Combine(root, "Recibos"));
     }
 
     public string GetExperimentFilePath(Guid experimentId) =>
@@ -278,27 +286,43 @@ public sealed class KlaProfileStore : IKlaProfileStore
     private async Task<IReadOnlyList<KlaExperimentDocument>> LoadExperimentsUnsafeAsync(
         CancellationToken cancellationToken)
     {
-        if (!Directory.Exists(_experiments))
+        var dirsToSearch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (Directory.Exists(_experiments))
+        {
+            dirsToSearch.Add(_experiments);
+        }
+
+        var legacyDir = Path.Combine(_root, "experiments");
+        if (Directory.Exists(legacyDir))
+        {
+            dirsToSearch.Add(legacyDir);
+        }
+
+        if (dirsToSearch.Count == 0)
         {
             return [];
         }
 
+        var seenIds = new HashSet<Guid>();
         var list = new List<KlaExperimentDocument>();
-        foreach (var file in Directory.EnumerateFiles(_experiments, "*.kla.json"))
+        foreach (var dir in dirsToSearch)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
+            foreach (var file in Directory.EnumerateFiles(dir, "*.kla.json"))
             {
-                await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
-                var doc = await JsonSerializer.DeserializeAsync<KlaExperimentDocument>(stream, KlaFingerprint.JsonOptions, cancellationToken).ConfigureAwait(false);
-                if (doc is not null)
+                cancellationToken.ThrowIfCancellationRequested();
+                try
                 {
-                    list.Add(doc);
+                    await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+                    var doc = await JsonSerializer.DeserializeAsync<KlaExperimentDocument>(stream, KlaFingerprint.JsonOptions, cancellationToken).ConfigureAwait(false);
+                    if (doc is not null && seenIds.Add(doc.Snapshot.Id))
+                    {
+                        list.Add(doc);
+                    }
                 }
-            }
-            catch
-            {
-                // Ignora arquivo corrompido para não quebrar a listagem inteira
+                catch
+                {
+                    // Ignora arquivo corrompido para não quebrar a listagem inteira
+                }
             }
         }
 

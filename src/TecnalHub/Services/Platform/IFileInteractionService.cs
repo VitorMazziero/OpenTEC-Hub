@@ -7,6 +7,8 @@ public interface IFileInteractionService
 
     string? ChooseOpenPath(string title, string filter, string extension);
 
+    string? ChooseFolder(string title, string? initialDirectory = null);
+
     void OpenFolder(string path);
 
     void CopyText(string text);

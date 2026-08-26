@@ -50,6 +50,7 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
+        PromptOrInitializeWorkspace();
         ConfigureLogging();
         WireBindingDiagnostics();
 
@@ -112,6 +113,32 @@ public partial class App : Application
 
         // Only now do we touch hardware.
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
+    }
+
+    private static void PromptOrInitializeWorkspace()
+    {
+        var configured = AppPaths.ReadConfiguredWorkspace();
+        var initialDir = !string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured)
+            ? configured
+            : (Directory.Exists(AppPaths.DefaultDataDirectory)
+                ? AppPaths.DefaultDataDirectory
+                : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Selecione a Pasta Raiz do TECNAL-Hub (Workspace / Sessão Global)",
+            InitialDirectory = initialDir,
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FolderName))
+        {
+            AppPaths.InitializeWorkspace(dialog.FolderName);
+        }
+        else
+        {
+            AppPaths.InitializeWorkspace(configured ?? AppPaths.DefaultDataDirectory);
+        }
     }
 
     private static void ConfigureLogging()

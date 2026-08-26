@@ -68,8 +68,8 @@ public sealed partial class HistoricalViewModel : ObservableObject
     private void OpenFolder()
     {
         var path = SelectedSession is { } selected
-            ? Path.GetDirectoryName(selected.Path) ?? Path.Combine(AppPaths.DataDirectory, "sessions")
-            : Path.Combine(AppPaths.DataDirectory, "sessions");
+            ? Path.GetDirectoryName(selected.Path) ?? AppPaths.SessionsDirectory
+            : AppPaths.SessionsDirectory;
         _files.OpenFolder(path);
     }
 

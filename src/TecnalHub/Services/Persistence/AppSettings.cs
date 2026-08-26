@@ -944,44 +944,117 @@ public static class SessionLogFormat
 /// <summary>Where the application keeps its files.</summary>
 public static class AppPaths
 {
-    private const string FolderName = "TECNAL-Hub";
+    private const string AppDataFolderName = "TECNAL-Hub";
+    private const string WorkspaceConfigFileName = "workspace.txt";
 
-    /// <summary>Per-user application data directory, created on demand.</summary>
+    private static string? _customDataDirectory;
+
+    public static string BootstrapDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppDataFolderName);
+
+    public static string WorkspaceConfigFile =>
+        Path.Combine(BootstrapDirectory, WorkspaceConfigFileName);
+
+    public static string DefaultDataDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), AppDataFolderName);
+
+    /// <summary>Per-user application data directory (workspace root), created on demand.</summary>
     public static string DataDirectory
     {
         get
         {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                FolderName);
-            Directory.CreateDirectory(path);
-            return path;
+            if (!string.IsNullOrWhiteSpace(_customDataDirectory))
+            {
+                Directory.CreateDirectory(_customDataDirectory);
+                return _customDataDirectory;
+            }
+
+            var configured = ReadConfiguredWorkspace();
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                _customDataDirectory = configured;
+                Directory.CreateDirectory(_customDataDirectory);
+                return _customDataDirectory;
+            }
+
+            _customDataDirectory = DefaultDataDirectory;
+            Directory.CreateDirectory(_customDataDirectory);
+            return _customDataDirectory;
+        }
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _customDataDirectory = value;
+                Directory.CreateDirectory(_customDataDirectory);
+                SaveConfiguredWorkspace(value);
+            }
         }
     }
 
-    public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
+    public static string ConfigDirectory => Path.Combine(DataDirectory, "Configuracoes");
 
-    /// <summary>Operator-created kLa drafts and immutable publication receipts.</summary>
-    public static string KlaMappingDirectory => Path.Combine(DataDirectory, "kla-mapping");
+    public static string SettingsFile => Path.Combine(ConfigDirectory, "settings.json");
+
+    /// <summary>Operator-created kLa experiments and published profiles.</summary>
+    public static string KlaMappingDirectory => Path.Combine(DataDirectory, "Mapas");
 
     /// <summary>Operator-authored recipes, saved as versioned JSON.</summary>
-    public static string RecipesDirectory
+    public static string RecipesDirectory => Path.Combine(DataDirectory, "Receitas");
+
+    public static string LogDirectory => Path.Combine(DataDirectory, "Logs");
+
+    public static string SessionsDirectory => Path.Combine(DataDirectory, "Sessoes");
+
+    public static string BackupsDirectory => Path.Combine(DataDirectory, "Backups");
+
+    public static void InitializeWorkspace(string workspacePath)
     {
-        get
-        {
-            var path = Path.Combine(DataDirectory, "recipes");
-            Directory.CreateDirectory(path);
-            return path;
-        }
+        DataDirectory = workspacePath;
+        EnsureDirectories();
     }
 
-    public static string LogDirectory
+    public static void EnsureDirectories()
     {
-        get
+        Directory.CreateDirectory(DataDirectory);
+        Directory.CreateDirectory(ConfigDirectory);
+        Directory.CreateDirectory(KlaMappingDirectory);
+        Directory.CreateDirectory(RecipesDirectory);
+        Directory.CreateDirectory(LogDirectory);
+        Directory.CreateDirectory(SessionsDirectory);
+        Directory.CreateDirectory(BackupsDirectory);
+    }
+
+    public static string? ReadConfiguredWorkspace()
+    {
+        try
         {
-            var path = Path.Combine(DataDirectory, "logs");
-            Directory.CreateDirectory(path);
-            return path;
+            if (File.Exists(WorkspaceConfigFile))
+            {
+                var path = File.ReadAllText(WorkspaceConfigFile).Trim();
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    return path;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore bootstrap load failure
+        }
+        return null;
+    }
+
+    public static void SaveConfiguredWorkspace(string workspacePath)
+    {
+        try
+        {
+            Directory.CreateDirectory(BootstrapDirectory);
+            File.WriteAllText(WorkspaceConfigFile, workspacePath);
+        }
+        catch
+        {
+            // Ignore bootstrap write failure
         }
     }
 }

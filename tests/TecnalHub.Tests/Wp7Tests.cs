@@ -284,6 +284,9 @@ public sealed class Wp7Tests
         public string? ChooseOpenPath(string title, string filter, string extension)
             => null;
 
+        public string? ChooseFolder(string title, string? initialDirectory = null)
+            => null;
+
         public void OpenFolder(string path)
         {
         }

@@ -288,6 +288,84 @@
                         <TextBlock Text="Exporte ou importe todas as predefinições de controle, receitas e mapeamentos kLa experimentais em um único arquivo compactado para portabilidade entre computadores e restauração do sistema."
                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16" />
 
+                        <!-- Diretório de Trabalho (Workspace / Sessão Global) -->
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Diretório de Trabalho (Workspace / Sessão Global)" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBlock Text="Pasta raiz padrão compartilhada onde o sistema organiza e salva todos os dados em subpastas dedicadas."
+                                           Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding WorkspaceDirectory, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             FontFamily="{DynamicResource FontNumeric}"
+                                             VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <Button Content="Alterar Pasta..." Margin="0,0,8,0"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding ChangeWorkspaceDirectoryCommand}" />
+                                        <Button Content="Abrir no Explorer"
+                                                Command="{Binding OpenWorkspaceFolderCommand}" />
+                                    </WrapPanel>
+                                </Grid>
+
+                                <!-- Subdiretórios estruturados (Simulação Windows Explorer) -->
+                                <TextBlock Text="Estrutura de Subdiretórios:" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,8" />
+
+                                <ItemsControl ItemsSource="{Binding WorkspaceFolders}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:WorkspaceFolderInfo}">
+                                            <Border Background="{DynamicResource SurfaceCardBrush}"
+                                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                                    BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
+                                                    Padding="10,8" Margin="0,0,0,6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <ctl:Icon Key="Folder" Size="20" Margin="0,0,10,0" VerticalAlignment="Center"
+                                                              Stroke="{DynamicResource AccentBrush}" />
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,6,0" />
+                                                            <TextBlock Text="{Binding RelativePath}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                                       FontFamily="{DynamicResource FontNumeric}"
+                                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Style="{StaticResource CaptionTextStyle}"
+                                                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                                                CornerRadius="3" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding FileTypes}"
+                                                                       FontFamily="{DynamicResource FontNumeric}"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                        </Border>
+                                                        <Button Content="Abrir" Padding="8,3"
+                                                                Command="{Binding DataContext.OpenSubfolderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding FullPath}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}"
                                 BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,14">
                             <StackPanel>

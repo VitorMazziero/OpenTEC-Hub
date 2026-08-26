@@ -124,15 +124,30 @@ public sealed class SettingsService : ISettingsService, IAsyncDisposable
 
     private AppSettings Load()
     {
-        if (!File.Exists(_path))
+        var targetPath = _path;
+        if (!File.Exists(targetPath))
         {
-            _log.LogInformation("No settings file at {Path}; starting from defaults", _path);
-            return new AppSettings();
+            var fallbackRoot = Path.Combine(AppPaths.DataDirectory, "settings.json");
+            var fallbackAppData = Path.Combine(AppPaths.BootstrapDirectory, "settings.json");
+
+            if (File.Exists(fallbackRoot))
+            {
+                targetPath = fallbackRoot;
+            }
+            else if (File.Exists(fallbackAppData))
+            {
+                targetPath = fallbackAppData;
+            }
+            else
+            {
+                _log.LogInformation("No settings file at {Path}; starting from defaults", _path);
+                return new AppSettings();
+            }
         }
 
         try
         {
-            var json = File.ReadAllText(_path);
+            var json = File.ReadAllText(targetPath);
             var loaded = JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions);
 
             if (loaded is null)

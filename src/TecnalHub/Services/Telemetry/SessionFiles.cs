@@ -122,7 +122,9 @@ public sealed class SessionFileService : ISessionFileService
         var configured = settings.Logging.SessionLogPath;
         var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
+            AppPaths.SessionsDirectory,
             Path.Combine(AppPaths.DataDirectory, "sessions"),
+            AppPaths.LogDirectory,
         };
 
         if (!string.IsNullOrWhiteSpace(configured) &&

@@ -241,7 +241,7 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void OpenSessionFolder()
-        => _files.OpenFolder(_sessionLogger.CurrentPath ?? Path.Combine(AppPaths.DataDirectory, "sessions"));
+        => _files.OpenFolder(_sessionLogger.CurrentPath ?? AppPaths.SessionsDirectory);
 
     private string NewSessionPath()
     {
@@ -250,7 +250,7 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
             ? Path.GetDirectoryName(configured)
             : null;
         directory = string.IsNullOrWhiteSpace(directory)
-            ? Path.Combine(AppPaths.DataDirectory, "sessions")
+            ? AppPaths.SessionsDirectory
             : directory;
 
         return Path.Combine(directory, $"session_{DateTimeOffset.Now:yyyy-MM-dd_HH-mm-ss}.txt");

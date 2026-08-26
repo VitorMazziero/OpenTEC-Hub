@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.IO.Compression;
 using Microsoft.Extensions.Logging;
 
@@ -39,9 +39,21 @@ public sealed class BackupService : IBackupService
     {
         _settings = settings;
         _log = log;
-        _settingsFile = Path.Combine(dataDirectory, "settings.json");
-        _recipesDirectory = Path.Combine(dataDirectory, "recipes");
-        _klaMappingDirectory = Path.Combine(dataDirectory, "kla-mapping");
+        _settingsFile = File.Exists(Path.Combine(dataDirectory, "Configuracoes", "settings.json"))
+            ? Path.Combine(dataDirectory, "Configuracoes", "settings.json")
+            : (File.Exists(Path.Combine(dataDirectory, "settings.json"))
+                ? Path.Combine(dataDirectory, "settings.json")
+                : Path.Combine(dataDirectory, "Configuracoes", "settings.json"));
+        _recipesDirectory = Directory.Exists(Path.Combine(dataDirectory, "Receitas"))
+            ? Path.Combine(dataDirectory, "Receitas")
+            : (Directory.Exists(Path.Combine(dataDirectory, "recipes"))
+                ? Path.Combine(dataDirectory, "recipes")
+                : Path.Combine(dataDirectory, "Receitas"));
+        _klaMappingDirectory = Directory.Exists(Path.Combine(dataDirectory, "Mapas"))
+            ? Path.Combine(dataDirectory, "Mapas")
+            : (Directory.Exists(Path.Combine(dataDirectory, "kla-mapping"))
+                ? Path.Combine(dataDirectory, "kla-mapping")
+                : Path.Combine(dataDirectory, "Mapas"));
     }
 
     public async Task<BackupResult> ExportBackupAsync(string destinationZipPath)
@@ -67,29 +79,38 @@ public sealed class BackupService : IBackupService
                 // 1. Settings file
                 if (File.Exists(_settingsFile))
                 {
+                    var destConfig = Path.Combine(tempDir, "Configuracoes");
+                    Directory.CreateDirectory(destConfig);
+                    File.Copy(_settingsFile, Path.Combine(destConfig, "settings.json"), overwrite: true);
                     File.Copy(_settingsFile, Path.Combine(tempDir, "settings.json"), overwrite: true);
                 }
 
-                // 2. Recipes directory
+                // 2. Recipes directory (Receitas)
                 if (Directory.Exists(_recipesDirectory))
                 {
-                    var destRecipes = Path.Combine(tempDir, "recipes");
+                    var destRecipes = Path.Combine(tempDir, "Receitas");
                     Directory.CreateDirectory(destRecipes);
-                    foreach (var file in Directory.GetFiles(_recipesDirectory, "*.json"))
+                    foreach (var file in Directory.GetFiles(_recipesDirectory, "*.json", SearchOption.AllDirectories))
                     {
-                        File.Copy(file, Path.Combine(destRecipes, Path.GetFileName(file)), overwrite: true);
+                        var relative = Path.GetRelativePath(_recipesDirectory, file);
+                        var target = Path.Combine(destRecipes, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
                         recipesCount++;
                     }
                 }
 
-                // 3. Kla-mapping directory
+                // 3. Kla-mapping directory (Mapas)
                 if (Directory.Exists(_klaMappingDirectory))
                 {
-                    var destKla = Path.Combine(tempDir, "kla-mapping");
+                    var destKla = Path.Combine(tempDir, "Mapas");
                     Directory.CreateDirectory(destKla);
-                    foreach (var file in Directory.GetFiles(_klaMappingDirectory, "*.json"))
+                    foreach (var file in Directory.GetFiles(_klaMappingDirectory, "*.json", SearchOption.AllDirectories))
                     {
-                        File.Copy(file, Path.Combine(destKla, Path.GetFileName(file)), overwrite: true);
+                        var relative = Path.GetRelativePath(_klaMappingDirectory, file);
+                        var target = Path.Combine(destKla, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
                         mapsCount++;
                     }
                 }
@@ -134,7 +155,10 @@ public sealed class BackupService : IBackupService
                 ZipFile.ExtractToDirectory(sourceZipPath, tempDir, overwriteFiles: true);
 
                 // 1. Settings file
-                var settingsSrc = Path.Combine(tempDir, "settings.json");
+                var settingsSrc = File.Exists(Path.Combine(tempDir, "Configuracoes", "settings.json"))
+                    ? Path.Combine(tempDir, "Configuracoes", "settings.json")
+                    : Path.Combine(tempDir, "settings.json");
+
                 if (File.Exists(settingsSrc))
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(_settingsFile)!);
@@ -142,26 +166,38 @@ public sealed class BackupService : IBackupService
                     _settings.Reload();
                 }
 
-                // 2. Recipes
-                var recipesSrc = Path.Combine(tempDir, "recipes");
+                // 2. Recipes (Receitas or recipes)
+                var recipesSrc = Directory.Exists(Path.Combine(tempDir, "Receitas"))
+                    ? Path.Combine(tempDir, "Receitas")
+                    : Path.Combine(tempDir, "recipes");
+
                 if (Directory.Exists(recipesSrc))
                 {
                     Directory.CreateDirectory(_recipesDirectory);
-                    foreach (var file in Directory.GetFiles(recipesSrc, "*.json"))
+                    foreach (var file in Directory.GetFiles(recipesSrc, "*.json", SearchOption.AllDirectories))
                     {
-                        File.Copy(file, Path.Combine(_recipesDirectory, Path.GetFileName(file)), overwrite: true);
+                        var relative = Path.GetRelativePath(recipesSrc, file);
+                        var target = Path.Combine(_recipesDirectory, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
                         recipesCount++;
                     }
                 }
 
-                // 3. Kla mapping
-                var klaSrc = Path.Combine(tempDir, "kla-mapping");
+                // 3. Kla mapping (Mapas or kla-mapping)
+                var klaSrc = Directory.Exists(Path.Combine(tempDir, "Mapas"))
+                    ? Path.Combine(tempDir, "Mapas")
+                    : Path.Combine(tempDir, "kla-mapping");
+
                 if (Directory.Exists(klaSrc))
                 {
                     Directory.CreateDirectory(_klaMappingDirectory);
-                    foreach (var file in Directory.GetFiles(klaSrc, "*.json"))
+                    foreach (var file in Directory.GetFiles(klaSrc, "*.json", SearchOption.AllDirectories))
                     {
-                        File.Copy(file, Path.Combine(_klaMappingDirectory, Path.GetFileName(file)), overwrite: true);
+                        var relative = Path.GetRelativePath(klaSrc, file);
+                        var target = Path.Combine(_klaMappingDirectory, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
                         mapsCount++;
                     }
                 }

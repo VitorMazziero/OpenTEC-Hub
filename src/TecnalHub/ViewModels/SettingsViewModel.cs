@@ -177,6 +177,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public partial bool BackupEnabled { get; set; }
 
     [ObservableProperty]
+    public partial string WorkspaceDirectory { get; set; } = AppPaths.DataDirectory;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasChanges))]
     public partial string DataDelayMs { get; set; } = "";
 
@@ -691,10 +694,103 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
+    public IReadOnlyList<WorkspaceFolderInfo> WorkspaceFolders =>
+    [
+        new(
+            "Mapas",
+            "Mapas\\",
+            "Experimentos de kLa, superfícies de oxigenação e perfis publicados para controle.",
+            "*.kla.json",
+            AppPaths.KlaMappingDirectory),
+        new(
+            "Receitas",
+            "Receitas\\",
+            "Receitas de bioprocesso do operador, fases e automações programadas.",
+            "*.recipe.json",
+            AppPaths.RecipesDirectory),
+        new(
+            "Sessões",
+            "Sessoes\\",
+            "Arquivos de telemetria contínua e exportações de dados das corridas de fermentação.",
+            "session_*.txt, *.tsv",
+            AppPaths.SessionsDirectory),
+        new(
+            "Logs",
+            "Logs\\",
+            "Registros de auditoria, eventos operacionais e histórico de execução.",
+            "tecnalhub-*.log",
+            AppPaths.LogDirectory),
+        new(
+            "Configurações",
+            "Configuracoes\\",
+            "Configurações de calibração, preferências e parâmetros operacionais.",
+            "settings.json",
+            AppPaths.ConfigDirectory),
+        new(
+            "Backups",
+            "Backups\\",
+            "Destino padrão sugerido para pacotes de backup e restauração completos.",
+            "*.tecbkp, *.zip",
+            AppPaths.BackupsDirectory),
+    ];
+
+    [RelayCommand]
+    private void ChangeWorkspaceDirectory()
+    {
+        if (_files is null)
+        {
+            return;
+        }
+
+        var confirmed = _dialogs.ConfirmDestructive(
+            "Alterar Diretório de Trabalho (Workspace)",
+            "Atenção: Os dados locais existentes NÃO serão migrados automaticamente.\n\n" +
+            "Os arquivos antigos se manterão no diretório antigo e novos dados serão salvos no novo diretório.\n\n" +
+            "Deseja selecionar uma nova pasta raiz?",
+            WorkspaceDirectory);
+
+        if (!confirmed)
+        {
+            StatusMessage = "Alteração de diretório cancelada.";
+            return;
+        }
+
+        var selected = _files.ChooseFolder("Selecionar Diretório de Trabalho (Workspace / Sessão Global)", WorkspaceDirectory);
+        if (!string.IsNullOrWhiteSpace(selected))
+        {
+            AppPaths.InitializeWorkspace(selected);
+            WorkspaceDirectory = AppPaths.DataDirectory;
+            OnPropertyChanged(nameof(WorkspaceFolders));
+            StatusMessage = $"Diretório de trabalho alterado para: {selected}";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenWorkspaceFolder()
+    {
+        _files?.OpenFolder(WorkspaceDirectory);
+    }
+
+    [RelayCommand]
+    private void OpenSubfolder(string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            _files?.OpenFolder(path);
+        }
+    }
+
     public void Dispose()
     {
         _device.TelemetryReceived -= OnTelemetryReceived;
         _settings.Changed -= OnSettingsChanged;
     }
 }
+
+public sealed record WorkspaceFolderInfo(
+    string Name,
+    string RelativePath,
+    string Description,
+    string FileTypes,
+    string FullPath);
 

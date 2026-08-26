@@ -244,83 +244,106 @@ public partial class KlaMappingView : UserControl
 
     private void DrawHeadroom()
     {
-        var plot = _headroomPlot.Plot;
-        if (_headroomColorBar is not null)
+        try
         {
-            plot.Remove(_headroomColorBar);
-            _headroomColorBar = null;
-        }
-
-        plot.Clear();
-        StylePlot(plot, "Qg inicial (L/min)", "N inicial (rpm)");
-        if (ViewModel is not { PathResult: { } path } viewModel)
-        {
-            plot.Axes.SetLimits(0, 1, 0, 1);
-            var note = plot.Add.Text("A classificação aparece após Calcular trajetória", 0.5, 0.5);
-            note.Alignment = Alignment.MiddleCenter;
-            note.LabelFontColor = ToPlotColor(TryBrush("TextMutedBrush"), MediaColors.Gray);
-            _headroomPlot.Refresh();
-            return;
-        }
-
-        var resolution = path.HeadroomResolution;
-        var scores = new double[resolution, resolution];
-        var minScore = double.PositiveInfinity;
-        var maxScore = double.NegativeInfinity;
-        for (var row = 0; row < resolution; row++)
-        {
-            for (var column = 0; column < resolution; column++)
+            var plot = _headroomPlot.Plot;
+            if (_headroomColorBar is not null)
             {
-                var score = path.HeadroomScores[(row * resolution) + column];
-                scores[row, column] = score;
-                if (double.IsFinite(score))
-                {
-                    if (score < minScore)
-                    {
-                        minScore = score;
-                    }
+                plot.Remove(_headroomColorBar);
+                _headroomColorBar = null;
+            }
 
-                    if (score > maxScore)
+            plot.Clear();
+            StylePlot(plot, "Qg inicial (L/min)", "N inicial (rpm)");
+            if (ViewModel is not { } viewModel || viewModel.PathResult is not { } path)
+            {
+                var note = plot.Add.Text("A classificação aparece após Calcular trajetória", 0.5, 0.5);
+                note.Alignment = Alignment.MiddleCenter;
+                note.LabelFontColor = ToPlotColor(TryBrush("TextMutedBrush"), MediaColors.Gray);
+                _headroomPlot.Refresh();
+                return;
+            }
+
+            var resolution = path.HeadroomResolution;
+            var scores = new double[resolution, resolution];
+            var minScore = double.PositiveInfinity;
+            var maxScore = double.NegativeInfinity;
+            var hasFinite = false;
+            for (var row = 0; row < resolution; row++)
+            {
+                for (var column = 0; column < resolution; column++)
+                {
+                    var score = path.HeadroomScores[(row * resolution) + column];
+                    scores[row, column] = score;
+                    if (double.IsFinite(score))
                     {
-                        maxScore = score;
+                        hasFinite = true;
+                        if (score < minScore)
+                        {
+                            minScore = score;
+                        }
+
+                        if (score > maxScore)
+                        {
+                            maxScore = score;
+                        }
                     }
                 }
             }
-        }
 
-        var domain = viewModel.Surface!.Input.Domain;
-        var algorithm = viewModel.Surface.Input.Algorithm;
-        var qMinimum = domain.DenormalizeAirflow(algorithm.CandidateMinimum);
-        var qMaximum = domain.DenormalizeAirflow(algorithm.CandidateMaximum);
-        var nMinimum = domain.DenormalizeAgitation(algorithm.CandidateMinimum);
-        var nMaximum = domain.DenormalizeAgitation(algorithm.CandidateMaximum);
-        var heatmap = plot.Add.Heatmap(scores);
-        heatmap.Rectangle = new CoordinateRect(qMinimum, qMaximum, nMinimum, nMaximum);
-        heatmap.Colormap = new ScottPlot.Colormaps.Magma();
-        if (double.IsFinite(minScore) && double.IsFinite(maxScore) && (maxScore - minScore) > 1e-6)
-        {
-            heatmap.ManualRange = new ScottPlot.Range(minScore, maxScore);
-        }
-        else if (double.IsFinite(maxScore) && maxScore > 0)
-        {
-            heatmap.ManualRange = new ScottPlot.Range(0, maxScore);
-        }
-        else
-        {
-            heatmap.ManualRange = new ScottPlot.Range(0, 0.5);
-        }
-        heatmap.FlipVertically = true;
-        _headroomColorBar = plot.Add.ColorBar(heatmap);
-        _headroomColorBar.Label = "H médio";
+            if (!hasFinite)
+            {
+                scores[0, 0] = 0;
+            }
 
-        var best = plot.Add.Scatter(
-            new double[] { path.Diagnostics.SelectedStartAirflowLpm },
-            new double[] { path.Diagnostics.SelectedStartAgitationRpm });
-        best.LineWidth = 0;
-        best.MarkerSize = 12;
-        best.Color = ToPlotColor(TryBrush("AccentBrush"), MediaColors.DodgerBlue);
-        plot.Axes.SetLimits(qMinimum, qMaximum, nMinimum, nMaximum);
-        _headroomPlot.Refresh();
+            var domain = viewModel.Surface!.Input.Domain;
+            var algorithm = viewModel.Surface.Input.Algorithm;
+            var qMinimum = domain.DenormalizeAirflow(algorithm.CandidateMinimum);
+            var qMaximum = domain.DenormalizeAirflow(algorithm.CandidateMaximum);
+            var nMinimum = domain.DenormalizeAgitation(algorithm.CandidateMinimum);
+            var nMaximum = domain.DenormalizeAgitation(algorithm.CandidateMaximum);
+            var heatmap = plot.Add.Heatmap(scores);
+            heatmap.Rectangle = new CoordinateRect(qMinimum, qMaximum, nMinimum, nMaximum);
+            heatmap.Colormap = new ScottPlot.Colormaps.Magma();
+            if (double.IsFinite(minScore) && double.IsFinite(maxScore) && (maxScore - minScore) > 1e-6)
+            {
+                heatmap.ManualRange = new ScottPlot.Range(minScore, maxScore);
+            }
+            else if (double.IsFinite(maxScore) && maxScore > 0)
+            {
+                heatmap.ManualRange = new ScottPlot.Range(0, maxScore);
+            }
+            else
+            {
+                heatmap.ManualRange = new ScottPlot.Range(0, 0.5);
+            }
+            heatmap.FlipVertically = true;
+            _headroomColorBar = plot.Add.ColorBar(heatmap);
+            _headroomColorBar.Label = "H médio";
+
+            var best = plot.Add.Scatter(
+                new double[] { path.Diagnostics.SelectedStartAirflowLpm },
+                new double[] { path.Diagnostics.SelectedStartAgitationRpm });
+            best.LineWidth = 0;
+            best.MarkerSize = 12;
+            best.Color = ToPlotColor(TryBrush("AccentBrush"), MediaColors.DodgerBlue);
+            
+            if (qMaximum > qMinimum && nMaximum > nMinimum)
+            {
+                plot.Axes.SetLimits(qMinimum, qMaximum, nMinimum, nMaximum);
+            }
+            
+            _headroomPlot.Refresh();
+        }
+        catch (Exception ex)
+        {
+            var plot = _headroomPlot.Plot;
+            plot.Clear();
+            var note = plot.Add.Text($"Erro ao renderizar folga:\n{ex.Message}", 0.5, 0.5);
+            note.Alignment = Alignment.MiddleCenter;
+            note.LabelFontColor = ToPlotColor(TryBrush("StateAlarmTextBrush"), MediaColors.Red);
+            _headroomPlot.Refresh();
+        }
     }
 
     private static void StylePlot(Plot plot, string xLabel, string yLabel)

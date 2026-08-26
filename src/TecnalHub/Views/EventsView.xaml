@@ -31,8 +31,38 @@
                           SelectedItem="{Binding SelectedSource, Mode=TwoWay}" />
                 <ComboBox Width="155" Margin="8,0,0,0" ItemsSource="{Binding SeverityOptions}"
                           SelectedItem="{Binding SelectedSeverity, Mode=TwoWay}" />
-                <TextBox Width="190" Margin="8,0,0,0" ToolTip="Pesquisar mensagem ou detalhe"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                <Grid Width="220" Margin="8,0,0,0">
+                    <TextBox x:Name="EventSearchBox"
+                             Padding="24,4,8,4"
+                             ToolTip="Pesquisar mensagens ou detalhes dos eventos"
+                             AutomationProperties.Name="Pesquisar eventos"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <Path Data="{StaticResource IconSearchGeometry}"
+                          Width="13" Height="13"
+                          Stretch="Uniform"
+                          Stroke="{DynamicResource TextSecondaryBrush}"
+                          StrokeThickness="1.5"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          Margin="7,0,0,0"
+                          IsHitTestVisible="False" />
+                    <TextBlock Text="Pesquisar eventos..."
+                               IsHitTestVisible="False"
+                               VerticalAlignment="Center"
+                               Margin="26,0,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=EventSearchBox}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
                 <CheckBox Content="Seguir novas entradas" Margin="14,0,0,0"
                           VerticalAlignment="Center"
                           IsChecked="{Binding FollowNewEntries, Mode=TwoWay}" />

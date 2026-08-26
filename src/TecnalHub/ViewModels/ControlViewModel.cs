@@ -123,17 +123,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private bool _switchingSharedPump;
 
     public ControlViewModel(
-        IReadOnlyList<SubsystemViewModel> subsystems, FlowControlViewModel flowControl,
-        PHControlViewModel phControl, NutrientControlViewModel nutrientControl,
-        AntifoamControlViewModel antifoamControl, FoamControlViewModel foamControl,
-        FlaskAgitatorViewModel flaskAgitator, IDeviceService device, ISettingsService settings,
-        IDialogService dialogs, ICascadeService cascade, ReceitasViewModel? receitas = null)
-        : this(subsystems, flowControl, phControl, nutrientControl, antifoamControl, foamControl,
-            flaskAgitator, null, device, settings, dialogs, cascade, receitas)
-    {
-    }
-
-    public ControlViewModel(
         IReadOnlyList<SubsystemViewModel> subsystems,
         FlowControlViewModel flowControl,
         PHControlViewModel phControl,
@@ -141,7 +130,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControlViewModel antifoamControl,
         FoamControlViewModel foamControl,
         FlaskAgitatorViewModel flaskAgitator,
-        BiomassControlViewModel? biomassControl,
+        BiomassControlViewModel biomassControl,
+        PumpControlViewModel pumpControl,
         IDeviceService device,
         ISettingsService settings,
         IDialogService dialogs,
@@ -164,6 +154,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FoamControl = foamControl;
         FlaskAgitator = flaskAgitator;
         BiomassControl = biomassControl;
+        PumpControl = pumpControl;
 
         Rows =
         [
@@ -198,6 +189,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControl.PropertyChanged += OnDosingStateChanged;
         FoamControl.PropertyChanged += OnDosingStateChanged;
         FlaskAgitator.PropertyChanged += OnDosingStateChanged;
+        BiomassControl.PropertyChanged += OnDosingStateChanged;
+        PumpControl.PropertyChanged += OnDosingStateChanged;
 
         var presetsSource = settings.Current.SetpointPresets.Length > 0
             ? settings.Current.SetpointPresets
@@ -268,7 +261,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     /// <summary>Separate flask-agitator card (WP7).</summary>
     public FlaskAgitatorViewModel FlaskAgitator { get; }
 
-    public BiomassControlViewModel? BiomassControl { get; }
+    /// <summary>Biomass sensor card (WP1). Self-contained apply; excluded from the safe-stop.</summary>
+    public BiomassControlViewModel BiomassControl { get; }
+
+    /// <summary>External-pump card (WP2). Self-contained apply; disabled by the safe-stop.</summary>
+    public PumpControlViewModel PumpControl { get; }
 
     public bool CanActuate => _device.State == ConnectionState.Connected;
 
@@ -561,12 +558,14 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             .Merge(PHControl.BuildSafeStop())
             .Merge(NutrientControl.BuildSafeStop())
             .Merge(AntifoamControl.BuildSafeStop())
-            .Merge(FlaskAgitator.BuildSafeStop());
+            .Merge(FlaskAgitator.BuildSafeStop())
+            .Merge(PumpControl.BuildSafeStop());
         var confirmed = _dialogs.ConfirmDestructive(
             "Parada segura",
             "Desativa temperatura, agitação, monitor de oxigênio, vazão, pressão, dosagem de pH, " +
-            "nutriente, antiespumante e o agitador de frasco. As válvulas auxiliar e de nitrogênio " +
-            "serão fechadas e a válvula de respiro será aberta. O sensor de nível/espuma segue ativo.",
+            "nutriente, antiespumante, o agitador de frasco e a bomba externa. As válvulas auxiliar " +
+            "e de nitrogênio serão fechadas e a válvula de respiro será aberta. Os sensores de " +
+            "nível/espuma e de biomassa seguem ativos.",
             command.ToJson());
 
         if (!confirmed)
@@ -595,7 +594,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         AntifoamControl.CommitPendingCommand();
         FlaskAgitator.IsEnabled = false;
         FlaskAgitator.CommitPendingCommand();
-
+        PumpControl.MarkStopped();
         PersistAppliedSetpoints();
         StatusText = "Parada segura executada. Atuadores e dosagens desativados.";
         RefreshState();
@@ -909,5 +908,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlaskAgitator.PropertyChanged -= OnDosingStateChanged;
         _cascade.Updated -= OnCascadeUpdated;
         _device.StateChanged -= OnDeviceStateChanged;
+        BiomassControl.PropertyChanged -= OnDosingStateChanged;
+        PumpControl.PropertyChanged -= OnDosingStateChanged;
     }
 }

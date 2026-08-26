@@ -1,0 +1,18 @@
+<UserControl x:Class="TecnalHub.Controls.PumpPreviewChart"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+
+    <Grid Height="{Binding PlotHeight, ElementName=Root}">
+        <Border x:Name="PlotHost"
+                CornerRadius="{DynamicResource RadiusSmall}"
+                ClipToBounds="True" />
+
+        <!-- A flat "curve" of a bad profile and an empty axis frame look the same; say so. -->
+        <TextBlock x:Name="EmptyNotice"
+                   Text="Defina um perfil válido para ver a prévia"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Style="{StaticResource CaptionTextStyle}"
+                   Foreground="{DynamicResource TextMutedBrush}" />
+    </Grid>
+</UserControl>

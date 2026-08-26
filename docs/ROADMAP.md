@@ -1,6 +1,6 @@
 # TECNAL-Hub — Build Roadmap
 
-> **Version:** 0.14.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-20
+> **Version:** 0.22.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-22
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
 > without ever losing a working link to the ESP32-S3.
 >
@@ -65,8 +65,8 @@ and dependency, not on implementation size.
 | **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | **Done (WP6):** kLa-path allocation, three modes, ownership handshake, bumpless engage, integral reset, safe abort, the O₂ detail tabs and the live tuning chart. Bioreactor run is the field gate | Phase 2 WP6 |
 | **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | Protocol keys documented; no operator controls or safe-stop aggregation | Phase 2 WP7 |
 | **P1** | Conditional OUR soft sensor and controller gain scheduling | Absent | Phase 2 WP8 |
-| **P2** | Biomass sensor: enable, blank/start/stop, thresholds, live raw/Abs/IT/PWM and calibration procedure | Telemetry parsed/logged; commands and UI absent | Phase 3 WP1 |
-| **P2** | External pump: five firmware profiles, curve/volume preview and proportional-gas coupling `Q_g=(V_0+V_p)·vvm` | Telemetry parsed/logged; operational UI absent | Phase 3 WP2 |
+| **P2** | Biomass sensor: enable, blank/start/stop, thresholds, live raw/Abs/IT/PWM and calibration procedure | **Done (Phase 3 WP1):** owned actuator, Controle card, guided Calibrações procedure, live readouts | Phase 3 WP1 |
+| **P2** | External pump: five firmware profiles, curve/volume preview and proportional-gas coupling `Q_g=(V_0+V_p)·vvm` | **Done (Phase 3 WP2):** all five profiles, live preview, arbiter-owned proportional gas, safe frame | Phase 3 WP2 |
 | **P2** | Remaining level and biomass calibration plus full v.6 parity/bench receipt | Calibration page exists but these procedures do not | Phase 3 WP3 |
 
 The following v.6 code is **not** parity work: neural/gassing-out estimation remains a
@@ -972,21 +972,52 @@ enable, the transition bound, the versioned breakpoints and the live active gain
 **Goal:** close the remaining v.6 device inventory, pass a parity receipt, and only then
 add the automation that v.6 never had.
 
-### WP1 — biomass sensor and procedure — **P2**
+### WP1 — biomass sensor and procedure — **done 2026-08-22 · P2 · [D-021](DECISIONS.md)**
 
-- [ ] Enable/disable, blank/start/stop, atomic low/high/optimal thresholds and live
-      `BiomassAbs`/`BiomassRaw`/`BiomassIT`/`BiomassPWM`
-- [ ] Add the biomass procedure to Calibrações and confirm whether the firmware actually
-      exposes an HD-mode state before displaying one
+- [x] Enable/disable, blank/start/stop, atomic low/high/optimal thresholds and live
+      `BiomassAbs`/`BiomassRaw`/`BiomassIT`/`BiomassPWM` (`BiomassControlViewModel`, a Controle card)
+- [x] Added the biomass procedure to Calibrações (`BiomassCalibrationViewModel`: enable → capture
+      blank → confirm Abs ≈ 0 → thresholds, with live feedback and link-loss refusal)
 
-### WP2 — external pump and proportional gas — **P2**
+**Delivered:** the enable is an **immediate** toggle exactly as v.6's checkbox is; `blank`, `start`
+and `stop` are momentary and gated on the sensor being on; the three integration thresholds are staged
+and applied atomically as `{"low","high","opt"}` (raw counts). The command surface is
+`CommandBuilders.BiomassComm/BiomassBlank/BiomassStart/BiomassStop/BiomassThresholds`, with `start`/`stop`
+added to `CommandKeys` — undocumented in v.6's Python tree but exactly what the firmware forwards
+(`TECNAL_ESP32_v7.ino`). **The firmware exposes no HD-mode state** (confirmed against the `.ino`), so
+none is displayed — the open question in this WP is answered. `ActuatorId.Biomass` is an **owned**
+arbiter actuator (a recipe cannot fight the operator over the blank/thresholds) but is **excluded from
+the operator safe-stop**, because it is a measurement and a stop must not blind it — the same rule the
+level/foam sensor gets ([D-018](DECISIONS.md)). Biomass absorbance joins the synoptic (instrument path),
+the variable rail and the existing chart channel. Golden strings pin every frame. Live actuation of the
+sensor rides the bioreactor gate.
 
-- [ ] All five firmware profiles: constant, linear, exponential, polynomial `p0..p20`
+### WP2 — external pump and proportional gas — **done 2026-08-22 · P2 · [D-022](DECISIONS.md)**
+
+- [x] All five firmware profiles: constant, linear, exponential, polynomial `p0..p20`
       and piecewise `t0..tN`/`q0..qN`, with a shared flow/accumulated-volume preview
-- [ ] Safe disabled frame `pumpComm:0, mode:0, speed:0`, payload-size validation and
+- [x] Safe disabled frame `pumpComm:0, mode:0, speed:0`, payload-size validation and
       versioned profile persistence
-- [ ] Optional proportional-gas coupling from v.6,
+- [x] Optional proportional-gas coupling from v.6,
       `Q_g=(V_initial+PumpVol/1000)·vvm`, owned by the same arbiter as manual/cascade flow
+
+**Delivered:** the five profiles build the exact v.6 frames — `mode`, `init_t`, `final_t` (minutes)
+then the mode parameters — pinned by golden strings. **`init_t`/`final_t` were absent from the earlier
+protocol doc but are on the wire in v.6**, so they were added for byte-parity ([PROTOCOL §3.5](PROTOCOL.md)).
+`PumpProfileMath` is the pure flow/volume model (v.6's simulation: flow zero before `init_t`, clamped
+non-negative, volume the trapezoidal integral), feeding both the theme-aware `PumpPreviewChart` and the
+send path. The proportional-gas coupling computes `Q_g` from the live pump volume and dispatches a
+standard aeration frame through the **same arbiter** as manual/cascade flow, so it is refused when the
+cascade owns aeration — v.6's stray nitrogen-open-at-zero-flow quirk is **not** reproduced. Payload-size
+validation uses the firmware's own array bounds (1–21 coefficients, 2–100 segments, `t0 = 0`, strictly
+increasing). `PumpControlSettings` is versioned and keeps every mode's parameters; the operating window
+is shared across modes rather than stored per mode as v.6 did ([D-022](DECISIONS.md)). `ActuatorId.ExternalPump`
+is owned, with its dynamic `p{i}`/`t{i}`/`q{i}` keys matched by pattern, and is disabled by the operator
+safe-stop. Pump actuation rides the bioreactor gate.
+
+> **Synoptic placement is provisional.** The biomass and external-pump tags were added to the reactor
+> drawing at reasonable anchors, but their exact positions need a live visual review against the render,
+> the same way the Phase 1 equipment asset was validated with evidence screenshots.
 
 ### WP3 — remaining calibration and v.6 parity receipt — **P2**
 

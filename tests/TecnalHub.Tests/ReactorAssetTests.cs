@@ -97,7 +97,11 @@ public sealed class ReactorAssetTests
         Assert.Contains("CommandParameter=\"antifoam\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CommandParameter=\"level\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("CommandParameter=\"agitator\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Nível/espuma pelo sensor de distância", xaml, StringComparison.Ordinal);
+
+        // Phase 3 sensors on the drawing; the flask agitator stays off it.
+        Assert.Contains("CommandParameter=\"biomass\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CommandParameter=\"pump\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("bomba externa em mL/min", xaml, StringComparison.Ordinal);
     }
 
     private static byte AlphaAt(BitmapSource source, int x, int y)

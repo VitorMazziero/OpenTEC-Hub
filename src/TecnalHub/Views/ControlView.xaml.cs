@@ -53,14 +53,10 @@ public partial class ControlView : UserControl
             return;
         }
 
-        if ((e.OriginalSource as FrameworkElement)?.DataContext is BiomassControlViewModel biomass)
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is BiomassControlViewModel)
         {
-            if (DataContext is ControlViewModel controlPage && controlPage.CanActuate &&
-                biomass.ApplyCommunicationCommand.CanExecute(null))
-            {
-                biomass.ApplyCommunicationCommand.Execute(null);
-            }
-
+            // Biomass enable is an immediate property-driven command. Do not also treat
+            // the toggle as an implicit threshold apply.
             return;
         }
 

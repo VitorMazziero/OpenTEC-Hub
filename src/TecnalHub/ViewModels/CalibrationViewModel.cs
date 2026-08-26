@@ -3,7 +3,7 @@ using TecnalHub.Services.Persistence;
 
 namespace TecnalHub.ViewModels;
 
-/// <summary>Three calibration procedures exposed as one navigation destination.</summary>
+/// <summary>Calibration procedures exposed as one navigation destination.</summary>
 public sealed class CalibrationViewModel : IDisposable
 {
     public CalibrationViewModel(
@@ -14,6 +14,7 @@ public sealed class CalibrationViewModel : IDisposable
         PH = new PHCalibrationViewModel(device, settings, phControl);
         Oxygen = new OxygenCalibrationViewModel(device, settings);
         Flow = new FlowCalibrationViewModel(device, settings);
+        Biomass = new BiomassCalibrationViewModel(device, settings);
     }
 
     public PHCalibrationViewModel PH { get; }
@@ -22,10 +23,14 @@ public sealed class CalibrationViewModel : IDisposable
 
     public FlowCalibrationViewModel Flow { get; }
 
+    /// <summary>Guided biomass blank/threshold procedure (Phase 3 WP1).</summary>
+    public BiomassCalibrationViewModel Biomass { get; }
+
     public void Dispose()
     {
         PH.Dispose();
         Oxygen.Dispose();
         Flow.Dispose();
+        Biomass.Dispose();
     }
 }

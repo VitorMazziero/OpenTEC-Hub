@@ -258,25 +258,24 @@ public sealed class DosingAuxiliariesTests
     }
 
     [Fact]
-    public void Biomass_communication_and_thresholds_are_separate_responsive_actions()
+    public void Biomass_communication_is_immediate_and_thresholds_remain_a_separate_action()
     {
         var device = new RecordingDeviceService();
-        using var vm = new BiomassControlViewModel(device, new MemorySettingsService())
+        var settings = new MemorySettingsService();
+        using var vm = new BiomassControlViewModel(device, settings)
         {
             IsEnabled = true,
-            LowText = "12000",
-            HighText = "36000",
-            OptimalText = "24000",
+            LowThresholdText = "12000",
+            HighThresholdText = "36000",
+            OptimalThresholdText = "24000",
         };
 
-        Assert.Empty(device.Sent);
-        vm.ApplyCommunicationCommand.Execute(null);
         Assert.Equal("""{"biomassComm":1}""", Assert.Single(device.Sent));
-        Assert.True(vm.AppliedIsEnabled);
+        Assert.True(vm.IsEnabled);
 
         vm.ApplyThresholdsCommand.Execute(null);
         Assert.Equal(2, device.Sent.Count);
-        Assert.Equal(24000, vm.AppliedOptimalThreshold);
+        Assert.Equal(24000, settings.Current.BiomassControl.OptimalThreshold);
     }
 
     /// <summary>The wire must never see a pt-BR comma: the builder formats invariantly.</summary>

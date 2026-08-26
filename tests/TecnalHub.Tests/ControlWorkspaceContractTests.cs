@@ -59,20 +59,19 @@ public sealed class ControlWorkspaceContractTests
     }
 
     [Fact]
-    public void External_pump_placeholder_can_open_but_cannot_actuate()
+    public void External_pump_drawer_exposes_the_implemented_profile_controls()
     {
         var xaml = File.ReadAllText(ViewPath);
         var start = xaml.IndexOf("<!-- 10. Bomba Dosadora Externa", StringComparison.Ordinal);
         var end = xaml.IndexOf("<!-- 11. Sensor de Biomassa", start, StringComparison.Ordinal);
         var section = xaml[start..end];
 
-        Assert.DoesNotContain(
-            "<Grid Margin=\"0,4\" VerticalAlignment=\"Center\" IsEnabled=\"False\">",
-            section,
-            StringComparison.Ordinal);
         Assert.Contains("IsExpandedExternalPump", section, StringComparison.Ordinal);
-        Assert.Contains("IsChecked=\"False\" IsEnabled=\"False\"", section, StringComparison.Ordinal);
-        Assert.Contains("o controle ainda não está implementado", section, StringComparison.Ordinal);
+        Assert.Contains("DataContext=\"{Binding PumpControl}\"", section, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsEnabled, Mode=TwoWay}\"", section, StringComparison.Ordinal);
+        Assert.Contains("<ctl:PumpPreviewChart", section, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ApplyProfileCommand}\"", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("o controle ainda não está implementado", section, StringComparison.Ordinal);
     }
 
     [Fact]

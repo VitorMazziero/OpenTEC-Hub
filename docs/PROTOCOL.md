@@ -350,26 +350,46 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > unowned configuration, so a stop never disables foam monitoring. See
 > [DECISIONS D-018](DECISIONS.md).
 
-### 3.4 Biomass (Phase 3 scope)
+### 3.4 Biomass (Phase 3 WP1)
 
 | Keys | Meaning |
 |---|---|
-| `biomassComm` | `1`/`0` enable |
-| `blank` | `1` — capture blank reference |
-| `low`, `high`, `opt` | Integration-time thresholds (ints), sent together |
+| `biomassComm` | `1`/`0` enable. Handled on the hub; while `0` it drops the sub-commands below |
+| `blank` | `1` — momentary, capture the blank (zero-absorbance) reference |
+| `start` | `1` — momentary, start the acquisition loop |
+| `stop` | `1` — momentary, stop the acquisition loop |
+| `low`, `high`, `opt` | Integration-time thresholds (ints, raw counts), sent together |
 
-### 3.5 External pump (Phase 3 scope)
+> **`start`/`stop` were not in v.6's Python `send_command` table** — v.6's biomass block issues
+> them (`send_biomass_start`/`send_biomass_stop`) and the firmware forwards them
+> (`TECNAL_ESP32_v7.ino`: `start`, `stop`, `blank`, `low`, `high`, `opt`, `test_period`). They are on
+> the wire, so they are in the contract. `test_period` exists in the firmware but v.6 never sends it,
+> so TECNAL-Hub does not either. **The firmware exposes no HD-mode state**, so the app shows none.
 
-`pumpComm` (`1`/`0`) plus a `mode` and its parameters. Disabling sends
-`pumpComm:0, mode:0, speed:0`.
+### 3.5 External pump (Phase 3 WP2)
 
-| `mode` | Profile | Parameters |
+`pumpComm` (`1`/`0`) enables the hub's routing. A profile carries a `mode`, the operating window
+`init_t`/`final_t` (minutes) and the mode's parameters. Disabling sends `pumpComm:0, mode:0, speed:0`.
+
+| `mode` | Profile | Parameters (after `mode`, `init_t`, `final_t`) |
 |---|---|---|
 | 1 | Constant | `lambda_const` |
 | 2 | Linear | `lambda_linear`, `phi_linear` |
 | 3 | Exponential | `lambda_exp`, `phi_exp` |
-| 4 | Polynomial | `p0` ... `p20` (flattened, one key per coefficient) |
-| 5 | Piecewise | `num_segments`, then `t0`...`tN` and `q0`...`qN` |
+| 4 | Polynomial | `p0` ... `p20` (flattened, one key per coefficient, only as many as entered) |
+| 5 | Piecewise | `num_segments`, then interleaved `t0,q0,t1,q1,…` (t in minutes, q in mL/min) |
+
+> **`init_t`/`final_t` were missing from earlier revisions of this table** but are emitted by every
+> v.6 pump-mode frame (`pump_mode_window.send_commands`) and forwarded by the firmware, so they are
+> part of the contract. Times are relative to the profile: `t' = t − init_t`, and flow is zero before
+> `init_t`. The firmware holds `p0..p20` (≤ 21 coefficients) and `t0..t99`/`q0..q99` (2–100 segments);
+> those are the payload-size bounds the app validates against.
+>
+> The disable frame's `speed:0` is **vestigial**: the firmware forwards `pump_speed`, not `speed`, so
+> it is ignored — reproduced only for byte-parity with v.6. The proportional-gas coupling
+> `Q_g = (V₀ + PumpVol/1000)·vvm` is not a pump key at all: it computes an **aeration** setpoint and is
+> sent as a flow frame through the command arbiter (owned as `Aeration`). TECNAL-Hub closes both gas
+> valves on that frame rather than reproducing v.6's stray `valve_2:1`-at-zero-flow behaviour.
 
 ### 3.6 System
 
@@ -401,6 +421,17 @@ Flow cal curve     {"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
 Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
 Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
 kLa combined       {"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}
+biomass enable     {"biomassComm":1}
+biomass blank      {"blank":1}
+biomass start/stop {"start":1}   /   {"stop":1}
+biomass thresholds {"low":10000,"high":40000,"opt":25000}
+pump enable        {"pumpComm":1}
+pump disable       {"pumpComm":0,"mode":0,"speed":0}
+pump constant      {"mode":1,"init_t":0.0,"final_t":60.0,"lambda_const":1.5}
+pump linear        {"mode":2,"init_t":0.0,"final_t":60.0,"lambda_linear":1.0,"phi_linear":0.5}
+pump exponential   {"mode":3,"init_t":0.0,"final_t":60.0,"lambda_exp":1.0,"phi_exp":0.1}
+pump polynomial    {"mode":4,"init_t":0.0,"final_t":60.0,"p0":1.0,"p1":0.5,"p2":0.1}
+pump piecewise     {"mode":5,"init_t":0.0,"final_t":60.0,"num_segments":3,"t0":0.0,"q0":1.0,"t1":30.0,"q1":2.0,"t2":60.0,"q2":3.0}
 ```
 
 Key order within an object is not believed to matter (the firmware parses JSON),

@@ -93,6 +93,73 @@ O₂-enrichment path. See [UI_DESIGN §5.3](UI_DESIGN.md#53-receitas) and [D-023
 
 ---
 
+## [0.22.0] - 2026-08-22
+
+Phase 3 WP2 — the external peristaltic pump and proportional-gas coupling. This closes the
+Phase 3 WP2 software scope; pump actuation and the proportional-gas flow ride the bioreactor gate.
+
+### Added
+- **Five firmware profile modes.** `CommandBuilders.PumpConstant/Linear/Exponential/Polynomial/Piecewise`
+  build the exact v.6 frames — `mode`, `init_t`, `final_t` (minutes) then the mode parameters:
+  `lambda_const`; `lambda_linear`/`phi_linear`; `lambda_exp`/`phi_exp`; `p0..p20`; or `num_segments`
+  with interleaved `t0,q0,t1,q1,…`. Byte-parity pinned by golden strings.
+- **`PumpProfileMath`** — pure flow/volume evaluation ported from v.6's simulation: flow is zero
+  before `init_t` and clamped non-negative, and accumulated volume is the trapezoidal integral
+  `∫ Q dt`. Drives both the preview and the send path (one mode dispatch).
+- **`PumpControlViewModel`** — a `Bomba externa` card on Controle: enable (`pumpComm`), mode selector,
+  per-mode parameters, a shared **flow/accumulated-volume preview** (`PumpPreviewChart`, ScottPlot,
+  theme-aware), live reported flow/volume, and the proportional-gas section.
+- **Proportional-gas coupling.** `Q_g = (V₀ + PumpVol/1000)·vvm`, clamped to `maxFlow` and dispatched
+  as a standard aeration frame through the **same arbiter** as manual/cascade flow — refused when the
+  cascade owns aeration. It resends only on a material change.
+- **Safe disabled frame** `{"pumpComm":0,"mode":0,"speed":0}` (byte-identical to v.6, `speed` vestigial),
+  wired into the operator safe-stop; **payload-size validation** (1–21 coefficients, 2–100 segments,
+  `t0 = 0`, strictly increasing times) from the firmware's own array bounds.
+- **`PumpControlSettings`** — a **versioned** profile (all modes' parameters kept, so switching mode
+  loses nothing) plus the gas coupling; each applied send bumps the version. `ActuatorId.ExternalPump`
+  is now an owned arbiter actuator, its dynamic `p{i}`/`t{i}`/`q{i}` keys matched by pattern.
+- **Synoptic + charts.** An external-pump tag on the reactor drawing (feed path) and the existing
+  `Bomba — vazão`/`Bomba — volume` chart channels.
+
+### Verified
+- 417/417 tests pass. New: the profile golden strings and key order, `PumpProfileMath` per mode and
+  its constant-profile volume, the ViewModel's mode visibility/validation/version bump, the
+  proportional-gas coupling driving aeration from pump volume, and the arbiter refusing a Manual pump
+  frame the cascade owns. Simulator tolerates the profile keys (unknown keys ignored). Bioreactor
+  actuation remains the field gate.
+
+---
+
+## [0.21.0] - 2026-08-22
+
+Phase 3 WP1 — the biomass optical sensor and its guided procedure. Enable/blank/start/stop, atomic
+thresholds and the live Abs/Raw/IT/PWM readouts, plus a Calibrações procedure. Actuation of the
+blank/start/stop and the reading itself ride the bioreactor gate.
+
+### Added
+- **Biomass command surface.** `CommandBuilders.BiomassComm/BiomassBlank/BiomassStart/BiomassStop/BiomassThresholds`
+  — the enable, the three momentary actions (`start`/`stop` were undocumented in v.6's tree but are
+  what the firmware forwards) and the atomic `{"low","high","opt"}` integration thresholds. Golden-string pinned.
+- **`BiomassControlViewModel`** — a `Biomassa` card on Controle: an immediate enable toggle (as in v.6),
+  blank/start/stop gated on the sensor being on, staged thresholds with validation, and the live
+  Abs/Raw/IT/PWM block (all `—` until a frame carries absorbance).
+- **Guided procedure** on Calibrações (`BiomassCalibrationViewModel`): enable → capture the blank →
+  confirm Abs ≈ 0 → set thresholds, with live absorbance feedback and a link-loss refusal. The
+  firmware exposes **no HD-mode state** (confirmed against `TECNAL_ESP32_v7.ino`), so none is shown.
+- **`BiomassControlSettings`** — the persisted low/high/optimal thresholds (raw counts); the sensor
+  enable is never persisted (it starts off). `ActuatorId.Biomass` is now an owned arbiter actuator so
+  a recipe cannot fight the operator over the blank/thresholds — but it is **excluded from the safe-stop**,
+  because it is a measurement and a stop must not blind it (the same rule the level/foam sensor gets).
+- **Synoptic.** A biomass optical-sensor tag on the reactor drawing (instrument path) and the existing
+  `Biomassa` (absorbance) chart channel and rail variable.
+
+### Verified
+- Biomass golden strings and key order; the ViewModel's immediate enable, gated momentary actions,
+  atomic threshold apply/persist, incoherent-threshold refusal, and the no-data-until-absorbance
+  readouts; and the actuator/key mapping (see [0.22.0] for the shared 417/417 run).
+
+---
+
 ## [0.20.1] - 2026-08-22
 
 Two of the WP4 Phase-0 link-hygiene items — the software-only ones that need no hardware to

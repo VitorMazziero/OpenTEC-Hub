@@ -117,6 +117,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         FoamControlViewModel foamControl,
         FlaskAgitatorViewModel flaskAgitator,
         BiomassControlViewModel biomassControl,
+        PumpControlViewModel pumpControl,
         CalibrationViewModel calibration,
         KlaMappingViewModel klaMapping,
         IDialogService dialogs,
@@ -182,8 +183,20 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             channel: TelemetryChannel.Distance,
             detailNote: "Nível/espuma pelo sensor de distância. Configure o sensor em Controle → Controle de espuma.");
 
+        // Phase 3 sensors on the synoptic. Biomass shows absorbance (AU); a cells/mL curve
+        // needs a growth calibration that does not exist yet. The external pump shows its
+        // reported flow. Both are read-only measurements configured on Controle.
+        Biomass = new ProcessVariableViewModel(
+            "biomass", "Biomassa", "Abs", decimals: 3, isControllable: false,
+            channel: TelemetryChannel.Biomass,
+            detailNote: "Absorbância do sensor óptico. Ative o sensor e capture o branco em Controle → Biomassa.");
+        Pump = new ProcessVariableViewModel(
+            "pump", "Bomba externa", "mL/min", decimals: 3, isControllable: false,
+            channel: TelemetryChannel.PumpFlow,
+            detailNote: "Vazão informada pela bomba peristáltica. Configure o perfil em Controle → Bomba externa.");
+
         // KPI-strip order, which is also the variable-rail order.
-        Variables = [Temperature, Ph, Oxygen, Motor, Flow, Pressure, Nutrient, Antifoam, Level];
+        Variables = [Temperature, Ph, Oxygen, Motor, Flow, Pressure, Nutrient, Antifoam, Level, Biomass, Pump];
 
         // Ranges come from docs/PROTOCOL.md section 3.1 and are paired with the
         // command builders, so validation and the wire cannot drift apart.
@@ -242,8 +255,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedVariable = Temperature;
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
-            Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator, biomassControl,
-            device, settings, dialogs, cascade, receitas);
+            Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
+            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 
@@ -391,6 +404,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Level/foam distance in millimetres, on the synoptic (WP7).</summary>
     public ProcessVariableViewModel Level { get; }
+
+    /// <summary>Biomass absorbance (AU), on the synoptic (WP1).</summary>
+    public ProcessVariableViewModel Biomass { get; }
+
+    /// <summary>External-pump reported flow (mL/min), on the synoptic (WP2).</summary>
+    public ProcessVariableViewModel Pump { get; }
 
     /// <summary>Controllable subsystems, aligned with <see cref="Variables"/>.</summary>
     public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
@@ -1028,6 +1047,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Pressure.Push(snapshot.Pressure);
         Antifoam.Push(snapshot.Antifoam);
         Level.Push(snapshot.Distance);
+        Biomass.Push(snapshot.BiomassAbsorbance);
+        Pump.Push(snapshot.PumpFlow);
 
         // Nutrient, like Motor, is deliberately not pushed from telemetry: the device
         // reports no nutrient feedback. Its tile shows the commanded duty cycle, updated

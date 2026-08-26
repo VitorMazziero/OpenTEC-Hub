@@ -11,12 +11,11 @@ namespace TecnalHub.Protocol;
 /// owns aeration owns the whole valve/flow group, or none of it.
 /// </para>
 /// <para>
-/// The list is the Phase 1/2 core loop, pH, and the WP7 cultivation dosing pumps
-/// (nutrient, antifoam and the flask agitator). Keys that no controller contends for —
-/// device/system commands, calibration coefficients, the foam/level <b>sensor</b>
-/// configuration, and the Phase 3 subsystems (biomass, external pump) — map to
-/// <c>null</c> and are unowned. They pass the arbiter freely; each gains an owner in the
-/// WP that adds its control surface.
+/// The list is the Phase 1/2 core loop, pH, the WP7 cultivation dosing pumps
+/// (nutrient, antifoam and the flask agitator), and the Phase 3 subsystems: the biomass
+/// sensor (WP1) and the external pump (WP2). Keys that no controller contends for —
+/// device/system commands, calibration coefficients, and the foam/level <b>sensor</b>
+/// configuration — map to <c>null</c> and are unowned. They pass the arbiter freely.
 /// </para>
 /// <para>
 /// The foam-control keys (<c>distanceSensorComm</c>, <c>distanceSensorReference</c> and the
@@ -57,6 +56,20 @@ public enum ActuatorId
     /// direction and the potentiometer re-enable. Not the reactor impeller.
     /// </summary>
     FlaskAgitator,
+
+    /// <summary>
+    /// The biomass optical sensor (WP1): enable, blank capture, start/stop and the
+    /// low/high/optimal integration thresholds. A measurement, so a safe-stop leaves it
+    /// running rather than blinding it; owned so a recipe cannot fight the operator over it.
+    /// </summary>
+    Biomass,
+
+    /// <summary>
+    /// The external peristaltic feed pump (WP2): enable, the five firmware profile modes
+    /// and their parameters. Its proportional-gas coupling drives <see cref="Aeration"/>,
+    /// not this actuator, so it is arbitrated as flow rather than as the pump.
+    /// </summary>
+    ExternalPump,
 }
 
 /// <summary>
@@ -117,6 +130,29 @@ public static class CommandActuators
             [CommandKeys.AgitatorPercent] = ActuatorId.FlaskAgitator,
             [CommandKeys.AgitatorDir] = ActuatorId.FlaskAgitator,
             [CommandKeys.AgitatorReEnablePot] = ActuatorId.FlaskAgitator,
+
+            // Biomass (WP1): enable, blank/start/stop and the integration thresholds.
+            [CommandKeys.BiomassComm] = ActuatorId.Biomass,
+            [CommandKeys.Blank] = ActuatorId.Biomass,
+            [CommandKeys.BiomassStart] = ActuatorId.Biomass,
+            [CommandKeys.BiomassStop] = ActuatorId.Biomass,
+            [CommandKeys.Low] = ActuatorId.Biomass,
+            [CommandKeys.High] = ActuatorId.Biomass,
+            [CommandKeys.Opt] = ActuatorId.Biomass,
+
+            // External pump (WP2): enable and the profile frame. The dynamic p{i}/t{i}/q{i}
+            // coefficient keys are matched by pattern in ForKey rather than enumerated here.
+            [CommandKeys.PumpComm] = ActuatorId.ExternalPump,
+            [CommandKeys.Mode] = ActuatorId.ExternalPump,
+            [CommandKeys.Speed] = ActuatorId.ExternalPump,
+            [CommandKeys.InitT] = ActuatorId.ExternalPump,
+            [CommandKeys.FinalT] = ActuatorId.ExternalPump,
+            [CommandKeys.LambdaConst] = ActuatorId.ExternalPump,
+            [CommandKeys.LambdaLinear] = ActuatorId.ExternalPump,
+            [CommandKeys.PhiLinear] = ActuatorId.ExternalPump,
+            [CommandKeys.LambdaExp] = ActuatorId.ExternalPump,
+            [CommandKeys.PhiExp] = ActuatorId.ExternalPump,
+            [CommandKeys.NumSegments] = ActuatorId.ExternalPump,
         };
 
     /// <summary>Every actuator an arbiter tracks, in synoptic order.</summary>
@@ -131,14 +167,47 @@ public static class CommandActuators
         ActuatorId.Nutrient,
         ActuatorId.Antifoam,
         ActuatorId.FlaskAgitator,
+        ActuatorId.Biomass,
+        ActuatorId.ExternalPump,
     ];
 
     /// <summary>
     /// The actuator a key drives, or null for a configuration, system or calibration
     /// key that no controller owns.
     /// </summary>
+    /// <remarks>
+    /// The external pump's polynomial (<c>p0..p20</c>) and piecewise (<c>t0..t99</c>,
+    /// <c>q0..q99</c>) coefficient keys are variable in number, so they are matched by
+    /// pattern rather than enumerated in the static map.
+    /// </remarks>
     public static ActuatorId? ForKey(string key)
-        => KeyToActuator.TryGetValue(key, out var id) ? id : null;
+    {
+        if (KeyToActuator.TryGetValue(key, out var id))
+        {
+            return id;
+        }
+
+        return IsPumpCoefficientKey(key) ? ActuatorId.ExternalPump : null;
+    }
+
+    /// <summary>True for a pump coefficient key: <c>p</c>/<c>t</c>/<c>q</c> followed by digits.</summary>
+    private static bool IsPumpCoefficientKey(string key)
+    {
+        if (key.Length < 2 || key[0] is not ('p' or 't' or 'q'))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < key.Length; i++)
+        {
+            if (!char.IsAsciiDigit(key[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>The distinct actuators <paramref name="command"/> touches, unowned keys ignored.</summary>
     public static IReadOnlyCollection<ActuatorId> ActuatorsIn(TecnalCommand command)
@@ -169,6 +238,8 @@ public static class CommandActuators
         ActuatorId.Nutrient => "dosagem de nutriente",
         ActuatorId.Antifoam => "dosagem de antiespumante",
         ActuatorId.FlaskAgitator => "agitador de frasco",
+        ActuatorId.Biomass => "sensor de biomassa",
+        ActuatorId.ExternalPump => "bomba externa",
         _ => actuator.ToString(),
     };
 }

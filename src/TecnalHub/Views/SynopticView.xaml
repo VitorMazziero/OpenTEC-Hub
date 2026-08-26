@@ -217,7 +217,19 @@
                                 AutomationProperties.Name="{Binding DisplayName}"
                                 ToolTip="Sensor de nível/espuma (distância)"
                                 Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                CommandParameter="level" />
+                                CommandParameter="level" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Biomass}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="Sensor óptico de biomassa (absorbância)"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="biomass" Margin="0,0,0,8" />
+                        <Button Style="{StaticResource InstrumentTagStyle}"
+                                DataContext="{Binding Pump}" Content="{Binding}"
+                                AutomationProperties.Name="{Binding DisplayName}"
+                                ToolTip="bomba externa em mL/min (vazão informada)"
+                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="pump" />
                     </StackPanel>
                 </StackPanel>
 

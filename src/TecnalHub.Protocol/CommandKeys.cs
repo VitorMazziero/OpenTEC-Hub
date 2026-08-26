@@ -80,25 +80,59 @@ public static class CommandKeys
     public const string AgitatorDir = "agitatorDir";
     public const string AgitatorOn = "agitatorOn";
 
-    // ---- Biomass (Phase 3) -----------------------------------------------
+    // ---- Biomass (Phase 3 WP1) -------------------------------------------
     public const string BiomassComm = "biomassComm";
+
+    /// <summary>Momentary: capture the blank (zero-absorbance) reference.</summary>
     public const string Blank = "blank";
-    public const string Start = "start";
-    public const string Stop = "stop";
+    /// <summary>Momentary: start the biomass acquisition loop.</summary>
+    public const string BiomassStart = "start";
+
+    /// <summary>Momentary: stop the biomass acquisition loop.</summary>
+    public const string BiomassStop = "stop";
+
     public const string Low = "low";
     public const string High = "high";
     public const string Opt = "opt";
 
-    // ---- External pump (Phase 3) -----------------------------------------
+    // ---- External pump (Phase 3 WP2) -------------------------------------
     public const string PumpComm = "pumpComm";
     public const string Mode = "mode";
+
+    /// <summary>
+    /// Vestigial in the disable frame: v.6 sends <c>speed:0</c> on disable, but the
+    /// firmware forwards only <c>pump_speed</c>, so it is a no-op the firmware ignores.
+    /// Reproduced for byte-parity with v.6. See <c>docs/PROTOCOL.md</c> §3.5.
+    /// </summary>
     public const string Speed = "speed";
+
+    /// <summary>Absolute start time of the profile, in minutes (<c>t' = t − init_t</c>).</summary>
+    public const string InitT = "init_t";
+
+    /// <summary>Absolute end time of the profile, in minutes.</summary>
+    public const string FinalT = "final_t";
+
     public const string LambdaConst = "lambda_const";
     public const string LambdaLinear = "lambda_linear";
     public const string PhiLinear = "phi_linear";
     public const string LambdaExp = "lambda_exp";
     public const string PhiExp = "phi_exp";
     public const string NumSegments = "num_segments";
+
+    /// <summary>Largest polynomial coefficient index the firmware forwards: <c>p0..p20</c>.</summary>
+    public const int MaxPolynomialCoefficientIndex = 20;
+
+    /// <summary>Largest piecewise segment count the firmware forwards: <c>t0..t99</c>/<c>q0..q99</c>.</summary>
+    public const int MaxPiecewiseSegments = 100;
+
+    /// <summary>Polynomial coefficient key <c>p{index}</c> (Phase 3 WP2, mode 4).</summary>
+    public static string PolynomialCoefficient(int index) => "p" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Piecewise time-point key <c>t{index}</c>, in minutes (Phase 3 WP2, mode 5).</summary>
+    public static string PiecewiseTime(int index) => "t" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Piecewise flow-point key <c>q{index}</c>, in mL/min (Phase 3 WP2, mode 5).</summary>
+    public static string PiecewiseFlow(int index) => "q" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
 /// <summary>

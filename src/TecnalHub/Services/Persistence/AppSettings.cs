@@ -53,8 +53,11 @@ public sealed record AppSettings
     /// <summary>Staged flask-agitator parameters (WP7). Restoring them never sends a command.</summary>
     public FlaskAgitatorSettings FlaskAgitator { get; init; } = new();
 
-    /// <summary>Staged biomass-sensor communication and integration thresholds.</summary>
+    /// <summary>Staged biomass thresholds (Phase 3 WP1). The sensor enable is never persisted.</summary>
     public BiomassControlSettings BiomassControl { get; init; } = new();
+
+    /// <summary>Versioned external-pump profile and gas coupling (Phase 3 WP2). Restoring it never sends.</summary>
+    public PumpControlSettings PumpControl { get; init; } = new();
 
     public FilterSettings Filters { get; init; } = new();
 
@@ -286,11 +289,74 @@ public sealed record FlaskAgitatorSettings
     public bool Automatic { get; init; }
 }
 
+/// <summary>
+/// Staged biomass thresholds (WP1): the low/high/optimal integration-time bounds in raw counts.
+/// </summary>
+/// <remarks>
+/// Defaults mirror v.6's biomass block (10000 / 40000 / 25000). The sensor enable is deliberately
+/// not stored — like pH dosing, the ViewModel starts with the sensor off and only stages these
+/// values for review. Raw ADC counts, not engineering units.
+/// </remarks>
 public sealed record BiomassControlSettings
 {
     public int LowThreshold { get; init; } = 10000;
+
     public int HighThreshold { get; init; } = 40000;
+
     public int OptimalThreshold { get; init; } = 25000;
+}
+
+/// <summary>
+/// A versioned external-pump profile (WP2): the active mode, its operating window and every
+/// mode's parameters, plus the optional proportional-gas coupling.
+/// </summary>
+/// <remarks>
+/// <para>
+/// One record holds all five modes' last-entered values so switching mode in the UI never loses
+/// a set; only the fields the active <see cref="Mode"/> needs are sent. Times are minutes, flows
+/// mL/min. The pump enable is not persisted — the ViewModel starts with the pump off.
+/// </para>
+/// <para>
+/// <see cref="Version"/> is bumped on each applied profile send, so a change is auditable — the
+/// same discipline the gain schedule uses. Unlike v.6, the operating window is shared across
+/// modes rather than stored per mode (a simplification recorded in <c>docs/DECISIONS.md</c>).
+/// </para>
+/// </remarks>
+public sealed record PumpControlSettings
+{
+    /// <summary>Bumped on each applied profile send, so a persisted change is a versioned event.</summary>
+    public int Version { get; init; } = 1;
+
+    public PumpProfileMode Mode { get; init; } = PumpProfileMode.Constant;
+
+    public double InitMinutes { get; init; }
+
+    public double FinalMinutes { get; init; } = 60.0;
+
+    public double LambdaConst { get; init; } = 1.0;
+
+    public double LambdaLinear { get; init; } = 1.0;
+
+    public double PhiLinear { get; init; }
+
+    public double LambdaExp { get; init; } = 1.0;
+
+    public double PhiExp { get; init; }
+
+    public double[] PolynomialCoefficients { get; init; } = [1.0];
+
+    public double[] PiecewiseTimes { get; init; } = [0.0, 60.0];
+
+    public double[] PiecewiseFlows { get; init; } = [1.0, 1.0];
+
+    /// <summary>When set, the pump volume drives the air flow: <c>Q_g = (V₀ + PumpVol/1000)·vvm</c>.</summary>
+    public bool GasProportionalEnabled { get; init; }
+
+    /// <summary>Initial working volume V₀ in litres, used by the proportional-gas coupling.</summary>
+    public double InitialVolumeLitres { get; init; } = 1.0;
+
+    /// <summary>Specific aeration rate vvm (L gas per L medium per min), for the coupling.</summary>
+    public double Vvm { get; init; } = 0.5;
 }
 
 /// <summary>

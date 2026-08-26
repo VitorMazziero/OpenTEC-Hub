@@ -355,7 +355,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         var defaultName = $"Ensaio_{DateTime.Now:yyyy-MM-dd_HHmm}";
         if (!_dialogs.PromptInput(
             "Nova Corrida / Etapa de Processo",
-            "Digite o nome ou rótulo da condição do ensaio (ex: pH_Condicao_A, Ensaio_200rpm):",
+            "Digite o nome ou rótulo do ensaio / etapa:",
             out var response,
             defaultName))
         {
@@ -406,7 +406,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
 
         if (_dialogs.PromptInput(
             "Marcar Evento / Anotação",
-            "Digite a descrição do evento de processo (ex: Alteração de pH para 6.8, Agitação 400 rpm):",
+            "Digite a descrição ou anotação do evento de processo:",
             out var note) && !string.IsNullOrWhiteSpace(note))
         {
             _journal?.Add(

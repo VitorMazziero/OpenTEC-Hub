@@ -986,7 +986,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         var defaultName = $"Ensaio_{DateTime.Now:yyyy-MM-dd_HHmm}";
         if (!_dialogs.PromptInput(
             "Nova Corrida / Etapa de Processo",
-            "Digite o nome ou rótulo da condição do ensaio (ex: pH_Condicao_A, Ensaio_200rpm):",
+            "Digite o nome ou rótulo do ensaio / etapa:",
             out var response,
             defaultName))
         {

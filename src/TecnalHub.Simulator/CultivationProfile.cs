@@ -1,4 +1,4 @@
-﻿namespace TecnalHub.Simulator;
+namespace TecnalHub.Simulator;
 
 /// <summary>
 /// A biological cultivation phase defining specific growth rate, carrying capacity, and OUR characteristics.

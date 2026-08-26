@@ -388,7 +388,7 @@ public sealed class TelemetryParser
         {
             return true;
         }
-        
+
         foreach (var property in root.EnumerateObject())
         {
             if (string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase))

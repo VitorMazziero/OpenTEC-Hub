@@ -1,4 +1,4 @@
-﻿namespace TecnalHub.Simulator;
+namespace TecnalHub.Simulator;
 
 /// <summary>Fault-injection modes, switchable while running.</summary>
 public enum Scenario

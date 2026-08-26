@@ -345,7 +345,7 @@ public class CascadeTwoLoopPidControllerTests
 
         Assert.True(terms.MeasurementRate > 0.3 && terms.MeasurementRate < 0.35,
             $"Expected rate ~0.333, got {terms.MeasurementRate}");
-        
+
         // Predicted measurement = 16.0 + 0.333 * 60 = 36.0
         Assert.True(terms.PredictedMeasurement > 30.0 && terms.PredictedMeasurement < 40.0,
             $"Predicted: {terms.PredictedMeasurement}");

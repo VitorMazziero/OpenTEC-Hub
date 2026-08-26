@@ -63,7 +63,7 @@ public partial class TrendSpark : UserControl
 
     private readonly WpfPlot _plot = new();
     private readonly DispatcherTimer _redraw = new() { Interval = TimeSpan.FromSeconds(1) };
-    
+
 
     public TrendSpark()
     {

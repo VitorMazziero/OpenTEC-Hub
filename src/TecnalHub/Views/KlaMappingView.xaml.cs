@@ -23,7 +23,7 @@ public partial class KlaMappingView : UserControl
     private ScottPlot.Panels.ColorBar? _surfaceColorBar;
     private ScottPlot.Panels.ColorBar? _headroomColorBar;
     private KlaMappingViewModel? _subscribed;
-    
+
 
     public KlaMappingView()
     {
@@ -255,7 +255,7 @@ public partial class KlaMappingView : UserControl
 
             plot.Clear();
             StylePlot(plot, "Qg inicial (L/min)", "N inicial (rpm)");
-            if (ViewModel is not { } viewModel || viewModel.PathResult is not { } path)
+            if (ViewModel is not { } viewModel || viewModel.PathResult is not { } path || viewModel.Surface is null)
             {
                 var note = plot.Add.Text("A classificação aparece após Calcular trajetória", 0.5, 0.5);
                 note.Alignment = Alignment.MiddleCenter;
@@ -265,6 +265,13 @@ public partial class KlaMappingView : UserControl
             }
 
             var resolution = path.HeadroomResolution;
+            if (resolution <= 0 || path.HeadroomScores.Count < resolution * resolution)
+            {
+                var note = plot.Add.Text("Classificação de folga indisponível ou incompatível", 0.5, 0.5);
+                note.Alignment = Alignment.MiddleCenter;
+                _headroomPlot.Refresh();
+                return;
+            }
             var scores = new double[resolution, resolution];
             var minScore = double.PositiveInfinity;
             var maxScore = double.NegativeInfinity;
@@ -293,7 +300,18 @@ public partial class KlaMappingView : UserControl
 
             if (!hasFinite)
             {
-                scores[0, 0] = 0;
+                minScore = maxScore = 0;
+            }
+            var replacement = double.IsFinite(minScore) ? minScore : 0;
+            for (var row = 0; row < resolution; row++)
+            {
+                for (var column = 0; column < resolution; column++)
+                {
+                    if (!double.IsFinite(scores[row, column]))
+                    {
+                        scores[row, column] = replacement;
+                    }
+                }
             }
 
             var domain = viewModel.Surface!.Input.Domain;
@@ -317,7 +335,8 @@ public partial class KlaMappingView : UserControl
             {
                 heatmap.ManualRange = new ScottPlot.Range(0, 0.5);
             }
-            heatmap.FlipVertically = true;
+            // row 0 is N minimum and therefore belongs at the bottom of the physical axis.
+            heatmap.FlipVertically = false;
             _headroomColorBar = plot.Add.ColorBar(heatmap);
             _headroomColorBar.Label = "H médio";
 
@@ -327,12 +346,12 @@ public partial class KlaMappingView : UserControl
             best.LineWidth = 0;
             best.MarkerSize = 12;
             best.Color = ToPlotColor(TryBrush("AccentBrush"), MediaColors.DodgerBlue);
-            
+
             if (qMaximum > qMinimum && nMaximum > nMinimum)
             {
                 plot.Axes.SetLimits(qMinimum, qMaximum, nMinimum, nMaximum);
             }
-            
+
             _headroomPlot.Refresh();
         }
         catch (Exception ex)

@@ -53,6 +53,7 @@ but a packaged light/dark/light runtime test remains part of the UI acceptance w
 | Manual process control and cultivation auxiliaries | Software-complete | Ownership-aware command feedback and full cultivation |
 | Operational alarm kernel | Core complete | Per-variable alarms page and control-room audio/operator validation |
 | kLa mapping, oxygen cascade, conditional OUR and gain scheduling | Software-complete | Real-bioreactor validation and performance receipt |
+| Determinação abiótica de kLa por gassing-out | Software-complete após auditoria | Validar troca Ar/N₂, ACK, limites de fase e parada segura no ESP32-S3 v7 + fluxômetro v05 |
 | Biomass sensor and guided procedure | Software-complete | Explicit threshold-apply correction and hardware receipt |
 | External pump and proportional gas | Software-complete | Rejected-dispatch retry correction and hardware receipt |
 | Receitas authoring and execution | Feature-complete | P0 safe-stop/manual-lock corrections, minor canvas polish and hardware confirmation |

@@ -245,6 +245,8 @@
                             <Button Content="+ Ponto" Padding="8,4" Command="{Binding AddAnchorCommand}" />
                             <Button Content="Desenho 3²" Margin="6,0,0,0" Padding="8,4"
                                     Command="{Binding CreateFactorialDesignCommand}" />
+                            <Button Content="Importar de Teste..." Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding OpenImportFromTestDialogCommand}" ToolTip="Importar médias de replicatas aceitas de um teste de kLa" />
                             <Button Content="Ordenar" Margin="6,0,0,0" Padding="8,4"
                                     Command="{Binding SortAnchorsCommand}" ToolTip="Ordenar por N e depois Qg" />
                         </WrapPanel>
@@ -476,5 +478,29 @@
                 </WrapPanel>
             </Grid>
         </Border>
+        <!-- ── Modal: Importar de Teste kLa ─────────────────────────────────── -->
+        <Grid Grid.RowSpan="3" Background="{DynamicResource SurfaceBaseBrush}" Opacity="0.95"
+              Visibility="{Binding IsImportFromTestDialogOpen, Converter={StaticResource BoolToVis}}">
+            <Border Style="{StaticResource KlaCard}" Width="720" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Importar Replicatas de Teste de kLa" FontSize="15" FontWeight="Bold" Margin="0,0,0,12" />
+                    <TextBlock Text="Selecione o ensaio realizado em Testes-kLa:" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,6" />
+                    <ComboBox ItemsSource="{Binding AvailableKlaTests}" SelectedItem="{Binding SelectedKlaTestForImport}" DisplayMemberPath="FolderName" Margin="0,0,0,14" />
+                    <DataGrid ItemsSource="{Binding KlaTestImportCandidates}" AutoGenerateColumns="False" HeadersVisibility="Column"
+                              CanUserAddRows="False" Height="180" Margin="0,0,0,12">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Importar" Binding="{Binding IsSelected}" Width="65" />
+                            <DataGridTextColumn Header="Condição" Binding="{Binding Condition}" IsReadOnly="True" Width="125" />
+                            <DataGridTextColumn Header="Resultado / revisão" Binding="{Binding Result}" IsReadOnly="True" Width="*" />
+                            <DataGridTextColumn Header="Estado" Binding="{Binding ImportStatus}" IsReadOnly="True" Width="95" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancelar" Margin="0,0,8,0" Command="{Binding CloseImportFromTestDialogCommand}" />
+                        <Button Content="Importar e Agregar" Style="{StaticResource AccentButtonStyle}" Command="{Binding ImportSelectedKlaTestCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

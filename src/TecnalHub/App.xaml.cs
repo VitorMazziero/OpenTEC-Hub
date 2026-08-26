@@ -10,6 +10,7 @@ using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.KlaMapping;
+using TecnalHub.Services.KlaTesting;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
 using TecnalHub.Services.Recipes;
@@ -50,12 +51,13 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
-        PromptOrInitializeWorkspace();
+        var playback = ParseKlaPlaybackOptions(e.Args);
+        PromptOrInitializeWorkspace(skipPrompt: playback is not null);
         ConfigureLogging();
         WireBindingDiagnostics();
 
         var services = new ServiceCollection();
-        ConfigureServices(services);
+        ConfigureServices(services, playback);
         _services = services.BuildServiceProvider();
 
         var settings = _services.GetRequiredService<ISettingsService>();
@@ -63,7 +65,15 @@ public partial class App : Application
         theme.Apply(settings.Current.Theme);
 
         var shell = _services.GetRequiredService<ShellViewModel>();
+        if (playback is not null)
+        {
+            shell.SelectedNavigationId = "kla-determination";
+        }
         var window = new MainWindow(settings, theme) { DataContext = shell };
+        if (playback is not null)
+        {
+            window.Title = $"TECNAL-Hub — SIMULAÇÃO kLa: {playback.DisplayName}";
+        }
 
         window.ContentRendered += OnShellRendered;
         MainWindow = window;
@@ -115,9 +125,15 @@ public partial class App : Application
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
     }
 
-    private static void PromptOrInitializeWorkspace()
+    private static void PromptOrInitializeWorkspace(bool skipPrompt = false)
     {
         var configured = AppPaths.ReadConfiguredWorkspace();
+        if (skipPrompt && !string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
+        {
+            AppPaths.InitializeWorkspace(configured);
+            return;
+        }
+
         var initialDir = !string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured)
             ? configured
             : (Directory.Exists(AppPaths.DefaultDataDirectory)
@@ -157,7 +173,27 @@ public partial class App : Application
         Log.Information("=== TECNAL-Hub starting ===");
     }
 
-    private static void ConfigureServices(IServiceCollection services)
+    private static KlaPlaybackOptions? ParseKlaPlaybackOptions(IReadOnlyList<string> args)
+    {
+        string? file = null;
+        var speed = 10.0;
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (args[i].Equals("--kla-test-file", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Count)
+            {
+                file = args[++i];
+            }
+            else if (args[i].Equals("--kla-test-speed", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Count &&
+                     double.TryParse(args[++i], System.Globalization.NumberStyles.Float,
+                         System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                speed = parsed;
+            }
+        }
+        return string.IsNullOrWhiteSpace(file) ? null : new KlaPlaybackOptions(Path.GetFullPath(file), Math.Clamp(speed, 0.1, 100));
+    }
+
+    private static void ConfigureServices(IServiceCollection services, KlaPlaybackOptions? playback)
     {
         services.AddLogging(builder =>
         {
@@ -174,15 +210,29 @@ public partial class App : Application
         services.AddSingleton<IBackupService, BackupService>();
         services.AddSingleton<IKlaMappingEngine, KlaMappingEngine>();
         services.AddSingleton<IKlaProfileStore>(_ => new KlaProfileStore(AppPaths.KlaMappingDirectory));
+        services.AddSingleton<IKlaTestStore>(_ => new KlaTestStore(AppPaths.KlaTestsDirectory));
+        services.AddSingleton<IKlaAnalysisEngine, KlaAnalysisEngine>();
+        services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal
         // telemetry, so ViewModels never have to think about threads.
-        services.AddSingleton<DeviceService>(sp => new DeviceService(
-            sp.GetRequiredService<ISettingsService>(),
-            sp.GetRequiredService<ILogger<DeviceService>>(),
-            sp.GetRequiredService<ILoggerFactory>(),
-            Dispatcher.CurrentDispatcher));
+        if (playback is null)
+        {
+            services.AddSingleton<DeviceService>(sp => new DeviceService(
+                sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<ILogger<DeviceService>>(),
+                sp.GetRequiredService<ILoggerFactory>(),
+                Dispatcher.CurrentDispatcher));
+        }
+        else
+        {
+            services.AddSingleton(playback);
+            services.AddSingleton<KlaPlaybackDeviceService>(sp => new KlaPlaybackDeviceService(
+                playback,
+                sp.GetRequiredService<ILogger<KlaPlaybackDeviceService>>(),
+                Dispatcher.CurrentDispatcher));
+        }
 
         services.AddSingleton(TimeProvider.System);
 
@@ -191,7 +241,9 @@ public partial class App : Application
         // dispatch, and nothing can reach the wire without an owner. The same instance is
         // exposed as ICommandArbiter for the ownership and lifecycle surface.
         services.AddSingleton<CommandArbiter>(sp => new CommandArbiter(
-            sp.GetRequiredService<DeviceService>(),
+            playback is null
+                ? sp.GetRequiredService<DeviceService>()
+                : sp.GetRequiredService<KlaPlaybackDeviceService>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CommandArbiter>>()));
         services.AddSingleton<IDeviceService>(sp => sp.GetRequiredService<CommandArbiter>());
@@ -243,6 +295,7 @@ public partial class App : Application
         services.AddSingleton<BiomassControlViewModel>();
         services.AddSingleton<PumpControlViewModel>();
         services.AddSingleton<CalibrationViewModel>();
+        services.AddSingleton<KlaDeterminationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();
         services.AddSingleton<ReceitasViewModel>();
         services.AddSingleton<ShellViewModel>();

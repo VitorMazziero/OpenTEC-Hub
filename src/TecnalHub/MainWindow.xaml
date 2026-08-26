@@ -855,6 +855,13 @@
                 </Border>
             </Grid>
 
+            <!-- Gassing-out kLa experimental testing and regression -->
+            <views:KlaDeterminationView DataContext="{Binding KlaDetermination}"
+                                        Visibility="{Binding DataContext.SelectedNavigationId,
+                                                             RelativeSource={RelativeSource AncestorType=Window},
+                                                             Converter={StaticResource EqualsToVis},
+                                                             ConverterParameter=kla-determination}" />
+
             <!-- D-008: experimental map reconstruction and immutable path publication. -->
             <views:KlaMappingView DataContext="{Binding KlaMapping}"
                                   Visibility="{Binding DataContext.SelectedNavigationId,

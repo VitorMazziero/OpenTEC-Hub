@@ -29,6 +29,7 @@ public sealed class BackupService : IBackupService
     private readonly string _settingsFile;
     private readonly string _recipesDirectory;
     private readonly string _klaMappingDirectory;
+    private readonly string _klaTestsDirectory;
 
     public BackupService(ISettingsService settings, ILogger<BackupService> log)
         : this(settings, log, AppPaths.DataDirectory)
@@ -54,6 +55,7 @@ public sealed class BackupService : IBackupService
             : (Directory.Exists(Path.Combine(dataDirectory, "kla-mapping"))
                 ? Path.Combine(dataDirectory, "kla-mapping")
                 : Path.Combine(dataDirectory, "Mapas"));
+        _klaTestsDirectory = Path.Combine(dataDirectory, "Testes-kLa");
     }
 
     public async Task<BackupResult> ExportBackupAsync(string destinationZipPath)
@@ -112,6 +114,20 @@ public sealed class BackupService : IBackupService
                         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                         File.Copy(file, target, overwrite: true);
                         mapsCount++;
+                    }
+                }
+
+                // 4. Kla-tests directory (Testes-kLa)
+                if (Directory.Exists(_klaTestsDirectory))
+                {
+                    var destTests = Path.Combine(tempDir, "Testes-kLa");
+                    Directory.CreateDirectory(destTests);
+                    foreach (var file in Directory.GetFiles(_klaTestsDirectory, "*.*", SearchOption.AllDirectories))
+                    {
+                        var relative = Path.GetRelativePath(_klaTestsDirectory, file);
+                        var target = Path.Combine(destTests, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
                     }
                 }
 
@@ -199,6 +215,30 @@ public sealed class BackupService : IBackupService
                         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                         File.Copy(file, target, overwrite: true);
                         mapsCount++;
+                    }
+                }
+
+                // 4. Kla tests (Testes-kLa)
+                var testsSrc = Path.Combine(tempDir, "Testes-kLa");
+                if (Directory.Exists(testsSrc))
+                {
+                    Directory.CreateDirectory(_klaTestsDirectory);
+                    foreach (var sourceTestDir in Directory.GetDirectories(testsSrc))
+                    {
+                        var folderName = Path.GetFileName(sourceTestDir);
+                        var targetTestDir = Path.Combine(_klaTestsDirectory, folderName);
+                        if (Directory.Exists(targetTestDir))
+                        {
+                            _log.LogWarning("Teste kLa {Folder} já existe; importação preservou a versão local", folderName);
+                            continue;
+                        }
+                        foreach (var file in Directory.GetFiles(sourceTestDir, "*.*", SearchOption.AllDirectories))
+                        {
+                            var relative = Path.GetRelativePath(sourceTestDir, file);
+                            var target = Path.Combine(targetTestDir, relative);
+                            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                            File.Copy(file, target, overwrite: false);
+                        }
                     }
                 }
 

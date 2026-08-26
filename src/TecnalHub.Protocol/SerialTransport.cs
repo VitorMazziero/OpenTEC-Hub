@@ -290,7 +290,7 @@ public sealed class SerialTransport(
         try
         {
             var ports = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            
+
             if (OperatingSystem.IsWindows())
             {
                 var portDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -324,7 +324,7 @@ public sealed class SerialTransport(
 
                 foreach (var port in ports)
                 {
-                    if (portDescriptions.TryGetValue(port, out var desc) && 
+                    if (portDescriptions.TryGetValue(port, out var desc) &&
                         EspKeywords.Any(k => desc.Contains(k, StringComparison.OrdinalIgnoreCase)))
                     {
                         ranked.Add(port);

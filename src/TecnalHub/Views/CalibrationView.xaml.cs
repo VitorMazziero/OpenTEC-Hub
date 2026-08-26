@@ -19,7 +19,7 @@ public partial class CalibrationView : UserControl
 {
     private readonly WpfPlot _flowPlot = new();
     private FlowCalibrationViewModel? _subscribed;
-    
+
 
     public CalibrationView()
     {

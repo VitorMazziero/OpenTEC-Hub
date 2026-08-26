@@ -48,7 +48,7 @@ public partial class ChartsView : UserControl
     private readonly WpfPlot _leftPlot = new();
     private readonly WpfPlot _rightPlot = new();
     private readonly DispatcherTimer _redraw = new() { Interval = TimeSpan.FromSeconds(1) };
-    
+
 
     private ChartsViewModel? _subscribed;
 

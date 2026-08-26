@@ -16,7 +16,7 @@ internal sealed class FakeKlaProfileStore : IKlaProfileStore
         $"{ExperimentsDirectory}\\{experimentId}.kla.json";
 
     public List<KlaPublishedProfile> Published { get; } = [];
-    
+
     public event Action<KlaPublishedProfile>? ProfilePublished;
 
     public void NotifyPublished(KlaPublishedProfile profile) => ProfilePublished?.Invoke(profile);

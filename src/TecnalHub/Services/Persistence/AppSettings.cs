@@ -1000,6 +1000,9 @@ public static class AppPaths
     /// <summary>Operator-created kLa experiments and published profiles.</summary>
     public static string KlaMappingDirectory => Path.Combine(DataDirectory, "Mapas");
 
+    /// <summary>Gassing-out kLa determination campaigns, raw series and analyses.</summary>
+    public static string KlaTestsDirectory => Path.Combine(DataDirectory, "Testes-kLa");
+
     /// <summary>Operator-authored recipes, saved as versioned JSON.</summary>
     public static string RecipesDirectory => Path.Combine(DataDirectory, "Receitas");
 
@@ -1009,10 +1012,30 @@ public static class AppPaths
 
     public static string BackupsDirectory => Path.Combine(DataDirectory, "Backups");
 
-    public static void InitializeWorkspace(string workspacePath)
+    public static void InitializeWorkspace(string workspacePath, bool persist = true)
     {
-        DataDirectory = workspacePath;
+        _customDataDirectory = workspacePath;
+        Directory.CreateDirectory(_customDataDirectory);
+        if (persist)
+        {
+            SaveConfiguredWorkspace(workspacePath);
+        }
         EnsureDirectories();
+    }
+
+    public static IDisposable OverrideForTests(string tempWorkspacePath)
+    {
+        var previous = _customDataDirectory;
+        InitializeWorkspace(tempWorkspacePath, persist: false);
+        return new TestWorkspaceScope(previous);
+    }
+
+    private sealed class TestWorkspaceScope(string? previous) : IDisposable
+    {
+        public void Dispose()
+        {
+            _customDataDirectory = previous;
+        }
     }
 
     public static void EnsureDirectories()
@@ -1020,6 +1043,7 @@ public static class AppPaths
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(ConfigDirectory);
         Directory.CreateDirectory(KlaMappingDirectory);
+        Directory.CreateDirectory(KlaTestsDirectory);
         Directory.CreateDirectory(RecipesDirectory);
         Directory.CreateDirectory(LogDirectory);
         Directory.CreateDirectory(SessionsDirectory);

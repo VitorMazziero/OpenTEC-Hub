@@ -29,4 +29,7 @@ public enum CommandOwner
 
     /// <summary>The recipe engine owns everything it declares. Phase 3.</summary>
     Recipe,
+
+    /// <summary>The kLa determination test runner owns agitation and airflow/valves. Phase 2.</summary>
+    KlaAssay,
 }

@@ -1,4 +1,4 @@
-﻿namespace TecnalHub.Simulator;
+namespace TecnalHub.Simulator;
 
 /// <summary>
 /// Time source for the simulation loop and process dynamics.

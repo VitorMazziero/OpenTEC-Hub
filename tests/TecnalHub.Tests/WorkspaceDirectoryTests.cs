@@ -15,18 +15,43 @@ using Xunit;
 
 namespace TecnalHub.Tests;
 
+[Collection("AppPaths")]
 public sealed class WorkspaceDirectoryTests : IDisposable
 {
     private readonly string _testRoot;
+    private readonly string? _originalWorkspaceConfig;
+    private readonly IDisposable _overrideScope;
 
     public WorkspaceDirectoryTests()
     {
         _testRoot = Path.Combine(Path.GetTempPath(), $"tecnalhub-workspace-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testRoot);
+        _originalWorkspaceConfig = File.Exists(AppPaths.WorkspaceConfigFile)
+            ? File.ReadAllText(AppPaths.WorkspaceConfigFile)
+            : null;
+        _overrideScope = AppPaths.OverrideForTests(_testRoot);
     }
 
     public void Dispose()
     {
+        _overrideScope.Dispose();
+
+        try
+        {
+            if (_originalWorkspaceConfig is not null)
+            {
+                File.WriteAllText(AppPaths.WorkspaceConfigFile, _originalWorkspaceConfig);
+            }
+            else if (File.Exists(AppPaths.WorkspaceConfigFile))
+            {
+                File.Delete(AppPaths.WorkspaceConfigFile);
+            }
+        }
+        catch
+        {
+            // Best-effort restoration
+        }
+
         if (Directory.Exists(_testRoot))
         {
             try
@@ -44,13 +69,14 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     public void AppPaths_InitializeWorkspace_Creates_Expected_Portuguese_Subdirectories()
     {
         var workspace = Path.Combine(_testRoot, "MeuEnsaio");
-        AppPaths.InitializeWorkspace(workspace);
+        AppPaths.InitializeWorkspace(workspace, persist: false);
 
         Assert.Equal(workspace, AppPaths.DataDirectory);
         Assert.True(Directory.Exists(workspace));
 
-        // Subpastas em Português com inicial Maiúscula
+        // Subpastas em Português com inicial Maiúscula (7 pastas no total)
         Assert.EndsWith("Mapas", AppPaths.KlaMappingDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("Testes-kLa", AppPaths.KlaTestsDirectory, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("Receitas", AppPaths.RecipesDirectory, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("Logs", AppPaths.LogDirectory, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("Sessoes", AppPaths.SessionsDirectory, StringComparison.OrdinalIgnoreCase);
@@ -59,6 +85,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         Assert.EndsWith(Path.Combine("Configuracoes", "settings.json"), AppPaths.SettingsFile, StringComparison.OrdinalIgnoreCase);
 
         Assert.True(Directory.Exists(AppPaths.KlaMappingDirectory));
+        Assert.True(Directory.Exists(AppPaths.KlaTestsDirectory));
         Assert.True(Directory.Exists(AppPaths.RecipesDirectory));
         Assert.True(Directory.Exists(AppPaths.LogDirectory));
         Assert.True(Directory.Exists(AppPaths.SessionsDirectory));
@@ -70,14 +97,15 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     public void SettingsViewModel_Exposes_All_Workspace_Folders_With_Descriptions()
     {
         var workspace = Path.Combine(_testRoot, "WorkspaceExposed");
-        AppPaths.InitializeWorkspace(workspace);
+        AppPaths.InitializeWorkspace(workspace, persist: false);
 
         var (viewModel, _, _) = CreateSettingsViewModel();
 
         Assert.Equal(workspace, viewModel.WorkspaceDirectory);
-        Assert.Equal(6, viewModel.WorkspaceFolders.Count);
+        Assert.Equal(7, viewModel.WorkspaceFolders.Count);
 
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Mapas" && f.RelativePath == "Mapas\\" && f.FullPath == AppPaths.KlaMappingDirectory);
+        Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Testes de kLa" && f.RelativePath == "Testes-kLa\\" && f.FullPath == AppPaths.KlaTestsDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Receitas" && f.RelativePath == "Receitas\\" && f.FullPath == AppPaths.RecipesDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Sessões" && f.RelativePath == "Sessoes\\" && f.FullPath == AppPaths.SessionsDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Logs" && f.RelativePath == "Logs\\" && f.FullPath == AppPaths.LogDirectory);
@@ -89,7 +117,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     public void SettingsViewModel_ChangeWorkspaceDirectory_Prompts_Warning_And_Cancels_When_Rejected()
     {
         var initialWorkspace = Path.Combine(_testRoot, "WorkspaceInitial");
-        AppPaths.InitializeWorkspace(initialWorkspace);
+        AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
 
         var (viewModel, dialogs, files) = CreateSettingsViewModel();
         dialogs.ConfirmResult = false;
@@ -108,7 +136,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     {
         var initialWorkspace = Path.Combine(_testRoot, "Workspace1");
         var newWorkspace = Path.Combine(_testRoot, "Workspace2");
-        AppPaths.InitializeWorkspace(initialWorkspace);
+        AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
 
         var (viewModel, dialogs, files) = CreateSettingsViewModel();
         dialogs.ConfirmResult = true;
@@ -127,7 +155,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     public void SettingsViewModel_OpenWorkspaceFolder_And_OpenSubfolder_Delegate_To_Files()
     {
         var workspace = Path.Combine(_testRoot, "WorkspaceOpen");
-        AppPaths.InitializeWorkspace(workspace);
+        AppPaths.InitializeWorkspace(workspace, persist: false);
 
         var (viewModel, _, files) = CreateSettingsViewModel();
 
@@ -143,7 +171,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     public async Task KlaProfileStore_And_RecipeStore_Save_To_Portuguese_Subdirectories()
     {
         var workspace = Path.Combine(_testRoot, "WorkspaceStores");
-        AppPaths.InitializeWorkspace(workspace);
+        AppPaths.InitializeWorkspace(workspace, persist: false);
 
         var klaStore = new KlaProfileStore(AppPaths.KlaMappingDirectory);
         var recipeStore = new RecipeStore(AppPaths.RecipesDirectory);

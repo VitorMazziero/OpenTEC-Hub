@@ -705,6 +705,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             "*.kla.json",
             AppPaths.KlaMappingDirectory),
         new(
+            "Testes de kLa",
+            "Testes-kLa\\",
+            "Campanhas de Gassing-Out, curvas brutas, análises e resultados experimentais.",
+            "teste.json, *.csv",
+            AppPaths.KlaTestsDirectory),
+        new(
             "Receitas",
             "Receitas\\",
             "Receitas de bioprocesso do operador, fases e automações programadas.",

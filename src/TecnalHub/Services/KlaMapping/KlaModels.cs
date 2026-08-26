@@ -18,6 +18,27 @@ public enum KlaWorkflowStage
 /// <summary>One measured anchor. These are observations, never bundled production defaults.</summary>
 public sealed record KlaAnchor(double AirflowLpm, double AgitationRpm, double KlaPerHour);
 
+public sealed record KlaImportedMeasurement
+{
+    public Guid MeasurementId { get; init; } = Guid.NewGuid();
+    public Guid SourceTestId { get; init; }
+    public Guid SourceRunId { get; init; }
+    public int SourceAnalysisRevision { get; init; }
+    public double AirflowLpm { get; init; }
+    public double AgitationRpm { get; init; }
+    public double KlaPerHour { get; init; }
+    public double SlopeStandardError { get; init; }
+    public double ConfidenceInterval95Low { get; init; }
+    public double ConfidenceInterval95High { get; init; }
+    public double AnalysisR2 { get; init; }
+    public string RawRelativePath { get; init; } = "";
+    public string AnalysisRelativePath { get; init; } = "";
+    public string RawSha256 { get; init; } = "";
+    public DateTimeOffset ImportedAtUtc { get; init; } = DateTimeOffset.UtcNow;
+    public bool Included { get; init; } = true;
+    public string? ExclusionReason { get; init; }
+}
+
 /// <summary>
 /// Exact editor text for a draft row. A blank or temporarily invalid measurement is valid
 /// draft state, but is never admitted to a numerical snapshot.
@@ -163,6 +184,8 @@ public sealed record KlaExperimentSnapshot
 
     public KlaAnchor[] Anchors { get; init; } = [];
 
+    public string MeasurementFingerprint { get; init; } = "";
+
     public KlaAlgorithmSettings Algorithm { get; init; } = new();
 
     public DateTimeOffset UpdatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
@@ -174,6 +197,7 @@ public sealed record KlaExperimentSnapshot
             .OrderByDescending(anchor => anchor.AgitationRpm)
             .ThenBy(anchor => anchor.AirflowLpm)
             .ToArray(),
+        MeasurementFingerprint,
         Algorithm,
     });
 }
@@ -213,6 +237,8 @@ public sealed record KlaExperimentDocument
     public string? LatestReceiptFingerprint { get; init; }
 
     public string ReviewNote { get; init; } = "";
+
+    public KlaImportedMeasurement[] ImportedMeasurements { get; init; } = [];
 }
 
 public readonly record struct KlaSurfaceValue(double Value, double Dq, double Dn)

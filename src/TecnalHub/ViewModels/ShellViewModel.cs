@@ -122,6 +122,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         BiomassControlViewModel biomassControl,
         PumpControlViewModel pumpControl,
         CalibrationViewModel calibration,
+        KlaDeterminationViewModel klaDetermination,
         KlaMappingViewModel klaMapping,
         IKlaProfileStore klaProfileStore,
         IDialogService dialogs,
@@ -149,6 +150,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Settings = settings_;
         PHControl = phControl;
         Calibration = calibration;
+        KlaDetermination = klaDetermination;
         KlaMapping = klaMapping;
         Receitas = receitas;
         _recipeEngine = recipeEngine;
@@ -279,7 +281,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("events", "Eventos", "EventLog"),
             new NavigationItem("calibrations", "Calibrações", "Target", StartsGroup: true),
             new NavigationItem("settings", "Configurações", "Gear"),
-            new NavigationItem("kla-mapping", "Mapeamento kLa", "NodeGraph", StartsGroup: true),
+            new NavigationItem("kla-determination", "Determinar kLa", "Target", StartsGroup: true),
+            new NavigationItem("kla-mapping", "Mapeamento kLa", "NodeGraph"),
         ];
         _commandPaletteCatalog =
         [
@@ -376,6 +379,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Guided pH, oxygen and airflow calibration procedures.</summary>
     public CalibrationViewModel Calibration { get; }
+
+    /// <summary>Gassing-out kLa experimental testing and regression.</summary>
+    public KlaDeterminationViewModel KlaDetermination { get; }
 
     /// <summary>Operator-created kLa experiments, paper path search and publication.</summary>
     public KlaMappingViewModel KlaMapping { get; }
@@ -1241,7 +1247,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// </remarks>
     private string DescribeConnection() => _device.State switch
     {
-        Protocol.ConnectionState.Connected => _device.Medium == TransportMedium.WiFi ? "WiFi" : "USB",
+        Protocol.ConnectionState.Connected => _device.Medium switch
+        {
+            TransportMedium.WiFi => "WiFi",
+            TransportMedium.Simulation => "SIMULAÇÃO kLa",
+            _ => "USB",
+        },
         Protocol.ConnectionState.Reconnecting => "Reconectando",
         Protocol.ConnectionState.Connecting => "Conectando",
         Protocol.ConnectionState.Faulted => "Falha",

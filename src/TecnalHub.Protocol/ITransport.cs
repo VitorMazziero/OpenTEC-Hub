@@ -5,6 +5,7 @@ public enum TransportMedium
 {
     Usb,
     WiFi,
+    Simulation,
 }
 
 /// <summary>

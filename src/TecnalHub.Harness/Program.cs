@@ -56,12 +56,12 @@ switch (mode)
         return await RunSessionAsync(mode, target, runFor, probe, loggerFactory).ConfigureAwait(false);
 
     case "reset-test":
-    {
-        using var resetCts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; resetCts.Cancel(); };
-        var experiment = new ResetExperiment(target ?? "COM3", loggerFactory);
-        return await experiment.RunAsync(resetCts.Token).ConfigureAwait(false);
-    }
+        {
+            using var resetCts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; resetCts.Cancel(); };
+            var experiment = new ResetExperiment(target ?? "COM3", loggerFactory);
+            return await experiment.RunAsync(resetCts.Token).ConfigureAwait(false);
+        }
 
     case "wifi-test":
         return await RunWiFiTestAsync(target, loggerFactory).ConfigureAwait(false);

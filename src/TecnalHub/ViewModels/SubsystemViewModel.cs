@@ -98,7 +98,7 @@ public sealed partial class SubsystemViewModel : ObservableObject
         IsEnabled = initialIsEnabled;
         AppliedIsEnabled = initialIsEnabled;
         AppliedSetpoint = initialIsEnabled ? initialSetpoint : 0.0;
-        
+
         Variable.IsEnabled = IsEnabled;
         Variable.Setpoint = AppliedSetpoint;
         if (Variable.IsCommandedOnly)

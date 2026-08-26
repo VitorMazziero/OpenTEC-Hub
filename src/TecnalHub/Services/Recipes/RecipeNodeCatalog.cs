@@ -473,8 +473,15 @@ public static class RecipeNodeCatalog
         string? unit = null, string? group = null, string? visibleWhen = null)
         => new()
         {
-            Key = key, Label = label, Kind = ParameterKind.Number,
-            Default = def, Min = min, Max = max, Unit = unit, Group = group, VisibleWhen = visibleWhen,
+            Key = key,
+            Label = label,
+            Kind = ParameterKind.Number,
+            Default = def,
+            Min = min,
+            Max = max,
+            Unit = unit,
+            Group = group,
+            VisibleWhen = visibleWhen,
         };
 
     private static RecipeParameter Int(
@@ -483,8 +490,15 @@ public static class RecipeNodeCatalog
         string? unit = null, string? group = null, string? visibleWhen = null)
         => new()
         {
-            Key = key, Label = label, Kind = ParameterKind.Integer,
-            Default = def, Min = min, Max = max, Unit = unit, Group = group, VisibleWhen = visibleWhen,
+            Key = key,
+            Label = label,
+            Kind = ParameterKind.Integer,
+            Default = def,
+            Min = min,
+            Max = max,
+            Unit = unit,
+            Group = group,
+            VisibleWhen = visibleWhen,
         };
 
     private static RecipeParameter Bool(string key, string label, bool def, string? group = null)
@@ -498,8 +512,14 @@ public static class RecipeNodeCatalog
         string? group = null, string? unit = null, string? visibleWhen = null)
         => new()
         {
-            Key = key, Label = label, Kind = ParameterKind.Enum,
-            Default = def, Options = options, Group = group, Unit = unit, VisibleWhen = visibleWhen,
+            Key = key,
+            Label = label,
+            Kind = ParameterKind.Enum,
+            Default = def,
+            Options = options,
+            Group = group,
+            Unit = unit,
+            VisibleWhen = visibleWhen,
         };
 
     private static RecipeParameter ListP(string key, string label, RecipeParameter[] itemSchema)

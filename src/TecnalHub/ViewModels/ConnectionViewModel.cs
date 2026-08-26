@@ -119,6 +119,7 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
             {
                 TransportMedium.Usb => string.IsNullOrEmpty(Endpoint) ? "USB" : $"USB {Endpoint}",
                 TransportMedium.WiFi => string.IsNullOrEmpty(Endpoint) ? "Wi-Fi" : $"Wi-Fi {Endpoint}",
+                TransportMedium.Simulation => string.IsNullOrEmpty(Endpoint) ? "Simulação" : Endpoint,
                 _ => "",
             };
 

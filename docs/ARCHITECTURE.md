@@ -144,6 +144,14 @@ direct two-point capture, and `FlowCalibrationViewModel` owns certified points, 
 and the split fit. Pure equations live under `Services/Calibration/`; views only render
 state. Starting pH calibration first commands a complete pH-off frame.
 
+**The Hub v7 owns reliable delivery to the flowmeter v05.** The app sends only the exact
+desired-state keys routed by `queueReliableFlowCommandFromJson`; firmware session IDs, retries,
+idempotence and acknowledgement IDs stay encapsulated by the frozen Hub and flowmeter firmware.
+`FlowControlViewModel` and `FlowCalibrationViewModel` consume `FlowCommandPending` and
+`FlowmeterOnline`: a local dispatch locks the flow controls immediately, a disconnected internal
+link refuses new flow commands, and staged state is committed only after the Hub reports that no
+flow command remains pending. App-to-Hub disconnection remains a separate state.
+
 **Settings synchronize calibration writes.** The advanced settings VM remains a singleton,
 so it listens for coefficient changes applied by the guided page. It refreshes only the
 probe pair that changed, preserving unrelated staged edits and preventing a later settings
@@ -200,12 +208,11 @@ only after the active transport accepts the merged frame. `EventJournal` records
 exact JSON plus app-known connection, setpoint, calibration and application facts, so
 Eventos is useful on Wi-Fi without inventing serial device messages.
 
-**The reactor image is scenery, not state.** `reactor-neutral.png` is one true-alpha
-cross-theme equipment master. Values, units, path colours, selection, focus, hit targets
-and the missing-level statement remain native WPF overlays calibrated by
-`reactor-anchors.json`. `SynopticView` code-behind does one visual-only job: reveal the
-vector fallback if image decoding fails. Generation provenance is recorded in
-[ASSET_PROVENANCE.md](ASSET_PROVENANCE.md).
+**The reactor image is scenery, not state.** Painel displays only the approved
+`Imagem_biorreator_side.png`, embedded from the documentation reference through a stable
+pack URI. Values, units, selection, focus and hit targets remain native WPF controls beside
+the image. The former generated PNG, impeller overlay and vector fallback are not part of
+the active view. Provenance is recorded in [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md).
 
 **ScottPlot follows live token changes explicitly.** A plotting surface is not a WPF
 resource consumer. `TrendSpark` therefore listens to the shared surface brush's change
@@ -246,5 +253,6 @@ claims agitation, aeration and the O₂ monitor through `ICommandArbiter`, alloc
 | Controllers | Simulated first-order DOT plant with dead time; assert no windup, no zero-at-setpoint collapse |
 | kLa mapping | Python/SciPy values, normalized derivatives, RK45 path/headroom and candidate winner within declared tolerances; draft/receipt versioning, byte identity and tamper refusal |
 | Themes | Light and dark dictionaries must define an identical key set (a missing key crashes the runtime theme switch) |
-| Reactor asset | PNG signature/dimensions/RGBA encoding, transparent canvas, anchor schema, pH overlay and decode fallback |
+| Reactor asset | Approved source presence, copied-resource identity and single-image XAML contract; former raster/vector fallbacks are absent |
+| Flowmeter v05 through Hub v7 | Pending/online transitions, command guards, deferred UI commit and exact operational/calibration JSON keys |
 | Transports | Not unit-tested. Verified by the Phase 0 hardware harness — mocking a serial port proves nothing about a real ESP32. |

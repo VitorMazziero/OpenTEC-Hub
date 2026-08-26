@@ -166,7 +166,7 @@ public class CascadeControllerTests
             AgitationRpm: 300, AerationLpm: 2.5, OxygenSetpoint: 40.0, Terms: CascadeTerms.Empty);
 
         Assert.Equal(
-            """{"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",
+            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",
             CascadeController.BuildCommand(result).ToJson());
     }
 
@@ -178,7 +178,7 @@ public class CascadeControllerTests
 
         // v_Flow is inverted: 1 while no flow is commanded.
         Assert.Equal(
-            """{"flowSetpoint":0.0,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":1,"oxygenMonitor":40.0,"motorSetpoint":300}""",
+            """{"flowSetpoint":0.0,"valve_1":0,"valve_2":0,"v_Flow":1,"oxygenMonitor":40.0,"motorSetpoint":300}""",
             CascadeController.BuildCommand(result).ToJson());
     }
 }
@@ -212,7 +212,7 @@ public class CascadeCultureTests : IDisposable
             AgitationRpm: 300, AerationLpm: 2.5, OxygenSetpoint: 40.5, Terms: CascadeTerms.Empty);
 
         Assert.Equal(
-            """{"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.5,"motorSetpoint":300}""",
+            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.5,"motorSetpoint":300}""",
             CascadeController.BuildCommand(result).ToJson());
     }
 }

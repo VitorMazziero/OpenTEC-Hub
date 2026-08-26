@@ -9,6 +9,13 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Fluxômetro v05 sincronizado pelo ESP32 Hub v7.** `Controle`, `Painel` e a calibração
+  agora distinguem a conexão app–Hub do enlace Hub–fluxômetro, mostram estados de pendência e
+  desconexão e bloqueiam novos comandos enquanto `FlowCommandPending` estiver ativo ou
+  `FlowmeterOnline` estiver falso. O estado de vazão só é confirmado na interface após a
+  telemetria liberar a pendência; os firmwares congelados não foram modificados. O plano e a
+  verificação restante em hardware estão em
+  [FLOWMETER_V05_HUB_V7_SYNC_PLAN.md](FLOWMETER_V05_HUB_V7_SYNC_PLAN.md).
 - **Post-merge release audit and v0.25.0 stabilization plan.** Added
   [CURRENT_STATUS.md](CURRENT_STATUS.md) with verified Git/version/build/runtime evidence, the
   ownership/safe-stop and merged biomass/pump findings, UI/build gates and the extended release plan.
@@ -19,6 +26,21 @@ All notable changes to TECNAL-Hub. Version numbers follow
 - **Real-Time Input Validation.** Added visual error banner and validation rules for physical limits, effort windows, and PID parameters in `OxygenConfigDialog`.
 
 ### Changed
+- **Contrato de vazão estrito do Hub v7.** Frames operacionais e de calibração usam apenas as
+  chaves roteadas pelo firmware v7 (`flowSetpoint`, `maxFlow`, `valve_1`, `valve_2`, `v_Flow`
+  e `k1..c2`); o app não emite mais a preferência legada `flowmeterComm`. Alarmes tratam a
+  queda interna do fluxômetro mesmo quando essa preferência legada está desativada.
+- **Controle/Painel UI correction pass.** Fixed the always-visible airflow drawer, widened and
+  aligned the process grid, removed command-only badges from the dense value column, exposed the
+  external-pump mode and biomass optimal-threshold editors in-row, stopped pump-chart Y-axis
+  accumulation, restored published kLa path selection, and made the approved
+  `Imagem_biorreator_side.png` the sole Painel equipment figure. The follow-up pass left-aligns
+  every variable icon/name pair with an 8 px gap and restores compact oxygen, pump-mode and biomass
+  editors.
+- **Supported WPF chart target.** The app and WPF tests now target Windows 10 2004 or newer
+  (`net10.0-windows10.0.19041.0`), so NuGet selects SkiaSharp's supported modern WPF asset instead
+  of the .NET Framework fallback. The `NU1701` compatibility warning and current build analyzer
+  warnings are resolved.
 - **Current documentation synchronized to v0.24.0.** README and roadmap now distinguish the built
   feature inventory from field-release readiness and identify v0.25.0 as the gated stabilization/UI
   polish milestone; the assembly version has not been bumped.

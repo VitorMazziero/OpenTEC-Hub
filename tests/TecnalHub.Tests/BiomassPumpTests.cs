@@ -74,6 +74,8 @@ public sealed class BiomassPumpTests
     [Theory]
     [InlineData("40000", "10000", "20000")] // low >= high
     [InlineData("10000", "40000", "50000")] // optimal above high
+    [InlineData("10000", "40000", "10000")] // optimal equals low
+    [InlineData("10000", "40000", "40000")] // optimal equals high
     [InlineData("10000", "40000", "abc")]   // not an integer
     public void Biomass_thresholds_refuse_incoherent_values(string low, string high, string optimal)
     {
@@ -225,12 +227,12 @@ public sealed class BiomassPumpTests
         // Q_g = (V0 + PumpVol/1000)·vvm = (1.0 + 0)·0.5 = 0.5 L/min.
         device.PushTelemetry(new SensorSnapshot { PumpVolume = 0.0, PumpFlow = 0.0 });
         Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             Assert.Single(device.Sent));
 
         // Grows with pump volume: (1.0 + 1000/1000)·0.5 = 1.0 L/min.
         device.PushTelemetry(new SensorSnapshot { PumpVolume = 1000.0, PumpFlow = 5.0 });
-        Assert.Contains("""{"flowmeterComm":1,"flowSetpoint":1.0,"maxFlow":50.0""", device.Sent[^1]);
+        Assert.Contains("""{"flowSetpoint":1.0,"maxFlow":50.0""", device.Sent[^1]);
 
         // Disabling stops the coupling: a further frame sends nothing.
         vm.GasProportionalEnabled = false;

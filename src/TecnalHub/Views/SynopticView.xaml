@@ -10,15 +10,8 @@
              d:DesignWidth="760" d:DesignHeight="620"
              AutomationProperties.Name="Sinóptico operacional do biorreator">
 
-    <!--
-        The equipment render is deliberately neutral: it contains no liquid level,
-        colour-coded state, text or commanded value. Every operational fact remains a
-        native WPF overlay so it can theme, update, focus and expose automation text.
-
-        The overlay uses a calibrated 600 x 470 coordinate space. Normalized source
-        anchors live beside the PNG in Resources/Images/reactor-anchors.json so a future
-        render can be replaced without guessing what each leader line represents.
-    -->
+    <!-- Process state remains in native WPF cards; the approved reactor side view is
+         presentation-only and is the sole equipment figure on this page. -->
     <UserControl.Resources>
         <conv:StateToBrushConverter x:Key="StateToBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -206,12 +199,28 @@
                                 ToolTip="Dosagem de antiespumante"
                                 Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="antifoam" Margin="0,0,0,8" />
-                        <Button Style="{StaticResource InstrumentTagStyle}"
-                                DataContext="{Binding Flow}" Content="{Binding}"
-                                AutomationProperties.Name="{Binding DisplayName}"
-                                ToolTip="Aeração pelo sparger anular"
-                                Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                CommandParameter="flow" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,8">
+                            <Button Style="{StaticResource InstrumentTagStyle}"
+                                    DataContext="{Binding Flow}" Content="{Binding}"
+                                    AutomationProperties.Name="{Binding DisplayName}"
+                                    ToolTip="Aeração pelo sparger anular"
+                                    Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="flow" />
+                            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
+                                    Padding="5,1" CornerRadius="3" IsHitTestVisible="False"
+                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
+                                    Visibility="{Binding FlowControl.ShowPendingChip, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="aguardando" FontSize="10" Foreground="{DynamicResource StateWarningTextBrush}" />
+                            </Border>
+                            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
+                                    Padding="5,1" CornerRadius="3" IsHitTestVisible="False"
+                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StateAlarmBrush}" BorderThickness="1"
+                                    Visibility="{Binding FlowControl.IsFlowmeterOffline, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="desconectado" FontSize="10" Foreground="{DynamicResource StateAlarmTextBrush}" />
+                            </Border>
+                        </Grid>
                         <Button Style="{StaticResource InstrumentTagStyle}"
                                 DataContext="{Binding Level}" Content="{Binding}"
                                 AutomationProperties.Name="{Binding DisplayName}"
@@ -233,66 +242,13 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Canvas Grid.Column="1" Width="312" Height="470">
-                    <!-- Equipment bay: a token-driven stage behind the transparent asset. -->
-                    <Border Canvas.Left="0" Canvas.Top="2" Width="312" Height="466"
-                            CornerRadius="150"
-                            Background="{DynamicResource SurfaceSunkenBrush}"
-                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                            BorderThickness="1" Opacity="0.72" />
-
-                    <!-- Bundled fallback shown only if the raster resource cannot decode. -->
-                    <Canvas x:Name="VectorFallback" Visibility="Collapsed"
-                            IsHitTestVisible="False" Canvas.Left="-144" Canvas.Top="0">
-                        <Border Canvas.Left="190" Canvas.Top="130" Width="220" Height="250"
-                                CornerRadius="32" BorderThickness="6"
-                                BorderBrush="{DynamicResource StrokeStrongBrush}"
-                                Background="Transparent" />
-                        <Border Canvas.Left="199" Canvas.Top="140" Width="202" Height="230"
-                                CornerRadius="26" BorderThickness="2"
-                                BorderBrush="{DynamicResource TextSecondaryBrush}"
-                                Background="{DynamicResource SurfaceSunkenBrush}" />
-                        <Rectangle Canvas.Left="180" Canvas.Top="117" Width="240" Height="16"
-                                   RadiusX="5" RadiusY="5"
-                                   Fill="{DynamicResource StrokeStrongBrush}" />
-                        <Border Canvas.Left="266" Canvas.Top="20" Width="68" Height="82"
-                                CornerRadius="8" BorderThickness="2"
-                                BorderBrush="{DynamicResource StrokeStrongBrush}"
-                                Background="{DynamicResource SurfaceElevatedBrush}" />
-                        <Rectangle Canvas.Left="296" Canvas.Top="98" Width="8" Height="210"
-                                   Fill="{DynamicResource TextSecondaryBrush}" />
-                        <Rectangle Canvas.Left="261" Canvas.Top="222" Width="78" Height="7"
-                                   RadiusX="2" RadiusY="2"
-                                   Fill="{DynamicResource TextSecondaryBrush}" />
-                        <Rectangle Canvas.Left="261" Canvas.Top="286" Width="78" Height="7"
-                                   RadiusX="2" RadiusY="2"
-                                   Fill="{DynamicResource TextSecondaryBrush}" />
-                        <Ellipse Canvas.Left="249" Canvas.Top="336" Width="102" Height="18"
-                                 Stroke="{DynamicResource PathGasBrush}" StrokeThickness="3"
-                                 Fill="Transparent" />
-                        <Polyline Points="350,345 382,345 382,128"
-                                  Stroke="{DynamicResource PathGasBrush}" StrokeThickness="2"
-                                  Fill="Transparent" />
-                        <Rectangle Canvas.Left="237" Canvas.Top="128" Width="6" Height="150"
-                                   Fill="{DynamicResource PathInstrumentBrush}" />
-                        <Rectangle Canvas.Left="356" Canvas.Top="128" Width="6" Height="138"
-                                   Fill="{DynamicResource PathInstrumentBrush}" />
-                    </Canvas>
-
+                <Canvas Grid.Column="1" Width="430" Height="470">
                     <Image x:Name="ReactorRender"
-                           Canvas.Left="6" Canvas.Top="10" Width="300" Height="450"
-                           Source="/TecnalHub;component/Resources/Images/reactor-neutral.png"
-                           ImageFailed="OnReactorRenderFailed"
+                           Canvas.Left="5" Canvas.Top="25" Width="420" Height="420"
+                           Source="/TecnalHub;component/Resources/Images/Imagem_biorreator_side.png"
                            Stretch="Uniform" IsHitTestVisible="False"
                            RenderOptions.BitmapScalingMode="HighQuality"
                            AutomationProperties.Name="Biorreator TECNAL" />
-
-                    <!-- Impelidores sobrepostos -->
-                    <Image x:Name="ReactorImpellers"
-                           Canvas.Left="6" Canvas.Top="10" Width="300" Height="450"
-                           Source="/TecnalHub;component/Resources/Images/reactor-impellers.png"
-                           Stretch="Uniform" IsHitTestVisible="False"
-                           RenderOptions.BitmapScalingMode="HighQuality" />
                 </Canvas>
             </Grid>
         </Viewbox>

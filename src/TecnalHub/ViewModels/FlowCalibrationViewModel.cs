@@ -49,6 +49,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private SensorSnapshot? _latest;
     private double? _commandedSetpoint;
     private FlowCalibrationPointViewModel? _preparedPoint;
+    private string? _pendingConfirmationText;
 
     public FlowCalibrationViewModel(IDeviceService device, ISettingsService settings)
     {
@@ -96,6 +97,17 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         "Informe a vazão certificada pelo padrão externo e prepare o ponto.";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    public partial bool IsFlowmeterOnline { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsFlowCommandPending { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    public partial bool IsAwaitingAck { get; set; }
+
+    [ObservableProperty]
     public partial bool IsCapturing { get; set; }
 
     [ObservableProperty]
@@ -121,19 +133,22 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _ => "Pontos insuficientes para ajustar a curva",
     };
 
-    public bool CanPrepare => !IsCapturing && _device.State == ConnectionState.Connected &&
+    public bool CanSendFlowCommands => _device.State == ConnectionState.Connected &&
+                                       IsFlowmeterOnline && !IsAwaitingAck;
+
+    public bool CanPrepare => !IsCapturing && CanSendFlowCommands &&
                               TryGetSelectedFlow(out _);
 
-    public bool CanAdjust => !IsCapturing && _device.State == ConnectionState.Connected &&
+    public bool CanAdjust => !IsCapturing && CanSendFlowCommands &&
                              _commandedSetpoint is not null &&
                              ReferenceEquals(SelectedPoint, _preparedPoint);
 
-    public bool CanCapture => !IsCapturing && _device.State == ConnectionState.Connected &&
+    public bool CanCapture => !IsCapturing && CanSendFlowCommands &&
                               _commandedSetpoint is not null &&
                               ReferenceEquals(SelectedPoint, _preparedPoint);
 
     public bool CanSendCurve => !IsCapturing && Curve.HasAny &&
-                                _device.State == ConnectionState.Connected;
+                                CanSendFlowCommands;
 
     public bool CanEditPoints => !IsCapturing;
 
@@ -188,7 +203,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
         _preparedPoint = SelectedPoint;
         SendCalibrationSetpoint(flow);
-        StatusText = "Ponto preparado. Compare com o padrão externo e faça o ajuste fino.";
     }
 
     [RelayCommand(CanExecute = nameof(CanAdjust))]
@@ -231,7 +245,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [RelayCommand(CanExecute = nameof(CanSendCurve))]
     private void SendCurve()
     {
-        var command = TecnalCommand.Create();
+        var command = TecnalCommand.Create().Set(CommandKeys.MaxFlow, _maximumFlow);
         if (Curve.LowVoltage is { } low)
         {
             command.Merge(CommandBuilders.FlowCalibrationLow(low.K, low.F, low.C));
@@ -250,9 +264,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
         _device.Send(command);
         PersistPoints();
-        StatusText = Curve.IsComplete
+        MarkAwaitingAck(Curve.IsComplete
             ? "Dois segmentos enviados ao fluxômetro; pontos salvos no app."
-            : "Segmento parcial enviado ao fluxômetro; complete o outro antes do uso em toda a faixa.";
+            : "Segmento parcial enviado ao fluxômetro; complete o outro antes do uso em toda a faixa.");
     }
 
     [RelayCommand]
@@ -263,16 +277,19 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         CaptureProgressPercent = 0;
         _commandedSetpoint = null;
         _preparedPoint = null;
-        CommandedSetpointText = "Fluxo em safe-stop";
 
-        if (_device.State == ConnectionState.Connected)
+        if (CanSendFlowCommands)
         {
             _device.Send(CommandBuilders.FlowSafeStop(_maximumFlow));
-            StatusText = "Ensaio de vazão encerrado; ambas as válvulas foram fechadas.";
+            CommandedSetpointText = "Safe-stop aguardando confirmação";
+            MarkAwaitingAck("Ensaio de vazão encerrado; ambas as válvulas foram fechadas.");
         }
         else
         {
-            StatusText = "Conexão ausente: não foi possível transmitir o safe-stop.";
+            CommandedSetpointText = "Safe-stop não enviado";
+            StatusText = IsFlowmeterOnline
+                ? "Aguarde a confirmação do comando atual antes do safe-stop."
+                : "Fluxômetro Desconectado da Central; não foi possível transmitir o safe-stop.";
         }
 
         NotifyCommandState();
@@ -295,7 +312,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         }
 
         SendCalibrationSetpoint(Math.Clamp(current + (direction * step), 0.0, _maximumFlow));
-        StatusText = "Ajuste enviado. Aguarde o padrão externo estabilizar.";
     }
 
     private void SendCalibrationSetpoint(double flow)
@@ -303,17 +319,37 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _device.Send(CommandBuilders.FlowCalibrationSetpoint(flow));
         _commandedSetpoint = flow;
         CommandedSetpointText = $"Comandado: {flow:F2} L/min";
-        NotifyCommandState();
+        MarkAwaitingAck("Comando confirmado. Compare com o padrão externo e faça o ajuste fino.");
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        var wasAwaiting = IsAwaitingAck;
         _latest = snapshot;
+        IsFlowmeterOnline = snapshot.FlowmeterOnline;
+        IsFlowCommandPending = snapshot.FlowCommandPending;
+        IsAwaitingAck = snapshot.FlowCommandPending;
         LiveVoltageText = HasValidVoltage(snapshot)
             ? snapshot.FlowVoltage.ToString("F6", CultureInfo.CurrentCulture) + " V"
             : "—";
 
-        if (!IsCapturing || !HasValidVoltage(snapshot))
+        if (!IsFlowmeterOnline)
+        {
+            StatusText = "Fluxômetro Desconectado da Central.";
+        }
+        else if (IsAwaitingAck)
+        {
+            StatusText = "Aguardando confirmação do fluxômetro...";
+        }
+        else if (wasAwaiting && _pendingConfirmationText is { } confirmed)
+        {
+            StatusText = confirmed;
+            _pendingConfirmationText = null;
+        }
+
+        NotifyCommandState();
+
+        if (!IsCapturing || !IsFlowmeterOnline || !HasValidVoltage(snapshot))
         {
             return;
         }
@@ -471,6 +507,14 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         AddEmptyPointCommand.NotifyCanExecuteChanged();
         RemoveSelectedPointCommand.NotifyCanExecuteChanged();
         SavePointsCommand.NotifyCanExecuteChanged();
+    }
+
+    private void MarkAwaitingAck(string confirmationText)
+    {
+        _pendingConfirmationText = confirmationText;
+        IsAwaitingAck = true;
+        StatusText = "Aguardando confirmação do fluxômetro...";
+        NotifyCommandState();
     }
 
     private static string Equation(

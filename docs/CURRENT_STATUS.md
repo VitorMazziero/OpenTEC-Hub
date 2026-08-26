@@ -3,7 +3,7 @@
 > **Audit date:** 2026-08-26  
 > **Current version:** 0.24.0  
 > **Next release target:** 0.25.0 — safety stabilization and UI polish  
-> **Audited commit:** `846a0f5` on `main`
+> **Implementation base:** `5152b69`; current verified changes await their dedicated Git commit
 
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
@@ -32,13 +32,13 @@ gates in this document pass.
 
 | Check | Result on 2026-08-26 | Interpretation |
 |---|---|---|
-| Git integration | `main`, clean, `846a0f5`; all listed `codex/*` branches are ancestors of `main` | The merge did not lose either feature path |
+| Git integration | Implementation based on `5152b69`; verified changes are currently in the working tree | Create the dedicated branch and commit as soon as `.git` is writable |
 | Authoritative version | `Directory.Build.props` = `0.24.0` | Older version text in README/roadmap was documentation drift |
-| Release tests | **499 passed, 1 skipped, 0 failed** | Strong automated baseline; the skip is the hosted-WPF theme-cycle test |
+| Release tests | **510 passed, 1 skipped, 0 failed** | Includes Hub v7/flowmeter v05 synchronization and UI contract coverage; the skip is the hosted-WPF theme-cycle test |
 | Package vulnerability scan | No known vulnerable direct or transitive packages | Does not waive compatibility warnings |
 | Runtime startup smoke test | Two Release launches reached the first frame; no binding failure, fatal exception or unhandled exception was logged | No current startup XAML build failure was reproduced |
 | First-frame time | **1.788 s and 6.011 s**, target `< 2 s` | The startup target is not repeatably met |
-| Build compatibility | `NU1701` for transitive `SkiaSharp.Views.WPF 3.119.0` under `net10.0-windows` | Build succeeds, but chart runtime compatibility is not a closed gate |
+| Build compatibility | Release solution build: **0 warnings** after targeting `net10.0-windows10.0.19041.0` | `NU1701` is resolved; published chart/theme verification remains a release receipt |
 | Formatting gate | `dotnet format --verify-no-changes --no-restore` fails repository-wide | Formatting/analyzer debt is not CI-ready |
 
 The skipped theme test depends on a hosted WPF `Application`; token parity is tested headlessly,
@@ -49,6 +49,7 @@ but a packaged light/dark/light runtime test remains part of the UI acceptance w
 | Area | Status | Remaining gate |
 |---|---|---|
 | Protocol, connection shell and simulator | Software-complete | Full captured v.6 parity, live sensors and acknowledgement timing on hardware |
+| Flowmeter v05 through ESP32 Hub v7 | Software-complete | Real Hub/flowmeter receipt for pending, ACK, internal-link loss and recovery |
 | Manual process control and cultivation auxiliaries | Software-complete | Ownership-aware command feedback and full cultivation |
 | Operational alarm kernel | Core complete | Per-variable alarms page and control-room audio/operator validation |
 | kLa mapping, oxygen cascade, conditional OUR and gain scheduling | Software-complete | Real-bioreactor validation and performance receipt |
@@ -140,15 +141,16 @@ Required correction: add repeatable cold/warm measurements, instrument startup s
 recipe/chart/resource initialization until after first frame where safe. Record median and worst-case
 results on the target lab PC; keep auto-connect outside the first-frame critical path.
 
-### AUD-007 — P1 — chart dependency restores through an incompatible target
+### AUD-007 — P1 — compatibility warning resolved; published chart receipt remains
 
-`ScottPlot.WPF 5.1.59` transitively restores `SkiaSharp.Views.WPF 3.119.0` using .NET Framework assets,
-producing `NU1701` for `net10.0-windows`. The application currently builds and opens, but the warning is
-a runtime compatibility risk for chart-heavy screens and self-contained publish.
+The app and WPF test project now declare their actual Windows 10 2004 minimum
+(`net10.0-windows10.0.19041.0`). NuGet consequently selects the supported
+`SkiaSharp.Views.WPF 3.119.0` Windows asset instead of falling back to `net462`; the complete Release
+solution build reports zero warnings and zero errors.
 
-Required correction: evaluate a ScottPlot/WPF combination with supported target assets or remove the
-problematic WPF/Skia path. Verify every chart in both themes from a self-contained `win-x64` publish,
-then make `NU1701` a build failure so it cannot silently return.
+Remaining release receipt: open every chart surface in both themes from a self-contained `win-x64`
+publish. Keep this gate open until that packaged-runtime check is recorded, and then promote
+`NU1701` to an error so an incompatible fallback cannot return silently.
 
 ### AUD-008 — P2 — formatting and analyzer debt has no enforceable baseline
 
@@ -262,4 +264,3 @@ Do not bump/release until all of the following are true:
 - [ ] published UI passes the resolution/DPI/theme/keyboard/state matrix with zero binding errors
 - [ ] startup and hardware receipts meet the roadmap targets
 - [ ] installer, operator documentation and rollback path are verified
-

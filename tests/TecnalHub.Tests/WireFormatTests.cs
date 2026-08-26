@@ -37,19 +37,19 @@ public class WireFormatTests
     {
         // v_Flow is 0 while flow is commanded...
         Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             CommandBuilders.FlowSetpoint(2.5, maxFlow: 50.0).ToJson());
 
         // ...and 1 when the setpoint is zero.
         Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
+            """{"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
             CommandBuilders.FlowSetpoint(0.0, maxFlow: 50.0).ToJson());
     }
 
     [Fact]
     public void Flow_setpoint_clamps_to_max_flow()
         => Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":50.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":50.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             CommandBuilders.FlowSetpoint(999.0, maxFlow: 50.0).ToJson());
 
     /// <summary>
@@ -60,25 +60,25 @@ public class WireFormatTests
     [Fact]
     public void Flow_safe_stop_forces_both_valves_closed()
         => Assert.Equal(
-            """{"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
+            """{"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
             CommandBuilders.FlowSafeStop(maxFlow: 50.0).ToJson());
 
     [Fact]
     public void Valve_control_sends_complete_state_and_derives_the_inverted_vent_flag()
         => Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}""",
+            """{"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}""",
             CommandBuilders.FlowSetpoint(0.0, maxFlow: 50.0, valve1: true, valve2: true).ToJson());
 
     [Fact]
     public void Core_safe_stop_is_one_complete_command_with_both_gas_valves_closed()
         => Assert.Equal(
-            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}""",
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}""",
             CommandBuilders.CoreSafeStop(maxFlow: 50.0).ToJson());
 
     [Fact]
     public void Cascade_actuation_keeps_v6_key_order()
         => Assert.Equal(
-            """{"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",
+            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",
             CommandBuilders.CascadeActuation(2.5, 40.0, 300).ToJson());
 
     /// <summary>pH is echoed back as a quoted string with two decimals, not a number.</summary>
@@ -108,7 +108,7 @@ public class WireFormatTests
     public void Flow_calibration_frames_match_v6_key_order()
     {
         Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             CommandBuilders.FlowCalibrationSetpoint(1.5).ToJson());
         Assert.Equal(
             """{"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}""",
@@ -282,7 +282,7 @@ public class CultureInvarianceTests : IDisposable
     [Fact]
     public void Doubles_use_a_decimal_point_under_pt_BR()
         => Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             CommandBuilders.FlowSetpoint(2.5, maxFlow: 50.0).ToJson());
 
     [Fact]
@@ -292,7 +292,7 @@ public class CultureInvarianceTests : IDisposable
     [Fact]
     public void Cascade_actuation_is_culture_invariant()
         => Assert.Equal(
-            """{"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.5,"motorSetpoint":300}""",
+            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.5,"motorSetpoint":300}""",
             CommandBuilders.CascadeActuation(2.5, 40.5, 300).ToJson());
 
     [Fact]

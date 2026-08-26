@@ -206,10 +206,11 @@ public sealed class GuidedCalibrationTests
         var settings = new MemorySettingsService(initial);
         using var vm = new FlowCalibrationViewModel(device, settings);
         vm.SelectedPoint!.FlowText = "1.0";
+        PushFlow(device, 0.04);
 
         vm.PrepareSelectedPointCommand.Execute(null);
         Assert.Equal(
-            """{"flowmeterComm":1,"flowSetpoint":1.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":1.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             Assert.Single(device.Sent));
 
         PushFlow(device, 0.04);
@@ -231,6 +232,7 @@ public sealed class GuidedCalibrationTests
         var device = new RecordingDeviceService();
         using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService(initial));
         vm.SelectedPoint!.FlowText = "1.0";
+        PushFlow(device, 0.04);
 
         var preparedPoint = vm.SelectedPoint;
         vm.PrepareSelectedPointCommand.Execute(null);
@@ -266,13 +268,15 @@ public sealed class GuidedCalibrationTests
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService(initial);
         using var vm = new FlowCalibrationViewModel(device, settings);
+        PushFlow(device, 0.04);
 
         vm.SendCurveCommand.Execute(null);
 
         var json = Assert.Single(device.Sent);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        Assert.Equal(6, root.EnumerateObject().Count());
+        Assert.Equal(7, root.EnumerateObject().Count());
+        Assert.Equal(50.0, root.GetProperty("maxFlow").GetDouble(), precision: 6);
         Assert.Equal(2.0, root.GetProperty("k1").GetDouble(), precision: 6);
         Assert.Equal(3.0, root.GetProperty("f1").GetDouble(), precision: 6);
         Assert.Equal(4.0, root.GetProperty("c1").GetDouble(), precision: 6);

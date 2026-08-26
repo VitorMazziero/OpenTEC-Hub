@@ -68,12 +68,72 @@ public sealed partial class FlowControlViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(VentActualText))]
     public partial bool? ActualVentValve { get; set; }
 
+    /// <summary>True while the Hub still owns an unacknowledged v05 command.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PendingStatusText))]
+    public partial bool IsFlowCommandPending { get; set; }
+
+    /// <summary>
+    /// UI lock set immediately on local dispatch and released by the next Hub frame that reports
+    /// <c>FlowCommandPending=false</c>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(PendingStatusText))]
+    [NotifyPropertyChangedFor(nameof(FlowStatusText))]
+    [NotifyPropertyChangedFor(nameof(HasFlowStatusAlert))]
+    [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    public partial bool IsAwaitingAck { get; set; }
+
+    /// <summary>State of the Hub-to-flowmeter wireless link, distinct from the app-to-Hub link.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFlowmeterOffline))]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(FlowmeterStatusText))]
+    [NotifyPropertyChangedFor(nameof(FlowStatusText))]
+    [NotifyPropertyChangedFor(nameof(HasFlowStatusAlert))]
+    [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    public partial bool IsFlowmeterOnline { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFlowmeterOffline))]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(FlowmeterStatusText))]
+    [NotifyPropertyChangedFor(nameof(FlowStatusText))]
+    [NotifyPropertyChangedFor(nameof(HasFlowStatusAlert))]
+    [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    public partial bool HasFlowmeterTelemetry { get; set; }
+
     public double AppliedMaxFlow => _appliedMaxFlow;
 
     /// <summary>Valid staged ceiling, or the last applied value while the field is invalid.</summary>
     public double MaximumForCommand => CommandMaximum;
 
     public bool IsValid => ValidationError is null;
+
+    public bool IsFlowmeterOffline => HasFlowmeterTelemetry && !IsFlowmeterOnline;
+
+    public bool CanSendFlowCommands => HasFlowmeterTelemetry && IsFlowmeterOnline && !IsAwaitingAck;
+
+    public bool HasFlowStatusAlert => HasFlowmeterTelemetry && (IsFlowmeterOffline || IsAwaitingAck);
+
+    public bool ShowPendingChip => HasFlowmeterTelemetry && IsFlowmeterOnline && IsAwaitingAck;
+
+    public string PendingStatusText => IsAwaitingAck
+        ? "Aguardando confirmação do fluxômetro..."
+        : "Nenhum comando de vazão pendente.";
+
+    public string FlowmeterStatusText => !HasFlowmeterTelemetry
+        ? "Aguardando telemetria do Hub"
+        : IsFlowmeterOnline
+            ? "Online"
+            : "Fluxômetro Desconectado da Central";
+
+    public string FlowStatusText => IsFlowmeterOffline
+        ? FlowmeterStatusText
+        : IsAwaitingAck
+            ? PendingStatusText
+            : "Fluxômetro online; comandos liberados.";
 
     public bool HasPendingChange
         => !TryGetStagedMaxFlow(out var maximum) ||
@@ -124,7 +184,8 @@ public sealed partial class FlowControlViewModel : ObservableObject
     /// </summary>
     public bool TryBuildRequested(double setpoint, bool flowEnabled, out TecnalCommand command)
     {
-        if (!TryGetStagedMaxFlow(out var maximum) ||
+        if (!CanSendFlowCommands ||
+            !TryGetStagedMaxFlow(out var maximum) ||
             (flowEnabled && setpoint > maximum))
         {
             command = TecnalCommand.Create();
@@ -197,9 +258,24 @@ public sealed partial class FlowControlViewModel : ObservableObject
         RefreshDerivedState();
     }
 
+    /// <summary>Locks the local controls before the asynchronous transport returns.</summary>
+    public void MarkCommandDispatched() => IsAwaitingAck = true;
+
+    /// <summary>Separates loss of the app-to-Hub link from an internal flowmeter outage.</summary>
+    public void MarkHubUnavailable()
+    {
+        HasFlowmeterTelemetry = false;
+        IsFlowmeterOnline = false;
+        IsFlowCommandPending = false;
+    }
+
     /// <summary>Updates the read-only physical valve states from telemetry.</summary>
     public void UpdateTelemetry(SensorSnapshot snapshot)
     {
+        HasFlowmeterTelemetry = true;
+        IsFlowmeterOnline = snapshot.FlowmeterOnline;
+        IsFlowCommandPending = snapshot.FlowCommandPending;
+        IsAwaitingAck = snapshot.FlowCommandPending;
         ActualValve1 = ToState(snapshot.FlowValve1);
         ActualValve2 = ToState(snapshot.FlowValve2);
         ActualVentValve = ToState(snapshot.FlowValveMain);

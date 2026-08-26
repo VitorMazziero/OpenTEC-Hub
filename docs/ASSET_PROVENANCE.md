@@ -1,21 +1,21 @@
 # Visual asset provenance
 
-## `reactor-neutral.png`
+## `Imagem_biorreator_side.png`
 
 | Field | Value |
 |---|---|
-| Purpose | Neutral equipment master for the Painel synoptic |
-| Generated | 2026-08-20, OpenAI image generation |
-| Packaged path | `src/TecnalHub/Resources/Images/reactor-neutral.png` |
-| Dimensions | 1024 × 1536 px |
+| Purpose | Approved side-view equipment figure for the Painel synoptic |
+| Source accepted | 2026-08-26, operator-provided project reference |
+| Source path | `docs/UI_design_guides/Bioreactor references/Imagem_biorreator_side.png` |
+| Packaged path | linked resource `Resources/Images/Imagem_biorreator_side.png` |
+| Dimensions | 1920 × 1920 px |
 | Encoding | PNG colour type 6, 8-bit truecolour with alpha |
-| File size | 1,595,617 bytes |
-| SHA-256 | `E6B6194E23C3C4911800E1175D26DEE6E168B462A345B5137C4A12AF961053A6` |
-| Layout calibration | `src/TecnalHub/Resources/Images/reactor-anchors.json` |
+| File size | 2,951,990 bytes |
+| SHA-256 | `B7AEED6AB631AB17F7EA8F834F11A3CDBF145046AAE4931D3957E3E5DB069DF4` |
 
-The PNG has genuine alpha-zero canvas pixels outside the equipment. It was reviewed on
-both `SurfaceCard` palettes and is deliberately one neutral cross-theme master. The
-light/dark solid-background contingency was therefore not used.
+The approved figure has its own neutral gray background. Painel therefore renders it as
+one self-contained image and does not place the former generated PNG, impeller overlay or
+vector fallback behind it.
 
 The image is operational scenery, not a fabrication drawing. Its required process
 structure was visually checked: double-wall glass jacket, top-drive motor and coupling,
@@ -24,12 +24,11 @@ and an independent annular ring sparger. The agitator shaft terminates below the
 turbine and has a visible clearance from the sparger; the sparger has its own wall-side
 gas dip tube.
 
-All process facts remain native WPF overlays: readings, units, state dots, selected
-state, leader lines, hit targets and the explicit absence of a measured level. Tests
-pin the image dimensions, RGBA encoding, transparent corners, opaque equipment centre,
-anchor schema, pH callout and decode fallback.
+All process facts remain native WPF controls beside the figure: readings, units, state
+dots, selected state and hit targets. Tests pin the approved image dimensions and encoding,
+the resource reference, and the absence of the superseded figures/fallback in Painel.
 
-### Accepted generation prompt
+### Superseded generated-asset prompt (historical record)
 
 ```text
 Use case: product-mockup
@@ -70,5 +69,5 @@ BACKGROUND AND STATE
 - No text, numbers, labels, arrows, callouts, cards, icons, logos, trademarks, watermark, status lights, colored process states, hoses into the margins, pumps, bottles, gauges, or surrounding equipment.
 ```
 
-Earlier attempts were rejected because one connected the agitator shaft to the sparger
-and another encoded a visible checkerboard as RGB. Neither rejected asset is packaged.
+This prompt documents the previous `reactor-neutral.png` generation only. That image and
+its vector fallback are no longer displayed or packaged by Painel.

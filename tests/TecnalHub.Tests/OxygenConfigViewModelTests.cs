@@ -58,6 +58,23 @@ public class OxygenConfigViewModelTests
     }
 
     [Fact]
+    public void Loads_published_kla_paths_for_the_map_selector()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var store = new FakeKlaProfileStore();
+        var published = KlaTestProfiles.Linear("Trajetória publicada");
+        store.Published.Add(published);
+        var clock = new TestClock(DateTimeOffset.UnixEpoch);
+        var arbiter = new CommandArbiter(device, clock);
+        using var service = new CascadeService(arbiter, arbiter, settings, store, clock);
+        using var vm = new OxygenConfigViewModel(service, settings, store);
+
+        Assert.Equal(published, Assert.Single(vm.AvailablePaths));
+        Assert.Equal(published, vm.SelectedPath);
+    }
+
+    [Fact]
     public void Switching_mode_updates_visibility_and_loads_mode_specific_pids()
     {
         using var fixture = new Fixture();

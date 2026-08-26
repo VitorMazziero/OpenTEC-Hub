@@ -112,7 +112,10 @@ public partial class ReceitasView : UserControl
     private void HighlightConnectablePorts(RecipeNodeViewModel sourceNode, RecipePortViewModel sourcePort)
     {
         var tab = ViewModel?.SelectedTab;
-        if (tab is null) return;
+        if (tab is null)
+        {
+            return;
+        }
 
         var existingConnections = tab.Document.Connections;
 
@@ -149,7 +152,10 @@ public partial class ReceitasView : UserControl
     private void ClearConnectablePorts()
     {
         var tab = ViewModel?.SelectedTab;
-        if (tab is null) return;
+        if (tab is null)
+        {
+            return;
+        }
 
         foreach (var node in tab.Nodes)
         {

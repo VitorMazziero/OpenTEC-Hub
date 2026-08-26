@@ -48,7 +48,8 @@ public sealed record SubsystemSpec(
     bool HasCalibration = false,
     bool HasHealth = true,
     bool HasSetpointEntry = true,
-    Action<double, bool>? OnCommitted = null);
+    Action<double, bool>? OnCommitted = null,
+    Func<bool>? CanApplyNow = null);
 
 /// <summary>
 /// One controllable subsystem: its live reading, its setpoint entry, and the rules
@@ -237,7 +238,14 @@ public sealed partial class SubsystemViewModel : ObservableObject
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => IsValid;
+    public bool CanApply => IsValid && (_spec.CanApplyNow?.Invoke() ?? true);
+
+    /// <summary>Refreshes an external availability guard such as a pending hardware ACK.</summary>
+    public void RefreshAvailability()
+    {
+        OnPropertyChanged(nameof(CanApply));
+        ApplyCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnSetpointTextChanged(string value)
     {

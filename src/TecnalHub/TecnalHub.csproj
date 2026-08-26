@@ -4,6 +4,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
+    <!-- SkiaSharp's supported WPF asset targets Windows 10 2004 or newer. Declaring
+         the real lab-PC baseline prevents NuGet from falling back to net462. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>TecnalHub</RootNamespace>
     <AssemblyName>TecnalHub</AssemblyName>
     <AssemblyTitle>TECNAL-Hub</AssemblyTitle>
@@ -26,10 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- State-free equipment art. Live readings and process colours remain WPF. -->
-    <Resource Include="Resources\Images\reactor-tank.png" />
-    <Resource Include="Resources\Images\reactor-impellers.png" />
-    <Resource Include="Resources\Images\reactor-anchors.json" />
+    <!-- Approved side-view reactor master. Keep one image source in the repository and
+         expose it at a stable pack URI without duplicating the binary. -->
+    <Resource Include="..\..\docs\UI_design_guides\Bioreactor references\Imagem_biorreator_side.png">
+      <Link>Resources\Images\Imagem_biorreator_side.png</Link>
+      <LogicalName>Resources/Images/Imagem_biorreator_side.png</LogicalName>
+    </Resource>
   </ItemGroup>
 
   <ItemGroup>

@@ -37,7 +37,7 @@ public class SubsystemCommandTests
         var json = CommandBuilders.FlowSafeStop(50.0).ToJson();
 
         Assert.Equal(
-            """{"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
+            """{"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
             json);
     }
 

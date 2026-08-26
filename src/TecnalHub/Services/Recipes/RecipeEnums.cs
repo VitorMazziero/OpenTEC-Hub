@@ -161,12 +161,12 @@ public enum SetpointVariable
 /// </summary>
 /// <remarks>
 /// Re-targeted from ReceitasTECNAL's Modbus control-word bits: there is no control word on
-/// the wire, so enabling a loop means the subsystem's own enable (<c>flowmeterComm:1</c>) or
-/// a setpoint of <c>0</c> to disable.
+/// the wire. For aeration, Hub v7 routes an explicit flow desired-state frame; a setpoint of
+/// <c>0</c> disables it.
 /// </remarks>
 public enum ControlLoop
 {
-    /// <summary>Aeration / flow loop — <c>flowmeterComm</c>.</summary>
+    /// <summary>Aeration / flow loop — explicit setpoint and complete valve state.</summary>
     Aeration,
 
     /// <summary>pH dosing loop — intensity 0 disables.</summary>

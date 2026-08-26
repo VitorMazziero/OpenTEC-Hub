@@ -9,7 +9,12 @@ using TecnalHub.Services.Persistence;
 namespace TecnalHub.ViewModels;
 
 /// <summary>One selectable pump profile mode, for the mode dropdown.</summary>
-public sealed record PumpModeOption(PumpProfileMode Mode, string Label);
+public sealed record PumpModeOption(PumpProfileMode Mode, string Label)
+{
+    // The application ComboBox template renders selected records through ToString(),
+    // while its drop-down items honour DisplayMemberPath. Keep both surfaces human-readable.
+    public override string ToString() => Label;
+}
 
 /// <summary>
 /// The external peristaltic pump (Phase 3 WP2): enable, the five firmware profile modes with a

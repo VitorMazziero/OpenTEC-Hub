@@ -287,18 +287,17 @@ public sealed class AlarmServiceTests
     }
 
     [Fact]
-    public void Flowmeter_offline_only_alarms_when_flow_control_is_enabled()
+    public void Flowmeter_offline_alarms_even_when_the_legacy_hub_flag_is_disabled()
     {
         using var h = new Harness();
 
-        // Flowmeter offline but flow not in use: not an alarm.
-        h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(3));
-        Assert.False(h.Latched(AlarmId.FlowmeterOffline));
-
-        // Now flow control is on and the flowmeter reports offline.
-        h.Device.PushTelemetry(HealthyFrame() with { FlowControlEnabled = true, FlowmeterOnline = false });
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            FlowControlEnabled = false,
+            FlowmeterOnline = false,
+        });
         h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+
         Assert.True(h.Latched(AlarmId.FlowmeterOffline));
     }
 

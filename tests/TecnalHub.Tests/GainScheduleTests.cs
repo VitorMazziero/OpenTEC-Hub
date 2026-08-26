@@ -119,7 +119,11 @@ public sealed class GainScheduleTests
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService(new AppSettings
         {
-            Cascade = new CascadeSettings { OxygenSetpointPercent = 30, Kp = 0.25 },
+            Cascade = new CascadeSettings
+            {
+                OxygenSetpointPercent = 30,
+                MapPid = new ModePidSettings { Kp = 0.25 },
+            },
             GainSchedule = new GainScheduleSettings
             {
                 Enabled = true,
@@ -162,7 +166,11 @@ public sealed class GainScheduleTests
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService(new AppSettings
         {
-            Cascade = new CascadeSettings { OxygenSetpointPercent = 30, Kp = 0.25 },
+            Cascade = new CascadeSettings
+            {
+                OxygenSetpointPercent = 30,
+                MapPid = new ModePidSettings { Kp = 0.25 },
+            },
             GainSchedule = new GainScheduleSettings { Enabled = false },
         });
         var clock = new TestClock(DateTimeOffset.UnixEpoch);

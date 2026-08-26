@@ -166,7 +166,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         if (!DosingInput.TryParseInteger(LowThresholdText, out var low) || low is < 0 or > 200_000 ||
             !DosingInput.TryParseInteger(HighThresholdText, out var high) || high is < 0 or > 200_000 ||
             !DosingInput.TryParseInteger(OptimalThresholdText, out var optimal) || optimal is < 0 or > 200_000 ||
-            low >= high || optimal < low || optimal > high)
+            low >= high || optimal <= low || optimal >= high)
         {
             return false;
         }
@@ -223,9 +223,9 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
             return "O limiar baixo deve ser menor que o alto.";
         }
 
-        if (optimal < low || optimal > high)
+        if (optimal <= low || optimal >= high)
         {
-            return "O limiar ótimo deve ficar entre o baixo e o alto.";
+            return "O limiar ótimo deve ser maior que o baixo e menor que o alto.";
         }
 
         return null;

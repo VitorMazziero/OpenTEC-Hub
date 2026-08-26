@@ -7,6 +7,7 @@ using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 
 namespace TecnalHub.ViewModels;
@@ -119,8 +120,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private readonly ISettingsService _settings;
     private readonly IDialogService _dialogs;
     private readonly ICascadeService _cascade;
+    private readonly IKlaProfileStore? _klaProfileStore;
     private readonly SubsystemViewModel _flowSubsystem;
     private bool _switchingSharedPump;
+    private bool _flowCommitPending;
+    private bool _flowRowCommitPending;
 
     public ControlViewModel(
         IReadOnlyList<SubsystemViewModel> subsystems,
@@ -136,7 +140,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         ISettingsService settings,
         IDialogService dialogs,
         ICascadeService cascade,
-        ReceitasViewModel? receitas = null)
+        ReceitasViewModel? receitas = null,
+        IKlaProfileStore? klaProfileStore = null)
     {
         if (subsystems.Count != 5)
         {
@@ -147,6 +152,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _settings = settings;
         _dialogs = dialogs;
         _cascade = cascade;
+        _klaProfileStore = klaProfileStore;
         FlowControl = flowControl;
         PHControl = phControl;
         NutrientControl = nutrientControl;
@@ -182,6 +188,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         oxygenRow.CascadeEngageRequested = OnOxygenEngageRequested;
         _cascade.Updated += OnCascadeUpdated;
         _device.StateChanged += OnDeviceStateChanged;
+        _device.TelemetryReceived += OnTelemetryReceived;
 
         FlowControl.PropertyChanged += OnFlowStateChanged;
         PHControl.PropertyChanged += OnPHStateChanged;
@@ -292,10 +299,32 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     public string ApplyAllLabel => $"Aplicar alterações ({DirtyCount})";
 
+    private bool FlowStateDirty => _flowSubsystem.HasPendingChange || FlowControl.HasPendingChange;
+
     public string? FlowRequestError
     {
         get
         {
+            if (!FlowStateDirty)
+            {
+                return null;
+            }
+
+            if (!FlowControl.HasFlowmeterTelemetry)
+            {
+                return FlowControl.FlowmeterStatusText;
+            }
+
+            if (FlowControl.IsFlowmeterOffline)
+            {
+                return FlowControl.FlowmeterStatusText;
+            }
+
+            if (FlowControl.IsAwaitingAck)
+            {
+                return FlowControl.PendingStatusText;
+            }
+
             if (!FlowControl.IsValid)
             {
                 return FlowControl.ValidationError;
@@ -326,10 +355,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
            (!NutrientControl.HasPendingChange || NutrientControl.CanApply) &&
            (!AntifoamControl.HasPendingChange || AntifoamControl.CanApply) &&
            (!FlaskAgitator.HasPendingChange || FlaskAgitator.CanApply) &&
+           (!FlowStateDirty || FlowControl.CanSendFlowCommands) &&
            FlowRequestError is null;
 
     public bool CanApplyFlowState
-        => (_flowSubsystem.HasPendingChange || FlowControl.HasPendingChange) &&
+        => FlowStateDirty && FlowControl.CanSendFlowCommands &&
            (!_flowSubsystem.IsEnabled || _flowSubsystem.IsValid) &&
            FlowRequestError is null;
 
@@ -351,14 +381,16 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         _device.Send(command);
 
-        foreach (var row in dirtyRows)
+        foreach (var row in dirtyRows.Where(row => row.Subsystem != _flowSubsystem))
         {
             row.Subsystem.CommitPendingCommand();
         }
 
         if (flowWasDirty)
         {
-            FlowControl.CommitRequested(_flowSubsystem.IsEnabled);
+            _flowCommitPending = true;
+            _flowRowCommitPending = _flowSubsystem.HasPendingChange;
+            FlowControl.MarkCommandDispatched();
         }
 
         if (phWasDirty)
@@ -382,9 +414,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         PersistAppliedSetpoints();
-        StatusText = command.Count == 1
-            ? "1 campo enviado em um único comando."
-            : $"{command.Count} campos enviados em um único comando.";
+        StatusText = flowWasDirty
+            ? FlowControl.PendingStatusText
+            : command.Count == 1
+                ? "1 campo enviado em um único comando."
+                : $"{command.Count} campos enviados em um único comando.";
         RefreshState();
     }
 
@@ -405,14 +439,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         _device.Send(command);
-        if (flowRowWasDirty)
-        {
-            _flowSubsystem.CommitPendingCommand();
-        }
-
-        FlowControl.CommitRequested(_flowSubsystem.IsEnabled);
-        PersistAppliedSetpoints();
-        StatusText = "Estado de vazão e válvulas enviado.";
+        _flowCommitPending = true;
+        _flowRowCommitPending = flowRowWasDirty;
+        FlowControl.MarkCommandDispatched();
+        StatusText = FlowControl.PendingStatusText;
         RefreshState();
     }
 
@@ -437,7 +467,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenOxygenConfig()
     {
-        var vm = new OxygenConfigViewModel(_cascade, _settings);
+        using var vm = new OxygenConfigViewModel(_cascade, _settings, _klaProfileStore);
         var dialog = new Views.Dialogs.OxygenConfigDialog(vm)
         {
             Owner = Application.Current?.MainWindow,
@@ -796,13 +826,67 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             _flowSubsystem.UpdateMaximum(maximum);
         }
 
+        _flowSubsystem.RefreshAvailability();
         RefreshState();
     }
 
     private void OnPHStateChanged(object? sender, PropertyChangedEventArgs e)
         => RefreshState();
 
-    private void OnDeviceStateChanged(ConnectionStateChange _) => OnPropertyChanged(nameof(CanActuate));
+    private void OnDeviceStateChanged(ConnectionStateChange change)
+    {
+        if (change.State != ConnectionState.Connected && _flowCommitPending)
+        {
+            StatusText = "Conexão com a central perdida; o comando de vazão permanece sem confirmação.";
+        }
+
+        if (change.State != ConnectionState.Connected)
+        {
+            FlowControl.MarkHubUnavailable();
+        }
+
+        RefreshState();
+    }
+
+    private void OnTelemetryReceived(SensorSnapshot snapshot)
+    {
+        var wasOnline = FlowControl.IsFlowmeterOnline;
+        var wasAwaiting = FlowControl.IsAwaitingAck;
+        FlowControl.UpdateTelemetry(snapshot);
+
+        if (FlowControl.IsFlowmeterOffline)
+        {
+            StatusText = FlowControl.FlowmeterStatusText;
+        }
+        else if (FlowControl.IsAwaitingAck)
+        {
+            StatusText = FlowControl.PendingStatusText;
+        }
+        else if (_flowCommitPending)
+        {
+            CompletePendingFlowCommit();
+        }
+        else if (wasAwaiting || !wasOnline)
+        {
+            StatusText = "Confirmação recebida; controles do fluxômetro liberados.";
+        }
+
+        RefreshState();
+    }
+
+    private void CompletePendingFlowCommit()
+    {
+        if (_flowRowCommitPending)
+        {
+            _flowSubsystem.CommitPendingCommand();
+        }
+
+        FlowControl.CommitRequested(_flowSubsystem.IsEnabled);
+        _flowCommitPending = false;
+        _flowRowCommitPending = false;
+        PersistAppliedSetpoints();
+        StatusText = "Estado de vazão e válvulas confirmado pelo fluxômetro.";
+    }
 
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -908,6 +992,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlaskAgitator.PropertyChanged -= OnDosingStateChanged;
         _cascade.Updated -= OnCascadeUpdated;
         _device.StateChanged -= OnDeviceStateChanged;
+        _device.TelemetryReceived -= OnTelemetryReceived;
         BiomassControl.PropertyChanged -= OnDosingStateChanged;
         PumpControl.PropertyChanged -= OnDosingStateChanged;
     }

@@ -9,13 +9,13 @@ namespace TecnalHub.Tests;
 public sealed class BackupServiceTests : IDisposable
 {
     private readonly string _tempRoot;
-    private readonly string _originalDataDir;
+    private readonly string _dataRoot;
 
     public BackupServiceTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), "TecnalTest_" + Guid.NewGuid().ToString("N"));
+        _dataRoot = Path.Combine(_tempRoot, "data");
         Directory.CreateDirectory(_tempRoot);
-        _originalDataDir = AppPaths.DataDirectory;
     }
 
     public void Dispose()
@@ -30,17 +30,19 @@ public sealed class BackupServiceTests : IDisposable
     public async Task Export_and_Import_backup_roundtrip_preserves_all_files()
     {
         var settingsService = new MemorySettingsService(new AppSettings());
-        var backupService = new BackupService(settingsService, NullLogger<BackupService>.Instance);
+        var backupService = new BackupService(settingsService, NullLogger<BackupService>.Instance, _dataRoot);
 
         // Ensure directories exist
-        Directory.CreateDirectory(AppPaths.DataDirectory);
-        Directory.CreateDirectory(AppPaths.RecipesDirectory);
-        Directory.CreateDirectory(AppPaths.KlaMappingDirectory);
+        var recipesDirectory = Path.Combine(_dataRoot, "recipes");
+        var klaMappingDirectory = Path.Combine(_dataRoot, "kla-mapping");
+        Directory.CreateDirectory(_dataRoot);
+        Directory.CreateDirectory(recipesDirectory);
+        Directory.CreateDirectory(klaMappingDirectory);
 
-        var dummyRecipe = Path.Combine(AppPaths.RecipesDirectory, "test_recipe.json");
+        var dummyRecipe = Path.Combine(recipesDirectory, "test_recipe.json");
         await File.WriteAllTextAsync(dummyRecipe, "{\"test\": \"recipe\"}");
 
-        var dummyKla = Path.Combine(AppPaths.KlaMappingDirectory, "test_kla.json");
+        var dummyKla = Path.Combine(klaMappingDirectory, "test_kla.json");
         await File.WriteAllTextAsync(dummyKla, "{\"test\": \"kla\"}");
 
         var backupZip = Path.Combine(_tempRoot, "backup.tecbkp");
@@ -56,8 +58,14 @@ public sealed class BackupServiceTests : IDisposable
         }
 
         // Clean up dummy files
-        if (File.Exists(dummyRecipe)) File.Delete(dummyRecipe);
-        if (File.Exists(dummyKla)) File.Delete(dummyKla);
+        if (File.Exists(dummyRecipe))
+        {
+            File.Delete(dummyRecipe);
+        }
+        if (File.Exists(dummyKla))
+        {
+            File.Delete(dummyKla);
+        }
 
         // 2. Import
         var importResult = await backupService.ImportBackupAsync(backupZip);
@@ -67,7 +75,13 @@ public sealed class BackupServiceTests : IDisposable
         Assert.True(File.Exists(dummyKla));
 
         // Cleanup
-        if (File.Exists(dummyRecipe)) File.Delete(dummyRecipe);
-        if (File.Exists(dummyKla)) File.Delete(dummyKla);
+        if (File.Exists(dummyRecipe))
+        {
+            File.Delete(dummyRecipe);
+        }
+        if (File.Exists(dummyKla))
+        {
+            File.Delete(dummyKla);
+        }
     }
 }

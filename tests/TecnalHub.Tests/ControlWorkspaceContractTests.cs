@@ -49,13 +49,30 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("Text=\"Valor Lido\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"Setpoint\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"Novo Setpoint\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Confira e aplique toda a configuração", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"Parâmetros do processo\"", xaml, StringComparison.Ordinal);
         Assert.Equal(8, Count(xaml, "Tag=\"ExpanderToggle\""));
+        Assert.Equal(12, Count(xaml, "State=\"Ok\""));
+        Assert.DoesNotContain("ProvenanceBadge Text=\"comandado\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"Aplicar", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("(0 = desligado)", xaml, StringComparison.Ordinal);
-        Assert.Contains("ImageFailed", File.ReadAllText(Path.Combine(
-            TestPaths.RepositoryRoot, "src", "TecnalHub", "Views", "SynopticView.xaml")),
-            StringComparison.Ordinal);
+        Assert.Contains("DataContext.IsExpandedFlow, RelativeSource={RelativeSource AncestorType=UserControl}", xaml, StringComparison.Ordinal);
         Assert.Contains("Thumb.DragCompletedEvent", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("dataContext is BiomassControlViewModel", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Variable_labels_are_left_aligned_and_setpoint_editors_stay_compact()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        Assert.Equal(5, Count(xaml, "HorizontalAlignment=\"Left\" HorizontalContentAlignment=\"Left\""));
+        Assert.Contains("<Setter Property=\"Width\" Value=\"18\" />", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"Margin\" Value=\"0,0,8,0\" />", xaml, StringComparison.Ordinal);
+        Assert.Equal(14, Count(xaml, "<ColumnDefinition Width=\"160\" />"));
+        Assert.Contains("Width=\"120\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Width=\"140\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Width=\"90\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -70,8 +87,32 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("DataContext=\"{Binding PumpControl}\"", section, StringComparison.Ordinal);
         Assert.Contains("IsChecked=\"{Binding IsEnabled, Mode=TwoWay}\"", section, StringComparison.Ordinal);
         Assert.Contains("<ctl:PumpPreviewChart", section, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding ModeOptions}\"", section, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding SelectedModeOption, Mode=TwoWay}\"", section, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ApplyProfileCommand}\"", section, StringComparison.Ordinal);
         Assert.DoesNotContain("o controle ainda não está implementado", section, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Biomass_row_exposes_a_validated_optimal_threshold_entry()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+        var start = xaml.IndexOf("<!-- 11. Sensor de Biomassa", StringComparison.Ordinal);
+        var end = xaml.IndexOf("<!-- 12. Frasco Agitador", start, StringComparison.Ordinal);
+        var section = xaml[start..end];
+
+        Assert.Contains("Text=\"{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}\"", section, StringComparison.Ordinal);
+        Assert.Contains("maior que o baixo e menor que o alto", section, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pump_preview_reuses_the_single_right_axis()
+    {
+        var chartCode = File.ReadAllText(Path.Combine(
+            TestPaths.RepositoryRoot, "src", "TecnalHub", "Controls", "PumpPreviewChart.xaml.cs"));
+
+        Assert.Contains("plot.Axes.Right", chartCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("plot.Axes.AddRightAxis()", chartCode, StringComparison.Ordinal);
     }
 
     [Fact]

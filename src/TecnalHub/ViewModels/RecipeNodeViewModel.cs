@@ -660,7 +660,10 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     public void LoadPreset(CascadeTuningPreset? preset = null)
     {
         preset ??= SelectedPreset;
-        if (preset is null) return;
+        if (preset is null)
+        {
+            return;
+        }
 
         var s = preset.Settings;
         CascadeSpO2 = s.OxygenSetpointPercent;
@@ -703,7 +706,10 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     [RelayCommand]
     public void SavePreset()
     {
-        if (_dialogs == null || _settings == null) return;
+        if (_dialogs == null || _settings == null)
+        {
+            return;
+        }
 
         if (!_dialogs.PromptInput("Salvar Predefinição", "Digite um nome para a predefinição:", out var name, "Minha Predefinição") ||
             string.IsNullOrWhiteSpace(name))
@@ -789,9 +795,18 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
         if (Fields.FirstOrDefault(f => f.Key == key) is { } field)
         {
-            if (value is double num) field.NumberValue = num;
-            else if (value is bool flag) field.BoolValue = flag;
-            else if (value is string str) field.TextValue = str;
+            if (value is double num)
+            {
+                field.NumberValue = num;
+            }
+            else if (value is bool flag)
+            {
+                field.BoolValue = flag;
+            }
+            else if (value is string str)
+            {
+                field.TextValue = str;
+            }
         }
 
         OnFieldChanged();

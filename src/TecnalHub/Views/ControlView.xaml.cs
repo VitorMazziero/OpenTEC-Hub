@@ -34,7 +34,17 @@ public partial class ControlView : UserControl
     }
 
     private void OnTextBoxCompleted(object sender, KeyboardFocusChangedEventArgs e)
-        => ApplyFor((e.OriginalSource as FrameworkElement)?.DataContext);
+    {
+        var dataContext = (e.OriginalSource as FrameworkElement)?.DataContext;
+        if (dataContext is BiomassControlViewModel)
+        {
+            // Biomass thresholds are a three-field atomic contract. Moving focus between
+            // low/high/optimal only stages the values; Enter or "Enviar limiares" applies.
+            return;
+        }
+
+        ApplyFor(dataContext);
+    }
 
     private void OnSliderDragCompleted(object sender, DragCompletedEventArgs e)
         => ApplyFor((e.OriginalSource as FrameworkElement)?.DataContext);
@@ -72,6 +82,12 @@ public partial class ControlView : UserControl
 
         switch (dataContext)
         {
+            case ControlParameterRowViewModel row
+                when DataContext is ControlViewModel flowPage &&
+                     ReferenceEquals(row.Subsystem, flowPage.FlowSubsystem) &&
+                     flowPage.ApplyFlowStateCommand.CanExecute(null):
+                flowPage.ApplyFlowStateCommand.Execute(null);
+                break;
             case ControlParameterRowViewModel row when row.Subsystem.ApplyCommand.CanExecute(null):
                 row.Subsystem.ApplyCommand.Execute(null);
                 break;
@@ -115,6 +131,8 @@ public partial class ControlView : UserControl
             case AntifoamControlViewModel antifoam: antifoam.RevertCommand.Execute(null); break;
             case FoamControlViewModel foam: foam.RevertCommand.Execute(null); break;
             case FlaskAgitatorViewModel agitator: agitator.RevertCommand.Execute(null); break;
+            case BiomassControlViewModel biomass: biomass.RevertCommand.Execute(null); break;
+            case PumpControlViewModel pump: pump.RevertCommand.Execute(null); break;
         }
     }
 }

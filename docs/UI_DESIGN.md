@@ -611,7 +611,7 @@ entities, derived from [PROTOCOL.md](PROTOCOL.md) — not from the mockups.
 | `ph` | pH | ✅ | `pHval` → calibrated | `pHCal` echo; `pHSetpoint`, `pHError`, `pHOperation`, `pHMix`, `pHIntensity` | 1 read · 2 WP3 control/calibration |
 | `oxygen` | Oxigênio dissolvido | ✅ | `Oxyval` → calibrated | `oxygenMonitor` | 1 |
 | `motor` | Agitação | ❌ **commanded** | *none* | `motorSetpoint` | 1 |
-| `flow` | Vazão de ar | ✅ | `FlowRate`, `FlowSetpoint`, `FlowVoltage`, `FlowmeterOnline` | `flowmeterComm`, `flowSetpoint`, `maxFlow`, `v_Flow`; `k1..c2` calibration | 1 control · 2 WP3 calibration |
+| `flow` | Vazão de ar | ✅ | `FlowRate`, `FlowSetpoint`, `FlowVoltage`, `FlowmeterOnline`, `FlowCommandPending` | `flowSetpoint`, `maxFlow`, `valve_1`, `valve_2`, `v_Flow`; `k1..c2` calibration | 1 control · 2 WP3 calibration |
 | `valves` | Válvulas | ✅ state | `Valve1`, `Valve2`, `ValveFlow` | `valve_1`, `valve_2` | 1 |
 | `pressure` | Pressão | ✅ | `Pressure` | `pressureReference` | 1 |
 | `level` | Nível / espuma | ✅ | `Distance` | `distanceSensorComm`, `distanceSensorReference`, `foamStartDelay_s`, `foamPulse_s`, `foamInterval_s` | 2 |
@@ -650,11 +650,10 @@ add new process elements without changing this visual contract.**
 
 #### 5.1.1 The reactor image
 
-> **Decision [D-012](DECISIONS.md).** The flat vector reactor is replaced by a
-> photorealistic render with callout cards anchored to the physical ports. Reference:
-> `docs/UI_design_guides/Bioreactor Panel.png`. **Implemented 2026-08-20** with the
-> transparent cross-theme master `Resources/Images/reactor-neutral.png`; generation
-> provenance and the accepted prompt are in [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md).
+> **Decision [D-012](DECISIONS.md), revised 2026-08-26.** Painel displays the approved
+> `docs/UI_design_guides/Bioreactor references/Imagem_biorreator_side.png` as its sole
+> equipment figure. The former generated reactor, separate impeller PNG and vector fallback
+> were removed from the active view. Provenance is in [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md).
 
 **The cards are controls, not labels.** This is the substantive change. Clicking or
 keyboard-activating a card selects that variable into the detail pane, so the physical
@@ -673,63 +672,38 @@ Four options, in the order they were considered:
 | **AI-generated PBR product render, validated as a 2D asset** | **Chosen for Phase 1.** Generate one orthographic, state-free equipment master; reject mechanically wrong geometry and false transparency; pin the accepted PNG and its normalized anchors in tests. An editable 3D source remains the better route if future hardware variants require repeated camera-identical renders |
 | Real-time 3D in the app | **Rejected.** A 3D viewport in a control application costs GPU, startup time and a dependency, to gain a rotation nobody needs. It also fights the "cold start under 2 s" target |
 
-##### Why one neutral transparent master
+##### Why one approved self-contained master
 
-True alpha lets WPF own the equipment bay, selection and theme surfaces. Neutral lighting
-was reviewed on both palettes and remained legible, so one asset is safer than two files
-that could drift in geometry. If a future renderer cannot produce usable alpha, generate
-camera-identical light and dark images against the exact `SurfaceCard` colours; do not
-remove a background heuristically inside the application.
+One source file prevents the reactor body and impellers from drifting across overlaid assets.
+The approved figure includes its own neutral gray background, while WPF continues to own all
+live process state in the adjacent cards.
 
 ##### Asset requirements
 
 | Requirement | Value | Why |
 |---|---|---|
-| Format | PNG, transparent background | The app background is a theme token and must show through |
+| Format | PNG, approved self-contained background | Matches the operator-approved reference exactly |
 | Projection | **Orthographic**, dead-on front | A perspective render makes anchor points drift as the image scales, and the vessel look like it is falling over |
-| Resolution | **1024 × 1536 px** accepted master | More than 3x the current ~450 px display height and sufficient for 200 % scaling |
-| Variants | **One neutral RGBA master**, validated on both themes | Genuine transparency succeeded. Camera-identical solid light/dark variants are the fallback only when alpha cannot be produced |
+| Resolution | **1920 × 1920 px** accepted master | Sufficient source resolution for the displayed square figure and high-DPI scaling |
+| Variants | **One approved RGBA master** | Avoids geometry drift between layered figures |
 | Liquid | **Rendered empty** | Broth level is live data from `Distance` and must be a WPF overlay. Baking a level in would show a fill nobody measured |
 | Neutral state | No status colours, no glow, no labels | Every one of those is state, and state belongs to the overlay |
 | Structure | Double-wall jacket, top motor/entries/probes, two Rushton levels, independent ring sparger | The shaft terminates below the lower turbine with visible clearance; it never continues to the sparger |
 
-##### What stays vector, and why
+##### What stays native WPF, and why
 
 **Nothing that changes may be baked into the image.** The render is scenery; everything
 live is drawn over it:
 
 - Live values, units and setpoints
 - State colour — the ring on a card, the dot, an alarm border
-- Leader lines and their anchor dots, coloured by the path palette ([3.4](#34-synoptic-path-colours))
 - Selection highlighting, including the control-path emphasis in [5.1](#51-visão-geral)
 - Broth level, from `Distance`, with the honest fallback when that key is absent
 - Valve open/closed indicators
 - Hit targets
 
-##### Anchoring
-
-The overlay needs port positions in **image-relative coordinates** (0-1 in both axes), not
-pixels, so the layout survives any scale. Ship them beside the asset:
-
-```json
-{ "asset": "reactor-neutral.png",
-  "anchors": {
-    "ph": { "x": 0.43, "y": 0.61 },
-    "oxygen": { "x": 0.62, "y": 0.54 },
-    "flow": { "x": 0.50, "y": 0.80 }
-  } }
-```
-
-A card is then positioned by its anchor and a side, and the leader line is generated —
-an orthogonal path from port to card, in the path colour, with a dot at the port end.
-That keeps the card layout data rather than hand-placed XAML, which is what makes a
-re-render cheap instead of a re-layout.
-
-##### Fallback
-
-If the asset is missing or fails to decode, `OnReactorRenderFailed` exposes the bundled
-vector schematic rather than showing an empty panel. The live cards and leader lines are
-identical either way, because they never depended on state baked into the image.
+The figure has no vector or raster fallback in the active view. Resource presence and the
+single-image contract are build/test gates, so a missing asset is caught before deployment.
 
 #### Synoptic header
 
@@ -1089,7 +1063,7 @@ Full parameter inventory:
 | **Controle Cascata O₂** | in, out, **Saída Loop**, **Entrada Loop** | See 5.3.7 | The scientific core |
 | **Definir Ponto de Ajuste** | in, out | `Variável ▾` · `Valor` · `Histerese` | Scale factors dropped — JSON carries engineering units |
 | **Múltiplos Pontos de Ajuste** | in, out | Repeating list of (`Variável`, `Valor`, `Histerese`) with add/remove | Sent as **one combined command object** — the protocol prefers this, and it saves round trips on the shared UART |
-| **Controle de Malha** | in, out | `Malha ▾` · `Operação ▾` `Ligar`/`Desligar` · `Período de ciclo (s)` for the gas mixer | **Re-targeted.** The Modbus control word is gone; enabling a loop means the subsystem's own enable (`flowmeterComm:1`) or setpoint `0` = off |
+| **Controle de Malha** | in, out | `Malha ▾` · `Operação ▾` `Ligar`/`Desligar` · `Período de ciclo (s)` for the gas mixer | **Re-targeted.** The Modbus control word is gone; Hub v7 uses an explicit flow desired-state frame and setpoint `0` = off |
 | **Múltiplos Controles** | in, out | Repeating list of (`Malha`, `Operação`) | Same re-targeting; combined into one object |
 | **Bomba pH** | in, out | `Bomba alvo ▾` `Ácido`/`Base` · `Operação ▾` · `Intensidade %` 0-100 · `Tempo ligada (s)` · `Tempo desligada (s)` · `Ação manual ▾` `Ligar`/`Desligar` | Maps to `pHOperation`, `pHMix`, `pHIntensity` |
 | **Bomba Antiespuma** | in, out | `Operação ▾` · `Intensidade %` · `Tempo ligada` · `Tempo desligada` · `Ação manual ▾` | Maps to `antifoamOperation`, `antifoamMix`, `antifoamIntensity`. Renamed from "Bomba Espuma" — it dispenses antifoam |

@@ -397,8 +397,8 @@ public sealed class AlarmService : IAlarmService
             "O ESP32 não está recebendo dados do módulo de sensores (SensorCommOK falso)."),
 
         AlarmId.FlowmeterOffline => (
-            connected && _lastSnapshot is { FlowControlEnabled: true, FlowmeterOnline: false },
-            "O controle de vazão está ativo, mas o fluxômetro reporta offline."),
+            connected && _lastSnapshot is { FlowmeterOnline: false },
+            "Fluxômetro Desconectado da Central: o Hub está acessível, mas perdeu o enlace interno."),
 
         AlarmId.FrozenData => (stale,
             "Nenhum quadro de telemetria aceito por mais de três períodos de emissão."),

@@ -306,7 +306,10 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanEditRecipe))]
     private void AddBlock(NodeType type)
     {
-        if (SelectedTab is null) return;
+        if (SelectedTab is null)
+        {
+            return;
+        }
         if (RequestViewportCenter?.Invoke() is { } center)
         {
             var offset = (SelectedTab.Nodes.Count % 5) * 24;

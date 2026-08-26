@@ -8,6 +8,7 @@ using TecnalHub.Services.Alarms;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
+using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Recipes;
 using TecnalHub.Services.Telemetry;
@@ -120,6 +121,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         PumpControlViewModel pumpControl,
         CalibrationViewModel calibration,
         KlaMappingViewModel klaMapping,
+        IKlaProfileStore klaProfileStore,
         IDialogService dialogs,
         ICascadeService cascade,
         IOurSoftSensor ourSensor,
@@ -240,7 +242,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     // Valve states and the vent flag come back on the wire, so the app
                     // can show what the actuator is doing rather than only what it asked.
                     HasOutput: true, HasCalibration: true,
-                    OnCommitted: (_, enabled) => FlowControl.CommitFromFlowSetpoint(enabled)),
+                    OnCommitted: (_, enabled) => FlowControl.CommitFromFlowSetpoint(enabled),
+                    CanApplyNow: () => FlowControl.CanSendFlowCommands),
                 device, setpoints.FlowLitresPerMinute, setpoints.FlowEnabled),
 
             new SubsystemViewModel(Pressure,
@@ -256,7 +259,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
-            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas);
+            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas, klaProfileStore);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 

@@ -84,7 +84,7 @@ public sealed partial class RecipeEngine
         var command = loop switch
         {
             ControlLoop.Aeration => enable
-                ? TecnalCommand.Create().Set(CommandKeys.FlowmeterComm, 1)
+                ? TecnalCommand.Create()
                 : CommandBuilders.FlowSafeStop(MaxFlow),
             ControlLoop.Ph => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.PHIntensity, 0.0),
             ControlLoop.Antifoam => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.AntifoamIntensity, 0.0),
@@ -92,9 +92,12 @@ public sealed partial class RecipeEngine
             _ => TecnalCommand.Create(),
         };
 
-        if (enable && loop is ControlLoop.Ph or ControlLoop.Antifoam or ControlLoop.Nutrient)
+        if (enable && loop is ControlLoop.Aeration or ControlLoop.Ph or ControlLoop.Antifoam or ControlLoop.Nutrient)
         {
-            Log(RecipeLogSeverity.Info, "Configure a dosagem pelo bloco de bomba correspondente.", node.Id);
+            var guidance = loop == ControlLoop.Aeration
+                ? "Defina a vazão pelo bloco de setpoint; o Hub v7 não roteia flowmeterComm."
+                : "Configure a dosagem pelo bloco de bomba correspondente.";
+            Log(RecipeLogSeverity.Info, guidance, node.Id);
         }
 
         DispatchRecipe(command, node.Id);

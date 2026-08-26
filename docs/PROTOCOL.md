@@ -275,17 +275,17 @@ is **preferred** — it reduces round trips on the shared UART.
 | Motor | `motorSetpoint` | **int** rpm, 50-1000; `0` = off |
 | Oxygen monitor | `oxygenMonitor` | % setpoint; `0` = disabled |
 | Pressure | `pressureReference` | 1-380; `0` = disabled |
-| Flowmeter | `flowmeterComm` | `1` enable / `0` disable |
-| | `flowSetpoint` | L/min, clamped to `maxFlow` |
+| Flowmeter v05 via Hub v7 | `flowSetpoint` | L/min, clamped to `maxFlow` |
 | | `maxFlow` | L/min ceiling |
 | | `valve_1`, `valve_2` | `0`/`1` — auxiliary / nitrogen valves |
 | | `v_Flow` | **`1` when `flowSetpoint == 0`, else `0`** (inverted vent logic) |
 
 > `v_Flow` is inverted relative to intuition and is easy to get backwards.
-> Disabling the flow subsystem must send `flowmeterComm:0, flowSetpoint:0,
-> v_Flow:1, valve_1:0, valve_2:0` — v.6 deliberately forces both valves closed on
+> Disabling the flow subsystem sends `flowSetpoint:0, v_Flow:1, valve_1:0,
+> valve_2:0` — both valves are deliberately forced closed on
 > disable rather than preserving the operator's manual selection, because leaving
-> a nitrogen valve open on a safe-stop is a hazard. **Preserve this.**
+> a nitrogen valve open on a safe-stop is a hazard. `flowmeterComm` remains a legacy
+> Hub-local preference but is not part of the reliable command routed to v05.
 
 ### 3.2 Flow calibration
 
@@ -296,12 +296,12 @@ Two-segment piecewise curve, split at **0.0545 V**:
 | `k1`, `f1`, `c1` | `V <= 0.0545` |
 | `k2`, `f2`, `c2` | `V > 0.0545` |
 
-Preparing or fine-adjusting one certified point uses the exact v.6 state below. The
+Preparing or fine-adjusting one certified point uses the Hub-v7 routed state below. The
 operator's real-flow value comes from an external standard; the app then averages
 distinct `FlowVoltage` telemetry frames.
 
 ```json
-{"flowmeterComm":1,"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
+{"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
 ```
 
 The regression is `flow = k*V² + f*V + c`. The low segment requires at least three
@@ -414,13 +414,13 @@ pH echo            {"pHCal":"6.98"}
 pH control         {"pHSetpoint":6.8,"pHError":0.17,"pHOperation":5.0,"pHMix":20.0,"pHIntensity":500.0}
 pH safe-stop       {"pHSetpoint":0.0,"pHError":0.17,"pHOperation":5.0,"pHMix":20.0,"pHIntensity":0.0}
 Motor setpoint     {"motorSetpoint":790}
-Valve state at 0   {"flowmeterComm":1,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}
-Flow safe-stop     {"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}
-Flow cal setpoint  {"flowmeterComm":1,"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
-Flow cal curve     {"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
-Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
-Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowmeterComm":0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
-kLa combined       {"flowSetpoint":2.5,"flowmeterComm":1,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}
+Valve state at 0   {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}
+Flow safe-stop     {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}
+Flow cal setpoint  {"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
+Flow cal curve     {"maxFlow":50.0,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
+Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
+Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
+kLa combined       {"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}
 biomass enable     {"biomassComm":1}
 biomass blank      {"blank":1}
 biomass start/stop {"start":1}   /   {"stop":1}

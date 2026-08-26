@@ -12,7 +12,7 @@ public sealed record CascadeModeOption(CascadeMode Mode, string Label)
     public override string ToString() => Label;
 }
 
-public sealed partial class OxygenConfigViewModel : ObservableObject
+public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposable
 {
     private readonly ICascadeService _cascade;
     private readonly ISettingsService _settings;
@@ -442,5 +442,13 @@ public sealed partial class OxygenConfigViewModel : ObservableObject
         return int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
             ? result
             : fallback;
+    }
+
+    public void Dispose()
+    {
+        if (_store != null)
+        {
+            _store.ProfilePublished -= OnProfilePublished;
+        }
     }
 }

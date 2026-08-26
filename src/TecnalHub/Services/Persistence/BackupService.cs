@@ -26,11 +26,22 @@ public sealed class BackupService : IBackupService
 {
     private readonly ISettingsService _settings;
     private readonly ILogger<BackupService> _log;
+    private readonly string _settingsFile;
+    private readonly string _recipesDirectory;
+    private readonly string _klaMappingDirectory;
 
     public BackupService(ISettingsService settings, ILogger<BackupService> log)
+        : this(settings, log, AppPaths.DataDirectory)
+    {
+    }
+
+    internal BackupService(ISettingsService settings, ILogger<BackupService> log, string dataDirectory)
     {
         _settings = settings;
         _log = log;
+        _settingsFile = Path.Combine(dataDirectory, "settings.json");
+        _recipesDirectory = Path.Combine(dataDirectory, "recipes");
+        _klaMappingDirectory = Path.Combine(dataDirectory, "kla-mapping");
     }
 
     public async Task<BackupResult> ExportBackupAsync(string destinationZipPath)
@@ -54,17 +65,17 @@ public sealed class BackupService : IBackupService
             try
             {
                 // 1. Settings file
-                if (File.Exists(AppPaths.SettingsFile))
+                if (File.Exists(_settingsFile))
                 {
-                    File.Copy(AppPaths.SettingsFile, Path.Combine(tempDir, "settings.json"), overwrite: true);
+                    File.Copy(_settingsFile, Path.Combine(tempDir, "settings.json"), overwrite: true);
                 }
 
                 // 2. Recipes directory
-                if (Directory.Exists(AppPaths.RecipesDirectory))
+                if (Directory.Exists(_recipesDirectory))
                 {
                     var destRecipes = Path.Combine(tempDir, "recipes");
                     Directory.CreateDirectory(destRecipes);
-                    foreach (var file in Directory.GetFiles(AppPaths.RecipesDirectory, "*.json"))
+                    foreach (var file in Directory.GetFiles(_recipesDirectory, "*.json"))
                     {
                         File.Copy(file, Path.Combine(destRecipes, Path.GetFileName(file)), overwrite: true);
                         recipesCount++;
@@ -72,11 +83,11 @@ public sealed class BackupService : IBackupService
                 }
 
                 // 3. Kla-mapping directory
-                if (Directory.Exists(AppPaths.KlaMappingDirectory))
+                if (Directory.Exists(_klaMappingDirectory))
                 {
                     var destKla = Path.Combine(tempDir, "kla-mapping");
                     Directory.CreateDirectory(destKla);
-                    foreach (var file in Directory.GetFiles(AppPaths.KlaMappingDirectory, "*.json"))
+                    foreach (var file in Directory.GetFiles(_klaMappingDirectory, "*.json"))
                     {
                         File.Copy(file, Path.Combine(destKla, Path.GetFileName(file)), overwrite: true);
                         mapsCount++;
@@ -126,7 +137,8 @@ public sealed class BackupService : IBackupService
                 var settingsSrc = Path.Combine(tempDir, "settings.json");
                 if (File.Exists(settingsSrc))
                 {
-                    File.Copy(settingsSrc, AppPaths.SettingsFile, overwrite: true);
+                    Directory.CreateDirectory(Path.GetDirectoryName(_settingsFile)!);
+                    File.Copy(settingsSrc, _settingsFile, overwrite: true);
                     _settings.Reload();
                 }
 
@@ -134,10 +146,10 @@ public sealed class BackupService : IBackupService
                 var recipesSrc = Path.Combine(tempDir, "recipes");
                 if (Directory.Exists(recipesSrc))
                 {
-                    Directory.CreateDirectory(AppPaths.RecipesDirectory);
+                    Directory.CreateDirectory(_recipesDirectory);
                     foreach (var file in Directory.GetFiles(recipesSrc, "*.json"))
                     {
-                        File.Copy(file, Path.Combine(AppPaths.RecipesDirectory, Path.GetFileName(file)), overwrite: true);
+                        File.Copy(file, Path.Combine(_recipesDirectory, Path.GetFileName(file)), overwrite: true);
                         recipesCount++;
                     }
                 }
@@ -146,10 +158,10 @@ public sealed class BackupService : IBackupService
                 var klaSrc = Path.Combine(tempDir, "kla-mapping");
                 if (Directory.Exists(klaSrc))
                 {
-                    Directory.CreateDirectory(AppPaths.KlaMappingDirectory);
+                    Directory.CreateDirectory(_klaMappingDirectory);
                     foreach (var file in Directory.GetFiles(klaSrc, "*.json"))
                     {
-                        File.Copy(file, Path.Combine(AppPaths.KlaMappingDirectory, Path.GetFileName(file)), overwrite: true);
+                        File.Copy(file, Path.Combine(_klaMappingDirectory, Path.GetFileName(file)), overwrite: true);
                         mapsCount++;
                     }
                 }

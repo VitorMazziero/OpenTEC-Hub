@@ -36,7 +36,6 @@ public static class CommandBuilders
         var clamped = Math.Clamp(setpoint, 0.0, maxFlow);
 
         return TecnalCommand.Create()
-            .Set(CommandKeys.FlowmeterComm, 1)
             .Set(CommandKeys.FlowSetpoint, clamped)
             .Set(CommandKeys.MaxFlow, maxFlow)
             .Set(CommandKeys.Valve1, valve1)
@@ -54,7 +53,6 @@ public static class CommandBuilders
     /// </remarks>
     public static TecnalCommand FlowSafeStop(double maxFlow)
         => TecnalCommand.Create()
-            .Set(CommandKeys.FlowmeterComm, 0)
             .Set(CommandKeys.FlowSetpoint, 0.0)
             .Set(CommandKeys.MaxFlow, maxFlow)
             .Set(CommandKeys.Valve1, false)
@@ -385,7 +383,6 @@ public static class CommandBuilders
     {
         var safe = Math.Max(setpoint, 0.0);
         return TecnalCommand.Create()
-            .Set(CommandKeys.FlowmeterComm, 1)
             .Set(CommandKeys.FlowSetpoint, safe)
             .Set(CommandKeys.Valve1, false)
             .Set(CommandKeys.Valve2, false)
@@ -416,7 +413,6 @@ public static class CommandBuilders
     public static TecnalCommand CascadeActuation(double flowSetpoint, double oxygenSetpoint, int motorRpm)
         => TecnalCommand.Create()
             .Set(CommandKeys.FlowSetpoint, flowSetpoint)
-            .Set(CommandKeys.FlowmeterComm, 1)
             .Set(CommandKeys.Valve1, false)
             .Set(CommandKeys.Valve2, false)
             .Set(CommandKeys.V_Flow, flowSetpoint <= 0.0)

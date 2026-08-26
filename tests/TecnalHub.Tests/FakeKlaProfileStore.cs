@@ -13,6 +13,8 @@ internal sealed class FakeKlaProfileStore : IKlaProfileStore
     
     public event Action<KlaPublishedProfile>? ProfilePublished;
 
+    public void NotifyPublished(KlaPublishedProfile profile) => ProfilePublished?.Invoke(profile);
+
     public Task<IReadOnlyList<KlaPublishedProfile>> LoadPublishedAsync(
         CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<KlaPublishedProfile>>([.. Published]);

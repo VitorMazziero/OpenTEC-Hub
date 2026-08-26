@@ -123,8 +123,14 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         {
             var right = node.X + RecipeNodeViewModel.Width + CanvasMargin;
             var bottom = node.Y + node.Height + CanvasMargin;
-            if (right > maxX) maxX = right;
-            if (bottom > maxY) maxY = bottom;
+            if (right > maxX)
+            {
+                maxX = right;
+            }
+            if (bottom > maxY)
+            {
+                maxY = bottom;
+            }
         }
 
         return (Math.Min(MaxCanvasSize, Math.Max(MinCanvasWidth, maxX)),

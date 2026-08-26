@@ -5,9 +5,9 @@ namespace TecnalHub.Protocol;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Ownership is enforced <b>per actuator</b>, not per key: the aeration frame carries
-/// six keys (<c>flowmeterComm</c>, <c>flowSetpoint</c>, <c>maxFlow</c>, both valves and
-/// the inverted vent flag), and they are one indivisible thing to own. A cascade that
+/// Ownership is enforced <b>per actuator</b>, not per key: the Hub-v7 aeration frame carries
+/// five routed keys (<c>flowSetpoint</c>, <c>maxFlow</c>, both valves and the inverted vent
+/// flag), and they are one indivisible thing to own. A cascade that
 /// owns aeration owns the whole valve/flow group, or none of it.
 /// </para>
 /// <para>

@@ -166,7 +166,9 @@ public partial class PumpPreviewChart : UserControl
         flow.MarkerStyle.IsVisible = false;
         flow.LegendText = "Vazão (mL/min)";
 
-        var rightAxis = plot.Axes.AddRightAxis();
+        // Reuse ScottPlot's built-in right axis. AddRightAxis() on every staged mode
+        // change leaked another Y axis into the plot and progressively crushed the graph.
+        var rightAxis = plot.Axes.Right;
         rightAxis.TickLabelStyle.ForeColor = Token("TextMutedBrush", new PlotColor(124, 135, 149));
         rightAxis.TickLabelStyle.FontSize = 10;
 

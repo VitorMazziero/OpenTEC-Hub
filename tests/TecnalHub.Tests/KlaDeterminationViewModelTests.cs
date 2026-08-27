@@ -389,6 +389,31 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     }
 
     [Fact]
+    public void AdvancedSettingsDialog_CanConfigureBeforeCreatingTest()
+    {
+        // No active test yet
+        Assert.False(_vm.HasActiveTest);
+
+        _vm.OpenAdvancedSettingsDialog();
+        Assert.True(_vm.IsAdvancedSettingsDialogOpen);
+
+        _vm.SettingDOMin = 18.0;
+        _vm.SettingDOMax = 82.0;
+        _vm.SettingSmoothingWindow = 7;
+        _vm.SaveAdvancedSettings();
+        Assert.False(_vm.IsAdvancedSettingsDialogOpen);
+
+        // Now create a test
+        _vm.NewTestName = "Ensaio Preconfig";
+        _vm.CreateNewTest();
+
+        Assert.NotNull(_vm.CurrentTest);
+        Assert.Equal(18.0, _vm.CurrentTest.Settings.DOMinPercent);
+        Assert.Equal(82.0, _vm.CurrentTest.Settings.DOMaxPercent);
+        Assert.Equal(7, _vm.CurrentTest.Settings.SmoothingWindowSize);
+    }
+
+    [Fact]
     public async Task AutoAcceptRuns_AutomaticallyCalculatesAndAdvancesRun()
     {
         _vm.NewTestName = "Ensaio Auto Accept";

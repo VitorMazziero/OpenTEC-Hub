@@ -332,18 +332,13 @@
                         <StackPanel>
                             <DockPanel Margin="0,0,0,8">
                                 <TextBlock Text="Limiares de Operação" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <Button Content="Aplicar Limiares" HorizontalAlignment="Right"
-                                            Height="30" Padding="12,4" FontSize="11.5"
-                                            Command="{Binding ApplyLiveSettingsCommand}" IsEnabled="{Binding HasActiveTest}" />
-                                    <Button Width="30" Height="30" Padding="0" Margin="6,0,0,0"
-                                            Command="{Binding OpenAdvancedSettingsDialogCommand}"
-                                            IsEnabled="{Binding HasActiveTest}"
-                                            ToolTip="Configurações Avançadas de Limiares"
-                                            VerticalAlignment="Center">
-                                        <ctl:Icon Key="Gear" Size="14" Stroke="{DynamicResource TextSecondaryBrush}" />
-                                    </Button>
-                                </StackPanel>
+                                <Button DockPanel.Dock="Right" Width="30" Height="30" Padding="0"
+                                        Command="{Binding OpenAdvancedSettingsDialogCommand}"
+                                        ToolTip="Configurações Adicionais de Limiares"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                    <ctl:Icon Key="Gear" Size="14" Stroke="{DynamicResource TextSecondaryBrush}" />
+                                </Button>
                             </DockPanel>
 
                             <!-- DO Mín, DO Máx, Rot. N2 (1 Linha Compacta) -->

@@ -239,7 +239,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private NitrogenValve _selectedN2Valve = NitrogenValve.Valve1;
 
     [ObservableProperty]
-    private double _settingDOMin = 5.0;
+    private double _settingDOMin = 15.0;
 
     [ObservableProperty]
     private double _settingDOMax = 85.0;
@@ -949,6 +949,30 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         CurrentTest.Settings = newSettings;
         _runner.UpdateLiveSettings(newSettings);
         _store.SaveTestManifest(CurrentTest);
+    }
+
+    partial void OnSettingDOMinChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingDOMaxChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingDegassingAgitationChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingSmoothingWindowChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxDegassingMinutesChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxReoxygenationMinutesChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingAutoLinearStartPercentChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingAutoLinearEndPercentChanged(double value) => AutoApplyLiveSettings();
+
+    private void AutoApplyLiveSettings()
+    {
+        if (CurrentTest is null)
+        {
+            return;
+        }
+
+        if (SettingDOMin >= SettingDOMax || SettingDOMin < 0 || SettingDOMax > 110)
+        {
+            return;
+        }
+
+        ApplyLiveSettings();
     }
 
     partial void OnAutoAcceptRunsChanged(bool value)

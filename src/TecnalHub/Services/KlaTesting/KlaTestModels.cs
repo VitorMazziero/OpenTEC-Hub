@@ -68,8 +68,8 @@ public sealed record KlaMapReference
 
 public sealed record KlaTestSettings
 {
-    public double DOMinPercent { get; init; } = 5.0;
-    public double DOMaxPercent { get; init; } = 90.0;
+    public double DOMinPercent { get; init; } = 15.0;
+    public double DOMaxPercent { get; init; } = 85.0;
     public double DegassingAgitationRpm { get; init; } = 700.0;
     public int SmoothingWindowSize { get; init; } = 5;
     public double MaxDegassingTimeMinutes { get; init; } = 30.0;

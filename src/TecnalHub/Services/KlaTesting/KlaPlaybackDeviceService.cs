@@ -153,6 +153,7 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
             }
             else if (_flowSetpoint > 0.001)
             {
+                SeekNextAscendingSegment();
                 _playing = true;
             }
             else
@@ -237,7 +238,42 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
 
         for (var i = _index + 1; i < _samples.Count - 2; i++)
         {
-            if (_samples[i].Oxygen > 5 && IsDescendingAt(i))
+            if (_samples[i].Oxygen > 15 && IsDescendingAt(i))
+            {
+                _index = i;
+                return;
+            }
+        }
+
+        for (var i = 0; i < _samples.Count - 2; i++)
+        {
+            if (_samples[i].Oxygen > 15 && IsDescendingAt(i))
+            {
+                _index = i;
+                return;
+            }
+        }
+    }
+
+    private void SeekNextAscendingSegment()
+    {
+        if (IsAscendingAt(_index))
+        {
+            return;
+        }
+
+        for (var i = _index + 1; i < _samples.Count - 2; i++)
+        {
+            if (IsAscendingAt(i))
+            {
+                _index = i;
+                return;
+            }
+        }
+
+        for (var i = 0; i < _samples.Count - 2; i++)
+        {
+            if (IsAscendingAt(i))
             {
                 _index = i;
                 return;
@@ -249,6 +285,12 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
     {
         var end = Math.Min(_samples.Count - 1, index + 3);
         return end > index && _samples[end].Oxygen < _samples[index].Oxygen - 0.03;
+    }
+
+    private bool IsAscendingAt(int index)
+    {
+        var end = Math.Min(_samples.Count - 1, index + 3);
+        return end > index && _samples[end].Oxygen > _samples[index].Oxygen + 0.03;
     }
 
     private static List<KlaPlaybackSample> LoadSamples(string path)

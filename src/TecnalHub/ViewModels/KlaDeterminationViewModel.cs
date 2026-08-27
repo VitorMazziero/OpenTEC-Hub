@@ -230,10 +230,50 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private bool _isRecomputing;
 
-    partial void OnReviewTStartChanged(double value) => AutoRecompute();
-    partial void OnReviewTEndChanged(double value) => AutoRecompute();
-    partial void OnReviewCeqTStartChanged(double value) => AutoRecompute();
-    partial void OnReviewCeqTEndChanged(double value) => AutoRecompute();
+    partial void OnReviewTStartChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewTStart = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewTEndChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewTEnd = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewCeqTStartChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewCeqTStart = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewCeqTEndChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewCeqTEnd = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
     partial void OnReviewCeqChanged(double value)
     {
         if (ReviewCeqIsManual)

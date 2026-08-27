@@ -228,7 +228,35 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private KlaAnalysisRevision? _currentAnalysis;
 
+    public string DisplayReviewKla => IsReviewOpen && CurrentAnalysis != null ? $"{ReviewKla:F1} h⁻¹" : "—";
+    public string DisplayReviewR2 => IsReviewOpen && CurrentAnalysis != null ? $"R²: {ReviewR2:F4}" : "R²: —";
+    public string DisplayReviewRmse => IsReviewOpen && CurrentAnalysis != null ? $"RMSE: {ReviewRmse:F4}" : "RMSE: —";
+    public string DisplayReviewCi95 => IsReviewOpen && CurrentAnalysis != null ? $"IC 95%: [{ReviewCi95Low:F1}; {ReviewCi95High:F1}]" : "IC 95%: [—; —]";
+    public string DisplayReviewSens => IsReviewOpen && CurrentAnalysis != null ? $"[{ReviewSensLow:F1}; {ReviewSensHigh:F1}] h⁻¹" : "[—; —] h⁻¹";
+    public string DisplayReviewQuality => IsReviewOpen && CurrentAnalysis != null ? ReviewQuality.ToString() : "Inativo";
+
     private bool _isRecomputing;
+
+    partial void OnIsReviewOpenChanged(bool value) => NotifyDisplayReviewChanged();
+    partial void OnReviewKlaChanged(double value) => OnPropertyChanged(nameof(DisplayReviewKla));
+    partial void OnReviewR2Changed(double value) => OnPropertyChanged(nameof(DisplayReviewR2));
+    partial void OnReviewRmseChanged(double value) => OnPropertyChanged(nameof(DisplayReviewRmse));
+    partial void OnReviewCi95LowChanged(double value) => OnPropertyChanged(nameof(DisplayReviewCi95));
+    partial void OnReviewCi95HighChanged(double value) => OnPropertyChanged(nameof(DisplayReviewCi95));
+    partial void OnReviewSensLowChanged(double value) => OnPropertyChanged(nameof(DisplayReviewSens));
+    partial void OnReviewSensHighChanged(double value) => OnPropertyChanged(nameof(DisplayReviewSens));
+    partial void OnReviewQualityChanged(DecisionQuality value) => OnPropertyChanged(nameof(DisplayReviewQuality));
+    partial void OnCurrentAnalysisChanged(KlaAnalysisRevision? value) => NotifyDisplayReviewChanged();
+
+    private void NotifyDisplayReviewChanged()
+    {
+        OnPropertyChanged(nameof(DisplayReviewKla));
+        OnPropertyChanged(nameof(DisplayReviewR2));
+        OnPropertyChanged(nameof(DisplayReviewRmse));
+        OnPropertyChanged(nameof(DisplayReviewCi95));
+        OnPropertyChanged(nameof(DisplayReviewSens));
+        OnPropertyChanged(nameof(DisplayReviewQuality));
+    }
 
     partial void OnReviewTStartChanged(double value)
     {

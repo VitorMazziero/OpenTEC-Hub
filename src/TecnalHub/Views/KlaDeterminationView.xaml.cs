@@ -114,16 +114,8 @@ public partial class KlaDeterminationView : UserControl
         plot.Axes.Bottom.Label.FontSize = 10;
         plot.Axes.Left.Label.FontSize = 10;
 
-        // Horizontal single-line legend placed at the lower-left corner
-        plot.Legend.IsVisible = true;
-        plot.Legend.Alignment = Alignment.LowerLeft;
-        plot.Legend.Orientation = ScottPlot.Orientation.Horizontal;
-        plot.Legend.FontSize = 9.5f;
-        plot.Legend.BackgroundColor = surface.WithAlpha(0.85);
-        plot.Legend.FontColor = text;
-        plot.Legend.OutlineColor = grid.WithAlpha(0.5);
-        plot.Legend.OutlineWidth = 0.5f;
-        plot.Legend.ShadowColor = ScottPlot.Colors.Transparent;
+        // Legends are rendered cleanly outside the plot canvas in WPF header bars
+        plot.Legend.IsVisible = false;
     }
 
     private void RedrawPlots()
@@ -152,13 +144,11 @@ public partial class KlaDeterminationView : UserControl
 
             var scatterRaw = plot.Add.Scatter(xs, ysRaw);
             scatterRaw.Color = PlotColor.FromHex("#3B82F6").WithAlpha(0.4);
-            scatterRaw.LegendText = "OD Bruto";
             scatterRaw.LineWidth = 1;
             scatterRaw.MarkerSize = 0;
 
             var scatterFilt = plot.Add.Scatter(xs, ysFilt);
             scatterFilt.Color = PlotColor.FromHex("#2563EB");
-            scatterFilt.LegendText = "OD Filtrado";
             scatterFilt.LineWidth = 2;
             scatterFilt.MarkerSize = 0;
         }
@@ -167,22 +157,74 @@ public partial class KlaDeterminationView : UserControl
         var lineMin = plot.Add.HorizontalLine(vm.SettingDOMin);
         lineMin.Color = PlotColor.FromHex("#EF4444");
         lineMin.LinePattern = LinePattern.Dashed;
-        lineMin.LegendText = "DO Mín";
 
         var lineMax = plot.Add.HorizontalLine(vm.SettingDOMax);
         lineMax.Color = PlotColor.FromHex("#10B981");
         lineMax.LinePattern = LinePattern.Dashed;
-        lineMax.LegendText = "DO Máx";
 
-        if (vm.IsReviewOpen && vm.ReviewTStart < vm.ReviewTEnd)
+        if (vm.IsReviewOpen)
         {
-            var vStart = plot.Add.VerticalLine(vm.ReviewTStart);
-            vStart.Color = PlotColor.FromHex("#F59E0B");
-            vStart.LinePattern = LinePattern.Dotted;
+            // Linear region vertical lines (Amber)
+            if (vm.ReviewTStart < vm.ReviewTEnd)
+            {
+                var vStart = plot.Add.VerticalLine(vm.ReviewTStart);
+                vStart.Color = PlotColor.FromHex("#F59E0B");
+                vStart.LinePattern = LinePattern.Dashed;
 
-            var vEnd = plot.Add.VerticalLine(vm.ReviewTEnd);
-            vEnd.Color = PlotColor.FromHex("#F59E0B");
-            vEnd.LinePattern = LinePattern.Dotted;
+                var vEnd = plot.Add.VerticalLine(vm.ReviewTEnd);
+                vEnd.Color = PlotColor.FromHex("#F59E0B");
+                vEnd.LinePattern = LinePattern.Dashed;
+            }
+
+            // C* region vertical lines (Cyan)
+            if (vm.ReviewCeqTStart < vm.ReviewCeqTEnd)
+            {
+                var vCeqStart = plot.Add.VerticalLine(vm.ReviewCeqTStart);
+                vCeqStart.Color = PlotColor.FromHex("#06B6D4");
+                vCeqStart.LinePattern = LinePattern.Dotted;
+
+                var vCeqEnd = plot.Add.VerticalLine(vm.ReviewCeqTEnd);
+                vCeqEnd.Color = PlotColor.FromHex("#06B6D4");
+                vCeqEnd.LinePattern = LinePattern.Dotted;
+            }
+
+            // C* (Ceq) horizontal asymptote line
+            if (vm.ReviewCeq > 0)
+            {
+                var hCeq = plot.Add.HorizontalLine(vm.ReviewCeq);
+                hCeq.Color = PlotColor.FromHex("#10B981").WithAlpha(0.6);
+                hCeq.LinePattern = LinePattern.Dashed;
+            }
+
+            // Pink dashed fitted exponential series: C(t) = Ceq - exp(beta0 + beta1 * t)
+            if (vm.CurrentAnalysis is { } analysis && analysis.SlopeBeta1 < 0 && vm.ReviewTStart < vm.ReviewTEnd)
+            {
+                var expStart = vm.ReviewTStart;
+                var maxTime = points.Count > 0 ? points.Last().RelativeSeconds : vm.ReviewTEnd;
+                var expEnd = Math.Max(maxTime, vm.ReviewTEnd);
+                const int steps = 80;
+                var dt = (expEnd - expStart) / steps;
+                if (dt > 0)
+                {
+                    var expXs = new double[steps + 1];
+                    var expYs = new double[steps + 1];
+                    for (int i = 0; i <= steps; i++)
+                    {
+                        var t = expStart + (i * dt);
+                        var lnVal = analysis.InterceptBeta0 + (analysis.SlopeBeta1 * t);
+                        var expDrivingForce = Math.Exp(lnVal);
+                        var cVal = analysis.CeqPercent - expDrivingForce;
+                        expXs[i] = t;
+                        expYs[i] = Math.Min(cVal, analysis.CeqPercent);
+                    }
+
+                    var expScatter = plot.Add.Scatter(expXs, expYs);
+                    expScatter.Color = PlotColor.FromHex("#EC4899");
+                    expScatter.LineWidth = 2.2f;
+                    expScatter.LinePattern = LinePattern.Dashed;
+                    expScatter.MarkerSize = 0;
+                }
+            }
         }
 
         plot.Axes.AutoScale();
@@ -204,7 +246,6 @@ public partial class KlaDeterminationView : UserControl
             scatter.Color = PlotColor.FromHex("#6366F1");
             scatter.LineWidth = 0;
             scatter.MarkerSize = 4;
-            scatter.LegendText = "ln(Ceq - C)";
 
             var regionPoints = series.Where(p => p.IsInAnalysisRegion).ToList();
             if (regionPoints.Count >= 2)
@@ -216,7 +257,6 @@ public partial class KlaDeterminationView : UserControl
                 lineFit.Color = PlotColor.FromHex("#DC2626");
                 lineFit.LineWidth = 2.5f;
                 lineFit.MarkerSize = 0;
-                lineFit.LegendText = $"Ajuste OLS (kLa={vm.ReviewKla:F1} h⁻¹)";
             }
         }
 
@@ -244,7 +284,6 @@ public partial class KlaDeterminationView : UserControl
                 scatter.Color = PlotColor.FromHex("#059669");
                 scatter.LineWidth = 2;
                 scatter.MarkerSize = 0;
-                scatter.LegendText = "kLa Inst";
             }
         }
 
@@ -253,7 +292,6 @@ public partial class KlaDeterminationView : UserControl
             var hLine = plot.Add.HorizontalLine(vm.ReviewKla);
             hLine.Color = PlotColor.FromHex("#DC2626");
             hLine.LinePattern = LinePattern.Dashed;
-            hLine.LegendText = "kLa Final";
         }
 
         AddAnalysisRegionLines(plot, vm);
@@ -271,10 +309,11 @@ public partial class KlaDeterminationView : UserControl
 
         var start = plot.Add.VerticalLine(vm.ReviewTStart);
         start.Color = PlotColor.FromHex("#F59E0B");
-        start.LinePattern = LinePattern.Dotted;
+        start.LinePattern = LinePattern.Dashed;
+
         var end = plot.Add.VerticalLine(vm.ReviewTEnd);
         end.Color = PlotColor.FromHex("#F59E0B");
-        end.LinePattern = LinePattern.Dotted;
+        end.LinePattern = LinePattern.Dashed;
     }
 
     private static System.Windows.Media.Brush? TryBrush(string key) =>

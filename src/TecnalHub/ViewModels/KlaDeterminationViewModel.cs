@@ -172,6 +172,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private bool _isReviewOpen;
 
     [ObservableProperty]
+    private double _reviewMinTime = 0.0;
+
+    [ObservableProperty]
+    private double _reviewMaxTime = 100.0;
+
+    [ObservableProperty]
     private double _reviewCeq = 100.0;
 
     [ObservableProperty]
@@ -221,6 +227,29 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     [ObservableProperty]
     private KlaAnalysisRevision? _currentAnalysis;
+
+    private bool _isRecomputing;
+
+    partial void OnReviewTStartChanged(double value) => AutoRecompute();
+    partial void OnReviewTEndChanged(double value) => AutoRecompute();
+    partial void OnReviewCeqTStartChanged(double value) => AutoRecompute();
+    partial void OnReviewCeqTEndChanged(double value) => AutoRecompute();
+    partial void OnReviewCeqChanged(double value)
+    {
+        if (ReviewCeqIsManual)
+        {
+            AutoRecompute();
+        }
+    }
+    partial void OnReviewCeqIsManualChanged(bool value) => AutoRecompute();
+
+    private void AutoRecompute()
+    {
+        if (!_isRecomputing && IsReviewOpen)
+        {
+            RecomputeReviewAnalysis();
+        }
+    }
 
     // New condition manual entry
     [ObservableProperty]
@@ -463,70 +492,79 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             ReviewRejectionReason = "A corrida não contém ao menos 5 pontos de reoxigenação.";
             return;
         }
-        var times = recovery.Select(p => p.RelativeSeconds).ToList();
-        var dos = recovery.Select(p => p.DORaw).ToList();
 
-        var ceqPoints = recovery.Where(p => p.RelativeSeconds >= ReviewCeqTStart && p.RelativeSeconds <= ReviewCeqTEnd).ToList();
-
-        // 1. Ceq Fit / Override
-        var ceqResult = _analysisEngine.EstimateCeq(
-            ceqPoints.Select(p => p.RelativeSeconds).ToList(),
-            ceqPoints.Select(p => p.DORaw).ToList(),
-            ReviewCeqIsManual ? ReviewCeq : null);
-
-        if (!ReviewCeqIsManual && ceqResult.Converged)
+        _isRecomputing = true;
+        try
         {
-            ReviewCeq = Math.Round(ceqResult.CeqPercent, 2);
+            var times = recovery.Select(p => p.RelativeSeconds).ToList();
+            var dos = recovery.Select(p => p.DORaw).ToList();
+
+            var ceqPoints = recovery.Where(p => p.RelativeSeconds >= ReviewCeqTStart && p.RelativeSeconds <= ReviewCeqTEnd).ToList();
+
+            // 1. Ceq Fit / Override
+            var ceqResult = _analysisEngine.EstimateCeq(
+                ceqPoints.Select(p => p.RelativeSeconds).ToList(),
+                ceqPoints.Select(p => p.DORaw).ToList(),
+                ReviewCeqIsManual ? ReviewCeq : null);
+
+            if (!ReviewCeqIsManual && ceqResult.Converged)
+            {
+                ReviewCeq = Math.Round(ceqResult.CeqPercent, 2);
+            }
+
+            // 2. Perform Log-Linear OLS
+            var analysis = _analysisEngine.PerformLogLinearAnalysis(
+                times,
+                dos,
+                ReviewCeq,
+                ReviewCeqIsManual,
+                ReviewTStart,
+                ReviewTEnd,
+                ceqResult);
+
+            CurrentAnalysis = analysis;
+            analysis.CeqTStartSeconds = ReviewCeqTStart;
+            analysis.CeqTEndSeconds = ReviewCeqTEnd;
+            ReviewKla = analysis.KlaPerHour;
+            ReviewR2 = analysis.AnalysisR2;
+            ReviewRmse = analysis.AnalysisRmse;
+            ReviewCi95Low = analysis.ConfidenceInterval95Low;
+            ReviewCi95High = analysis.ConfidenceInterval95High;
+            ReviewSensLow = analysis.KlaSensitivityLow;
+            ReviewSensHigh = analysis.KlaSensitivityHigh;
+            ReviewQuality = analysis.Quality;
+            ReviewWarning = analysis.WarningJustification;
+            ReviewRejectionReason = analysis.RejectionReason;
+
+            // 3. Update Chart Series
+            var logPoints = _analysisEngine.ComputeLogLinearPoints(
+                times,
+                dos,
+                ReviewCeq,
+                ReviewTStart,
+                ReviewTEnd);
+
+            LogLinearSeries.Clear();
+            foreach (var lp in logPoints)
+            {
+                LogLinearSeries.Add(lp);
+            }
+
+            var instPoints = _analysisEngine.CalculateInstantaneousKlaSeries(
+                times,
+                dos,
+                ReviewCeq,
+                SettingSmoothingWindow);
+
+            InstantaneousKlaSeries.Clear();
+            foreach (var ip in instPoints)
+            {
+                InstantaneousKlaSeries.Add(ip);
+            }
         }
-
-        // 2. Perform Log-Linear OLS
-        var analysis = _analysisEngine.PerformLogLinearAnalysis(
-            times,
-            dos,
-            ReviewCeq,
-            ReviewCeqIsManual,
-            ReviewTStart,
-            ReviewTEnd,
-            ceqResult);
-
-        CurrentAnalysis = analysis;
-        analysis.CeqTStartSeconds = ReviewCeqTStart;
-        analysis.CeqTEndSeconds = ReviewCeqTEnd;
-        ReviewKla = analysis.KlaPerHour;
-        ReviewR2 = analysis.AnalysisR2;
-        ReviewRmse = analysis.AnalysisRmse;
-        ReviewCi95Low = analysis.ConfidenceInterval95Low;
-        ReviewCi95High = analysis.ConfidenceInterval95High;
-        ReviewSensLow = analysis.KlaSensitivityLow;
-        ReviewSensHigh = analysis.KlaSensitivityHigh;
-        ReviewQuality = analysis.Quality;
-        ReviewWarning = analysis.WarningJustification;
-        ReviewRejectionReason = analysis.RejectionReason;
-
-        // 3. Update Chart Series
-        var logPoints = _analysisEngine.ComputeLogLinearPoints(
-            times,
-            dos,
-            ReviewCeq,
-            ReviewTStart,
-            ReviewTEnd);
-
-        LogLinearSeries.Clear();
-        foreach (var lp in logPoints)
+        finally
         {
-            LogLinearSeries.Add(lp);
-        }
-
-        var instPoints = _analysisEngine.CalculateInstantaneousKlaSeries(
-            times,
-            dos,
-            ReviewCeq,
-            SettingSmoothingWindow);
-
-        InstantaneousKlaSeries.Clear();
-        foreach (var ip in instPoints)
-        {
-            InstantaneousKlaSeries.Add(ip);
+            _isRecomputing = false;
         }
     }
 
@@ -653,20 +691,18 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void OpenReviewDrawer()
     {
-        IsReviewOpen = true;
-
         if (LivePoints.Count > 0)
         {
             var times = LivePoints.Select(p => p.RelativeSeconds).ToList();
-            var dos = LivePoints.Select(p => p.DORaw).ToList();
-
-            // Default regression bounds: 20% to 80% of DO span during reoxygenation
             var reoxPoints = LivePoints.Where(p => p.Phase == RunPhase.Reoxygenating).ToList();
             if (reoxPoints.Count >= 5)
             {
                 var minT = reoxPoints.First().RelativeSeconds;
                 var maxT = reoxPoints.Last().RelativeSeconds;
-                var tSpan = maxT - minT;
+                var tSpan = Math.Max(1.0, maxT - minT);
+
+                ReviewMinTime = Math.Floor(times.First());
+                ReviewMaxTime = Math.Ceiling(times.Last());
 
                 ReviewTStart = Math.Round(minT + (0.15 * tSpan), 1);
                 ReviewTEnd = Math.Round(minT + (0.85 * tSpan), 1);
@@ -675,12 +711,21 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             }
             else
             {
+                ReviewMinTime = Math.Floor(times.First());
+                ReviewMaxTime = Math.Ceiling(times.Last());
                 ReviewTStart = Math.Round(times.First(), 1);
                 ReviewTEnd = Math.Round(times.Last(), 1);
+                ReviewCeqTStart = ReviewTStart;
+                ReviewCeqTEnd = ReviewTEnd;
             }
 
             ReviewCeqIsManual = false;
+            IsReviewOpen = true;
             RecomputeReviewAnalysis();
+        }
+        else
+        {
+            IsReviewOpen = true;
         }
     }
 

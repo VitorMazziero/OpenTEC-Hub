@@ -444,6 +444,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _activeSessionName = "";
 
+    [ObservableProperty]
+    private bool _isSessionNameSavedNotificationVisible;
+
+    private System.Threading.CancellationTokenSource? _sessionNotificationCts;
+
     [RelayCommand]
     private void UpdateActiveSessionName()
     {
@@ -456,24 +461,43 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         var fileName = AppPaths.FormatSessionFileName(ActiveSessionName);
         var path = Path.Combine(AppPaths.SessionsDirectory, fileName);
 
-        if (string.Equals(_sessionLogger.CurrentPath, path, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_sessionLogger.CurrentPath, path, StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            _sessionLogger.Stop();
+            _settings.Update(s => s with
+            {
+                Logging = s.Logging with { SessionLogPath = path }
+            });
+            _sessionLogger.Start(path);
+            ActiveSessionName = Path.GetFileNameWithoutExtension(path);
+
+            Events.Journal.Add(
+                AuditSource.Application,
+                AuditSeverity.Information,
+                $"Sessão alterada para: {ActiveSessionName}",
+                path);
         }
 
-        _sessionLogger.Stop();
-        _settings.Update(s => s with
-        {
-            Logging = s.Logging with { SessionLogPath = path }
-        });
-        _sessionLogger.Start(path);
-        ActiveSessionName = Path.GetFileNameWithoutExtension(path);
+        ShowSessionNameSavedFeedback();
+    }
 
-        Events.Journal.Add(
-            AuditSource.Application,
-            AuditSeverity.Information,
-            $"Sessão alterada para: {ActiveSessionName}",
-            path);
+    private void ShowSessionNameSavedFeedback()
+    {
+        _sessionNotificationCts?.Cancel();
+        _sessionNotificationCts = new System.Threading.CancellationTokenSource();
+        var token = _sessionNotificationCts.Token;
+        IsSessionNameSavedNotificationVisible = true;
+
+        System.Threading.Tasks.Task.Delay(3000, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled)
+            {
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    IsSessionNameSavedNotificationVisible = false;
+                });
+            }
+        }, System.Threading.Tasks.TaskScheduler.Default);
     }
 
     // ── KPI strip configuration ──────────────────────────────────────────────

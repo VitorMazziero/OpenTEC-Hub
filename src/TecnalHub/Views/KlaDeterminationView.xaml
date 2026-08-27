@@ -118,286 +118,400 @@
         <!-- ── Main Area: Split View ─────────────────────────────────────────── -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="420" MinWidth="340" MaxWidth="500" />
+                <ColumnDefinition Width="430" MinWidth="340" MaxWidth="520" />
                 <ColumnDefinition Width="8" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ── Left Column: Conditions Matrix & Settings ─────────────────── -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <!-- Condition Matrix Card -->
-                <Border Grid.Row="0" Style="{StaticResource KlaCard}" Margin="0,0,0,8">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Matriz de Condições Experimentais" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8" />
-
-                        <!-- Condition Table -->
-                        <DataGrid ItemsSource="{Binding Conditions}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  BorderThickness="1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="30" IsReadOnly="True" />
-                                <DataGridTextColumn Header="N (rpm)" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="65" IsReadOnly="True" />
-                                <DataGridTextColumn Header="Q (L/min)" Binding="{Binding AirflowLpm, StringFormat={}{0:F2}}" Width="70" IsReadOnly="True" />
-                                <DataGridTextColumn Header="Reps alvo" Binding="{Binding RequestedReplicates, UpdateSourceTrigger=PropertyChanged}" Width="65" />
-                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80" IsReadOnly="True" />
-                                <DataGridTemplateColumn Header="Ação" Width="*">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Button Content="Executar" Padding="6,2" FontSize="11"
-                                                    Command="{Binding DataContext.StartConditionRunCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}"
-                                                    IsEnabled="{Binding CanExecute}" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </DockPanel>
-                </Border>
-
-                <!-- Bottom Config & Manual Add -->
-                <StackPanel Grid.Row="1">
-                    <!-- Manual Condition Add -->
-                    <Border Style="{StaticResource KlaCard}" Margin="0,0,0,8">
+            <!-- ── Left Column: Conditions, Settings & Scientific Review (Scrollable) ── -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
+                <StackPanel>
+                    <!-- 1. Matriz de Condições Experimentais (com adição manual integrada) -->
+                    <Border Style="{StaticResource KlaCard}" Margin="0,0,0,6" Padding="10,8">
                         <StackPanel>
-                            <TextBlock Text="Adicionar Condição Manual" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="60" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                    <TextBlock Text="N (rpm)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding NewConditionRpm, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="4,0">
-                                    <TextBlock Text="Q (L/min)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding NewConditionFlow, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="4,0">
-                                    <TextBlock Text="Reps" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding NewConditionReplicates, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <Button Grid.Column="3" Content="+" FontWeight="Bold" Width="32" Height="32" VerticalAlignment="Bottom"
-                                        Command="{Binding AddManualConditionCommand}" IsEnabled="{Binding HasActiveTest}" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
+                            <TextBlock Text="Matriz de Condições Experimentais" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6" />
 
-                    <!-- Real-time Thresholds -->
-                    <Border Style="{StaticResource KlaCard}">
-                        <StackPanel>
-                            <TextBlock Text="Limiares de Operação" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6" />
-                            <Grid Margin="0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                    <TextBlock Text="DO Mín (%)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="4,0">
-                                    <TextBlock Text="DO Máx (%)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding SettingDOMax, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="4,0">
-                                    <TextBlock Text="N Desox (rpm)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding SettingDegassingAgitation, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                            </Grid>
+                            <!-- Condition Table -->
+                            <DataGrid ItemsSource="{Binding Conditions}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                      MaxHeight="180" MinHeight="110"
+                                      BorderThickness="1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="28" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="60" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Q (L/min)" Binding="{Binding AirflowLpm, StringFormat={}{0:F2}}" Width="65" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Reps" Binding="{Binding RequestedReplicates, UpdateSourceTrigger=PropertyChanged}" Width="55" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="75" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Ação" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="Executar" Padding="4,1" FontSize="10" Height="22"
+                                                        Command="{Binding DataContext.StartConditionRunCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding CanExecute}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Integrated Manual Add Row (below table) -->
                             <Grid Margin="0,6,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                    <TextBlock Text="Suavização (ímpar)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding SettingSmoothingWindow, UpdateSourceTrigger=PropertyChanged}" />
+                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="N (rpm)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding NewConditionRpm, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="4,0">
-                                    <TextBlock Text="Máx. N₂ (min)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding SettingMaxDegassingMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                <StackPanel Grid.Column="1" Margin="3,0">
+                                    <TextBlock Text="Q (L/min)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding NewConditionFlow, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="4,0,0,0">
-                                    <TextBlock Text="Máx. Ar (min)" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBox Text="{Binding SettingMaxReoxygenationMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                <StackPanel Grid.Column="2" Margin="3,0">
+                                    <TextBlock Text="Reps" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding NewConditionReplicates, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
+                                <Button Grid.Column="3" Content="+" FontWeight="Bold" Width="26" Height="22" VerticalAlignment="Bottom"
+                                        Command="{Binding AddManualConditionCommand}" IsEnabled="{Binding HasActiveTest}"
+                                        ToolTip="Adicionar condição manual" />
                             </Grid>
-                            <Button Content="Aplicar Limiares" Margin="0,6,0,0" Command="{Binding ApplyLiveSettingsCommand}" IsEnabled="{Binding HasActiveTest}" />
                         </StackPanel>
                     </Border>
-                </StackPanel>
-            </Grid>
 
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
+                    <!-- 2. Limiares de Operação (Compacto) -->
+                    <Border Style="{StaticResource KlaCard}" Margin="0,0,0,6" Padding="10,8">
+                        <StackPanel>
+                            <TextBlock Text="Limiares de Operação" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4" />
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="DO Mín (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="3,0">
+                                    <TextBlock Text="DO Máx (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding SettingDOMax, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="3,0,0,0">
+                                    <TextBlock Text="N Desox (rpm)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding SettingDegassingAgitation, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="Suavização" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding SettingSmoothingWindow, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="3,0">
+                                    <TextBlock Text="Máx. N₂ (min)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding SettingMaxDegassingMinutes, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="3,0,0,0">
+                                    <TextBlock Text="Máx. Ar (min)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding SettingMaxReoxygenationMinutes, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
+                                </StackPanel>
+                            </Grid>
+                            <Button Content="Aplicar Limiares" Margin="0,6,0,0" Height="24" FontSize="11"
+                                    Command="{Binding ApplyLiveSettingsCommand}" IsEnabled="{Binding HasActiveTest}" />
+                        </StackPanel>
+                    </Border>
 
-            <!-- ── Right Column: 3 Synchronized Plots & Review Drawer ────────── -->
-            <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="1*" MinHeight="80" />
-                    <RowDefinition Height="1*" MinHeight="80" />
-                    <RowDefinition Height="1*" MinHeight="80" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+                    <!-- 3. Card de Revisão Científica e Aceite (Movido para a coluna esquerda) -->
+                    <Border Style="{StaticResource KlaCard}" Margin="0,0,0,6" Padding="10,8"
+                            Visibility="{Binding IsReviewOpen, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <!-- Header -->
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock Text="Revisão Científica e Aceite" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
+                                <Border DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                        Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentBorderBrush}"
+                                        BorderThickness="1" CornerRadius="4" Padding="6,1">
+                                    <TextBlock Text="{Binding ReviewQuality}" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+                                </Border>
+                            </DockPanel>
 
-                <!-- Chart 1: DO vs Time -->
-                <Border x:Name="ChartDoHost" Grid.Row="0" Margin="0,0,0,4"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                        Padding="2" />
-
-                <!-- Chart 2: Log-Linear OLS Fit -->
-                <Border x:Name="ChartLogLinearHost" Grid.Row="1" Margin="0,0,0,4"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                        Padding="2" />
-
-                <!-- Chart 3: Instantaneous kLa -->
-                <Border x:Name="ChartInstantKlaHost" Grid.Row="2" Margin="0,0,0,4"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                        Padding="2" />
-
-                <!-- ── Review Drawer (Visible during Review) ─────────────────── -->
-                <Border Grid.Row="3" Margin="0,2,0,0" Padding="10,6"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
-                        Visibility="{Binding IsReviewOpen, Converter={StaticResource BoolToVis}}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <!-- Drawer Header & Action Buttons (Single Row) -->
-                        <Grid Grid.Row="0" Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Grid.Column="0" Text="Revisão Científica e Aceite" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
-
-                            <Border Grid.Column="1" Margin="10,0,0,0" Background="{DynamicResource AccentSubtleBrush}"
-                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
-                                    CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ReviewQuality}" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
-                            </Border>
-
-                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Content="Repetir Corrida" Margin="3,0" Padding="8,2" FontSize="11" Height="26" Command="{Binding RepeatCurrentRunCommand}" />
-                                <Button Content="Rejeitar Corrida" Margin="3,0" Padding="8,2" FontSize="11" Height="26" Command="{Binding RejectCurrentRunCommand}" />
-                                <Button Content="Aceitar Corrida (Salvar e Avançar)" Margin="3,0" Padding="10,2" FontSize="11" Height="26" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptCurrentRunCommand}" />
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- Parameters & Metrics in a single horizontal row -->
-                        <Grid Grid.Row="1">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Parameters Tuning Grid -->
-                            <Grid Grid.Column="0">
+                            <!-- Parâmetros de Ajuste Manual / OLS -->
+                            <Grid Margin="0,0,0,6">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="65" />
-                                    <ColumnDefinition Width="65" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Row 0: Ceq, t_ini, t_fim -->
-                                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,3">
+                                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,3,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Ceq (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
-                                        <CheckBox Margin="4,0,0,0" IsChecked="{Binding ReviewCeqIsManual}" ToolTip="Ajuste Manual" VerticalAlignment="Center" />
+                                        <TextBlock Text="Ceq (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                        <CheckBox Margin="3,0,0,0" IsChecked="{Binding ReviewCeqIsManual}" ToolTip="Manual" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBox Text="{Binding ReviewCeq, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ReviewCeqIsManual}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="2,0,4,3">
-                                    <TextBlock Text="t_ini (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="3,0,3,4">
+                                    <TextBlock Text="t_ini (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
                                     <TextBox Text="{Binding ReviewTStart, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="0" Grid.Column="2" Margin="2,0,4,3">
-                                    <TextBlock Text="t_fim (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                <StackPanel Grid.Row="0" Grid.Column="2" Margin="3,0,0,4">
+                                    <TextBlock Text="t_fim (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
                                     <TextBox Text="{Binding ReviewTEnd, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
 
-                                <!-- Row 1: Ceq t_ini, Ceq t_fim, Recalculate button -->
-                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
-                                    <TextBlock Text="Ceq t_ini (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="Ceq t_ini (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
                                     <TextBox Text="{Binding ReviewCeqTStart, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="1" Grid.Column="1" Margin="2,0,4,0">
-                                    <TextBlock Text="Ceq t_fim (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Margin="3,0,3,0">
+                                    <TextBlock Text="Ceq t_fim (s)" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
                                     <TextBox Text="{Binding ReviewCeqTEnd, UpdateSourceTrigger=PropertyChanged}" Height="22" Padding="2,1" FontSize="11" />
                                 </StackPanel>
 
-                                <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="3" Content="Recalcular&#x0a;OLS" Margin="2,12,0,0"
-                                        Padding="8,2" FontSize="10" Height="46" VerticalAlignment="Bottom"
+                                <Button Grid.Row="1" Grid.Column="2" Content="Recalcular" Margin="3,13,0,0"
+                                        Height="22" FontSize="10" VerticalAlignment="Bottom"
                                         Command="{Binding RecomputeReviewAnalysisCommand}" />
                             </Grid>
 
-                            <!-- Metrics Card -->
-                            <Border Grid.Column="2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6" Padding="8,4">
+                            <!-- Métricas Científicas -->
+                            <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6" Padding="8,6" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="kLa Estimado" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                            <TextBlock Text="{Binding ReviewKla, StringFormat={}{0:F1} h⁻¹}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                                            <TextBlock Text="{Binding ReviewCi95Low, StringFormat={}IC 95%: [{0:F1}; }" Style="{StaticResource CaptionTextStyle}" FontSize="9" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Qualidade do Ajuste" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                            <TextBlock Text="{Binding ReviewR2, StringFormat='R²: {0:F4}'}" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
+                                            <TextBlock Text="{Binding ReviewRmse, StringFormat='RMSE: {0:F4}'}" Style="{StaticResource CaptionTextStyle}" FontSize="9" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="Sensibilidade Ceq ± 1%" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBlock Text="{Binding ReviewSensLow, StringFormat={}[{0:F1}; }" Style="{StaticResource KlaHeaderValue}" FontSize="11" />
+                                    <TextBlock Text="{Binding ReviewSensHigh, StringFormat={}{0:F1}] h⁻¹}" Style="{StaticResource KlaHeaderValue}" FontSize="11" Margin="0,0,0,6" />
+
+                                    <TextBlock Text="Justificativa / Motivo" Style="{StaticResource KlaHeaderLabel}" FontSize="9.5" />
+                                    <TextBox Text="{Binding ReviewRejectionReason, UpdateSourceTrigger=PropertyChanged}" Height="40" FontSize="10" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Action Buttons -->
+                            <StackPanel Orientation="Vertical">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1.1*" />
-                                        <ColumnDefinition Width="1.1*" />
-                                        <ColumnDefinition Width="1.2*" />
-                                        <ColumnDefinition Width="1.6*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0" Margin="2,0">
-                                        <TextBlock Text="kLa Estimado" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
-                                        <TextBlock Text="{Binding ReviewKla, StringFormat={}{0:F1} h⁻¹}" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
-                                        <TextBlock Margin="0,1,0,0" Text="{Binding ReviewCi95Low, StringFormat={}IC 95%: [{0:F1}; }" Style="{StaticResource CaptionTextStyle}" FontSize="9.5" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1" Margin="2,0">
-                                        <TextBlock Text="Qualidade do Ajuste" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
-                                        <TextBlock Text="{Binding ReviewR2, StringFormat='R²: {0:F4}'}" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
-                                        <TextBlock Margin="0,1,0,0" Text="{Binding ReviewRmse, StringFormat='RMSE: {0:F4}'}" Style="{StaticResource CaptionTextStyle}" FontSize="9.5" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2" Margin="2,0">
-                                        <TextBlock Text="Sensibilidade Ceq ± 1%" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
-                                        <TextBlock Text="{Binding ReviewSensLow, StringFormat={}[{0:F1}; }" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
-                                        <TextBlock Text="{Binding ReviewSensHigh, StringFormat={}{0:F1}] h⁻¹}" Style="{StaticResource KlaHeaderValue}" FontSize="12" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="3" Margin="2,0">
-                                        <TextBlock Text="Justificativa / Motivo" Style="{StaticResource KlaHeaderLabel}" FontSize="10" />
-                                        <TextBox Text="{Binding ReviewRejectionReason, UpdateSourceTrigger=PropertyChanged}" Height="34" FontSize="10" TextWrapping="Wrap" />
-                                    </StackPanel>
+                                    <Button Grid.Column="0" Content="Repetir" Margin="0,0,2,0" Height="26" FontSize="11" Command="{Binding RepeatCurrentRunCommand}" />
+                                    <Button Grid.Column="1" Content="Rejeitar" Margin="2,0,0,0" Height="26" FontSize="11" Command="{Binding RejectCurrentRunCommand}" />
                                 </Grid>
-                            </Border>
-                        </Grid>
+                                <Button Content="Aceitar Corrida (Salvar e Avançar)" Height="28" FontSize="11" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptCurrentRunCommand}" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <!-- ── Right Column: 3 Synchronized Plots (100% Height) ────────── -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="1*" MinHeight="100" />
+                    <RowDefinition Height="1*" MinHeight="100" />
+                    <RowDefinition Height="1*" MinHeight="100" />
+                </Grid.RowDefinitions>
+
+                <!-- Chart 1: DO vs Time -->
+                <Border Grid.Row="0" Margin="0,0,0,4"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="4,2">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- External Legend Strip (Above Plot) -->
+                        <DockPanel Grid.Row="0" Margin="4,2,4,2">
+                            <TextBlock Text="Oxigênio Dissolvido" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <!-- OD Bruto -->
+                                <Border Width="12" Height="2" Background="{DynamicResource Series5Brush}" VerticalAlignment="Center" Margin="6,0,3,0" />
+                                <TextBlock Text="OD Bruto" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+
+                                <!-- OD Filtrado -->
+                                <Border Width="14" Height="3" Background="{DynamicResource ChartPvBrush}" VerticalAlignment="Center" Margin="8,0,3,0" />
+                                <TextBlock Text="OD Filtrado" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+
+                                <!-- DO Mín -->
+                                <Border Width="12" Height="2" Background="{DynamicResource StateAlarmBrush}" VerticalAlignment="Center" Margin="8,0,3,0" />
+                                <TextBlock Text="DO Mín" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+
+                                <!-- DO Máx -->
+                                <Border Width="12" Height="2" Background="{DynamicResource StateOkBrush}" VerticalAlignment="Center" Margin="8,0,3,0" />
+                                <TextBlock Text="DO Máx" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+
+                                <!-- Ajuste Exp kLa (Pink dashed) -->
+                                <Border Width="14" Height="2" Background="{DynamicResource Series4Brush}" VerticalAlignment="Center" Margin="8,0,3,0" />
+                                <TextBlock Text="Ajuste Exp (kLa)" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Plot Host -->
+                        <Border x:Name="ChartDoHost" Grid.Row="1" />
+
+                        <!-- Interactive Slider Strip: C* Region Selection (Below Plot) -->
+                        <Border Grid.Row="2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="6,2" Margin="2,0,2,2"
+                                Visibility="{Binding IsReviewOpen, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Região de Ajuste de C*:" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0" />
+                                
+                                <Grid Grid.Column="1" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" Minimum="{Binding ReviewMinTime}" Maximum="{Binding ReviewMaxTime}" Value="{Binding ReviewCeqTStart, UpdateSourceTrigger=PropertyChanged}" SmallChange="0.5" LargeChange="2" ToolTip="Início da Região C*" />
+                                    <Slider Grid.Column="2" Minimum="{Binding ReviewMinTime}" Maximum="{Binding ReviewMaxTime}" Value="{Binding ReviewCeqTEnd, UpdateSourceTrigger=PropertyChanged}" SmallChange="0.5" LargeChange="2" ToolTip="Fim da Região C*" />
+                                </Grid>
+
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="10" FontFamily="{DynamicResource FontMono}" Foreground="{DynamicResource AccentBrush}">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="[{0:F1}s — {1:F1}s]">
+                                            <Binding Path="ReviewCeqTStart" />
+                                            <Binding Path="ReviewCeqTEnd" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Chart 2: Log-Linear OLS Fit -->
+                <Border Grid.Row="1" Margin="0,0,0,4"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="4,2">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- External Legend Strip (Above Plot) -->
+                        <DockPanel Grid.Row="0" Margin="4,2,4,2">
+                            <TextBlock Text="Regressão Log-Linear: ln(Ceq - C)" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <!-- ln(Ceq - C) -->
+                                <Ellipse Width="6" Height="6" Fill="{DynamicResource PathAntifoamBrush}" VerticalAlignment="Center" Margin="6,0,3,0" />
+                                <TextBlock Text="ln(Ceq - C)" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+
+                                <!-- Ajuste OLS -->
+                                <Border Width="16" Height="3" Background="{DynamicResource StateAlarmBrush}" VerticalAlignment="Center" Margin="10,0,3,0" />
+                                <TextBlock Text="Ajuste OLS" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Plot Host -->
+                        <Border x:Name="ChartLogLinearHost" Grid.Row="1" />
+
+                        <!-- Interactive Slider Strip: Linear Region Selection (Below Plot) -->
+                        <Border Grid.Row="2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="6,2" Margin="2,0,2,2"
+                                Visibility="{Binding IsReviewOpen, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Seleção da Região Linear:" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0" />
+                                
+                                <Grid Grid.Column="1" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" Minimum="{Binding ReviewMinTime}" Maximum="{Binding ReviewMaxTime}" Value="{Binding ReviewTStart, UpdateSourceTrigger=PropertyChanged}" SmallChange="0.5" LargeChange="2" ToolTip="Início da Região Linear (t_ini)" />
+                                    <Slider Grid.Column="2" Minimum="{Binding ReviewMinTime}" Maximum="{Binding ReviewMaxTime}" Value="{Binding ReviewTEnd, UpdateSourceTrigger=PropertyChanged}" SmallChange="0.5" LargeChange="2" ToolTip="Fim da Região Linear (t_fim)" />
+                                </Grid>
+
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="10" FontFamily="{DynamicResource FontMono}" Foreground="{DynamicResource AccentBrush}">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="[{0:F1}s — {1:F1}s]">
+                                            <Binding Path="ReviewTStart" />
+                                            <Binding Path="ReviewTEnd" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Chart 3: Instantaneous kLa -->
+                <Border Grid.Row="2" Margin="0,0,0,4"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="4,2">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- External Legend Strip (Above Plot) -->
+                        <DockPanel Grid.Row="0" Margin="4,2,4,2">
+                            <TextBlock Text="kLa Instantâneo Diagnóstico" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <!-- kLa Inst -->
+                                <Border Width="14" Height="3" Background="{DynamicResource StateOkBrush}" VerticalAlignment="Center" Margin="6,0,3,0" />
+                                <TextBlock Text="kLa Inst" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+
+                                <!-- kLa Final -->
+                                <Border Width="14" Height="2" Background="{DynamicResource StateAlarmBrush}" VerticalAlignment="Center" Margin="10,0,3,0" />
+                                <TextBlock Text="kLa Final" FontSize="9.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Plot Host -->
+                        <Border x:Name="ChartInstantKlaHost" Grid.Row="1" />
                     </Grid>
                 </Border>
             </Grid>

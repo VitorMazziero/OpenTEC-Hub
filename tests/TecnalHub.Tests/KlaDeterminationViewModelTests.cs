@@ -557,6 +557,52 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(35.0, loadedAnalysis.TEndSeconds);
     }
 
+    [Fact]
+    public async Task StartSequenceDialog_ModesPreviewAndConfirm_ExecutesSelectedScope()
+    {
+        _vm.NewTestName = "Ensaio Sequence Modes";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 300;
+        _vm.NewConditionFlow = 2.0;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 450;
+        _vm.NewConditionFlow = 3.0;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 600;
+        _vm.NewConditionFlow = 4.0;
+        _vm.AddManualCondition();
+
+        // Mark condition 1 as already completed
+        _vm.Conditions[0].Model.AcceptedReplicates = 1;
+        _vm.Conditions[0].Model.Status = ConditionStatus.Completed;
+
+        // Open Dialog
+        _vm.OpenStartSequenceDialog();
+        Assert.True(_vm.IsStartSequenceDialogOpen);
+        Assert.True(_vm.IsSequenceModePending);
+        Assert.Equal(2, _vm.SequencePreviewQueue.Count);
+
+        // Select row #2 and switch to FromSelected
+        _vm.SelectedMatrixRow = _vm.MatrixRows[1];
+        _vm.IsSequenceModeFromSelected = true;
+        Assert.Equal(2, _vm.SequencePreviewQueue.Count);
+        Assert.Equal(450, _vm.SequencePreviewQueue[0].AgitationRpm);
+
+        // Switch to All
+        _vm.IsSequenceModeAll = true;
+        Assert.Equal(3, _vm.SequencePreviewQueue.Count);
+        Assert.Equal(300, _vm.SequencePreviewQueue[0].AgitationRpm);
+
+        // Confirm
+        await _vm.ConfirmStartSequenceAsync();
+        Assert.False(_vm.IsStartSequenceDialogOpen);
+        Assert.NotNull(_runner.CurrentCondition);
+        Assert.Equal(300, _runner.CurrentCondition.AgitationRpm);
+    }
+
     private sealed class FakeTestRunner : IKlaTestRunner
     {
         public KlaTestDocument? CurrentTest { get; private set; }

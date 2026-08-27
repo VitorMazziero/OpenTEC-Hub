@@ -204,5 +204,6 @@
     <Geometry x:Key="IconChevronUpGeometry">M 6 15 L 12 9 L 18 15</Geometry>
     <Geometry x:Key="IconCloseGeometry">M 6 6 L 18 18 M 18 6 L 6 18</Geometry>
     <Geometry x:Key="IconPlusGeometry">M 12 5 V 19 M 5 12 H 19</Geometry>
+    <Geometry x:Key="IconPlayGeometry">M 6 4 L 20 12 L 6 20 Z</Geometry>
     <Geometry x:Key="IconTrashGeometry">M 4 7 H 20 M 10 11 V 17 M 14 11 V 17 M 6 7 L 7 19 A 2 2 0 0 0 9 21 H 15 A 2 2 0 0 0 17 19 L 18 7 M 9 7 V 4 A 1 1 0 0 1 10 3 H 14 A 1 1 0 0 1 15 4 V 7</Geometry>
 </ResourceDictionary>

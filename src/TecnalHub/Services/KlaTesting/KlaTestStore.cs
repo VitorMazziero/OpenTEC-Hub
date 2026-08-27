@@ -348,8 +348,28 @@ public sealed class KlaTestStore : IKlaTestStore
     private static void WriteAllTextAtomic(string path, string contents)
     {
         var tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        File.WriteAllText(tempPath, contents, Encoding.UTF8);
-        File.Move(tempPath, path, overwrite: true);
+        try
+        {
+            File.WriteAllText(tempPath, contents, Encoding.UTF8);
+            File.Move(tempPath, path, overwrite: true);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Copy(tempPath, path, overwrite: true);
+                    File.Delete(tempPath);
+                    return;
+                }
+            }
+            catch
+            {
+                // Fall back to direct write
+            }
+            File.WriteAllText(path, contents, Encoding.UTF8);
+        }
     }
 
     public IReadOnlyList<KlaRawDataPoint> LoadRunRawData(string testFolderName, string runFolderName)

@@ -137,7 +137,7 @@
                                 <Button DockPanel.Dock="Right" Content="Executar Sequência" HorizontalAlignment="Right"
                                         Height="32" Padding="14,4" FontSize="12" FontWeight="SemiBold"
                                         Style="{StaticResource AccentButtonStyle}"
-                                        Command="{Binding StartSequenceCommand}"
+                                        Command="{Binding OpenStartSequenceDialogCommand}"
                                         IsEnabled="{Binding CanStartSequence}" />
                             </DockPanel>
 
@@ -674,6 +674,95 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancelar" Margin="0,0,8,0" Height="32" Padding="14,4" Command="{Binding CloseLoadTestDialogCommand}" />
                         <Button Content="Carregar Ensaio" Style="{StaticResource AccentButtonStyle}" Height="32" Padding="14,4" Command="{Binding ConfirmLoadTestCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ── Modal: Executar Sequência ──────────────────────────────────────── -->
+        <Grid Grid.RowSpan="2" Visibility="{Binding IsStartSequenceDialogOpen, Converter={StaticResource BoolToVis}}">
+            <!-- Scrim / Backdrop -->
+            <Border Background="{DynamicResource SurfaceBaseBrush}" Opacity="0.75" />
+
+            <!-- Solid Modal Dialog Card -->
+            <Border Style="{StaticResource KlaCard}" Background="{DynamicResource SurfaceElevatedBrush}" Width="520" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ctl:Icon Key="Play" Size="20" Stroke="{DynamicResource AccentBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Executar Sequência de Ensaios" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <TextBlock Text="Selecione como deseja executar a matriz experimental:" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,12" />
+
+                    <!-- Options Group -->
+                    <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}" Padding="12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <!-- Option 1: Pending Only -->
+                            <RadioButton IsChecked="{Binding IsSequenceModePending, Mode=TwoWay}" GroupName="SequenceMode" Margin="0,0,0,8">
+                                <StackPanel Margin="6,0,0,0">
+                                    <TextBlock Text="Executar apenas testes pendentes (sem resultados)" FontWeight="SemiBold" />
+                                    <TextBlock Text="Executa somente as condições que ainda não possuem réplicas aceitas na matriz."
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+
+                            <!-- Option 2: From Selected Row -->
+                            <RadioButton IsChecked="{Binding IsSequenceModeFromSelected, Mode=TwoWay}" GroupName="SequenceMode" IsEnabled="{Binding HasSelectedRowForSequence}" Margin="0,4,0,8">
+                                <StackPanel Margin="6,0,0,0">
+                                    <TextBlock Text="Executar a partir da linha selecionada na matriz" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding SequenceSelectedRowDescription}"
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+
+                            <!-- Option 3: All -->
+                            <RadioButton IsChecked="{Binding IsSequenceModeAll, Mode=TwoWay}" GroupName="SequenceMode" Margin="0,4,0,0">
+                                <StackPanel Margin="6,0,0,0">
+                                    <TextBlock Text="Executar todos os testes da tabela (do início)" FontWeight="SemiBold" />
+                                    <TextBlock Text="Executa sequencialmente todas as condições da matriz a partir da primeira linha."
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Preview of conditions that will be executed -->
+                    <TextBlock Text="{Binding SequenceQueueSummaryText}" Style="{StaticResource KlaHeaderLabel}" Margin="0,0,0,4" />
+                    <Border BorderThickness="1" BorderBrush="{DynamicResource StrokeDefaultBrush}" CornerRadius="{DynamicResource RadiusSmall}" Background="{DynamicResource SurfaceCardBrush}" Height="110" Margin="0,0,0,10">
+                        <ListBox ItemsSource="{Binding SequencePreviewQueue}" BorderThickness="0" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="4,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding OrderIndex, StringFormat='{}#{0}'}" FontWeight="Bold" Width="26" Foreground="{DynamicResource AccentBrush}" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                            <TextBlock Text="{Binding AgitationRpm, StringFormat='{}{0:F0} rpm'}" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                            <TextBlock Text="{Binding AirflowLpm, StringFormat='{}{0:F2} L/min'}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,10,0" />
+                                            <TextBlock Text="{Binding RequestedReplicates, StringFormat='{}({0} rep.)'}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding Status}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <DockPanel Margin="0,0,0,14">
+                        <CheckBox Content="Aceite Automático das Corridas (Avançar sem pausa para revisão)"
+                                  IsChecked="{Binding AutoAcceptRuns, Mode=TwoWay}"
+                                  FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <!-- Action Buttons -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancelar" Margin="0,0,8,0" Height="32" Padding="14,4" Command="{Binding CloseStartSequenceDialogCommand}" />
+                        <Button Content="Iniciar Sequência" Style="{StaticResource AccentButtonStyle}" Height="32" Padding="14,4" Command="{Binding ConfirmStartSequenceCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Border>

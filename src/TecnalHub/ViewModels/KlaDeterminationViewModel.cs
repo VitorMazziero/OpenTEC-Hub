@@ -291,6 +291,47 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private bool _isAdvancedSettingsDialogOpen;
 
+    [ObservableProperty]
+    private bool _isStartSequenceDialogOpen;
+
+    [ObservableProperty]
+    private bool _isSequenceModePending = true;
+
+    [ObservableProperty]
+    private bool _isSequenceModeFromSelected;
+
+    [ObservableProperty]
+    private bool _isSequenceModeAll;
+
+    [ObservableProperty]
+    private string _sequenceSelectedRowDescription = "Nenhuma linha selecionada";
+
+    [ObservableProperty]
+    private bool _hasSelectedRowForSequence;
+
+    [ObservableProperty]
+    private string _sequenceQueueSummaryText = "";
+
+    [ObservableProperty]
+    private ObservableCollection<KlaConditionRowViewModel> _sequencePreviewQueue = new();
+
+    private List<KlaTestCondition> _activeSequenceQueue = new();
+
+    partial void OnIsSequenceModePendingChanged(bool value)
+    {
+        if (value) { UpdateSequencePreview(0); }
+    }
+
+    partial void OnIsSequenceModeFromSelectedChanged(bool value)
+    {
+        if (value) { UpdateSequencePreview(1); }
+    }
+
+    partial void OnIsSequenceModeAllChanged(bool value)
+    {
+        if (value) { UpdateSequencePreview(2); }
+    }
+
     // Review Drawer Properties
     [ObservableProperty]
     private bool _isReviewOpen;
@@ -874,6 +915,115 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     }
 
     [RelayCommand]
+    public void OpenStartSequenceDialog()
+    {
+        if (CurrentTest is null || Conditions.Count == 0)
+        {
+            StatusMessage = "Crie ou importe um ensaio com condições experimentais antes de iniciar a sequência.";
+            return;
+        }
+
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Aviso", "Já existe um ensaio em andamento.", "OK", "", isDanger: false);
+            return;
+        }
+
+        HasSelectedRowForSequence = SelectedMatrixRow is not null;
+        SequenceSelectedRowDescription = SelectedMatrixRow is not null
+            ? $"Condição #{SelectedMatrixRow.OrderIndex} ({SelectedMatrixRow.AgitationRpm:F0} rpm, {SelectedMatrixRow.AirflowLpm:F2} L/min)"
+            : "Nenhuma linha selecionada na matriz";
+
+        var pendingCount = Conditions.Count(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+        if (pendingCount > 0)
+        {
+            IsSequenceModePending = true;
+            IsSequenceModeFromSelected = false;
+            IsSequenceModeAll = false;
+            UpdateSequencePreview(0);
+        }
+        else if (HasSelectedRowForSequence)
+        {
+            IsSequenceModePending = false;
+            IsSequenceModeFromSelected = true;
+            IsSequenceModeAll = false;
+            UpdateSequencePreview(1);
+        }
+        else
+        {
+            IsSequenceModePending = false;
+            IsSequenceModeFromSelected = false;
+            IsSequenceModeAll = true;
+            UpdateSequencePreview(2);
+        }
+
+        IsStartSequenceDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseStartSequenceDialog()
+    {
+        IsStartSequenceDialogOpen = false;
+    }
+
+    public void UpdateSequencePreview(int mode)
+    {
+        SequencePreviewQueue.Clear();
+
+        IEnumerable<KlaConditionRowViewModel> targetList;
+        if (mode == 0)
+        {
+            // Pending only
+            targetList = Conditions.Where(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+        }
+        else if (mode == 1)
+        {
+            // From selected
+            var startIdx = SelectedMatrixRow is not null ? SelectedMatrixRow.OrderIndex - 1 : 0;
+            targetList = Conditions.Where(c => c.Model.OrderIndex >= startIdx);
+        }
+        else
+        {
+            // All
+            targetList = Conditions;
+        }
+
+        foreach (var c in targetList)
+        {
+            SequencePreviewQueue.Add(c);
+        }
+
+        SequenceQueueSummaryText = SequencePreviewQueue.Count == 1
+            ? "1 condição na fila de execução."
+            : $"{SequencePreviewQueue.Count} condições na fila de execução.";
+    }
+
+    [RelayCommand]
+    public async Task ConfirmStartSequenceAsync()
+    {
+        if (CurrentTest is null || SequencePreviewQueue.Count == 0)
+        {
+            StatusMessage = "Nenhuma condição selecionada para execução.";
+            return;
+        }
+
+        _activeSequenceQueue = SequencePreviewQueue.Select(c => c.Model).ToList();
+        IsStartSequenceDialogOpen = false;
+
+        var firstCondition = _activeSequenceQueue.FirstOrDefault();
+        if (firstCondition is not null)
+        {
+            LivePoints.Clear();
+            InstantaneousKlaSeries.Clear();
+            LogLinearSeries.Clear();
+
+            var nextRep = firstCondition.CompletedReplicates + 1;
+            StatusMessage = $"Iniciando sequência: condição #{firstCondition.OrderIndex + 1} ({firstCondition.AgitationRpm:F0} rpm, {firstCondition.AirflowLpm:F2} L/min - réplica {nextRep}/{firstCondition.RequestedReplicates})...";
+            await _runner.StartRunAsync(firstCondition, nextRep);
+        }
+    }
+
+    [RelayCommand]
     public async Task StartSequenceAsync()
     {
         if (CurrentTest is null || IsRunning)
@@ -881,23 +1031,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
-        var nextCondition = Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
-        if (nextCondition is null)
-        {
-            StatusMessage = "Todas as condições da matriz foram concluídas.";
-            _dialogs.Confirm("Ensaio Concluído", "Todas as condições da matriz experimental foram concluídas.", "OK", "");
-            return;
-        }
-
-        var cond = nextCondition.Model;
-        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
-        var nextRep = cond.CompletedReplicates + 1;
-
-        LivePoints.Clear();
-        InstantaneousKlaSeries.Clear();
-        LogLinearSeries.Clear();
-
-        await _runner.StartRunAsync(cond, nextRep);
+        UpdateSequencePreview(IsSequenceModePending ? 0 : (IsSequenceModeFromSelected ? 1 : 2));
+        await ConfirmStartSequenceAsync();
     }
 
     [RelayCommand]
@@ -1120,10 +1255,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             RefreshConditionsList();
 
             // Auto-advance to the next pending condition/replicate in sequence
-            var nextCondition = Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+            _activeSequenceQueue.RemoveAll(c => c.ConditionId == _runner.CurrentCondition?.ConditionId && c.AcceptedReplicates >= c.RequestedReplicates);
+            var nextCondition = _activeSequenceQueue.FirstOrDefault()
+                ?? (AutoAcceptRuns ? Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates)?.Model : null);
+
             if (nextCondition is not null && CurrentTest is not null)
             {
-                var cond = nextCondition.Model;
+                var cond = nextCondition;
                 var nextRep = cond.CompletedReplicates + 1;
 
                 LivePoints.Clear();
@@ -1135,8 +1273,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             }
             else
             {
-                StatusMessage = "Todas as condições da matriz experimental foram concluídas com sucesso!";
-                _dialogs.Confirm("Ensaio Concluído", "Todas as condições da matriz experimental foram concluídas com sucesso. O ensaio pode ser finalizado.", "OK", "");
+                _activeSequenceQueue.Clear();
+                StatusMessage = "Todas as condições da sequência foram concluídas com sucesso!";
+                _dialogs.Confirm("Sequência Concluída", "Todas as condições da sequência experimental foram concluídas com sucesso. O ensaio pode ser finalizado.", "OK", "", isDanger: false);
             }
 
             UpdateUiState();

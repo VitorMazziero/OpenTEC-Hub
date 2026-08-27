@@ -120,6 +120,7 @@ public sealed class Wp6DetailTests
     public void Engaging_on_the_path_fills_the_trend_kla_series()
     {
         using var h = new Harness();
+        h.Service.SelectMode(CascadeMode.KlaPath);
         h.Service.SelectPath(KlaTestProfiles.Linear());
         h.Service.Engage(440, 5.0);
 

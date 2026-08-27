@@ -602,7 +602,7 @@ public sealed record ModePidSettings
 public sealed record CascadeSettings
 {
     public double OxygenSetpointPercent { get; init; } = 30.0;
-    public CascadeMode Mode { get; init; } = CascadeMode.KlaPath;
+    public CascadeMode Mode { get; init; } = CascadeMode.DualCascade;
 
     public double AgitationMinRpm { get; init; } = 200;
     public double AgitationMaxRpm { get; init; } = 800;

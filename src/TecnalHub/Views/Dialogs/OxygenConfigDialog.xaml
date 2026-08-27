@@ -152,6 +152,18 @@
                     </ComboBox>
                 </Grid>
 
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Setpoint de OD (%):"
+                               FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <TextBox Grid.Column="1" Width="100" HorizontalAlignment="Left"
+                             Text="{Binding OxygenSetpointText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Alvo de oxigênio dissolvido que a cascata deve manter (0–100%)." />
+                </Grid>
+
                 <TextBlock Text="{Binding ModeExplanation}"
                            Style="{StaticResource CaptionTextStyle}"
                            Foreground="{DynamicResource TextMutedBrush}"

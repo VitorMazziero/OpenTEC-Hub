@@ -184,7 +184,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
     public bool IsEngaged { get; private set; }
 
-    public CascadeMode Mode { get; private set; } = CascadeMode.KlaPath;
+    public CascadeMode Mode { get; private set; } = CascadeMode.DualCascade;
 
     public KlaPublishedProfile? ActivePath { get; private set; }
 

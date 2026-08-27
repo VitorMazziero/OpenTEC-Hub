@@ -33,6 +33,8 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
 
         var cfg = settings.Current.Cascade;
 
+        OxygenSetpointText = cfg.OxygenSetpointPercent.ToString("F1", CultureInfo.InvariantCulture);
+
         // Initialize dictionary with copies of current settings
         _modePids[CascadeMode.AgitationOnly] = cfg.AgitationPid with { };
         _modePids[CascadeMode.AerationOnly] = cfg.AerationPid with { };
@@ -98,6 +100,10 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
         CascadeMode.KlaPath => "O controle segue a trajetória ótima na superfície kLa calibrada.",
         _ => "",
     };
+
+    // ── Dissolved-oxygen target (applies to every mode) ──
+
+    [ObservableProperty] public partial string OxygenSetpointText { get; set; } = "30.0";
 
     // ── PID Fields ──
 
@@ -235,6 +241,14 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     private bool ValidateInputs()
     {
         ValidationError = null;
+
+        // Dissolved-oxygen target
+        var oxygenSp = ParseDouble(OxygenSetpointText, -1);
+        if (oxygenSp < 0 || oxygenSp > 100)
+        {
+            ValidationError = "O setpoint de oxigênio dissolvido deve estar entre 0 e 100%.";
+            return false;
+        }
 
         // Physical limits
         if (ShowAgitationLimits)
@@ -384,6 +398,8 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
         var currentCfg = _settings.Current.Cascade;
         var updated = currentCfg with
         {
+            OxygenSetpointPercent = ParseDouble(OxygenSetpointText, currentCfg.OxygenSetpointPercent),
+
             AgitationMinRpm = ParseDouble(AgitationMinRpmText, currentCfg.AgitationMinRpm),
             AgitationMaxRpm = ParseDouble(AgitationMaxRpmText, currentCfg.AgitationMaxRpm),
             AerationMinLpm = ParseDouble(AerationMinLpmText, currentCfg.AerationMinLpm),

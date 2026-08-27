@@ -161,6 +161,38 @@ public class OxygenConfigViewModelTests
     }
 
     [Fact]
+    public void Apply_persists_the_dissolved_oxygen_setpoint()
+    {
+        using var fixture = new Fixture();
+        var vm = fixture.ViewModel;
+
+        vm.OxygenSetpointText = "45";
+
+        vm.ApplyCommand.Execute(null);
+
+        Assert.Equal(45.0, fixture.Settings.Current.Cascade.OxygenSetpointPercent, precision: 3);
+        Assert.Equal(45.0, fixture.Service.OxygenSetpoint, precision: 3);
+    }
+
+    [Fact]
+    public void Apply_rejects_an_out_of_range_setpoint()
+    {
+        using var fixture = new Fixture();
+        var vm = fixture.ViewModel;
+
+        vm.OxygenSetpointText = "150";
+
+        var closed = false;
+        vm.CloseRequested = () => closed = true;
+
+        vm.ApplyCommand.Execute(null);
+
+        Assert.False(closed);
+        Assert.True(vm.HasValidationError);
+        Assert.Contains("oxigênio dissolvido", vm.ValidationError);
+    }
+
+    [Fact]
     public void Cancel_does_not_persist_or_update_service()
     {
         using var fixture = new Fixture();

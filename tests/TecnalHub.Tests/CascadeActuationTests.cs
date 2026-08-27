@@ -89,10 +89,10 @@ public sealed class CascadeActuationTests
     // ── Mode / path selection ────────────────────────────────────────────────
 
     [Fact]
-    public void The_default_mode_is_the_kla_path()
+    public void The_default_mode_is_the_dual_cascade()
     {
         using var h = new Harness();
-        Assert.Equal(CascadeMode.KlaPath, h.Service.Mode);
+        Assert.Equal(CascadeMode.DualCascade, h.Service.Mode);
     }
 
     [Fact]
@@ -111,6 +111,7 @@ public sealed class CascadeActuationTests
     public void Engaging_the_trajectory_mode_needs_a_published_path()
     {
         using var h = new Harness();
+        h.Service.SelectMode(CascadeMode.KlaPath);
 
         Assert.False(h.Service.CanEngage(out var reason));
         Assert.Contains("mapa kLa", reason, StringComparison.OrdinalIgnoreCase);
@@ -154,6 +155,7 @@ public sealed class CascadeActuationTests
     public void The_transfer_to_automatic_is_bumpless_from_the_current_actuators()
     {
         using var h = new Harness();
+        h.Service.SelectMode(CascadeMode.KlaPath);
         h.Service.SelectPath(KlaTestProfiles.Linear());
         h.Service.Engage(currentAgitationRpm: 440, currentAerationLpm: 5.0);
 
@@ -171,6 +173,7 @@ public sealed class CascadeActuationTests
     public void The_kla_demand_is_exposed_while_engaged_on_the_path()
     {
         using var h = new Harness();
+        h.Service.SelectMode(CascadeMode.KlaPath);
         h.Service.SelectPath(KlaTestProfiles.Linear());
         h.Service.Engage(440, 5.0);
 
@@ -189,7 +192,7 @@ public sealed class CascadeActuationTests
 
         h.Service.SelectMode(CascadeMode.AgitationOnly);
 
-        Assert.Equal(CascadeMode.KlaPath, h.Service.Mode);
+        Assert.Equal(CascadeMode.DualCascade, h.Service.Mode);
     }
 
     // ── Safe abort ───────────────────────────────────────────────────────────

@@ -169,6 +169,7 @@ public sealed class GainScheduleTests
             Cascade = new CascadeSettings
             {
                 OxygenSetpointPercent = 30,
+                Mode = CascadeMode.KlaPath,
                 MapPid = new ModePidSettings { Kp = 0.25 },
             },
             GainSchedule = new GainScheduleSettings { Enabled = false },

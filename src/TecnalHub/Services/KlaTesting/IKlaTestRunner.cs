@@ -17,6 +17,8 @@ public interface IKlaTestRunner : IDisposable
     double CurrentDO { get; }
     double CurrentDORaw { get; }
     double CurrentFlowMeasured { get; }
+    double? CurrentDODerivative { get; }
+    int StabilityConfirmationCount { get; }
     double PhaseElapsedSeconds { get; }
     double TotalElapsedSeconds { get; }
     string StatusMessage { get; }
@@ -29,6 +31,7 @@ public interface IKlaTestRunner : IDisposable
     event Action<string>? Logged;
 
     Task StartTestAsync(KlaTestDocument doc, CancellationToken ct = default);
+    void PrepareTest(KlaTestDocument doc);
     Task StartRunAsync(KlaTestCondition condition, int replicateNumber, CancellationToken ct = default);
     Task StopRunAndReviewAsync(string reason = "Parada pelo operador");
     Task AcceptRunAsync(KlaAnalysisRevision analysis);

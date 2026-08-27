@@ -12,6 +12,9 @@ namespace TecnalHub.Services.KlaTesting;
 
 public static class KlaTestFileContracts
 {
+    private static readonly Regex RunFolderPattern = new(
+        @"^N(?<rpm>\d{4})_Q(?<qint>\d{2})p(?<qdec>\d{2})_Rep(?<rep>\d{2})(?:_Tentativa\d{2})?$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     public const string TestManifestFileName = "teste.json";
     public const string ConditionTableFileName = "tabela-condicoes.json";
     public const string EventLogFileName = "eventos.jsonl";
@@ -84,6 +87,27 @@ public static class KlaTestFileContracts
         var rep = Math.Clamp(replicateNumber, 1, 99);
 
         return $"N{rpm:D4}_Q{qInt:D2}p{qDec:D2}_Rep{rep:D2}";
+    }
+
+    public static bool TryParseRunFolderName(string? folderName, out double agitationRpm, out double airflowLpm, out int replicateNumber)
+    {
+        agitationRpm = 0;
+        airflowLpm = 0;
+        replicateNumber = 0;
+        var match = RunFolderPattern.Match(folderName ?? "");
+        if (!match.Success ||
+            !int.TryParse(match.Groups["rpm"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rpm) ||
+            !int.TryParse(match.Groups["qint"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var qInt) ||
+            !int.TryParse(match.Groups["qdec"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var qDec) ||
+            !int.TryParse(match.Groups["rep"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rep))
+        {
+            return false;
+        }
+
+        agitationRpm = rpm;
+        airflowLpm = qInt + qDec / 100.0;
+        replicateNumber = rep;
+        return true;
     }
 
     public static string SerializeTestDocument(KlaTestDocument doc) =>

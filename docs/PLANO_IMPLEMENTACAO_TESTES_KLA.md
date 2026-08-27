@@ -402,6 +402,22 @@ Depois da importação, o usuário poderá:
 
 Essas edições não alteram o mapa de origem.
 
+#### 7.2.1 Importar um ensaio completo já realizado
+
+A janela **Importar Teste** também permite selecionar uma pasta externa que contenha o contrato
+completo (`teste.json`, `tabela-condicoes.json` e `Corridas/`). A importação:
+
+- copia a pasta para `Testes-kLa/` sem alterar a origem;
+- recusa pastas sem manifesto e links de sistema de arquivos;
+- reconhece uma campanha já importada pelo `TestId`;
+- reconcilia as corridas no disco com o manifesto;
+- reconstrói condições, replicatas, kLa e estado a partir de `dados-brutos.csv` e `analise.json`;
+- escolhe a tentativa aceita mais recente quando houver mais de uma pasta para a mesma replicata;
+- permite abrir cada linha pelo botão de curva, alterar regiões/Ceq e salvar uma nova revisão.
+
+Carregar uma campanha concluída serve apenas para inspeção: não muda seu estado para `Running`.
+Uma nova execução só marca a campanha como ativa quando uma condição é efetivamente iniciada.
+
 Conflitos:
 
 - condições duplicadas por `(N,Q)` serão mostradas numa prévia;
@@ -640,14 +656,16 @@ Criar ou abrir teste
   → conferir tabela
   → pré-voo
   → preparar condição
-      ├─ DO <= DO mínima → fechar gases → confirmar → abrir ar
-      └─ DO > DO mínima  → fechar gases → confirmar → abrir N₂
+      ├─ DO <= DO de corte → fechar gases → confirmar → abrir ar
+      └─ DO > DO de corte  → fechar gases → confirmar → abrir N₂
                                                    ↓
-                                      atingir DO mínima
-                                                   ↓
-                                      fechar N₂ → confirmar
-                                                   ↓
-                                         abrir ar → confirmar
+                                      atingir DO de corte
+                                                    ↓
+                                       fechar N₂ → confirmar
+                                                    ↓
+                         atraso mínimo + |dDO/dt| estável por N leituras
+                                                    ↓
+                                          abrir ar → confirmar
                                                    ↓
                                             reoxigenação
                                                    ↓
@@ -666,6 +684,7 @@ Estados internos:
 - `OpeningNitrogen`;
 - `Deoxygenating`;
 - `ClosingNitrogen`;
+- `WaitingForDOStability`;
 - `OpeningAir`;
 - `Reoxygenating`;
 - `StoppingRun`;
@@ -679,20 +698,29 @@ Estados internos:
 
 ### 11.1 Alterações ao vivo
 
-- DO mínima alterada durante N₂: reavaliar imediatamente e iniciar a troca se o critério já
+A engrenagem do card **Limiares de Operação** concentra todos os parâmetros do teste: DO de corte
+do N₂, DO final, rotação e válvula do N₂, tempos máximos, atraso/derivada/confirmações pós-N₂,
+suavização, `C_eq`, faixa automática e aceite automático. Valores válidos são aplicados ao vivo; a
+válvula de N₂ fica bloqueada durante uma corrida para evitar uma troca de linha sem intertravamento.
+
+- DO de corte alterado durante N₂: reavaliar imediatamente e fechar N₂ se o critério já
   estiver satisfeito;
 - DO máxima alterada durante ar: encerrar a reoxigenação imediatamente se o critério já estiver
   satisfeito;
 - rotação de desgaseificação alterada durante N₂: enviar novo setpoint imediatamente;
 - suavização alterada: recalcular somente séries derivadas;
 - configuração de `C_eq`: recalcular durante a revisão;
+- atraso mínimo, janela/limiar da derivada, número de confirmações e tempo máximo pós-N₂:
+  aplicar à espera corrente sem abrir gás antecipadamente;
 - toda alteração aceita cria uma revisão registrada nos arquivos.
 
-As transições são progressivas. Alterar DO mínima durante a reoxigenação não retorna o processo
+As transições são progressivas. Alterar DO de corte durante a reoxigenação não retorna o processo
 para N₂.
 
-Não haverá tempo mínimo oculto. Se o usuário encerrar cedo ou baixar DO máxima abaixo da DO atual,
-o gás será fechado imediatamente; a análise poderá concluir que não há informação suficiente.
+Não haverá tempo mínimo oculto: o atraso pós-N₂ é explícito e configurável. Após esse atraso, a
+inclinação é estimada por regressão linear na janela temporal configurada; ar só abre quando
+`abs(dDO/dt)` fica abaixo do limiar pelo número solicitado de leituras consecutivas. Se a espera
+máxima expirar, a corrida fecha gases e segue para revisão, sem forçar a abertura de ar.
 
 ## 12. Propriedade e segurança
 
@@ -745,7 +773,7 @@ Usar três gráficos empilhados e com eixo X sincronizado.
 - DO bruta/calibrada;
 - DO suavizada somente para exibição;
 - linhas de DO mínima e máxima;
-- fundo por fase: N₂, intertravamento, ar e revisão;
+- fundo por fase: N₂, espera pós-N₂, intertravamento, ar e revisão;
 - marcadores de ACK e alterações de configuração.
 
 A curva não será apagada na troca N₂ → ar.
@@ -1038,6 +1066,10 @@ dados e referências.
 - N₂ em V2;
 - outra válvula sempre fechada;
 - alteração de DO mínima durante N₂ produz transição imediata;
+- fechamento de N₂ não abre ar antes do atraso mínimo;
+- queda residual ou lag da sonda reinicia a contagem de estabilidade;
+- derivada estável pelo número configurado de leituras abre ar;
+- expiração da espera máxima pós-N₂ encerra a corrida para revisão sem abrir ar;
 - alteração de DO máxima durante ar encerra imediatamente;
 - alteração de rotação durante N₂ envia novo comando;
 - parada manual abre revisão;
@@ -1057,6 +1089,9 @@ dados e referências.
 - nova corrida não recebe séries antigas;
 - três gráficos usam a mesma região e eixo temporal;
 - recarregar a análise reproduz o mesmo resultado e hash.
+- carregar ensaio concluído não altera seu estado persistido;
+- importar pasta completa reconstrói matriz, replicatas e tentativas aceitas;
+- trocar de ensaio ou linha limpa as séries anteriores antes de desenhar a curva selecionada.
 
 ### WPF
 

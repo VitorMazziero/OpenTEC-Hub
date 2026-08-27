@@ -378,6 +378,12 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _vm.SettingSmoothingWindow = 9;
         _vm.SettingMaxDegassingMinutes = 45;
         _vm.SettingMaxReoxygenationMinutes = 75;
+        _vm.SettingPostNitrogenMinimumDelaySeconds = 8;
+        _vm.SettingStabilityDerivativeSpanSeconds = 10;
+        _vm.SettingStabilityDerivativeThreshold = 0.03;
+        _vm.SettingStabilityRequiredSamples = 7;
+        _vm.SettingMaxPostNitrogenStabilizationSeconds = 180;
+        _vm.SettingDefaultCeq = 102;
 
         _vm.SaveAdvancedSettings();
         Assert.False(_vm.IsAdvancedSettingsDialogOpen);
@@ -386,6 +392,12 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(9, _vm.CurrentTest.Settings.SmoothingWindowSize);
         Assert.Equal(45, _vm.CurrentTest.Settings.MaxDegassingTimeMinutes);
         Assert.Equal(75, _vm.CurrentTest.Settings.MaxReoxygenationTimeMinutes);
+        Assert.Equal(8, _vm.CurrentTest.Settings.PostNitrogenMinimumDelaySeconds);
+        Assert.Equal(10, _vm.CurrentTest.Settings.StabilityDerivativeSpanSeconds);
+        Assert.Equal(0.03, _vm.CurrentTest.Settings.StabilityDerivativeThresholdPercentPerSecond);
+        Assert.Equal(7, _vm.CurrentTest.Settings.StabilityRequiredSamples);
+        Assert.Equal(180, _vm.CurrentTest.Settings.MaxPostNitrogenStabilizationSeconds);
+        Assert.Equal(102, _vm.CurrentTest.Settings.DefaultCeqPercent);
     }
 
     [Fact]
@@ -507,6 +519,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _vm.AddManualCondition();
 
         var cond = _vm.Conditions[0].Model;
+        Assert.NotNull(_vm.CurrentTest);
         var run = new KlaTestRunSummary
         {
             RunId = Guid.NewGuid(),
@@ -641,6 +654,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public double CurrentDO { get; set; }
         public double CurrentDORaw { get; set; }
         public double CurrentFlowMeasured { get; set; }
+        public double? CurrentDODerivative { get; set; }
+        public int StabilityConfirmationCount { get; set; }
         public string StatusMessage { get; set; } = "Pronto";
 
         public IReadOnlyList<KlaRawDataPoint> CurrentRunPoints => [];
@@ -653,6 +668,15 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
 #pragma warning restore CS0067
 
         public void RaiseStateChanged() => StateChanged?.Invoke();
+
+        public void PrepareTest(KlaTestDocument test)
+        {
+            CurrentTest = test;
+            CurrentCondition = null;
+            CurrentRun = null;
+            Phase = RunPhase.Idle;
+            StateChanged?.Invoke();
+        }
 
         public Task StartTestAsync(KlaTestDocument test, CancellationToken cancellationToken = default)
         {

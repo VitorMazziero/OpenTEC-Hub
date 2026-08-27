@@ -25,6 +25,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private readonly object _gate = new();
     private readonly List<KlaRawDataPoint> _runPoints = [];
     private readonly List<KlaGlobalSeriesSample> _globalSamples = [];
+    private readonly List<(double Time, double DO)> _stabilityWindow = [];
 
     private KlaTestDocument? _currentTest;
     private KlaTestRun? _currentRun;
@@ -46,6 +47,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private bool _abortAfterClosing;
     private string _terminalReason = "";
     private bool _disposed;
+    private double? _currentDODerivative;
+    private int _stabilityConfirmationCount;
 
     public KlaTestRunner(
         IDeviceService device,
@@ -78,6 +81,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public double CurrentDO => _currentDO;
     public double CurrentDORaw => _currentDORaw;
     public double CurrentFlowMeasured => _currentFlowMeasured;
+    public double? CurrentDODerivative => _currentDODerivative;
+    public int StabilityConfirmationCount => _stabilityConfirmationCount;
     public string StatusMessage => _statusMessage;
 
     public double PhaseElapsedSeconds
@@ -123,6 +128,25 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public event Action? StateChanged;
     public event Action<KlaRawDataPoint>? DataPointAdded;
     public event Action<string>? Logged;
+
+    public void PrepareTest(KlaTestDocument doc)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        lock (_gate)
+        {
+            _currentTest = doc;
+            _currentRun = null;
+            _currentCondition = null;
+            _phase = RunPhase.Idle;
+            _phaseStartMonotonic = 0;
+            _testStartMonotonic = 0;
+            _statusMessage = $"Teste '{doc.Name}' carregado. Selecione uma condição para iniciar ou uma corrida para revisar.";
+            _runPoints.Clear();
+            _globalSamples.Clear();
+            ResetStabilityDetection();
+        }
+        RaiseStateChanged();
+    }
 
     public Task StartTestAsync(KlaTestDocument doc, CancellationToken ct = default)
     {
@@ -175,10 +199,20 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
         lock (_gate)
         {
+            if (_currentTest.Status != KlaTestStatus.Running)
+            {
+                _currentTest.Status = KlaTestStatus.Running;
+                _currentTest.StartedUtc ??= _time.GetUtcNow();
+                _currentTest.CompletedUtc = null;
+                _currentTest.InterruptionReason = null;
+                _testStartMonotonic = GetMonotonicSeconds();
+            }
+
             _currentCondition = condition;
             condition.Status = ConditionStatus.InProgress;
 
             _runPoints.Clear();
+            ResetStabilityDetection();
 
             _currentRun = new KlaTestRun
             {
@@ -199,6 +233,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _phaseStartMonotonic = GetMonotonicSeconds();
             _runStartMonotonic = _phaseStartMonotonic;
             _statusMessage = $"Pré-voo da corrida {runFolder}...";
+            _store.SaveTestManifest(_currentTest);
         }
 
         LogEvent("RunStarted", $"Iniciando corrida {_currentRun.FolderName} (N={condition.AgitationRpm} rpm, Q={condition.AirflowLpm} L/min, Rep={replicateNumber}).");
@@ -227,7 +262,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     public Task StopRunAndReviewAsync(string reason = "Parada pelo operador")
     {
-        if (_phase is not (RunPhase.Deoxygenating or RunPhase.Reoxygenating or RunPhase.OpeningAir or RunPhase.OpeningNitrogen))
+        if (_phase is not (RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
+            RunPhase.Reoxygenating or RunPhase.OpeningAir or RunPhase.OpeningNitrogen))
         {
             return Task.CompletedTask;
         }
@@ -514,7 +550,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
             var v1 = s.FlowValve1 != 0;
             var v2 = s.FlowValve2 != 0;
             var vFlow = s.FlowValveMain != 0;
-            var agitationSetpoint = _phase is RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.ClosingNitrogen
+            var agitationSetpoint = _phase is RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or
+                RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability
                 ? _currentTest.Settings.DegassingAgitationRpm
                 : _currentCondition?.AgitationRpm ?? 0;
 
@@ -532,7 +569,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 VFlow: vFlow);
 
             var capturesRunData = _phase is RunPhase.Preflight or RunPhase.ClosingAllGas or
-                RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or
+                RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
                 RunPhase.OpeningAir or RunPhase.Reoxygenating or RunPhase.StoppingRun or RunPhase.Aborting;
             if (capturesRunData)
             {
@@ -602,15 +639,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
             }
             else if (_phase == RunPhase.ClosingNitrogen && IsGasStateConfirmed(s, _targetGasState))
             {
-                // Nitrogen closed confirmed -> Now open Air
-                var targetFlow = _currentCondition?.AirflowLpm ?? 1.0;
-                var targetRpm = _currentCondition?.AgitationRpm ?? 300.0;
-
-                _targetGasState = (targetFlow, false, false, false);
-                SetPhase(RunPhase.OpeningAir, "Abrindo Ar...");
-
-                DispatchMotorOrAbort((int)targetRpm, "ajustar agitação de reoxigenação");
-                DispatchFlowOrAbort(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false), "abrir ar");
+                BeginPostNitrogenStabilityWait();
+            }
+            else if (_phase == RunPhase.WaitingForDOStability)
+            {
+                EvaluatePostNitrogenStability(monoSec, s.OxygenCalibrated);
             }
             else if (_phase == RunPhase.Deoxygenating && s.OxygenCalibrated <= _currentTest.Settings.DOMinPercent)
             {
@@ -620,6 +653,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
             {
                 StopRunAndReviewAsync("DO máxima atingida com sucesso");
             }
+
+            RaiseStateChanged();
         }
     }
 
@@ -632,6 +667,85 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
         _openAirAfterClosing = true;
         DispatchFlowOrAbort(CommandBuilders.FlowSafeStop(MaxFlow), "fechar nitrogênio");
+    }
+
+    private void BeginPostNitrogenStabilityWait()
+    {
+        ResetStabilityDetection();
+        LogEvent("NitrogenClosed", "N₂ fechado e confirmado. Aguardando dissipação do gás residual e estabilização da sonda.");
+        SetPhase(RunPhase.WaitingForDOStability, "N₂ desligado · aguardando atraso mínimo e estabilidade de dDO/dt...");
+    }
+
+    private void EvaluatePostNitrogenStability(double monotonicSeconds, double dissolvedOxygen)
+    {
+        var settings = _currentTest!.Settings;
+        _stabilityWindow.Add((monotonicSeconds, dissolvedOxygen));
+
+        var span = settings.StabilityDerivativeSpanSeconds;
+        var oldestUseful = monotonicSeconds - Math.Max(30.0, span * 2.0);
+        _stabilityWindow.RemoveAll(p => p.Time < oldestUseful);
+
+        var derivativePoints = _stabilityWindow.Where(p => p.Time >= monotonicSeconds - span).ToList();
+        _currentDODerivative = TryCalculateSlope(derivativePoints, span);
+
+        var minimumDelayRemaining = Math.Max(0, settings.PostNitrogenMinimumDelaySeconds - PhaseElapsedSeconds);
+        if (minimumDelayRemaining > 0)
+        {
+            _stabilityConfirmationCount = 0;
+            _statusMessage = $"N₂ fechado · atraso de dissipação: {minimumDelayRemaining:F1} s restantes";
+            return;
+        }
+
+        if (!_currentDODerivative.HasValue)
+        {
+            _stabilityConfirmationCount = 0;
+            _statusMessage = $"N₂ fechado · formando janela de derivada ({span:F1} s)...";
+            return;
+        }
+
+        var threshold = settings.StabilityDerivativeThresholdPercentPerSecond;
+        if (Math.Abs(_currentDODerivative.Value) <= threshold)
+        {
+            _stabilityConfirmationCount++;
+        }
+        else
+        {
+            _stabilityConfirmationCount = 0;
+        }
+
+        _statusMessage = $"N₂ fechado · dDO/dt = {_currentDODerivative.Value:+0.000;-0.000;0.000} %/s · estabilidade {_stabilityConfirmationCount}/{settings.StabilityRequiredSamples}";
+        if (_stabilityConfirmationCount < settings.StabilityRequiredSamples)
+        {
+            return;
+        }
+
+        LogEvent("DOStable", $"DO estabilizado após N₂: dDO/dt={_currentDODerivative.Value:F4} %/s, {settings.StabilityRequiredSamples} confirmações.");
+        OpenAir();
+    }
+
+    private static double? TryCalculateSlope(IReadOnlyList<(double Time, double DO)> points, double requestedSpan)
+    {
+        if (points.Count < 2 || points[^1].Time - points[0].Time < requestedSpan * 0.8)
+        {
+            return null;
+        }
+
+        var meanT = points.Average(p => p.Time);
+        var meanDO = points.Average(p => p.DO);
+        var denominator = points.Sum(p => Math.Pow(p.Time - meanT, 2));
+        if (denominator <= 1e-9)
+        {
+            return null;
+        }
+
+        return points.Sum(p => (p.Time - meanT) * (p.DO - meanDO)) / denominator;
+    }
+
+    private void ResetStabilityDetection()
+    {
+        _stabilityWindow.Clear();
+        _currentDODerivative = null;
+        _stabilityConfirmationCount = 0;
     }
 
     private bool IsGasStateConfirmed(SensorSnapshot s, (double Flow, bool V1, bool V2, bool VFlow) target)
@@ -709,6 +823,20 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             throw new ArgumentOutOfRangeException(nameof(settings), "Os tempos máximos devem ser positivos.");
         }
+
+        if (!double.IsFinite(settings.PostNitrogenMinimumDelaySeconds) || settings.PostNitrogenMinimumDelaySeconds < 0 ||
+            !double.IsFinite(settings.StabilityDerivativeSpanSeconds) || settings.StabilityDerivativeSpanSeconds <= 0 ||
+            !double.IsFinite(settings.StabilityDerivativeThresholdPercentPerSecond) || settings.StabilityDerivativeThresholdPercentPerSecond <= 0 ||
+            settings.StabilityRequiredSamples is < 1 or > 100 ||
+            !double.IsFinite(settings.MaxPostNitrogenStabilizationSeconds) || settings.MaxPostNitrogenStabilizationSeconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilização pós-N₂ são inválidos.");
+        }
+
+        if (settings.MaxPostNitrogenStabilizationSeconds <= settings.PostNitrogenMinimumDelaySeconds)
+        {
+            throw new ArgumentOutOfRangeException(nameof(settings), "O tempo máximo pós-N₂ deve ser maior que o atraso mínimo.");
+        }
     }
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
@@ -754,6 +882,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
         else if (_phase == RunPhase.Reoxygenating && PhaseElapsedSeconds > _currentTest.Settings.MaxReoxygenationTimeMinutes * 60)
         {
             _ = StopRunAndReviewAsync("Tempo máximo de reoxigenação excedido");
+        }
+        else if (_phase == RunPhase.WaitingForDOStability &&
+                 PhaseElapsedSeconds > _currentTest.Settings.MaxPostNitrogenStabilizationSeconds)
+        {
+            _ = StopRunAndReviewAsync("DO não estabilizou dentro do tempo máximo pós-N₂");
         }
     }
 

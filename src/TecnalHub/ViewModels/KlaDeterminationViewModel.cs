@@ -99,13 +99,32 @@ public sealed partial class KlaMatrixRowViewModel : ObservableObject
         }
     }
 
-    public string DisplayStatus => Status switch
+    private RunPhase? _loadedRunPhase;
+    public RunPhase? LoadedRunPhase
     {
-        ConditionStatus.Pending => "Pendente",
-        ConditionStatus.InProgress => "Em Execução",
-        ConditionStatus.Completed => "Concluído",
-        ConditionStatus.Skipped => "Ignorado",
-        _ => Status.ToString()
+        get => _loadedRunPhase;
+        set
+        {
+            if (SetProperty(ref _loadedRunPhase, value))
+            {
+                OnPropertyChanged(nameof(DisplayStatus));
+            }
+        }
+    }
+
+    public string DisplayStatus => LoadedRunPhase switch
+    {
+        RunPhase.Accepted => "Concluído",
+        RunPhase.Rejected => "Rejeitado",
+        RunPhase.Reviewing => "Para revisar",
+        _ => Status switch
+        {
+            ConditionStatus.Pending => "Pendente",
+            ConditionStatus.InProgress => "Em Execução",
+            ConditionStatus.Completed => "Concluído",
+            ConditionStatus.Skipped => "Ignorado",
+            _ => Status.ToString()
+        }
     };
 
     private double? _klaPerHour;
@@ -156,6 +175,7 @@ public sealed partial class KlaMatrixRowViewModel : ObservableObject
         OnPropertyChanged(nameof(AnalysisR2));
         OnPropertyChanged(nameof(DisplayKla));
         OnPropertyChanged(nameof(DisplayR2));
+        OnPropertyChanged(nameof(LoadedRunPhase));
         OnPropertyChanged(nameof(HasRunData));
     }
 }
@@ -170,6 +190,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private readonly IFileInteractionService _files;
 
     private bool _disposed;
+    private bool _isLoadingSettings;
 
     public KlaDeterminationViewModel(
         IKlaTestRunner runner,
@@ -190,6 +211,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         SimulationDescription = playbackOptions is null
             ? ""
             : $"SIMULAÇÃO · {playbackOptions.DisplayName} · {playbackOptions.Speed:G}× · nenhum comando é enviado ao hardware";
+        if (playbackOptions is not null)
+        {
+            // O arquivo experimental padrão inicia em ~9% e atinge ~4,54%.
+            // Estes limiares permitem percorrer N₂, espera estável e reoxigenação.
+            SettingDOMin = 5.0;
+            SettingDOMax = 95.0;
+        }
 
         _runner.StateChanged += OnRunnerStateChanged;
         _runner.DataPointAdded += OnDataPointAdded;
@@ -255,6 +283,24 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     [ObservableProperty]
     private double _settingMaxReoxygenationMinutes = 60;
+
+    [ObservableProperty]
+    private double _settingPostNitrogenMinimumDelaySeconds = 5;
+
+    [ObservableProperty]
+    private double _settingStabilityDerivativeSpanSeconds = 6;
+
+    [ObservableProperty]
+    private double _settingStabilityDerivativeThreshold = 0.05;
+
+    [ObservableProperty]
+    private int _settingStabilityRequiredSamples = 5;
+
+    [ObservableProperty]
+    private double _settingMaxPostNitrogenStabilizationSeconds = 120;
+
+    [ObservableProperty]
+    private double _settingDefaultCeq = 100;
 
     [ObservableProperty]
     private bool _autoAcceptRuns;
@@ -520,6 +566,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public bool IsRunning => _runner.IsRunning;
     public bool IsIdle => !IsRunning && !IsReviewOpen;
     public bool CanStartSequence => HasActiveTest && IsIdle;
+    public bool CanChangeNitrogenValve => !IsRunning;
+    public string DisplayDODerivative => _runner.CurrentDODerivative.HasValue
+        ? $"{_runner.CurrentDODerivative.Value:+0.000;-0.000;0.000} %/s"
+        : "—";
+    public string DisplayStabilityProgress => CurrentTest is null
+        ? "—"
+        : $"{_runner.StabilityConfirmationCount}/{CurrentTest.Settings.StabilityRequiredSamples}";
     public string DisplayPhase => Phase switch
     {
         RunPhase.Idle => "Inativo",
@@ -528,6 +581,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         RunPhase.OpeningNitrogen => "Abrindo N₂",
         RunPhase.Deoxygenating => "Desoxigenando (N₂)",
         RunPhase.ClosingNitrogen => "Fechando N₂",
+        RunPhase.WaitingForDOStability => "Estabilizando após N₂",
         RunPhase.OpeningAir => "Abrindo Ar",
         RunPhase.Reoxygenating => "Reoxigenando (Ar)",
         RunPhase.StoppingRun => "Fechando válvulas da corrida",
@@ -561,6 +615,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void OpenLoadTestDialog()
     {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de carregar outro ensaio.", "OK", "");
+            return;
+        }
         RefreshTestsList();
         IsLoadTestDialogOpen = true;
     }
@@ -583,8 +642,42 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     }
 
     [RelayCommand]
+    public void ImportTestFolder()
+    {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de importar outro ensaio.", "OK", "");
+            return;
+        }
+
+        var selectedFolder = _files.ChooseFolder("Selecione a pasta completa do ensaio de kLa", _store.RootDirectory);
+        if (string.IsNullOrWhiteSpace(selectedFolder))
+        {
+            return;
+        }
+
+        try
+        {
+            var importedFolder = _store.ImportTestFolder(selectedFolder);
+            RefreshTestsList();
+            LoadTest(importedFolder);
+            IsLoadTestDialogOpen = false;
+            StatusMessage = $"Ensaio completo importado para Testes-kLa/{importedFolder}. Selecione uma linha com curva para revisar.";
+        }
+        catch (Exception ex)
+        {
+            _dialogs.Confirm("Falha ao importar ensaio", ex.Message, "OK", "");
+        }
+    }
+
+    [RelayCommand]
     public void CreateNewTest()
     {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de criar outro ensaio.", "OK", "");
+            return;
+        }
         if (!_store.ValidateTestName(NewTestName, out var error))
         {
             _dialogs.Confirm("Nome Inválido", error ?? "Nome de teste inválido.", "OK", "");
@@ -597,18 +690,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
-        var settings = new KlaTestSettings
+        if (!TryBuildSettings(out var settings, out var settingsError))
         {
-            DOMinPercent = SettingDOMin,
-            DOMaxPercent = SettingDOMax,
-            DegassingAgitationRpm = SettingDegassingAgitation,
-            SmoothingWindowSize = SettingSmoothingWindow,
-            MaxDegassingTimeMinutes = SettingMaxDegassingMinutes,
-            MaxReoxygenationTimeMinutes = SettingMaxReoxygenationMinutes,
-            AutoAcceptRuns = AutoAcceptRuns,
-            AutoLinearStartPercent = SettingAutoLinearStartPercent,
-            AutoLinearEndPercent = SettingAutoLinearEndPercent,
-        };
+            _dialogs.Confirm("Parâmetros inválidos", settingsError, "OK", "");
+            return;
+        }
 
         KlaMapReference? mapRef = null;
         IReadOnlyList<KlaTestCondition>? initialConditions = null;
@@ -637,6 +723,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     public void LoadTest(string folderName)
     {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de carregar outro ensaio.", "OK", "");
+            return;
+        }
         var doc = _store.LoadTest(folderName);
         if (doc is null)
         {
@@ -645,16 +736,38 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         CurrentTest = doc;
-        SettingDOMin = doc.Settings.DOMinPercent;
-        SettingDOMax = doc.Settings.DOMaxPercent;
-        SettingDegassingAgitation = doc.Settings.DegassingAgitationRpm;
-        SettingSmoothingWindow = doc.Settings.SmoothingWindowSize;
-        SettingMaxDegassingMinutes = doc.Settings.MaxDegassingTimeMinutes;
-        SettingMaxReoxygenationMinutes = doc.Settings.MaxReoxygenationTimeMinutes;
-        AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
-        SettingAutoLinearStartPercent = doc.Settings.AutoLinearStartPercent;
-        SettingAutoLinearEndPercent = doc.Settings.AutoLinearEndPercent;
-        SelectedN2Valve = doc.SelectedNitrogenValve;
+        SelectedMatrixRow = null;
+        _currentlyEditingRun = null;
+        _currentlyEditingRow = null;
+        CurrentAnalysis = null;
+        IsReviewOpen = false;
+        LivePoints.Clear();
+        InstantaneousKlaSeries.Clear();
+        LogLinearSeries.Clear();
+        _isLoadingSettings = true;
+        try
+        {
+            SettingDOMin = doc.Settings.DOMinPercent;
+            SettingDOMax = doc.Settings.DOMaxPercent;
+            SettingDegassingAgitation = doc.Settings.DegassingAgitationRpm;
+            SettingSmoothingWindow = doc.Settings.SmoothingWindowSize;
+            SettingMaxDegassingMinutes = doc.Settings.MaxDegassingTimeMinutes;
+            SettingMaxReoxygenationMinutes = doc.Settings.MaxReoxygenationTimeMinutes;
+            SettingPostNitrogenMinimumDelaySeconds = doc.Settings.PostNitrogenMinimumDelaySeconds;
+            SettingStabilityDerivativeSpanSeconds = doc.Settings.StabilityDerivativeSpanSeconds;
+            SettingStabilityDerivativeThreshold = doc.Settings.StabilityDerivativeThresholdPercentPerSecond;
+            SettingStabilityRequiredSamples = doc.Settings.StabilityRequiredSamples;
+            SettingMaxPostNitrogenStabilizationSeconds = doc.Settings.MaxPostNitrogenStabilizationSeconds;
+            SettingDefaultCeq = doc.Settings.DefaultCeqPercent;
+            AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
+            SettingAutoLinearStartPercent = doc.Settings.AutoLinearStartPercent;
+            SettingAutoLinearEndPercent = doc.Settings.AutoLinearEndPercent;
+            SelectedN2Valve = doc.SelectedNitrogenValve;
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
 
         Conditions.Clear();
         foreach (var c in doc.Conditions)
@@ -664,7 +777,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         RefreshConditionsList();
 
-        _runner.StartTestAsync(doc);
+        _runner.PrepareTest(doc);
         UpdateUiState();
 
         // If doc has runs, load the first completed run into charts for immediate viewing
@@ -698,8 +811,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         _currentlyEditingRow = row;
 
         // 1. Locate matching run in doc
-        var run = CurrentTest.Runs.FirstOrDefault(r => r.ConditionId == row.ConditionId && r.ReplicateNumber == row.ReplicateIndex)
-               ?? CurrentTest.Runs.FirstOrDefault(r => r.ConditionId == row.ConditionId);
+        var run = FindBestRun(CurrentTest.Runs, row.ConditionId, row.ReplicateIndex)
+               ?? FindBestRun(CurrentTest.Runs, row.ConditionId, null);
 
         if (run is null && !string.IsNullOrEmpty(row.RunFolderName))
         {
@@ -1068,22 +1181,17 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
-        var newSettings = CurrentTest.Settings with
+        if (!TryBuildSettings(out var newSettings, out var error))
         {
-            DOMinPercent = SettingDOMin,
-            DOMaxPercent = SettingDOMax,
-            DegassingAgitationRpm = SettingDegassingAgitation,
-            SmoothingWindowSize = SettingSmoothingWindow,
-            MaxDegassingTimeMinutes = SettingMaxDegassingMinutes,
-            MaxReoxygenationTimeMinutes = SettingMaxReoxygenationMinutes,
-            AutoAcceptRuns = AutoAcceptRuns,
-            AutoLinearStartPercent = SettingAutoLinearStartPercent,
-            AutoLinearEndPercent = SettingAutoLinearEndPercent,
-        };
+            StatusMessage = error;
+            return;
+        }
 
         CurrentTest.Settings = newSettings;
+        CurrentTest.SelectedNitrogenValve = SelectedN2Valve;
         _runner.UpdateLiveSettings(newSettings);
         _store.SaveTestManifest(CurrentTest);
+        OnPropertyChanged(nameof(DisplayStabilityProgress));
     }
 
     partial void OnSettingDOMinChanged(double value) => AutoApplyLiveSettings();
@@ -1092,17 +1200,23 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     partial void OnSettingSmoothingWindowChanged(int value) => AutoApplyLiveSettings();
     partial void OnSettingMaxDegassingMinutesChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingMaxReoxygenationMinutesChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingPostNitrogenMinimumDelaySecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingStabilityDerivativeSpanSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingStabilityDerivativeThresholdChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingStabilityRequiredSamplesChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxPostNitrogenStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingDefaultCeqChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingAutoLinearStartPercentChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingAutoLinearEndPercentChanged(double value) => AutoApplyLiveSettings();
 
     private void AutoApplyLiveSettings()
     {
-        if (CurrentTest is null)
+        if (CurrentTest is null || _isLoadingSettings)
         {
             return;
         }
 
-        if (SettingDOMin >= SettingDOMax || SettingDOMin < 0 || SettingDOMax > 110)
+        if (!TryBuildSettings(out _, out _))
         {
             return;
         }
@@ -1112,12 +1226,79 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     partial void OnAutoAcceptRunsChanged(bool value)
     {
-        if (CurrentTest is not null)
+        if (CurrentTest is not null && !_isLoadingSettings)
         {
             CurrentTest.Settings = CurrentTest.Settings with { AutoAcceptRuns = value };
             _runner.UpdateLiveSettings(CurrentTest.Settings);
             _store.SaveTestManifest(CurrentTest);
         }
+    }
+
+    partial void OnSelectedN2ValveChanged(NitrogenValve value)
+    {
+        if (CurrentTest is not null && !IsRunning && !_isLoadingSettings)
+        {
+            CurrentTest.SelectedNitrogenValve = value;
+            _store.SaveTestManifest(CurrentTest);
+        }
+    }
+
+    private bool TryBuildSettings(out KlaTestSettings settings, out string error)
+    {
+        settings = CurrentTest?.Settings ?? new KlaTestSettings();
+        error = "";
+        if (!double.IsFinite(SettingDOMin) || !double.IsFinite(SettingDOMax) ||
+            SettingDOMin < 0 || SettingDOMax > 110 || SettingDOMin >= SettingDOMax)
+        {
+            error = "DO de desligamento do N₂ deve ser menor que DO final, dentro de 0–110%.";
+            return false;
+        }
+        if (!double.IsFinite(SettingDegassingAgitation) || SettingDegassingAgitation <= 0 ||
+            SettingSmoothingWindow is < 1 or > 101 || SettingSmoothingWindow % 2 == 0 ||
+            !double.IsFinite(SettingMaxDegassingMinutes) || SettingMaxDegassingMinutes <= 0 ||
+            !double.IsFinite(SettingMaxReoxygenationMinutes) || SettingMaxReoxygenationMinutes <= 0)
+        {
+            error = "Rotação, tempos máximos e janela ímpar de suavização (1–101) devem ser válidos.";
+            return false;
+        }
+        if (!double.IsFinite(SettingPostNitrogenMinimumDelaySeconds) || SettingPostNitrogenMinimumDelaySeconds < 0 ||
+            !double.IsFinite(SettingStabilityDerivativeSpanSeconds) || SettingStabilityDerivativeSpanSeconds <= 0 ||
+            !double.IsFinite(SettingStabilityDerivativeThreshold) || SettingStabilityDerivativeThreshold <= 0 ||
+            SettingStabilityRequiredSamples is < 1 or > 100 ||
+            !double.IsFinite(SettingMaxPostNitrogenStabilizationSeconds) ||
+            SettingMaxPostNitrogenStabilizationSeconds <= SettingPostNitrogenMinimumDelaySeconds)
+        {
+            error = "Revise atraso, janela, limiar, confirmações e tempo máximo da estabilização pós-N₂.";
+            return false;
+        }
+        if (!double.IsFinite(SettingDefaultCeq) || SettingDefaultCeq <= SettingDOMax || SettingDefaultCeq > 200 ||
+            !double.IsFinite(SettingAutoLinearStartPercent) || !double.IsFinite(SettingAutoLinearEndPercent) ||
+            SettingAutoLinearStartPercent < 0 || SettingAutoLinearEndPercent > 100 ||
+            SettingAutoLinearStartPercent >= SettingAutoLinearEndPercent)
+        {
+            error = "Ceq deve superar o DO final e a faixa automática deve ser crescente dentro de 0–100%.";
+            return false;
+        }
+
+        settings = settings with
+        {
+            DOMinPercent = SettingDOMin,
+            DOMaxPercent = SettingDOMax,
+            DegassingAgitationRpm = SettingDegassingAgitation,
+            SmoothingWindowSize = SettingSmoothingWindow,
+            MaxDegassingTimeMinutes = SettingMaxDegassingMinutes,
+            MaxReoxygenationTimeMinutes = SettingMaxReoxygenationMinutes,
+            PostNitrogenMinimumDelaySeconds = SettingPostNitrogenMinimumDelaySeconds,
+            StabilityDerivativeSpanSeconds = SettingStabilityDerivativeSpanSeconds,
+            StabilityDerivativeThresholdPercentPerSecond = SettingStabilityDerivativeThreshold,
+            StabilityRequiredSamples = SettingStabilityRequiredSamples,
+            MaxPostNitrogenStabilizationSeconds = SettingMaxPostNitrogenStabilizationSeconds,
+            DefaultCeqPercent = SettingDefaultCeq,
+            AutoAcceptRuns = AutoAcceptRuns,
+            AutoLinearStartPercent = SettingAutoLinearStartPercent,
+            AutoLinearEndPercent = SettingAutoLinearEndPercent,
+        };
+        return true;
     }
 
     [RelayCommand]
@@ -1135,6 +1316,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void SaveAdvancedSettings()
     {
+        if (!TryBuildSettings(out _, out var error))
+        {
+            StatusMessage = error;
+            return;
+        }
         ApplyLiveSettings();
         IsAdvancedSettingsDialogOpen = false;
     }
@@ -1312,6 +1498,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                 _currentlyEditingRow.KlaPerHour = CurrentAnalysis.KlaPerHour;
                 _currentlyEditingRow.AnalysisR2 = CurrentAnalysis.AnalysisR2;
                 _currentlyEditingRow.Status = ConditionStatus.Completed;
+                _currentlyEditingRow.LoadedRunPhase = RunPhase.Accepted;
                 _currentlyEditingRow.NotifyChanged();
             }
 
@@ -1397,6 +1584,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         TotalElapsedSeconds = _runner.TotalElapsedSeconds;
         CurrentRun = _runner.CurrentRun;
         CurrentCondition = _runner.CurrentCondition;
+        OnPropertyChanged(nameof(DisplayDODerivative));
+        OnPropertyChanged(nameof(DisplayStabilityProgress));
 
         if (_runner.IsInReview && !IsReviewOpen)
         {
@@ -1420,7 +1609,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             if (recovery.Count >= 5)
             {
                 var times = recovery.Select(p => p.RelativeSeconds).ToList();
-                var values = recovery.Select(p => p.DORaw).ToList();
+                var values = recovery.Select(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw).ToList();
                 var ceq = CurrentTest?.Settings.DefaultCeqPercent ?? 100;
                 InstantaneousKlaSeries.Clear();
                 foreach (var item in _analysisEngine.CalculateInstantaneousKlaSeries(times, values, ceq, SettingSmoothingWindow))
@@ -1566,14 +1755,15 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                 };
 
                 // Find matching run in CurrentTest.Runs
-                var run = CurrentTest.Runs.FirstOrDefault(r => r.ConditionId == cond.ConditionId && r.ReplicateNumber == rep)
-                       ?? (requestedReps == 1 ? CurrentTest.Runs.FirstOrDefault(r => r.ConditionId == cond.ConditionId) : null);
+                var run = FindBestRun(CurrentTest.Runs, cond.ConditionId, rep)
+                       ?? (requestedReps == 1 ? FindBestRun(CurrentTest.Runs, cond.ConditionId, null) : null);
 
                 if (run is not null)
                 {
                     row.RunFolderName = run.FolderName;
+                    row.LoadedRunPhase = run.Phase;
                     var analysis = _store.LoadRunAnalysis(CurrentTest.FolderName, run.FolderName);
-                    if (analysis is not null)
+                    if (analysis is not null && analysis.Quality != DecisionQuality.Inconclusive)
                     {
                         row.KlaPerHour = analysis.KlaPerHour;
                         row.AnalysisR2 = analysis.AnalysisR2;
@@ -1608,12 +1798,25 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
     }
 
+    private static KlaTestRunSummary? FindBestRun(
+        IEnumerable<KlaTestRunSummary> runs,
+        Guid conditionId,
+        int? replicateNumber)
+    {
+        return runs
+            .Where(r => r.ConditionId == conditionId && (!replicateNumber.HasValue || r.ReplicateNumber == replicateNumber.Value))
+            .OrderByDescending(r => r.Phase == RunPhase.Accepted && r.KlaPerHour.HasValue)
+            .ThenByDescending(r => r.CompletedUtc ?? r.StartedUtc)
+            .FirstOrDefault();
+    }
+
     private void UpdateUiState()
     {
         OnPropertyChanged(nameof(HasActiveTest));
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(CanStartSequence));
+        OnPropertyChanged(nameof(CanChangeNitrogenValve));
         OnPropertyChanged(nameof(DisplayPhase));
         OnPropertyChanged(nameof(FormattedTotalTime));
         OnPropertyChanged(nameof(FormattedPhaseTime));

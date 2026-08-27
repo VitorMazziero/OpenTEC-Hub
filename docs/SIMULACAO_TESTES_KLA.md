@@ -58,10 +58,12 @@ A velocidade aceita valores de `0.1×` a `100×`.
 2. O título, a conexão e o cabeçalho exibem claramente **SIMULAÇÃO kLa**.
 3. A primeira leitura aparece, mas o arquivo permanece pausado enquanto o teste é configurado.
 4. Ao iniciar uma condição, o fechamento geral recebe ACK simulado.
-5. Como a primeira OD é 9,122% e o padrão de `DO mínima` é 5%, o app abre N₂ e reproduz o trecho
+5. No modo de simulação, o padrão de corte é 5% (a primeira OD é 9,122%), então o app abre N₂ e reproduz o trecho
    descendente.
-6. Ao atingir 5%, o app fecha N₂, confirma o intertravamento e abre ar.
-7. O trecho ascendente alimenta OD, log-linear e kLa instantâneo.
+6. Ao atingir 5%, o app fecha N₂ e continua até o mínimo local para representar gás residual e lag
+   da sonda; depois mantém o ponto enquanto o runner confirma `|dDO/dt|` estável.
+7. Somente após atraso e estabilidade o app abre ar; o trecho ascendente alimenta OD, log-linear e
+   kLa instantâneo.
 8. Ao atingir `DO máxima`, o app fecha o gás, confirma o ACK e abre a revisão científica.
 9. Os arquivos gerados continuam sendo gravados normalmente em `Testes-kLa/<nome-do-teste>`.
 
@@ -84,6 +86,8 @@ ignoradas. O arquivo precisa conter pelo menos cinco amostras válidas.
 - Não comprova temporização, falha elétrica ou fechamento físico das válvulas.
 - Não valida comunicação entre ESP32-S3 v7 e fluxômetro v05.
 - Vazão e ACKs são emulados de forma determinística.
+- A inércia pós-N₂ usa o trecho até o próximo mínimo local do arquivo; não é um modelo físico da
+  transferência residual nem da dinâmica específica de outra sonda.
 - A rotação do arquivo é metadado experimental; a rotação comandada pelo teste continua sendo
   registrada pelo runner porque o protocolo real não oferece eco confiável desse setpoint.
 - O resultado de kLa é apropriado para testar o fluxo analítico e a interface, não para substituir a

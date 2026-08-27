@@ -353,7 +353,7 @@
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="KlaBtnCol" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="DO Mín (%):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
+                                <TextBlock Grid.Column="0" Text="Desligar N₂ (%):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
                                 <TextBox Grid.Column="1" Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" Margin="0,0,8,0" />
 
                                 <TextBlock Grid.Column="2" Text="DO Máx (%):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
@@ -544,9 +544,9 @@
                     <TextBox Text="{Binding NewTestName, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10" />
 
                     <TextBlock Text="Válvula Conectada ao N₂" Style="{StaticResource KlaHeaderLabel}" />
-                    <ComboBox SelectedItem="{Binding SelectedN2Valve}" Margin="0,2,0,10">
-                        <kla:NitrogenValve>Valve1</kla:NitrogenValve>
-                        <kla:NitrogenValve>Valve2</kla:NitrogenValve>
+                    <ComboBox SelectedValue="{Binding SelectedN2Valve}" SelectedValuePath="Tag" Margin="0,2,0,10">
+                        <ComboBoxItem Content="valve_1" Tag="{x:Static kla:NitrogenValve.Valve1}" />
+                        <ComboBoxItem Content="valve_2" Tag="{x:Static kla:NitrogenValve.Valve2}" />
                     </ComboBox>
 
                     <TextBlock Text="Importar Condições de Mapa Existente (Opcional)" Style="{StaticResource KlaHeaderLabel}" />
@@ -559,7 +559,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                            <TextBlock Text="DO Mín (%)" Style="{StaticResource KlaHeaderLabel}" />
+                            <TextBlock Text="Desligar N₂ em DO (%)" Style="{StaticResource KlaHeaderLabel}" />
                             <TextBox Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0">
@@ -586,44 +586,91 @@
             <Border Background="{DynamicResource SurfaceBaseBrush}" Opacity="0.75" />
 
             <!-- Solid Modal Dialog Card -->
-            <Border Style="{StaticResource KlaCard}" Background="{DynamicResource SurfaceElevatedBrush}" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
-                <StackPanel>
-                    <DockPanel Margin="0,0,0,12">
+            <Border Style="{StaticResource KlaCard}" Background="{DynamicResource SurfaceElevatedBrush}" Width="680" MaxHeight="760" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
+                <DockPanel LastChildFill="True">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <ctl:Icon Key="Gear" Size="18" Stroke="{DynamicResource AccentBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
                             <TextBlock Text="Parâmetros Avançados do Teste" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" />
                         </StackPanel>
                     </DockPanel>
 
-                    <TextBlock Text="Suavização do Sinal (Janela Móvel em Pontos)" Style="{StaticResource KlaHeaderLabel}" Margin="0,0,0,2" />
-                    <TextBox Text="{Binding SettingSmoothingWindow, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" Margin="0,0,0,12" />
-
-                    <TextBlock Text="Tempo Máximo de Desoxigenação N₂ (minutos)" Style="{StaticResource KlaHeaderLabel}" Margin="0,0,0,2" />
-                    <TextBox Text="{Binding SettingMaxDegassingMinutes, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" Margin="0,0,0,12" />
-
-                    <TextBlock Text="Tempo Máximo de Reoxigenação Ar (minutos)" Style="{StaticResource KlaHeaderLabel}" Margin="0,0,0,2" />
-                    <TextBox Text="{Binding SettingMaxReoxygenationMinutes, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" Margin="0,0,0,12" />
-
-                    <Grid Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                            <TextBlock Text="Faixa Linear Inicial (%)" Style="{StaticResource KlaHeaderLabel}" Margin="0,0,0,2" />
-                            <TextBox Text="{Binding SettingAutoLinearStartPercent, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                            <TextBlock Text="Faixa Linear Final (%)" Style="{StaticResource KlaHeaderLabel}" Margin="0,0,0,2" />
-                            <TextBox Text="{Binding SettingAutoLinearEndPercent, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" />
-                        </StackPanel>
-                    </Grid>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancelar" Margin="0,0,8,0" Height="32" Padding="14,4" Command="{Binding CloseAdvancedSettingsDialogCommand}" />
-                        <Button Content="Salvar e Aplicar" Style="{StaticResource AccentButtonStyle}" Height="32" Padding="14,4" Command="{Binding SaveAdvancedSettingsCommand}" />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                        <TextBlock Text="Alterações válidas são aplicadas ao vivo." Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Button Content="Concluir" Style="{StaticResource AccentButtonStyle}" Height="32" Padding="16,4" Command="{Binding SaveAdvancedSettingsCommand}" />
                     </StackPanel>
-                </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Operação e gases" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                    <TextBlock Text="Desligar N₂ em DO (%)" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBox Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0">
+                                    <TextBlock Text="Encerrar em DO (%)" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBox Text="{Binding SettingDOMax, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                                    <TextBlock Text="Rotação com N₂ (rpm)" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBox Text="{Binding SettingDegassingAgitation, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                    <TextBlock Text="Válvula do N₂" Style="{StaticResource KlaHeaderLabel}" />
+                                    <ComboBox SelectedValue="{Binding SelectedN2Valve}" SelectedValuePath="Tag" IsEnabled="{Binding CanChangeNitrogenValve}">
+                                        <ComboBoxItem Content="valve_1" Tag="{x:Static kla:NitrogenValve.Valve1}" />
+                                        <ComboBoxItem Content="valve_2" Tag="{x:Static kla:NitrogenValve.Valve2}" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0">
+                                    <TextBlock Text="Máx. desoxigenação (min)" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBox Text="{Binding SettingMaxDegassingMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                                    <TextBlock Text="Máx. reoxigenação (min)" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBox Text="{Binding SettingMaxReoxygenationMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Espera após desligar N₂" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Atraso mínimo (s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingPostNitrogenMinimumDelaySeconds, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Janela da derivada (s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingStabilityDerivativeSpanSeconds, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0"><TextBlock Text="|dDO/dt| estável (%/s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingStabilityDerivativeThreshold, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Confirmações consecutivas" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingStabilityRequiredSamples, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Espera máxima pós-N₂ (s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingMaxPostNitrogenStabilizationSeconds, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                                    <TextBlock Text="Leitura atual" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBlock Text="{Binding DisplayDODerivative}" FontFamily="{DynamicResource FontMono}" FontWeight="SemiBold" Margin="2,7,0,0" />
+                                    <TextBlock Text="{Binding DisplayStabilityProgress, StringFormat='Confirmações: {0}'}" Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Análise automática e revisão" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Suavização (pontos ímpares)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingSmoothingWindow, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Ceq inicial (%)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingDefaultCeq, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Bottom"><CheckBox Content="Aceite automático" IsChecked="{Binding AutoAcceptRuns}" Margin="0,0,0,7" /></StackPanel>
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Faixa linear inicial (%)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingAutoLinearStartPercent, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0,0,0"><TextBlock Text="Faixa linear final (%)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingAutoLinearEndPercent, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
         </Grid>
 
@@ -667,6 +714,7 @@
                     </ListBox>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Importar pasta..." Margin="0,0,8,0" Height="32" Padding="14,4" Command="{Binding ImportTestFolderCommand}" />
                         <Button Content="Cancelar" Margin="0,0,8,0" Height="32" Padding="14,4" Command="{Binding CloseLoadTestDialogCommand}" />
                         <Button Content="Carregar Ensaio" Style="{StaticResource AccentButtonStyle}" Height="32" Padding="14,4" Command="{Binding ConfirmLoadTestCommand}" />
                     </StackPanel>

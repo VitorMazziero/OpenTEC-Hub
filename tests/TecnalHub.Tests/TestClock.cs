@@ -12,9 +12,16 @@ namespace TecnalHub.Tests;
 internal sealed class TestClock(DateTimeOffset now) : TimeProvider
 {
     private DateTimeOffset _now = now;
+    private long _timestamp = 1;
 
     public override DateTimeOffset GetUtcNow() => _now;
+    public override long GetTimestamp() => _timestamp;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
     /// <summary>Moves the clock forward.</summary>
-    public void Advance(TimeSpan delta) => _now += delta;
+    public void Advance(TimeSpan delta)
+    {
+        _now += delta;
+        _timestamp += delta.Ticks;
+    }
 }

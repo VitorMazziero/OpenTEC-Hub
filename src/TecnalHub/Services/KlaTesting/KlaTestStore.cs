@@ -119,6 +119,8 @@ public sealed class KlaTestStore : IKlaTestStore
                 return null;
             }
 
+            doc.FolderName = folderName;
+
             if (doc.Status == KlaTestStatus.Running)
             {
                 doc.Status = KlaTestStatus.Interrupted;
@@ -160,7 +162,212 @@ public sealed class KlaTestStore : IKlaTestStore
                 }
             }
 
+            ReconcileRunsFromDisk(folderPath, doc);
+
             return doc;
+        }
+    }
+
+    public string ImportTestFolder(string sourceFolder)
+    {
+        if (string.IsNullOrWhiteSpace(sourceFolder))
+        {
+            throw new ArgumentException("Selecione uma pasta de ensaio válida.", nameof(sourceFolder));
+        }
+
+        var sourcePath = Path.GetFullPath(sourceFolder.Trim());
+        var manifestPath = Path.Combine(sourcePath, KlaTestFileContracts.TestManifestFileName);
+        if (!Directory.Exists(sourcePath) || !File.Exists(manifestPath))
+        {
+            throw new InvalidDataException($"A pasta selecionada não contém '{KlaTestFileContracts.TestManifestFileName}'.");
+        }
+
+        var sourceDoc = KlaTestFileContracts.DeserializeTestDocument(File.ReadAllText(manifestPath))
+            ?? throw new InvalidDataException("O manifesto do ensaio não pôde ser lido.");
+
+        lock (_ioLock)
+        {
+            foreach (var existing in ListTests())
+            {
+                if (sourceDoc.TestId != Guid.Empty && existing.TestId == sourceDoc.TestId)
+                {
+                    return existing.FolderName;
+                }
+            }
+
+            var rootPath = Path.GetFullPath(_rootDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (sourcePath.TrimEnd(Path.DirectorySeparatorChar).Equals(rootPath.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Selecione a pasta de um ensaio, não a pasta raiz Testes-kLa.");
+            }
+
+            var preferredName = ValidateTestName(sourceDoc.Name, out _) ? sourceDoc.Name.Trim() : Path.GetFileName(sourcePath);
+            if (!ValidateTestName(preferredName, out var nameError))
+            {
+                throw new InvalidDataException(nameError ?? "O nome do ensaio importado é inválido.");
+            }
+
+            var targetName = preferredName;
+            var suffix = 2;
+            while (Directory.Exists(Path.Combine(_rootDirectory, targetName)))
+            {
+                targetName = $"{preferredName}_Importado_{suffix++:D2}";
+            }
+
+            var temporaryPath = Path.Combine(_rootDirectory, $".importacao-{Guid.NewGuid():N}");
+            var targetPath = Path.Combine(_rootDirectory, targetName);
+            try
+            {
+                CopyDirectoryWithoutLinks(sourcePath, temporaryPath);
+                sourceDoc.FolderName = targetName;
+                if (sourceDoc.Status == KlaTestStatus.Running)
+                {
+                    sourceDoc.Status = KlaTestStatus.Interrupted;
+                    sourceDoc.InterruptionReason = "Ensaio importado de uma execução que não registrou encerramento.";
+                }
+                sourceDoc.LastModifiedUtc = DateTimeOffset.UtcNow;
+                WriteAllTextAtomic(
+                    Path.Combine(temporaryPath, KlaTestFileContracts.TestManifestFileName),
+                    KlaTestFileContracts.SerializeTestDocument(sourceDoc));
+                Directory.Move(temporaryPath, targetPath);
+                return targetName;
+            }
+            catch
+            {
+                if (Directory.Exists(temporaryPath))
+                {
+                    Directory.Delete(temporaryPath, recursive: true);
+                }
+                throw;
+            }
+        }
+    }
+
+    private static void CopyDirectoryWithoutLinks(string sourcePath, string targetPath)
+    {
+        Directory.CreateDirectory(targetPath);
+        foreach (var directory in Directory.EnumerateDirectories(sourcePath, "*", SearchOption.AllDirectories))
+        {
+            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException($"A importação não aceita atalhos ou links de diretório: {directory}");
+            }
+            Directory.CreateDirectory(Path.Combine(targetPath, Path.GetRelativePath(sourcePath, directory)));
+        }
+        foreach (var file in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+        {
+            if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException($"A importação não aceita atalhos ou links de arquivo: {file}");
+            }
+            var destination = Path.Combine(targetPath, Path.GetRelativePath(sourcePath, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination, overwrite: false);
+        }
+    }
+
+    private void ReconcileRunsFromDisk(string testFolderPath, KlaTestDocument doc)
+    {
+        var runsPath = Path.Combine(testFolderPath, KlaTestFileContracts.RunsDirectoryName);
+        if (!Directory.Exists(runsPath))
+        {
+            return;
+        }
+
+        var changed = false;
+        foreach (var runPath in Directory.GetDirectories(runsPath))
+        {
+            var runFolder = Path.GetFileName(runPath);
+            if (!KlaTestFileContracts.TryParseRunFolderName(runFolder, out var rpm, out var flow, out var replicate) ||
+                !File.Exists(Path.Combine(runPath, KlaTestFileContracts.RunRawDataFileName)))
+            {
+                continue;
+            }
+
+            var condition = doc.Conditions.FirstOrDefault(c =>
+                Math.Abs(c.AgitationRpm - rpm) < 0.5 && Math.Abs(c.AirflowLpm - flow) < 0.005);
+            if (condition is null)
+            {
+                condition = new KlaTestCondition
+                {
+                    OrderIndex = doc.Conditions.Count,
+                    AgitationRpm = rpm,
+                    AirflowLpm = flow,
+                    RequestedReplicates = Math.Max(1, replicate),
+                    Origin = ConditionOrigin.Manual,
+                };
+                doc.Conditions.Add(condition);
+                changed = true;
+            }
+            else if (condition.RequestedReplicates < replicate)
+            {
+                condition.RequestedReplicates = replicate;
+                changed = true;
+            }
+
+            var analysis = LoadRunAnalysis(doc.FolderName, runFolder);
+            var raw = LoadRunRawData(doc.FolderName, runFolder);
+            var existingIndex = doc.Runs.FindIndex(r => r.FolderName.Equals(runFolder, StringComparison.OrdinalIgnoreCase));
+            var existing = existingIndex >= 0 ? doc.Runs[existingIndex] : null;
+            var summary = new KlaTestRunSummary
+            {
+                RunId = existing?.RunId ?? Guid.NewGuid(),
+                ConditionId = condition.ConditionId,
+                ReplicateNumber = replicate,
+                FolderName = runFolder,
+                AgitationRpm = rpm,
+                AirflowLpm = flow,
+                Phase = analysis is not null
+                    ? (analysis.Quality == DecisionQuality.Inconclusive ? RunPhase.Rejected : RunPhase.Accepted)
+                    : existing?.Phase ?? RunPhase.Reviewing,
+                Decision = analysis?.Quality ?? existing?.Decision,
+                KlaPerHour = analysis?.KlaPerHour ?? existing?.KlaPerHour,
+                AnalysisR2 = analysis?.AnalysisR2 ?? existing?.AnalysisR2,
+                StartedUtc = raw.FirstOrDefault()?.TimestampUtc ?? existing?.StartedUtc ?? Directory.GetCreationTimeUtc(runPath),
+                CompletedUtc = analysis is not null ? analysis.AnalyzedUtc : existing?.CompletedUtc,
+            };
+
+            if (existingIndex >= 0)
+            {
+                if (existing != summary)
+                {
+                    doc.Runs[existingIndex] = summary;
+                    changed = true;
+                }
+            }
+            else
+            {
+                doc.Runs.Add(summary);
+                changed = true;
+            }
+        }
+
+        foreach (var condition in doc.Conditions)
+        {
+            var runs = doc.Runs.Where(r => r.ConditionId == condition.ConditionId).ToList();
+            var completed = runs.Count(r => r.Phase is RunPhase.Accepted or RunPhase.Rejected);
+            var accepted = runs.Count(r => r.Phase == RunPhase.Accepted &&
+                r.Decision is DecisionQuality.Acceptable or DecisionQuality.AcceptableWithWarning);
+            var rejected = runs.Count(r => r.Phase == RunPhase.Rejected || r.Decision == DecisionQuality.Inconclusive);
+            if (condition.CompletedReplicates != completed || condition.AcceptedReplicates != accepted || condition.RejectedReplicates != rejected)
+            {
+                condition.CompletedReplicates = completed;
+                condition.AcceptedReplicates = accepted;
+                condition.RejectedReplicates = rejected;
+                changed = true;
+            }
+            var status = accepted >= condition.RequestedReplicates ? ConditionStatus.Completed : ConditionStatus.Pending;
+            if (condition.Status != status)
+            {
+                condition.Status = status;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            SaveConditionsTable(doc.FolderName, doc.Conditions);
+            SaveTestManifest(doc);
         }
     }
 

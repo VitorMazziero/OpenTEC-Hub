@@ -19,6 +19,7 @@ public enum RunPhase
     OpeningNitrogen,
     Deoxygenating,
     ClosingNitrogen,
+    WaitingForDOStability,
     OpeningAir,
     Reoxygenating,
     StoppingRun,
@@ -74,6 +75,11 @@ public sealed record KlaTestSettings
     public int SmoothingWindowSize { get; init; } = 5;
     public double MaxDegassingTimeMinutes { get; init; } = 30.0;
     public double MaxReoxygenationTimeMinutes { get; init; } = 60.0;
+    public double PostNitrogenMinimumDelaySeconds { get; init; } = 5.0;
+    public double StabilityDerivativeSpanSeconds { get; init; } = 6.0;
+    public double StabilityDerivativeThresholdPercentPerSecond { get; init; } = 0.05;
+    public int StabilityRequiredSamples { get; init; } = 5;
+    public double MaxPostNitrogenStabilizationSeconds { get; init; } = 120.0;
     public double DefaultCeqPercent { get; init; } = 100.0;
     public bool AutoAcceptRuns { get; init; } = false;
     public double AutoLinearStartPercent { get; init; } = 45.0;

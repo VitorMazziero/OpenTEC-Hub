@@ -10,6 +10,8 @@ public interface IKlaTestStore
 
     KlaTestDocument? LoadTest(string folderName);
 
+    string ImportTestFolder(string sourceFolder);
+
     KlaTestDocument CreateTest(
         string name,
         KlaTestSettings settings,

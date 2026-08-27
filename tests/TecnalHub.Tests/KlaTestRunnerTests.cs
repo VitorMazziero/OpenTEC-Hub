@@ -77,7 +77,15 @@ public sealed class KlaTestRunnerTests : IDisposable
             FlowCommandPending = false,
         });
 
-        var doc = _store.CreateTest("Ensaio Runner 1", new KlaTestSettings { DOMinPercent = 10.0, DOMaxPercent = 85.0 }, NitrogenValve.Valve1);
+        var doc = _store.CreateTest("Ensaio Runner 1", new KlaTestSettings
+        {
+            DOMinPercent = 10.0,
+            DOMaxPercent = 85.0,
+            PostNitrogenMinimumDelaySeconds = 2.0,
+            StabilityDerivativeSpanSeconds = 2.0,
+            StabilityDerivativeThresholdPercentPerSecond = 0.05,
+            StabilityRequiredSamples = 3,
+        }, NitrogenValve.Valve1);
         var cond = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3.0, RequestedReplicates = 2 };
         doc.Conditions.Add(cond);
         _store.SaveConditionsTable(doc.FolderName, doc.Conditions);
@@ -169,7 +177,7 @@ public sealed class KlaTestRunnerTests : IDisposable
         });
         Assert.Equal(RunPhase.ClosingNitrogen, _runner.Phase);
 
-        // Confirm ClosingNitrogen (all closed) -> auto opens Air
+        // Confirm ClosingNitrogen (all closed) -> wait with no gas before opening Air
         _device.PushTelemetry(new SensorSnapshot
         {
             OxygenCalibrated = 7.5,
@@ -184,6 +192,22 @@ public sealed class KlaTestRunnerTests : IDisposable
             FlowCommandPending = false,
         });
 
+        Assert.Equal(RunPhase.WaitingForDOStability, _runner.Phase);
+
+        // Residual N2 / probe lag: a continuing fall must not open air.
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        PushClosedGasTelemetry(7.2, 3);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        PushClosedGasTelemetry(6.8, 3);
+        Assert.Equal(RunPhase.WaitingForDOStability, _runner.Phase);
+
+        // Stable derivative over the configured window and consecutive confirmations.
+        foreach (var stableDo in Enumerable.Repeat(6.80, 8))
+        {
+            _clock.Advance(TimeSpan.FromSeconds(1));
+            PushClosedGasTelemetry(stableDo, 3);
+        }
+        Assert.Equal(3, _runner.StabilityConfirmationCount);
         Assert.Equal(RunPhase.OpeningAir, _runner.Phase);
 
         // Confirm Air opened (Flow=3.0, FlowValveMain=0) -> Reoxygenating
@@ -255,6 +279,23 @@ public sealed class KlaTestRunnerTests : IDisposable
         Assert.Equal(1, cond.AcceptedReplicates);
     }
 
+    private void PushClosedGasTelemetry(double dissolvedOxygen, int commandId)
+    {
+        _device.PushTelemetry(new SensorSnapshot
+        {
+            OxygenCalibrated = dissolvedOxygen,
+            OxygenRaw = dissolvedOxygen,
+            FlowValve1 = 0,
+            FlowValve2 = 0,
+            FlowValveMain = 1,
+            FlowSetpoint = 0.0,
+            FlowmeterOnline = true,
+            FlowCommandId = commandId,
+            FlowCommandAck = commandId,
+            FlowCommandPending = false,
+        });
+    }
+
     [Fact]
     public async Task AbortTest_Dispatches_SafeStop_And_Releases_Ownership()
     {
@@ -295,5 +336,21 @@ public sealed class KlaTestRunnerTests : IDisposable
         Assert.Equal(KlaTestStatus.Interrupted, _runner.CurrentTest?.Status);
         Assert.Equal(CommandOwner.Manual, _arbiter.OwnerOf(ActuatorId.Aeration));
         Assert.Equal(CommandOwner.Manual, _arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
+    public void PrepareTest_AllowsHistoricalReview_WithoutChangingCompletedStatus()
+    {
+        var doc = _store.CreateTest("Ensaio histórico", new KlaTestSettings(), NitrogenValve.Valve1);
+        doc.Status = KlaTestStatus.Completed;
+        doc.CompletedUtc = DateTimeOffset.UtcNow;
+        _store.SaveTestManifest(doc);
+
+        _runner.PrepareTest(doc);
+
+        Assert.Same(doc, _runner.CurrentTest);
+        Assert.Equal(RunPhase.Idle, _runner.Phase);
+        Assert.Equal(KlaTestStatus.Completed, doc.Status);
+        Assert.False(_runner.IsRunning);
     }
 }

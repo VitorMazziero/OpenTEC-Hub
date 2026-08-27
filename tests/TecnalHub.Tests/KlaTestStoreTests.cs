@@ -215,4 +215,47 @@ public sealed class KlaTestStoreTests : IDisposable
         Assert.Equal("2.83", row[7]); // sample std dev = sqrt(((50-52)^2 + (54-52)^2)/(2-1)) = sqrt(8) ~ 2.828 ~ 2.83
         Assert.Equal("0.9850", row[8]); // mean R2 = (0.99+0.98)/2 = 0.9850
     }
+
+    [Fact]
+    public void ImportTestFolder_CopiesCompleteRoutine_AndRebuildsMatrixFromRunFolders()
+    {
+        var sourceRoot = Path.Combine(_testRoot, "origem-externa");
+        var sourceStore = new KlaTestStore(sourceRoot);
+        var sourceDoc = sourceStore.CreateTest("Rotina Completa", new KlaTestSettings(), NitrogenValve.Valve2);
+        var condition = new KlaTestCondition { AgitationRpm = 550, AirflowLpm = 4.25, RequestedReplicates = 1 };
+        sourceDoc.Conditions.Add(condition);
+        sourceStore.SaveConditionsTable(sourceDoc.FolderName, sourceDoc.Conditions);
+
+        var run = new KlaTestRun
+        {
+            TestId = sourceDoc.TestId,
+            ConditionId = condition.ConditionId,
+            ReplicateNumber = 1,
+            AgitationRpm = condition.AgitationRpm,
+            AirflowLpm = condition.AirflowLpm,
+        };
+        var runFolder = sourceStore.InitializeRunFolder(sourceDoc.FolderName, run);
+        sourceStore.SaveRunRawData(sourceDoc.FolderName, runFolder,
+        [
+            new(DateTimeOffset.UtcNow, 0, RunPhase.Reoxygenating, 10, 10, 4.25, 4.25, 550, false, false, false),
+            new(DateTimeOffset.UtcNow.AddSeconds(2), 2, RunPhase.Reoxygenating, 20, 20, 4.25, 4.25, 550, false, false, false),
+        ]);
+        sourceStore.SaveRunAnalysis(sourceDoc.FolderName, runFolder, new KlaAnalysisRevision
+        {
+            KlaPerHour = 64.2,
+            AnalysisR2 = 0.997,
+            Quality = DecisionQuality.Acceptable,
+        });
+
+        var importedFolder = _store.ImportTestFolder(Path.Combine(sourceRoot, sourceDoc.FolderName));
+        var imported = _store.LoadTest(importedFolder);
+
+        Assert.NotNull(imported);
+        Assert.Single(imported.Runs);
+        Assert.Equal(runFolder, imported.Runs[0].FolderName);
+        Assert.Equal(64.2, imported.Runs[0].KlaPerHour);
+        Assert.Equal(1, imported.Conditions[0].AcceptedReplicates);
+        Assert.Equal(ConditionStatus.Completed, imported.Conditions[0].Status);
+        Assert.True(File.Exists(_store.GetRunRawDataPath(importedFolder, runFolder)));
+    }
 }

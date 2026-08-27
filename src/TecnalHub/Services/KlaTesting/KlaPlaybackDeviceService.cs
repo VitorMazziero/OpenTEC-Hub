@@ -28,6 +28,7 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
     private readonly List<KlaPlaybackSample> _samples;
     private int _index;
     private bool _playing;
+    private int? _coastStopIndex;
     private double _flowSetpoint;
     private bool _valve1;
     private bool _valve2;
@@ -118,6 +119,7 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
         _commandsSent++;
         CommandSent?.Invoke(command.ToJson());
 
+        var wasNitrogenOpen = _valve1 || _valve2;
         var touchesFlow = command.Contains(CommandKeys.FlowSetpoint) || command.Contains(CommandKeys.Valve1) ||
                           command.Contains(CommandKeys.Valve2) || command.Contains(CommandKeys.V_Flow);
         if (TryDouble(command, CommandKeys.FlowSetpoint, out var flow))
@@ -148,13 +150,22 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
 
             if ((_valve1 || _valve2) && _flowSetpoint <= 0.001)
             {
+                _coastStopIndex = null;
                 SeekNextDescendingSegment();
                 _playing = true;
             }
             else if (_flowSetpoint > 0.001)
             {
+                _coastStopIndex = null;
                 SeekNextAscendingSegment();
                 _playing = true;
+            }
+            else if (wasNitrogenOpen)
+            {
+                // Reproduz a inércia observada depois de fechar o N₂ até o mínimo
+                // local; em seguida mantém esse ponto para a sonda estabilizar.
+                _coastStopIndex = FindNextLocalMinimumIndex();
+                _playing = _coastStopIndex > _index;
             }
             else
             {
@@ -189,6 +200,11 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
             if (_index < _samples.Count - 1)
             {
                 _index++;
+                if (_coastStopIndex.HasValue && _index >= _coastStopIndex.Value)
+                {
+                    _playing = false;
+                    _coastStopIndex = null;
+                }
             }
             else
             {
@@ -279,6 +295,18 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
                 return;
             }
         }
+    }
+
+    private int FindNextLocalMinimumIndex()
+    {
+        for (var i = _index + 1; i < _samples.Count - 2; i++)
+        {
+            if (IsAscendingAt(i))
+            {
+                return i;
+            }
+        }
+        return Math.Min(_samples.Count - 1, _index + 1);
     }
 
     private bool IsDescendingAt(int index)

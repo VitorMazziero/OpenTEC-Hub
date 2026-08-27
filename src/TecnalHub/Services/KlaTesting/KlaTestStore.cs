@@ -146,6 +146,20 @@ public sealed class KlaTestStore : IKlaTestStore
                 }
             }
 
+            // If not actively running, ensure conditions are not stuck in InProgress
+            if (doc.Status != KlaTestStatus.Running)
+            {
+                foreach (var cond in doc.Conditions)
+                {
+                    if (cond.Status == ConditionStatus.InProgress)
+                    {
+                        cond.Status = cond.AcceptedReplicates >= cond.RequestedReplicates
+                            ? ConditionStatus.Completed
+                            : ConditionStatus.Pending;
+                    }
+                }
+            }
+
             return doc;
         }
     }

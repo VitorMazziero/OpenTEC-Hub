@@ -402,6 +402,16 @@ public sealed class KlaTestRunner : IKlaTestRunner
             {
                 _currentTest.Status = KlaTestStatus.Interrupted;
                 _currentTest.InterruptionReason = reason;
+                foreach (var cond in _currentTest.Conditions)
+                {
+                    if (cond.Status == ConditionStatus.InProgress)
+                    {
+                        cond.Status = cond.AcceptedReplicates >= cond.RequestedReplicates
+                            ? ConditionStatus.Completed
+                            : ConditionStatus.Pending;
+                    }
+                }
+                _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
                 _store.SaveTestManifest(_currentTest);
             }
             _completeAfterClosing = false;
@@ -759,6 +769,16 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             _currentTest.Status = KlaTestStatus.Completed;
             _currentTest.CompletedUtc = _time.GetUtcNow();
+            foreach (var cond in _currentTest.Conditions)
+            {
+                if (cond.Status == ConditionStatus.InProgress)
+                {
+                    cond.Status = cond.AcceptedReplicates >= cond.RequestedReplicates
+                        ? ConditionStatus.Completed
+                        : (cond.AcceptedReplicates > 0 ? ConditionStatus.Completed : ConditionStatus.Pending);
+                }
+            }
+            _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
             _store.SaveTestManifest(_currentTest);
             SetPhase(RunPhase.Completed, $"Teste '{_currentTest.Name}' concluído com válvulas confirmadas fechadas.");
             LogEvent("TestCompleted", $"Teste '{_currentTest.Name}' finalizado com fechamento confirmado.");

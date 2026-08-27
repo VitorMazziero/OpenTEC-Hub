@@ -9,7 +9,7 @@ public static class KlaMapImportHelper
 {
     public static (KlaMapReference Reference, IReadOnlyList<KlaTestCondition> Conditions) ImportConditionsFromMap(
         KlaExperimentDocument mapDoc,
-        int defaultReplicates = 3)
+        int defaultReplicates = 1)
     {
         var mapRef = new KlaMapReference
         {

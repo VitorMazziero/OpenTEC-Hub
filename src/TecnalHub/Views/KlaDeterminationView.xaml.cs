@@ -118,16 +118,16 @@ public partial class KlaDeterminationView : UserControl
         {
             plot.Axes.Bottom.Label.Text = string.Empty;
             plot.Axes.Bottom.Label.IsVisible = false;
-            plot.Axes.Bottom.MinimumSize = 18;
-            plot.Axes.Bottom.MaximumSize = 18;
+            plot.Axes.Bottom.MinimumSize = 26;
+            plot.Axes.Bottom.MaximumSize = 26;
         }
         else
         {
             plot.Axes.Bottom.Label.Text = xLabel;
             plot.Axes.Bottom.Label.IsVisible = true;
-            plot.Axes.Bottom.Label.FontSize = 10;
-            plot.Axes.Bottom.MinimumSize = 30;
-            plot.Axes.Bottom.MaximumSize = 30;
+            plot.Axes.Bottom.Label.FontSize = 10.5f;
+            plot.Axes.Bottom.MinimumSize = 44;
+            plot.Axes.Bottom.MaximumSize = 44;
         }
 
         plot.Axes.Left.Label.Text = yLabel;

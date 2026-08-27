@@ -114,13 +114,19 @@ public partial class RangeSlider : UserControl
 
     private void OnRangeHighlightMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_isDraggingRange) return;
+        if (!_isDraggingRange)
+        {
+            return;
+        }
 
         var currentPoint = e.GetPosition(this);
         var dx = currentPoint.X - _dragStartPoint.X;
         var trackWidth = Math.Max(1, ActualWidth - 2 * ThumbRadius);
         var span = Maximum - Minimum;
-        if (span <= 0) return;
+        if (span <= 0)
+        {
+            return;
+        }
 
         var dVal = (dx / trackWidth) * span;
         var rangeLen = _startUpper - _startLower;
@@ -170,7 +176,10 @@ public partial class RangeSlider : UserControl
     {
         var trackWidth = Math.Max(1, ActualWidth - 2 * ThumbRadius);
         var span = Maximum - Minimum;
-        if (span <= 0) return;
+        if (span <= 0)
+        {
+            return;
+        }
 
         var dVal = (e.HorizontalChange / trackWidth) * span;
         var newVal = Math.Clamp(LowerValue + dVal, Minimum, UpperValue);
@@ -181,7 +190,10 @@ public partial class RangeSlider : UserControl
     {
         var trackWidth = Math.Max(1, ActualWidth - 2 * ThumbRadius);
         var span = Maximum - Minimum;
-        if (span <= 0) return;
+        if (span <= 0)
+        {
+            return;
+        }
 
         var dVal = (e.HorizontalChange / trackWidth) * span;
         var newVal = Math.Clamp(UpperValue + dVal, LowerValue, Maximum);

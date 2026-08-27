@@ -75,6 +75,9 @@ public sealed record KlaTestSettings
     public double MaxDegassingTimeMinutes { get; init; } = 30.0;
     public double MaxReoxygenationTimeMinutes { get; init; } = 60.0;
     public double DefaultCeqPercent { get; init; } = 100.0;
+    public bool AutoAcceptRuns { get; init; } = false;
+    public double AutoLinearStartPercent { get; init; } = 45.0;
+    public double AutoLinearEndPercent { get; init; } = 70.0;
 }
 
 public sealed class KlaTestCondition
@@ -83,7 +86,7 @@ public sealed class KlaTestCondition
     public int OrderIndex { get; set; }
     public double AgitationRpm { get; set; }
     public double AirflowLpm { get; set; }
-    public int RequestedReplicates { get; set; } = 3;
+    public int RequestedReplicates { get; set; } = 1;
     public int CompletedReplicates { get; set; }
     public int AcceptedReplicates { get; set; }
     public int RejectedReplicates { get; set; }

@@ -312,6 +312,247 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(4.0, _runner.CurrentCondition.AirflowLpm);
     }
 
+    [Fact]
+    public void DisplayStatus_ReturnsPortugueseText()
+    {
+        var cond1 = new KlaTestCondition { Status = ConditionStatus.Pending };
+        var cond2 = new KlaTestCondition { Status = ConditionStatus.InProgress };
+        var cond3 = new KlaTestCondition { Status = ConditionStatus.Completed };
+        var cond4 = new KlaTestCondition { Status = ConditionStatus.Skipped };
+
+        Assert.Equal("Pendente", new KlaConditionRowViewModel(cond1).DisplayStatus);
+        Assert.Equal("Em Execução", new KlaConditionRowViewModel(cond2).DisplayStatus);
+        Assert.Equal("Concluído", new KlaConditionRowViewModel(cond3).DisplayStatus);
+        Assert.Equal("Ignorado", new KlaConditionRowViewModel(cond4).DisplayStatus);
+    }
+
+    [Fact]
+    public async Task CompleteTest_ResolvesInProgressConditionToCompletedOrPending()
+    {
+        _vm.NewTestName = "Ensaio Conclusao Status";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 400;
+        _vm.NewConditionFlow = 2.0;
+        _vm.NewConditionReplicates = 2;
+        _vm.AddManualCondition();
+
+        // Mark condition as InProgress
+        _vm.Conditions[0].Model.Status = ConditionStatus.InProgress;
+        _vm.Conditions[0].Model.AcceptedReplicates = 1;
+
+        await _vm.CompleteTestAsync();
+
+        Assert.Equal(ConditionStatus.Completed, _vm.Conditions[0].Status);
+        Assert.Equal("Concluído", _vm.Conditions[0].DisplayStatus);
+    }
+
+    [Fact]
+    public async Task CanStartSequence_DisabledWhileRunning()
+    {
+        _vm.NewTestName = "Ensaio Sequence Enablement";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 400;
+        _vm.NewConditionFlow = 2.0;
+        _vm.AddManualCondition();
+
+        Assert.True(_vm.CanStartSequence);
+
+        await _vm.StartSequenceAsync();
+
+        Assert.False(_vm.CanStartSequence);
+    }
+
+    [Fact]
+    public void AdvancedSettingsDialog_OpenCloseAndSave_UpdatesRunner()
+    {
+        _vm.NewTestName = "Ensaio Adv Settings";
+        _vm.CreateNewTest();
+
+        Assert.False(_vm.IsAdvancedSettingsDialogOpen);
+
+        _vm.OpenAdvancedSettingsDialog();
+        Assert.True(_vm.IsAdvancedSettingsDialogOpen);
+
+        _vm.SettingSmoothingWindow = 9;
+        _vm.SettingMaxDegassingMinutes = 45;
+        _vm.SettingMaxReoxygenationMinutes = 75;
+
+        _vm.SaveAdvancedSettings();
+        Assert.False(_vm.IsAdvancedSettingsDialogOpen);
+
+        Assert.NotNull(_vm.CurrentTest);
+        Assert.Equal(9, _vm.CurrentTest.Settings.SmoothingWindowSize);
+        Assert.Equal(45, _vm.CurrentTest.Settings.MaxDegassingTimeMinutes);
+        Assert.Equal(75, _vm.CurrentTest.Settings.MaxReoxygenationTimeMinutes);
+    }
+
+    [Fact]
+    public async Task AutoAcceptRuns_AutomaticallyCalculatesAndAdvancesRun()
+    {
+        _vm.NewTestName = "Ensaio Auto Accept";
+        _vm.AutoAcceptRuns = true;
+        _vm.SettingAutoLinearStartPercent = 45.0;
+        _vm.SettingAutoLinearEndPercent = 70.0;
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 400;
+        _vm.NewConditionFlow = 2.0;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 600;
+        _vm.NewConditionFlow = 4.0;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+
+        await _vm.StartSequenceAsync();
+
+        // Simulate reoxygenation data curve
+        _vm.LivePoints.Clear();
+        for (var t = 0.0; t <= 120.0; t += 2.0)
+        {
+            var doVal = 100.0 * (1.0 - Math.Exp(-0.02 * t));
+            _vm.LivePoints.Add(new KlaRawDataPoint(
+                TimestampUtc: DateTimeOffset.UtcNow.AddSeconds(t),
+                RelativeSeconds: t,
+                Phase: RunPhase.Reoxygenating,
+                DORaw: doVal,
+                DOFiltered: doVal,
+                FlowMeasured: 2.0,
+                FlowSetpoint: 2.0,
+                AgitationSetpoint: 400,
+                Valve1: false,
+                Valve2: false,
+                VFlow: true));
+        }
+
+        // Trigger review phase with AutoAccept active
+        _runner.Phase = RunPhase.Reviewing;
+        _runner.RaiseStateChanged();
+
+        // Wait a short moment for async auto-accept delay
+        await Task.Delay(250);
+
+        // Runner should have auto-accepted condition 1 and advanced to condition 2
+        Assert.NotNull(_runner.CurrentCondition);
+        Assert.Equal(600, _runner.CurrentCondition.AgitationRpm);
+        Assert.Equal(4.0, _runner.CurrentCondition.AirflowLpm);
+    }
+
+    [Fact]
+    public void MatrixRows_DisposesReplicatesAsIndividualRows()
+    {
+        _vm.NewTestName = "Ensaio Matrix Rows";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 350;
+        _vm.NewConditionFlow = 1.5;
+        _vm.NewConditionReplicates = 2;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 500;
+        _vm.NewConditionFlow = 3.0;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+
+        Assert.Equal(3, _vm.MatrixRows.Count);
+        Assert.Equal("R1", _vm.MatrixRows[0].ReplicateLabel);
+        Assert.Equal(350, _vm.MatrixRows[0].AgitationRpm);
+        Assert.Equal("R2", _vm.MatrixRows[1].ReplicateLabel);
+        Assert.Equal(350, _vm.MatrixRows[1].AgitationRpm);
+        Assert.Equal("R1", _vm.MatrixRows[2].ReplicateLabel);
+        Assert.Equal(500, _vm.MatrixRows[2].AgitationRpm);
+    }
+
+    [Fact]
+    public async Task LoadMatrixRow_AndSaveRevision_UpdatesTestAndMatrix()
+    {
+        _vm.NewTestName = "Ensaio Edit Run";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 450;
+        _vm.NewConditionFlow = 2.5;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+
+        var cond = _vm.Conditions[0].Model;
+        var run = new KlaTestRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            ConditionId = cond.ConditionId,
+            ReplicateNumber = 1,
+            AgitationRpm = 450,
+            AirflowLpm = 2.5,
+            FolderName = "Run_001_N450_Q2.50_R01",
+            Phase = RunPhase.Accepted,
+            KlaPerHour = 108.0,
+            AnalysisR2 = 0.998,
+            StartedUtc = DateTimeOffset.UtcNow,
+        };
+        _vm.CurrentTest.Runs.Add(run);
+
+        // Store raw points
+        var points = new List<KlaRawDataPoint>();
+        for (var t = 0.0; t <= 60.0; t += 2.0)
+        {
+            var doVal = 10.0 + 80.0 * (1.0 - Math.Exp(-0.03 * t));
+            points.Add(new KlaRawDataPoint(
+                TimestampUtc: DateTimeOffset.UtcNow.AddSeconds(t),
+                RelativeSeconds: t,
+                Phase: RunPhase.Reoxygenating,
+                DORaw: doVal,
+                DOFiltered: doVal,
+                FlowMeasured: 2.5,
+                FlowSetpoint: 2.5,
+                AgitationSetpoint: 450,
+                Valve1: false,
+                Valve2: false,
+                VFlow: true));
+        }
+        _store.SaveRunRawData(_vm.CurrentTest.FolderName, run.FolderName, points);
+
+        var initialAnalysis = new KlaAnalysisRevision
+        {
+            RevisionNumber = 1,
+            KlaPerHour = 108.0,
+            AnalysisR2 = 0.998,
+            TStartSeconds = 10.0,
+            TEndSeconds = 40.0,
+            CeqPercent = 90.0,
+            Quality = DecisionQuality.Acceptable,
+        };
+        _store.SaveRunAnalysis(_vm.CurrentTest.FolderName, run.FolderName, initialAnalysis);
+
+        _vm.RefreshConditionsList();
+
+        Assert.Single(_vm.MatrixRows);
+        var row = _vm.MatrixRows[0];
+        Assert.Equal("108.0", row.DisplayKla);
+        Assert.Equal("0.9980", row.DisplayR2);
+
+        // Load row for review
+        _vm.LoadMatrixRow(row);
+        Assert.True(_vm.IsReviewOpen);
+        Assert.NotEmpty(_vm.LivePoints);
+        Assert.Equal(108.0, _vm.ReviewKla);
+
+        // Recompute with modified region
+        _vm.ReviewTStart = 15.0;
+        _vm.ReviewTEnd = 35.0;
+        _vm.RecomputeReviewAnalysis();
+
+        // Save modification
+        await _vm.AcceptCurrentRunAsync();
+
+        var loadedAnalysis = _store.LoadRunAnalysis(_vm.CurrentTest.FolderName, run.FolderName);
+        Assert.NotNull(loadedAnalysis);
+        Assert.Equal(2, loadedAnalysis.RevisionNumber);
+        Assert.Equal(15.0, loadedAnalysis.TStartSeconds);
+        Assert.Equal(35.0, loadedAnalysis.TEndSeconds);
+    }
+
     private sealed class FakeTestRunner : IKlaTestRunner
     {
         public KlaTestDocument? CurrentTest { get; private set; }
@@ -335,6 +576,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public event Action<KlaRawDataPoint>? DataPointAdded;
         public event Action<string>? Logged;
 #pragma warning restore CS0067
+
+        public void RaiseStateChanged() => StateChanged?.Invoke();
 
         public Task StartTestAsync(KlaTestDocument test, CancellationToken cancellationToken = default)
         {

@@ -150,7 +150,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private double _settingDOMax = 85.0;
 
     [ObservableProperty]
-    private double _settingDegassingAgitation = 300.0;
+    private double _settingDegassingAgitation = 700.0;
 
     [ObservableProperty]
     private int _settingSmoothingWindow = 5;
@@ -494,10 +494,52 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "");
+            return;
+        }
+
         CurrentTest.Conditions.Remove(row.Model);
+        for (int i = 0; i < CurrentTest.Conditions.Count; i++)
+        {
+            CurrentTest.Conditions[i].OrderIndex = i;
+        }
         _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
-        Conditions.Remove(row);
+
+        Conditions.Clear();
+        foreach (var c in CurrentTest.Conditions)
+        {
+            Conditions.Add(new KlaConditionRowViewModel(c));
+        }
         UpdateUiState();
+    }
+
+    [RelayCommand]
+    public async Task StartSequenceAsync()
+    {
+        if (CurrentTest is null || IsRunning)
+        {
+            return;
+        }
+
+        var nextCondition = Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+        if (nextCondition is null)
+        {
+            StatusMessage = "Todas as condições da matriz foram concluídas.";
+            _dialogs.Confirm("Ensaio Concluído", "Todas as condições da matriz experimental foram concluídas.", "OK", "");
+            return;
+        }
+
+        var cond = nextCondition.Model;
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        var nextRep = cond.CompletedReplicates + 1;
+
+        LivePoints.Clear();
+        InstantaneousKlaSeries.Clear();
+        LogLinearSeries.Clear();
+
+        await _runner.StartRunAsync(cond, nextRep);
     }
 
     [RelayCommand]
@@ -658,6 +700,28 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         await _runner.AcceptRunAsync(CurrentAnalysis);
         IsReviewOpen = false;
         RefreshConditionsList();
+
+        // Auto-advance to the next pending condition/replicate in sequence
+        var nextCondition = Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+        if (nextCondition is not null && CurrentTest is not null)
+        {
+            var cond = nextCondition.Model;
+            var nextRep = cond.CompletedReplicates + 1;
+
+            LivePoints.Clear();
+            InstantaneousKlaSeries.Clear();
+            LogLinearSeries.Clear();
+
+            StatusMessage = $"Iniciando automaticamente condição #{cond.OrderIndex + 1} ({cond.AgitationRpm:F0} rpm, {cond.AirflowLpm:F2} L/min - réplica {nextRep}/{cond.RequestedReplicates})...";
+            await _runner.StartRunAsync(cond, nextRep);
+        }
+        else
+        {
+            StatusMessage = "Todas as condições da matriz experimental foram concluídas com sucesso!";
+            _dialogs.Confirm("Ensaio Concluído", "Todas as condições da matriz experimental foram concluídas com sucesso. O ensaio pode ser finalizado.", "OK", "");
+        }
+
+        UpdateUiState();
     }
 
     [RelayCommand]

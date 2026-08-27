@@ -207,6 +207,111 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(50.0, mappingVm.Anchors[0].KlaValue); // Mean of 48 and 52
     }
 
+    [Fact]
+    public void RemoveCondition_RemovesCondition_AndReindexes()
+    {
+        _vm.NewTestName = "Ensaio Remocao";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 300;
+        _vm.NewConditionFlow = 2.0;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 600;
+        _vm.NewConditionFlow = 4.0;
+        _vm.AddManualCondition();
+
+        Assert.Equal(2, _vm.Conditions.Count);
+        Assert.Equal(1, _vm.Conditions[0].OrderIndex);
+        Assert.Equal(2, _vm.Conditions[1].OrderIndex);
+
+        // Remove the first condition
+        _vm.RemoveCondition(_vm.Conditions[0]);
+
+        Assert.Single(_vm.Conditions);
+        Assert.Equal(600, _vm.Conditions[0].AgitationRpm);
+        Assert.Equal(1, _vm.Conditions[0].OrderIndex);
+    }
+
+    [Fact]
+    public async Task StartSequence_ExecutesFirstPendingCondition()
+    {
+        _vm.NewTestName = "Ensaio Sequencia";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 300;
+        _vm.NewConditionFlow = 2.0;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 600;
+        _vm.NewConditionFlow = 4.0;
+        _vm.AddManualCondition();
+
+        Assert.True(_vm.HasActiveTest);
+        Assert.False(_vm.IsRunning);
+
+        await _vm.StartSequenceAsync();
+
+        Assert.NotNull(_runner.CurrentCondition);
+        Assert.Equal(300, _runner.CurrentCondition.AgitationRpm);
+        Assert.Equal(2.0, _runner.CurrentCondition.AirflowLpm);
+    }
+
+    [Fact]
+    public async Task AcceptCurrentRun_AutomaticallyStartsNextConditionInSequence()
+    {
+        _vm.NewTestName = "Ensaio Avanco Automatico";
+        _vm.CreateNewTest();
+
+        _vm.NewConditionRpm = 300;
+        _vm.NewConditionFlow = 2.0;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+
+        _vm.NewConditionRpm = 600;
+        _vm.NewConditionFlow = 4.0;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+
+        await _vm.StartSequenceAsync();
+
+        Assert.Equal(300, _runner.CurrentCondition!.AgitationRpm);
+
+        // Prepare valid review analysis for current run
+        var trueKlaSec = 0.01;
+        var ceq = 100.0;
+        _vm.LivePoints.Clear();
+        for (var t = 0.0; t <= 120.0; t += 2.0)
+        {
+            var doVal = ceq * (1.0 - Math.Exp(-trueKlaSec * t));
+            _vm.LivePoints.Add(new KlaRawDataPoint(
+                TimestampUtc: DateTimeOffset.UtcNow.AddSeconds(t),
+                RelativeSeconds: t,
+                Phase: RunPhase.Reoxygenating,
+                DORaw: doVal,
+                DOFiltered: doVal,
+                FlowMeasured: 2.0,
+                FlowSetpoint: 2.0,
+                AgitationSetpoint: 300,
+                Valve1: false,
+                Valve2: false,
+                VFlow: true));
+        }
+        _vm.ReviewCeq = 100.0;
+        _vm.ReviewCeqIsManual = true;
+        _vm.ReviewTStart = 10.0;
+        _vm.ReviewTEnd = 100.0;
+        _vm.RecomputeReviewAnalysis();
+
+        // Operator accepts run
+        await _vm.AcceptCurrentRunAsync();
+
+        // Runner should now have automatically advanced to condition 2 (600 rpm, 4.0 L/min)
+        Assert.NotNull(_runner.CurrentCondition);
+        Assert.Equal(600, _runner.CurrentCondition.AgitationRpm);
+        Assert.Equal(4.0, _runner.CurrentCondition.AirflowLpm);
+    }
+
     private sealed class FakeTestRunner : IKlaTestRunner
     {
         public KlaTestDocument? CurrentTest { get; private set; }
@@ -257,6 +362,15 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public Task AcceptRunAsync(KlaAnalysisRevision revision)
         {
             Phase = RunPhase.Accepted;
+            if (CurrentCondition is not null)
+            {
+                CurrentCondition.CompletedReplicates++;
+                CurrentCondition.AcceptedReplicates++;
+                if (CurrentCondition.AcceptedReplicates >= CurrentCondition.RequestedReplicates)
+                {
+                    CurrentCondition.Status = ConditionStatus.Completed;
+                }
+            }
             StateChanged?.Invoke();
             return Task.CompletedTask;
         }

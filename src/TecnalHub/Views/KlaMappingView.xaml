@@ -479,9 +479,13 @@
             </Grid>
         </Border>
         <!-- ── Modal: Importar de Teste kLa ─────────────────────────────────── -->
-        <Grid Grid.RowSpan="3" Background="{DynamicResource SurfaceBaseBrush}" Opacity="0.95"
+        <Grid Grid.RowSpan="3"
               Visibility="{Binding IsImportFromTestDialogOpen, Converter={StaticResource BoolToVis}}">
-            <Border Style="{StaticResource KlaCard}" Width="720" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
+            <!-- Scrim / Backdrop -->
+            <Border Background="{DynamicResource SurfaceBaseBrush}" Opacity="0.75" />
+
+            <!-- Solid Modal Dialog Card -->
+            <Border Style="{StaticResource KlaCard}" Background="{DynamicResource SurfaceElevatedBrush}" Width="720" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
                 <StackPanel>
                     <TextBlock Text="Importar Replicatas de Teste de kLa" FontSize="15" FontWeight="Bold" Margin="0,0,0,12" />
                     <TextBlock Text="Selecione o ensaio realizado em Testes-kLa:" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,6" />

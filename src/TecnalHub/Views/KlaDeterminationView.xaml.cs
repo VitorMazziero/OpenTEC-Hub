@@ -81,8 +81,8 @@ public partial class KlaDeterminationView : UserControl
 
     private void ApplyThemeToPlots()
     {
-        StyleSinglePlot(_plotDo.Plot, "OD (%)", "Tempo (s)");
-        StyleSinglePlot(_plotLogLinear.Plot, "ln(Ceq - C)", "Tempo (s)");
+        StyleSinglePlot(_plotDo.Plot, "OD (%)", string.Empty);
+        StyleSinglePlot(_plotLogLinear.Plot, "ln(Ceq - C)", string.Empty);
         StyleSinglePlot(_plotInstantKla.Plot, "kLa (h⁻¹)", "Tempo (s)");
 
         _plotDo.Refresh();
@@ -102,16 +102,35 @@ public partial class KlaDeterminationView : UserControl
         plot.Axes.Color(text);
         plot.Grid.MajorLineColor = grid.WithAlpha(0.45);
 
+        // Fixed margin for pixel-perfect alignment with RangeSlider (45px left, 15px right)
+        plot.Axes.Left.MinimumSize = 45;
+        plot.Axes.Left.MaximumSize = 45;
+        plot.Axes.Right.MinimumSize = 15;
+        plot.Axes.Right.MaximumSize = 15;
+
         // Minimal vertical padding: remove top axis frame and title space
         plot.Axes.Title.Label.Text = string.Empty;
         plot.Axes.Title.Label.IsVisible = false;
         plot.Axes.Top.FrameLineStyle.Width = 0;
         plot.Axes.Top.TickLabelStyle.IsVisible = false;
 
-        plot.Axes.Bottom.Label.Text = xLabel;
-        plot.Axes.Left.Label.Text = yLabel;
+        if (string.IsNullOrEmpty(xLabel))
+        {
+            plot.Axes.Bottom.Label.Text = string.Empty;
+            plot.Axes.Bottom.Label.IsVisible = false;
+            plot.Axes.Bottom.MinimumSize = 18;
+            plot.Axes.Bottom.MaximumSize = 18;
+        }
+        else
+        {
+            plot.Axes.Bottom.Label.Text = xLabel;
+            plot.Axes.Bottom.Label.IsVisible = true;
+            plot.Axes.Bottom.Label.FontSize = 10;
+            plot.Axes.Bottom.MinimumSize = 30;
+            plot.Axes.Bottom.MaximumSize = 30;
+        }
 
-        plot.Axes.Bottom.Label.FontSize = 10;
+        plot.Axes.Left.Label.Text = yLabel;
         plot.Axes.Left.Label.FontSize = 10;
 
         // Legends are rendered cleanly outside the plot canvas in WPF header bars
@@ -227,7 +246,15 @@ public partial class KlaDeterminationView : UserControl
             }
         }
 
-        plot.Axes.AutoScale();
+        if (vm.IsReviewOpen && vm.ReviewMaxTime > vm.ReviewMinTime)
+        {
+            plot.Axes.SetLimitsX(vm.ReviewMinTime, vm.ReviewMaxTime);
+            plot.Axes.AutoScaleY();
+        }
+        else
+        {
+            plot.Axes.AutoScale();
+        }
         _plotDo.Refresh();
     }
 
@@ -262,7 +289,15 @@ public partial class KlaDeterminationView : UserControl
 
         AddAnalysisRegionLines(plot, vm);
 
-        plot.Axes.AutoScale();
+        if (vm.IsReviewOpen && vm.ReviewMaxTime > vm.ReviewMinTime)
+        {
+            plot.Axes.SetLimitsX(vm.ReviewMinTime, vm.ReviewMaxTime);
+            plot.Axes.AutoScaleY();
+        }
+        else
+        {
+            plot.Axes.AutoScale();
+        }
         _plotLogLinear.Refresh();
     }
 
@@ -296,7 +331,15 @@ public partial class KlaDeterminationView : UserControl
 
         AddAnalysisRegionLines(plot, vm);
 
-        plot.Axes.AutoScale();
+        if (vm.IsReviewOpen && vm.ReviewMaxTime > vm.ReviewMinTime)
+        {
+            plot.Axes.SetLimitsX(vm.ReviewMinTime, vm.ReviewMaxTime);
+            plot.Axes.AutoScaleY();
+        }
+        else
+        {
+            plot.Axes.AutoScale();
+        }
         _plotInstantKla.Refresh();
     }
 

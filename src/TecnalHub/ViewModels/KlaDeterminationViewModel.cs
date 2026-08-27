@@ -277,6 +277,14 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private KlaMatrixRowViewModel? _selectedMatrixRow;
 
+    partial void OnSelectedMatrixRowChanged(KlaMatrixRowViewModel? value)
+    {
+        if (value is not null && value.HasRunData && !IsRunning)
+        {
+            LoadMatrixRow(value);
+        }
+    }
+
     private KlaTestRunSummary? _currentlyEditingRun;
     private KlaMatrixRowViewModel? _currentlyEditingRow;
 
@@ -639,6 +647,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
+        if (!row.HasRunData)
+        {
+            StatusMessage = $"Condição #{row.OrderIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min) ainda não possui dados gravados.";
+            return;
+        }
+
         SelectedMatrixRow = row;
         _currentlyEditingRow = row;
 
@@ -690,7 +704,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         if (run is null)
         {
-            _dialogs.Confirm("Aviso", $"Não há dados gravados para a réplica #{row.ReplicateIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min).", "OK", "");
+            StatusMessage = $"Não há dados gravados para a réplica #{row.ReplicateIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min).";
             return;
         }
 
@@ -700,7 +714,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         var rawPoints = _store.LoadRunRawData(CurrentTest.FolderName, run.FolderName);
         if (rawPoints.Count == 0)
         {
-            _dialogs.Confirm("Aviso", $"O arquivo de dados brutos da corrida '{run.FolderName}' está vazio ou não foi encontrado.", "OK", "");
+            StatusMessage = $"O arquivo de dados brutos da corrida '{run.FolderName}' está vazio ou não foi encontrado.";
             return;
         }
 
@@ -795,7 +809,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         if (IsRunning)
         {
-            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "");
+            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "", isDanger: false);
+            return;
+        }
+
+        if (!_dialogs.Confirm("Excluir Condição", $"Deseja realmente remover a condição #{row.OrderIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min) da matriz?", "Excluir", "Cancelar", isDanger: true))
+        {
             return;
         }
 
@@ -814,6 +833,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         RefreshConditionsList();
         UpdateUiState();
+        StatusMessage = $"Condição #{row.OrderIndex} removida da matriz.";
     }
 
     [RelayCommand]
@@ -826,7 +846,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         if (IsRunning)
         {
-            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "");
+            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "", isDanger: false);
+            return;
+        }
+
+        if (!_dialogs.Confirm("Excluir Condição", $"Deseja realmente remover a condição #{row.OrderIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min)?", "Excluir", "Cancelar", isDanger: true))
+        {
             return;
         }
 
@@ -845,6 +870,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         RefreshConditionsList();
         UpdateUiState();
+        StatusMessage = $"Condição #{row.OrderIndex} removida da matriz.";
     }
 
     [RelayCommand]

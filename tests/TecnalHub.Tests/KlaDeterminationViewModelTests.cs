@@ -464,6 +464,10 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(350, _vm.MatrixRows[1].AgitationRpm);
         Assert.Equal("R1", _vm.MatrixRows[2].ReplicateLabel);
         Assert.Equal(500, _vm.MatrixRows[2].AgitationRpm);
+
+        _vm.RemoveMatrixRow(_vm.MatrixRows[0]);
+        Assert.Single(_vm.MatrixRows);
+        Assert.Equal(500, _vm.MatrixRows[0].AgitationRpm);
     }
 
     [Fact]

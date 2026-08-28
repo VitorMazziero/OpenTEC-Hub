@@ -1,6 +1,7 @@
 <UserControl x:Class="TecnalHub.Views.CalibrationView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TecnalHub.Converters"
              xmlns:ctl="clr-namespace:TecnalHub.Controls"
              xmlns:vm="clr-namespace:TecnalHub.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,6 +10,7 @@
              d:DataContext="{d:DesignInstance Type=vm:CalibrationViewModel}">
 
     <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <Style x:Key="CalibrationCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
@@ -44,8 +46,13 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <!-- Auto, so the column disappears entirely when the side panel is collapsed. -->
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,12">
             <StackPanel Orientation="Horizontal">
                 <ctl:Icon Key="Target" Size="26" Margin="0,0,10,0" />
                 <TextBlock Text="Calibrações"
@@ -55,7 +62,7 @@
             </StackPanel>
         </StackPanel>
 
-        <TabControl Grid.Row="1" Style="{StaticResource SegmentedControlStyle}">
+        <TabControl Grid.Row="1" Grid.Column="0" Style="{StaticResource SegmentedControlStyle}">
             <!-- pH calibration -->
             <TabItem Header="pH" Style="{StaticResource SegmentedItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -288,19 +295,17 @@
             </TabItem>
 
             <!-- Airflow calibration -->
-            <TabItem Header="Vazão de ar" Style="{StaticResource SegmentedItemStyle}">
+            <TabItem x:Name="AirflowTab" Header="Vazão de ar" Style="{StaticResource SegmentedItemStyle}">
                 <Grid Margin="0,12,0,0" DataContext="{Binding Flow}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1.35*" />
-                        <ColumnDefinition Width="1*" />
-                    </Grid.ColumnDefinitions>
+                    <!-- The certified-points panel is not here: it is a page-level side column
+                         (below), so it can span the heading and the tab strip and use the whole
+                         window height. -->
 
-                    <!-- Each column scrolls on its own. Binding the content's MinHeight to the
-                         viewport makes it fill the window when there is room and scroll when
-                         there is not: inside a ScrollViewer a star row would otherwise collapse
-                         to its content, because measure passes infinite height. -->
-                    <ScrollViewer Grid.Column="0" Margin="0,0,6,0"
-                                  x:Name="FlowLeftScroll"
+                    <!-- Binding the content's MinHeight to the viewport makes it fill the window
+                         when there is room and scroll when there is not: inside a ScrollViewer a
+                         star row would otherwise collapse to its content, because measure passes
+                         infinite height. -->
+                    <ScrollViewer x:Name="FlowLeftScroll"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                     <Grid MinHeight="{Binding ViewportHeight, ElementName=FlowLeftScroll}">
@@ -332,11 +337,144 @@
                         </Border>
                     </Grid>
                     </ScrollViewer>
+                </Grid>
+            </TabItem>
 
-                    <ScrollViewer Grid.Column="1" Margin="6,0,0,0"
-                                  x:Name="FlowRightScroll"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
+
+            <!-- Biomass blank / threshold procedure (Phase 3 WP1) -->
+            <TabItem Header="Biomassa" Style="{StaticResource SegmentedItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,12,0,0" DataContext="{Binding Biomass}">
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
+                                BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusSmall}"
+                                Padding="12"
+                                Margin="0,0,0,12">
+                            <TextBlock TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="A biomassa não tem coeficiente no aplicativo: a calibração é capturar o branco (absorbância zero) contra um meio claro e definir os limiares de integração (contagens brutas). O firmware não expõe um modo HD, portanto ele não é mostrado." />
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.05*" />
+                                <ColumnDefinition Width="1.15*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left: guided blank capture -->
+                            <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
+                                <StackPanel>
+                                    <TextBlock Text="1 · Branco"
+                                               FontSize="{DynamicResource FontSizeSubtitle}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Com o meio de branco no caminho óptico, ative o sensor e capture o branco. Confirme que a absorbância se aproxima de zero."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                      IsChecked="{Binding SensorEnabled, Mode=TwoWay}"
+                                                      IsEnabled="{Binding IsConnected}"
+                                                      VerticalAlignment="Center" />
+                                        <TextBlock Text="Sensor de biomassa ativo" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    </StackPanel>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Absorbância ao vivo" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentAbsorbanceText}" Style="{StaticResource NumericTextStyle}"
+                                                       FontSize="{DynamicResource FontSizeSubtitle}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Raw" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}"
+                                                       FontSize="{DynamicResource FontSizeSubtitle}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Capturar branco"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding CaptureBlankCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Parar" Command="{Binding StopCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Right: integration thresholds -->
+                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="2 · Limiares de integração"
+                                               FontSize="{DynamicResource FontSizeSubtitle}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Contagens brutas. O baixo deve ser menor que o alto e o ótimo deve ficar entre eles."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <!-- Always editable: gating these on validity would trap the
+                                         operator with a value they could no longer correct. -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="Baixo" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding LowThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                            <TextBlock Text="Alto" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding HighThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Ótimo" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding ThresholdError}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,8,0,0" />
+
+                                    <Button Content="Aplicar limiares"
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            HorizontalAlignment="Right" Margin="0,12,0,0"
+                                            Command="{Binding ApplyThresholdsCommand}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="{Binding StatusText}"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,12,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- ── Certified points: a page-level side column ──────────────────────
+             Promoted out of the airflow tab so it spans the heading and the tab
+             strip and reaches the top of the page. It only exists while that tab
+             is selected; collapsed, the Auto column takes no width at all and the
+             other tabs get the full width back. -->
+        <ScrollViewer Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                      x:Name="FlowRightScroll"
+                      Width="470" Margin="12,0,0,0"
+                      DataContext="{Binding Flow}"
+                      Visibility="{Binding IsSelected, ElementName=AirflowTab, Converter={StaticResource BoolToVis}}"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
                     <Border Style="{StaticResource CalibrationCard}"
                             MinHeight="{Binding ViewportHeight, ElementName=FlowRightScroll}">
                         <DockPanel>
@@ -353,9 +491,11 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <!-- Ten 32 px rows plus the header: the table is the point of
-                                         this panel, so it gets the slack and never shrinks below. -->
-                                    <RowDefinition Height="*" MinHeight="360" />
+                                    <!-- The table takes all the slack, so it shows ten-plus rows at
+                                         any normal window size. The floor is deliberately lower
+                                         than that: forcing ten rows here pushed the card past the
+                                         viewport, and the panel scrolled its own heading away. -->
+                                    <RowDefinition Height="*" MinHeight="230" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -480,129 +620,5 @@
                         </DockPanel>
                     </Border>
                     </ScrollViewer>
-                </Grid>
-            </TabItem>
-
-            <!-- Biomass blank / threshold procedure (Phase 3 WP1) -->
-            <TabItem Header="Biomassa" Style="{StaticResource SegmentedItemStyle}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="0,12,0,0" DataContext="{Binding Biomass}">
-                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{DynamicResource RadiusSmall}"
-                                Padding="12"
-                                Margin="0,0,0,12">
-                            <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       Text="A biomassa não tem coeficiente no aplicativo: a calibração é capturar o branco (absorbância zero) contra um meio claro e definir os limiares de integração (contagens brutas). O firmware não expõe um modo HD, portanto ele não é mostrado." />
-                        </Border>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.05*" />
-                                <ColumnDefinition Width="1.15*" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Left: guided blank capture -->
-                            <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
-                                <StackPanel>
-                                    <TextBlock Text="1 · Branco"
-                                               FontSize="{DynamicResource FontSizeSubtitle}"
-                                               FontWeight="SemiBold" />
-                                    <TextBlock Text="Com o meio de branco no caminho óptico, ative o sensor e capture o branco. Confirme que a absorbância se aproxima de zero."
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               TextWrapping="Wrap" Margin="0,4,0,12" />
-
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
-                                                      IsChecked="{Binding SensorEnabled, Mode=TwoWay}"
-                                                      IsEnabled="{Binding IsConnected}"
-                                                      VerticalAlignment="Center" />
-                                        <TextBlock Text="Sensor de biomassa ativo" VerticalAlignment="Center" Margin="10,0,0,0" />
-                                    </StackPanel>
-
-                                    <Grid Margin="0,0,0,12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Absorbância ao vivo" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBlock Text="{Binding CurrentAbsorbanceText}" Style="{StaticResource NumericTextStyle}"
-                                                       FontSize="{DynamicResource FontSizeSubtitle}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="Raw" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}"
-                                                       FontSize="{DynamicResource FontSizeSubtitle}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="Capturar branco"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                Command="{Binding CaptureBlankCommand}" Margin="0,0,6,0" />
-                                        <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
-                                        <Button Content="Parar" Command="{Binding StopCommand}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Right: integration thresholds -->
-                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
-                                <StackPanel>
-                                    <TextBlock Text="2 · Limiares de integração"
-                                               FontSize="{DynamicResource FontSizeSubtitle}"
-                                               FontWeight="SemiBold" />
-                                    <TextBlock Text="Contagens brutas. O baixo deve ser menor que o alto e o ótimo deve ficar entre eles."
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               TextWrapping="Wrap" Margin="0,4,0,12" />
-
-                                    <!-- Always editable: gating these on validity would trap the
-                                         operator with a value they could no longer correct. -->
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                            <TextBlock Text="Baixo" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding LowThresholdText, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Margin="0,0,6,0">
-                                            <TextBlock Text="Alto" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding HighThresholdText, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Ótimo" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <TextBlock Text="{Binding ThresholdError}"
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource StateAlarmTextBrush}"
-                                               TextWrapping="Wrap" Margin="0,8,0,0" />
-
-                                    <Button Content="Aplicar limiares"
-                                            Style="{StaticResource AccentButtonStyle}"
-                                            HorizontalAlignment="Right" Margin="0,12,0,0"
-                                            Command="{Binding ApplyThresholdsCommand}" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-
-                        <TextBlock Text="{Binding StatusText}"
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap" Margin="0,12,0,0" />
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
     </Grid>
 </UserControl>

@@ -103,7 +103,7 @@ closed.
 |---|---|---|
 | C-1 | **Temperature holds** | Jacket control holds the temperature setpoint through the run |
 | C-2 | **Agitation holds** | Motor holds the commanded rpm (note: no RPM feedback on the wire — confirm visually/by the drive) |
-| C-3 | **Airflow + valves** | Flow holds setpoint; `valve_1`/`valve_2`/`v_Flow` states match physical valves; disable forces both gas valves closed and the vent open |
+| C-3 | **Airflow + valves** | Flow holds setpoint; `valve_1`/`valve_2`/`v_Flow` states match physical valves; disable forces both gas valves closed and the main path shut (`v_Flow:1`, PROTOCOL §3.1) |
 | C-4 | **Pressure** | Head-space pressure reference is honoured |
 | C-5 | **CSV parity** | The session CSV is read **without modification** by the existing v.6 analysis scripts (frozen header, column order, decimals) |
 | C-6 | **Stalled-link degradation** | If the link stalls, every readout degrades to `—` and `Última atualização` warns *before* the transport gives up |

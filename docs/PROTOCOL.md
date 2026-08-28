@@ -145,7 +145,7 @@ sentinel for floats.
 | `FlowControlEnabled` | bool | — | Sticky |
 | `FlowCommandPending` | bool | — | **Not sticky** — defaults to `false` when absent |
 | `FlowCommandSource` | string | — | Sticky, free-form |
-| `Valve1`, `Valve2`, `ValveFlow` | int | 0/1 | Only assigned when the key is present |
+| `Valve1`, `Valve2`, `ValveFlow` | int | 0/1 | Only assigned when the key is present. `ValveFlow` is the main shutoff echoed back: `1` = path closed |
 | `FlowCommandId`, `FlowCommandAck` | int | — | Command round-trip correlation |
 | `FlowCommandDeliveries`, `FlowCommandAgeMs` | int | — | Parsed by v.6, never displayed |
 | `HubStations` | int | — | Number of stations seen by the hub |
@@ -278,13 +278,21 @@ is **preferred** — it reduces round trips on the shared UART.
 | Flowmeter v05 via Hub v7 | `flowSetpoint` | L/min, clamped to `maxFlow` |
 | | `maxFlow` | L/min ceiling |
 | | `valve_1`, `valve_2` | `0`/`1` — auxiliary / nitrogen valves |
-| | `v_Flow` | **`1` when `flowSetpoint == 0`, else `0`** (inverted vent logic) |
+| | `v_Flow` | **Main gas-path shutoff, active high: `1` closes the path.** `1` whenever `flowSetpoint == 0`; may also be `1` with a nonzero setpoint |
 
-> `v_Flow` is inverted relative to intuition and is easy to get backwards.
-> Disabling the flow subsystem sends `flowSetpoint:0, v_Flow:1, valve_1:0,
-> valve_2:0` — both valves are deliberately forced closed on
-> disable rather than preserving the operator's manual selection, because leaving
-> a nitrogen valve open on a safe-stop is a hazard.
+> **`v_Flow` closes the gas path when it is 1**, which is the opposite of what "flow" in the
+> name suggests and is easy to get backwards. It is a physical shutoff, not a vent: the v05
+> writes it straight to `VALVE_FLOW_PIN` (`flowmeter_TECNALHUB_V05.ino`, key `v_Flow` /
+> `valveFlow`), and the Hub, when the app omits the key, derives it as
+> `desiredFlowValveFlow = (setpoint > 0) ? 0 : 1` and forces it to `1` on `resetVariables`.
+>
+> A zero setpoint therefore always sends `1`, but the two are independent: the app can close the
+> path while preserving a nonzero setpoint (`FlowSetpoint(..., mainValveClosed: true)`), which is
+> how the operator's main shutoff on Controle works without erasing what was staged.
+>
+> Disabling the flow subsystem sends `flowSetpoint:0, v_Flow:1, valve_1:0, valve_2:0` — both
+> valves are deliberately forced closed on disable rather than preserving the operator's manual
+> selection, because leaving a nitrogen valve open on a safe-stop is a hazard.
 
 > **`flowmeterComm` is the Hub's loop-enabled flag, not part of the v05 command.** The Hub v7
 > builds and delivers the v05 mailbox from `flowSetpoint`/valves regardless of it, so it never

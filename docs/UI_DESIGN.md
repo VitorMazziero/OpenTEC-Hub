@@ -1349,11 +1349,11 @@ having flowed at any point.
 
 **A block that commands an external device holds until that device confirms.** For the
 flowmeter that means `FlowmeterOnline` true *and* `FlowSetpoint` echoed back within
-0,1 L/min — the same evidence the command arbiter confirms aeration with. **A zero
-setpoint never waits:** cutting the gas must not be held up by the very device that is
-failing to answer, and neither does `Ligar malha de aeração`, which since the Hub v7
-stopped routing `flowmeterComm` puts no command on the wire at all — a block that sends
-nothing has nothing to confirm, and the flow is waited on where it is commanded.
+0,1 L/min — the same evidence the command arbiter confirms aeration with.
+`Ligar malha de aeração` writes the Hub's own loop flag (`flowmeterComm`) and waits for it to
+come back as `FlowControlEnabled`. **A zero setpoint never waits**, and neither does
+`Desligar malha de aeração`: cutting the gas must not be held up by the very device that is
+failing to answer.
 
 **Holding is not aborting.** A cultivation that is already running is not improved by a
 recipe that gives up on it, so the engine keeps watching indefinitely. What it must never

@@ -635,7 +635,9 @@ logo depois do fluxômetro (§ 11.2). Nelas o gás já passa pelo medidor — `v
 mas sai para a atmosfera em vez de entrar no reator. A válvula de alívio ocupa a saída
 auxiliar que o N₂ não usa; a mesma saída para os dois é recusada.
 
-Não enviar `flowmeterComm`.
+Não enviar `flowmeterComm` junto do quadro de vazão — ele vai em quadro próprio, ao ligar ou
+desligar a malha de aeração, porque é o que o Hub v7 republica como `FlowControlEnabled`
+(ver [PROTOCOL §3.1](PROTOCOL.md)).
 
 Toda troca de gás será intertravada:
 

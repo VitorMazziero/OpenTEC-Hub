@@ -534,16 +534,24 @@ public sealed class GuidedCalibrationTests
 public sealed class CalibrationSimulatorTests
 {
     [Fact]
-    public void Simulator_flow_setpoint_alone_enables_the_flowmeter_and_is_echoed_back()
+    public void Simulator_echoes_a_flow_setpoint_without_the_loop_flag_which_only_reports_control()
     {
         var model = new DeviceModel();
 
-        // No flowmeterComm: the Hub v7 does not route it (PROTOCOL §3.1) and nothing sends it.
+        // The Hub delivers the v05 mailbox from the setpoint alone: no flowmeterComm needed.
         Assert.True(WireCodec.ApplyCommand(model, CommandBuilders.FlowSetpoint(2.5, 50).ToJson(), out _));
 
-        Assert.True(model.FlowmeterEnabled);
         Assert.Equal(2.5, model.FlowSetpoint);
-        Assert.Contains("\"FlowSetpoint\":2.50", WireCodec.BuildTelemetry(model), StringComparison.Ordinal);
+        var telemetry = WireCodec.BuildTelemetry(model);
+        Assert.Contains("\"FlowSetpoint\":2.50", telemetry, StringComparison.Ordinal);
+        Assert.Contains("\"FlowControlEnabled\":false", telemetry, StringComparison.Ordinal);
+
+        // flowmeterComm writes only the Hub's own loop-enabled flag, which it publishes back.
+        Assert.True(WireCodec.ApplyCommand(
+            model, CommandBuilders.FlowmeterLoopEnabled(true).ToJson(), out _));
+
+        Assert.True(model.FlowmeterEnabled);
+        Assert.Contains("\"FlowControlEnabled\":true", WireCodec.BuildTelemetry(model), StringComparison.Ordinal);
     }
 
     [Fact]

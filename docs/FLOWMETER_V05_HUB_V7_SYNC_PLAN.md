@@ -25,8 +25,11 @@ Uma inspeção somente de leitura do firmware congelado confirmou que:
 - o Hub conserva o estado desejado até receber o ACK do `cmd_id` correspondente;
 - `/readData` publica `FlowCommandPending`, `FlowmeterOnline`, `FlowCommandId` e
   `FlowCommandAck`;
-- `flowmeterComm` é uma preferência local legada do Hub e não integra o comando confiável
-  encaminhado ao fluxômetro v05.
+- `flowmeterComm` não integra o comando encaminhado ao fluxômetro v05 e por isso ficou fora
+  dos quadros de setpoint e de parada segura. **Correção posterior:** ele não é legado — o
+  firmware do Hub v7 o interpreta, persiste em `flowComm` e o republica como
+  `FlowControlEnabled`, único registro de malha ativa. Passou a ser enviado em quadro próprio,
+  onde a malha é ligada ou desligada (ver [PROTOCOL §3.1](PROTOCOL.md)).
 
 ## Alterações
 

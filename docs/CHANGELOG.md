@@ -35,8 +35,12 @@ All notable changes to TECNAL-Hub. Version numbers follow
   `FlowSetpoint` echo) instead of completing on dispatch. After 8 s the engine publishes
   `IRecipeEngine.Waiting`, which logs a warning and latches the new
   `Receita aguardando dispositivo` alarm; the Receitas banner offers `Pular bloco` and
-  `Parar receita`. A zero setpoint never waits, and neither does `Ligar malha de aeração`,
-  which puts no command on the wire now that the Hub v7 no longer routes `flowmeterComm`.
+  `Parar receita`. A zero setpoint never waits, and neither does `Desligar malha de aeração`.
+- **`CommandBuilders.FlowmeterLoopEnabled`.** `flowmeterComm` in a frame of its own, sent where
+  the flow loop is switched — the Vazão de Ar enable and the recipe's aeration-loop block. It is
+  not routed to the v05 and stays out of the setpoint/safe-stop payloads, but the Hub v7 parses
+  it, persists it and republishes it as `FlowControlEnabled`: leaving it unwritten desynchronised
+  the Hub from the app and left the `Fluxômetro offline` alarm unable to fire.
 - **Post-merge release audit and v0.25.0 stabilization plan.** Added
   [CURRENT_STATUS.md](CURRENT_STATUS.md) with verified Git/version/build/runtime evidence, the
   ownership/safe-stop and merged biomass/pump findings, UI/build gates and the extended release plan.
@@ -47,10 +51,10 @@ All notable changes to TECNAL-Hub. Version numbers follow
 - **Real-Time Input Validation.** Added visual error banner and validation rules for physical limits, effort windows, and PID parameters in `OxygenConfigDialog`.
 
 ### Fixed
-- **Simulator flow echo no longer gated on the legacy `flowmeterComm`.** The Hub v7 does not
-  route that key (PROTOCOL §3.1) and nothing in the app sends it, so the simulator reported
-  `FlowSetpoint: -1` and `FlowControlEnabled: false` for ever — a recipe flow block would have
-  held indefinitely against it. A `flowSetpoint` now puts the simulated flowmeter to work.
+- **Simulator flow model matches the Hub v7 firmware.** The simulated gas follows the setpoint
+  alone and the echoed `FlowSetpoint` is withheld only while the flowmeter is offline, instead of
+  both being gated on `flowmeterComm` — which in the firmware writes nothing but the Hub's own
+  `FlowControlEnabled` flag.
 
 ### Changed
 - **Contrato de vazão estrito do Hub v7.** Frames operacionais e de calibração usam apenas as

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -240,10 +240,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
             new SubsystemViewModel(Flow,
                 new SubsystemSpec(0, maxFlow, IsInteger: false,
-                    value => FlowControl.BuildSetpointUsingObservedValves(value),
+                    // The loop flag rides alongside the setpoint rather than inside it: the
+                    // v05 frame stays exactly the reliable keys, and the Hub still learns that
+                    // the loop is on (see CommandBuilders.FlowmeterLoopEnabled).
+                    value => FlowControl.BuildSetpointUsingObservedValves(value)
+                        .Merge(CommandBuilders.FlowmeterLoopEnabled(true)),
                     // Safe-stop, not merely zero flow: both valves are forced closed,
                     // because leaving nitrogen open through a stop is a hazard.
-                    () => FlowControl.BuildSafeStop(),
+                    () => FlowControl.BuildSafeStop().Merge(CommandBuilders.FlowmeterLoopEnabled(false)),
                     // Valve states and the vent flag come back on the wire, so the app
                     // can show what the actuator is doing rather than only what it asked.
                     HasOutput: true, HasCalibration: true,

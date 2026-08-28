@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
@@ -142,6 +142,22 @@ public sealed class FlowmeterV05SyncTests
             safeStop);
         Assert.DoesNotContain("flowmeterComm", setpoint, StringComparison.Ordinal);
         Assert.DoesNotContain("flowmeterComm", safeStop, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_loop_flag_is_its_own_frame_and_never_rides_inside_the_v05_payload()
+    {
+        // flowmeterComm is not routed to the v05, so it stays out of the frames above. It is
+        // still the only writer of the Hub's FlowControlEnabled, so it is sent where the loop is
+        // switched — on its own, alongside the setpoint or the safe-stop.
+        Assert.Equal("""{"flowmeterComm":1}""", CommandBuilders.FlowmeterLoopEnabled(true).ToJson());
+        Assert.Equal("""{"flowmeterComm":0}""", CommandBuilders.FlowmeterLoopEnabled(false).ToJson());
+
+        var enable = CommandBuilders.FlowSetpoint(2.5, 50)
+            .Merge(CommandBuilders.FlowmeterLoopEnabled(true)).ToJson();
+        Assert.Equal(
+            """{"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0,"flowmeterComm":1}""",
+            enable);
     }
 
     [Fact]

@@ -53,7 +53,7 @@ public static class WireCodec
 
         Append(buffer, "Pressure", online ? model.ReadPressure() : 0.0, 2);
         Append(buffer, "FlowRate", online ? model.ReadFlow() : -1.0, 3);
-        Append(buffer, "FlowSetpoint", model.FlowmeterEnabled ? model.FlowSetpoint : -1.0, 2);
+        Append(buffer, "FlowSetpoint", online ? model.FlowSetpoint : -1.0, 2);
         Append(buffer, "FlowVoltage", online ? model.ReadFlow() * 0.0109 : 0.0, 4);
         Append(buffer, "Antifoam", online ? 0.0 : -1.0, 1);
 
@@ -204,12 +204,6 @@ public static class WireCodec
         if (TryDouble(root, CommandKeys.FlowSetpoint, out var flow))
         {
             model.FlowSetpoint = flow;
-
-            // `flowmeterComm` is a legacy Hub-local preference that the Hub v7 does not route to
-            // the v05 (PROTOCOL §3.1), and nothing in the app sends it any more. The setpoint
-            // itself is what puts the flowmeter to work, so gating the echo on the legacy key
-            // left the simulator reporting FlowSetpoint = -1 for ever.
-            model.FlowmeterEnabled = true;
             model.NoteFlowCommand();
         }
 

@@ -62,7 +62,8 @@ public sealed partial class RecipeEngine
             }
 
             case NodeType.SetLoop:
-                ExecuteLoop(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"));
+                await ExecuteLoopAsync(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"), ct)
+                    .ConfigureAwait(false);
                 break;
 
             case NodeType.MultiLoop:
@@ -71,7 +72,7 @@ public sealed partial class RecipeEngine
                     if (Enum.TryParse<ControlLoop>(row["malha"]?.GetValue<string>(), out var loop) &&
                         Enum.TryParse<LoopOperation>(row["operacao"]?.GetValue<string>(), out var op))
                     {
-                        ExecuteLoop(node, loop, op);
+                        await ExecuteLoopAsync(node, loop, op, ct).ConfigureAwait(false);
                     }
                 }
 
@@ -93,7 +94,7 @@ public sealed partial class RecipeEngine
         _ => TecnalCommand.Create(),
     };
 
-    private void ExecuteLoop(RecipeNode node, ControlLoop loop, LoopOperation operation)
+    private async Task ExecuteLoopAsync(RecipeNode node, ControlLoop loop, LoopOperation operation, CancellationToken ct)
     {
         var enable = operation == LoopOperation.Enable;
         Log(RecipeLogSeverity.Info, $"{(enable ? "Ligar" : "Desligar")} malha {LoopLabel(loop)}.", node.Id);
@@ -102,9 +103,11 @@ public sealed partial class RecipeEngine
         // enable; disabling is its enable off or a zero setpoint/intensity.
         var command = loop switch
         {
+            // The aeration loop switch is the Hub's flow-loop flag; the setpoint itself rides in
+            // the setpoint block. Disabling also safe-stops, so the gas actually stops.
             ControlLoop.Aeration => enable
-                ? TecnalCommand.Create()
-                : CommandBuilders.FlowSafeStop(MaxFlow),
+                ? CommandBuilders.FlowmeterLoopEnabled(true)
+                : CommandBuilders.FlowSafeStop(MaxFlow).Merge(CommandBuilders.FlowmeterLoopEnabled(false)),
             ControlLoop.Ph => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.PHIntensity, 0.0),
             ControlLoop.Antifoam => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.AntifoamIntensity, 0.0),
             ControlLoop.Nutrient => enable ? TecnalCommand.Create() : TecnalCommand.Create().Set(CommandKeys.NutriIntensity, 0.0),
@@ -114,16 +117,19 @@ public sealed partial class RecipeEngine
         if (enable && loop is ControlLoop.Aeration or ControlLoop.Ph or ControlLoop.Antifoam or ControlLoop.Nutrient)
         {
             var guidance = loop == ControlLoop.Aeration
-                ? "Defina a vazão pelo bloco de setpoint; o Hub v7 não roteia flowmeterComm."
+                ? "A vazão em si é definida pelo bloco de setpoint."
                 : "Configure a dosagem pelo bloco de bomba correspondente.";
             Log(RecipeLogSeverity.Info, guidance, node.Id);
         }
 
-        // No block here holds for a device: disabling aeration is the safe-stop, which must never
-        // wait, and enabling it now puts nothing on the wire at all — the Hub v7 does not route
-        // flowmeterComm, so there is no command to confirm. The flowmeter is waited on where the
-        // flow is actually commanded, in the setpoint block.
         DispatchRecipe(command, node.Id);
+
+        // Enabling the aeration loop is confirmed by the Hub echoing the flag back; disabling is a
+        // safe-stop, which must never wait on the device it is trying to stop.
+        if (enable && loop == ControlLoop.Aeration)
+        {
+            await AwaitFlowLoopEnabledAsync(node, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Sends a recipe-owned frame, logging a refusal (should not happen — the recipe owns all).</summary>

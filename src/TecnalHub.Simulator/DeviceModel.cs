@@ -1,4 +1,4 @@
-namespace TecnalHub.Simulator;
+﻿namespace TecnalHub.Simulator;
 
 /// <summary>Fault-injection modes, switchable while running.</summary>
 public enum Scenario
@@ -145,6 +145,7 @@ public sealed class DeviceModel
     public double? FlowF2 { get; set; }
     public double? FlowC2 { get; set; }
 
+    /// <summary>The Hub's persisted flow-loop preference, republished as FlowControlEnabled.</summary>
     public bool FlowmeterEnabled { get; set; }
 
     public bool VentValveOpen { get; set; } = true;
@@ -240,7 +241,9 @@ public sealed class DeviceModel
     {
         const double flowTau = 6.0;
 
-        var target = FlowmeterEnabled ? Math.Clamp(FlowSetpoint, 0.0, MaxFlow) : 0.0;
+        // `flowmeterComm` is the Hub's own loop-enabled preference; it never gates what the v05
+        // is told to do, so the gas follows the setpoint alone (PROTOCOL §3.1).
+        var target = Math.Clamp(FlowSetpoint, 0.0, MaxFlow);
         _flow += (target - _flow) * (dt / flowTau);
 
         // Back-pressure builds against the vessel restriction, relieved by the vent.

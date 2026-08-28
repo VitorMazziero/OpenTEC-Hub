@@ -53,6 +53,20 @@ public sealed partial class RecipeEngine
             ct);
     }
 
+    /// <summary>Holds until the Hub echoes the flow loop back as enabled.</summary>
+    /// <remarks>
+    /// The Hub publishes <c>FlowControlEnabled</c> from the very flag this block wrote, so the
+    /// echo is real evidence the switch landed — unlike the flowmeter's own online state, which
+    /// says nothing about whether the Hub accepted the command.
+    /// </remarks>
+    private Task AwaitFlowLoopEnabledAsync(RecipeNode node, CancellationToken ct)
+        => AwaitDeviceAsync(
+            node,
+            "Fluxômetro",
+            "o Hub não confirmou a malha de aeração como ativa.",
+            s => s.FlowControlEnabled,
+            ct);
+
     /// <summary>
     /// Holds the strand until <paramref name="confirmed"/> is satisfied by a telemetry frame.
     /// </summary>

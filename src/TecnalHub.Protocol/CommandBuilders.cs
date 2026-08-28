@@ -1,4 +1,4 @@
-namespace TecnalHub.Protocol;
+﻿namespace TecnalHub.Protocol;
 
 /// <summary>
 /// Builders for commands whose correct shape is a protocol rule rather than a
@@ -44,6 +44,28 @@ public static class CommandBuilders
             .Set(CommandKeys.Valve2, valve2)
             .Set(CommandKeys.V_Flow, mainValveClosed || clamped == 0.0);
     }
+
+    /// <summary>
+    /// Records the flow loop as enabled or disabled on the Hub.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>flowmeterComm</c> never reaches the v05 — the Hub builds and delivers the flow
+    /// mailbox from <c>flowSetpoint</c>/valves regardless of it, which is why it is not part
+    /// of <see cref="FlowSetpoint"/>. It is not, however, unused: the Hub v7 parses it, keeps
+    /// it in the <c>flowComm</c> preference across reboots, folds it into its settings hash and
+    /// publishes it back as <c>FlowControlEnabled</c>. That flag is the Hub's record of whether
+    /// the loop is on, and the only thing that writes it.
+    /// </para>
+    /// <para>
+    /// So it is sent where the loop is actually switched — the Vazão de Ar enable and the
+    /// recipe's aeration-loop block — and never bundled into a setpoint frame. Leaving it
+    /// unwritten silently desynchronises the Hub from the app and disables the
+    /// <c>Fluxômetro offline</c> alarm, whose condition needs <c>FlowControlEnabled</c>.
+    /// </para>
+    /// </remarks>
+    public static TecnalCommand FlowmeterLoopEnabled(bool enabled)
+        => TecnalCommand.Create().Set(CommandKeys.FlowmeterComm, enabled ? 1 : 0);
 
     /// <summary>
     /// Disables the flow subsystem and closes everything.

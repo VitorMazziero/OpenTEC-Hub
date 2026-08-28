@@ -284,8 +284,16 @@ is **preferred** — it reduces round trips on the shared UART.
 > Disabling the flow subsystem sends `flowSetpoint:0, v_Flow:1, valve_1:0,
 > valve_2:0` — both valves are deliberately forced closed on
 > disable rather than preserving the operator's manual selection, because leaving
-> a nitrogen valve open on a safe-stop is a hazard. `flowmeterComm` remains a legacy
-> Hub-local preference but is not part of the reliable command routed to v05.
+> a nitrogen valve open on a safe-stop is a hazard.
+
+> **`flowmeterComm` is the Hub's loop-enabled flag, not part of the v05 command.** The Hub v7
+> builds and delivers the v05 mailbox from `flowSetpoint`/valves regardless of it, so it never
+> gates the gas and is deliberately absent from the setpoint and safe-stop frames. It is not
+> unused, though: `processJsonCommand` parses it, persists it under the `flowComm` preference,
+> folds it into the settings hash and publishes it back as `FlowControlEnabled` — which is the
+> only record of whether the loop is on, and what the `Fluxômetro offline` alarm is conditioned
+> on. The app therefore sends it **on its own frame, where the loop is switched**: the Vazão de
+> Ar enable and the recipe's aeration-loop block.
 
 ### 3.2 Flow calibration
 

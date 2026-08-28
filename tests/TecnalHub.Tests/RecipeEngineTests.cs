@@ -302,15 +302,34 @@ public sealed class RecipeEngineTests
     }
 
     [Fact]
-    public async Task Enabling_the_aeration_loop_never_holds_because_it_puts_no_command_on_the_wire()
+    public async Task Enabling_the_aeration_loop_writes_the_hub_flag_and_holds_until_it_is_echoed()
     {
-        var (engine, _, _, _) = Build();
+        var (engine, device, _, _) = Build();
 
         await engine.StartAsync(LoopRecipe(ControlLoop.Aeration, LoopOperation.Enable));
+        Assert.True(await Eventually(() => device.Sent.Any(s => s.Contains("flowmeterComm"))));
+
+        // The Hub has not acknowledged the loop yet, so the block is still holding.
+        device.PushTelemetry(new SensorSnapshot { FlowControlEnabled = false });
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        device.PushTelemetry(new SensorSnapshot { FlowControlEnabled = true });
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Disabling_the_aeration_loop_safe_stops_and_clears_the_flag_without_holding()
+    {
+        var (engine, device, _, _) = Build();
+
+        await engine.StartAsync(LoopRecipe(ControlLoop.Aeration, LoopOperation.Disable));
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(RecipeRunState.Completed, engine.State);
         Assert.Null(engine.Waiting);
+        Assert.Contains(device.Sent, s => s.Contains("flowmeterComm") && s.Contains("flowSetpoint"));
     }
 
     /// <summary>Polls a condition the running engine reaches on its own loop, with a hard cap.</summary>

@@ -49,4 +49,52 @@ public sealed class ReactorAssetTests
         Assert.Contains("bomba externa em mL/min", xaml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Synoptic_groups_compact_cards_with_control_workspace_names()
+    {
+        var xaml = File.ReadAllText(Path.Combine(
+            TestPaths.RepositoryRoot, "src", "TecnalHub", "Views", "SynopticView.xaml"));
+
+        var internalStart = xaml.IndexOf("Text=\"PARÂMETROS INTERNOS\"", StringComparison.Ordinal);
+        var externalStart = xaml.IndexOf("Text=\"DISPOSITIVOS EXTERNOS\"", StringComparison.Ordinal);
+
+        Assert.True(internalStart >= 0, "Cabeçalho de parâmetros internos ausente.");
+        Assert.True(externalStart > internalStart, "Cabeçalho de dispositivos externos ausente ou fora de ordem.");
+
+        var internalSection = xaml[internalStart..externalStart];
+        foreach (var label in new[]
+                 {
+                     "Agitação",
+                     "Temperatura",
+                     "pH",
+                     "Oxigênio",
+                     "Alívio de Pressão",
+                     "Sensor de Distância",
+                     "Sensor de Biomassa",
+                 })
+        {
+            Assert.Contains($"Tag=\"{label}\"", internalSection, StringComparison.Ordinal);
+        }
+
+        var externalSection = xaml[externalStart..];
+        foreach (var label in new[]
+                 {
+                     "Dosagem de Nutrientes",
+                     "Dosagem de Antiespumante",
+                     "Vazão de Ar",
+                     "Bomba Dosadora Externa",
+                 })
+        {
+            Assert.Contains($"Tag=\"{label}\"", externalSection, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("<UniformGrid Columns=\"2\">", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ScrollViewer Grid.Column=\"0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Viewbox Grid.Column=\"2\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Viewbox Grid.Row=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"COMANDADO\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommandParameter=\"agitator\"", xaml, StringComparison.Ordinal);
+    }
+
 }

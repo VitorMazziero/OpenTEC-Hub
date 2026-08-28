@@ -1,6 +1,7 @@
-using TecnalHub.Protocol;
+﻿using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Recipes;
 using TecnalHub.Services.Telemetry;
 
 namespace TecnalHub.Services.Alarms;
@@ -197,6 +198,10 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(2)),
         new(AlarmId.UnacknowledgedCommand, "Comando não confirmado", AlarmSeverity.Warning,
             TimeSpan.Zero, TimeSpan.Zero),
+        // The engine already applies its own grace before it declares a hold, so this latches as
+        // soon as it says so: by then the device has been silent for several telemetry periods.
+        new(AlarmId.RecipeAwaitingDevice, "Receita aguardando dispositivo", AlarmSeverity.Warning,
+            TimeSpan.Zero, TimeSpan.Zero),
     ];
 
     private readonly IDeviceService _device;
@@ -205,6 +210,12 @@ public sealed class AlarmService : IAlarmService
     private readonly IEventJournal _journal;
     private readonly IAlarmAnnunciator _annunciator;
     private readonly TimeProvider _time;
+
+    /// <summary>
+    /// The recipe engine, when one exists. A recipe holding for an unresponsive external device is
+    /// an operational condition like any other, and the operator hears about it the same way.
+    /// </summary>
+    private readonly IRecipeEngine? _recipes;
 
     private readonly Dictionary<AlarmId, AlarmCondition> _conditions;
     private readonly HashSet<ActuatorId> _timedOut = [];
@@ -221,7 +232,8 @@ public sealed class AlarmService : IAlarmService
         ISettingsService settings,
         IEventJournal journal,
         IAlarmAnnunciator annunciator,
-        TimeProvider time)
+        TimeProvider time,
+        IRecipeEngine? recipes = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(arbiter);
@@ -236,6 +248,7 @@ public sealed class AlarmService : IAlarmService
         _journal = journal;
         _annunciator = annunciator;
         _time = time;
+        _recipes = recipes;
         _state = device.State;
 
         _conditions = Definitions.ToDictionary(d => d.Id, d => new AlarmCondition(d));
@@ -243,6 +256,11 @@ public sealed class AlarmService : IAlarmService
         _device.StateChanged += OnStateChanged;
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.CommandTracked += OnCommandTracked;
+
+        if (_recipes is not null)
+        {
+            _recipes.WaitingChanged += Poll;
+        }
     }
 
     public event Action? Changed;
@@ -410,6 +428,13 @@ public sealed class AlarmService : IAlarmService
         AlarmId.UnacknowledgedCommand => (_timedOut.Count > 0,
             $"Comando(s) sem aceitação do transporte: {string.Join(", ", _timedOut.Select(CommandActuators.Label))}."),
 
+        AlarmId.RecipeAwaitingDevice => (
+            _recipes?.Waiting is not null,
+            _recipes?.Waiting is { } wait
+                ? $"A receita está parada no bloco '{wait.NodeId}': {wait.Device} — {wait.Detail} " +
+                  "Pule o bloco ou pare a receita."
+                : ""),
+
         _ => (false, ""),
     };
 
@@ -468,5 +493,10 @@ public sealed class AlarmService : IAlarmService
         _device.StateChanged -= OnStateChanged;
         _device.TelemetryReceived -= OnTelemetry;
         _arbiter.CommandTracked -= OnCommandTracked;
+
+        if (_recipes is not null)
+        {
+            _recipes.WaitingChanged -= Poll;
+        }
     }
 }

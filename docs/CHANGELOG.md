@@ -9,6 +9,12 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Recipes hold for an unresponsive external device, and say so.** A flow-setpoint or
+  aeration-enable block now waits for the flowmeter to confirm (`FlowmeterOnline` plus the
+  `FlowSetpoint` echo) instead of completing on dispatch. After 8 s the engine publishes
+  `IRecipeEngine.Waiting`, which logs a warning and latches the new
+  `Receita aguardando dispositivo` alarm; the Receitas banner offers `Pular bloco` and
+  `Parar receita`. A zero setpoint never waits.
 - **Post-merge release audit and v0.25.0 stabilization plan.** Added
   [CURRENT_STATUS.md](CURRENT_STATUS.md) with verified Git/version/build/runtime evidence, the
   ownership/safe-stop and merged biomass/pump findings, UI/build gates and the extended release plan.

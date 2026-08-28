@@ -1364,6 +1364,36 @@ Reinforced three ways: placement (process on top, recipe in the middle, configur
 the right); typography (KPI values 24-26 px Semibold with a state dot, block setpoints
 13 px inside a bordered field); and wording — blocks say `SP → 40 %` or
 `Definir O₂ = 40 %`, never a bare `40 %`.
+
+#### 5.3.16 External devices inside a recipe
+
+A recipe commands external devices — the flowmeter first, the rest as their actuation
+lands — over the same wire as everything else, and the wire cannot tell it whether the
+device is actually there. Sending `flowSetpoint` to a flowmeter that is offline used to
+log "Definir vazão = 25 L/min", mark the block green and finish the recipe with no gas
+having flowed at any point.
+
+**A block that commands an external device holds until that device confirms.** For the
+flowmeter that means `FlowmeterOnline` true *and* `FlowSetpoint` echoed back within
+0,1 L/min — the same evidence the command arbiter confirms aeration with. Enabling the
+aeration loop waits for `FlowmeterOnline` alone. **A zero setpoint never waits:** cutting
+the gas must not be held up by the very device that is failing to answer.
+
+**Holding is not aborting.** A cultivation that is already running is not improved by a
+recipe that gives up on it, so the engine keeps watching indefinitely. What it must never
+do is hold silently:
+
+| After | What happens |
+|---|---|
+| The command is sent | The block stays `Evaluating`; the recipe does not advance |
+| 8 s without confirmation (four telemetry periods) | A `Warning` line in the recipe log, and the `Receita aguardando dispositivo` alarm latches and annunciates |
+| The device answers | An `Info` line, the alarm returns to normal, the recipe advances |
+
+**The two ways out are the operator's**, offered on the banner beside the reason:
+`Pular bloco` gives up on this device and moves to the next block — the command stays
+sent, and the skip is logged as a warning — and `Parar receita` is the ordinary stop,
+which releases ownership and safe-stops as always.
+
 ### 5.4 Alarmes
 
 **Purpose:** raise, present, acknowledge and configure alarms. **Phase 5** — nothing
@@ -1418,6 +1448,7 @@ separately:
 | `Dados congelados` | No accepted frame for > 3 telemetry periods |
 | `Sensor ausente` | Channel sentinel persists beyond a grace period |
 | `Comando não confirmado` | `FlowCommandId` without a matching `FlowCommandAck` |
+| `Receita aguardando dispositivo` | A running recipe is holding on an external device that never confirmed its command |
 | `Espuma persistente` | `Distance` below reference beyond the foam timers |
 
 > Alarm limits are entered in **engineering units** and stored that way. They must not be

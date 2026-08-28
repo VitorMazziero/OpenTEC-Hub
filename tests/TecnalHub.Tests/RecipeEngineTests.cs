@@ -1,4 +1,4 @@
-using TecnalHub.Protocol;
+﻿using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Recipes;
@@ -220,6 +220,101 @@ public sealed class RecipeEngineTests
     {
         clock.Advance(TimeSpan.FromSeconds(3));
         device.PushTelemetry(new SensorSnapshot { OxygenCalibrated = oxygen, Temperature = temperature });
+    }
+
+    // ── External devices: the flowmeter (air flow) ─────────────────────────────
+
+    [Fact]
+    public async Task Flow_setpoint_holds_the_recipe_until_the_flowmeter_echoes_it_back()
+    {
+        var (engine, device, _, _) = Build();
+
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Flow, 2.5));
+        Assert.True(await Eventually(() => device.Sent.Any(s => s.Contains("flowSetpoint") && s.Contains("2.5"))));
+
+        // An echo from a flowmeter that is not online proves nothing: the block keeps holding.
+        device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false, FlowSetpoint = 2.5 });
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true, FlowSetpoint = 2.5 });
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task A_silent_flowmeter_is_reported_as_a_wait_and_the_operator_can_skip_the_block()
+    {
+        var (engine, device, _, clock) = Build();
+        var log = new List<RecipeLogEntry>();
+        engine.Logged += entry => { lock (log) { log.Add(entry); } };
+
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Flow, 2.5));
+        Assert.True(await Eventually(() => device.Sent.Any(s => s.Contains("flowSetpoint"))));
+
+        // Past the grace with no usable frame: the engine declares the hold rather than moving on.
+        clock.Advance(TimeSpan.FromSeconds(30));
+        device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
+        Assert.True(await Eventually(() => engine.Waiting is not null));
+        Assert.Equal("Fluxômetro", engine.Waiting!.Device);
+        Assert.Equal("sp", engine.Waiting.NodeId);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        engine.SkipWait();
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+        Assert.Null(engine.Waiting);
+        lock (log)
+        {
+            Assert.Contains(log, e => e.Severity == RecipeLogSeverity.Warning && e.Message.Contains("pulado"));
+        }
+    }
+
+    [Fact]
+    public async Task The_operator_can_stop_the_recipe_while_it_holds_for_the_flowmeter()
+    {
+        var (engine, device, arbiter, clock) = Build();
+
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Flow, 2.5));
+        Assert.True(await Eventually(() => device.Sent.Any(s => s.Contains("flowSetpoint"))));
+        clock.Advance(TimeSpan.FromSeconds(30));
+        device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
+        Assert.True(await Eventually(() => engine.Waiting is not null));
+
+        await engine.StopAsync("parada pelo operador");
+
+        Assert.Equal(RecipeRunState.Stopped, engine.State);
+        Assert.Null(engine.Waiting);
+        Assert.All(CommandActuators.All, a => Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(a)));
+    }
+
+    [Fact]
+    public async Task Zeroing_the_flow_never_holds_because_a_stop_must_not_wait_on_the_device()
+    {
+        var (engine, _, _, _) = Build();
+
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Flow, 0));
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+        Assert.Null(engine.Waiting);
+    }
+
+    /// <summary>Polls a condition the running engine reaches on its own loop, with a hard cap.</summary>
+    private static async Task<bool> Eventually(Func<bool> condition)
+    {
+        for (var i = 0; i < 200; i++)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            await Task.Delay(10);
+        }
+
+        return false;
     }
 
     // ── Recipe fixtures ────────────────────────────────────────────────────────

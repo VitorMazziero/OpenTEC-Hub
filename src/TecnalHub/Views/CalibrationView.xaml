@@ -579,8 +579,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Setpoint (L/min)" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBox Grid.Column="1" Text="{Binding SetpointText, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Grid.Column="2" Content="Enviar" Margin="6,0,0,0"
+                                <TextBox Grid.Column="1" Height="30" Padding="8,0" VerticalContentAlignment="Center"
+                                         Text="{Binding SetpointText, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="2" Content="Enviar" Height="30" Padding="12,0" Margin="6,0,0,0"
                                         Command="{Binding SendSetpointCommand}" />
                             </Grid>
 
@@ -594,9 +595,10 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Passo" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBox Grid.Column="1" Text="{Binding AdjustmentStepText, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Grid.Column="2" Content="−" Width="36" Margin="6,0,3,0" Command="{Binding DecreaseSetpointCommand}" />
-                                <Button Grid.Column="3" Content="+" Width="36" Command="{Binding IncreaseSetpointCommand}" />
+                                <TextBox Grid.Column="1" Height="30" Padding="8,0" VerticalContentAlignment="Center"
+                                         Text="{Binding AdjustmentStepText, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="2" Content="−" Width="36" Height="30" Padding="0" Margin="6,0,3,0" Command="{Binding DecreaseSetpointCommand}" />
+                                <Button Grid.Column="3" Content="+" Width="36" Height="30" Padding="0" Command="{Binding IncreaseSetpointCommand}" />
                             </Grid>
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">

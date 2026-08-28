@@ -213,3 +213,39 @@ public sealed class EqualsConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>Maps a loop's "Ativo" flag to the state its dot may show.</summary>
+/// <remarks>
+/// A green dot on a loop nobody switched on says the reactor is doing something it is
+/// not. The dot only leaves <see cref="VariableState.Idle"/> once the operator has
+/// enabled the monitoring/control loop for that row. See <c>docs/UI_DESIGN.md</c>
+/// section 3.3.
+/// </remarks>
+public sealed class ActiveToStateConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? VariableState.Ok : VariableState.Idle;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Gates a variable's own state on its loop being active: <c>(state, isActive)</c>.
+/// </summary>
+/// <remarks>
+/// The companion to <see cref="ActiveToStateConverter"/> for rows that do have a live
+/// reading. While the loop is off the reading is not being acted on, so the dot stays
+/// idle rather than reporting a band the controller is not holding.
+/// </remarks>
+public sealed class ActiveVariableStateConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var active = values.Length > 1 && values[1] is true;
+        return active && values[0] is VariableState state ? state : VariableState.Idle;
+    }
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

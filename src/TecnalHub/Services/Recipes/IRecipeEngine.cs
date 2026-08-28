@@ -1,4 +1,4 @@
-using TecnalHub.Services.Control;
+﻿using TecnalHub.Services.Control;
 
 namespace TecnalHub.Services.Recipes;
 
@@ -39,6 +39,20 @@ public enum RecipeLogSeverity
 public sealed record RecipeLogEntry(RecipeLogSeverity Severity, string Message, string? NodeId = null);
 
 /// <summary>
+/// A block held because an external device has not confirmed the command the recipe sent it.
+/// </summary>
+/// <remarks>
+/// The recipe does not abort over an unresponsive device — it holds and keeps watching, which is
+/// what the operator expects from a cultivation that is already running. What the wait adds is
+/// visibility: an alarm, a log line, and the two ways out (skip the block, or stop the recipe).
+/// </remarks>
+/// <param name="NodeId">The block that is holding.</param>
+/// <param name="Device">Operator-facing device name, e.g. "Fluxômetro".</param>
+/// <param name="Detail">Why it is holding, in pt-BR.</param>
+/// <param name="Since">When the block first sent the command.</param>
+public sealed record RecipeDeviceWait(string NodeId, string Device, string Detail, DateTimeOffset Since);
+
+/// <summary>
 /// The recipe execution engine.
 /// </summary>
 /// <remarks>
@@ -62,6 +76,9 @@ public interface IRecipeEngine : IDisposable
     /// <summary>Why the run stopped or failed, when it did.</summary>
     string? StatusReason { get; }
 
+    /// <summary>The device a block is currently holding for, or null when nothing is held.</summary>
+    RecipeDeviceWait? Waiting { get; }
+
     /// <summary>The recipe currently loaded into the engine, or null.</summary>
     RecipeDocument? Current { get; }
 
@@ -83,6 +100,15 @@ public interface IRecipeEngine : IDisposable
     /// <summary>Stops the recipe, releases ownership and safe-stops the declared subsystems.</summary>
     Task StopAsync(string reason);
 
+    /// <summary>
+    /// Gives up on the device the current block is holding for and moves on to the next block.
+    /// </summary>
+    /// <remarks>
+    /// The operator's decision, never the engine's: the command stays sent, the block is logged as
+    /// skipped without confirmation, and the recipe continues. No-op when nothing is held.
+    /// </remarks>
+    void SkipWait();
+
     /// <summary>Completes when the current run ends (completed, stopped or failed).</summary>
     Task Completion { get; }
 
@@ -103,6 +129,9 @@ public interface IRecipeEngine : IDisposable
 
     /// <summary>Raised when the run state changes.</summary>
     event Action? StateChanged;
+
+    /// <summary>Raised when a block starts or stops holding for a device.</summary>
+    event Action? WaitingChanged;
 
     /// <summary>Raised for each engine log line.</summary>
     event Action<RecipeLogEntry>? Logged;

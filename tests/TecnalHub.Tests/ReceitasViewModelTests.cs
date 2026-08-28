@@ -1,4 +1,4 @@
-using TecnalHub.Services.Control;
+﻿using TecnalHub.Services.Control;
 using TecnalHub.Services.Recipes;
 using TecnalHub.ViewModels;
 using Xunit;
@@ -16,6 +16,7 @@ public sealed class ReceitasViewModelTests
     {
         public RecipeRunState State => RecipeRunState.Idle;
         public string? StatusReason => null;
+        public RecipeDeviceWait? Waiting => null;
         public RecipeDocument? Current => null;
         public TimeSpan Elapsed => TimeSpan.Zero;
         public Task Completion => Task.CompletedTask;
@@ -24,12 +25,14 @@ public sealed class ReceitasViewModelTests
         public void Pause() { }
         public void Resume() { }
         public Task StopAsync(string reason) => Task.CompletedTask;
+        public void SkipWait() { }
         public bool ApplyLiveTuning(RecipeNode node) => false;
         public NodeState NodeStateOf(string nodeId) => NodeState.Waiting;
         public bool WasTraversed(RecipeConnection connection) => false;
         public CascadeTerms? CascadeTermsFor(string nodeId) => null;
         public event Action<string>? NodeStateChanged { add { } remove { } }
         public event Action? StateChanged { add { } remove { } }
+        public event Action? WaitingChanged { add { } remove { } }
         public event Action<RecipeLogEntry>? Logged { add { } remove { } }
         public void Dispose() { }
     }

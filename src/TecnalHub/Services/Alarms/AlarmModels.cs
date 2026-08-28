@@ -1,6 +1,6 @@
-namespace TecnalHub.Services.Alarms;
+﻿namespace TecnalHub.Services.Alarms;
 
-/// <summary>The six system alarms of the Phase 2 WP4 safety kernel.</summary>
+/// <summary>The system alarms of the Phase 2 WP4 safety kernel.</summary>
 /// <remarks>
 /// These are the system (non-variable) alarms from
 /// <c>docs/UI_DESIGN.md</c> §5.4.3. Per-variable HH/H/L/LL limits and the persistent-foam
@@ -25,6 +25,9 @@ public enum AlarmId
 
     /// <summary>A dispatched command was never accepted by the transport (timed out).</summary>
     UnacknowledgedCommand,
+
+    /// <summary>A recipe block is holding because an external device never confirmed its command.</summary>
+    RecipeAwaitingDevice,
 }
 
 /// <summary>Alarm severity — the colour and the audit level it maps to.</summary>

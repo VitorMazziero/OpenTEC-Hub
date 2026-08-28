@@ -1,4 +1,4 @@
-<UserControl x:Class="TecnalHub.Views.ReceitasView"
+﻿<UserControl x:Class="TecnalHub.Views.ReceitasView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -113,6 +113,23 @@
                     </Border>
                 </StackPanel>
             </Grid>
+        </Border>
+
+        <!-- ── Device hold banner ──────────────────────────────────────────── -->
+        <!-- A recipe never abandons a cultivation over a silent device: it holds and says so.
+             The two ways out are the operator's, and they live here beside the reason. -->
+        <Border Grid.Row="0" VerticalAlignment="Bottom" Margin="0,0,0,-22" Panel.ZIndex="2"
+                Padding="14,6" CornerRadius="{DynamicResource RadiusSmall}"
+                HorizontalAlignment="Center"
+                Background="{DynamicResource StateWarningBrush}"
+                Visibility="{Binding IsWaitingOnDevice, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding WaitingText}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextOnAccentBrush}" FontWeight="SemiBold" />
+                <Button Content="⏭ Pular bloco" Command="{Binding SkipWaitCommand}" Margin="14,0,0,0" Padding="10,4"
+                        ToolTip="Segue para o próximo bloco sem confirmação do dispositivo" />
+                <Button Content="⏹ Parar receita" Command="{Binding StopCommand}" Margin="8,0,0,0" Padding="10,4" />
+            </StackPanel>
         </Border>
 
         <!-- ── Tabs bar ────────────────────────────────────────────────────── -->

@@ -10,40 +10,60 @@ public sealed partial class RecipeEngine
 {
     private double MaxFlow => _settings.Current.Setpoints.MaxFlowLitresPerMinute;
 
-    private void ExecuteActuation(RecipeNode node)
+    /// <summary>
+    /// Runs an actuation block. Blocks that command an external device hold until that device
+    /// confirms — see <see cref="AwaitDeviceAsync"/>; the rest are fire-and-forget as before.
+    /// </summary>
+    private async Task ExecuteActuationAsync(RecipeNode node, CancellationToken ct)
     {
         switch (node.Type)
         {
             case NodeType.SetSetpoint:
+            {
+                var variable = node.Enum<SetpointVariable>("variavel");
+                var value = node.Number("valor");
+                Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
+                DispatchRecipe(BuildSetpoint(variable, value, node.Number("histerese")), node.Id);
+                if (variable == SetpointVariable.Flow)
                 {
-                    var variable = node.Enum<SetpointVariable>("variavel");
-                    var value = node.Number("valor");
-                    Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
-                    DispatchRecipe(BuildSetpoint(variable, value, node.Number("histerese")), node.Id);
-                    break;
+                    await AwaitFlowAppliedAsync(node, value, ct).ConfigureAwait(false);
                 }
+
+                break;
+            }
 
             case NodeType.MultiSetpoint:
+            {
+                // One combined command object — the protocol prefers it and it saves round trips.
+                var combined = TecnalCommand.Create();
+                double? flowTarget = null;
+                foreach (var row in node.Rows("pontos").OfType<JsonObject>())
                 {
-                    // One combined command object — the protocol prefers it and it saves round trips.
-                    var combined = TecnalCommand.Create();
-                    foreach (var row in node.Rows("pontos").OfType<JsonObject>())
+                    if (Enum.TryParse<SetpointVariable>(row["variavel"]?.GetValue<string>(), out var variable))
                     {
-                        if (Enum.TryParse<SetpointVariable>(row["variavel"]?.GetValue<string>(), out var variable))
+                        var value = row["valor"] is JsonValue v && RecipeNode.TryReadNumber(v, out var d) ? d : 0.0;
+                        var hyst = row["histerese"] is JsonValue h && RecipeNode.TryReadNumber(h, out var hv) ? hv : 0.0;
+                        combined.Merge(BuildSetpoint(variable, value, hyst));
+                        Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
+                        if (variable == SetpointVariable.Flow)
                         {
-                            var value = row["valor"] is JsonValue v && RecipeNode.TryReadNumber(v, out var d) ? d : 0.0;
-                            var hyst = row["histerese"] is JsonValue h && RecipeNode.TryReadNumber(h, out var hv) ? hv : 0.0;
-                            combined.Merge(BuildSetpoint(variable, value, hyst));
-                            Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
+                            flowTarget = value;
                         }
                     }
-
-                    DispatchRecipe(combined, node.Id);
-                    break;
                 }
 
+                DispatchRecipe(combined, node.Id);
+                if (flowTarget is { } target)
+                {
+                    await AwaitFlowAppliedAsync(node, target, ct).ConfigureAwait(false);
+                }
+
+                break;
+            }
+
             case NodeType.SetLoop:
-                ExecuteLoop(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"));
+                await ExecuteLoopAsync(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"), ct)
+                    .ConfigureAwait(false);
                 break;
 
             case NodeType.MultiLoop:
@@ -52,7 +72,7 @@ public sealed partial class RecipeEngine
                     if (Enum.TryParse<ControlLoop>(row["malha"]?.GetValue<string>(), out var loop) &&
                         Enum.TryParse<LoopOperation>(row["operacao"]?.GetValue<string>(), out var op))
                     {
-                        ExecuteLoop(node, loop, op);
+                        await ExecuteLoopAsync(node, loop, op, ct).ConfigureAwait(false);
                     }
                 }
 
@@ -74,7 +94,7 @@ public sealed partial class RecipeEngine
         _ => TecnalCommand.Create(),
     };
 
-    private void ExecuteLoop(RecipeNode node, ControlLoop loop, LoopOperation operation)
+    private async Task ExecuteLoopAsync(RecipeNode node, ControlLoop loop, LoopOperation operation, CancellationToken ct)
     {
         var enable = operation == LoopOperation.Enable;
         Log(RecipeLogSeverity.Info, $"{(enable ? "Ligar" : "Desligar")} malha {LoopLabel(loop)}.", node.Id);
@@ -101,6 +121,12 @@ public sealed partial class RecipeEngine
         }
 
         DispatchRecipe(command, node.Id);
+
+        // Enabling aeration is a command to the flowmeter like any other: hold until it answers.
+        if (enable && loop == ControlLoop.Aeration)
+        {
+            await AwaitFlowmeterOnlineAsync(node, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Sends a recipe-owned frame, logging a refusal (should not happen — the recipe owns all).</summary>

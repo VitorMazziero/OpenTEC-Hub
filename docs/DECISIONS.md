@@ -676,6 +676,34 @@ windows. Pump actuation and the proportional flow ride the standing bioreactor g
 
 ---
 
+## A recipe holds for an external device; it never advances on faith
+
+**Context.** `CanStart` checks the *link*, and the arbiter checks *ownership*. Neither knows
+whether the peripheral on the far end exists. A `Múltiplos Pontos de Ajuste` block asking for
+25 L/min dispatched the frame, logged the intent, marked itself completed and let the recipe
+finish — with the flowmeter offline the whole time and no gas ever flowing. The telemetry that
+would have said so (`FlowmeterOnline`, the `FlowSetpoint` echo) was already on the wire and was
+read by nobody outside the alarm engine.
+
+**Decision.** A block that commands an external device **holds until that device confirms**,
+using the same evidence the arbiter confirms aeration with. The hold is indefinite by design:
+aborting a cultivation because a sensor went quiet is worse than waiting for it. After a
+grace of four telemetry periods the engine publishes `IRecipeEngine.Waiting`, which logs a
+warning and latches the `Receita aguardando dispositivo` alarm, and the operator resolves it —
+`SkipWait()` moves on without confirmation, `StopAsync` ends the run. A zero setpoint is exempt:
+a stop must never wait on the device that is failing.
+
+**Scope.** The flowmeter (air flow) is wired now; the distance sensor, external pump, biomass
+sensor and flask agitator join the same `AwaitDeviceAsync` mechanism as their actuation lands.
+
+*Rejected:* refusing to start when a device is absent (the operator often knows it is coming up);
+aborting the run on a silent device (loses the cultivation over a peripheral); re-sending the
+frame on a timer (changes actuation behaviour to fix an observability problem); and leaving the
+condition to the existing `Fluxômetro offline` alarm, which needs the firmware to report
+`FlowControlEnabled` and says nothing about the recipe that is stuck behind it.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

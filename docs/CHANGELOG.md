@@ -30,6 +30,12 @@ All notable changes to TECNAL-Hub. Version numbers follow
   telemetria liberar a pendência; os firmwares congelados não foram modificados. O plano e a
   verificação restante em hardware estão em
   [FLOWMETER_V05_HUB_V7_SYNC_PLAN.md](FLOWMETER_V05_HUB_V7_SYNC_PLAN.md).
+- **Recipes hold for an unresponsive external device, and say so.** A flow-setpoint or
+  aeration-enable block now waits for the flowmeter to confirm (`FlowmeterOnline` plus the
+  `FlowSetpoint` echo) instead of completing on dispatch. After 8 s the engine publishes
+  `IRecipeEngine.Waiting`, which logs a warning and latches the new
+  `Receita aguardando dispositivo` alarm; the Receitas banner offers `Pular bloco` and
+  `Parar receita`. A zero setpoint never waits.
 - **Post-merge release audit and v0.25.0 stabilization plan.** Added
   [CURRENT_STATUS.md](CURRENT_STATUS.md) with verified Git/version/build/runtime evidence, the
   ownership/safe-stop and merged biomass/pump findings, UI/build gates and the extended release plan.

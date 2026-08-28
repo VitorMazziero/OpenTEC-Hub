@@ -1,4 +1,4 @@
-using TecnalHub.Protocol;
+﻿using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.KlaMapping;
@@ -120,6 +120,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         Current = recipe;
         ResetNodeStates(recipe);
         ResetFlowState();
+        SetWaiting(null);
         lock (_lock)
         {
             _executedConnections.Clear();
@@ -170,6 +171,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         finally
         {
             // Whatever ended the run — completion, stop or fault — hands the wire back safely.
+            SetWaiting(null);
             SafeStopAndRelease("fim da receita");
         }
     }

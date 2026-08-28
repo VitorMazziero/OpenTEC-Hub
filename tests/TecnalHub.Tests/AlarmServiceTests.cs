@@ -2,6 +2,7 @@ using TecnalHub.Protocol;
 using TecnalHub.Services.Alarms;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Recipes;
 using TecnalHub.Services.Telemetry;
 using Xunit;
 
@@ -44,6 +45,39 @@ public sealed class AlarmServiceTests
         }
     }
 
+    /// <summary>Only the hold state matters here; the rest of the engine is not exercised.</summary>
+    private sealed class StubRecipeEngine : IRecipeEngine
+    {
+        private RecipeDeviceWait? _waiting;
+
+        public RecipeDeviceWait? Waiting
+        {
+            get => _waiting;
+            set { _waiting = value; WaitingChanged?.Invoke(); }
+        }
+
+        public RecipeRunState State => RecipeRunState.Idle;
+        public string? StatusReason => null;
+        public RecipeDocument? Current => null;
+        public TimeSpan Elapsed => TimeSpan.Zero;
+        public Task Completion => Task.CompletedTask;
+        public bool CanStart(RecipeDocument recipe, out string? reason) { reason = null; return true; }
+        public Task StartAsync(RecipeDocument recipe, bool resetLoopsBeforeStart = false, CancellationToken ct = default) => Task.CompletedTask;
+        public void Pause() { }
+        public void Resume() { }
+        public Task StopAsync(string reason) => Task.CompletedTask;
+        public void SkipWait() { }
+        public bool ApplyLiveTuning(RecipeNode node) => false;
+        public NodeState NodeStateOf(string nodeId) => NodeState.Waiting;
+        public bool WasTraversed(RecipeConnection connection) => false;
+        public TecnalHub.Services.Control.CascadeTerms? CascadeTermsFor(string nodeId) => null;
+        public event Action<string>? NodeStateChanged { add { } remove { } }
+        public event Action? StateChanged { add { } remove { } }
+        public event Action? WaitingChanged;
+        public event Action<RecipeLogEntry>? Logged { add { } remove { } }
+        public void Dispose() { }
+    }
+
     private sealed class Harness : IDisposable
     {
         public Harness()
@@ -54,7 +88,8 @@ public sealed class AlarmServiceTests
             Arbiter = new CommandArbiter(Device, Clock);
             Journal = new RecordingJournal();
             Annunciator = new FakeAnnunciator();
-            Service = new AlarmService(Device, Arbiter, Settings, Journal, Annunciator, Clock);
+            Recipes = new StubRecipeEngine();
+            Service = new AlarmService(Device, Arbiter, Settings, Journal, Annunciator, Clock, Recipes);
         }
 
         public TestClock Clock { get; }
@@ -63,6 +98,7 @@ public sealed class AlarmServiceTests
         public CommandArbiter Arbiter { get; }
         public RecordingJournal Journal { get; }
         public FakeAnnunciator Annunciator { get; }
+        public StubRecipeEngine Recipes { get; }
         public AlarmService Service { get; }
 
         /// <summary>Moves the clock forward, then re-evaluates — as the shell's tick would.</summary>
@@ -91,6 +127,30 @@ public sealed class AlarmServiceTests
         FlowmeterOnline = true,
         FlowControlEnabled = false,
     };
+
+    // ── Recipe holding for an external device ────────────────────────────────
+
+    [Fact]
+    public void A_recipe_holding_for_a_device_annunciates_and_clears_when_it_answers()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(HealthyFrame());
+        Assert.False(h.Latched(AlarmId.RecipeAwaitingDevice));
+
+        h.Recipes.Waiting = new RecipeDeviceWait(
+            "sp", "Fluxômetro", "a vazão de 2,5 L/min não foi confirmada pelo fluxômetro.",
+            DateTimeOffset.UnixEpoch);
+
+        Assert.True(h.Latched(AlarmId.RecipeAwaitingDevice));
+        Assert.True(h.Service.IsAudible);
+        Assert.Contains("Fluxômetro", h.Get(AlarmId.RecipeAwaitingDevice)!.Detail);
+
+        // Acknowledged and then answered, the alarm returns to normal on its own.
+        h.Service.Acknowledge(AlarmId.RecipeAwaitingDevice);
+        h.Recipes.Waiting = null;
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+        Assert.False(h.Latched(AlarmId.RecipeAwaitingDevice));
+    }
 
     // ── Link lost ────────────────────────────────────────────────────────────
 

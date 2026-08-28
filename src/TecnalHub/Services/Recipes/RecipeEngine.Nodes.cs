@@ -1,4 +1,4 @@
-using TecnalHub.Protocol;
+﻿using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 
 namespace TecnalHub.Services.Recipes;
@@ -48,7 +48,7 @@ public sealed partial class RecipeEngine
             case NodeType.MultiSetpoint:
             case NodeType.SetLoop:
             case NodeType.MultiLoop:
-                ExecuteActuation(node);
+                await ExecuteActuationAsync(node, ct).ConfigureAwait(false);
                 break;
 
             case NodeType.PhPump:

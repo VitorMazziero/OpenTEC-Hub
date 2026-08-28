@@ -13,6 +13,18 @@
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
+        <conv:ActiveToStateConverter x:Key="ActiveToState" />
+        <conv:ActiveVariableStateConverter x:Key="ActiveVariableState" />
+
+        <!-- An external device that is not on the wire cannot be commanded, so its
+             switch and its setpoint box stay dead rather than accepting an order that
+             goes nowhere. -->
+        <Style x:Key="ExternalDeviceToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+            <Setter Property="IsEnabled" Value="{Binding DataContext.CanActuate, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+        </Style>
+        <Style x:Key="ExternalDeviceEntryStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="IsEnabled" Value="{Binding DataContext.CanActuate, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+        </Style>
         <Style x:Key="DosingFieldLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Margin" Value="0,0,0,4" />
@@ -162,7 +174,14 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="60" />
                                 </Grid.ColumnDefinitions>
-                                <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" />
+                                <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}">
+                                    <ctl:StateDot.State>
+                                        <MultiBinding Converter="{StaticResource ActiveVariableState}">
+                                            <Binding Path="Subsystem.Variable.State" />
+                                            <Binding Path="EffectiveActive" />
+                                        </MultiBinding>
+                                    </ctl:StateDot.State>
+                                </ctl:StateDot>
                                 <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                         Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
@@ -233,7 +252,14 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="60" />
                                 </Grid.ColumnDefinitions>
-                                <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" />
+                                <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}">
+                                    <ctl:StateDot.State>
+                                        <MultiBinding Converter="{StaticResource ActiveVariableState}">
+                                            <Binding Path="Subsystem.Variable.State" />
+                                            <Binding Path="EffectiveActive" />
+                                        </MultiBinding>
+                                    </ctl:StateDot.State>
+                                </ctl:StateDot>
                                 <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                         Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
@@ -292,7 +318,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedPH, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações detalhadas de pH" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="pH" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="pH" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Ph" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="pH" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -378,13 +404,20 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="60" />
                                 </Grid.ColumnDefinitions>
-                                <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" />
+                                <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Alívio de Pressão">
+                                    <ctl:StateDot.State>
+                                        <MultiBinding Converter="{StaticResource ActiveVariableState}">
+                                            <Binding Path="Subsystem.Variable.State" />
+                                            <Binding Path="EffectiveActive" />
+                                        </MultiBinding>
+                                    </ctl:StateDot.State>
+                                </ctl:StateDot>
                                 <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                         Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
                                         <ctl:Icon Key="{Binding IconKey}" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="{Binding Subsystem.DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="Alívio de Pressão" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="{Binding Subsystem.Description}" />
                                     </StackPanel>
                                 </Button>
                                 <StackPanel Grid.Column="3" VerticalAlignment="Center">
@@ -417,7 +450,7 @@
                                 <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
                                 <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                              IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de pressão" />
+                                              IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de alívio de pressão" />
                             </Grid>
 
                             <!-- 5. Oxigênio -->
@@ -433,7 +466,14 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="60" />
                                 </Grid.ColumnDefinitions>
-                                <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" />
+                                <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}">
+                                    <ctl:StateDot.State>
+                                        <MultiBinding Converter="{StaticResource ActiveVariableState}">
+                                            <Binding Path="Subsystem.Variable.State" />
+                                            <Binding Path="IsCascadeEngaged" />
+                                        </MultiBinding>
+                                    </ctl:StateDot.State>
+                                </ctl:StateDot>
                                 <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                         Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
@@ -492,7 +532,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedNutrient, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações de dosagem de nutrientes" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Nutriente" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Nutriente" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Nutrient" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Dosagem de Nutrientes" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -580,7 +620,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedAntifoam, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações de dosagem de antiespumante" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Antiespumante" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Antiespumante" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Foam" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Dosagem de Antiespumante" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -688,7 +728,14 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedFlow, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Opções do fluxômetro de massa (válvulas, N2, maxFlow)" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Vazão de Ar" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Vazão de Ar">
+                                        <ctl:StateDot.State>
+                                            <MultiBinding Converter="{StaticResource ActiveVariableState}">
+                                                <Binding Path="Subsystem.Variable.State" />
+                                                <Binding Path="EffectiveActive" />
+                                            </MultiBinding>
+                                        </ctl:StateDot.State>
+                                    </ctl:StateDot>
                                     <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                             Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
@@ -721,8 +768,7 @@
                                                  Text="{Binding Subsystem.SetpointText, UpdateSourceTrigger=PropertyChanged}"
                                                  ToolTip="{Binding Subsystem.ValidationError}">
                                             <TextBox.Style>
-                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                    <Setter Property="IsEnabled" Value="False" />
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource ExternalDeviceEntryStyle}">
                                                     <Style.Triggers>
                                                         <MultiDataTrigger>
                                                             <MultiDataTrigger.Conditions>
@@ -754,8 +800,7 @@
                                     <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   IsChecked="{Binding EffectiveActive, Mode=TwoWay}">
                                         <ToggleButton.Style>
-                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
-                                                <Setter Property="IsEnabled" Value="False" />
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ExternalDeviceToggleStyle}">
                                                 <Style.Triggers>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
@@ -903,7 +948,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedDistance, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações do sensor de distância / espuma" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Distância" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding SensorEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Distância" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Level" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Sensor de Distância" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Sensor de espuma via distância" />
@@ -917,7 +962,7 @@
                                                  Text="{Binding ReferenceMillimetresText, UpdateSourceTrigger=PropertyChanged}"
                                                  ToolTip="{Binding ValidationError}">
                                             <TextBox.Style>
-                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource ExternalDeviceEntryStyle}">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasPendingChange}" Value="True">
                                                             <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
@@ -934,7 +979,7 @@
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="mm" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="0–999 mm" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ExternalDeviceToggleStyle}"
                                                   IsChecked="{Binding SensorEnabled, Mode=TwoWay}" ToolTip="Ativar sensor de distância/espuma" />
                                 </Grid>
 
@@ -989,7 +1034,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações da bomba dosadora externa" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Bomba externa" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Bomba externa" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Pump" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Bomba Dosadora Externa" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -1005,8 +1050,8 @@
                                               DisplayMemberPath="Label"
                                               ToolTip="Modo do perfil de dosagem" />
                                     <TextBlock Grid.Column="6" Text="mL/min" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="7" Text="5 perfis" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                    <TextBlock Grid.Column="7" Text="5 perfis + gás prop." Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ExternalDeviceToggleStyle}"
                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar a bomba externa" />
                                 </Grid>
                                 <Grid Visibility="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
@@ -1038,7 +1083,7 @@
                                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                                             <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" />
-                                            <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                            <ToggleButton Style="{StaticResource ExternalDeviceToggleStyle}"
                                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}"
                                                           HorizontalAlignment="Right" Margin="0,6,0,0"
                                                           ToolTip="Ativar a bomba externa (pumpComm)" />
@@ -1190,7 +1235,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedBiomass, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações do sensor de biomassa" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Biomassa" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Biomassa" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Sensor de Biomassa" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -1220,7 +1265,7 @@
                                     </TextBox>
                                     <TextBlock Grid.Column="6" Text="AU" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="Abs / Raw / IT / PWM" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ExternalDeviceToggleStyle}"
                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar o sensor de biomassa" />
                                 </Grid>
                                 <Grid Visibility="{Binding DataContext.IsExpandedBiomass, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
@@ -1244,7 +1289,7 @@
                                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                                             <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" />
-                                            <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                            <ToggleButton Style="{StaticResource ExternalDeviceToggleStyle}"
                                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}"
                                                           HorizontalAlignment="Right" Margin="0,6,0,0"
                                                           ToolTip="Ativar o sensor de biomassa" />
@@ -1342,7 +1387,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedFlaskAgitator, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações do agitador de frasco" />
-                                    <ctl:StateDot Grid.Column="1" State="Ok" Size="8" VerticalAlignment="Center" Label="Frasco Agitador" />
+                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Frasco Agitador" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Impeller" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Frasco Agitador" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Dispositivo de bancada separado" />
@@ -1359,7 +1404,7 @@
                                                  Text="{Binding MagnitudePercentText, UpdateSourceTrigger=PropertyChanged}"
                                                  ToolTip="{Binding ValidationError}">
                                             <TextBox.Style>
-                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource ExternalDeviceEntryStyle}">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasPendingChange}" Value="True">
                                                             <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
@@ -1376,7 +1421,7 @@
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="%" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="0–100 %" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ExternalDeviceToggleStyle}"
                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ligar o agitador de frasco" />
                                 </Grid>
 

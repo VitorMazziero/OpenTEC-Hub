@@ -52,7 +52,6 @@ public sealed class ControlWorkspaceContractTests
         Assert.DoesNotContain("Confira e aplique toda a configuração", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"Parâmetros do processo\"", xaml, StringComparison.Ordinal);
         Assert.Equal(8, Count(xaml, "Tag=\"ExpanderToggle\""));
-        Assert.Equal(12, Count(xaml, "State=\"Ok\""));
         Assert.DoesNotContain("ProvenanceBadge Text=\"comandado\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"Aplicar", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("(0 = desligado)", xaml, StringComparison.Ordinal);
@@ -123,6 +122,45 @@ public sealed class ControlWorkspaceContractTests
         Assert.Equal(new PHControlSettings(), preset.PHControl);
         Assert.Equal(new NutrientControlSettings(), settings.NutrientControl);
         Assert.Equal(new AntifoamControlSettings(), settings.AntifoamControl);
+    }
+
+    [Fact]
+    public void Row_dots_are_green_only_while_the_loop_is_active()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        // A dot pinned to a state cannot report whether the loop is running.
+        Assert.DoesNotContain("<ctl:StateDot Grid.Column=\"1\" State=\"Ok\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(5, Count(xaml, "Converter=\"{StaticResource ActiveVariableState}\""));
+        Assert.Equal(7, Count(xaml, "Converter={StaticResource ActiveToState}"));
+    }
+
+    [Fact]
+    public void External_devices_are_only_operable_while_the_link_is_up()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+        var start = xaml.IndexOf("Text=\"Dispositivos Externos\"", StringComparison.Ordinal);
+        var section = xaml[start..];
+
+        Assert.Contains("DataContext.CanActuate", xaml, StringComparison.Ordinal);
+
+        // Five device rows plus the pump and biomass drawer twins.
+        Assert.Equal(7, Count(section, "ExternalDeviceToggleStyle"));
+
+        // Air flow, distance and flask agitator are the rows with a setpoint entry.
+        Assert.Equal(3, Count(section, "ExternalDeviceEntryStyle"));
+    }
+
+    [Fact]
+    public void Pressure_row_is_labelled_as_the_relief_valve()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+        var start = xaml.IndexOf("<!-- 4. Pressão -->", StringComparison.Ordinal);
+        var end = xaml.IndexOf("<!-- 5. Oxigênio -->", start, StringComparison.Ordinal);
+        var row = xaml[start..end];
+
+        Assert.Contains("Text=\"Alívio de Pressão\"", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding Subsystem.DisplayName}\"", row, StringComparison.Ordinal);
     }
 
     private static int Count(string value, string term)

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -54,6 +54,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _engine.NodeStateChanged += OnNodeStateChanged;
         _engine.StateChanged += OnEngineStateChanged;
         _engine.Logged += OnEngineLogged;
+        _engine.WaitingChanged += OnEngineWaitingChanged;
 
         _elapsedTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _elapsedTimer.Tick += (_, _) => ElapsedText = _engine.Elapsed.ToString(@"hh\:mm\:ss");
@@ -123,6 +124,20 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial string ElapsedText { get; set; } = "00:00:00";
+
+    /// <summary>
+    /// True while a block is holding for an external device that has not confirmed its command.
+    /// </summary>
+    /// <remarks>
+    /// The recipe holds rather than aborting — the operator decides whether to skip the block or
+    /// stop the run, and the banner is where that decision is offered.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SkipWaitCommand))]
+    public partial bool IsWaitingOnDevice { get; set; }
+
+    [ObservableProperty]
+    public partial string WaitingText { get; set; } = "";
 
     [ObservableProperty]
     public partial double CanvasWidth { get; set; } = 3200;
@@ -400,6 +415,9 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(IsRunning))]
     private async Task Stop() => await _engine.StopAsync("parada pelo operador");
 
+    [RelayCommand(CanExecute = nameof(IsWaitingOnDevice))]
+    private void SkipWait() => _engine.SkipWait();
+
     // ── Engine events (marshalled to the UI thread) ──────────────────────────────
 
     private void OnNodeStateChanged(string nodeId) => OnUi(() =>
@@ -425,6 +443,13 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         {
             _elapsedTimer.Stop();
         }
+    });
+
+    private void OnEngineWaitingChanged() => OnUi(() =>
+    {
+        var wait = _engine.Waiting;
+        IsWaitingOnDevice = wait is not null;
+        WaitingText = wait is null ? "" : $"Aguardando {wait.Device}: {wait.Detail}";
     });
 
     private void OnEngineLogged(RecipeLogEntry entry) => OnUi(() =>
@@ -463,6 +488,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _engine.NodeStateChanged -= OnNodeStateChanged;
         _engine.StateChanged -= OnEngineStateChanged;
         _engine.Logged -= OnEngineLogged;
+        _engine.WaitingChanged -= OnEngineWaitingChanged;
         _elapsedTimer.Stop();
         foreach (var tab in Tabs)
         {

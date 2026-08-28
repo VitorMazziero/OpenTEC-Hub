@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Calibration;
@@ -78,6 +79,48 @@ public sealed class CalibrationMathTests
         }
     }
 
+    /// <summary>
+    /// The certified bench points behind the shipped V05 calibration, in the order the
+    /// flowmeter dialog lists them.
+    /// </summary>
+    public static readonly (double Voltage, double Flow)[] V05BenchPoints =
+    [
+        (0.010330, 0.0), (0.024090, 0.5), (0.040640, 0.75),
+        (0.067500, 1.0), (0.157940, 2.0), (0.332030, 4.0),
+        (0.502310, 6.0), (0.694720, 8.0), (0.897150, 10.0),
+        (1.080840, 12.0), (1.287900, 14.0),
+    ];
+
+    [Fact]
+    public void Fitting_the_certified_bench_points_regenerates_the_v05_coefficients()
+    {
+        var fit = CalibrationMath.FitFlowCurve(V05BenchPoints);
+
+        var low = Assert.IsType<PolynomialCalibration>(fit.LowVoltage);
+        var high = Assert.IsType<PolynomialCalibration>(fit.HighVoltage);
+
+        // The high segment is a plain quadratic least-squares fit of the eight points above
+        // the split — the curve the old dialog printed as -0.8546x² + 11.8145x + 0.1922.
+        Assert.Equal(-0.854551899, high.K, precision: 6);
+        Assert.Equal(11.814453070, high.F, precision: 6);
+        Assert.Equal(0.192231954, high.C, precision: 6);
+
+        // The low segment is the anchored quartic the firmware ships. The coefficients span six
+        // orders of magnitude, so agreement is stated relatively: every one matches the
+        // published constant to better than one part in a million, which is what is left after
+        // those constants were rounded for publication.
+        AssertRelative(321791.345936369, low.A);
+        AssertRelative(-32589.073104291, low.B);
+        AssertRelative(462.893536740, low.K);
+        AssertRelative(43.294432104, low.F);
+        AssertRelative(-0.464367483, low.C);
+
+        static void AssertRelative(double expected, double actual)
+            => Assert.True(
+                Math.Abs(actual - expected) <= 1e-6 * Math.Abs(expected),
+                $"esperado {expected:G15}, obtido {actual:G15}");
+    }
+
     [Fact]
     public void The_firmware_default_curve_matches_the_v05_coefficients_and_is_continuous()
     {
@@ -88,7 +131,7 @@ public sealed class CalibrationMathTests
         Assert.Equal(321791.345936369, low.A, precision: 6);
         Assert.Equal(-32589.073104291, low.B, precision: 6);
         Assert.Equal(462.893536740, low.K, precision: 6);
-        Assert.Equal(43.294432104, low.F, precision: 6);
+        Assert.Equal(43.294432104, low.F, precision: 9);
         Assert.Equal(-0.464367483, low.C, precision: 6);
         Assert.Equal(-0.854551899, high.K, precision: 6);
         Assert.Equal(11.814453070, high.F, precision: 6);
@@ -300,6 +343,26 @@ public sealed class GuidedCalibrationTests
         Assert.False(vm.IsCapturing);
         Assert.False(vm.CanCapture);
         Assert.Contains("envie o setpoint novamente", vm.StatusText, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    [Fact]
+    public void The_workspace_opens_on_the_certified_bench_points_and_the_v05_curve()
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService());
+
+        Assert.Equal(11, vm.Points.Count);
+        Assert.Equal("0", vm.Points[0].FlowText);
+        Assert.Equal(0.010330, vm.Points[0].Voltage!.Value, precision: 6);
+        Assert.Equal(14.0, double.Parse(vm.Points[^1].FlowText, CultureInfo.CurrentCulture), precision: 6);
+
+        // Fitting the seeded points reproduces what the flowmeter is already running.
+        var reference = CalibrationMath.FirmwareDefault;
+        var low = vm.Curve.LowVoltage!.Value;
+        var high = vm.Curve.HighVoltage!.Value;
+        Assert.Equal(reference.LowVoltage!.Value.A, low.A, precision: 3);
+        Assert.Equal(reference.HighVoltage!.Value.F, high.F, precision: 6);
+        Assert.True(Math.Abs(vm.Curve.DiscontinuityAtSplit!.Value) < 1e-9);
     }
 
     [Fact]

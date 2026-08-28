@@ -174,7 +174,25 @@ public sealed record CalibrationSettings
     /// Operator-certified flow points. Coefficients are derived deterministically and
     /// reach the flowmeter only through an explicit send action.
     /// </summary>
-    public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } = [];
+    /// <remarks>
+    /// Seeded with the certified bench run behind the shipped V05 calibration, so the workspace
+    /// opens on the same points and curve the flowmeter is actually running. Fitting them
+    /// regenerates the firmware's own coefficients.
+    /// </remarks>
+    public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } =
+    [
+        new() { FlowLitresPerMinute = 0.0, Voltage = 0.010330 },
+        new() { FlowLitresPerMinute = 0.5, Voltage = 0.024090 },
+        new() { FlowLitresPerMinute = 0.75, Voltage = 0.040640 },
+        new() { FlowLitresPerMinute = 1.0, Voltage = 0.067500 },
+        new() { FlowLitresPerMinute = 2.0, Voltage = 0.157940 },
+        new() { FlowLitresPerMinute = 4.0, Voltage = 0.332030 },
+        new() { FlowLitresPerMinute = 6.0, Voltage = 0.502310 },
+        new() { FlowLitresPerMinute = 8.0, Voltage = 0.694720 },
+        new() { FlowLitresPerMinute = 10.0, Voltage = 0.897150 },
+        new() { FlowLitresPerMinute = 12.0, Voltage = 1.080840 },
+        new() { FlowLitresPerMinute = 14.0, Voltage = 1.287900 },
+    ];
 
     /// <summary>Decodes a raw oxygen count with these coefficients.</summary>
     public double DecodeOxygen(double raw) => Math.Max((OxygenA * raw) + OxygenB, 0.0);

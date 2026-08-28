@@ -107,9 +107,12 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [ObservableProperty]
     public partial string CommandedSetpointText { get; set; } = "Nenhum setpoint enviado";
 
+    /// <summary>
+    /// Live acquisition feedback. Starts empty because the standing instruction is shown under
+    /// the panel heading; repeating it here would just be the same sentence twice.
+    /// </summary>
     [ObservableProperty]
-    public partial string StatusText { get; set; } =
-        "Envie um setpoint de vazão, leia o valor real no padrão externo e capture a tensão.";
+    public partial string StatusText { get; set; } = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]

@@ -193,6 +193,40 @@ public class OxygenConfigViewModelTests
     }
 
     [Fact]
+    public void Apply_re_engages_with_the_new_parameters_when_already_engaged()
+    {
+        using var fixture = new Fixture();
+        var vm = fixture.ViewModel;
+
+        fixture.Service.Engage(300, 3.0);
+        Assert.True(fixture.Service.IsEngaged);
+
+        vm.KpText = "0.321";
+        vm.ApplyCommand.Execute(null);
+
+        Assert.True(vm.DialogResult);
+        Assert.True(fixture.Service.IsEngaged);
+        Assert.Equal(0.321, fixture.Service.Tuning.Kp, precision: 3);
+    }
+
+    [Fact]
+    public void Apply_changes_the_mode_live_when_already_engaged()
+    {
+        using var fixture = new Fixture();
+        var vm = fixture.ViewModel;
+
+        fixture.Service.Engage(300, 3.0);
+        Assert.Equal(CascadeMode.DualCascade, fixture.Service.Mode);
+
+        vm.SelectedMode = vm.Modes.First(m => m.Mode == CascadeMode.AgitationOnly);
+        vm.ApplyCommand.Execute(null);
+
+        Assert.True(vm.DialogResult);
+        Assert.True(fixture.Service.IsEngaged);
+        Assert.Equal(CascadeMode.AgitationOnly, fixture.Service.Mode);
+    }
+
+    [Fact]
     public void Cancel_does_not_persist_or_update_service()
     {
         using var fixture = new Fixture();

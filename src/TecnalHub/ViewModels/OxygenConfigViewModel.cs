@@ -416,6 +416,25 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
             MapPid = _modePids[CascadeMode.KlaPath],
         };
 
+        var wasEngaged = _cascade.IsEngaged;
+
+        // Applying while engaged re-engages so the new mode and parameters take effect live.
+        // Block the one foreseeable re-engage failure before tearing down the running loop.
+        if (wasEngaged && SelectedMode.Mode == CascadeMode.KlaPath && SelectedPath is null)
+        {
+            ValidationError = "Selecione um mapa kLa publicado para reativar no modo Mapa.";
+            return;
+        }
+
+        // Capture the running actuators so the re-engage is bumpless.
+        var reengageRpm = _cascade.LastActuation?.AgitationRpm ?? _settings.Current.Setpoints.MotorRpm;
+        var reengageLpm = _cascade.LastActuation?.AerationLpm ?? _settings.Current.Setpoints.FlowLitresPerMinute;
+
+        if (wasEngaged)
+        {
+            _cascade.Disengage("reconfiguração do controle de oxigênio");
+        }
+
         _settings.Update(s => s with { Cascade = updated });
         _cascade.Configure(updated);
         _cascade.SelectMode(SelectedMode.Mode);
@@ -423,6 +442,17 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
         if (SelectedMode.Mode == CascadeMode.KlaPath)
         {
             _cascade.SelectPath(SelectedPath);
+        }
+
+        if (wasEngaged)
+        {
+            _cascade.Engage(reengageRpm, reengageLpm);
+            if (!_cascade.IsEngaged)
+            {
+                _cascade.CanEngage(out var reason);
+                ValidationError = reason ?? "Não foi possível reativar o controle de oxigênio com a nova configuração.";
+                return;
+            }
         }
 
         DialogResult = true;

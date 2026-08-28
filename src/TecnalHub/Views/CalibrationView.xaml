@@ -53,9 +53,6 @@
                            FontSize="{DynamicResource FontSizeTitle}"
                            FontWeight="SemiBold" />
             </StackPanel>
-            <TextBlock Text="Procedimentos guiados com aquisição ao vivo, resultado proposto e aplicação explícita."
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       Margin="36,3,0,0" />
         </StackPanel>
 
         <TabControl Grid.Row="1" Style="{StaticResource SegmentedControlStyle}">
@@ -63,20 +60,6 @@
             <TabItem Header="pH" Style="{StaticResource SegmentedItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="0,12,0,0" DataContext="{Binding PH}">
-                        <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                BorderBrush="{DynamicResource StateWarningBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{DynamicResource RadiusSmall}"
-                                Padding="12"
-                                Margin="0,0,0,12">
-                            <StackPanel Orientation="Horizontal">
-                                <ctl:StateDot State="Warning" Size="9" Label="Intertravamento de calibração" Margin="0,4,8,0" />
-                                <TextBlock Text="Intertravamento: iniciar a calibração envia o estado completo de pH desligado. Reative a dosagem somente depois de recolocar a sonda no reator."
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource StateWarningTextBrush}" />
-                            </StackPanel>
-                        </Border>
-
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.05*" />
@@ -109,7 +92,9 @@
                                     </Grid>
 
                                     <TextBlock Text="Critério de aquisição (raw ADC)" FontWeight="SemiBold" Margin="0,14,0,8" />
-                                    <UniformGrid Columns="3" IsEnabled="{Binding CanStart}">
+                                    <!-- Editable mid-run: a noisy probe may need a wider window or a
+                                         looser σ once the acquisition is already under way. -->
+                                    <UniformGrid Columns="3">
                                         <StackPanel Margin="0,0,6,0">
                                             <TextBlock Text="Janela" Style="{StaticResource CalibrationLabel}" />
                                             <TextBox Text="{Binding StabilityWindowText, UpdateSourceTrigger=PropertyChanged}" />
@@ -123,11 +108,6 @@
                                             <TextBox Text="{Binding AverageSamplesText, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
                                     </UniformGrid>
-
-                                    <TextBlock Text="Critérios e filtros de spike usam contagens raw; aplicar uma curva não os reescala."
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource StateWarningTextBrush}"
-                                               TextWrapping="Wrap" Margin="0,8,0,0" />
 
                                     <WrapPanel Margin="0,14,0,0">
                                         <Button Content="Iniciar · 1 ponto" Command="{Binding StartOnePointCommand}" Margin="0,0,6,6" />
@@ -242,20 +222,25 @@
                                     </UniformGrid>
                                     <TextBlock Text="Curva vigente" Style="{StaticResource CalibrationLabel}" />
                                     <TextBlock Text="{Binding CurrentEquationText}" FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" />
-                                    <TextBlock Text="v.6 não envia coeficientes de O₂ ao módulo; esta curva pertence ao parser do aplicativo."
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               TextWrapping="Wrap" Margin="0,12,0,0" />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Calibração linear de dois pontos"
+                                    <TextBlock Text="{Binding ProcedureTitle}"
                                                FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
-                                    <TextBlock Text="Estabilize o padrão, confira o raw ao vivo e capture. A captura é explícita."
+                                    <TextBlock Text="{Binding ProcedureHint}"
                                                Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,12" />
+                                               Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,10" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <RadioButton Content="Dois pontos" GroupName="OxygenCalibrationMode"
+                                                     IsChecked="{Binding IsTwoPoint, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" Margin="0,0,16,0" />
+                                        <RadioButton Content="Um ponto (só intercepto)" GroupName="OxygenCalibrationMode"
+                                                     IsChecked="{Binding IsOnePoint, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" />
+                                    </StackPanel>
 
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -271,7 +256,8 @@
                                                 <TextBlock Text="{Binding Point1Text}" TextWrapping="Wrap" Margin="0,7,0,0" Style="{StaticResource CaptionTextStyle}" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="12" Margin="5,0,0,0">
+                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="12" Margin="5,0,0,0"
+                                                IsEnabled="{Binding IsTwoPoint}">
                                             <StackPanel>
                                                 <TextBlock Text="Ponto 2" FontWeight="SemiBold" />
                                                 <TextBlock Text="Referência (%)" Style="{StaticResource CalibrationLabel}" Margin="0,8,0,4" />
@@ -320,7 +306,12 @@
                                 <TextBlock Text="{Binding CurveStateText}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,8" />
                                 <TextBlock Text="{Binding LowEquationText}" FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding HighEquationText}" FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                <TextBlock Text="{Binding ContinuityText}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           TextWrapping="Wrap" Margin="0,7,0,0" />
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                                    <Button Content="Restaurar padrão de fábrica" Command="{Binding RestoreFirmwareDefaultCommand}" Margin="0,0,6,0" />
                                     <Button Content="Salvar pontos" Command="{Binding SavePointsCommand}" Margin="0,0,6,0" />
                                     <Button Content="Salvar e enviar curva" Style="{StaticResource AccentButtonStyle}" Command="{Binding SendCurveCommand}" />
                                 </StackPanel>
@@ -413,9 +404,22 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <Button Content="1 · Preparar ponto selecionado"
-                                                Command="{Binding PrepareSelectedPointCommand}" Margin="0,10,0,8" />
+                                        <!-- 1 · aim at a convenient flow; the certified standard tells
+                                             the operator what the real value is. -->
+                                        <Grid Margin="0,10,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Setpoint (L/min)" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBox Grid.Column="1" Text="{Binding SetpointText, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Grid.Column="2" Content="1 · Enviar" Margin="6,0,0,0"
+                                                    Command="{Binding SendSetpointCommand}" />
+                                        </Grid>
 
+                                        <!-- 2 · nudge the commanded setpoint until the standard reads
+                                             the exact flow the operator wants to record. -->
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
@@ -431,7 +435,7 @@
 
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                                             <Button Content="Cancelar captura" Command="{Binding CancelCaptureCommand}" Margin="0,0,6,0" />
-                                            <Button Content="2 · Capturar tensão"
+                                            <Button Content="3 · Capturar tensão"
                                                     Style="{StaticResource AccentButtonStyle}"
                                                     Command="{Binding CaptureVoltageCommand}" />
                                         </StackPanel>
@@ -521,7 +525,9 @@
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                TextWrapping="Wrap" Margin="0,4,0,12" />
 
-                                    <Grid IsEnabled="{Binding CanApplyThresholds}">
+                                    <!-- Always editable: gating these on validity would trap the
+                                         operator with a value they could no longer correct. -->
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -540,6 +546,11 @@
                                             <TextBox Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
                                     </Grid>
+
+                                    <TextBlock Text="{Binding ThresholdError}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,8,0,0" />
 
                                     <Button Content="Aplicar limiares"
                                             Style="{StaticResource AccentButtonStyle}"

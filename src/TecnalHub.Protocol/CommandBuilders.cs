@@ -391,9 +391,18 @@ public static class CommandBuilders
             .Set(CommandKeys.V_Flow, safe <= 0.0);
     }
 
-    /// <summary>Low-voltage flowmeter polynomial, valid at V &lt;= 0.0545.</summary>
-    public static TecnalCommand FlowCalibrationLow(double k, double f, double c)
+    /// <summary>
+    /// Low-voltage flowmeter polynomial, valid at V &lt;= 0.0545.
+    /// </summary>
+    /// <remarks>
+    /// Sending <paramref name="a"/> and <paramref name="b"/> opts the firmware into the quartic
+    /// low-range model; a quadratic fit passes zero for both, which the firmware treats exactly
+    /// as the legacy k1/f1/c1 command.
+    /// </remarks>
+    public static TecnalCommand FlowCalibrationLow(double k, double f, double c, double a = 0.0, double b = 0.0)
         => TecnalCommand.Create()
+            .Set(CommandKeys.A1, a)
+            .Set(CommandKeys.B1, b)
             .Set(CommandKeys.K1, k)
             .Set(CommandKeys.F1, f)
             .Set(CommandKeys.C1, c);

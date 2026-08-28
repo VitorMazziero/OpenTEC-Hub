@@ -9,9 +9,14 @@ using TecnalHub.Services.Persistence;
 namespace TecnalHub.ViewModels;
 
 /// <summary>
-/// Direct two-point assistant around the same linear oxygen coefficients exposed by
-/// v.6. No coefficient command exists on the wire; applying updates the app parser.
+/// Oxygen calibration assistant for the app-side linear coefficients.
 /// </summary>
+/// <remarks>
+/// Two points recompute slope and intercept. One point — normally the 100% air-saturation
+/// standard, though the reference is editable — keeps the current slope and shifts only the
+/// intercept, which is the correct single-standard correction for a sensor whose gain has not
+/// changed. No coefficient command exists on the wire; applying updates the app parser.
+/// </remarks>
 public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
@@ -30,6 +35,31 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         _device.StateChanged += OnStateChanged;
         _settings.Changed += OnSettingsChanged;
     }
+
+    /// <summary>
+    /// False for the single-standard correction: only point 1 is captured and just the
+    /// intercept moves, so the sensor's established gain is preserved.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOnePoint))]
+    [NotifyPropertyChangedFor(nameof(ProcedureTitle))]
+    [NotifyPropertyChangedFor(nameof(ProcedureHint))]
+    public partial bool IsTwoPoint { get; set; } = true;
+
+    /// <summary>The inverse of <see cref="IsTwoPoint"/>, so each radio button can bind two-way.</summary>
+    public bool IsOnePoint
+    {
+        get => !IsTwoPoint;
+        set => IsTwoPoint = !value;
+    }
+
+    public string ProcedureTitle => IsTwoPoint
+        ? "Calibração linear de dois pontos"
+        : "Calibração de um ponto (ajusta o intercepto)";
+
+    public string ProcedureHint => IsTwoPoint
+        ? "Estabilize o padrão, confira o raw ao vivo e capture. A captura é explícita."
+        : "Estabilize um único padrão (normalmente 100%) e capture. A inclinação vigente é mantida.";
 
     [ObservableProperty]
     public partial string Reference1Text { get; set; } = "0";
@@ -61,22 +91,41 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
 
     public bool CanCapture => _device.State == ConnectionState.Connected && HasValidRaw(_latest);
 
+    /// <summary>The second standard only exists in the two-point procedure.</summary>
+    public bool CanCapturePoint2 => CanCapture && IsTwoPoint;
+
     public bool CanApplyProposal => _proposal is not null;
 
     partial void OnReference1TextChanged(string value) => Recalculate();
 
     partial void OnReference2TextChanged(string value) => Recalculate();
 
+    partial void OnIsTwoPointChanged(bool value)
+    {
+        // The single standard is normally air saturation; move the reference off the two-point
+        // zero so the common case needs no typing, while leaving any edited value alone.
+        if (!value && Reference1Text.Trim() is "0" or "0.0" or "0,0")
+        {
+            Reference1Text = "100";
+        }
+
+        Point2Text = value ? "Não capturado" : "Não usado (um ponto)";
+        Recalculate();
+        NotifyCaptureChanged();
+    }
+
     [RelayCommand(CanExecute = nameof(CanCapture))]
     private void CapturePoint1()
     {
         _raw1 = _latest!.OxygenRaw;
         Point1Text = $"raw {_raw1.Value:F3} → referência {Reference1Text}%";
-        StatusText = "Ponto 1 capturado. Estabilize o segundo padrão.";
+        StatusText = IsTwoPoint
+            ? "Ponto 1 capturado. Estabilize o segundo padrão."
+            : "Ponto capturado. Revise a curva proposta antes de aplicar.";
         Recalculate();
     }
 
-    [RelayCommand(CanExecute = nameof(CanCapture))]
+    [RelayCommand(CanExecute = nameof(CanCapturePoint2))]
     private void CapturePoint2()
     {
         _raw2 = _latest!.OxygenRaw;
@@ -125,6 +174,13 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
     private void Recalculate()
     {
         _proposal = null;
+
+        if (IsOnePoint)
+        {
+            RecalculateOnePoint();
+            return;
+        }
+
         if (_raw1 is not { } raw1 || _raw2 is not { } raw2)
         {
             NotifyProposalChanged();
@@ -166,6 +222,41 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         NotifyProposalChanged();
     }
 
+    /// <summary>
+    /// Single-standard correction: keep the applied slope and shift the intercept so the
+    /// captured raw reads exactly the reference.
+    /// </summary>
+    private void RecalculateOnePoint()
+    {
+        if (_raw1 is not { } raw1)
+        {
+            NotifyProposalChanged();
+            return;
+        }
+
+        if (!TryParseReference(Reference1Text, out var reference))
+        {
+            ProposedEquationText = "A referência deve ser um valor finito entre 0 e 150%.";
+            StatusText = "Revise a referência de oxigênio.";
+            NotifyProposalChanged();
+            return;
+        }
+
+        var slope = _settings.Current.Calibration.OxygenA;
+        if (!double.IsFinite(slope) || Math.Abs(slope) <= 1e-15)
+        {
+            ProposedEquationText = "A inclinação vigente é degenerada; use a calibração de dois pontos.";
+            StatusText = "Curva recusada: inclinação vigente inválida.";
+            NotifyProposalChanged();
+            return;
+        }
+
+        _proposal = new LinearCalibration(slope, reference - (slope * raw1));
+        ProposedEquationText = FormatEquation(_proposal.Value.Slope, _proposal.Value.Intercept);
+        StatusText = "Curva proposta com a inclinação vigente. Revise antes de aplicar no app.";
+        NotifyProposalChanged();
+    }
+
     private void NotifyProposalChanged()
     {
         OnPropertyChanged(nameof(CanApplyProposal));
@@ -189,6 +280,7 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
     private void NotifyCaptureChanged()
     {
         OnPropertyChanged(nameof(CanCapture));
+        OnPropertyChanged(nameof(CanCapturePoint2));
         CapturePoint1Command.NotifyCanExecuteChanged();
         CapturePoint2Command.NotifyCanExecuteChanged();
     }

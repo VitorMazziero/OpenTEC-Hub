@@ -32,29 +32,76 @@ public sealed class CalibrationMathTests
         => Assert.Equal(1.0, CalibrationMath.SampleStandardDeviation([1.0, 2.0, 3.0]), precision: 12);
 
     [Fact]
-    public void Flow_fit_uses_quadratic_low_and_linear_high_segments()
+    public void The_high_segment_is_fitted_independently_of_the_low_points()
     {
         var points = new[]
         {
-            (Voltage: 0.01, Flow: Polynomial(0.01)),
-            (Voltage: 0.03, Flow: Polynomial(0.03)),
-            (Voltage: 0.05, Flow: Polynomial(0.05)),
+            (Voltage: 0.01, Flow: 0.0),
+            (Voltage: 0.03, Flow: 0.5),
+            (Voltage: 0.05, Flow: 0.75),
+            (Voltage: 0.10, Flow: (5 * 0.10) + 1),
+            (Voltage: 0.20, Flow: (5 * 0.20) + 1),
+        };
+
+        var high = Assert.IsType<PolynomialCalibration>(CalibrationMath.FitFlowCurve(points).HighVoltage);
+
+        Assert.Equal(0.0, high.K, precision: 12);
+        Assert.Equal(5.0, high.F, precision: 8);
+        Assert.Equal(1.0, high.C, precision: 8);
+    }
+
+    [Fact]
+    public void The_low_segment_meets_the_high_segment_without_a_jump_or_a_kink()
+    {
+        var points = new[]
+        {
+            (Voltage: 0.0098, Flow: 0.0),
+            (Voltage: 0.0244, Flow: 0.5),
+            (Voltage: 0.0400, Flow: 0.75),
             (Voltage: 0.10, Flow: (5 * 0.10) + 1),
             (Voltage: 0.20, Flow: (5 * 0.20) + 1),
         };
 
         var fit = CalibrationMath.FitFlowCurve(points);
-
         var low = Assert.IsType<PolynomialCalibration>(fit.LowVoltage);
         var high = Assert.IsType<PolynomialCalibration>(fit.HighVoltage);
-        Assert.Equal(2.0, low.K, precision: 8);
-        Assert.Equal(3.0, low.F, precision: 8);
-        Assert.Equal(4.0, low.C, precision: 8);
-        Assert.Equal(0.0, high.K, precision: 12);
-        Assert.Equal(5.0, high.F, precision: 8);
-        Assert.Equal(1.0, high.C, precision: 8);
+        var split = FlowCalibrationCurve.SplitVoltage;
 
-        static double Polynomial(double x) => (2 * x * x) + (3 * x) + 4;
+        // The two anchors that replace the old ~0.17 L/min step at the threshold.
+        Assert.Equal(high.Evaluate(split), low.Evaluate(split), precision: 9);
+        Assert.Equal(high.Derivative(split), low.Derivative(split), precision: 9);
+
+        // Three low points still determine the curve exactly.
+        foreach (var (voltage, flow) in points.Where(p => p.Voltage <= split))
+        {
+            Assert.Equal(flow, low.Evaluate(voltage), precision: 9);
+        }
+    }
+
+    [Fact]
+    public void The_firmware_default_curve_matches_the_v05_coefficients_and_is_continuous()
+    {
+        var curve = CalibrationMath.FirmwareDefault;
+        var low = Assert.IsType<PolynomialCalibration>(curve.LowVoltage);
+        var high = Assert.IsType<PolynomialCalibration>(curve.HighVoltage);
+
+        Assert.Equal(321791.345936369, low.A, precision: 6);
+        Assert.Equal(-32589.073104291, low.B, precision: 6);
+        Assert.Equal(462.893536740, low.K, precision: 6);
+        Assert.Equal(43.294432104, low.F, precision: 6);
+        Assert.Equal(-0.464367483, low.C, precision: 6);
+        Assert.Equal(-0.854551899, high.K, precision: 6);
+        Assert.Equal(11.814453070, high.F, precision: 6);
+        Assert.Equal(0.192231954, high.C, precision: 6);
+
+        // The documented values at the threshold: 0,83358133 vs 0,83358145 L/min and
+        // slopes 11,7213108 vs 11,7213070 — negligible in float32.
+        var split = FlowCalibrationCurve.SplitVoltage;
+        Assert.Equal(0.83358133, low.Evaluate(split), precision: 6);
+        Assert.Equal(0.83358145, high.Evaluate(split), precision: 6);
+        Assert.Equal(11.7213108, low.Derivative(split), precision: 4);
+        Assert.Equal(11.7213070, high.Derivative(split), precision: 4);
+        Assert.True(Math.Abs(curve.DiscontinuityAtSplit!.Value) < 1e-6);
     }
 }
 
@@ -192,7 +239,7 @@ public sealed class GuidedCalibrationTests
 
         Assert.Equal(0.1, settings.Current.Calibration.OxygenA, precision: 12);
         Assert.Equal(-100.0, settings.Current.Calibration.OxygenB, precision: 12);
-        Assert.Empty(device.Sent); // there is no O2 coefficient command in v.6
+        Assert.Empty(device.Sent); // there is no O2 coefficient command on the wire
     }
 
     [Fact]
@@ -208,7 +255,8 @@ public sealed class GuidedCalibrationTests
         vm.SelectedPoint!.FlowText = "1.0";
         PushFlow(device, 0.04);
 
-        vm.PrepareSelectedPointCommand.Execute(null);
+        vm.SetpointText = "1.0";
+        vm.SendSetpointCommand.Execute(null);
         Assert.Equal(
             """{"flowSetpoint":1.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             Assert.Single(device.Sent));
@@ -223,7 +271,7 @@ public sealed class GuidedCalibrationTests
     }
 
     [Fact]
-    public void Flow_capture_locks_point_editing_and_connection_loss_requires_reprepare()
+    public void Flow_capture_locks_point_editing_and_connection_loss_clears_the_setpoint()
     {
         var initial = new AppSettings
         {
@@ -234,13 +282,14 @@ public sealed class GuidedCalibrationTests
         vm.SelectedPoint!.FlowText = "1.0";
         PushFlow(device, 0.04);
 
-        var preparedPoint = vm.SelectedPoint;
-        vm.PrepareSelectedPointCommand.Execute(null);
-        vm.AddEmptyPointCommand.Execute(null);
-        Assert.False(vm.CanCapture); // another row cannot consume the prepared command
-        vm.SelectedPoint = preparedPoint;
+        vm.SetpointText = "1.0";
+        vm.SendSetpointCommand.Execute(null);
+        PushFlow(device, 0.04); // the flowmeter acknowledges the command
 
-        PushFlow(device, 0.04);
+        // The trial setpoint is independent of the row, so another row can still record it.
+        vm.AddEmptyPointCommand.Execute(null);
+        Assert.True(vm.CanCapture);
+
         vm.CaptureVoltageCommand.Execute(null);
 
         Assert.False(vm.CanEditPoints);
@@ -250,15 +299,34 @@ public sealed class GuidedCalibrationTests
 
         Assert.False(vm.IsCapturing);
         Assert.False(vm.CanCapture);
-        Assert.Contains("prepare novamente", vm.StatusText, StringComparison.CurrentCultureIgnoreCase);
+        Assert.Contains("envie o setpoint novamente", vm.StatusText, StringComparison.CurrentCultureIgnoreCase);
     }
 
     [Fact]
-    public void Complete_flow_curve_sends_all_six_v6_coefficients_and_persists_points()
+    public void Editing_the_certified_flow_keeps_the_trial_setpoint_alive()
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService());
+        PushFlow(device, 0.04);
+
+        vm.SetpointText = "1.0";
+        vm.SendSetpointCommand.Execute(null);
+        PushFlow(device, 0.04);
+
+        // The operator reads the real value off the certified standard and types it in; the
+        // commanded setpoint must survive that edit.
+        vm.SelectedPoint!.FlowText = "0.96";
+
+        Assert.True(vm.CanCapture);
+        Assert.True(vm.CanAdjust);
+    }
+
+    [Fact]
+    public void Complete_flow_curve_sends_the_quartic_low_and_quadratic_high_coefficients()
     {
         var points = new[]
         {
-            Point(4.0302, 0.01), Point(4.0918, 0.03), Point(4.155, 0.05),
+            Point(0.0, 0.0098), Point(0.5, 0.0244), Point(0.75, 0.0400),
             Point(1.5, 0.10), Point(2.0, 0.20),
         };
         var initial = new AppSettings
@@ -275,14 +343,28 @@ public sealed class GuidedCalibrationTests
         var json = Assert.Single(device.Sent);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        Assert.Equal(7, root.EnumerateObject().Count());
+
+        // maxFlow + a1/b1/k1/f1/c1 + k2/f2/c2: the quartic low model of firmware V05.
+        Assert.Equal(9, root.EnumerateObject().Count());
         Assert.Equal(50.0, root.GetProperty("maxFlow").GetDouble(), precision: 6);
-        Assert.Equal(2.0, root.GetProperty("k1").GetDouble(), precision: 6);
-        Assert.Equal(3.0, root.GetProperty("f1").GetDouble(), precision: 6);
-        Assert.Equal(4.0, root.GetProperty("c1").GetDouble(), precision: 6);
-        Assert.Equal(0.0, root.GetProperty("k2").GetDouble(), precision: 12);
-        Assert.Equal(5.0, root.GetProperty("f2").GetDouble(), precision: 6);
-        Assert.Equal(1.0, root.GetProperty("c2").GetDouble(), precision: 6);
+        var low = new PolynomialCalibration(
+            root.GetProperty("k1").GetDouble(),
+            root.GetProperty("f1").GetDouble(),
+            root.GetProperty("c1").GetDouble())
+        {
+            A = root.GetProperty("a1").GetDouble(),
+            B = root.GetProperty("b1").GetDouble(),
+        };
+        var high = new PolynomialCalibration(
+            root.GetProperty("k2").GetDouble(),
+            root.GetProperty("f2").GetDouble(),
+            root.GetProperty("c2").GetDouble());
+
+        // What actually reaches the flowmeter has to be continuous at the threshold.
+        var split = FlowCalibrationCurve.SplitVoltage;
+        Assert.Equal(high.Evaluate(split), low.Evaluate(split), precision: 6);
+        Assert.Equal(high.Derivative(split), low.Derivative(split), precision: 6);
+        Assert.Equal(0.5, low.Evaluate(0.0244), precision: 6);
         Assert.Equal(5, settings.Current.Calibration.FlowCalibrationPoints.Length);
 
         static FlowCalibrationPoint Point(double flow, double voltage) => new()
@@ -290,6 +372,59 @@ public sealed class GuidedCalibrationTests
             FlowLitresPerMinute = flow,
             Voltage = voltage,
         };
+    }
+
+    [Fact]
+    public void One_point_oxygen_keeps_the_slope_and_shifts_only_the_intercept()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var slope = settings.Current.Calibration.OxygenA;
+        using var vm = new OxygenCalibrationViewModel(device, settings);
+
+        vm.IsOnePoint = true;
+        Assert.Equal("100", vm.Reference1Text); // air saturation is the usual single standard
+
+        PushOxygen(device, raw: 3000, calibrated: 60);
+        vm.CapturePoint1Command.Execute(null);
+
+        Assert.False(vm.CanCapturePoint2); // the second standard belongs to the two-point run
+        Assert.True(vm.CanApplyProposal);
+
+        vm.ApplyProposalCommand.Execute(null);
+
+        var applied = settings.Current.Calibration;
+        Assert.Equal(slope, applied.OxygenA, precision: 12);
+        Assert.Equal(100.0, applied.DecodeOxygen(3000), precision: 9);
+        Assert.Empty(device.Sent);
+    }
+
+    [Fact]
+    public void PH_acquisition_criteria_can_be_changed_while_the_run_is_in_progress()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var phControl = new PHControlViewModel(device, settings);
+        using var vm = new PHCalibrationViewModel(device, settings, phControl)
+        {
+            StabilityWindowText = "3",
+            StabilityThresholdText = "5",
+            AverageSamplesText = "2",
+        };
+
+        PushPH(device, 1000);
+        vm.StartOnePointCommand.Execute(null);
+        vm.ConfirmPointCommand.Execute(null);
+
+        // Two frames into a three-frame window: widening it must not restart the run.
+        PushPH(device, 1000);
+        PushPH(device, 1000);
+        Assert.Equal(PHCalibrationStage.StabilizingFirst, vm.Stage);
+
+        vm.StabilityWindowText = "2";
+
+        // The window now holds enough stable frames, so the run advances immediately.
+        Assert.Equal(PHCalibrationStage.AveragingFirst, vm.Stage);
     }
 
     private static void PushPH(RecordingDeviceService device, double raw)

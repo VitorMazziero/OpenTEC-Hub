@@ -27,7 +27,6 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
 {
     private readonly IDeviceService _device;
     private readonly ISettingsService _settings;
-    private SensorSnapshot? _latest;
 
     public BiomassCalibrationViewModel(IDeviceService device, ISettingsService settings)
     {
@@ -71,6 +70,15 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
     public bool CanActOnSensor => IsConnected && SensorEnabled;
 
     public bool CanApplyThresholds => IsConnected && SensorEnabled && Validate() is null;
+
+    /// <summary>
+    /// Why the thresholds cannot be applied, or null when they are well formed.
+    /// </summary>
+    /// <remarks>
+    /// Surfaced so a rejected value explains itself: the entry fields stay editable while
+    /// invalid, which is the only way the operator can correct them.
+    /// </remarks>
+    public string? ThresholdError => Validate();
 
     partial void OnSensorEnabledChanged(bool value)
     {
@@ -163,7 +171,6 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
-        _latest = snapshot;
         CurrentAbsorbanceText = snapshot.BiomassAbsorbance > SensorReadings.NotReceived
             ? snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture)
             : "—";
@@ -190,6 +197,7 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
     private void NotifyThresholdAvailability()
     {
         OnPropertyChanged(nameof(CanApplyThresholds));
+        OnPropertyChanged(nameof(ThresholdError));
         ApplyThresholdsCommand.NotifyCanExecuteChanged();
     }
 

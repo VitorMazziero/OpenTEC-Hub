@@ -36,6 +36,10 @@ public static class CommandKeys
     public const string V_Flow = "v_Flow";
 
     // ---- Flow calibration: two-segment curve split at 0.0545 V ------------
+    // The low segment is quartic: a1/b1 opt the firmware into the x⁴/x³ terms, and
+    // omitting them means the legacy quadratic model (see flowmeter_TECNALHUB_V05.ino).
+    public const string A1 = "a1";
+    public const string B1 = "b1";
     public const string K1 = "k1";
     public const string F1 = "f1";
     public const string C1 = "c1";

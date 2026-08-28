@@ -35,9 +35,16 @@ public sealed partial class FlowCalibrationPointViewModel : ObservableObject
 }
 
 /// <summary>
-/// Dedicated v.6 airflow calibration procedure: command a point, fine-adjust it,
-/// average FlowVoltage and fit the fixed two-segment curve.
+/// Airflow calibration procedure: send a trial setpoint, nudge it until the external
+/// standard reads the flow you want, average FlowVoltage into the selected row and fit the
+/// two-segment curve.
 /// </summary>
+/// <remarks>
+/// The commanded setpoint is deliberately independent of the table row: the operator aims at a
+/// convenient flow ("about 1 L/min"), reads the true value off the certified standard and types
+/// that into the row — or nudges the setpoint with the step buttons until the standard shows the
+/// exact flow wanted. Either way the row records the true flow against the measured voltage.
+/// </remarks>
 public sealed partial class FlowCalibrationViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
@@ -48,7 +55,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
     private SensorSnapshot? _latest;
     private double? _commandedSetpoint;
-    private FlowCalibrationPointViewModel? _preparedPoint;
     private string? _pendingConfirmationText;
 
     public FlowCalibrationViewModel(IDeviceService device, ISettingsService settings)
@@ -83,6 +89,10 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [ObservableProperty]
     public partial FlowCalibrationPointViewModel? SelectedPoint { get; set; }
 
+    /// <summary>The trial flow sent to the flowmeter; the operator aims near a round value.</summary>
+    [ObservableProperty]
+    public partial string SetpointText { get; set; } = "1";
+
     [ObservableProperty]
     public partial string AdjustmentStepText { get; set; } = "0.1";
 
@@ -90,11 +100,11 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     public partial string LiveVoltageText { get; set; } = "—";
 
     [ObservableProperty]
-    public partial string CommandedSetpointText { get; set; } = "Nenhum ponto preparado";
+    public partial string CommandedSetpointText { get; set; } = "Nenhum setpoint enviado";
 
     [ObservableProperty]
     public partial string StatusText { get; set; } =
-        "Informe a vazão certificada pelo padrão externo e prepare o ponto.";
+        "Envie um setpoint de vazão, leia o valor real no padrão externo e capture a tensão.";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
@@ -117,35 +127,47 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [NotifyPropertyChangedFor(nameof(LowEquationText))]
     [NotifyPropertyChangedFor(nameof(HighEquationText))]
     [NotifyPropertyChangedFor(nameof(CurveStateText))]
+    [NotifyPropertyChangedFor(nameof(ContinuityText))]
     [NotifyPropertyChangedFor(nameof(CanSendCurve))]
-    public partial FlowCalibrationCurve Curve { get; set; } = new(null, null);
+    public partial FlowCalibrationCurve Curve { get; set; } = CalibrationMath.FirmwareDefault;
+
+    /// <summary>True while the shown curve is the V05 factory curve rather than one fitted here.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurveStateText))]
+    public partial bool IsUsingFirmwareDefault { get; set; } = true;
 
     public string LowEquationText => Equation("V ≤ 0,0545", Curve.LowVoltage,
-        "requer 3 pontos no segmento baixo");
+        "requer ao menos 1 ponto abaixo do limiar e o segmento alto");
 
     public string HighEquationText => Equation("V > 0,0545", Curve.HighVoltage,
         "requer 2 pontos no segmento alto");
 
-    public string CurveStateText => Curve switch
+    public string CurveStateText => (IsUsingFirmwareDefault, Curve) switch
     {
-        { IsComplete: true } => "Curva completa: dois segmentos prontos",
-        { HasAny: true } => "Curva parcial: somente um segmento está pronto",
+        (true, _) => "Curva padrão de fábrica (firmware V05)",
+        (false, { IsComplete: true }) => "Curva ajustada: dois segmentos prontos",
+        (false, { HasAny: true }) => "Curva parcial: somente um segmento está pronto",
         _ => "Pontos insuficientes para ajustar a curva",
     };
+
+    /// <summary>The jump at the split — the defect the anchored quartic exists to remove.</summary>
+    public string ContinuityText => Curve.DiscontinuityAtSplit is { } jump
+        ? $"Salto no limiar (0,0545 V): {Math.Abs(jump):F6} L/min"
+        : "Salto no limiar: indisponível (curva incompleta)";
 
     public bool CanSendFlowCommands => _device.State == ConnectionState.Connected &&
                                        IsFlowmeterOnline && !IsAwaitingAck;
 
-    public bool CanPrepare => !IsCapturing && CanSendFlowCommands &&
-                              TryGetSelectedFlow(out _);
+    /// <summary>The trial setpoint may be sent whenever the link and flowmeter allow it.</summary>
+    public bool CanSendSetpoint => !IsCapturing && CanSendFlowCommands;
 
-    public bool CanAdjust => !IsCapturing && CanSendFlowCommands &&
-                             _commandedSetpoint is not null &&
-                             ReferenceEquals(SelectedPoint, _preparedPoint);
+    /// <summary>Nudging only makes sense once a setpoint is actually out there.</summary>
+    public bool CanAdjust => !IsCapturing && CanSendFlowCommands && _commandedSetpoint is not null;
 
+    /// <summary>Capturing needs a live setpoint and a row to write the voltage into.</summary>
     public bool CanCapture => !IsCapturing && CanSendFlowCommands &&
                               _commandedSetpoint is not null &&
-                              ReferenceEquals(SelectedPoint, _preparedPoint);
+                              SelectedPoint is not null;
 
     public bool CanSendCurve => !IsCapturing && Curve.HasAny &&
                                 CanSendFlowCommands;
@@ -176,10 +198,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         }
 
         selected.PropertyChanged -= OnPointChanged;
-        if (ReferenceEquals(selected, _preparedPoint))
-        {
-            ClearPreparedPoint("Ponto preparado removido; prepare outro ponto para continuar.");
-        }
         var index = Points.IndexOf(selected);
         Points.Remove(selected);
         if (Points.Count == 0)
@@ -192,17 +210,27 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         StatusText = "Ponto removido; a curva foi recalculada.";
     }
 
-    [RelayCommand(CanExecute = nameof(CanPrepare))]
-    private void PrepareSelectedPoint()
+    [RelayCommand(CanExecute = nameof(CanSendSetpoint))]
+    private void SendSetpoint()
     {
-        if (!TryGetSelectedFlow(out var flow))
+        if (!TryParseDouble(SetpointText, out var flow) || flow < 0.0 || flow > _maximumFlow)
         {
-            StatusText = $"Informe uma vazão entre 0 e {_maximumFlow:G} L/min.";
+            StatusText = $"Informe um setpoint entre 0 e {_maximumFlow:G} L/min.";
             return;
         }
 
-        _preparedPoint = SelectedPoint;
         SendCalibrationSetpoint(flow);
+    }
+
+    /// <summary>Loads the V05 factory curve back into the workspace without sending anything.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditPoints))]
+    private void RestoreFirmwareDefault()
+    {
+        Curve = CalibrationMath.FirmwareDefault;
+        IsUsingFirmwareDefault = true;
+        StatusText = "Curva padrão de fábrica (V05) carregada; use “Salvar e enviar curva” para gravá-la.";
+        CurveChanged?.Invoke();
+        NotifyCommandState();
     }
 
     [RelayCommand(CanExecute = nameof(CanAdjust))]
@@ -248,7 +276,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         var command = TecnalCommand.Create().Set(CommandKeys.MaxFlow, _maximumFlow);
         if (Curve.LowVoltage is { } low)
         {
-            command.Merge(CommandBuilders.FlowCalibrationLow(low.K, low.F, low.C));
+            command.Merge(CommandBuilders.FlowCalibrationLow(low.K, low.F, low.C, low.A, low.B));
         }
 
         if (Curve.HighVoltage is { } high)
@@ -276,7 +304,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         IsCapturing = false;
         CaptureProgressPercent = 0;
         _commandedSetpoint = null;
-        _preparedPoint = null;
 
         if (CanSendFlowCommands)
         {
@@ -318,8 +345,11 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     {
         _device.Send(CommandBuilders.FlowCalibrationSetpoint(flow));
         _commandedSetpoint = flow;
+        // Keep the entry in step with what is actually commanded, so the step buttons and the
+        // typed value never disagree about the current trial point.
+        SetpointText = flow.ToString("0.###", CultureInfo.CurrentCulture);
         CommandedSetpointText = $"Comandado: {flow:F2} L/min";
-        MarkAwaitingAck("Comando confirmado. Compare com o padrão externo e faça o ajuste fino.");
+        MarkAwaitingAck("Comando confirmado. Compare com o padrão externo e anote a vazão real.");
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
@@ -384,10 +414,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
             if (_commandedSetpoint is not null)
             {
-                _commandedSetpoint = null;
-                _preparedPoint = null;
-                CommandedSetpointText = "Estado desconhecido após perda de conexão";
-                StatusText = "Conexão perdida; prepare novamente o ponto antes de continuar.";
+                ClearCommandedSetpoint(
+                    "Estado desconhecido após perda de conexão",
+                    "Conexão perdida; envie o setpoint novamente antes de continuar.");
             }
         }
 
@@ -399,7 +428,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _maximumFlow = settings.Setpoints.MaxFlowLitresPerMinute;
         if (_commandedSetpoint > _maximumFlow)
         {
-            ClearPreparedPoint("O limite máximo de vazão mudou; prepare o ponto novamente.");
+            ClearCommandedSetpoint(
+                "Nenhum setpoint enviado",
+                "O limite máximo de vazão mudou; envie o setpoint novamente.");
         }
         NotifyCommandState();
     }
@@ -415,21 +446,18 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         if (e.PropertyName is nameof(FlowCalibrationPointViewModel.FlowText) or
             nameof(FlowCalibrationPointViewModel.Voltage))
         {
-            if (e.PropertyName == nameof(FlowCalibrationPointViewModel.FlowText) &&
-                ReferenceEquals(sender, _preparedPoint))
-            {
-                ClearPreparedPoint("A vazão certificada mudou; prepare o ponto novamente.");
-            }
+            // Editing the certified flow no longer invalidates the trial setpoint: the row
+            // records what the external standard read, which is exactly what the operator is
+            // expected to type while the setpoint stays put.
             RecalculateCurve();
             NotifyCommandState();
         }
     }
 
-    private void ClearPreparedPoint(string status)
+    private void ClearCommandedSetpoint(string commandedText, string status)
     {
         _commandedSetpoint = null;
-        _preparedPoint = null;
-        CommandedSetpointText = "Nenhum ponto preparado";
+        CommandedSetpointText = commandedText;
         StatusText = status;
     }
 
@@ -437,11 +465,25 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     {
         try
         {
-            Curve = CalibrationMath.FitFlowCurve(GetValidPoints());
+            var fitted = CalibrationMath.FitFlowCurve(GetValidPoints());
+
+            // Without enough certified points there is nothing to fit; showing the factory
+            // curve is more useful than an empty plot, and it is what the flowmeter is running.
+            if (fitted.HasAny)
+            {
+                Curve = fitted;
+                IsUsingFirmwareDefault = false;
+            }
+            else
+            {
+                Curve = CalibrationMath.FirmwareDefault;
+                IsUsingFirmwareDefault = true;
+            }
         }
         catch (InvalidOperationException exception)
         {
-            Curve = new FlowCalibrationCurve(null, null);
+            Curve = CalibrationMath.FirmwareDefault;
+            IsUsingFirmwareDefault = true;
             StatusText = exception.Message;
         }
 
@@ -470,14 +512,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         });
     }
 
-    private bool TryGetSelectedFlow(out double flow)
-    {
-        flow = default;
-        return SelectedPoint is { } selected &&
-               TryParseDouble(selected.FlowText, out flow) &&
-               flow >= 0.0 && flow <= _maximumFlow;
-    }
-
     private static (double Voltage, double Flow)? TryReadPoint(FlowCalibrationPointViewModel point)
         => point.Voltage is { } voltage &&
            double.IsFinite(voltage) && voltage >= 0.0 &&
@@ -494,12 +528,12 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
     private void NotifyCommandState()
     {
-        OnPropertyChanged(nameof(CanPrepare));
+        OnPropertyChanged(nameof(CanSendSetpoint));
         OnPropertyChanged(nameof(CanAdjust));
         OnPropertyChanged(nameof(CanCapture));
         OnPropertyChanged(nameof(CanSendCurve));
         OnPropertyChanged(nameof(CanEditPoints));
-        PrepareSelectedPointCommand.NotifyCanExecuteChanged();
+        SendSetpointCommand.NotifyCanExecuteChanged();
         IncreaseSetpointCommand.NotifyCanExecuteChanged();
         DecreaseSetpointCommand.NotifyCanExecuteChanged();
         CaptureVoltageCommand.NotifyCanExecuteChanged();
@@ -507,6 +541,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         AddEmptyPointCommand.NotifyCanExecuteChanged();
         RemoveSelectedPointCommand.NotifyCanExecuteChanged();
         SavePointsCommand.NotifyCanExecuteChanged();
+        RestoreFirmwareDefaultCommand.NotifyCanExecuteChanged();
     }
 
     private void MarkAwaitingAck(string confirmationText)
@@ -521,9 +556,17 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         string label,
         PolynomialCalibration? polynomial,
         string missing)
-        => polynomial is { } value
-            ? $"{label}: y = {value.K:G8}x² + {value.F:G8}x + {value.C:G8}"
-            : $"{label}: {missing}";
+    {
+        if (polynomial is not { } value)
+        {
+            return $"{label}: {missing}";
+        }
+
+        var quartic = value.IsQuartic
+            ? $"{value.A:G8}x⁴ + {value.B:G8}x³ + "
+            : "";
+        return $"{label}: y = {quartic}{value.K:G8}x² + {value.F:G8}x + {value.C:G8}";
+    }
 
     public void Dispose()
     {

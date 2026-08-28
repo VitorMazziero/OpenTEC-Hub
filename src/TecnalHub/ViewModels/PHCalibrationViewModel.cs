@@ -305,14 +305,73 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
         }
     }
 
-    private void ConsumeStability(double raw)
+    /// <summary>
+    /// Re-reads the acquisition criteria while a run is in progress.
+    /// </summary>
+    /// <remarks>
+    /// The criteria are the operator's judgement about a probe that is already in the buffer:
+    /// a noisy sensor may need a wider window or a looser σ, and discovering that should not
+    /// force a restart. Only well-formed values are adopted, so a half-typed number leaves the
+    /// running acquisition on its previous criteria instead of destabilising it.
+    /// </remarks>
+    private void ApplyLiveCriteria()
     {
-        _stability.Enqueue(raw);
+        if (!IsAcquiring)
+        {
+            return;
+        }
+
+        if (TryParseInteger(StabilityWindowText, out var window) && window is >= 2 and <= 500)
+        {
+            _window = window;
+        }
+
+        if (TryParsePositive(StabilityThresholdText, out var threshold))
+        {
+            _threshold = threshold;
+        }
+
+        if (TryParseInteger(AverageSamplesText, out var average) && average is >= 1 and <= 500)
+        {
+            _averageCount = average;
+        }
+
+        // Adopting the new criteria can already satisfy the current step, so re-evaluate now
+        // rather than waiting for another frame.
+        if (Stage is PHCalibrationStage.StabilizingFirst or PHCalibrationStage.StabilizingSecond)
+        {
+            TrimStabilityWindow();
+            EvaluateStability();
+        }
+        else
+        {
+            EvaluateAverage();
+        }
+    }
+
+    partial void OnStabilityWindowTextChanged(string value) => ApplyLiveCriteria();
+
+    partial void OnStabilityThresholdTextChanged(string value) => ApplyLiveCriteria();
+
+    partial void OnAverageSamplesTextChanged(string value) => ApplyLiveCriteria();
+
+    private void TrimStabilityWindow()
+    {
         while (_stability.Count > _window)
         {
             _stability.Dequeue();
         }
+    }
 
+    private void ConsumeStability(double raw)
+    {
+        _stability.Enqueue(raw);
+        TrimStabilityWindow();
+        EvaluateStability();
+    }
+
+    private void EvaluateStability()
+    {
         var stabilityBase = Stage == PHCalibrationStage.StabilizingFirst ? 0.0 : 50.0;
         ProgressPercent = stabilityBase + (20.0 * _stability.Count / _window);
         if (_stability.Count < _window)
@@ -341,6 +400,11 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
     private void ConsumeAverage(double raw)
     {
         _averaging.Add(raw);
+        EvaluateAverage();
+    }
+
+    private void EvaluateAverage()
+    {
         var pointBase = _twoPoint
             ? Stage == PHCalibrationStage.AveragingFirst ? 20.0 : 70.0
             : 20.0;

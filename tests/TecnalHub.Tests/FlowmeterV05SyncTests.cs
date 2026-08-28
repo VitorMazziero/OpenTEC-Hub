@@ -152,19 +152,19 @@ public sealed class FlowmeterV05SyncTests
         calibration.SelectedPoint!.FlowText = "1.0";
 
         device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true });
-        Assert.True(calibration.CanPrepare);
+        Assert.True(calibration.CanSendSetpoint);
 
         device.PushTelemetry(new SensorSnapshot
         {
             FlowmeterOnline = true,
             FlowCommandPending = true,
         });
-        Assert.False(calibration.CanPrepare);
+        Assert.False(calibration.CanSendSetpoint);
         Assert.False(calibration.CanAdjust);
         Assert.False(calibration.CanSendCurve);
 
         device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
-        Assert.False(calibration.CanPrepare);
+        Assert.False(calibration.CanSendSetpoint);
         Assert.Equal("Fluxômetro Desconectado da Central.", calibration.StatusText);
     }
 

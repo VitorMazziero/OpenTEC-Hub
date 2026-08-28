@@ -183,7 +183,7 @@ public sealed record CalibrationSettings
     public double DecodePH(double raw) => (PHSlope * raw) + PHIntercept;
 }
 
-/// <summary>A real-flow / measured-voltage pair used by the v.6 curve fit.</summary>
+/// <summary>A real-flow / measured-voltage pair used by the two-segment curve fit.</summary>
 public sealed record FlowCalibrationPoint
 {
     public double FlowLitresPerMinute { get; init; }

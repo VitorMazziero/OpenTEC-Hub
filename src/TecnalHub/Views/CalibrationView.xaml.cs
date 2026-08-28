@@ -114,6 +114,26 @@ public partial class CalibrationView : UserControl
         if (_subscribed is { } viewModel)
         {
             var points = viewModel.GetValidPoints();
+
+            // The two fitted segments are the generated curves; the scatter is the measured
+            // data. Naming all three puts the legend to work distinguishing them.
+            DrawSegment(plot, viewModel.Curve.LowVoltage,
+                points.Where(point => point.Voltage <= FlowCalibrationCurve.SplitVoltage)
+                      .Select(point => point.Voltage).DefaultIfEmpty(0).Min(),
+                FlowCalibrationCurve.SplitVoltage,
+                ToPlotColor(TryBrush("StateAlarmBrush"), MediaColors.IndianRed),
+                "Curva inferior (V ≤ 0,0545)");
+
+            var highMaximum = points.Where(point => point.Voltage > FlowCalibrationCurve.SplitVoltage)
+                                    .Select(point => point.Voltage)
+                                    .DefaultIfEmpty(FlowCalibrationCurve.SplitVoltage + 0.1)
+                                    .Max();
+            DrawSegment(plot, viewModel.Curve.HighVoltage,
+                FlowCalibrationCurve.SplitVoltage,
+                Math.Max(highMaximum * 1.05, FlowCalibrationCurve.SplitVoltage + 0.01),
+                ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen),
+                "Curva superior (V > 0,0545)");
+
             if (points.Count > 0)
             {
                 hasCalibrationData = true;
@@ -123,22 +143,15 @@ public partial class CalibrationView : UserControl
                 scatter.LineWidth = 0;
                 scatter.MarkerSize = 8;
                 scatter.Color = accent;
+                scatter.LegendText = "Pontos medidos";
             }
 
-            DrawSegment(plot, viewModel.Curve.LowVoltage,
-                points.Where(point => point.Voltage <= FlowCalibrationCurve.SplitVoltage)
-                      .Select(point => point.Voltage).DefaultIfEmpty(0).Min(),
-                FlowCalibrationCurve.SplitVoltage,
-                ToPlotColor(TryBrush("StateAlarmBrush"), MediaColors.IndianRed));
-
-            var highMaximum = points.Where(point => point.Voltage > FlowCalibrationCurve.SplitVoltage)
-                                    .Select(point => point.Voltage)
-                                    .DefaultIfEmpty(FlowCalibrationCurve.SplitVoltage + 0.1)
-                                    .Max();
-            DrawSegment(plot, viewModel.Curve.HighVoltage,
-                FlowCalibrationCurve.SplitVoltage,
-                Math.Max(highMaximum * 1.05, FlowCalibrationCurve.SplitVoltage + 0.01),
-                ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen));
+            plot.Legend.IsVisible = true;
+            plot.Legend.Alignment = Alignment.UpperLeft;
+            plot.Legend.FontSize = 10;
+            plot.Legend.BackgroundColor = surface;
+            plot.Legend.FontColor = text;
+            plot.Legend.OutlineColor = grid;
         }
 
         var split = plot.Add.VerticalLine(FlowCalibrationCurve.SplitVoltage);
@@ -163,7 +176,8 @@ public partial class CalibrationView : UserControl
         PolynomialCalibration? polynomial,
         double minimum,
         double maximum,
-        PlotColor color)
+        PlotColor color,
+        string legendText)
     {
         if (polynomial is not { } curve || maximum <= minimum)
         {
@@ -183,6 +197,7 @@ public partial class CalibrationView : UserControl
         line.MarkerSize = 0;
         line.LineWidth = 2;
         line.Color = color;
+        line.LegendText = legendText;
     }
 
     private static SolidColorBrush? TryBrush(string key)

@@ -112,16 +112,22 @@ public class WireFormatTests
     }
 
     [Fact]
-    public void Flow_calibration_frames_match_v6_key_order()
+    public void Flow_calibration_frames_match_the_firmware_key_order()
     {
         Assert.Equal(
             """{"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             CommandBuilders.FlowCalibrationSetpoint(1.5).ToJson());
+
+        // a1/b1 lead the low segment: sending them opts the firmware into the quartic model,
+        // and zeroes reproduce the legacy quadratic exactly.
         Assert.Equal(
-            """{"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}""",
+            """{"a1":0.0,"b1":0.0,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}""",
             CommandBuilders.FlowCalibrationLow(2, 3, 4)
                 .Merge(CommandBuilders.FlowCalibrationHigh(0, 5, 1))
                 .ToJson());
+        Assert.Equal(
+            """{"a1":6.0,"b1":7.0,"k1":2.0,"f1":3.0,"c1":4.0}""",
+            CommandBuilders.FlowCalibrationLow(2, 3, 4, 6, 7).ToJson());
     }
 
     [Fact]

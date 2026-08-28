@@ -682,19 +682,19 @@
                                         <ComboBoxItem Content="valve_2" Tag="{x:Static kla:NitrogenValve.Valve2}" />
                                     </ComboBox>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Tolerância de vazão (L/min)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentFlowTolerance, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-                                <StackPanel Grid.Column="2" Margin="6,0,0,0"><TextBlock Text="Confirmações consecutivas" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentFlowStableSamples, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Rotação no alívio (rpm)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentAgitationRpm, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0"><TextBlock Text="Tolerância de vazão (L/min)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentFlowTolerance, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                             </Grid>
+                            <TextBlock Text="A rotação do ensaio só é enviada quando o alívio fecha: mantê-la durante a espera reoxigenaria o meio por aeração superficial, sem gás borbulhando."
+                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8" />
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Espera máxima no alívio (s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingMaxVentStabilizationSeconds, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-                                <StackPanel Grid.Column="1" Margin="6,0">
-                                    <TextBlock Text="Desvio atual" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBlock Text="{Binding DisplayVentFlowDeviation}" FontFamily="{DynamicResource FontMono}" FontWeight="SemiBold" Margin="2,7,0,0" />
-                                </StackPanel>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Confirmações consecutivas" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentFlowStableSamples, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Espera máxima no alívio (s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingMaxVentStabilizationSeconds, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                                 <StackPanel Grid.Column="2" Margin="6,0,0,0">
-                                    <TextBlock Text="Estabilidade no alívio" Style="{StaticResource KlaHeaderLabel}" />
-                                    <TextBlock Text="{Binding DisplayVentFlowProgress, StringFormat='Confirmações: {0}'}" Style="{StaticResource CaptionTextStyle}" Margin="2,7,0,0" />
+                                    <TextBlock Text="Leitura atual" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBlock Text="{Binding DisplayVentFlowDeviation}" FontFamily="{DynamicResource FontMono}" FontWeight="SemiBold" Margin="2,7,0,0" />
+                                    <TextBlock Text="{Binding DisplayVentFlowProgress, StringFormat='Confirmações: {0}'}" Style="{StaticResource CaptionTextStyle}" />
                                 </StackPanel>
                             </Grid>
 

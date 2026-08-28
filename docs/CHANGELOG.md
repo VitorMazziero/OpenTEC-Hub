@@ -12,11 +12,14 @@ All notable changes to TECNAL-Hub. Version numbers follow
 - **Estabilização da vazão no alívio antes do `t₀` do ensaio de kLa.** Bancadas com uma válvula
   de alívio instalada logo após o fluxômetro podem marcar *Abrir o alívio e esperar a vazão
   assentar* nos parâmetros do teste. Depois da estabilização pós-N₂, o runner abre a válvula
-  escolhida (`valve_1` ou `valve_2`, obrigatoriamente a que o N₂ não usa) já na vazão e na
-  rotação da condição, mantém o pulso inicial do medidor saindo para a atmosfera e só fecha o
+  escolhida (`valve_1` ou `valve_2`, obrigatoriamente a que o N₂ não usa) já na vazão da
+  condição, mantém o pulso inicial do medidor saindo para a atmosfera e só fecha o
   alívio — iniciando `Reoxygenating` — depois que a vazão medida fica dentro de `± tolerância`
   (padrão `0,2 L/min`) do setpoint por N leituras consecutivas. O fechamento preserva o setpoint
-  assentado, então nenhum novo pulso entra no reator. Duas fases novas (`OpeningVent`,
+  assentado, então nenhum novo pulso entra no reator. Durante a espera a agitação fica na
+  *rotação de alívio* configurável (padrão `50 rpm`); a rotação do ensaio só é comandada no
+  fechamento do alívio, porque mantê-la sem gás borbulhando reoxigenaria o meio por aeração
+  superficial. Duas fases novas (`OpeningVent`,
   `StabilizingVentFlow`) são gravadas nas séries mas ficam fora do ajuste log-linear; a espera
   tem teto próprio e, ao expirar, encerra a corrida para revisão em vez de admitir ar instável.
   Desligado por padrão. Ver [PLANO_IMPLEMENTACAO_TESTES_KLA.md](PLANO_IMPLEMENTACAO_TESTES_KLA.md) § 11.2.

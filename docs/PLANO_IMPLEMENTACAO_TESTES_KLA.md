@@ -729,9 +729,9 @@ válvula de N₂ fica bloqueada durante uma corrida para evitar uma troca de lin
 As transições são progressivas. Alterar DO de corte durante a reoxigenação não retorna o processo
 para N₂.
 
-A tolerância de vazão, o número de confirmações e a espera máxima do alívio seguem a mesma
-regra: valem para a próxima admissão de ar, sem antecipar a corrente. A válvula do alívio, como
-a do N₂, fica bloqueada durante uma corrida.
+A rotação de alívio, a tolerância de vazão, o número de confirmações e a espera máxima do alívio
+seguem a mesma regra: valem para a próxima admissão de ar, sem antecipar a corrente. A válvula
+do alívio, como a do N₂, fica bloqueada durante uma corrida.
 
 Não haverá tempo mínimo oculto: o atraso pós-N₂ é explícito e configurável. Após esse atraso, a
 inclinação é estimada por regressão linear na janela temporal configurada; ar só abre quando
@@ -751,12 +751,15 @@ checkbox, porque é bancada secundária e a maioria das montagens não a possui.
 
 Quando ligada, a sequência entre a estabilização pós-N₂ e a reoxigenação passa a ser:
 
-1. abrir a válvula de alívio **e** comandar o fluxômetro na vazão da condição, junto com a
-   rotação do ensaio — o pulso sai pelo alívio, não pelo reator;
+1. abrir a válvula de alívio **e** comandar o fluxômetro na vazão da condição — o pulso sai
+   pelo alívio, não pelo reator. A agitação vai para a *rotação de alívio* configurável
+   (padrão `50 rpm`, mínimo do motor), **não** para a rotação do ensaio: sem gás borbulhando,
+   manter a rotação do ensaio reoxigenaria o meio por aeração superficial e estragaria o `C₀`;
 2. aguardar a vazão medida ficar dentro de `± tolerância` (padrão `0,2 L/min`) do setpoint por
    um número configurável de leituras consecutivas — uma excursão zera a contagem;
-3. fechar o alívio preservando o setpoint já assentado. Nenhum novo pulso é gerado, porque o
-   fluxômetro não muda de alvo: apenas o destino do gás muda;
+3. fechar o alívio preservando o setpoint já assentado e comandar a rotação do ensaio. Nenhum
+   novo pulso de vazão é gerado, porque o fluxômetro não muda de alvo: apenas o destino do gás
+   muda;
 4. confirmar o estado de gás e só então iniciar `Reoxygenating`, que é o `t₀` da corrida.
 
 Os pontos das duas fases de alívio são gravados como qualquer outra amostra, mas ficam fora do
@@ -1115,6 +1118,7 @@ dados e referências.
 - com alívio ligado, o ar só entra no reator depois de a vazão medida assentar na faixa;
 - uma excursão de vazão durante o alívio zera a contagem de confirmações;
 - fechar o alívio preserva o setpoint assentado e não gera novo pulso;
+- a espera no alívio corre na rotação de alívio; a rotação do ensaio só é enviada no fechamento;
 - alívio na mesma saída do N₂ recusa a corrida antes de reivindicar atuadores;
 - parada durante o alívio fecha o fluxômetro e abre a revisão;
 - expiração da espera máxima do alívio encerra a corrida para revisão sem admitir ar;

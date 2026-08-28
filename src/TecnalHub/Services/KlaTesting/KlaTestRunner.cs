@@ -823,6 +823,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
     /// straight into the vessel; with it, the flow is first raised and settled outside the
     /// vessel so the run starts at its declared airflow instead of on the meter's pulse.
     /// </summary>
+    /// <remarks>
+    /// The condition's rotation is commanded only when the vent closes. Holding the assay
+    /// rotation through the vent wait would re-oxygenate the broth by surface aeration while no
+    /// gas is being sparged, so the vent wait runs at its own low rotation instead.
+    /// </remarks>
     private void BeginAirAdmission()
     {
         if (ShouldVentBeforeAir())
@@ -848,8 +853,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _targetGasState = (targetFlow, ventIsV1, !ventIsV1, false);
         SetPhase(
             RunPhase.OpeningVent,
-            $"Abrindo alívio em {(ventIsV1 ? "valve_1" : "valve_2")} e levando o fluxômetro a {targetFlow:F2} L/min...");
-        DispatchMotorOrAbort((int)_currentCondition.AgitationRpm, "ajustar agitação de reoxigenação");
+            $"Abrindo alívio em {(ventIsV1 ? "valve_1" : "valve_2")} a {_currentTest.Settings.VentAgitationRpm:F0} rpm, " +
+            $"levando o fluxômetro a {targetFlow:F2} L/min...");
+        DispatchMotorOrAbort((int)_currentTest.Settings.VentAgitationRpm, "ajustar agitação durante o alívio");
         DispatchFlowOrAbort(
             CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, ventIsV1, !ventIsV1),
             "abrir a válvula de alívio");
@@ -972,7 +978,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
         if (!double.IsFinite(settings.VentFlowToleranceLpm) || settings.VentFlowToleranceLpm <= 0 ||
             settings.VentFlowStableSamples is < 1 or > 100 ||
-            !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0)
+            !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0 ||
+            !double.IsFinite(settings.VentAgitationRpm) || settings.VentAgitationRpm is < 50 or > 1000)
         {
             throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilização no alívio são inválidos.");
         }

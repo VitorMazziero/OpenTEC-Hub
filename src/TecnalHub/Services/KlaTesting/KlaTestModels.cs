@@ -94,6 +94,13 @@ public sealed record KlaTestSettings
     /// </summary>
     public bool VentStabilizationEnabled { get; init; }
 
+    /// <summary>
+    /// Agitation held while the gas leaves through the vent. Deliberately low — the vessel has
+    /// no gas at this point, so the assay rotation would re-oxygenate the broth through surface
+    /// aeration and spoil C₀. The condition's rotation is commanded when the vent closes.
+    /// </summary>
+    public double VentAgitationRpm { get; init; } = 50.0;
+
     /// <summary>Measured flow must sit this close to the requested airflow before the vent closes.</summary>
     public double VentFlowToleranceLpm { get; init; } = 0.2;
 

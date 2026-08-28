@@ -306,6 +306,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private NitrogenValve _selectedVentValve = NitrogenValve.Valve2;
 
     [ObservableProperty]
+    private double _settingVentAgitationRpm = 50;
+
+    [ObservableProperty]
     private double _settingVentFlowTolerance = 0.2;
 
     [ObservableProperty]
@@ -789,6 +792,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             SettingStabilityRequiredSamples = doc.Settings.StabilityRequiredSamples;
             SettingMaxPostNitrogenStabilizationSeconds = doc.Settings.MaxPostNitrogenStabilizationSeconds;
             UseVentStabilization = doc.Settings.VentStabilizationEnabled;
+            SettingVentAgitationRpm = doc.Settings.VentAgitationRpm;
             SettingVentFlowTolerance = doc.Settings.VentFlowToleranceLpm;
             SettingVentFlowStableSamples = doc.Settings.VentFlowStableSamples;
             SettingMaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
@@ -1246,6 +1250,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         OnPropertyChanged(nameof(HasVentValveConflict));
         AutoApplyLiveSettings();
     }
+    partial void OnSettingVentAgitationRpmChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingVentFlowToleranceChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingVentFlowStableSamplesChanged(int value) => AutoApplyLiveSettings();
     partial void OnSettingMaxVentStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
@@ -1333,6 +1338,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             error = "Revise tolerância de vazão, confirmações e tempo máximo da estabilização no alívio.";
             return false;
         }
+        if (!double.IsFinite(SettingVentAgitationRpm) || SettingVentAgitationRpm is < 50 or > 1000)
+        {
+            error = "A rotação durante o alívio deve ficar entre 50 e 1000 rpm.";
+            return false;
+        }
         if (UseVentStabilization && SelectedVentValve == SelectedN2Valve)
         {
             error = "A válvula de alívio deve ser diferente da válvula do N₂.";
@@ -1361,6 +1371,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             StabilityRequiredSamples = SettingStabilityRequiredSamples,
             MaxPostNitrogenStabilizationSeconds = SettingMaxPostNitrogenStabilizationSeconds,
             VentStabilizationEnabled = UseVentStabilization,
+            VentAgitationRpm = SettingVentAgitationRpm,
             VentFlowToleranceLpm = SettingVentFlowTolerance,
             VentFlowStableSamples = SettingVentFlowStableSamples,
             MaxVentStabilizationSeconds = SettingMaxVentStabilizationSeconds,

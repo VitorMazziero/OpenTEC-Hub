@@ -361,6 +361,7 @@ public sealed class KlaTestRunnerTests : IDisposable
             DOMinPercent = 10.0,
             DOMaxPercent = 85.0,
             VentStabilizationEnabled = true,
+            VentAgitationRpm = 50.0,
             VentFlowToleranceLpm = 0.2,
             VentFlowStableSamples = 3,
         }, NitrogenValve.Valve1, ventValve: NitrogenValve.Valve2);
@@ -382,6 +383,12 @@ public sealed class KlaTestRunnerTests : IDisposable
         Assert.Contains("\"valve_1\":0", ventCommand);
         Assert.Contains("\"valve_2\":1", ventCommand);
         Assert.Contains("\"v_Flow\":0", ventCommand);
+
+        // The vessel is not being sparged yet, so the assay rotation must not be running:
+        // it would re-oxygenate the broth by surface aeration and spoil C₀.
+        Assert.Equal(
+            "{\"motorSetpoint\":50}",
+            _device.Sent.Last(j => j.Contains("motorSetpoint")));
 
         PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 6.4);
         Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
@@ -415,6 +422,11 @@ public sealed class KlaTestRunnerTests : IDisposable
         Assert.Contains("\"valve_1\":0", admitCommand);
         Assert.Contains("\"valve_2\":0", admitCommand);
         Assert.Contains("\"v_Flow\":0", admitCommand);
+
+        // The assay rotation arrives with the gas, not before it.
+        Assert.Equal(
+            "{\"motorSetpoint\":450}",
+            _device.Sent.Last(j => j.Contains("motorSetpoint")));
 
         PushGas(4.0, flow: 3.0, valve1: false, valve2: false, mainClosed: false, commandId: 3, measured: 3.0);
         Assert.Equal(RunPhase.Reoxygenating, _runner.Phase);

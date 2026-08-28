@@ -321,23 +321,32 @@
 
                     <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                            <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
                                 <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding CaptureProgressPercent}" />
                                 <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,7,0,10" />
-                                <Button Content="Parar ensaio de vazão"
-                                        Style="{StaticResource DangerButtonStyle}"
-                                        HorizontalAlignment="Right"
-                                        Command="{Binding StopCalibrationRunCommand}" />
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,7,0,0" />
                             </StackPanel>
 
-                            <StackPanel>
-                                <TextBlock Text="Pontos certificados" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
-                                <TextBlock Text="Selecione uma linha. A vazão real vem do padrão externo; a tensão vem de FlowVoltage."
-                                           Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
-                                           TextWrapping="Wrap" Margin="0,4,0,8" />
+                            <!-- Grid rather than StackPanel: the table row is the one that takes
+                                 the slack, so the point list grows with the window. -->
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <!-- Ten 32 px rows plus the header: the table is the point of
+                                         this panel, so it gets the slack and never shrinks below. -->
+                                    <RowDefinition Height="*" MinHeight="360" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
 
-                                <Border BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Pontos certificados" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="Envie um setpoint de vazão, leia o valor real no padrão externo e capture a tensão."
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,8" />
+                                </StackPanel>
+
+                                <Border Grid.Row="1" BorderBrush="{DynamicResource StrokeDefaultBrush}"
                                         BorderThickness="1" CornerRadius="4">
                                     <DockPanel>
                                         <Grid DockPanel.Dock="Top" Background="{DynamicResource SurfaceSunkenBrush}" Margin="0">
@@ -352,7 +361,7 @@
                                         </Grid>
                                         <ListBox ItemsSource="{Binding Points}"
                                                  SelectedItem="{Binding SelectedPoint, Mode=TwoWay}"
-                                                 Height="94" BorderThickness="0"
+                                                 BorderThickness="0"
                                                  IsEnabled="{Binding CanEditPoints}"
                                                  Background="{DynamicResource SurfaceCardBrush}"
                                                  Foreground="{DynamicResource TextPrimaryBrush}"
@@ -360,7 +369,7 @@
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                                    <Setter Property="Padding" Value="5,3" />
+                                                    <Setter Property="Padding" Value="5,1" />
                                                 </Style>
                                             </ListBox.ItemContainerStyle>
                                             <ListBox.ItemTemplate>
@@ -370,7 +379,8 @@
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBox Grid.Column="0" Margin="0,0,5,0"
+                                                        <TextBox Grid.Column="0" Margin="0,0,5,0" Height="30"
+                                                                 VerticalContentAlignment="Center"
                                                                  Text="{Binding FlowText, UpdateSourceTrigger=PropertyChanged}" />
                                                         <TextBlock Grid.Column="1" Text="{Binding VoltageText}"
                                                                    Style="{StaticResource NumericTextStyle}"
@@ -382,12 +392,12 @@
                                     </DockPanel>
                                 </Border>
 
-                                <StackPanel Orientation="Horizontal" Margin="0,7,0,8">
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,7,0,8">
                                     <Button Content="Adicionar ponto" Command="{Binding AddEmptyPointCommand}" Margin="0,0,6,0" />
                                     <Button Content="Remover selecionado" Command="{Binding RemoveSelectedPointCommand}" />
                                 </StackPanel>
 
-                                <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8">
+                                <Border Grid.Row="3" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8">
                                     <StackPanel>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -404,7 +414,7 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <!-- 1 · aim at a convenient flow; the certified standard tells
+                                        <!-- Aim at a convenient flow; the certified standard tells
                                              the operator what the real value is. -->
                                         <Grid Margin="0,10,0,8">
                                             <Grid.ColumnDefinitions>
@@ -414,11 +424,11 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="Setpoint (L/min)" VerticalAlignment="Center" Margin="0,0,6,0" />
                                             <TextBox Grid.Column="1" Text="{Binding SetpointText, UpdateSourceTrigger=PropertyChanged}" />
-                                            <Button Grid.Column="2" Content="1 · Enviar" Margin="6,0,0,0"
+                                            <Button Grid.Column="2" Content="Enviar" Margin="6,0,0,0"
                                                     Command="{Binding SendSetpointCommand}" />
                                         </Grid>
 
-                                        <!-- 2 · nudge the commanded setpoint until the standard reads
+                                        <!-- Nudge the commanded setpoint until the standard reads
                                              the exact flow the operator wants to record. -->
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -435,13 +445,13 @@
 
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                                             <Button Content="Cancelar captura" Command="{Binding CancelCaptureCommand}" Margin="0,0,6,0" />
-                                            <Button Content="3 · Capturar tensão"
+                                            <Button Content="Capturar tensão"
                                                     Style="{StaticResource AccentButtonStyle}"
                                                     Command="{Binding CaptureVoltageCommand}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
-                            </StackPanel>
+                            </Grid>
                         </DockPanel>
                     </Border>
                 </Grid>

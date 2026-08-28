@@ -302,31 +302,6 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             : "Segmento parcial enviado ao fluxômetro; complete o outro antes do uso em toda a faixa.");
     }
 
-    [RelayCommand]
-    private void StopCalibrationRun()
-    {
-        _capture.Clear();
-        IsCapturing = false;
-        CaptureProgressPercent = 0;
-        _commandedSetpoint = null;
-
-        if (CanSendFlowCommands)
-        {
-            _device.Send(CommandBuilders.FlowSafeStop(_maximumFlow));
-            CommandedSetpointText = "Safe-stop aguardando confirmação";
-            MarkAwaitingAck("Ensaio de vazão encerrado; ambas as válvulas foram fechadas.");
-        }
-        else
-        {
-            CommandedSetpointText = "Safe-stop não enviado";
-            StatusText = IsFlowmeterOnline
-                ? "Aguarde a confirmação do comando atual antes do safe-stop."
-                : "Fluxômetro Desconectado da Central; não foi possível transmitir o safe-stop.";
-        }
-
-        NotifyCommandState();
-    }
-
     public IReadOnlyList<(double Voltage, double Flow)> GetValidPoints()
         => Points.Select(TryReadPoint)
                  .Where(point => point is not null)

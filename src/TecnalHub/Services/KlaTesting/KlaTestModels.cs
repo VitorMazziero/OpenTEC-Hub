@@ -20,6 +20,8 @@ public enum RunPhase
     Deoxygenating,
     ClosingNitrogen,
     WaitingForDOStability,
+    OpeningVent,
+    StabilizingVentFlow,
     OpeningAir,
     Reoxygenating,
     StoppingRun,
@@ -32,6 +34,11 @@ public enum RunPhase
     Faulted,
 }
 
+/// <summary>
+/// One of the flowmeter's two auxiliary valve outputs. Which gas line each output
+/// carries is wiring, not protocol: a test declares one output as the N₂ inlet and,
+/// optionally, the other as the vent that dumps the start-up flow pulse to atmosphere.
+/// </summary>
 public enum NitrogenValve
 {
     Valve1 = 1,
@@ -80,6 +87,22 @@ public sealed record KlaTestSettings
     public double StabilityDerivativeThresholdPercentPerSecond { get; init; } = 0.05;
     public int StabilityRequiredSamples { get; init; } = 5;
     public double MaxPostNitrogenStabilizationSeconds { get; init; } = 120.0;
+
+    /// <summary>
+    /// Route the start-up flow pulse through the vent valve instead of the vessel. Off by
+    /// default: the vent line is a secondary bench setup, not part of the standard rig.
+    /// </summary>
+    public bool VentStabilizationEnabled { get; init; }
+
+    /// <summary>Measured flow must sit this close to the requested airflow before the vent closes.</summary>
+    public double VentFlowToleranceLpm { get; init; } = 0.2;
+
+    /// <summary>Consecutive in-tolerance readings required before the vent closes.</summary>
+    public int VentFlowStableSamples { get; init; } = 5;
+
+    /// <summary>Ceiling on the vent wait. Exceeding it stops the run instead of admitting an unstable flow.</summary>
+    public double MaxVentStabilizationSeconds { get; init; } = 120.0;
+
     public double DefaultCeqPercent { get; init; } = 100.0;
     public bool AutoAcceptRuns { get; init; } = false;
     public double AutoLinearStartPercent { get; init; } = 45.0;
@@ -163,6 +186,11 @@ public sealed class KlaTestRun
     public double AgitationRpm { get; set; }
     public double AirflowLpm { get; set; }
     public NitrogenValve NitrogenValve { get; set; } = NitrogenValve.Valve1;
+    public NitrogenValve VentValve { get; set; } = NitrogenValve.Valve2;
+
+    /// <summary>True when this run reached its airflow through the vent before admitting gas.</summary>
+    public bool UsedVentStabilization { get; set; }
+
     public RunPhase CurrentPhase { get; set; } = RunPhase.Idle;
     public DateTimeOffset StartedUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedUtc { get; set; }
@@ -202,6 +230,14 @@ public sealed class KlaTestDocument
     public string Nature { get; set; } = "Abiotico";
     public KlaMapReference? LinkedMap { get; set; }
     public NitrogenValve SelectedNitrogenValve { get; set; } = NitrogenValve.Valve1;
+
+    /// <summary>
+    /// Flowmeter output wired to the relief/vent valve downstream of the meter. Only used when
+    /// <see cref="KlaTestSettings.VentStabilizationEnabled"/> is set, and it must differ from
+    /// <see cref="SelectedNitrogenValve"/>.
+    /// </summary>
+    public NitrogenValve SelectedVentValve { get; set; } = NitrogenValve.Valve2;
+
     public KlaTestSettings Settings { get; set; } = new();
     public int SettingsRevision { get; set; } = 1;
     public string AppVersion { get; set; } = "";

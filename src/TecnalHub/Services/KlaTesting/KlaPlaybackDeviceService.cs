@@ -154,6 +154,13 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
                 SeekNextDescendingSegment();
                 _playing = true;
             }
+            else if ((_valve1 || _valve2) && _flowSetpoint > 0.001)
+            {
+                // Alívio aberto: o gás sai antes do reator. A curva experimental fica
+                // parada enquanto a vazão assenta, como acontece na bancada.
+                _coastStopIndex = null;
+                _playing = false;
+            }
             else if (_flowSetpoint > 0.001)
             {
                 _coastStopIndex = null;

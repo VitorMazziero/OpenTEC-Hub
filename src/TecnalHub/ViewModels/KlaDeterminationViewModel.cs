@@ -300,6 +300,21 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private double _settingMaxPostNitrogenStabilizationSeconds = 120;
 
     [ObservableProperty]
+    private bool _useVentStabilization;
+
+    [ObservableProperty]
+    private NitrogenValve _selectedVentValve = NitrogenValve.Valve2;
+
+    [ObservableProperty]
+    private double _settingVentFlowTolerance = 0.2;
+
+    [ObservableProperty]
+    private int _settingVentFlowStableSamples = 5;
+
+    [ObservableProperty]
+    private double _settingMaxVentStabilizationSeconds = 120;
+
+    [ObservableProperty]
     private double _settingDefaultCeq = 100;
 
     [ObservableProperty]
@@ -567,12 +582,25 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public bool IsIdle => !IsRunning && !IsReviewOpen;
     public bool CanStartSequence => HasActiveTest && IsIdle;
     public bool CanChangeNitrogenValve => !IsRunning;
+    public bool CanChangeVentValve => !IsRunning;
+
+    /// <summary>
+    /// The vent and the N₂ line cannot share a flowmeter output: venting through the nitrogen
+    /// valve would open the N₂ line while the runner believed it was dumping air.
+    /// </summary>
+    public bool HasVentValveConflict => UseVentStabilization && SelectedVentValve == SelectedN2Valve;
     public string DisplayDODerivative => _runner.CurrentDODerivative.HasValue
         ? $"{_runner.CurrentDODerivative.Value:+0.000;-0.000;0.000} %/s"
         : "—";
     public string DisplayStabilityProgress => CurrentTest is null
         ? "—"
         : $"{_runner.StabilityConfirmationCount}/{CurrentTest.Settings.StabilityRequiredSamples}";
+    public string DisplayVentFlowDeviation => _runner.VentFlowDeviation.HasValue
+        ? $"{_runner.VentFlowDeviation.Value:+0.00;-0.00;0.00} L/min"
+        : "—";
+    public string DisplayVentFlowProgress => CurrentTest is null
+        ? "—"
+        : $"{_runner.VentFlowStableCount}/{CurrentTest.Settings.VentFlowStableSamples}";
     public string DisplayPhase => Phase switch
     {
         RunPhase.Idle => "Inativo",
@@ -582,6 +610,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         RunPhase.Deoxygenating => "Desoxigenando (N₂)",
         RunPhase.ClosingNitrogen => "Fechando N₂",
         RunPhase.WaitingForDOStability => "Estabilizando após N₂",
+        RunPhase.OpeningVent => "Abrindo Alívio",
+        RunPhase.StabilizingVentFlow => "Estabilizando Vazão (Alívio)",
         RunPhase.OpeningAir => "Abrindo Ar",
         RunPhase.Reoxygenating => "Reoxigenando (Ar)",
         RunPhase.StoppingRun => "Fechando válvulas da corrida",
@@ -704,7 +734,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             (mapRef, initialConditions) = KlaMapImportHelper.ImportConditionsFromMap(SelectedMapForImport, 1);
         }
 
-        var doc = _store.CreateTest(NewTestName, settings, SelectedN2Valve, mapRef, initialConditions);
+        var doc = _store.CreateTest(NewTestName, settings, SelectedN2Valve, mapRef, initialConditions, SelectedVentValve);
         IsCreateDialogOpen = false;
 
         LoadTest(doc.FolderName);
@@ -758,6 +788,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             SettingStabilityDerivativeThreshold = doc.Settings.StabilityDerivativeThresholdPercentPerSecond;
             SettingStabilityRequiredSamples = doc.Settings.StabilityRequiredSamples;
             SettingMaxPostNitrogenStabilizationSeconds = doc.Settings.MaxPostNitrogenStabilizationSeconds;
+            UseVentStabilization = doc.Settings.VentStabilizationEnabled;
+            SettingVentFlowTolerance = doc.Settings.VentFlowToleranceLpm;
+            SettingVentFlowStableSamples = doc.Settings.VentFlowStableSamples;
+            SettingMaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
+            SelectedVentValve = doc.SelectedVentValve;
             SettingDefaultCeq = doc.Settings.DefaultCeqPercent;
             AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
             SettingAutoLinearStartPercent = doc.Settings.AutoLinearStartPercent;
@@ -1189,6 +1224,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         CurrentTest.Settings = newSettings;
         CurrentTest.SelectedNitrogenValve = SelectedN2Valve;
+        CurrentTest.SelectedVentValve = SelectedVentValve;
         _runner.UpdateLiveSettings(newSettings);
         _store.SaveTestManifest(CurrentTest);
         OnPropertyChanged(nameof(DisplayStabilityProgress));
@@ -1205,6 +1241,14 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     partial void OnSettingStabilityDerivativeThresholdChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingStabilityRequiredSamplesChanged(int value) => AutoApplyLiveSettings();
     partial void OnSettingMaxPostNitrogenStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnUseVentStabilizationChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HasVentValveConflict));
+        AutoApplyLiveSettings();
+    }
+    partial void OnSettingVentFlowToleranceChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingVentFlowStableSamplesChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxVentStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingDefaultCeqChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingAutoLinearStartPercentChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingAutoLinearEndPercentChanged(double value) => AutoApplyLiveSettings();
@@ -1234,8 +1278,19 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
     }
 
+    partial void OnSelectedVentValveChanged(NitrogenValve value)
+    {
+        OnPropertyChanged(nameof(HasVentValveConflict));
+        if (CurrentTest is not null && !IsRunning && !_isLoadingSettings)
+        {
+            CurrentTest.SelectedVentValve = value;
+            _store.SaveTestManifest(CurrentTest);
+        }
+    }
+
     partial void OnSelectedN2ValveChanged(NitrogenValve value)
     {
+        OnPropertyChanged(nameof(HasVentValveConflict));
         if (CurrentTest is not null && !IsRunning && !_isLoadingSettings)
         {
             CurrentTest.SelectedNitrogenValve = value;
@@ -1271,6 +1326,18 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             error = "Revise atraso, janela, limiar, confirmações e tempo máximo da estabilização pós-N₂.";
             return false;
         }
+        if (!double.IsFinite(SettingVentFlowTolerance) || SettingVentFlowTolerance <= 0 || SettingVentFlowTolerance > 10 ||
+            SettingVentFlowStableSamples is < 1 or > 100 ||
+            !double.IsFinite(SettingMaxVentStabilizationSeconds) || SettingMaxVentStabilizationSeconds <= 0)
+        {
+            error = "Revise tolerância de vazão, confirmações e tempo máximo da estabilização no alívio.";
+            return false;
+        }
+        if (UseVentStabilization && SelectedVentValve == SelectedN2Valve)
+        {
+            error = "A válvula de alívio deve ser diferente da válvula do N₂.";
+            return false;
+        }
         if (!double.IsFinite(SettingDefaultCeq) || SettingDefaultCeq <= SettingDOMax || SettingDefaultCeq > 200 ||
             !double.IsFinite(SettingAutoLinearStartPercent) || !double.IsFinite(SettingAutoLinearEndPercent) ||
             SettingAutoLinearStartPercent < 0 || SettingAutoLinearEndPercent > 100 ||
@@ -1293,6 +1360,10 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             StabilityDerivativeThresholdPercentPerSecond = SettingStabilityDerivativeThreshold,
             StabilityRequiredSamples = SettingStabilityRequiredSamples,
             MaxPostNitrogenStabilizationSeconds = SettingMaxPostNitrogenStabilizationSeconds,
+            VentStabilizationEnabled = UseVentStabilization,
+            VentFlowToleranceLpm = SettingVentFlowTolerance,
+            VentFlowStableSamples = SettingVentFlowStableSamples,
+            MaxVentStabilizationSeconds = SettingMaxVentStabilizationSeconds,
             DefaultCeqPercent = SettingDefaultCeq,
             AutoAcceptRuns = AutoAcceptRuns,
             AutoLinearStartPercent = SettingAutoLinearStartPercent,
@@ -1586,6 +1657,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         CurrentCondition = _runner.CurrentCondition;
         OnPropertyChanged(nameof(DisplayDODerivative));
         OnPropertyChanged(nameof(DisplayStabilityProgress));
+        OnPropertyChanged(nameof(DisplayVentFlowDeviation));
+        OnPropertyChanged(nameof(DisplayVentFlowProgress));
 
         if (_runner.IsInReview && !IsReviewOpen)
         {
@@ -1817,6 +1890,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(CanStartSequence));
         OnPropertyChanged(nameof(CanChangeNitrogenValve));
+        OnPropertyChanged(nameof(CanChangeVentValve));
         OnPropertyChanged(nameof(DisplayPhase));
         OnPropertyChanged(nameof(FormattedTotalTime));
         OnPropertyChanged(nameof(FormattedPhaseTime));

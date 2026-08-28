@@ -93,6 +93,59 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal("0/3", _vm.Conditions[0].DisplayReplicates);
     }
 
+    /// <summary>
+    /// The vent line is bench wiring, so it travels with the test manifest rather than with the
+    /// application settings, and a shared output is refused before it can be saved.
+    /// </summary>
+    [Fact]
+    public void Vent_Configuration_Persists_With_The_Test_And_Refuses_A_Shared_Valve()
+    {
+        _vm.NewTestName = "Ensaio Alivio VM";
+        _vm.SelectedN2Valve = NitrogenValve.Valve1;
+        _vm.SelectedVentValve = NitrogenValve.Valve2;
+        _vm.UseVentStabilization = true;
+        _vm.SettingVentFlowTolerance = 0.25;
+        _vm.SettingVentFlowStableSamples = 4;
+        _vm.SettingMaxVentStabilizationSeconds = 90;
+
+        _vm.CreateNewTest();
+
+        Assert.NotNull(_vm.CurrentTest);
+        Assert.False(_vm.HasVentValveConflict);
+
+        var reloaded = _store.LoadTest(_vm.CurrentTest.FolderName);
+        Assert.NotNull(reloaded);
+        Assert.Equal(NitrogenValve.Valve2, reloaded.SelectedVentValve);
+        Assert.True(reloaded.Settings.VentStabilizationEnabled);
+        Assert.Equal(0.25, reloaded.Settings.VentFlowToleranceLpm);
+        Assert.Equal(4, reloaded.Settings.VentFlowStableSamples);
+        Assert.Equal(90, reloaded.Settings.MaxVentStabilizationSeconds);
+
+        // Pointing the vent at the nitrogen output is reported and blocks the save.
+        _vm.SelectedVentValve = NitrogenValve.Valve1;
+        Assert.True(_vm.HasVentValveConflict);
+
+        _vm.OpenAdvancedSettingsDialog();
+        _vm.SaveAdvancedSettings();
+        Assert.Contains("alívio", _vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.True(_vm.IsAdvancedSettingsDialogOpen);
+    }
+
+    /// <summary>
+    /// A test created without the vent line keeps the detour off, so the standard rig is
+    /// unaffected by the option existing.
+    /// </summary>
+    [Fact]
+    public void Vent_Stabilization_Is_Off_By_Default()
+    {
+        _vm.NewTestName = "Ensaio Sem Alivio";
+        _vm.CreateNewTest();
+
+        Assert.NotNull(_vm.CurrentTest);
+        Assert.False(_vm.UseVentStabilization);
+        Assert.False(_vm.CurrentTest.Settings.VentStabilizationEnabled);
+    }
+
     [Fact]
     public void RecomputeReviewAnalysis_Calculates_Kla_And_Quality_Metrics()
     {
@@ -656,6 +709,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public double CurrentFlowMeasured { get; set; }
         public double? CurrentDODerivative { get; set; }
         public int StabilityConfirmationCount { get; set; }
+        public int VentFlowStableCount { get; set; }
+        public double? VentFlowDeviation { get; set; }
         public string StatusMessage { get; set; } = "Pronto";
 
         public IReadOnlyList<KlaRawDataPoint> CurrentRunPoints => [];

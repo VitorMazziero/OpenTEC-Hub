@@ -49,6 +49,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private bool _disposed;
     private double? _currentDODerivative;
     private int _stabilityConfirmationCount;
+    private int _ventFlowStableCount;
+    private double? _ventFlowDeviation;
 
     public KlaTestRunner(
         IDeviceService device,
@@ -83,6 +85,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public double CurrentFlowMeasured => _currentFlowMeasured;
     public double? CurrentDODerivative => _currentDODerivative;
     public int StabilityConfirmationCount => _stabilityConfirmationCount;
+    public int VentFlowStableCount => _ventFlowStableCount;
+    public double? VentFlowDeviation => _ventFlowDeviation;
     public string StatusMessage => _statusMessage;
 
     public double PhaseElapsedSeconds
@@ -192,6 +196,12 @@ public sealed class KlaTestRunner : IKlaTestRunner
             throw new InvalidOperationException("Leitura de oxigênio inválida.");
         }
         ValidateSettings(_currentTest.Settings);
+        if (_currentTest.Settings.VentStabilizationEnabled &&
+            _currentTest.SelectedVentValve == _currentTest.SelectedNitrogenValve)
+        {
+            throw new InvalidOperationException(
+                "A válvula de alívio deve ser diferente da válvula do N₂.");
+        }
         if (condition.AgitationRpm <= 0 || condition.AirflowLpm <= 0 || replicateNumber < 1)
         {
             throw new InvalidOperationException("Condição inválida: rotação, vazão e replicata devem ser positivas.");
@@ -222,6 +232,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 AgitationRpm = condition.AgitationRpm,
                 AirflowLpm = condition.AirflowLpm,
                 NitrogenValve = _currentTest.SelectedNitrogenValve,
+                VentValve = _currentTest.SelectedVentValve,
                 CurrentPhase = RunPhase.Preflight,
                 StartedUtc = _time.GetUtcNow(),
             };
@@ -263,6 +274,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public Task StopRunAndReviewAsync(string reason = "Parada pelo operador")
     {
         if (_phase is not (RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
+            RunPhase.OpeningVent or RunPhase.StabilizingVentFlow or
             RunPhase.Reoxygenating or RunPhase.OpeningAir or RunPhase.OpeningNitrogen))
         {
             return Task.CompletedTask;
@@ -570,6 +582,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
             var capturesRunData = _phase is RunPhase.Preflight or RunPhase.ClosingAllGas or
                 RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
+                RunPhase.OpeningVent or RunPhase.StabilizingVentFlow or
                 RunPhase.OpeningAir or RunPhase.Reoxygenating or RunPhase.StoppingRun or RunPhase.Aborting;
             if (capturesRunData)
             {
@@ -614,7 +627,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             {
                 if (_openAirAfterClosing)
                 {
-                    OpenAir();
+                    BeginAirAdmission();
                 }
                 else
                 {
@@ -644,6 +657,14 @@ public sealed class KlaTestRunner : IKlaTestRunner
             else if (_phase == RunPhase.WaitingForDOStability)
             {
                 EvaluatePostNitrogenStability(monoSec, s.OxygenCalibrated);
+            }
+            else if (_phase == RunPhase.OpeningVent && IsGasStateConfirmed(s, _targetGasState))
+            {
+                BeginVentFlowStabilization();
+            }
+            else if (_phase == RunPhase.StabilizingVentFlow)
+            {
+                EvaluateVentFlowStability(s.FlowRate);
             }
             else if (_phase == RunPhase.Deoxygenating && s.OxygenCalibrated <= _currentTest.Settings.DOMinPercent)
             {
@@ -720,7 +741,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         }
 
         LogEvent("DOStable", $"DO estabilizado após N₂: dDO/dt={_currentDODerivative.Value:F4} %/s, {settings.StabilityRequiredSamples} confirmações.");
-        OpenAir();
+        BeginAirAdmission();
     }
 
     private static double? TryCalculateSlope(IReadOnlyList<(double Time, double DO)> points, double requestedSpan)
@@ -746,6 +767,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _stabilityWindow.Clear();
         _currentDODerivative = null;
         _stabilityConfirmationCount = 0;
+        _ventFlowStableCount = 0;
+        _ventFlowDeviation = null;
     }
 
     private bool IsGasStateConfirmed(SensorSnapshot s, (double Flow, bool V1, bool V2, bool VFlow) target)
@@ -772,11 +795,120 @@ public sealed class KlaTestRunner : IKlaTestRunner
         DispatchFlowOrAbort(CommandBuilders.FlowSetpoint(0, MaxFlow, isV1, !isV1), "abrir nitrogênio");
     }
 
-    private void OpenAir()
+    /// <summary>
+    /// True when this test routes the flowmeter's start-up pulse through the vent valve. The
+    /// vent must sit on the output the N₂ line does not use; a collision disables the detour
+    /// rather than energising the nitrogen valve by mistake.
+    /// </summary>
+    private bool ShouldVentBeforeAir()
+    {
+        if (_currentTest is null || !_currentTest.Settings.VentStabilizationEnabled)
+        {
+            return false;
+        }
+
+        if (_currentTest.SelectedVentValve == _currentTest.SelectedNitrogenValve)
+        {
+            LogEvent(
+                "VentSkipped",
+                "Alívio ignorado: a válvula selecionada coincide com a do N₂. O ar será admitido direto no reator.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Entry point for every path that admits air. Without the vent line the flowmeter opens
+    /// straight into the vessel; with it, the flow is first raised and settled outside the
+    /// vessel so the run starts at its declared airflow instead of on the meter's pulse.
+    /// </summary>
+    private void BeginAirAdmission()
+    {
+        if (ShouldVentBeforeAir())
+        {
+            OpenVent();
+            return;
+        }
+
+        OpenAir();
+    }
+
+    private void OpenVent()
+    {
+        var targetFlow = _currentCondition!.AirflowLpm;
+        var ventIsV1 = _currentTest!.SelectedVentValve == NitrogenValve.Valve1;
+        _ventFlowStableCount = 0;
+        _ventFlowDeviation = null;
+        if (_currentRun is not null)
+        {
+            _currentRun.UsedVentStabilization = true;
+        }
+
+        _targetGasState = (targetFlow, ventIsV1, !ventIsV1, false);
+        SetPhase(
+            RunPhase.OpeningVent,
+            $"Abrindo alívio em {(ventIsV1 ? "valve_1" : "valve_2")} e levando o fluxômetro a {targetFlow:F2} L/min...");
+        DispatchMotorOrAbort((int)_currentCondition.AgitationRpm, "ajustar agitação de reoxigenação");
+        DispatchFlowOrAbort(
+            CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, ventIsV1, !ventIsV1),
+            "abrir a válvula de alívio");
+    }
+
+    private void BeginVentFlowStabilization()
+    {
+        _ventFlowStableCount = 0;
+        _ventFlowDeviation = null;
+        LogEvent(
+            "VentOpened",
+            "Alívio aberto e confirmado. O gás sai pelo alívio até a vazão assentar em " +
+            $"{_currentCondition!.AirflowLpm:F2} ± {_currentTest!.Settings.VentFlowToleranceLpm:F2} L/min.");
+        SetPhase(RunPhase.StabilizingVentFlow, "Alívio aberto · aguardando a vazão assentar...");
+    }
+
+    /// <summary>
+    /// Holds the run outside the vessel until the measured flow sits within tolerance of the
+    /// requested airflow for the configured number of consecutive readings. Only then is the
+    /// vent closed, which is the instant the assay actually starts.
+    /// </summary>
+    private void EvaluateVentFlowStability(double measuredFlow)
+    {
+        var settings = _currentTest!.Settings;
+        var targetFlow = _currentCondition!.AirflowLpm;
+        var deviation = measuredFlow - targetFlow;
+        _ventFlowDeviation = deviation;
+
+        if (Math.Abs(deviation) <= settings.VentFlowToleranceLpm)
+        {
+            _ventFlowStableCount++;
+        }
+        else
+        {
+            _ventFlowStableCount = 0;
+        }
+
+        _statusMessage =
+            $"Alívio aberto · {measuredFlow:F2} L/min (alvo {targetFlow:F2} ± {settings.VentFlowToleranceLpm:F2}) · " +
+            $"estabilidade {_ventFlowStableCount}/{settings.VentFlowStableSamples}";
+        if (_ventFlowStableCount < settings.VentFlowStableSamples)
+        {
+            return;
+        }
+
+        LogEvent(
+            "VentFlowStable",
+            $"Vazão estabilizada em {measuredFlow:F2} L/min após {_ventFlowStableCount} confirmações. " +
+            "Fechando o alívio e iniciando a reoxigenação.");
+        OpenAir(fromVent: true);
+    }
+
+    private void OpenAir(bool fromVent = false)
     {
         var targetFlow = _currentCondition!.AirflowLpm;
         _targetGasState = (targetFlow, false, false, false);
-        SetPhase(RunPhase.OpeningAir, "Abrindo ar...");
+        SetPhase(
+            RunPhase.OpeningAir,
+            fromVent ? "Fechando o alívio e direcionando o ar ao reator..." : "Abrindo ar...");
         DispatchMotorOrAbort((int)_currentCondition.AgitationRpm, "ajustar agitação de reoxigenação");
         DispatchFlowOrAbort(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false), "abrir ar");
     }
@@ -837,6 +969,13 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             throw new ArgumentOutOfRangeException(nameof(settings), "O tempo máximo pós-N₂ deve ser maior que o atraso mínimo.");
         }
+
+        if (!double.IsFinite(settings.VentFlowToleranceLpm) || settings.VentFlowToleranceLpm <= 0 ||
+            settings.VentFlowStableSamples is < 1 or > 100 ||
+            !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilização no alívio são inválidos.");
+        }
     }
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
@@ -859,7 +998,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _ = AbortTestAsync("Telemetria ficou desatualizada por mais de 5 segundos.");
             return;
         }
-        if ((_phase is RunPhase.ClosingAllGas or RunPhase.OpeningNitrogen or RunPhase.ClosingNitrogen or RunPhase.OpeningAir or RunPhase.StoppingRun or RunPhase.Aborting) &&
+        if ((_phase is RunPhase.ClosingAllGas or RunPhase.OpeningNitrogen or RunPhase.ClosingNitrogen or RunPhase.OpeningVent or RunPhase.OpeningAir or RunPhase.StoppingRun or RunPhase.Aborting) &&
             PhaseElapsedSeconds > 10)
         {
             if (_phase == RunPhase.Aborting)
@@ -887,6 +1026,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
                  PhaseElapsedSeconds > _currentTest.Settings.MaxPostNitrogenStabilizationSeconds)
         {
             _ = StopRunAndReviewAsync("DO não estabilizou dentro do tempo máximo pós-N₂");
+        }
+        else if (_phase == RunPhase.StabilizingVentFlow &&
+                 PhaseElapsedSeconds > _currentTest.Settings.MaxVentStabilizationSeconds)
+        {
+            _ = StopRunAndReviewAsync("A vazão não estabilizou no alívio dentro do tempo máximo");
         }
     }
 

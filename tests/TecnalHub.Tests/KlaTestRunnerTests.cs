@@ -338,6 +338,194 @@ public sealed class KlaTestRunnerTests : IDisposable
         Assert.Equal(CommandOwner.Manual, _arbiter.OwnerOf(ActuatorId.Agitation));
     }
 
+    /// <summary>
+    /// With the vent line declared, the flowmeter must reach its airflow outside the vessel.
+    /// The run only becomes an assay once the measured flow sits inside the tolerance band and
+    /// the vent closes — the whole point being that the meter's start-up pulse never enters the
+    /// bioreactor.
+    /// </summary>
+    [Fact]
+    public async Task VentStabilization_Vents_The_Flow_Pulse_And_Starts_The_Assay_Only_Once_It_Settles()
+    {
+        _device.PushState(ConnectionState.Connected);
+        _device.PushTelemetry(new SensorSnapshot
+        {
+            OxygenCalibrated = 4.0,
+            OxygenRaw = 4.0,
+            FlowmeterOnline = true,
+            FlowCommandPending = false,
+        });
+
+        var doc = _store.CreateTest("Ensaio Alivio", new KlaTestSettings
+        {
+            DOMinPercent = 10.0,
+            DOMaxPercent = 85.0,
+            VentStabilizationEnabled = true,
+            VentFlowToleranceLpm = 0.2,
+            VentFlowStableSamples = 3,
+        }, NitrogenValve.Valve1, ventValve: NitrogenValve.Valve2);
+        var cond = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3.0, RequestedReplicates = 1 };
+        doc.Conditions.Add(cond);
+
+        await _runner.StartTestAsync(doc);
+
+        // Initial DO of 4% is already below the 10% cut-off, so the run skips nitrogen.
+        await _runner.StartRunAsync(cond, 1);
+        Assert.Equal(RunPhase.ClosingAllGas, _runner.Phase);
+
+        PushGas(4.0, flow: 0.0, valve1: false, valve2: false, mainClosed: true, commandId: 1);
+        Assert.Equal(RunPhase.OpeningVent, _runner.Phase);
+
+        // The vent output carries the requested airflow with the main path open.
+        var ventCommand = _device.Sent.Last(j => j.Contains("flowSetpoint"));
+        Assert.Contains("\"flowSetpoint\":3", ventCommand);
+        Assert.Contains("\"valve_1\":0", ventCommand);
+        Assert.Contains("\"valve_2\":1", ventCommand);
+        Assert.Contains("\"v_Flow\":0", ventCommand);
+
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 6.4);
+        Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
+        Assert.True(_runner.CurrentRun?.UsedVentStabilization);
+
+        // The pulse itself is out of band and must not be counted.
+        Assert.Equal(0, _runner.VentFlowStableCount);
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.5);
+        Assert.Equal(0, _runner.VentFlowStableCount);
+        Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
+
+        // Two in-band readings are still one short of the three required.
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.1);
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 2.85);
+        Assert.Equal(2, _runner.VentFlowStableCount);
+        Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
+
+        // A single excursion restarts the count: the band must hold consecutively.
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.4);
+        Assert.Equal(0, _runner.VentFlowStableCount);
+
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.05);
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 2.95);
+        Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.0);
+        Assert.Equal(RunPhase.OpeningAir, _runner.Phase);
+
+        // Closing the vent keeps the settled setpoint: no second pulse reaches the vessel.
+        var admitCommand = _device.Sent.Last(j => j.Contains("flowSetpoint"));
+        Assert.Contains("\"flowSetpoint\":3", admitCommand);
+        Assert.Contains("\"valve_1\":0", admitCommand);
+        Assert.Contains("\"valve_2\":0", admitCommand);
+        Assert.Contains("\"v_Flow\":0", admitCommand);
+
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: false, mainClosed: false, commandId: 3, measured: 3.0);
+        Assert.Equal(RunPhase.Reoxygenating, _runner.Phase);
+
+        // The venting samples are recorded, but none of them is assay data.
+        var points = _runner.CurrentRunPoints;
+        Assert.Contains(points, p => p.Phase == RunPhase.StabilizingVentFlow);
+        Assert.DoesNotContain(
+            points.Where(p => p.Phase == RunPhase.Reoxygenating),
+            p => p.Valve1 || p.Valve2);
+    }
+
+    /// <summary>
+    /// Venting through the nitrogen output would open the N₂ line while the runner believed it
+    /// was dumping air. The run is refused before anything is claimed.
+    /// </summary>
+    [Fact]
+    public async Task StartRun_Refuses_A_Vent_Valve_That_Collides_With_Nitrogen()
+    {
+        _device.PushState(ConnectionState.Connected);
+        _device.PushTelemetry(new SensorSnapshot
+        {
+            OxygenCalibrated = 60.0,
+            OxygenRaw = 60.0,
+            FlowmeterOnline = true,
+            FlowCommandPending = false,
+        });
+
+        var doc = _store.CreateTest("Ensaio Alivio Colidido", new KlaTestSettings
+        {
+            VentStabilizationEnabled = true,
+        }, NitrogenValve.Valve1, ventValve: NitrogenValve.Valve1);
+        var cond = new KlaTestCondition { AgitationRpm = 300, AirflowLpm = 2.0, RequestedReplicates = 1 };
+        doc.Conditions.Add(cond);
+
+        await _runner.StartTestAsync(doc);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(cond, 1));
+        Assert.Equal(RunPhase.Idle, _runner.Phase);
+        Assert.Equal(CommandOwner.Manual, _arbiter.OwnerOf(ActuatorId.Aeration));
+    }
+
+    /// <summary>
+    /// Stopping while the gas is going out of the vent must still close the flowmeter, otherwise
+    /// the operator is left venting into the room with the run marked finished.
+    /// </summary>
+    [Fact]
+    public async Task StopRun_During_Venting_Closes_The_Flowmeter()
+    {
+        _device.PushState(ConnectionState.Connected);
+        _device.PushTelemetry(new SensorSnapshot
+        {
+            OxygenCalibrated = 4.0,
+            OxygenRaw = 4.0,
+            FlowmeterOnline = true,
+            FlowCommandPending = false,
+        });
+
+        var doc = _store.CreateTest("Ensaio Alivio Parada", new KlaTestSettings
+        {
+            DOMinPercent = 10.0,
+            VentStabilizationEnabled = true,
+            VentFlowStableSamples = 3,
+        }, NitrogenValve.Valve1, ventValve: NitrogenValve.Valve2);
+        var cond = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3.0, RequestedReplicates = 1 };
+        doc.Conditions.Add(cond);
+
+        await _runner.StartTestAsync(doc);
+        await _runner.StartRunAsync(cond, 1);
+        PushGas(4.0, flow: 0.0, valve1: false, valve2: false, mainClosed: true, commandId: 1);
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.0);
+        Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
+
+        await _runner.StopRunAndReviewAsync("Parada durante o alívio");
+
+        Assert.Equal(RunPhase.StoppingRun, _runner.Phase);
+        var stop = _device.Sent.Last(j => j.Contains("flowSetpoint"));
+        Assert.Contains("\"flowSetpoint\":0", stop);
+        Assert.Contains("\"valve_1\":0", stop);
+        Assert.Contains("\"valve_2\":0", stop);
+        Assert.Contains("\"v_Flow\":1", stop);
+
+        PushGas(4.0, flow: 0.0, valve1: false, valve2: false, mainClosed: true, commandId: 3);
+        Assert.Equal(RunPhase.Reviewing, _runner.Phase);
+    }
+
+    private void PushGas(
+        double dissolvedOxygen,
+        double flow,
+        bool valve1,
+        bool valve2,
+        bool mainClosed,
+        int commandId,
+        double? measured = null)
+    {
+        _device.PushTelemetry(new SensorSnapshot
+        {
+            OxygenCalibrated = dissolvedOxygen,
+            OxygenRaw = dissolvedOxygen,
+            FlowValve1 = valve1 ? 1 : 0,
+            FlowValve2 = valve2 ? 1 : 0,
+            FlowValveMain = mainClosed ? 1 : 0,
+            FlowRate = measured ?? flow,
+            FlowSetpoint = flow,
+            FlowmeterOnline = true,
+            FlowCommandId = commandId,
+            FlowCommandAck = commandId,
+            FlowCommandPending = false,
+        });
+    }
+
     [Fact]
     public void PrepareTest_AllowsHistoricalReview_WithoutChangingCompletedStatus()
     {

@@ -9,6 +9,17 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Estabilização da vazão no alívio antes do `t₀` do ensaio de kLa.** Bancadas com uma válvula
+  de alívio instalada logo após o fluxômetro podem marcar *Abrir o alívio e esperar a vazão
+  assentar* nos parâmetros do teste. Depois da estabilização pós-N₂, o runner abre a válvula
+  escolhida (`valve_1` ou `valve_2`, obrigatoriamente a que o N₂ não usa) já na vazão e na
+  rotação da condição, mantém o pulso inicial do medidor saindo para a atmosfera e só fecha o
+  alívio — iniciando `Reoxygenating` — depois que a vazão medida fica dentro de `± tolerância`
+  (padrão `0,2 L/min`) do setpoint por N leituras consecutivas. O fechamento preserva o setpoint
+  assentado, então nenhum novo pulso entra no reator. Duas fases novas (`OpeningVent`,
+  `StabilizingVentFlow`) são gravadas nas séries mas ficam fora do ajuste log-linear; a espera
+  tem teto próprio e, ao expirar, encerra a corrida para revisão em vez de admitir ar instável.
+  Desligado por padrão. Ver [PLANO_IMPLEMENTACAO_TESTES_KLA.md](PLANO_IMPLEMENTACAO_TESTES_KLA.md) § 11.2.
 - **Fluxômetro v05 sincronizado pelo ESP32 Hub v7.** `Controle`, `Painel` e a calibração
   agora distinguem a conexão app–Hub do enlace Hub–fluxômetro, mostram estados de pendência e
   desconexão e bloqueiam novos comandos enquanto `FlowCommandPending` estiver ativo ou

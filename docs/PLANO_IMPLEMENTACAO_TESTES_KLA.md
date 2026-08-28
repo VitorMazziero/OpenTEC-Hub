@@ -626,7 +626,14 @@ configuração do teste.
 | Tudo fechado | 0 | 0 | 0 | 1 |
 | N₂ em V1 | 0 | 1 | 0 | 1 |
 | N₂ em V2 | 0 | 0 | 1 | 1 |
+| Alívio em V1 | Q | 1 | 0 | 0 |
+| Alívio em V2 | Q | 0 | 1 | 0 |
 | Ar em Q | Q | 0 | 0 | 0 |
+
+As duas linhas de alívio existem apenas em bancadas com a válvula de alívio instalada
+logo depois do fluxômetro (§ 11.2). Nelas o gás já passa pelo medidor — `v_Flow = 0` —
+mas sai para a atmosfera em vez de entrar no reator. A válvula de alívio ocupa a saída
+auxiliar que o N₂ não usa; a mesma saída para os dois é recusada.
 
 Não enviar `flowmeterComm`.
 
@@ -665,7 +672,10 @@ Criar ou abrir teste
                                                     ↓
                          atraso mínimo + |dDO/dt| estável por N leituras
                                                     ↓
-                                          abrir ar → confirmar
+         ├─ sem alívio → abrir ar → confirmar
+         └─ com alívio → abrir alívio em Q → confirmar
+                              → |Q_medida − Q| ≤ tolerância por N leituras
+                              → fechar alívio (ar entra no reator) → confirmar
                                                    ↓
                                             reoxigenação
                                                    ↓
@@ -685,6 +695,8 @@ Estados internos:
 - `Deoxygenating`;
 - `ClosingNitrogen`;
 - `WaitingForDOStability`;
+- `OpeningVent`;
+- `StabilizingVentFlow`;
 - `OpeningAir`;
 - `Reoxygenating`;
 - `StoppingRun`;
@@ -717,10 +729,40 @@ válvula de N₂ fica bloqueada durante uma corrida para evitar uma troca de lin
 As transições são progressivas. Alterar DO de corte durante a reoxigenação não retorna o processo
 para N₂.
 
+A tolerância de vazão, o número de confirmações e a espera máxima do alívio seguem a mesma
+regra: valem para a próxima admissão de ar, sem antecipar a corrente. A válvula do alívio, como
+a do N₂, fica bloqueada durante uma corrida.
+
 Não haverá tempo mínimo oculto: o atraso pós-N₂ é explícito e configurável. Após esse atraso, a
 inclinação é estimada por regressão linear na janela temporal configurada; ar só abre quando
 `abs(dDO/dt)` fica abaixo do limiar pelo número solicitado de leituras consecutivas. Se a espera
 máxima expirar, a corrida fecha gases e segue para revisão, sem forçar a abertura de ar.
+
+### 11.2 Estabilização no alívio (montagem opcional)
+
+Ao abrir o fluxômetro no setpoint de ensaio, o medidor entrega um pulso de ar bem acima da
+vazão pedida e leva alguns segundos para assentar. Sem tratamento, esse pulso entra no reator
+exatamente no instante em que a corrida começa, e o `t₀` do ajuste log-linear cai sobre uma
+vazão que não é a declarada.
+
+A montagem opcional resolve isso no hardware: uma válvula de alívio ligada imediatamente após o
+fluxômetro, comandada pela saída auxiliar que o N₂ não usa. O comportamento é ligado por
+checkbox, porque é bancada secundária e a maioria das montagens não a possui.
+
+Quando ligada, a sequência entre a estabilização pós-N₂ e a reoxigenação passa a ser:
+
+1. abrir a válvula de alívio **e** comandar o fluxômetro na vazão da condição, junto com a
+   rotação do ensaio — o pulso sai pelo alívio, não pelo reator;
+2. aguardar a vazão medida ficar dentro de `± tolerância` (padrão `0,2 L/min`) do setpoint por
+   um número configurável de leituras consecutivas — uma excursão zera a contagem;
+3. fechar o alívio preservando o setpoint já assentado. Nenhum novo pulso é gerado, porque o
+   fluxômetro não muda de alvo: apenas o destino do gás muda;
+4. confirmar o estado de gás e só então iniciar `Reoxygenating`, que é o `t₀` da corrida.
+
+Os pontos das duas fases de alívio são gravados como qualquer outra amostra, mas ficam fora do
+ajuste: a análise usa exclusivamente `Reoxygenating`. Se a vazão não assentar dentro da espera
+máxima, a corrida fecha os gases e vai para revisão em vez de admitir ar instável. Parar durante
+o alívio fecha o fluxômetro pelo mesmo caminho de parada segura das demais fases.
 
 ## 12. Propriedade e segurança
 
@@ -1070,6 +1112,12 @@ dados e referências.
 - queda residual ou lag da sonda reinicia a contagem de estabilidade;
 - derivada estável pelo número configurado de leituras abre ar;
 - expiração da espera máxima pós-N₂ encerra a corrida para revisão sem abrir ar;
+- com alívio ligado, o ar só entra no reator depois de a vazão medida assentar na faixa;
+- uma excursão de vazão durante o alívio zera a contagem de confirmações;
+- fechar o alívio preserva o setpoint assentado e não gera novo pulso;
+- alívio na mesma saída do N₂ recusa a corrida antes de reivindicar atuadores;
+- parada durante o alívio fecha o fluxômetro e abre a revisão;
+- expiração da espera máxima do alívio encerra a corrida para revisão sem admitir ar;
 - alteração de DO máxima durante ar encerra imediatamente;
 - alteração de rotação durante N₂ envia novo comando;
 - parada manual abre revisão;

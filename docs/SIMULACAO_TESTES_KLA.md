@@ -64,6 +64,10 @@ A velocidade aceita valores de `0.1×` a `100×`.
    da sonda; depois mantém o ponto enquanto o runner confirma `|dDO/dt|` estável.
 7. Somente após atraso e estabilidade o app abre ar; o trecho ascendente alimenta OD, log-linear e
    kLa instantâneo.
+7.1. Com a estabilização no alívio ligada, o simulador reconhece o estado "válvula auxiliar aberta
+   com setpoint positivo" e congela o arquivo: o gás sairia pelo alívio, então a OD não sobe. A
+   vazão simulada segue o setpoint, de modo que a faixa de tolerância fecha em poucas leituras e o
+   trecho ascendente só começa quando o alívio fecha.
 8. Ao atingir `DO máxima`, o app fecha o gás, confirma o ACK e abre a revisão científica.
 9. Os arquivos gerados continuam sendo gravados normalmente em `Testes-kLa/<nome-do-teste>`.
 
@@ -86,6 +90,8 @@ ignoradas. O arquivo precisa conter pelo menos cinco amostras válidas.
 - Não comprova temporização, falha elétrica ou fechamento físico das válvulas.
 - Não valida comunicação entre ESP32-S3 v7 e fluxômetro v05.
 - Vazão e ACKs são emulados de forma determinística.
+- O alívio simulado não reproduz o pulso do fluxômetro: a vazão simulada acompanha o setpoint. A
+  simulação exercita a máquina de estados e o intertravamento, não a dinâmica do medidor.
 - A inércia pós-N₂ usa o trecho até o próximo mínimo local do arquivo; não é um modelo físico da
   transferência residual nem da dinâmica específica de outra sonda.
 - A rotação do arquivo é metadado experimental; a rotação comandada pelo teste continua sendo

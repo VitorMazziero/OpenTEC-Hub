@@ -549,6 +549,15 @@
                         <ComboBoxItem Content="valve_2" Tag="{x:Static kla:NitrogenValve.Valve2}" />
                     </ComboBox>
 
+                    <CheckBox Content="Estabilizar a vazão na válvula de alívio antes de iniciar"
+                              IsChecked="{Binding UseVentStabilization}" Margin="0,0,0,8" />
+                    <TextBlock Text="Válvula Conectada ao Alívio" Style="{StaticResource KlaHeaderLabel}" />
+                    <ComboBox SelectedValue="{Binding SelectedVentValve}" SelectedValuePath="Tag"
+                              IsEnabled="{Binding UseVentStabilization}" Margin="0,2,0,10">
+                        <ComboBoxItem Content="valve_1" Tag="{x:Static kla:NitrogenValve.Valve1}" />
+                        <ComboBoxItem Content="valve_2" Tag="{x:Static kla:NitrogenValve.Valve2}" />
+                    </ComboBox>
+
                     <TextBlock Text="Importar Condições de Mapa Existente (Opcional)" Style="{StaticResource KlaHeaderLabel}" />
                     <ComboBox ItemsSource="{Binding AvailableMaps}" SelectedItem="{Binding SelectedMapForImport}" DisplayMemberPath="Snapshot.Name" Margin="0,2,0,10" />
 
@@ -653,6 +662,39 @@
                                     <TextBlock Text="Leitura atual" Style="{StaticResource KlaHeaderLabel}" />
                                     <TextBlock Text="{Binding DisplayDODerivative}" FontFamily="{DynamicResource FontMono}" FontWeight="SemiBold" Margin="2,7,0,0" />
                                     <TextBlock Text="{Binding DisplayStabilityProgress, StringFormat='Confirmações: {0}'}" Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Estabilização no alívio (opcional)" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
+                            <TextBlock Text="Com o alívio ligado logo após o fluxômetro, o pulso inicial de ar sai para fora e a corrida só começa quando a vazão assenta."
+                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <CheckBox Content="Abrir o alívio e esperar a vazão assentar antes de admitir ar no reator"
+                                      IsChecked="{Binding UseVentStabilization}" Margin="0,0,0,8" />
+                            <TextBlock Text="A válvula do alívio deve ser diferente da válvula do N₂."
+                                       Foreground="{DynamicResource StateAlarmBrush}" FontSize="11" Margin="0,0,0,8"
+                                       Visibility="{Binding HasVentValveConflict, Converter={StaticResource BoolToVis}}" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                    <TextBlock Text="Válvula do alívio" Style="{StaticResource KlaHeaderLabel}" />
+                                    <ComboBox SelectedValue="{Binding SelectedVentValve}" SelectedValuePath="Tag" IsEnabled="{Binding CanChangeVentValve}">
+                                        <ComboBoxItem Content="valve_1" Tag="{x:Static kla:NitrogenValve.Valve1}" />
+                                        <ComboBoxItem Content="valve_2" Tag="{x:Static kla:NitrogenValve.Valve2}" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Tolerância de vazão (L/min)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentFlowTolerance, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0"><TextBlock Text="Confirmações consecutivas" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingVentFlowStableSamples, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,6,0"><TextBlock Text="Espera máxima no alívio (s)" Style="{StaticResource KlaHeaderLabel}" /><TextBox Text="{Binding SettingMaxVentStabilizationSeconds, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0">
+                                    <TextBlock Text="Desvio atual" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBlock Text="{Binding DisplayVentFlowDeviation}" FontFamily="{DynamicResource FontMono}" FontWeight="SemiBold" Margin="2,7,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                                    <TextBlock Text="Estabilidade no alívio" Style="{StaticResource KlaHeaderLabel}" />
+                                    <TextBlock Text="{Binding DisplayVentFlowProgress, StringFormat='Confirmações: {0}'}" Style="{StaticResource CaptionTextStyle}" Margin="2,7,0,0" />
                                 </StackPanel>
                             </Grid>
 

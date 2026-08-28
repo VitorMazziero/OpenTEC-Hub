@@ -376,7 +376,8 @@ public sealed class KlaTestStore : IKlaTestStore
         KlaTestSettings settings,
         NitrogenValve n2Valve,
         KlaMapReference? linkedMap = null,
-        IReadOnlyList<KlaTestCondition>? initialConditions = null)
+        IReadOnlyList<KlaTestCondition>? initialConditions = null,
+        NitrogenValve ventValve = NitrogenValve.Valve2)
     {
         if (!ValidateTestName(name, out var error))
         {
@@ -415,6 +416,7 @@ public sealed class KlaTestStore : IKlaTestStore
                 Nature = "Abiotico",
                 LinkedMap = linkedMap,
                 SelectedNitrogenValve = n2Valve,
+                SelectedVentValve = ventValve,
                 Settings = settings,
                 SettingsRevision = 1,
                 AppVersion = typeof(KlaTestStore).Assembly.GetName().Version?.ToString() ?? "desconhecida",

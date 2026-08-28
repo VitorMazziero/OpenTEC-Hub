@@ -366,6 +366,22 @@ public sealed class GuidedCalibrationTests
     }
 
     [Fact]
+    public void A_settings_file_saved_with_no_points_still_opens_on_the_certified_reference()
+    {
+        // What a settings.json written before the reference run existed actually contains.
+        var initial = new AppSettings
+        {
+            Calibration = new CalibrationSettings { FlowCalibrationPoints = [] },
+        };
+        var device = new RecordingDeviceService();
+        using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService(initial));
+
+        Assert.Equal(11, vm.Points.Count);
+        Assert.Equal(0.010330, vm.Points[0].Voltage!.Value, precision: 6);
+        Assert.True(vm.Curve.IsComplete);
+    }
+
+    [Fact]
     public void Editing_the_certified_flow_keeps_the_trial_setpoint_alive()
     {
         var device = new RecordingDeviceService();

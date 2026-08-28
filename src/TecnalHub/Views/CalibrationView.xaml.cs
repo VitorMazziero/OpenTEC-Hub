@@ -17,6 +17,12 @@ namespace TecnalHub.Views;
 /// <summary>Calibration page and its ScottPlot flow-curve rendering surface.</summary>
 public partial class CalibrationView : UserControl
 {
+    /// <summary>Roughly the flowmeter's full-scale output — 14 L/min sits at about 1,29 V.</summary>
+    private const double FullScaleVoltage = 1.4;
+
+    /// <summary>Where the low segment starts when no point below the split has been measured.</summary>
+    private const double FirstMeasuredVoltage = 0.01;
+
     private readonly WpfPlot _flowPlot = new();
     private FlowCalibrationViewModel? _subscribed;
 
@@ -114,29 +120,35 @@ public partial class CalibrationView : UserControl
         if (_subscribed is { } viewModel)
         {
             var points = viewModel.GetValidPoints();
+            hasCalibrationData = points.Count > 0;
+
+            // Each segment is drawn only across the voltages it was actually fitted for.
+            // Extrapolating the low quartic down to 0 V used to plot an unphysical negative
+            // flow, and stubbing the high curve just past the split hid its whole range.
+            var lowMinimum = points.Where(point => point.Voltage <= FlowCalibrationCurve.SplitVoltage)
+                                   .Select(point => point.Voltage)
+                                   .DefaultIfEmpty(FirstMeasuredVoltage)
+                                   .Min();
+            var highMaximum = points.Where(point => point.Voltage > FlowCalibrationCurve.SplitVoltage)
+                                    .Select(point => point.Voltage)
+                                    .DefaultIfEmpty(FullScaleVoltage)
+                                    .Max();
 
             // The two fitted segments are the generated curves; the scatter is the measured
             // data. Naming all three puts the legend to work distinguishing them.
             DrawSegment(plot, viewModel.Curve.LowVoltage,
-                points.Where(point => point.Voltage <= FlowCalibrationCurve.SplitVoltage)
-                      .Select(point => point.Voltage).DefaultIfEmpty(0).Min(),
-                FlowCalibrationCurve.SplitVoltage,
+                lowMinimum, FlowCalibrationCurve.SplitVoltage,
                 ToPlotColor(TryBrush("StateAlarmBrush"), MediaColors.IndianRed),
                 "Curva inferior (V ≤ 0,0545)");
 
-            var highMaximum = points.Where(point => point.Voltage > FlowCalibrationCurve.SplitVoltage)
-                                    .Select(point => point.Voltage)
-                                    .DefaultIfEmpty(FlowCalibrationCurve.SplitVoltage + 0.1)
-                                    .Max();
             DrawSegment(plot, viewModel.Curve.HighVoltage,
                 FlowCalibrationCurve.SplitVoltage,
-                Math.Max(highMaximum * 1.05, FlowCalibrationCurve.SplitVoltage + 0.01),
+                Math.Max(highMaximum, FlowCalibrationCurve.SplitVoltage + 0.01),
                 ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen),
                 "Curva superior (V > 0,0545)");
 
-            if (points.Count > 0)
+            if (hasCalibrationData)
             {
-                hasCalibrationData = true;
                 var scatter = plot.Add.Scatter(
                     points.Select(point => point.Voltage).ToArray(),
                     points.Select(point => point.Flow).ToArray());
@@ -152,22 +164,17 @@ public partial class CalibrationView : UserControl
             plot.Legend.BackgroundColor = surface;
             plot.Legend.FontColor = text;
             plot.Legend.OutlineColor = grid;
+
+            var voltageLimit = Math.Max(highMaximum, FullScaleVoltage * 0.1);
+            var flowLimit = viewModel.Curve.Evaluate(voltageLimit) ?? 10.0;
+            // Flow is positive by construction, so the axis starts at zero rather than
+            // reserving room for a polynomial artefact below the first measured point.
+            plot.Axes.SetLimits(0, voltageLimit * 1.04, 0, Math.Max(flowLimit * 1.08, 1.0));
         }
 
         var split = plot.Add.VerticalLine(FlowCalibrationCurve.SplitVoltage);
         split.Color = grid;
         split.LineWidth = 1;
-        if (hasCalibrationData)
-        {
-            plot.Axes.AutoScale();
-        }
-        else
-        {
-            // The flowmeter works in a narrow positive voltage domain. ScottPlot's
-            // empty default (-1..1) made the dedicated calibration page look like a
-            // generic mathematical plot and visually buried the 0.0545 V split.
-            plot.Axes.SetLimits(0, 0.12, 0, 10);
-        }
         _flowPlot.Refresh();
     }
 

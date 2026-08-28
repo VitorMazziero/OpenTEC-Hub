@@ -64,8 +64,13 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _maximumFlow = settings.Current.Setpoints.MaxFlowLitresPerMinute;
         _captureTarget = Math.Clamp(settings.Current.Calibration.FlowCaptureSamples, 1, 100);
 
-        foreach (var point in settings.Current.Calibration.FlowCalibrationPoints
-                     .OrderBy(point => point.FlowLitresPerMinute))
+        // A settings file written before the reference run existed carries an empty array, which
+        // overrides the record's default. Fall back to the certified points so the workspace
+        // always opens on the curve the flowmeter is actually running.
+        var stored = settings.Current.Calibration.FlowCalibrationPoints;
+        var seed = stored.Length > 0 ? stored : CalibrationSettings.CertifiedReferencePoints;
+
+        foreach (var point in seed.OrderBy(point => point.FlowLitresPerMinute))
         {
             AddPoint(new FlowCalibrationPointViewModel(
                 point.FlowLitresPerMinute.ToString("G", CultureInfo.CurrentCulture),

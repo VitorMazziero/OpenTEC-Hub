@@ -175,11 +175,17 @@ public sealed record CalibrationSettings
     /// reach the flowmeter only through an explicit send action.
     /// </summary>
     /// <remarks>
-    /// Seeded with the certified bench run behind the shipped V05 calibration, so the workspace
-    /// opens on the same points and curve the flowmeter is actually running. Fitting them
-    /// regenerates the firmware's own coefficients.
+    /// Seeded with <see cref="CertifiedReferencePoints"/>, so the workspace opens on the same
+    /// points and curve the flowmeter is actually running.
     /// </remarks>
-    public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } =
+    public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } = CertifiedReferencePoints;
+
+    /// <summary>
+    /// The certified bench run behind the calibration shipped in
+    /// <c>flowmeter_TECNALHUB_V05.ino</c>. Fitting these regenerates the firmware's own
+    /// coefficients, so they double as the reference to fall back on and to compare against.
+    /// </summary>
+    public static FlowCalibrationPoint[] CertifiedReferencePoints =>
     [
         new() { FlowLitresPerMinute = 0.0, Voltage = 0.010330 },
         new() { FlowLitresPerMinute = 0.5, Voltage = 0.024090 },

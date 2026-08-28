@@ -1,9 +1,13 @@
 # TECNAL-Hub current status and stabilization audit
 
-> **Audit date:** 2026-08-26  
+> **Audit date:** 2026-08-26 · **Revised:** 2026-08-28  
 > **Current version:** 0.24.0  
 > **Next release target:** 0.25.0 — safety stabilization and UI polish  
-> **Implementation base:** `5152b69`; current verified changes await their dedicated Git commit
+> **Implementation base:** `0a962ee` on `main` — committed and fully integrated
+
+The 2026-08-28 revision re-measured branch integration, repository integrity and the Release test
+suite, and nothing else. Rows and findings marked **26/08** carry over from the original audit and
+were not re-run today; read an undated claim in this document as evidence from 26/08.
 
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
@@ -11,10 +15,16 @@ This document is the current release-status source. The detailed build sequence 
 
 ## Executive status
 
-The branch integration is correct: `main` contains both histories that diverged at
-`codex/v6-parity-roadmap`, including Receitas/cascade and biomass/external-pump work, and the
-working tree was clean at the start of this audit. The application core is substantially built,
-but **0.24.0 is not yet a field-release candidate**.
+Branch integration is now **complete**. The two lines that had diverged from `5152b69` on 26/08 —
+kLa/flowmeter and UI/receitas — were unified on 2026-08-28 at `0a962ee`, resolving four conflicting
+files (`CHANGELOG.md`, `SharedConverters.cs`, `RecipeEngine.Actuation.cs`, `ControlView.xaml`). All
+17 local branches are ancestors of `main`; none carries a commit outside it, and the working tree is
+clean. The application core is substantially built, but **0.24.0 is not yet a field-release
+candidate**.
+
+The 42 commits added since the audited baseline are feature, UI and integration work. They close no
+P0/P1 finding outright — AUD-002 is the only one that moved, and only partially. The release
+blockers below stand as written.
 
 The remaining work is no longer a broad rebuild. It is concentrated in:
 
@@ -30,16 +40,17 @@ gates in this document pass.
 
 ## Verified baseline
 
-| Check | Result on 2026-08-26 | Interpretation |
+| Check | Result (date) | Interpretation |
 |---|---|---|
-| Git integration | Implementation based on `5152b69`; verified changes are currently in the working tree | Create the dedicated branch and commit as soon as `.git` is writable |
-| Authoritative version | `Directory.Build.props` = `0.24.0` | Older version text in README/roadmap was documentation drift |
-| Release tests | **510 passed, 1 skipped, 0 failed** | Includes Hub v7/flowmeter v05 synchronization and UI contract coverage; the skip is the hosted-WPF theme-cycle test |
-| Package vulnerability scan | No known vulnerable direct or transitive packages | Does not waive compatibility warnings |
-| Runtime startup smoke test | Two Release launches reached the first frame; no binding failure, fatal exception or unhandled exception was logged | No current startup XAML build failure was reproduced |
-| First-frame time | **1.788 s and 6.011 s**, target `< 2 s` | The startup target is not repeatably met |
-| Build compatibility | Release solution build: **0 warnings** after targeting `net10.0-windows10.0.19041.0` | `NU1701` is resolved; published chart/theme verification remains a release receipt |
-| Formatting gate | `dotnet format --verify-no-changes --no-restore` fails repository-wide | Formatting/analyzer debt is not CI-ready |
+| Git integration | **28/08:** `main` at `0a962ee`, working tree clean; all 17 local branches are ancestors of `main`, none ahead | Both live lines are unified; nothing is stranded on a side branch |
+| Repository integrity | **28/08:** `git fsck --full` reports only dangling objects, `garbage: 0`; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
+| Authoritative version | `Directory.Build.props` = `0.24.0` | Correctly held while the P0 findings are open |
+| Release tests | **28/08: 587 passed, 1 skipped, 0 failed** (`dotnet test TecnalHub.slnx -c Release`) | Adds the gassing-out determination, vent-stabilization and recipe device-wait suites; the skip is still the hosted-WPF theme-cycle test |
+| Package vulnerability scan | **26/08:** no known vulnerable direct or transitive packages | Does not waive compatibility warnings; not re-scanned after the merge |
+| Runtime startup smoke test | **26/08:** two Release launches reached the first frame; no binding failure, fatal exception or unhandled exception was logged | Not repeated after the merge, which added a workspace page and the determination page to startup |
+| First-frame time | **26/08:** 1.788 s and 6.011 s, target `< 2 s` | The startup target is not repeatably met; not re-measured |
+| Build compatibility | **28/08:** Debug and Release solution builds, **0 warnings, 0 errors** | `NU1701` stays resolved through the merge; published chart/theme verification remains a release receipt |
+| Formatting gate | **26/08:** `dotnet format --verify-no-changes --no-restore` fails repository-wide | Formatting/analyzer debt is not CI-ready; not re-run |
 
 The skipped theme test depends on a hosted WPF `Application`; token parity is tested headlessly,
 but a packaged light/dark/light runtime test remains part of the UI acceptance work.
@@ -53,10 +64,11 @@ but a packaged light/dark/light runtime test remains part of the UI acceptance w
 | Manual process control and cultivation auxiliaries | Software-complete | Ownership-aware command feedback and full cultivation |
 | Operational alarm kernel | Core complete | Per-variable alarms page and control-room audio/operator validation |
 | kLa mapping, oxygen cascade, conditional OUR and gain scheduling | Software-complete | Real-bioreactor validation and performance receipt |
-| Determinação abiótica de kLa por gassing-out | Software-complete após auditoria; inclui espera pós-N₂ por derivada e importação/reanálise de campanhas | Validar troca Ar/N₂, estabilidade da sonda, ACK, limites de fase e parada segura no ESP32-S3 v7 + fluxômetro v05 |
+| Determinação abiótica de kLa por gassing-out | Software-complete após auditoria; inclui espera pós-N₂ por derivada, importação/reanálise de campanhas e a estabilização opcional da vazão em válvula de alívio antes do `t₀` | Validar troca Ar/N₂, estabilidade da sonda, ACK, limites de fase e parada segura no ESP32-S3 v7 + fluxômetro v05. O alívio foi exercitado apenas por reprodução de arquivo e ainda precisa da montagem física e do seu recibo de bancada |
 | Biomass sensor and guided procedure | Software-complete | Explicit threshold-apply correction and hardware receipt |
 | External pump and proportional gas | Software-complete | Rejected-dispatch retry correction and hardware receipt |
 | Receitas authoring and execution | Feature-complete | P0 safe-stop/manual-lock corrections, minor canvas polish and hardware confirmation |
+| Receitas holding for an unresponsive external device | Software-complete **(new since the audit)** | Flow-setpoint and aeration-enable blocks wait for the flowmeter to confirm, latch the `Receita aguardando dispositivo` alarm after 8 s and offer skip/stop; needs a bench receipt with a genuinely offline meter |
 | Synoptic and main UI | Broad inventory present | Placement, scaling, keyboard, theme and operator walkthrough |
 | Packaging and field cutover | Not complete | Installer, first-run path, crash reporting, performance soak and operator manual |
 
@@ -92,8 +104,17 @@ failure.
 
 ### AUD-002 — P0 — manual controls do not visibly become inert under Recipe ownership
 
+**Partially addressed on 28/08; still open.** `de1141f` added page-level locking: `ControlViewModel`
+now exposes `IsRecipeRunning`, `IsManualOperationEnabled` and a `RecipeRunningNotice` banner, and
+`c54de43` routed the external-device toggles and setpoint entries through `CanActuate` so they no
+longer accept an order that cannot leave over the wire. What the finding asked for is still missing:
+the lock is a single page-wide flag derived from *a recipe running*, not per-actuator ownership read
+from the arbiter, and there is no `receita` provenance badge or refusal reason on a row. A cascade or
+Automatic owner still locks nothing here.
+
 The arbiter correctly refuses Manual writes while a recipe runs, but `ControlViewModel.CanActuate`
-checks connection only. The page has cascade-specific locks and badges, not general Recipe ownership
+checks connection only (verified again on 28/08:
+`public bool CanActuate => _device.State == ConnectionState.Connected;`). The page has cascade-specific locks and badges, not general Recipe ownership
 bindings. Therefore controls can remain editable and appear to send even while the wire rejects them.
 This does not satisfy the documented promise that starting a recipe deactivates manual control.
 
@@ -258,7 +279,7 @@ Do not bump/release until all of the following are true:
 
 - [ ] AUD-001 and AUD-002 closed with active-recipe tests
 - [ ] AUD-003 through AUD-007 closed; no false command-success state
-- [ ] `dotnet test TecnalHub.slnx -c Release --no-restore` passes with no unexpected skip
+- [x] `dotnet test TecnalHub.slnx -c Release` passes with no unexpected skip — **28/08: 587/1 skip/0 fail**; re-confirm at release time
 - [ ] Release build and self-contained publish have zero warnings, including `NU1701`
 - [ ] `dotnet format TecnalHub.slnx --verify-no-changes --no-restore` passes
 - [ ] package vulnerability scan reports no known vulnerabilities

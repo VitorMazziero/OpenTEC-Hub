@@ -36,7 +36,7 @@ public sealed class SensorReadings
     public double Pressure { get; set; } = NotReceived;
     public double FlowRate { get; set; } = NotReceived;
     public double FlowSetpoint { get; set; } = NotReceived;
-    public double FlowVoltage { get; set; }
+    public double FlowVoltage { get; set; } = NotReceived;
     public double Antifoam { get; set; } = NotReceived;
     public double Distance { get; set; } = NotReceived;
 

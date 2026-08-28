@@ -10,9 +10,8 @@ namespace TecnalHub.ViewModels;
 /// <remarks>
 /// Valve commands are always emitted as a complete desired flow state. A one-key
 /// valve write would recreate the overwrite-and-consume failure mode of the legacy
-/// hub: a later flow setpoint could silently restore stale valve values. The vent
-/// valve is never entered by the operator; <see cref="CommandBuilders.FlowSetpoint"/>
-/// derives its inverted <c>v_Flow</c> value from the flow setpoint.
+/// hub: a later flow setpoint could silently restore stale valve values. The active-high
+/// main shutoff <c>v_Flow</c> is independently staged with the same complete command.
 /// </remarks>
 public sealed partial class FlowControlViewModel : ObservableObject
 {
@@ -21,6 +20,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
     private bool _telemetryInitialised;
     private bool _appliedValve1;
     private bool _appliedValve2;
+    private bool _appliedMainValveClosed;
     private double _appliedMaxFlow;
 
     public FlowControlViewModel(double initialMaxFlow)
@@ -46,6 +46,13 @@ public sealed partial class FlowControlViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasPendingChange))]
     public partial bool RequestedValve2 { get; set; }
 
+    /// <summary>
+    /// Main physical shutoff. Closing it stops gas without erasing the staged flow setpoint.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingChange))]
+    public partial bool RequestedMainValveClosed { get; set; }
+
     /// <summary>Flowmeter ceiling staged in the Controle page.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPendingChange))]
@@ -65,7 +72,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
     public partial bool? ActualValve2 { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VentActualText))]
+    [NotifyPropertyChangedFor(nameof(MainValveActualText))]
     public partial bool? ActualVentValve { get; set; }
 
     /// <summary>True while the Hub still owns an unacknowledged v05 command.</summary>
@@ -139,27 +146,25 @@ public sealed partial class FlowControlViewModel : ObservableObject
         => !TryGetStagedMaxFlow(out var maximum) ||
            Math.Abs(maximum - _appliedMaxFlow) > 1e-9 ||
            RequestedValve1 != _appliedValve1 ||
-           RequestedValve2 != _appliedValve2;
+           RequestedValve2 != _appliedValve2 ||
+           RequestedMainValveClosed != _appliedMainValveClosed;
 
     public string Valve1ActualText => StateText(ActualValve1);
 
     public string Valve2ActualText => StateText(ActualValve2);
 
-    public string VentActualText => ActualVentValve switch
+    public string MainValveActualText => ActualVentValve switch
     {
-        true => "Aberta · v_Flow = 1",
-        false => "Fechada · v_Flow = 0",
-        null => "— · sem telemetria",
+        true => "Fechada",
+        false => "Aberta",
+        null => "—",
     };
-
-    /// <summary>
-    /// Explains the inverted wire flag next to the read-only vent state.
-    /// </summary>
-    public string VentRuleText => "Derivada: v_Flow = 1 quando SP = 0; v_Flow = 0 quando SP > 0.";
 
     partial void OnRequestedValve1Changed(bool value) => RefreshDerivedState();
 
     partial void OnRequestedValve2Changed(bool value) => RefreshDerivedState();
+
+    partial void OnRequestedMainValveClosedChanged(bool value) => RefreshDerivedState();
 
     partial void OnMaxFlowTextChanged(string value) => RefreshDerivedState();
 
@@ -173,7 +178,8 @@ public sealed partial class FlowControlViewModel : ObservableObject
             setpoint,
             CommandMaximum,
             ActualValve1 ?? _appliedValve1,
-            ActualValve2 ?? _appliedValve2);
+            ActualValve2 ?? _appliedValve2,
+            ActualVentValve ?? _appliedMainValveClosed);
 
     /// <summary>Builds the complete flow safe-stop using the staged valid ceiling.</summary>
     public TecnalCommand BuildSafeStop() => CommandBuilders.FlowSafeStop(CommandMaximum);
@@ -193,7 +199,8 @@ public sealed partial class FlowControlViewModel : ObservableObject
         }
 
         command = flowEnabled
-            ? CommandBuilders.FlowSetpoint(setpoint, maximum, RequestedValve1, RequestedValve2)
+            ? CommandBuilders.FlowSetpoint(
+                setpoint, maximum, RequestedValve1, RequestedValve2, RequestedMainValveClosed)
             : CommandBuilders.FlowSafeStop(maximum);
         return true;
     }
@@ -223,13 +230,16 @@ public sealed partial class FlowControlViewModel : ObservableObject
         {
             _appliedValve1 = RequestedValve1;
             _appliedValve2 = RequestedValve2;
+            _appliedMainValveClosed = RequestedMainValveClosed;
         }
         else
         {
             _appliedValve1 = false;
             _appliedValve2 = false;
+            _appliedMainValveClosed = true;
             RequestedValve1 = false;
             RequestedValve2 = false;
+            RequestedMainValveClosed = true;
         }
 
         _suppressRefresh = false;
@@ -254,6 +264,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
         MaxFlowText = Format(_appliedMaxFlow);
         RequestedValve1 = _appliedValve1;
         RequestedValve2 = _appliedValve2;
+        RequestedMainValveClosed = _appliedMainValveClosed;
         _suppressRefresh = false;
         RefreshDerivedState();
     }
@@ -297,6 +308,12 @@ public sealed partial class FlowControlViewModel : ObservableObject
                 _appliedValve2 = valve2;
             }
 
+            if (ActualVentValve is { } mainClosed)
+            {
+                RequestedMainValveClosed = mainClosed;
+                _appliedMainValveClosed = mainClosed;
+            }
+
             _suppressRefresh = false;
             RefreshDerivedState();
         }
@@ -324,8 +341,10 @@ public sealed partial class FlowControlViewModel : ObservableObject
         _suppressRefresh = true;
         _appliedValve1 = false;
         _appliedValve2 = false;
+        _appliedMainValveClosed = true;
         RequestedValve1 = false;
         RequestedValve2 = false;
+        RequestedMainValveClosed = true;
         _suppressRefresh = false;
     }
 

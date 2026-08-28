@@ -119,6 +119,22 @@ public class TelemetryParserTests
     }
 
     [Fact]
+    public void Offline_flowmeter_invalidates_values_omitted_by_hub_v7()
+    {
+        var parser = new TelemetryParser();
+
+        parser.Parse("""{"FlowmeterOnline":true,"FlowRate":0.18,"FlowSetpoint":1.0,"FlowVoltage":0.42,"Valve1":1,"Valve2":0,"ValveFlow":0}""");
+        parser.Parse("""{"FlowmeterOnline":false}""");
+
+        Assert.Equal(SensorReadings.NotReceived, parser.Readings.FlowRate);
+        Assert.Equal(SensorReadings.NotReceived, parser.Readings.FlowSetpoint);
+        Assert.Equal(SensorReadings.NotReceived, parser.Readings.FlowVoltage);
+        Assert.Equal(-1, parser.Readings.FlowValve1);
+        Assert.Equal(-1, parser.Readings.FlowValve2);
+        Assert.Equal(-1, parser.Readings.FlowValveMain);
+    }
+
+    [Fact]
     public void Oxygen_calibration_is_applied_and_floored_at_zero()
     {
         var parser = new TelemetryParser(new ParserConfig

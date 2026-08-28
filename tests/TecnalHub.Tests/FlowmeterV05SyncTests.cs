@@ -55,6 +55,26 @@ public sealed class FlowmeterV05SyncTests
     }
 
     [Fact]
+    public void Main_shutoff_is_staged_independently_and_reports_physical_state()
+    {
+        var flow = new FlowControlViewModel(50);
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowValveMain = 0,
+        });
+
+        flow.RequestedMainValveClosed = true;
+
+        Assert.True(flow.HasPendingChange);
+        Assert.Equal("Aberta", flow.MainValveActualText);
+        Assert.True(flow.TryBuildRequested(6.5, flowEnabled: true, out var command));
+        Assert.Equal(
+            """{"flowSetpoint":6.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
+            command.ToJson());
+    }
+
+    [Fact]
     public void Control_blocks_flow_while_pending_and_releases_it_after_ack()
     {
         using var fixture = new SyncFixture();
@@ -104,7 +124,8 @@ public sealed class FlowmeterV05SyncTests
 
         Assert.Equal(ConnectionState.Connected, fixture.Device.State);
         Assert.False(fixture.Control.CanApplyFlowState);
-        Assert.Equal("Fluxômetro Desconectado da Central", fixture.Control.StatusText);
+        Assert.DoesNotContain("Desconectado da Central", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(fixture.Control.FlowRequestError);
     }
 
     [Fact]

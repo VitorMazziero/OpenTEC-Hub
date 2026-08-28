@@ -47,6 +47,13 @@ public class WireFormatTests
     }
 
     [Fact]
+    public void Main_flow_shutoff_can_close_without_erasing_nonzero_setpoint()
+        => Assert.Equal(
+            """{"flowSetpoint":6.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}""",
+            CommandBuilders.FlowSetpoint(
+                6.5, maxFlow: 50.0, mainValveClosed: true).ToJson());
+
+    [Fact]
     public void Flow_setpoint_clamps_to_max_flow()
         => Assert.Equal(
             """{"flowSetpoint":50.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",

@@ -6,7 +6,7 @@ namespace TecnalHub.Protocol;
 /// </summary>
 /// <remarks>
 /// Anything here exists because getting it wrong by hand is easy and the
-/// consequence is on real hardware - an inverted vent flag, or a nitrogen valve
+    /// consequence is on real hardware - an inverted shutoff flag, or a nitrogen valve
 /// left open through a stop. Callers should reach for these rather than assembling
 /// the keys themselves. See <c>docs/PROTOCOL.md</c> section 3.1.
 /// </remarks>
@@ -20,18 +20,20 @@ public static class CommandBuilders
     /// Enables flow control at <paramref name="setpoint"/> L/min.
     /// </summary>
     /// <remarks>
-    /// <c>v_Flow</c> is <b>inverted</b>: 1 when the setpoint is zero, else 0. It is
-    /// computed here so no caller has to remember that.
+    /// <c>v_Flow</c> is the active-high main shutoff: 1 closes the gas path. A zero
+    /// setpoint always closes it; it can also close while preserving a nonzero setpoint.
     /// </remarks>
     /// <param name="setpoint">Target flow, clamped to <paramref name="maxFlow"/>.</param>
     /// <param name="maxFlow">Ceiling reported to the firmware.</param>
     /// <param name="valve1">Auxiliary valve state.</param>
     /// <param name="valve2">Nitrogen valve state.</param>
+    /// <param name="mainValveClosed">Close the main gas path without changing setpoint.</param>
     public static TecnalCommand FlowSetpoint(
         double setpoint,
         double maxFlow,
         bool valve1 = false,
-        bool valve2 = false)
+        bool valve2 = false,
+        bool mainValveClosed = false)
     {
         var clamped = Math.Clamp(setpoint, 0.0, maxFlow);
 
@@ -40,7 +42,7 @@ public static class CommandBuilders
             .Set(CommandKeys.MaxFlow, maxFlow)
             .Set(CommandKeys.Valve1, valve1)
             .Set(CommandKeys.Valve2, valve2)
-            .Set(CommandKeys.V_Flow, clamped == 0.0);
+            .Set(CommandKeys.V_Flow, mainValveClosed || clamped == 0.0);
     }
 
     /// <summary>

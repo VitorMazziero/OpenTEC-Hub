@@ -336,7 +336,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
             if (FlowControl.IsFlowmeterOffline)
             {
-                return FlowControl.FlowmeterStatusText;
+                // The row already carries the concise "desconectado" chip. Avoid
+                // repeating a second, long-form outage message in the drawer.
+                return null;
             }
 
             if (FlowControl.IsAwaitingAck)
@@ -873,11 +875,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         var wasAwaiting = FlowControl.IsAwaitingAck;
         FlowControl.UpdateTelemetry(snapshot);
 
-        if (FlowControl.IsFlowmeterOffline)
-        {
-            StatusText = FlowControl.FlowmeterStatusText;
-        }
-        else if (FlowControl.IsAwaitingAck)
+        if (FlowControl.IsAwaitingAck)
         {
             StatusText = FlowControl.PendingStatusText;
         }

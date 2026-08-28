@@ -839,15 +839,28 @@
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Respiro · v_Flow" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding VentActualText}"
-                                                       Style="{StaticResource NumericTextStyle}"
-                                                       Margin="0,6,0,0" />
-                                            <TextBlock Text="{Binding VentRuleText}"
+                                            <TextBlock Text="Válvula de fechamento" FontWeight="SemiBold" />
+                                            <ToggleButton Margin="0,6,0,0"
+                                                          IsChecked="{Binding RequestedMainValveClosed, Mode=TwoWay}">
+                                                <ToggleButton.Style>
+                                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                                    <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="IsEnabled" Value="True" />
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ToggleButton.Style>
+                                            </ToggleButton>
+                                            <TextBlock Text="{Binding MainValveActualText, StringFormat='Telemetria: {0}'}"
                                                        Style="{StaticResource CaptionTextStyle}"
                                                        Foreground="{DynamicResource TextMutedBrush}"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,4,12,0" />
+                                                       Margin="0,4,0,0" />
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="3">
@@ -862,11 +875,6 @@
                                                            VerticalAlignment="Center"
                                                            Style="{StaticResource CaptionTextStyle}" />
                                             </StackPanel>
-                                            <TextBlock Text="{Binding FlowStatusText}"
-                                                       Foreground="{DynamicResource StateWarningTextBrush}"
-                                                       FontSize="{DynamicResource FontSizeCaption}"
-                                                       TextWrapping="Wrap" Margin="0,6,0,0"
-                                                       Visibility="{Binding HasFlowStatusAlert, Converter={StaticResource BoolToVis}}" />
                                             <TextBlock Text="{Binding DataContext.FlowRequestError, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                        Visibility="{Binding DataContext.FlowRequestError, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToVis}}"
                                                        Foreground="{DynamicResource StateAlarmTextBrush}"

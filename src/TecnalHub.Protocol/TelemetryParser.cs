@@ -287,6 +287,19 @@ public sealed class TelemetryParser
         if (TryGetBool(root, TelemetryKeys.FlowmeterOnline, out var flowmeterOnline))
         {
             Readings.FlowmeterOnline = flowmeterOnline;
+
+            // Hub v7 deliberately omits flow values after its internal v05 timeout.
+            // Do not keep publishing the last good sample as fresh telemetry while
+            // the flowmeter is offline.
+            if (!flowmeterOnline)
+            {
+                Readings.FlowRate = SensorReadings.NotReceived;
+                Readings.FlowSetpoint = SensorReadings.NotReceived;
+                Readings.FlowVoltage = SensorReadings.NotReceived;
+                Readings.FlowValve1 = -1;
+                Readings.FlowValve2 = -1;
+                Readings.FlowValveMain = -1;
+            }
         }
 
         if (TryGetBool(root, TelemetryKeys.FlowControlEnabled, out var flowEnabled))

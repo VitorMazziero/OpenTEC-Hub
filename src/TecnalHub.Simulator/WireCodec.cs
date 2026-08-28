@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using TecnalHub.Protocol;
@@ -204,6 +204,12 @@ public static class WireCodec
         if (TryDouble(root, CommandKeys.FlowSetpoint, out var flow))
         {
             model.FlowSetpoint = flow;
+
+            // `flowmeterComm` is a legacy Hub-local preference that the Hub v7 does not route to
+            // the v05 (PROTOCOL §3.1), and nothing in the app sends it any more. The setpoint
+            // itself is what puts the flowmeter to work, so gating the echo on the legacy key
+            // left the simulator reporting FlowSetpoint = -1 for ever.
+            model.FlowmeterEnabled = true;
             model.NoteFlowCommand();
         }
 

@@ -35,7 +35,8 @@ All notable changes to TECNAL-Hub. Version numbers follow
   `FlowSetpoint` echo) instead of completing on dispatch. After 8 s the engine publishes
   `IRecipeEngine.Waiting`, which logs a warning and latches the new
   `Receita aguardando dispositivo` alarm; the Receitas banner offers `Pular bloco` and
-  `Parar receita`. A zero setpoint never waits.
+  `Parar receita`. A zero setpoint never waits, and neither does `Ligar malha de aeração`,
+  which puts no command on the wire now that the Hub v7 no longer routes `flowmeterComm`.
 - **Post-merge release audit and v0.25.0 stabilization plan.** Added
   [CURRENT_STATUS.md](CURRENT_STATUS.md) with verified Git/version/build/runtime evidence, the
   ownership/safe-stop and merged biomass/pump findings, UI/build gates and the extended release plan.
@@ -44,6 +45,12 @@ All notable changes to TECNAL-Hub. Version numbers follow
 - **Dual-Loop PID Cascade Controller (`CascadeTwoLoopPidController`).** Ported from industrial standard (`BlocosDeControle`) with outer predicted oxygen error loop, inner velocity-form rate error PID, low-pass derivative filter, sliding-window anti-windup, and actuator gain scheduling.
 - **Cascade Channels in Charts.** Registered `CascadeEffort`, `CascadePredictedO2`, `CascadeRateSetpoint`, `CascadeRateMeasured`, and `CascadeKlaDemand` in `ChartsViewModel` and telemetry history.
 - **Real-Time Input Validation.** Added visual error banner and validation rules for physical limits, effort windows, and PID parameters in `OxygenConfigDialog`.
+
+### Fixed
+- **Simulator flow echo no longer gated on the legacy `flowmeterComm`.** The Hub v7 does not
+  route that key (PROTOCOL §3.1) and nothing in the app sends it, so the simulator reported
+  `FlowSetpoint: -1` and `FlowControlEnabled: false` for ever — a recipe flow block would have
+  held indefinitely against it. A `flowSetpoint` now puts the simulated flowmeter to work.
 
 ### Changed
 - **Contrato de vazão estrito do Hub v7.** Frames operacionais e de calibração usam apenas as

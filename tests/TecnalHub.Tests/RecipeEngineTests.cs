@@ -301,6 +301,18 @@ public sealed class RecipeEngineTests
         Assert.Null(engine.Waiting);
     }
 
+    [Fact]
+    public async Task Enabling_the_aeration_loop_never_holds_because_it_puts_no_command_on_the_wire()
+    {
+        var (engine, _, _, _) = Build();
+
+        await engine.StartAsync(LoopRecipe(ControlLoop.Aeration, LoopOperation.Enable));
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+        Assert.Null(engine.Waiting);
+    }
+
     /// <summary>Polls a condition the running engine reaches on its own loop, with a hard cap.</summary>
     private static async Task<bool> Eventually(Func<bool> condition)
     {
@@ -337,6 +349,21 @@ public sealed class RecipeEngineTests
         recipe.Nodes.AddRange([start, monitor, end]);
         recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "mon", ConnectorNames.In));
         recipe.Connections.Add(new RecipeConnection("mon", ConnectorNames.Out, "end", ConnectorNames.In));
+        return recipe;
+    }
+
+    private static RecipeDocument LoopRecipe(ControlLoop loop, LoopOperation operation)
+    {
+        var recipe = new RecipeDocument { Name = "Malha" };
+        var start = RecipeNode.Create(NodeType.Start, id: "start");
+        var setLoop = RecipeNode.Create(NodeType.SetLoop, id: "loop");
+        setLoop.Set("malha", loop.ToString());
+        setLoop.Set("operacao", operation.ToString());
+        var end = RecipeNode.Create(NodeType.End, id: "end");
+
+        recipe.Nodes.AddRange([start, setLoop, end]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "loop", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("loop", ConnectorNames.Out, "end", ConnectorNames.In));
         return recipe;
     }
 

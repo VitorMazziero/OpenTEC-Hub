@@ -1,4 +1,4 @@
-using TecnalHub.Protocol;
+﻿using TecnalHub.Protocol;
 
 namespace TecnalHub.Services.Recipes;
 
@@ -52,15 +52,6 @@ public sealed partial class RecipeEngine
             s => s.FlowmeterOnline && Math.Abs(s.FlowSetpoint - clamped) <= FlowEchoToleranceLpm,
             ct);
     }
-
-    /// <summary>Holds until the flowmeter reports itself online, for the aeration-loop enable.</summary>
-    private Task AwaitFlowmeterOnlineAsync(RecipeNode node, CancellationToken ct)
-        => AwaitDeviceAsync(
-            node,
-            "Fluxômetro",
-            "o fluxômetro não está online.",
-            s => s.FlowmeterOnline,
-            ct);
 
     /// <summary>
     /// Holds the strand until <paramref name="confirmed"/> is satisfied by a telemetry frame.

@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 
@@ -62,8 +62,7 @@ public sealed partial class RecipeEngine
             }
 
             case NodeType.SetLoop:
-                await ExecuteLoopAsync(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"), ct)
-                    .ConfigureAwait(false);
+                ExecuteLoop(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"));
                 break;
 
             case NodeType.MultiLoop:
@@ -72,7 +71,7 @@ public sealed partial class RecipeEngine
                     if (Enum.TryParse<ControlLoop>(row["malha"]?.GetValue<string>(), out var loop) &&
                         Enum.TryParse<LoopOperation>(row["operacao"]?.GetValue<string>(), out var op))
                     {
-                        await ExecuteLoopAsync(node, loop, op, ct).ConfigureAwait(false);
+                        ExecuteLoop(node, loop, op);
                     }
                 }
 
@@ -94,7 +93,7 @@ public sealed partial class RecipeEngine
         _ => TecnalCommand.Create(),
     };
 
-    private async Task ExecuteLoopAsync(RecipeNode node, ControlLoop loop, LoopOperation operation, CancellationToken ct)
+    private void ExecuteLoop(RecipeNode node, ControlLoop loop, LoopOperation operation)
     {
         var enable = operation == LoopOperation.Enable;
         Log(RecipeLogSeverity.Info, $"{(enable ? "Ligar" : "Desligar")} malha {LoopLabel(loop)}.", node.Id);
@@ -120,13 +119,11 @@ public sealed partial class RecipeEngine
             Log(RecipeLogSeverity.Info, guidance, node.Id);
         }
 
+        // No block here holds for a device: disabling aeration is the safe-stop, which must never
+        // wait, and enabling it now puts nothing on the wire at all — the Hub v7 does not route
+        // flowmeterComm, so there is no command to confirm. The flowmeter is waited on where the
+        // flow is actually commanded, in the setpoint block.
         DispatchRecipe(command, node.Id);
-
-        // Enabling aeration is a command to the flowmeter like any other: hold until it answers.
-        if (enable && loop == ControlLoop.Aeration)
-        {
-            await AwaitFlowmeterOnlineAsync(node, ct).ConfigureAwait(false);
-        }
     }
 
     /// <summary>Sends a recipe-owned frame, logging a refusal (should not happen — the recipe owns all).</summary>

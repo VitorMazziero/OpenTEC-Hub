@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Calibration;
@@ -533,6 +533,19 @@ public sealed class GuidedCalibrationTests
 
 public sealed class CalibrationSimulatorTests
 {
+    [Fact]
+    public void Simulator_flow_setpoint_alone_enables_the_flowmeter_and_is_echoed_back()
+    {
+        var model = new DeviceModel();
+
+        // No flowmeterComm: the Hub v7 does not route it (PROTOCOL §3.1) and nothing sends it.
+        Assert.True(WireCodec.ApplyCommand(model, CommandBuilders.FlowSetpoint(2.5, 50).ToJson(), out _));
+
+        Assert.True(model.FlowmeterEnabled);
+        Assert.Equal(2.5, model.FlowSetpoint);
+        Assert.Contains("\"FlowSetpoint\":2.50", WireCodec.BuildTelemetry(model), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Simulator_accepts_complete_pH_state_echo_and_flow_coefficients()
     {

@@ -193,6 +193,9 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
     [RelayCommand(CanExecute = nameof(CanStart))]
     private void StartTwoPoint() => Start(twoPoint: true);
 
+    [RelayCommand(CanExecute = nameof(CanStart))]
+    private void StartProcedure() => Start(twoPoint: IsTwoPoint);
+
     [RelayCommand(CanExecute = nameof(CanConfirmPoint))]
     private void ConfirmPoint()
     {

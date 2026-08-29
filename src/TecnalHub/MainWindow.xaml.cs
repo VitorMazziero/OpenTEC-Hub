@@ -185,7 +185,7 @@ public partial class MainWindow : Window
         if (DataContext is ViewModels.ShellViewModel shell)
         {
             shell.IsRailAffordable = ActualWidth >= VariableRailMinimumWidth;
-            shell.IsNavigationCompact = ActualWidth < VariableRailMinimumWidth;
+            shell.IsNavigationCompact = false;
         }
     }
 

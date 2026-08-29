@@ -163,11 +163,39 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
         ApplyProposalCommand.NotifyCanExecuteChanged();
     }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOnePoint))]
+    [NotifyPropertyChangedFor(nameof(ProcedureTitle))]
+    [NotifyPropertyChangedFor(nameof(ProcedureHint))]
+    public partial bool IsTwoPoint { get; set; } = true;
+
+    public bool IsOnePoint
+    {
+        get => !IsTwoPoint;
+        set => IsTwoPoint = !value;
+    }
+
+    public string ProcedureTitle => IsTwoPoint
+        ? "Calibração linear de dois pontos"
+        : "Calibração de um ponto (ajusta o intercepto)";
+
+    public string ProcedureHint => IsTwoPoint
+        ? "Estabilize o padrão, confira o raw ao vivo e confirme a aquisição."
+        : "Estabilize um único padrão e confirme a aquisição. A inclinação vigente é mantida.";
+
+    partial void OnIsTwoPointChanged(bool value)
+    {
+        SecondPointText = value ? "Não adquirido" : "Não usado (um ponto)";
+    }
+
     [RelayCommand(CanExecute = nameof(CanStart))]
     private void StartOnePoint() => Start(twoPoint: false);
 
     [RelayCommand(CanExecute = nameof(CanStart))]
     private void StartTwoPoint() => Start(twoPoint: true);
+
+    [RelayCommand(CanExecute = nameof(CanStart))]
+    private void StartProcedure() => Start(twoPoint: IsTwoPoint);
 
     [RelayCommand(CanExecute = nameof(CanConfirmPoint))]
     private void ConfirmPoint()

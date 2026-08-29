@@ -439,7 +439,17 @@
                     <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}"
                             Command="{Binding ApplyCommand}" />
                 </StackPanel>
-                <StackPanel VerticalAlignment="Center">
+                
+                <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <TextBlock Foreground="{DynamicResource TextSecondaryBrush}">
+                        <Run Text="Desenvolvido por " FontSize="11" FontStyle="Italic"/>
+                        <Run Text="Vítor Teixeira Mazziero" FontWeight="Bold" FontSize="13"/>
+                        <Run Text="  UNESP - Araraquara  " FontSize="11"/>
+                        <Run Text="FAPESP (2026/04877-4)" FontSize="11" FontStyle="Italic" FontWeight="SemiBold"/>
+                    </TextBlock>
+                </StackPanel>
+                
+                <StackPanel VerticalAlignment="Center" Margin="16,0,0,0">
                     <TextBlock Text="{Binding ValidationError}" TextWrapping="Wrap"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource StateAlarmTextBrush}"

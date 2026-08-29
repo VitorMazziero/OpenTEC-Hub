@@ -70,23 +70,51 @@
                     <StackPanel Margin="0,12,0,0" DataContext="{Binding PH}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.15*" />
-                                <ColumnDefinition Width="0.95*" />
+                                <ColumnDefinition Width="0.8*" />
+                                <ColumnDefinition Width="1.2*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Left Card: Guided Calibration Procedure & Acquisition Criteria -->
                             <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
                                 <StackPanel>
-                                    <TextBlock Text="Calibração de pH"
-                                               FontSize="{DynamicResource FontSizeSubtitle}"
-                                               FontWeight="SemiBold" />
-                                    <TextBlock Text="Um ponto mantém a inclinação atual. Dois pontos recalculam inclinação e intercepto."
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               TextWrapping="Wrap" Margin="0,4,0,10" />
+                                    <TextBlock Text="Leitura ao vivo" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <UniformGrid Columns="2" Margin="0,12,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="Raw ADC" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="pH calibrado" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentCalibratedText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="Desvio padrão (σ)" Style="{StaticResource CalibrationLabel}" Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding CurrentStandardDeviationText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                                    
+                                    <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding ProgressPercent}" Margin="0,16,0,16" />
 
-                                    <!-- Two-Point / One-Point Selection -->
-                                    <Grid Margin="0,0,0,12" IsEnabled="{Binding CanStart}">
+                                    <TextBlock Text="Curva vigente" Style="{StaticResource CalibrationLabel}" />
+                                    <TextBlock Text="{Binding CurrentEquationText}" FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ProcedureTitle}"
+                                               FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding ProcedureHint}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,10" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" IsEnabled="{Binding CanStart}">
+                                        <RadioButton Content="Dois pontos" GroupName="PHCalibrationMode"
+                                                     IsChecked="{Binding IsTwoPoint, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" Margin="0,0,16,0" />
+                                        <RadioButton Content="Um ponto (só intercepto)" GroupName="PHCalibrationMode"
+                                                     IsChecked="{Binding IsOnePoint, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <Grid IsEnabled="{Binding CanStart}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -99,7 +127,8 @@
                                                 <TextBlock Text="{Binding FirstPointText}" TextWrapping="Wrap" Margin="0,7,0,0" Style="{StaticResource CaptionTextStyle}" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="12" Margin="5,0,0,0">
+                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="12" Margin="5,0,0,0"
+                                                IsEnabled="{Binding IsTwoPoint}">
                                             <StackPanel>
                                                 <TextBlock Text="Ponto 2 (Tampão)" FontWeight="SemiBold" />
                                                 <TextBlock Text="Referência (pH)" Style="{StaticResource CalibrationLabel}" Margin="0,8,0,4" />
@@ -108,9 +137,8 @@
                                             </StackPanel>
                                         </Border>
                                     </Grid>
-
-                                    <!-- Acquisition Criteria (raw ADC) -->
-                                    <TextBlock Text="Critério de aquisição (raw ADC)" FontWeight="SemiBold" Margin="0,4,0,8" />
+                                    
+                                    <TextBlock Text="Critério de aquisição (raw ADC)" FontWeight="SemiBold" Margin="0,14,0,8" />
                                     <UniformGrid Columns="3">
                                         <StackPanel Margin="0,0,6,0">
                                             <TextBlock Text="Janela" Style="{StaticResource CalibrationLabel}" />
@@ -126,92 +154,21 @@
                                         </StackPanel>
                                     </UniformGrid>
 
-                                    <!-- Procedure Action Buttons -->
-                                    <WrapPanel Margin="0,14,0,0">
-                                        <Button Content="Iniciar · 1 ponto" Command="{Binding StartOnePointCommand}" Margin="0,0,6,6" />
-                                        <Button Content="Iniciar · 2 pontos" Command="{Binding StartTwoPointCommand}" Margin="0,0,6,6" />
-                                        <Button Content="Confirmar tampão"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                Command="{Binding ConfirmPointCommand}" Margin="0,0,6,6" />
-                                        <Button Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,0,6" />
-                                    </WrapPanel>
-
-                                    <!-- Instructions and Status -->
-                                    <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                            CornerRadius="{DynamicResource RadiusSmall}"
-                                            Padding="10" Margin="0,8,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding InstructionText}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding StatusText}"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       TextWrapping="Wrap" Margin="0,5,0,0" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Proposed Curve & Apply Button -->
                                     <Border Background="{DynamicResource SurfaceSelectedBrush}"
                                             BorderBrush="{DynamicResource AccentBorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,12,0,8">
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,14,0,8">
                                         <TextBlock Text="{Binding ProposedEquationText}"
                                                    FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" />
                                     </Border>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-                                        <Button Content="Aplicar no app"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                Command="{Binding ApplyProposalCommand}" />
+                                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                        <Button Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Iniciar" Command="{Binding StartProcedureCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Confirmar" Command="{Binding ConfirmPointCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Aplicar no app" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyProposalCommand}" />
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Right Card: Live Reading, Stability & Active Curve -->
-                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
-                                <StackPanel>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Leitura ao vivo"
-                                                   FontSize="{DynamicResource FontSizeSubtitle}"
-                                                   FontWeight="SemiBold" />
-                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}"
-                                                CornerRadius="3" Padding="7,3">
-                                            <TextBlock Text="{Binding StageText}" FontSize="11" />
-                                        </Border>
-                                    </Grid>
-
-                                    <UniformGrid Columns="2" Margin="0,12,0,10">
-                                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="0,0,5,5">
-                                            <StackPanel>
-                                                <TextBlock Text="Raw ADC atual" Style="{StaticResource CalibrationLabel}" />
-                                                <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}" FontSize="22" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="5,0,0,5">
-                                            <StackPanel>
-                                                <TextBlock Text="pH calibrado" Style="{StaticResource CalibrationLabel}" />
-                                                <TextBlock Text="{Binding CurrentCalibratedText}" Style="{StaticResource NumericTextStyle}" FontSize="22" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="0,5,5,0">
-                                            <StackPanel>
-                                                <TextBlock Text="Desvio padrão (σ)" Style="{StaticResource CalibrationLabel}" />
-                                                <TextBlock Text="{Binding CurrentStandardDeviationText}" Style="{StaticResource NumericTextStyle}" FontSize="22" />
-                                            </StackPanel>
-                                        </Border>
-                                    </UniformGrid>
-
-                                    <ProgressBar Minimum="0" Maximum="100" Height="8"
-                                                 Value="{Binding ProgressPercent}" Margin="0,4,0,10" />
-
-                                    <TextBlock Text="Curva vigente" FontWeight="SemiBold" Margin="0,8,0,4" />
-                                    <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                            CornerRadius="4" Padding="10">
-                                        <TextBlock Text="{Binding CurrentEquationText}"
-                                                   FontFamily="{DynamicResource FontNumeric}"
-                                                   TextWrapping="Wrap" />
-                                    </Border>
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -225,23 +182,51 @@
                     <StackPanel Margin="0,12,0,0" DataContext="{Binding Oxygen}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.15*" />
-                                <ColumnDefinition Width="0.95*" />
+                                <ColumnDefinition Width="0.8*" />
+                                <ColumnDefinition Width="1.2*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Left Card: Guided Calibration Procedure & Acquisition Criteria -->
                             <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
                                 <StackPanel>
-                                    <TextBlock Text="Calibração de Oxigênio Dissolvido"
-                                               FontSize="{DynamicResource FontSizeSubtitle}"
-                                               FontWeight="SemiBold" />
-                                    <TextBlock Text="Um ponto mantém a inclinação atual. Dois pontos recalculam inclinação e intercepto."
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               TextWrapping="Wrap" Margin="0,4,0,10" />
+                                    <TextBlock Text="Leitura ao vivo" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <UniformGrid Columns="2" Margin="0,12,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="Raw ADC" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="O₂ calibrado (%)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentCalibratedText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="Desvio padrão (σ)" Style="{StaticResource CalibrationLabel}" Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding CurrentStandardDeviationText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                                    
+                                    <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding ProgressPercent}" Margin="0,16,0,16" />
 
-                                    <!-- Two-Point / One-Point Selection -->
-                                    <Grid Margin="0,0,0,12" IsEnabled="{Binding CanStart}">
+                                    <TextBlock Text="Curva vigente" Style="{StaticResource CalibrationLabel}" />
+                                    <TextBlock Text="{Binding CurrentEquationText}" FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ProcedureTitle}"
+                                               FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding ProcedureHint}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,10" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" IsEnabled="{Binding CanStart}">
+                                        <RadioButton Content="Dois pontos" GroupName="OxygenCalibrationMode"
+                                                     IsChecked="{Binding IsTwoPoint, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" Margin="0,0,16,0" />
+                                        <RadioButton Content="Um ponto (só intercepto)" GroupName="OxygenCalibrationMode"
+                                                     IsChecked="{Binding IsOnePoint, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <Grid IsEnabled="{Binding CanStart}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -254,7 +239,8 @@
                                                 <TextBlock Text="{Binding FirstPointText}" TextWrapping="Wrap" Margin="0,7,0,0" Style="{StaticResource CaptionTextStyle}" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="12" Margin="5,0,0,0">
+                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="12" Margin="5,0,0,0"
+                                                IsEnabled="{Binding IsTwoPoint}">
                                             <StackPanel>
                                                 <TextBlock Text="Ponto 2 (Padrão)" FontWeight="SemiBold" />
                                                 <TextBlock Text="Referência (%)" Style="{StaticResource CalibrationLabel}" Margin="0,8,0,4" />
@@ -263,9 +249,8 @@
                                             </StackPanel>
                                         </Border>
                                     </Grid>
-
-                                    <!-- Acquisition Criteria (raw ADC) -->
-                                    <TextBlock Text="Critério de aquisição (raw ADC)" FontWeight="SemiBold" Margin="0,4,0,8" />
+                                    
+                                    <TextBlock Text="Critério de aquisição (raw ADC)" FontWeight="SemiBold" Margin="0,14,0,8" />
                                     <UniformGrid Columns="3">
                                         <StackPanel Margin="0,0,6,0">
                                             <TextBlock Text="Janela" Style="{StaticResource CalibrationLabel}" />
@@ -281,92 +266,21 @@
                                         </StackPanel>
                                     </UniformGrid>
 
-                                    <!-- Procedure Action Buttons -->
-                                    <WrapPanel Margin="0,14,0,0">
-                                        <Button Content="Iniciar · 1 ponto" Command="{Binding StartOnePointCommand}" Margin="0,0,6,6" />
-                                        <Button Content="Iniciar · 2 pontos" Command="{Binding StartTwoPointCommand}" Margin="0,0,6,6" />
-                                        <Button Content="Confirmar padrão"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                Command="{Binding ConfirmPointCommand}" Margin="0,0,6,6" />
-                                        <Button Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,0,6" />
-                                    </WrapPanel>
-
-                                    <!-- Instructions and Status -->
-                                    <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                            CornerRadius="{DynamicResource RadiusSmall}"
-                                            Padding="10" Margin="0,8,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding InstructionText}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding StatusText}"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       TextWrapping="Wrap" Margin="0,5,0,0" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Proposed Curve & Apply Button -->
                                     <Border Background="{DynamicResource SurfaceSelectedBrush}"
                                             BorderBrush="{DynamicResource AccentBorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,12,0,8">
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,14,0,8">
                                         <TextBlock Text="{Binding ProposedEquationText}"
                                                    FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" />
                                     </Border>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-                                        <Button Content="Aplicar no app"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                Command="{Binding ApplyProposalCommand}" />
+                                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                        <Button Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Iniciar" Command="{Binding StartProcedureCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Confirmar" Command="{Binding ConfirmPointCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Aplicar no app" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyProposalCommand}" />
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Right Card: Live Reading, Stability & Active Curve -->
-                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
-                                <StackPanel>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Leitura ao vivo"
-                                                   FontSize="{DynamicResource FontSizeSubtitle}"
-                                                   FontWeight="SemiBold" />
-                                        <Border Grid.Column="1" Background="{DynamicResource SurfaceSunkenBrush}"
-                                                CornerRadius="3" Padding="7,3">
-                                            <TextBlock Text="{Binding StageText}" FontSize="11" />
-                                        </Border>
-                                    </Grid>
-
-                                    <UniformGrid Columns="2" Margin="0,12,0,10">
-                                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="0,0,5,5">
-                                            <StackPanel>
-                                                <TextBlock Text="Raw ADC atual" Style="{StaticResource CalibrationLabel}" />
-                                                <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}" FontSize="22" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="5,0,0,5">
-                                            <StackPanel>
-                                                <TextBlock Text="O₂ calibrado (%)" Style="{StaticResource CalibrationLabel}" />
-                                                <TextBlock Text="{Binding CurrentCalibratedText}" Style="{StaticResource NumericTextStyle}" FontSize="22" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Row="1" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="0,5,5,0">
-                                            <StackPanel>
-                                                <TextBlock Text="Desvio padrão (σ)" Style="{StaticResource CalibrationLabel}" />
-                                                <TextBlock Text="{Binding CurrentStandardDeviationText}" Style="{StaticResource NumericTextStyle}" FontSize="22" />
-                                            </StackPanel>
-                                        </Border>
-                                    </UniformGrid>
-
-                                    <ProgressBar Minimum="0" Maximum="100" Height="8"
-                                                 Value="{Binding ProgressPercent}" Margin="0,4,0,10" />
-
-                                    <TextBlock Text="Curva vigente" FontWeight="SemiBold" Margin="0,8,0,4" />
-                                    <Border Background="{DynamicResource SurfaceSunkenBrush}"
-                                            CornerRadius="4" Padding="10">
-                                        <TextBlock Text="{Binding CurrentEquationText}"
-                                                   FontFamily="{DynamicResource FontNumeric}"
-                                                   TextWrapping="Wrap" />
-                                    </Border>
                                 </StackPanel>
                             </Border>
                         </Grid>

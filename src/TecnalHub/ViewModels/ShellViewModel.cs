@@ -211,6 +211,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         var maxFlow = setpoints.MaxFlowLitresPerMinute;
         FlowControl = new FlowControlViewModel(maxFlow);
 
+        // The synoptic shows presence for every external node, not only the flowmeter, so
+        // it needs the same status objects Controle binds to. Exposed rather than
+        // duplicated: two copies of "is this device there" is how they end up disagreeing.
+        BiomassControl = biomassControl;
+        PumpControl = pumpControl;
+        FoamControl = foamControl;
+        FlaskAgitator = flaskAgitator;
+
         Subsystems =
         [
             new SubsystemViewModel(Temperature,
@@ -268,7 +276,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
-            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas, klaProfileStore);
+            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas, klaProfileStore,
+            alarms);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 
@@ -404,6 +413,21 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Shared staged/observed flow state used by both detail and Controle.</summary>
     public FlowControlViewModel FlowControl { get; }
+
+    /// <summary>Biomass card state, for the synoptic's presence chips.</summary>
+    public BiomassControlViewModel BiomassControl { get; }
+
+    /// <summary>External-pump card state, for the synoptic's presence chips.</summary>
+    public PumpControlViewModel PumpControl { get; }
+
+    /// <summary>Level/foam card state, for the synoptic's presence chips.</summary>
+    public FoamControlViewModel FoamControl { get; }
+
+    /// <summary>
+    /// Flask-agitator card state. Not a synoptic tile — see the legend note — but exposed
+    /// so the shell can reach its presence without going through Controle.
+    /// </summary>
+    public FlaskAgitatorViewModel FlaskAgitator { get; }
 
     /// <summary>Ring-buffered telemetry, for the detail pane's inline trend.</summary>
     public ITelemetryHistory History => _history;

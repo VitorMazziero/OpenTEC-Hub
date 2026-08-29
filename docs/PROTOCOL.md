@@ -5,8 +5,9 @@
 > The **external-device sections (3.4, 3.5 and the presence keys in section 2) are not**:
 > the Hub firmware moved to v8 and is being extended for them. Anything below marked
 > **`[hub-patch]`** requires the Hub build described in
-> [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) § 4; the app degrades to
-> ageing the value keys locally when a Hub does not publish it.
+> [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](FIRMWARE_DISPOSITIVOS_EXTERNOS.md); that build **exists
+> in source** as of 2026-08-29 and is pending a flash. The app degrades to ageing the value
+> keys locally against a Hub that does not publish them, so both states work.
 >
 > **Source of truth:** reverse-engineered from `v.6/communication/{transport,data_parser,connection_manager}.py`
 > and every `send_command()` call site in the v.6 tree, plus a read of

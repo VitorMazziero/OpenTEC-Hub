@@ -513,9 +513,11 @@ conexão como diagnóstico de rádio.
 Cada etapa é um commit num branch dedicado, com testes verdes, conforme
 [CONVENTIONS.md](CONVENTIONS.md).
 
-> **Estado em 2026-08-29: etapas 0 e 1 concluídas** (`dotnet test -c Release`: 621 aprovados,
-> 1 ignorado — o teste de tema hospedado de sempre; `dotnet build`: 0 avisos, 0 erros). A
-> etapa 2 depende da regravação de firmware da seção 4; as etapas 3 a 5 seguem abertas.
+> **Estado em 2026-08-29: etapas 0 a 3 e 5 concluídas em código** (`dotnet test -c Release`:
+> 627 aprovados, 1 ignorado — o teste de tema hospedado de sempre; `dotnet build`: 0 avisos,
+> 0 erros). Os firmwares estão escritos e aguardam gravação; ver
+> [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](FIRMWARE_DISPOSITIVOS_EXTERNOS.md). A etapa 4 não se
+> aplica na forma escrita — ver abaixo.
 
 **Etapa 0 — contrato e testes que falham. ✅ concluída.** Atualizar `PROTOCOL.md` com a seção 1.2 deste
 documento (matriz real do Hub v8, incluindo `Servo*`, `Pump*` completo e as flags novas).
@@ -543,16 +545,47 @@ dispositivo externo e [`ExternalDeviceTests.cs`](../tests/TecnalHub.Tests/Extern
 > correções de comando — ordem, serialização, parada segura, despacho com resultado — valem
 > desde já contra o firmware atual.
 
-**Etapa 2 — firmware 4.1 + 4.3. ⏳ aguardando regravação.** Você regrava Hub e agitador. O app troca o fallback por
-`*Online`/`*CommEnabled` reais, o agitador ganha leitura, os cinco alarmes entram.
+**Etapa 2 — firmware 4.1 + 4.3. ✅ escrita; aguarda gravação.** Hub v8 editado no lugar;
+`frasco_agitador_04`, `v_4_DC_motor_peristaltic` e `biomass_sensor_analog_v05_hubsync` criados
+ao lado das versões anteriores. Os cinco alarmes entraram
+(`BiomassOffline`, `ExternalPumpOffline`, `DistanceSensorOffline`, `FlaskAgitatorOffline`,
+`DeviceRoutingMismatch`), cada um qualificado pelo eco de roteamento do Hub para não gritar
+sobre um dispositivo que o operador desligou de propósito.
 
-**Etapa 3 — UI. ⏳ aberta.** Controle (5.1 + 5.2) e Painel (5.3), com o `ExternalInstrumentTagStyle`
-compartilhado. Captura de tela em tema claro e escuro, 1280×720 e 125 %.
+> **Um estado novo apareceu no caminho.** O heartbeat de IDLE da biomassa (4.4) resolve
+> "parado × caído", mas cria "online sem amostra" — e o push de heartbeat carrega a última
+> absorbância que o nó tinha. Registrá-la como fresca deixaria a leitura de um sensor parado na
+> tela como se fosse atual, que é o defeito que o heartbeat existe para corrigir. O Hub passou
+> a ter **dois relógios** para a biomassa (presença e amostra), e o parser trata a ausência do
+> bloco de amostra num quadro que *tem* a chave de presença como uma afirmação: "está lá, não
+> está medindo".
 
-**Etapa 4 — receitas. ⏳ aberta.** Predicados de `AwaitDeviceAsync` para biomassa, bomba e agitador.
+**Etapa 3 — UI. ✅ concluída em código; falta a passagem visual.** O controle compartilhado
+ficou `ctl:ExternalDeviceChips` (não `ExternalInstrumentTagStyle`: os chips são conteúdo
+sobreposto, não um estilo de botão). As quatro linhas de Controle trocaram o ponto de estado
+pelo `ExternalDeviceStateConverter`, e o Painel foi reagrupado por topologia.
 
-**Etapa 5 — firmware 4.2 (opcional). ⏳ aberta.** Caixa revisionada nos três nós; o app troca o
-temporizador de 5 s por `*CommandPending`.
+> **O card do agitador no Painel não entrou, deliberadamente.** As tiles do sinóptico são
+> `ProcessVariableViewModel` ligadas a um `TelemetryChannel`, e um canal novo atravessa o enum,
+> o `TelemetryHistory`, o **mapa de colunas do CSV de sessão** (índices fixos), o
+> `ChartsViewModel` e a barra de KPI. Mudar o esquema do CSV de sessão para acomodar um
+> acessório de bancada com um percentual comandado é desproporcional ao ganho. A telemetria do
+> agitador aparece em Controle, que é onde o dispositivo é operado, e a legenda do Painel diz
+> isso.
+
+Falta: captura de tela em tema claro e escuro, 1280×720 e 125 %.
+
+**Etapa 4 — receitas. ❌ não se aplica como escrita.** O plano pressupunha blocos de receita
+para esses dispositivos. Eles não existem: `RecipeNodeCatalog` cobre bomba de pH, antiespumante,
+vazão, oxigênio e motor, e **nenhum** bloco atua biomassa, bomba externa ou agitador de frasco.
+`AwaitDeviceAsync` já é genérico e continua pronto; os predicados entram junto com os blocos, se
+e quando eles forem criados. Criar blocos de receita para três dispositivos é uma adição de
+funcionalidade, não parte de padronizar a comunicação.
+
+**Etapa 5 — firmware 4.2. ✅ escrita; aguarda gravação.** Deixou de ser opcional: a caixa
+revisionada entrou no Hub como `ReliableMailbox` e nos três nós como `cmd_id` idempotente mais
+`ack_cmd_id`. O app já prefere `*CommandPending` quando o Hub o publica e cai no temporizador de
+5 s quando não.
 
 ### Critérios de aceitação
 
@@ -567,8 +600,8 @@ Marcado ✅ o que já está provado por teste automatizado; o restante precisa d
 - [x] Desabilitar biomassa/bomba envia a parada antes de limpar o roteamento *(teste; falta
       confirmar em bancada que o nó realmente para)*
 - [x] Parada segura do agitador envia `agitatorReEnablePot:0`
-- [ ] Reboot do Hub com checkbox divergente acende o chip `roteamento` em ≤ 5 s *(depende de 4.1
-      e da etapa 3)*
+- [x] Reboot do Hub com checkbox divergente acende o chip `roteamento` e o alarme
+      `Roteamento divergente no Hub` *(teste; o recibo de bancada depende da gravação)*
 - [x] `dotnet test TecnalHub.slnx -c Release` verde; `dotnet build` com 0 avisos
 
 ---

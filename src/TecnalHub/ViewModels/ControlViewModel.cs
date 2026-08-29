@@ -4,6 +4,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TecnalHub.Protocol;
+using TecnalHub.Services.Alarms;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
 using TecnalHub.Services.Dialogs;
@@ -121,6 +122,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private readonly IDialogService _dialogs;
     private readonly ICascadeService _cascade;
     private readonly IKlaProfileStore? _klaProfileStore;
+
+    /// <summary>
+    /// Optional: the alarm kernel needs the operator's routing switches to detect a
+    /// disagreement with the Hub. Null in the view-model tests, which do not raise alarms.
+    /// </summary>
+    private readonly IAlarmService? _alarms;
     private readonly SubsystemViewModel _flowSubsystem;
     private bool _switchingSharedPump;
     private bool _flowCommitPending;
@@ -141,7 +148,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         IDialogService dialogs,
         ICascadeService cascade,
         ReceitasViewModel? receitas = null,
-        IKlaProfileStore? klaProfileStore = null)
+        IKlaProfileStore? klaProfileStore = null,
+        IAlarmService? alarms = null)
     {
         if (subsystems.Count != 5)
         {
@@ -153,6 +161,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _cascade = cascade;
         _klaProfileStore = klaProfileStore;
+        _alarms = alarms;
         FlowControl = flowControl;
         PHControl = phControl;
         NutrientControl = nutrientControl;
@@ -198,6 +207,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlaskAgitator.PropertyChanged += OnDosingStateChanged;
         BiomassControl.PropertyChanged += OnDosingStateChanged;
         PumpControl.PropertyChanged += OnDosingStateChanged;
+
+        PublishRoutingIntent();
 
         var presetsSource = settings.Current.SetpointPresets.Length > 0
             ? settings.Current.SetpointPresets
@@ -910,8 +921,30 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         StatusText = "Estado de vazão e válvulas confirmado pelo fluxômetro.";
     }
 
+    /// <summary>
+    /// Tells the alarm kernel what the operator's external-device switches say.
+    /// </summary>
+    /// <remarks>
+    /// Half of the routing-mismatch condition. The other half is the Hub's own echo, and
+    /// the alarm only fires when the two disagree — so the Hub silently dropping every
+    /// command for a device stops being invisible.
+    /// </remarks>
+    private void PublishRoutingIntent()
+    {
+        if (_alarms is null)
+        {
+            return;
+        }
+
+        _alarms.SetRoutingRequested("Sensor de biomassa", BiomassControl.IsEnabled);
+        _alarms.SetRoutingRequested("Bomba externa", PumpControl.IsEnabled);
+        _alarms.SetRoutingRequested("Sensor de distância", FoamControl.SensorEnabled);
+    }
+
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        PublishRoutingIntent();
+
         // The distance/foam firmware routine actuates the physical nutrient pump.
         // Never allow it to contend with the operator's nutrient dosing schedule.
         if (!_switchingSharedPump)

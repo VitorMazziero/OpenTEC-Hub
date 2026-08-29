@@ -12,6 +12,7 @@
 
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:ExternalDeviceStateConverter x:Key="ExternalDeviceState" />
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:ActiveToStateConverter x:Key="ActiveToState" />
         <conv:ActiveVariableStateConverter x:Key="ActiveVariableState" />
@@ -948,10 +949,21 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedDistance, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações do sensor de distância / espuma" />
-                                    <ctl:StateDot Grid.Column="1" State="{Binding SensorEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Distância" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Distância">
+                                        <ctl:StateDot.State>
+                                            <MultiBinding Converter="{StaticResource ExternalDeviceState}">
+                                                <Binding Path="SensorEnabled" />
+                                                <Binding Path="Status.IsOffline" />
+                                            </MultiBinding>
+                                        </ctl:StateDot.State>
+                                    </ctl:StateDot>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Level" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Sensor de Distância" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Sensor de espuma via distância" />
+                                        <!-- The foam keys are Hub-side configuration, so this row is never blocked
+                                             on presence: losing the node must not also cost the operator the
+                                             ability to configure what happens when it comes back. -->
+                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding LiveDistanceText}" Style="{StaticResource NumericTextStyle}" />
@@ -1034,10 +1046,18 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações da bomba dosadora externa" />
-                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Bomba externa" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Bomba externa">
+                                        <ctl:StateDot.State>
+                                            <MultiBinding Converter="{StaticResource ExternalDeviceState}">
+                                                <Binding Path="IsEnabled" />
+                                                <Binding Path="Status.IsOffline" />
+                                            </MultiBinding>
+                                        </ctl:StateDot.State>
+                                    </ctl:StateDot>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Pump" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Bomba Dosadora Externa" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="3" Text="{Binding PumpFlowText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding PumpVolumeText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1076,6 +1096,22 @@
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        VerticalAlignment="Center" Margin="10,0,0,0" />
                                             <TextBlock Text="{Binding PumpVolumeText, StringFormat='Volume: {0} mL'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                            <!-- The node's own profile integral. Comparing it against the
+                                                 accumulated volume beside it is the only way to see the pump
+                                                 falling behind its profile without recomputing it here from a
+                                                 different clock. -->
+                                            <TextBlock Text="{Binding PumpTargetVolumeText, StringFormat='Alvo: {0} mL'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                            <TextBlock Text="{Binding PumpModeText, StringFormat='Modo no nó: {0}'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                            <TextBlock Text="{Binding PumpRunStateText}"
                                                        Style="{StaticResource CaptionTextStyle}"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        VerticalAlignment="Center" Margin="10,0,0,0" />
@@ -1235,10 +1271,18 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedBiomass, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações do sensor de biomassa" />
-                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Biomassa" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Biomassa">
+                                        <ctl:StateDot.State>
+                                            <MultiBinding Converter="{StaticResource ExternalDeviceState}">
+                                                <Binding Path="IsEnabled" />
+                                                <Binding Path="Status.IsOffline" />
+                                            </MultiBinding>
+                                        </ctl:StateDot.State>
+                                    </ctl:StateDot>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Sensor de Biomassa" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="3" Text="{Binding AbsorbanceText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1387,10 +1431,28 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedFlaskAgitator, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações do agitador de frasco" />
-                                    <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Frasco Agitador" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Frasco Agitador">
+                                        <ctl:StateDot.State>
+                                            <MultiBinding Converter="{StaticResource ExternalDeviceState}">
+                                                <Binding Path="IsEnabled" />
+                                                <Binding Path="Status.IsOffline" />
+                                            </MultiBinding>
+                                        </ctl:StateDot.State>
+                                    </ctl:StateDot>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Impeller" Style="{StaticResource ProcessRowIconStyle}" />
                                         <TextBlock Text="Frasco Agitador" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Dispositivo de bancada separado" />
+                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
+                                        <!-- The knob outranks the app whenever it is live, so this cannot be a
+                                             tooltip: the staged percent beside it is not what the motor holds. -->
+                                        <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="3"
+                                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                                BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
+                                                ToolTip="{Binding PotentiometerWarning}"
+                                                Visibility="{Binding IsPotentiometerInControl, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="potenciômetro" FontSize="10"
+                                                       Foreground="{DynamicResource StateWarningTextBrush}" />
+                                        </Border>
                                     </StackPanel>
                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
@@ -1480,9 +1542,44 @@
                                                    Foreground="{DynamicResource StateAlarmTextBrush}"
                                                    FontSize="{DynamicResource FontSizeCaption}"
                                                    TextWrapping="Wrap" Margin="0,8,0,4" />
+                                        <!-- Read-back from the node. Empty against a Hub without the
+                                             /agitatorData handler, which is honest: that Hub knows nothing
+                                             about this device and the row says so. -->
+                                        <Border Margin="0,10,0,0" Padding="10,8"
+                                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                                BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="{DynamicResource RadiusSmall}">
+                                            <StackPanel>
+                                                <WrapPanel>
+                                                    <TextBlock Text="{Binding ActualPercentText, StringFormat='Telemetria: {0} %'}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               Margin="0,0,16,0" />
+                                                    <TextBlock Text="{Binding ActualDirectionText, StringFormat='Sentido: {0}'}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               Margin="0,0,16,0" />
+                                                    <TextBlock Text="{Binding ActualSourceText, StringFormat='Comandado por: {0}'}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </WrapPanel>
+                                                <TextBlock Text="{Binding PotentiometerWarning}"
+                                                           Visibility="{Binding PotentiometerWarning, Converter={StaticResource NullToVis}}"
+                                                           Foreground="{DynamicResource StateWarningTextBrush}"
+                                                           FontSize="{DynamicResource FontSizeCaption}"
+                                                           TextWrapping="Wrap" Margin="0,6,0,0" />
+                                                <TextBlock Text="{Binding Status.StatusText}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           TextWrapping="Wrap" Margin="0,6,0,0" />
+                                            </StackPanel>
+                                        </Border>
+
                                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                             <Button Content="Reativar potenciômetro"
-                                                    Command="{Binding ReEnablePotCommand}" />
+                                                    Command="{Binding ReEnablePotCommand}"
+                                                    ToolTip="Devolve o controle ao potenciômetro de bancada. A parada segura o bloqueia." />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>

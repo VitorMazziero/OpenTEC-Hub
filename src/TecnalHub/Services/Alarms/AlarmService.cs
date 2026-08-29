@@ -165,6 +165,16 @@ public interface IAlarmService : IDisposable
     /// <summary>Raised on the UI thread whenever alarm state changes.</summary>
     event Action? Changed;
 
+    /// <summary>
+    /// Records what an operator switch says about routing one external device.
+    /// </summary>
+    /// <remarks>
+    /// The Hub's echo alone cannot tell a mismatch from a device the operator has simply
+    /// switched off, so the alarm needs both halves. Pushed in rather than pulled, because
+    /// the alarm kernel must not depend on the view-model layer.
+    /// </remarks>
+    void SetRoutingRequested(string device, bool requested);
+
     /// <summary>Acknowledges one alarm.</summary>
     void Acknowledge(AlarmId id);
 
@@ -202,6 +212,22 @@ public sealed class AlarmService : IAlarmService
         // soon as it says so: by then the device has been silent for several telemetry periods.
         new(AlarmId.RecipeAwaitingDevice, "Receita aguardando dispositivo", AlarmSeverity.Warning,
             TimeSpan.Zero, TimeSpan.Zero),
+        // The Hub has already applied its own presence window before it reports a node
+        // absent, so these carry the same short debounce the flowmeter alarm uses: enough
+        // to ride out one late frame, not enough to hide a real outage.
+        new(AlarmId.BiomassOffline, "Sensor de biomassa offline", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        new(AlarmId.ExternalPumpOffline, "Bomba externa offline", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        new(AlarmId.DistanceSensorOffline, "Sensor de distância offline", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        new(AlarmId.FlaskAgitatorOffline, "Agitador de frasco offline", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        // Longer on-delay: this compares two persisted stores, and the app's own enable
+        // command needs a telemetry round trip before the Hub's echo can agree with it.
+        // A tighter window would fire on every legitimate toggle.
+        new(AlarmId.DeviceRoutingMismatch, "Roteamento divergente no Hub", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(2)),
     ];
 
     private readonly IDeviceService _device;
@@ -219,6 +245,16 @@ public sealed class AlarmService : IAlarmService
 
     private readonly Dictionary<AlarmId, AlarmCondition> _conditions;
     private readonly HashSet<ActuatorId> _timedOut = [];
+
+    /// <summary>
+    /// What the operator's external-device switches currently say, keyed by device label.
+    /// </summary>
+    /// <remarks>
+    /// Pushed in by whoever owns those switches rather than pulled from the view-models:
+    /// the alarm kernel must not depend on the UI layer, and the Hub's echo alone cannot
+    /// tell a mismatch from a device the operator simply has switched off.
+    /// </remarks>
+    private readonly Dictionary<string, bool> _routingRequested = [];
 
     private ConnectionState _state = ConnectionState.Disconnected;
     private SensorSnapshot? _lastSnapshot;
@@ -435,8 +471,76 @@ public sealed class AlarmService : IAlarmService
                   "Pule o bloco ou pare a receita."
                 : ""),
 
+        // Each of these is qualified by the Hub's own routing echo, so a device the
+        // operator has deliberately switched off never raises one. A Hub that does not
+        // publish the echo leaves the flag null, and the alarm stays silent rather than
+        // guessing — the app cannot tell an unflashed Hub from a failed node.
+        AlarmId.BiomassOffline => (
+            connected && _lastSnapshot is { BiomassCommEnabled: true, BiomassOnline: false, HasBiomassTelemetry: true },
+            "O sensor de biomassa não está respondendo à Central, mas o roteamento do Hub está ligado."),
+
+        AlarmId.ExternalPumpOffline => (
+            connected && _lastSnapshot is { PumpCommEnabled: true, PumpOnline: false, HasPumpTelemetry: true },
+            "A bomba externa não está respondendo à Central. A dosagem em curso não pode ser confirmada."),
+
+        AlarmId.DistanceSensorOffline => (
+            connected && _lastSnapshot is { DistanceCommEnabled: true, DistanceOnline: false, HasDistanceTelemetry: true },
+            "O sensor de distância não está respondendo à Central; o controle automático de espuma está sem leitura."),
+
+        AlarmId.FlaskAgitatorOffline => (
+            connected && _lastSnapshot is { HasAgitatorTelemetry: true, AgitatorOnline: false },
+            "O agitador de frasco não está respondendo à Central."),
+
+        AlarmId.DeviceRoutingMismatch => RoutingMismatch(connected),
+
         _ => (false, ""),
     };
+
+    /// <summary>
+    /// The Hub is routing a device the operator switched off, or vice versa.
+    /// </summary>
+    /// <remarks>
+    /// The second direction is the dangerous one: with the Hub not routing, every
+    /// blank/start/threshold or pump-profile frame is dropped by
+    /// <c>if (cmdFound &amp;&amp; commOn)</c> without any reply, so the app would report
+    /// success for commands that never reached the node.
+    /// </remarks>
+    private (bool Active, string Detail) RoutingMismatch(bool connected)
+    {
+        if (!connected || _lastSnapshot is not { } snapshot)
+        {
+            return (false, "");
+        }
+
+        List<string> conflicts = [];
+        Check("Sensor de biomassa", snapshot.BiomassCommEnabled);
+        Check("Bomba externa", snapshot.PumpCommEnabled);
+        Check("Sensor de distância", snapshot.DistanceCommEnabled);
+
+        return conflicts.Count == 0
+            ? (false, "")
+            : (true,
+               $"O Hub e o painel discordam sobre o roteamento de: {string.Join(", ", conflicts)}. " +
+               "Comandos para esses dispositivos podem estar sendo descartados sem aviso.");
+
+        void Check(string device, bool? hubSays)
+        {
+            if (hubSays is { } routed &&
+                _routingRequested.TryGetValue(device, out var requested) &&
+                routed != requested)
+            {
+                conflicts.Add($"{device} (Hub: {(routed ? "ligado" : "desligado")})");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records what an operator switch says, so the routing mismatch has both halves.
+    /// </summary>
+    /// <param name="device">The device label, matching the one used in the condition above.</param>
+    /// <param name="requested">True when the operator has the device switched on.</param>
+    public void SetRoutingRequested(string device, bool requested)
+        => _routingRequested[device] = requested;
 
     private static AuditSeverity ToAudit(AlarmSeverity severity)
         => severity == AlarmSeverity.Critical ? AuditSeverity.Error : AuditSeverity.Warning;

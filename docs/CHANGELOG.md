@@ -33,6 +33,24 @@ All notable changes to TECNAL-Hub. Version numbers follow
 - **Telemetria do agitador de frasco na interface**, quando o Hub publicá-la: magnitude e
   sentido reais, e **quem está comandando o motor**. Com o potenciômetro de bancada ativo, o
   card avisa que desligar devolve o controle a ele.
+- **Firmwares padronizados** para o contrato acima, em pastas novas ao lado das anteriores:
+  `frasco_agitador_04` (passa a empurrar telemetria — antes o Hub não sabia nada sobre esse
+  dispositivo), `v_4_DC_motor_peristaltic` e `biomass_sensor_analog_v05_hubsync` (heartbeat de
+  IDLE, para separar "parado" de "caído"), todos com `cmd_id` idempotente e `ack_cmd_id`. O Hub
+  v8 foi editado no lugar: `ReliableMailbox` generalizada, presença e roteamento publicados
+  sempre, handler `/agitatorData`, janela de validade para a bomba (que não tinha nenhuma) e
+  dois relógios para a biomassa. O fluxômetro e o sensor de distância não mudaram. Ver
+  [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](FIRMWARE_DISPOSITIVOS_EXTERNOS.md).
+- **Cinco alarmes de dispositivo externo** — `Sensor de biomassa offline`, `Bomba externa
+  offline`, `Sensor de distância offline`, `Agitador de frasco offline` e `Roteamento
+  divergente no Hub`. Os quatro primeiros são qualificados pelo eco de roteamento do Hub, então
+  um dispositivo desligado de propósito não gera alarme; um Hub que não publica as chaves novas
+  não gera nenhum, em vez de reportar todos como falhos.
+- **Painel reagrupado por topologia.** Os sensores de biomassa e distância — nós Wi-Fi
+  independentes — estavam em *Parâmetros Internos*, e as bombas de nutriente e antiespumante —
+  que ficam dentro do módulo TECNAL, na UART interna — estavam em *Dispositivos Externos*. Um
+  operador diagnosticando uma queda precisa saber qual dos dois enlaces olhar. Todos os cards
+  do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
 ### Fixed
 - **A desativação da bomba externa não parava a bomba.** O quadro único da v.6

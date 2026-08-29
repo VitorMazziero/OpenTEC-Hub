@@ -61,6 +61,11 @@ public sealed class ReactorAssetTests
         Assert.True(internalStart >= 0, "Cabeçalho de parâmetros internos ausente.");
         Assert.True(externalStart > internalStart, "Cabeçalho de dispositivos externos ausente ou fora de ordem.");
 
+        // Grouped by how each device is wired, not by what it measures. The two cards
+        // used to be the other way round: the biomass and distance sensors are separate
+        // ESP32s on the Hub's SoftAP, while the nutrient and antifoam pumps live inside the
+        // TECNAL module on its internal UART. An operator diagnosing a dropout has to know
+        // which of the two links to go and look at.
         var internalSection = xaml[internalStart..externalStart];
         foreach (var label in new[]
                  {
@@ -69,8 +74,8 @@ public sealed class ReactorAssetTests
                      "pH",
                      "Oxigênio",
                      "Alívio de Pressão",
-                     "Sensor de Distância",
-                     "Sensor de Biomassa",
+                     "Dosagem de Nutrientes",
+                     "Dosagem de Antiespumante",
                  })
         {
             Assert.Contains($"Tag=\"{label}\"", internalSection, StringComparison.Ordinal);
@@ -79,14 +84,20 @@ public sealed class ReactorAssetTests
         var externalSection = xaml[externalStart..];
         foreach (var label in new[]
                  {
-                     "Dosagem de Nutrientes",
-                     "Dosagem de Antiespumante",
                      "Vazão de Ar",
+                     "Sensor de Distância",
+                     "Sensor de Biomassa",
                      "Bomba Dosadora Externa",
                  })
         {
             Assert.Contains($"Tag=\"{label}\"", externalSection, StringComparison.Ordinal);
         }
+
+        // Presence is shown for every external node, not only the flowmeter — which was
+        // the one device on this page whose absence an operator could actually see.
+        var chipCount = externalSection.Split("<ctl:ExternalDeviceChips").Length - 1;
+        Assert.Equal(3, chipCount);
+        Assert.Contains("FlowControl.IsFlowmeterOffline", externalSection, StringComparison.Ordinal);
 
         Assert.Contains("<UniformGrid Columns=\"2\">", xaml, StringComparison.Ordinal);
         Assert.Contains("<ScrollViewer Grid.Column=\"0\"", xaml, StringComparison.Ordinal);

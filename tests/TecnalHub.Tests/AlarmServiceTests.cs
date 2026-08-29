@@ -361,6 +361,97 @@ public sealed class AlarmServiceTests
         Assert.True(h.Latched(AlarmId.FlowmeterOffline));
     }
 
+    // ── External-device presence and routing ─────────────────────────────────
+
+    /// <summary>
+    /// Qualified by the Hub's own routing echo, so a device the operator deliberately
+    /// switched off never raises one.
+    /// </summary>
+    [Fact]
+    public void An_absent_external_node_latches_only_while_the_hub_is_routing_to_it()
+    {
+        using var h = new Harness();
+
+        // Routed off: absence is expected, and silent.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = false,
+            BiomassCommEnabled = false,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.False(h.Latched(AlarmId.BiomassOffline));
+
+        // Routed on and not answering: that is a fault.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = false,
+            BiomassCommEnabled = true,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.True(h.Latched(AlarmId.BiomassOffline));
+    }
+
+    /// <summary>
+    /// A Hub that predates the presence keys leaves them null. Guessing either way would be
+    /// wrong, and guessing "absent" would raise a fault on every device at once.
+    /// </summary>
+    [Fact]
+    public void A_hub_without_the_presence_keys_raises_nothing()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(HealthyFrame());
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(5));
+
+        Assert.False(h.Latched(AlarmId.BiomassOffline));
+        Assert.False(h.Latched(AlarmId.ExternalPumpOffline));
+        Assert.False(h.Latched(AlarmId.DistanceSensorOffline));
+        Assert.False(h.Latched(AlarmId.FlaskAgitatorOffline));
+        Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
+
+    /// <summary>
+    /// The Hub persists its routing flags in NVS and the app persists the switches on the
+    /// PC. After a Hub reboot they can differ, and from then on every biomass or pump
+    /// sub-command is dropped by the Hub without any reply at all.
+    /// </summary>
+    [Fact]
+    public void The_hub_and_the_operator_disagreeing_about_routing_is_annunciated()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested("Sensor de biomassa", true);
+
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = false,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(5.1));
+
+        Assert.True(h.Latched(AlarmId.DeviceRoutingMismatch));
+        Assert.Contains("Sensor de biomassa", h.Get(AlarmId.DeviceRoutingMismatch)!.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Agreement_on_routing_raises_nothing()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested("Sensor de biomassa", true);
+
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(5.1));
+
+        Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
+
     [Fact]
     public void Frozen_data_latches_when_telemetry_stops()
     {

@@ -241,6 +241,41 @@ public sealed class ActiveToStateConverter : IValueConverter
 }
 
 /// <summary>
+/// An external device's dot: <c>(isEnabled, isOffline)</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The dot on the four external-device rows used to bind straight to the operator's own
+/// enable checkbox, so it reported their intent back at them and called it hardware state.
+/// This is the correction: the switch decides idle from active, and the Hub's presence
+/// decides whether "active" is a claim the app can actually support.
+/// </para>
+/// <para>
+/// A reported absence outranks the switch. A device the operator has enabled and that is
+/// not answering is an alarm, not an active loop - and it is an alarm whether or not they
+/// remembered to look at the chip beside it.
+/// </para>
+/// </remarks>
+public sealed class ExternalDeviceStateConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var enabled = values.Length > 0 && values[0] is true;
+        var offline = values.Length > 1 && values[1] is true;
+
+        if (offline)
+        {
+            return enabled ? VariableState.Alarm : VariableState.Warning;
+        }
+
+        return enabled ? VariableState.Ok : VariableState.Idle;
+    }
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
 /// Gates a variable's own state on its loop being active: <c>(state, isActive)</c>.
 /// </summary>
 /// <remarks>

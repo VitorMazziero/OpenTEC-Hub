@@ -28,6 +28,30 @@ public enum AlarmId
 
     /// <summary>A recipe block is holding because an external device never confirmed its command.</summary>
     RecipeAwaitingDevice,
+
+    /// <summary>The biomass node stopped answering the Hub while its routing is on.</summary>
+    BiomassOffline,
+
+    /// <summary>The external pump node stopped answering the Hub while its routing is on.</summary>
+    ExternalPumpOffline,
+
+    /// <summary>The level/foam node stopped answering the Hub while its routing is on.</summary>
+    DistanceSensorOffline,
+
+    /// <summary>The flask agitator node stopped answering the Hub.</summary>
+    FlaskAgitatorOffline,
+
+    /// <summary>
+    /// The Hub's routing flag for a device disagrees with the operator's switch.
+    /// </summary>
+    /// <remarks>
+    /// Not a device failure, which is why it is separate from the four above. The Hub
+    /// persists its routing flags in NVS and the app persists the switches on the PC, so a
+    /// Hub reboot can leave them disagreeing — and from then on the Hub drops that device's
+    /// sub-commands in silence. It has to be an alarm rather than a badge alone, because
+    /// nothing else in the app would ever notice.
+    /// </remarks>
+    DeviceRoutingMismatch,
 }
 
 /// <summary>Alarm severity — the colour and the audit level it maps to.</summary>

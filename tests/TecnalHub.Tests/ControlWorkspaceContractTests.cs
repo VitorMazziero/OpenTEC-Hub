@@ -132,7 +132,44 @@ public sealed class ControlWorkspaceContractTests
         // A dot pinned to a state cannot report whether the loop is running.
         Assert.DoesNotContain("<ctl:StateDot Grid.Column=\"1\" State=\"Ok\"", xaml, StringComparison.Ordinal);
         Assert.Equal(5, Count(xaml, "Converter=\"{StaticResource ActiveVariableState}\""));
-        Assert.Equal(7, Count(xaml, "Converter={StaticResource ActiveToState}"));
+
+        // Three rows left on the plain enable-to-state converter: the dosing pumps, which
+        // have no device behind them to be present or absent.
+        Assert.Equal(3, Count(xaml, "Converter={StaticResource ActiveToState}"));
+    }
+
+    /// <summary>
+    /// The four external-device rows bound their dot straight to the operator's own enable
+    /// checkbox, so the page reported their intent back at them and called it hardware
+    /// state. The dot now takes the Hub's presence as well, and a reported absence outranks
+    /// the switch.
+    /// </summary>
+    [Fact]
+    public void External_device_dots_report_the_device_and_not_the_operator_checkbox()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        // Level/foam, external pump, biomass and flask agitator.
+        Assert.Equal(4, Count(xaml, "StaticResource ExternalDeviceState"));
+        Assert.Equal(4, Count(xaml, "Binding Path=\"Status.IsOffline\""));
+
+        // Each of those rows also carries the shared presence/routing chips.
+        Assert.Equal(4, Count(xaml, "<ctl:ExternalDeviceChips"));
+    }
+
+    /// <summary>
+    /// The bench potentiometer outranks the app whenever the Hub has it enabled, so the
+    /// staged percent on the agitator row is not what the motor is holding. That cannot
+    /// live in a tooltip.
+    /// </summary>
+    [Fact]
+    public void The_agitator_row_shows_when_the_potentiometer_holds_the_motor()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        Assert.Contains("Text=\"potenciômetro\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsPotentiometerInControl", xaml, StringComparison.Ordinal);
+        Assert.Contains("Comandado por: {0}", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

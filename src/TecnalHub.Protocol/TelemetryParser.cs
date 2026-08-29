@@ -429,10 +429,18 @@ public sealed class TelemetryParser
             // The Hub stops publishing the four biomass channels once the node's window
             // lapses. Holding the last good sample would leave a ten-minute-old absorbance
             // on screen looking live - the defect this whole change exists to close.
-            Readings.BiomassAbsorbance = SensorReadings.NotReceived;
-            Readings.BiomassRaw = 0;
-            Readings.BiomassIntegrationTimeMs = 0;
-            Readings.BiomassPwmPercent = 0;
+            ClearBiomassReadings();
+            return;
+        }
+
+        // Online with no sample block. The Hub tracks presence and sample freshness on
+        // separate clocks: the node heartbeats while idle, so it stays online after the
+        // operator stops acquisition, but the Hub drops the sample block as soon as the
+        // reading goes stale. On a Hub that publishes presence, that absence is a
+        // statement - "there, not measuring" - and the last absorbance must go with it.
+        if (TryGetPropertyCaseInsensitive(root, TelemetryKeys.BiomassOnline, out _) && !sawValues)
+        {
+            ClearBiomassReadings();
             return;
         }
 
@@ -530,6 +538,14 @@ public sealed class TelemetryParser
         {
             Readings.PumpWaiting = waiting;
         }
+    }
+
+    private void ClearBiomassReadings()
+    {
+        Readings.BiomassAbsorbance = SensorReadings.NotReceived;
+        Readings.BiomassRaw = 0;
+        Readings.BiomassIntegrationTimeMs = 0;
+        Readings.BiomassPwmPercent = 0;
     }
 
     /// <summary>

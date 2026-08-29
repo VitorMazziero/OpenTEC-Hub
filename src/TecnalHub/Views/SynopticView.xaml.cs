@@ -321,6 +321,24 @@ public partial class SynopticView : UserControl
             var line = host.Plot.Add.VerticalLine(cursor);
             line.Color = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);
             line.LineWidth = 1.2f;
+
+            if (viewModel.GetValueAt(spec, cursor) is { } pt)
+            {
+                var marker = host.Plot.Add.Marker(pt.Minutes, pt.Value);
+                marker.Color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue);
+                marker.Size = 7;
+                marker.Shape = MarkerShape.FilledCircle;
+
+                var unitStr = string.IsNullOrWhiteSpace(spec.Unit) ? "" : $" {spec.Unit}";
+                var anno = host.Plot.Add.Annotation($"t: {pt.Minutes:F1} min\n{pt.Value:F2}{unitStr}", Alignment.UpperRight);
+                anno.LabelFontSize = 11;
+                anno.LabelBold = true;
+                anno.LabelFontColor = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
+                anno.LabelBackgroundColor = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White).WithAlpha(0.92f);
+                anno.LabelBorderColor = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.SlateGray);
+                anno.LabelBorderWidth = 1;
+                anno.LabelPadding = 4;
+            }
         }
 
         host.Refresh();
@@ -335,6 +353,7 @@ public partial class SynopticView : UserControl
 
         var coordinates = plot.Plot.GetCoordinates((float)point.X, (float)point.Y);
         viewModel.UpdateCursor(coordinates.X);
+        Redraw();
     }
 
     private void ExportPng_Click(object sender, RoutedEventArgs e)

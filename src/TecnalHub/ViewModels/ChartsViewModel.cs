@@ -157,9 +157,6 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(CursorLabel))]
     public partial bool IsCursorEnabled { get; set; }
 
-    [ObservableProperty]
-    public partial string CursorText { get; set; } = "Cursor desligado";
-
     public string CursorLabel => IsCursorEnabled ? "Cursor ligado" : "Cursor";
 
     public double? CursorMinutes { get; private set; }
@@ -211,6 +208,38 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         return new ChannelSeries(canonical.Minutes, values);
     }
 
+    public (double Minutes, double Value)? GetValueAt(ChartChannelOption option, double minutes)
+    {
+        var series = GetSeries(option, 2000);
+        if (series.Count == 0)
+        {
+            return null;
+        }
+
+        var index = Array.BinarySearch(series.Minutes, minutes);
+        if (index < 0)
+        {
+            index = ~index;
+            if (index >= series.Count)
+            {
+                index = series.Count - 1;
+            }
+            else if (index > 0 &&
+                     Math.Abs(series.Minutes[index - 1] - minutes) < Math.Abs(series.Minutes[index] - minutes))
+            {
+                index--;
+            }
+        }
+
+        var value = series.Values[index];
+        if (double.IsNaN(value))
+        {
+            return null;
+        }
+
+        return (series.Minutes[index], value);
+    }
+
     public void LoadSession(SessionFileData session)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -220,7 +249,6 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         // would suppress redraws, including cursor moves and a second file load.
         IsPaused = false;
         CursorMinutes = null;
-        CursorText = "Cursor desligado";
         OnPropertyChanged(nameof(IsSessionLoaded));
         OnPropertyChanged(nameof(DataSourceText));
         LayoutChanged?.Invoke();
@@ -232,7 +260,6 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         _loadedSession = null;
         IsPaused = false;
         CursorMinutes = null;
-        CursorText = "Cursor desligado";
         OnPropertyChanged(nameof(IsSessionLoaded));
         OnPropertyChanged(nameof(DataSourceText));
         LayoutChanged?.Invoke();
@@ -246,25 +273,6 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         }
 
         CursorMinutes = minutes;
-        var fragments = new List<string> { $"{minutes:F2} min" };
-        AddCursorValue(fragments, LeftChannel, minutes);
-        if (PanelCount >= 2 && RightChannel is { } right)
-        {
-            AddCursorValue(fragments, right, minutes);
-        }
-        if (PanelCount >= 4)
-        {
-            if (BottomLeftChannel is { } bl)
-            {
-                AddCursorValue(fragments, bl, minutes);
-            }
-            if (BottomRightChannel is { } br)
-            {
-                AddCursorValue(fragments, br, minutes);
-            }
-        }
-
-        CursorText = string.Join(" · ", fragments);
         LayoutChanged?.Invoke();
     }
 
@@ -328,7 +336,6 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         if (!IsCursorEnabled)
         {
             CursorMinutes = null;
-            CursorText = "Cursor desligado";
         }
 
         LayoutChanged?.Invoke();
@@ -344,36 +351,6 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             _ => 1,
         };
         LayoutChanged?.Invoke();
-    }
-
-    private void AddCursorValue(List<string> fragments, ChartChannelOption option, double minutes)
-    {
-        var series = GetSeries(option, 2000);
-        if (series.Count == 0)
-        {
-            fragments.Add($"{option.Title}: —");
-            return;
-        }
-
-        var index = Array.BinarySearch(series.Minutes, minutes);
-        if (index < 0)
-        {
-            index = ~index;
-            if (index >= series.Count)
-            {
-                index = series.Count - 1;
-            }
-            else if (index > 0 &&
-                     Math.Abs(series.Minutes[index - 1] - minutes) < Math.Abs(series.Minutes[index] - minutes))
-            {
-                index--;
-            }
-        }
-
-        var value = series.Values[index];
-        fragments.Add(double.IsNaN(value)
-            ? $"{option.Title}: —"
-            : $"{option.Title}: {value:F2} {option.Unit}".TrimEnd());
     }
 
     private void OnSettingsChanged(AppSettings settings)

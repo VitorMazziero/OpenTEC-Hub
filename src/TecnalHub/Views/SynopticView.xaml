@@ -314,10 +314,6 @@
                     <TextBlock Text="{Binding Charts.SampleCountText}" Margin="12,0,0,0"
                                FontSize="11"
                                Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Text="{Binding Charts.CursorText}" Margin="12,0,0,0"
-                               FontSize="11"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Foreground="{DynamicResource AccentBrush}" />
                 </WrapPanel>
 
                 <!-- Left control buttons -->

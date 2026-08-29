@@ -11,6 +11,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="TECNAL-Hub"
+        Icon="pack://application:,,,/Resources/Icons/app_icon.ico"
         Width="1280" Height="800"
         MinWidth="960" MinHeight="640"
         WindowStartupLocation="CenterScreen"

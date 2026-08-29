@@ -20,8 +20,7 @@
     <!-- Trimming is intentionally OFF: WPF + XAML rely on reflection and trimming
          WPF apps is not supported. Do not enable without measuring. -->
     <PublishTrimmed>false</PublishTrimmed>
-    <!-- TODO(branding): drop app_icon.ico into Resources\Icons\ and re-enable.
-         <ApplicationIcon>Resources\Icons\app_icon.ico</ApplicationIcon> -->
+    <ApplicationIcon>Resources\Icons\app_icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,6 +42,7 @@
       <Link>Resources\Images\Logo_Unesp.png</Link>
       <LogicalName>Resources/Images/Logo_Unesp.png</LogicalName>
     </Resource>
+    <Resource Include="Resources\Icons\app_icon.ico" />
   </ItemGroup>
 
   <ItemGroup>

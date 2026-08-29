@@ -138,7 +138,7 @@ public sealed class Wp6DetailTests
         using var vm = new CascadeDetailViewModel(h.Service);
 
         Assert.False(vm.IsRunning);
-        Assert.Contains("parada", vm.StateText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("inativo", vm.StateText, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("—", vm.OutputText);
 
         h.Service.Arm();

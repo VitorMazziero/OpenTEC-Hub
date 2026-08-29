@@ -210,16 +210,16 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 2. Card de Revisão Científica e Aceite (Posicionado Centralmente) -->
+                    <!-- 2. Card de Revisão e Aceite (Posicionado Centralmente) -->
                     <Border Style="{StaticResource KlaCard}" Margin="0,0,0,10" Padding="14,10">
                         <StackPanel>
                             <!-- Header -->
                             <DockPanel Margin="0,0,0,10">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Revisão Científica e Aceite" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
+                                    <TextBlock Text="Revisão e Aceite" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
                                     <CheckBox Content="Aceite Automático" IsChecked="{Binding AutoAcceptRuns}"
                                               FontSize="11.5" Margin="12,0,0,0" VerticalAlignment="Center"
-                                              ToolTip="Calcula a faixa 45%—70% e avança automaticamente a sequência de ensaios" />
+                                              ToolTip="Usa a faixa 45%—70% e avança automaticamente a sequência de ensaios" />
                                 </StackPanel>
                                 <Border DockPanel.Dock="Right" HorizontalAlignment="Right"
                                         Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentBorderBrush}"
@@ -666,9 +666,9 @@
                             </Grid>
 
                             <TextBlock Text="Estabilização no alívio (opcional)" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                            <TextBlock Text="Com o alívio ligado logo após o fluxômetro, o pulso inicial de ar sai para fora e a corrida só começa quando a vazão assenta."
+                            <TextBlock Text="Com o alívio ligado logo após o fluxômetro, o pulso inicial de ar sai para fora e a corrida só começa quando a vazão estabiliza."
                                        Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6" />
-                            <CheckBox Content="Abrir o alívio e esperar a vazão assentar antes de admitir ar no reator"
+                            <CheckBox Content="Abrir o alívio e esperar a vazão estabilizar antes de admitir ar no reator"
                                       IsChecked="{Binding UseVentStabilization}" Margin="0,0,0,8" />
                             <TextBlock Text="A válvula do alívio deve ser diferente da válvula do N₂."
                                        Foreground="{DynamicResource StateAlarmBrush}" FontSize="11" Margin="0,0,0,8"

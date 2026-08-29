@@ -8,17 +8,16 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
-             d:DesignWidth="760" d:DesignHeight="620"
+             d:DesignWidth="1024" d:DesignHeight="700"
              AutomationProperties.Name="Sinóptico operacional do biorreator">
 
-    <!-- Process state remains in native WPF cards; the approved reactor side view is
-         presentation-only and is the sole equipment figure on this page. -->
     <UserControl.Resources>
         <conv:StateToBrushConverter x:Key="StateToBrush" />
         <conv:ActiveToStateConverter x:Key="ActiveToState" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
 
         <DataTemplate x:Key="InstrumentTagTemplate">
-            <Grid>
+            <Grid Margin="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -28,53 +27,45 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <ctl:StateDot Grid.Column="0" Size="7" Margin="0,0,6,0"
+                    <ctl:StateDot Grid.Column="0" Size="7" Margin="0,0,5,0"
                                   VerticalAlignment="Center"
                                   State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" />
                     <TextBlock Grid.Column="1"
-                               Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
-                               FontSize="11" FontWeight="SemiBold"
-                               LineHeight="14" TextWrapping="Wrap" MaxHeight="30"
+                               Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                               FontSize="10" FontWeight="SemiBold"
+                               LineHeight="13" TextWrapping="Wrap" MaxHeight="26"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Grid>
-                <Grid Grid.Row="1" Margin="13,2,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Grid Grid.Row="1" Margin="12,2,0,0">
+                    <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding FormattedValue}"
                                    FontFamily="{DynamicResource FontNumeric}"
-                                   FontSize="18" FontWeight="SemiBold"
+                                   FontSize="15" FontWeight="SemiBold"
                                    Typography.NumeralAlignment="Tabular" />
-                        <TextBlock Text="{Binding Unit}" Margin="4,0,0,2"
-                                   VerticalAlignment="Bottom" FontSize="10"
+                        <TextBlock Text="{Binding Unit}" Margin="3,0,0,2"
+                                   VerticalAlignment="Bottom" FontSize="9"
                                    Foreground="{DynamicResource TextMutedBrush}" />
                     </StackPanel>
                 </Grid>
             </Grid>
         </DataTemplate>
 
-        <!-- Compact, keyboard-accessible instrument card pinned to real hardware. -->
-        <Style x:Key="InstrumentTagStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="72" />
-            <Setter Property="Margin" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
+        <Style x:Key="InstrumentTagStyle" TargetType="ContentControl">
+            <Setter Property="Height" Value="48" />
+            <Setter Property="MinWidth" Value="85" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
             <Setter Property="ContentTemplate" Value="{StaticResource InstrumentTagTemplate}" />
-            <Setter Property="AutomationProperties.HelpText"
-                    Value="Seleciona a variável e abre seus detalhes operacionais" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome"
-                                Background="{TemplateBinding Background}"
+                    <ControlTemplate TargetType="ContentControl">
+                        <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="{StaticResource RadiusSmall}"
@@ -82,25 +73,6 @@
                             <ContentPresenter HorizontalAlignment="Stretch"
                                               VerticalAlignment="Center" />
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background"
-                                        Value="{DynamicResource SurfaceHoverBrush}" />
-                                <Setter TargetName="Chrome" Property="BorderBrush"
-                                        Value="{DynamicResource AccentBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Chrome" Property="Background"
-                                        Value="{DynamicResource SurfaceSelectedBrush}" />
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter TargetName="Chrome" Property="Background"
-                                        Value="{DynamicResource SurfaceSelectedBrush}" />
-                                <Setter TargetName="Chrome" Property="BorderBrush"
-                                        Value="{DynamicResource AccentBrush}" />
-                                <Setter TargetName="Chrome" Property="BorderThickness" Value="2" />
-                            </DataTrigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -114,260 +86,273 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Local process identity remains visible even when the detail pane changes. -->
-        <Border Grid.Row="0" Padding="16,12"
-                Background="{DynamicResource SurfaceCardBrush}"
-                BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="RESUMO DO BIORREATOR"
-                               FontSize="11" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <TextBlock Text="Visão física · leituras e comandos ao vivo"
-                               Margin="0,2,0,0" FontSize="10"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Ellipse Width="8" Height="8" Margin="0,0,6,0"
-                                 VerticalAlignment="Center"
-                                 Fill="{Binding SystemState,
-                                                Converter={StaticResource StateToBrush}}" />
-                        <TextBlock Text="{Binding SystemStateText}"
-                                   FontSize="10" FontWeight="SemiBold" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding LastUpdateText,
-                                              StringFormat='Atualização: {0}'}"
-                               HorizontalAlignment="Right" Margin="0,2,0,0"
-                               FontFamily="{DynamicResource FontNumeric}" FontSize="9"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                </StackPanel>
-            </Grid>
-        </Border>
+        <!-- Horizontal scroll bar with all parameter & external device cards -->
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled"
+                      PreviewMouseWheel="ScrollViewer_PreviewMouseWheel"
+                      Focusable="False"
+                      Padding="8,4,8,6">
+            <StackPanel Orientation="Horizontal">
 
-        <Grid Grid.Row="1" Margin="10,6">
+                <!-- Parâmetros Internos -->
+                <Border Padding="8,6" Margin="0,0,8,0"
+                        Background="{DynamicResource SurfaceSunkenBrush}"
+                        BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource RadiusSmall}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="3,0,0,4">
+                            <TextBlock Text="PARÂMETROS INTERNOS"
+                                       FontSize="9" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text=" · Arraste para o gráfico"
+                                       FontSize="9"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Agitação"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Motor}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a rotação comandada" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Temperatura"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Temperature}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a temperatura" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="pH"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Ph}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize o pH" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Oxigênio"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Oxygen}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize o oxigênio dissolvido" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Alívio de Pressão"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Pressure}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a pressão" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Dosagem de Nutrientes"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Nutrient}" Content="{Binding}"
+                                            ToolTip="Bomba de nutrientes do módulo TECNAL" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Dosagem de Antiespumante"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Antifoam}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize o antiespumante" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Dispositivos Externos -->
+                <Border Padding="8,6"
+                        Background="{DynamicResource SurfaceSunkenBrush}"
+                        BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource RadiusSmall}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="3,0,0,4">
+                            <TextBlock Text="DISPOSITIVOS EXTERNOS"
+                                       FontSize="9" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text=" · Arraste para o gráfico"
+                                       FontSize="9"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Vazão de Ar"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Flow}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a vazão de aeração" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Sensor de Distância"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Level}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a distância/nível" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Sensor de Biomassa"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Biomass}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a absorbância de biomassa" />
+                            <ContentControl Style="{StaticResource InstrumentTagStyle}"
+                                            Tag="Bomba Dosadora Externa"
+                                            MouseMove="Card_MouseMove"
+                                            DataContext="{Binding Pump}" Content="{Binding}"
+                                            ToolTip="Arraste para o gráfico ou visualize a bomba externa" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Main Chart Area (Supports 1, 2, or 4 plots) -->
+        <Grid x:Name="ChartArea" Grid.Row="1" Margin="8,0,8,4">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="TopRow" Height="*" />
+                <RowDefinition x:Name="BottomRow" Height="0" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="350" />
-                <ColumnDefinition Width="18" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="LeftColumn" Width="*" />
+                <ColumnDefinition x:Name="RightColumn" Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Cards keep readable text and hit targets. Only the reactor artwork scales. -->
-            <ScrollViewer Grid.Column="0"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          Focusable="False">
-                <StackPanel>
-                    <Border Padding="7,6,7,7"
-                            Background="{DynamicResource SurfaceSunkenBrush}"
-                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                            BorderThickness="1"
-                            CornerRadius="{StaticResource RadiusSmall}">
-                        <StackPanel>
-                            <!-- Grouped by how the device is actually wired, not by what it
-                                 measures. Everything here is on the module's internal UART; the
-                                 card below is the Wi-Fi nodes behind the Hub. The two were the
-                                 other way round: the biomass and distance sensors are separate
-                                 ESP32s on the Hub's SoftAP, while the nutrient and antifoam
-                                 pumps are inside the TECNAL module. An operator diagnosing a
-                                 dropout has to know which of the two links to look at. -->
-                            <TextBlock Text="PARÂMETROS INTERNOS"
-                                       Margin="3,0,0,4"
-                                       FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <UniformGrid Columns="2">
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="Agitação"
-                                        DataContext="{Binding Motor}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Rotação comandada; sem realimentação de RPM"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="motor" />
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="Temperatura"
-                                        DataContext="{Binding Temperature}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Temperatura do processo e da camisa térmica"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="temperature" />
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="pH"
-                                        DataContext="{Binding Ph}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Sonda de pH"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="ph" />
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="Oxigênio"
-                                        DataContext="{Binding Oxygen}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Sonda de oxigênio dissolvido"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="oxygen" />
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="Alívio de Pressão"
-                                        DataContext="{Binding Pressure}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Alívio e leitura da pressão do headspace"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="pressure" />
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="Dosagem de Nutrientes"
-                                        DataContext="{Binding Nutrient}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Bomba de nutrientes do módulo TECNAL (comando sem realimentação)"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="nutrient" />
-                                <Button Style="{StaticResource InstrumentTagStyle}"
-                                        Tag="Dosagem de Antiespumante"
-                                        DataContext="{Binding Antifoam}" Content="{Binding}"
-                                        AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                        ToolTip="Bomba de antiespumante do módulo TECNAL"
-                                        Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="antifoam" />
-                            </UniformGrid>
-                        </StackPanel>
+            <!-- Plot 1: Top-Left Host & Drop Target -->
+            <Border x:Name="LeftDropTarget" Grid.Row="0" Grid.Column="0"
+                    Margin="0,0,3,3"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1"
+                    AllowDrop="True"
+                    DragEnter="Plot_DragEnter"
+                    DragLeave="Plot_DragLeave"
+                    Drop="Plot_Drop">
+                <Grid>
+                    <Border x:Name="LeftHost" />
+                    <!-- Drag feedback & sub-selection overlay -->
+                    <Border x:Name="LeftOverlay" Visibility="Collapsed"
+                            Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
+                            CornerRadius="{DynamicResource RadiusMedium}">
+                        <ContentPresenter x:Name="LeftOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
+                </Grid>
+            </Border>
 
-                    <Border Margin="0,7,0,0" Padding="7,6,7,7"
-                            Background="{DynamicResource SurfaceSunkenBrush}"
-                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                            BorderThickness="1"
-                            CornerRadius="{StaticResource RadiusSmall}">
-                        <StackPanel>
-                            <TextBlock Text="DISPOSITIVOS EXTERNOS"
-                                       Margin="3,0,0,4"
-                                       FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <!-- Every tile here carries its own presence chips. Only the
-                                 flowmeter used to, which made it the one device on this page
-                                 whose absence an operator could see.
-
-                                 Anchored bottom-right, not top-right: the title is the widest
-                                 thing in these tiles and a two-line one ran straight under an
-                                 overlaid chip. The value row has room precisely when a chip is
-                                 showing, because an absent device's reading is invalidated to
-                                 an em dash. -->
-                            <UniformGrid Columns="2">
-                                <Grid>
-                                    <Button Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Vazão de Ar"
-                                            DataContext="{Binding Flow}" Content="{Binding}"
-                                            AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                            ToolTip="Aeração pelo sparger anular"
-                                            Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="flow" />
-                                    <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                             Margin="0,0,4,4"
-                                                             Status="{Binding FlowControl.Status}" />
-                                </Grid>
-
-                                <Grid>
-                                    <Button Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Sensor de Distância"
-                                            DataContext="{Binding Level}" Content="{Binding}"
-                                            AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                            ToolTip="Sensor de distância usado para nível e espuma"
-                                            Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="level" />
-                                    <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                             Margin="0,0,4,4"
-                                                             Status="{Binding FoamControl.Status}" />
-                                </Grid>
-
-                                <Grid>
-                                    <Button Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Sensor de Biomassa"
-                                            DataContext="{Binding Biomass}" Content="{Binding}"
-                                            AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                            ToolTip="Sensor óptico de biomassa (absorbância)"
-                                            Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="biomass" />
-                                    <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                             Margin="0,0,4,4"
-                                                             Status="{Binding BiomassControl.Status}" />
-                                </Grid>
-
-                                <Grid>
-                                    <Button Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Bomba Dosadora Externa"
-                                            DataContext="{Binding Pump}" Content="{Binding}"
-                                            AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                                            ToolTip="bomba externa em mL/min (vazão informada)"
-                                            Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="pump" />
-                                    <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                             Margin="0,0,4,4"
-                                                             Status="{Binding PumpControl.Status}" />
-                                </Grid>
-                            </UniformGrid>
-                        </StackPanel>
+            <!-- Plot 2: Top-Right Host & Drop Target -->
+            <Border x:Name="RightDropTarget" Grid.Row="0" Grid.Column="1"
+                    Margin="3,0,0,3"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1"
+                    AllowDrop="True"
+                    DragEnter="Plot_DragEnter"
+                    DragLeave="Plot_DragLeave"
+                    Drop="Plot_Drop">
+                <Grid>
+                    <Border x:Name="RightHost" />
+                    <!-- Drag feedback & sub-selection overlay -->
+                    <Border x:Name="RightOverlay" Visibility="Collapsed"
+                            Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
+                            CornerRadius="{DynamicResource RadiusMedium}">
+                        <ContentPresenter x:Name="RightOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                </StackPanel>
-            </ScrollViewer>
+                </Grid>
+            </Border>
 
-            <Viewbox Grid.Column="2" Stretch="Uniform" Margin="0,0,4,0">
-                <Canvas Width="430" Height="470">
-                    <Image x:Name="ReactorRender"
-                           Canvas.Left="5" Canvas.Top="25" Width="420" Height="420"
-                           Source="/TecnalHub;component/Resources/Images/Imagem_biorreator_side.png"
-                           Stretch="Uniform" IsHitTestVisible="False"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           AutomationProperties.Name="Biorreator TECNAL" />
-                </Canvas>
-            </Viewbox>
+            <!-- Plot 3: Bottom-Left Host & Drop Target -->
+            <Border x:Name="BottomLeftDropTarget" Grid.Row="1" Grid.Column="0"
+                    Margin="0,3,3,0"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1"
+                    AllowDrop="True"
+                    DragEnter="Plot_DragEnter"
+                    DragLeave="Plot_DragLeave"
+                    Drop="Plot_Drop">
+                <Grid>
+                    <Border x:Name="BottomLeftHost" />
+                    <!-- Drag feedback & sub-selection overlay -->
+                    <Border x:Name="BottomLeftOverlay" Visibility="Collapsed"
+                            Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
+                            CornerRadius="{DynamicResource RadiusMedium}">
+                        <ContentPresenter x:Name="BottomLeftOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Plot 4: Bottom-Right Host & Drop Target -->
+            <Border x:Name="BottomRightDropTarget" Grid.Row="1" Grid.Column="1"
+                    Margin="3,3,0,0"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1"
+                    AllowDrop="True"
+                    DragEnter="Plot_DragEnter"
+                    DragLeave="Plot_DragLeave"
+                    Drop="Plot_Drop">
+                <Grid>
+                    <Border x:Name="BottomRightHost" />
+                    <!-- Drag feedback & sub-selection overlay -->
+                    <Border x:Name="BottomRightOverlay" Visibility="Collapsed"
+                            Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
+                            CornerRadius="{DynamicResource RadiusMedium}">
+                        <ContentPresenter x:Name="BottomRightOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Grid>
+            </Border>
         </Grid>
 
-        <!-- Honest process legend: the generated equipment carries no live state. -->
-        <Border Grid.Row="2" Padding="14,8"
-                Background="{DynamicResource SurfaceSunkenBrush}"
-                BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
-                               VerticalAlignment="Center"
-                               Fill="{DynamicResource PathInstrumentBrush}" />
-                    <TextBlock Text="Instrumentação" Margin="0,0,12,0"
-                               FontSize="9" Foreground="{DynamicResource TextMutedBrush}" />
-                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
-                               VerticalAlignment="Center"
-                               Fill="{DynamicResource PathGasBrush}" />
-                    <TextBlock Text="Aeração" Margin="0,0,12,0"
-                               FontSize="9" Foreground="{DynamicResource TextMutedBrush}" />
-                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
-                               VerticalAlignment="Center"
-                               Fill="{DynamicResource PathHeatingBrush}" />
-                    <TextBlock Text="Utilidade térmica" Margin="0,0,12,0" FontSize="9"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
-                               VerticalAlignment="Center"
-                               Fill="{DynamicResource PathFeedBrush}" />
-                    <TextBlock Text="Alimentação" Margin="0,0,12,0" FontSize="9"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                    <Rectangle Width="14" Height="2" Margin="0,0,5,0"
-                               VerticalAlignment="Center"
-                               Fill="{DynamicResource PathAntifoamBrush}" />
-                    <TextBlock Text="Antiespuma" FontSize="9"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                </StackPanel>
-                <TextBlock Grid.Column="1" Text="Dispositivos externos são nós Wi-Fi do Hub; os chips mostram ausência e roteamento · agitador de frasco em Controle"
-                           Margin="16,0,0,0" FontSize="9" FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-            </Grid>
+        <!-- Bottom Chart Controls & Status Toolbar (Enclosed Card) -->
+        <Border Grid.Row="2"
+                Margin="8,2,8,6"
+                Padding="10,6"
+                CornerRadius="{DynamicResource RadiusMedium}"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="1">
+            <DockPanel>
+                <!-- Right status info -->
+                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <TextBlock Text="{Binding Charts.DataSourceText}"
+                               FontWeight="SemiBold"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{Binding Charts.SampleCountText}" Margin="12,0,0,0"
+                               FontSize="11"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Text="{Binding Charts.CursorText}" Margin="12,0,0,0"
+                               FontSize="11"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{DynamicResource AccentBrush}" />
+                </WrapPanel>
+
+                <!-- Left control buttons -->
+                <WrapPanel VerticalAlignment="Center">
+                    <Button Content="{Binding Charts.PanelModeLabel}" Margin="0,0,8,0" Padding="8,4"
+                            ToolTip="Alternar exibição entre 1, 2 ou 4 gráficos simultâneos"
+                            Command="{Binding Charts.ToggleSecondPanelCommand}" />
+
+                    <TextBlock Text="Janela:" Style="{StaticResource CaptionTextStyle}"
+                               VerticalAlignment="Center" Margin="6,0,6,0" />
+                    <ComboBox Width="90" Margin="0,0,10,0"
+                              ItemsSource="{Binding Charts.Windows}"
+                              SelectedItem="{Binding Charts.SelectedWindow, Mode=TwoWay}" />
+
+                    <Button Content="{Binding Charts.PauseLabel}" Margin="0,0,6,0"
+                            Command="{Binding Charts.TogglePauseCommand}" />
+
+                    <Button Content="{Binding Charts.CursorLabel}" Margin="0,0,10,0"
+                            Command="{Binding Charts.ToggleCursorCommand}" />
+
+                    <Button Content="Nova Etapa" Margin="0,0,6,0"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding Charts.NewSessionCommand}"
+                            ToolTip="Inicia um novo arquivo de sessão para nova condição de processo e zera a contagem relativa." />
+
+                    <Button Content="Marcar Evento" Margin="0,0,10,0"
+                            Command="{Binding Charts.AnnotateEventCommand}"
+                            ToolTip="Adiciona uma anotação textual no registro de eventos do processo." />
+
+                    <Button Content="Exportar PNG" Margin="0,0,6,0"
+                            Click="ExportPng_Click" />
+                    <Button Content="Exportar CSV" Margin="0,0,6,0"
+                            Click="ExportCsv_Click" />
+
+                    <Button Content="Voltar ao tempo real" Margin="6,0,0,0"
+                            Visibility="{Binding Charts.IsSessionLoaded, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding Charts.ReturnToLiveCommand}" />
+                </WrapPanel>
+            </DockPanel>
         </Border>
     </Grid>
 </UserControl>

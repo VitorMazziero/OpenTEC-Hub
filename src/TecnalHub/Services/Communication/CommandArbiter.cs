@@ -186,6 +186,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
 
         _inner.StateChanged += OnInnerStateChanged;
         _inner.TelemetryReceived += OnInnerTelemetry;
+        _inner.RawTelemetryReceived += OnInnerRawTelemetry;
         _inner.DeviceLogReceived += OnInnerDeviceLog;
         _inner.CommandSent += OnInnerCommandSent;
         _inner.SessionTimeZeroed += OnInnerSessionTimeZeroed;
@@ -487,7 +488,9 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
         StateChanged?.Invoke(change);
     }
 
-    private void OnInnerDeviceLog(string line) => DeviceLogReceived?.Invoke(line);
+    private void OnInnerRawTelemetry(string json) => RawTelemetryReceived?.Invoke(json);
+
+    private void OnInnerDeviceLog(string text) => DeviceLogReceived?.Invoke(text);
 
     private void OnInnerSessionTimeZeroed(double offsetMinutes) => SessionTimeZeroed?.Invoke(offsetMinutes);
 
@@ -504,13 +507,10 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
     public LinkDiagnostics Diagnostics => _inner.Diagnostics;
 
     public event Action<ConnectionStateChange>? StateChanged;
-
     public event Action<SensorSnapshot>? TelemetryReceived;
-
+    public event Action<string>? RawTelemetryReceived;
     public event Action<string>? DeviceLogReceived;
-
     public event Action<string>? CommandSent;
-
     public event Action<double>? SessionTimeZeroed;
 
     public void Connect() => _inner.Connect();

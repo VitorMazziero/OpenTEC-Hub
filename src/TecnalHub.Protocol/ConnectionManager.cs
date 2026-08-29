@@ -179,11 +179,8 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     /// <summary>Raised on every state transition.</summary>
     public event Action<ConnectionStateChange>? StateChanged;
-
-    /// <summary>Raised for each telemetry frame successfully parsed.</summary>
     public event Action<SensorSnapshot>? TelemetryReceived;
-
-    /// <summary>Raised for log lines the device emits (prefixed <c>[ESP32_</c>).</summary>
+    public event Action<string>? RawTelemetryReceived;
     public event Action<string>? DeviceLogReceived;
 
     /// <summary>
@@ -732,6 +729,7 @@ public sealed class ConnectionManager : IAsyncDisposable
                 Interlocked.Increment(ref _framesReceived);
                 _lastFrameAt = DateTimeOffset.Now;
                 TelemetryReceived?.Invoke(_parser.Readings.Snapshot());
+                RawTelemetryReceived?.Invoke(line);
                 break;
 
             case ParseOutcome.DeviceLog:

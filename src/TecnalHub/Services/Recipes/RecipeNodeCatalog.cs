@@ -37,7 +37,7 @@ public static class RecipeNodeCatalog
         new Dictionary<BlockCategory, BlockCategoryInfo>
         {
             [BlockCategory.Flow] = new("Fluxo", SlateHeader),
-            [BlockCategory.Logic] = new("Lógica / Cascata", VioletHeader),
+            [BlockCategory.Logic] = new("Lógica / Controle", VioletHeader),
             [BlockCategory.Triggers] = new("Gatilhos", BlueHeader),
             [BlockCategory.Actions] = new("Ações", OrangeHeader),
             [BlockCategory.Pumps] = new("Bombas", TealHeader),

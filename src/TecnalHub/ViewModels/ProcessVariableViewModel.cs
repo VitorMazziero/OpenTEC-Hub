@@ -196,11 +196,26 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     /// The reading, formatted for display. An em dash when there is nothing to show -
     /// never a zero, which would read as a genuine measurement.
     /// </summary>
-    public string FormattedValue => Value is { } v
-        ? ToDisplay(v).ToString(
-            "F" + Decimals.ToString(CultureInfo.InvariantCulture),
-            CultureInfo.CurrentCulture)
-        : "—";
+    public string FormattedValue
+    {
+        get
+        {
+            if (Value is not { } v)
+            {
+                return "—";
+            }
+
+            // Agitação quando zero apresenta traço, indicando malha inativa
+            if (Channel == TelemetryChannel.MotorRpm && Math.Abs(v) < 1e-6)
+            {
+                return "—";
+            }
+
+            return ToDisplay(v).ToString(
+                "F" + Decimals.ToString(CultureInfo.InvariantCulture),
+                CultureInfo.CurrentCulture);
+        }
+    }
 
     public string FormattedSetpoint => Setpoint is { } s
         ? ToDisplay(s).ToString(

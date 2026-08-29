@@ -182,23 +182,11 @@ public partial class MainWindow : Window
 
     private void ApplyResponsiveLayout()
     {
-        var wide = ActualWidth >= SidePaneMinimumWidth;
-
         if (DataContext is ViewModels.ShellViewModel shell)
         {
             shell.IsRailAffordable = ActualWidth >= VariableRailMinimumWidth;
             shell.IsNavigationCompact = ActualWidth < VariableRailMinimumWidth;
         }
-
-        // The HOSTS are toggled, never the panes inside them. Each host holds both a
-        // controllable and a read-only pane, and which one shows is a data question
-        // answered by a binding - assigning Visibility on those panes from here would
-        // replace the binding with a local value and permanently break it.
-        SideDetailHost.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        DetailColumn.Width = wide ? new GridLength(380) : new GridLength(0);
-
-        DrawerDetailHost.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
-        DrawerRow.Height = wide ? new GridLength(0) : new GridLength(300);
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)

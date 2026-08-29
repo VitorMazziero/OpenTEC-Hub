@@ -34,6 +34,8 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public event Action<SensorSnapshot>? TelemetryReceived;
 
+    public event Action<string>? RawTelemetryReceived;
+
     public event Action<string>? DeviceLogReceived;
 
     public event Action<string>? CommandSent;

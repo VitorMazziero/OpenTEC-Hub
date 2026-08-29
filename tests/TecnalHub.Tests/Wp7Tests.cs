@@ -108,7 +108,7 @@ public sealed class Wp7Tests
         using var journal = new EventJournal(arbiter, arbiter, settings);
         await using var logger = new RecordingSessionLogger();
 
-        using var vm = new EventsViewModel(journal, logger, settings, new RecordingFiles());
+        using var vm = new EventsViewModel(journal, logger, settings, new RecordingFiles(), device);
 
         Assert.Null(vm.SelectedSource.Source);
         Assert.Null(vm.SelectedSeverity.Severity);

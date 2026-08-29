@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Control;
+using TecnalHub.Services.KlaTesting;
 
 namespace TecnalHub.Services.Persistence;
 
@@ -86,6 +87,15 @@ public sealed record AppSettings
 
     /// <summary>Named, operator-saved cascade tunings. Loading one only stages the fields.</summary>
     public CascadeTuningPreset[] CascadeTuningPresets { get; init; } = [];
+
+    /// <summary>Persisted parameters for kLa determination tests.</summary>
+    public KlaTestSettings KlaTest { get; init; } = new();
+
+    /// <summary>Default N2 valve selection for kLa tests.</summary>
+    public NitrogenValve KlaNitrogenValve { get; init; } = NitrogenValve.Valve1;
+
+    /// <summary>Default Vent valve selection for kLa tests.</summary>
+    public NitrogenValve KlaVentValve { get; init; } = NitrogenValve.Valve2;
 
     public UiSettings Ui { get; init; } = new();
 

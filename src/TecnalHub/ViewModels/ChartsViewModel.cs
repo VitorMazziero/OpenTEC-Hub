@@ -90,15 +90,17 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.Biomass, "Biomassa", "Abs", "Series3Brush"),
             new(TelemetryChannel.PumpFlow, "Bomba — vazão", "mL/min", "Series4Brush"),
             new(TelemetryChannel.PumpVolume, "Bomba — volume", "mL", "Series5Brush"),
-            new(TelemetryChannel.CascadeEffort, "Cascata — Saída PID", "%", "Series1Brush"),
-            new(TelemetryChannel.CascadePredictedO2, "Cascata — O₂ Predito", "%", "Series2Brush"),
-            new(TelemetryChannel.CascadeRateSetpoint, "Cascata — SP de Taxa", "%/s", "Series3Brush"),
-            new(TelemetryChannel.CascadeRateMeasured, "Cascata — Taxa Medida", "%/s", "Series4Brush"),
-            new(TelemetryChannel.CascadeKlaDemand, "Cascata — Demanda kLa", "h⁻¹", "Series5Brush"),
+            new(TelemetryChannel.CascadeEffort, "Controle O₂ — Saída PID", "%", "Series1Brush"),
+            new(TelemetryChannel.CascadePredictedO2, "Controle O₂ — O₂ Predito", "%", "Series2Brush"),
+            new(TelemetryChannel.CascadeRateSetpoint, "Controle O₂ — SP de Taxa", "%/s", "Series3Brush"),
+            new(TelemetryChannel.CascadeRateMeasured, "Controle O₂ — Taxa Medida", "%/s", "Series4Brush"),
+            new(TelemetryChannel.CascadeKlaDemand, "Controle O₂ — Demanda kLa", "h⁻¹", "Series5Brush"),
         ];
 
         LeftChannel = Channels[0];
         RightChannel = Channels[1];
+        BottomLeftChannel = Channels[2]; // pH
+        BottomRightChannel = Channels[3]; // Vazão
         ApplyUnits(_units);
         settings.Changed += OnSettingsChanged;
     }
@@ -113,13 +115,34 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     public partial ChartWindow SelectedWindow { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowRightPanel))]
+    [NotifyPropertyChangedFor(nameof(ShowBottomPanels))]
+    [NotifyPropertyChangedFor(nameof(PanelModeLabel))]
+    public partial int PanelCount { get; set; } = 2;
+
+    public bool ShowRightPanel => PanelCount >= 2;
+
+    public bool ShowBottomPanels => PanelCount == 4;
+
+    public string PanelModeLabel => PanelCount switch
+    {
+        1 => "1 Gráfico",
+        2 => "2 Gráficos",
+        4 => "4 Gráficos",
+        _ => "1 / 2 / 4",
+    };
+
+    [ObservableProperty]
     public partial ChartChannelOption LeftChannel { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowRightPanel))]
     public partial ChartChannelOption? RightChannel { get; set; }
 
-    public bool ShowRightPanel => RightChannel is not null;
+    [ObservableProperty]
+    public partial ChartChannelOption? BottomLeftChannel { get; set; }
+
+    [ObservableProperty]
+    public partial ChartChannelOption? BottomRightChannel { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PauseLabel))]
@@ -225,9 +248,20 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         CursorMinutes = minutes;
         var fragments = new List<string> { $"{minutes:F2} min" };
         AddCursorValue(fragments, LeftChannel, minutes);
-        if (RightChannel is { } right)
+        if (PanelCount >= 2 && RightChannel is { } right)
         {
             AddCursorValue(fragments, right, minutes);
+        }
+        if (PanelCount >= 4)
+        {
+            if (BottomLeftChannel is { } bl)
+            {
+                AddCursorValue(fragments, bl, minutes);
+            }
+            if (BottomRightChannel is { } br)
+            {
+                AddCursorValue(fragments, br, minutes);
+            }
         }
 
         CursorText = string.Join(" · ", fragments);
@@ -236,30 +270,48 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
 
     public string BuildCsv()
     {
-        var left = GetSeries(LeftChannel, ExportPointLimit);
-        var rightSeries = RightChannel is { } rightOption
-            ? GetSeries(rightOption, ExportPointLimit)
-            : ChannelSeries.Empty;
-        var length = left.Count;
-        var text = new StringBuilder(Math.Max(256, length * 32));
-
-        text.Append("Time (min),\"").Append(LeftChannel.Title).Append(" (")
-            .Append(LeftChannel.Unit).Append(")\"");
-        if (RightChannel is { } visibleRight)
+        var channelsToExport = new List<ChartChannelOption> { LeftChannel };
+        if (PanelCount >= 2 && RightChannel is not null)
         {
-            text.Append(",\"").Append(visibleRight.Title).Append(" (").Append(visibleRight.Unit).Append(")\"");
+            channelsToExport.Add(RightChannel);
+        }
+        if (PanelCount >= 4)
+        {
+            if (BottomLeftChannel is not null)
+            {
+                channelsToExport.Add(BottomLeftChannel);
+            }
+            if (BottomRightChannel is not null)
+            {
+                channelsToExport.Add(BottomRightChannel);
+            }
         }
 
-        text.AppendLine();
-        for (var i = 0; i < length; i++)
-        {
-            text.Append(left.Minutes[i].ToString("R", CultureInfo.InvariantCulture)).Append(',')
-                .Append(FormatCsvValue(left.Values[i]));
-            if (RightChannel is not null)
-            {
-                text.Append(',').Append(i < rightSeries.Count ? FormatCsvValue(rightSeries.Values[i]) : "");
-            }
+        var seriesList = channelsToExport.Select(c => GetSeries(c, ExportPointLimit)).ToList();
+        var maxLen = seriesList.Count > 0 ? seriesList.Max(s => s.Count) : 0;
+        var timeSeries = seriesList.Count > 0 ? seriesList.First(s => s.Count == maxLen) : ChannelSeries.Empty;
 
+        var text = new StringBuilder(Math.Max(256, maxLen * 32));
+        text.Append("Time (min)");
+        foreach (var c in channelsToExport)
+        {
+            text.Append(",\"").Append(c.Title).Append(" (").Append(c.Unit).Append(")\"");
+        }
+        text.AppendLine();
+
+        for (var i = 0; i < maxLen; i++)
+        {
+            var t = i < timeSeries.Count ? timeSeries.Minutes[i].ToString("R", CultureInfo.InvariantCulture) : "";
+            text.Append(t);
+            for (var col = 0; col < seriesList.Count; col++)
+            {
+                var s = seriesList[col];
+                text.Append(',');
+                if (i < s.Count)
+                {
+                    text.Append(FormatCsvValue(s.Values[i]));
+                }
+            }
             text.AppendLine();
         }
 
@@ -284,9 +336,15 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void ToggleSecondPanel()
-        => RightChannel = RightChannel is null
-            ? Channels.FirstOrDefault(channel => channel != LeftChannel) ?? Channels[1]
-            : null;
+    {
+        PanelCount = PanelCount switch
+        {
+            1 => 2,
+            2 => 4,
+            _ => 1,
+        };
+        LayoutChanged?.Invoke();
+    }
 
     private void AddCursorValue(List<string> fragments, ChartChannelOption option, double minutes)
     {
@@ -341,6 +399,12 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     partial void OnLeftChannelChanged(ChartChannelOption value) => LayoutChanged?.Invoke();
 
     partial void OnRightChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
+
+    partial void OnBottomLeftChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
+
+    partial void OnBottomRightChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
+
+    partial void OnPanelCountChanged(int value) => LayoutChanged?.Invoke();
 
     partial void OnSelectedWindowChanged(ChartWindow value) => LayoutChanged?.Invoke();
 

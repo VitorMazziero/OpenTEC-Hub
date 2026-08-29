@@ -58,7 +58,7 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
 
     public string OwnerText => SelectedMode.Owner switch
     {
-        CommandOwner.Automatic => "Cascata",
+        CommandOwner.Automatic => "Controle O₂",
         CommandOwner.Recipe => "Receita",
         _ => "Operador",
     };
@@ -149,7 +149,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         ICascadeService cascade,
         ReceitasViewModel? receitas = null,
         IKlaProfileStore? klaProfileStore = null,
-        IAlarmService? alarms = null)
+        IAlarmService? alarms = null,
+        ProcessVariableViewModel? phVariable = null,
+        ProcessVariableViewModel? distanceVariable = null,
+        ProcessVariableViewModel? biomassVariable = null)
     {
         if (subsystems.Count != 5)
         {
@@ -162,6 +165,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _cascade = cascade;
         _klaProfileStore = klaProfileStore;
         _alarms = alarms;
+        PHVariable = phVariable;
+        DistanceVariable = distanceVariable;
+        BiomassVariable = biomassVariable;
         FlowControl = flowControl;
         PHControl = phControl;
         NutrientControl = nutrientControl;
@@ -257,6 +263,13 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     public ControlParameterRowViewModel PressureRow => Rows[4];
     public ControlParameterRowViewModel OxygenRow => Rows[2];
     public ControlParameterRowViewModel FlowRow => Rows[3];
+    public bool IsCascadeActive => _cascade.IsEngaged;
+
+    [ObservableProperty]
+    public partial bool IsExpandedTemperature { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpandedOxygen { get; set; }
 
     [ObservableProperty]
     public partial bool IsExpandedPH { get; set; }
@@ -281,6 +294,13 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial bool IsExpandedFlaskAgitator { get; set; }
+
+    public ProcessVariableViewModel TemperatureVariable => TemperatureRow.Subsystem.Variable;
+    public ProcessVariableViewModel OxygenVariable => OxygenRow.Subsystem.Variable;
+    public ProcessVariableViewModel FlowVariable => FlowRow.Subsystem.Variable;
+    public ProcessVariableViewModel? PHVariable { get; }
+    public ProcessVariableViewModel? DistanceVariable { get; }
+    public ProcessVariableViewModel? BiomassVariable { get; }
 
     public FlowControlViewModel FlowControl { get; }
 
@@ -820,7 +840,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
             var setpoints = _settings.Current.Setpoints;
             _cascade.Engage(setpoints.MotorRpm, setpoints.FlowLitresPerMinute);
-            StatusText = "Controle de oxigênio ativado; a cascata assumiu agitação e aeração.";
+            StatusText = "Controle de oxigênio ativado; a malha de O₂ assumiu agitação e aeração.";
         }
         else
         {

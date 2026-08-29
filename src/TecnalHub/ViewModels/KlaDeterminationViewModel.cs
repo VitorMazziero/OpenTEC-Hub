@@ -11,6 +11,7 @@ using TecnalHub.Services.Communication;
 using TecnalHub.Services.Dialogs;
 using TecnalHub.Services.KlaMapping;
 using TecnalHub.Services.KlaTesting;
+using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
 
 namespace TecnalHub.ViewModels;
@@ -188,6 +189,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private readonly IKlaProfileStore _mappingStore;
     private readonly IDialogService _dialogs;
     private readonly IFileInteractionService _files;
+    private readonly ISettingsService _settings;
 
     private bool _disposed;
     private bool _isLoadingSettings;
@@ -199,6 +201,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         IKlaProfileStore mappingStore,
         IDialogService dialogs,
         IFileInteractionService files,
+        ISettingsService settings,
         KlaPlaybackOptions? playbackOptions = null)
     {
         _runner = runner;
@@ -207,6 +210,40 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         _mappingStore = mappingStore;
         _dialogs = dialogs;
         _files = files;
+        _settings = settings;
+
+        _isLoadingSettings = true;
+        try
+        {
+            var klaSettings = settings.Current.KlaTest;
+            SettingDOMin = klaSettings.DOMinPercent;
+            SettingDOMax = klaSettings.DOMaxPercent;
+            SettingDegassingAgitation = klaSettings.DegassingAgitationRpm;
+            SettingSmoothingWindow = klaSettings.SmoothingWindowSize;
+            SettingMaxDegassingMinutes = klaSettings.MaxDegassingTimeMinutes;
+            SettingMaxReoxygenationMinutes = klaSettings.MaxReoxygenationTimeMinutes;
+            SettingPostNitrogenMinimumDelaySeconds = klaSettings.PostNitrogenMinimumDelaySeconds;
+            SettingStabilityDerivativeSpanSeconds = klaSettings.StabilityDerivativeSpanSeconds;
+            SettingStabilityDerivativeThreshold = klaSettings.StabilityDerivativeThresholdPercentPerSecond;
+            SettingStabilityRequiredSamples = klaSettings.StabilityRequiredSamples;
+            SettingMaxPostNitrogenStabilizationSeconds = klaSettings.MaxPostNitrogenStabilizationSeconds;
+            UseVentStabilization = klaSettings.VentStabilizationEnabled;
+            SettingVentAgitationRpm = klaSettings.VentAgitationRpm;
+            SettingVentFlowTolerance = klaSettings.VentFlowToleranceLpm;
+            SettingVentFlowStableSamples = klaSettings.VentFlowStableSamples;
+            SettingMaxVentStabilizationSeconds = klaSettings.MaxVentStabilizationSeconds;
+            SelectedVentValve = settings.Current.KlaVentValve;
+            SelectedN2Valve = settings.Current.KlaNitrogenValve;
+            SettingDefaultCeq = klaSettings.DefaultCeqPercent;
+            AutoAcceptRuns = klaSettings.AutoAcceptRuns;
+            SettingAutoLinearStartPercent = klaSettings.AutoLinearStartPercent;
+            SettingAutoLinearEndPercent = klaSettings.AutoLinearEndPercent;
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
+
         IsSimulationMode = playbackOptions is not null;
         SimulationDescription = playbackOptions is null
             ? ""
@@ -738,6 +775,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         var doc = _store.CreateTest(NewTestName, settings, SelectedN2Valve, mapRef, initialConditions, SelectedVentValve);
+        _settings.Update(s => s with
+        {
+            KlaTest = settings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
         IsCreateDialogOpen = false;
 
         LoadTest(doc.FolderName);
@@ -1231,6 +1274,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         CurrentTest.SelectedVentValve = SelectedVentValve;
         _runner.UpdateLiveSettings(newSettings);
         _store.SaveTestManifest(CurrentTest);
+        _settings.Update(s => s with
+        {
+            KlaTest = newSettings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
         OnPropertyChanged(nameof(DisplayStabilityProgress));
     }
 
@@ -1260,17 +1309,27 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void AutoApplyLiveSettings()
     {
-        if (CurrentTest is null || _isLoadingSettings)
+        if (_isLoadingSettings)
         {
             return;
         }
 
-        if (!TryBuildSettings(out _, out _))
+        if (!TryBuildSettings(out var newSettings, out _))
         {
             return;
         }
 
-        ApplyLiveSettings();
+        _settings.Update(s => s with
+        {
+            KlaTest = newSettings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
+
+        if (CurrentTest is not null)
+        {
+            ApplyLiveSettings();
+        }
     }
 
     partial void OnAutoAcceptRunsChanged(bool value)
@@ -1286,20 +1345,28 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     partial void OnSelectedVentValveChanged(NitrogenValve value)
     {
         OnPropertyChanged(nameof(HasVentValveConflict));
-        if (CurrentTest is not null && !IsRunning && !_isLoadingSettings)
+        if (!_isLoadingSettings)
         {
-            CurrentTest.SelectedVentValve = value;
-            _store.SaveTestManifest(CurrentTest);
+            _settings.Update(s => s with { KlaVentValve = value });
+            if (CurrentTest is not null && !IsRunning)
+            {
+                CurrentTest.SelectedVentValve = value;
+                _store.SaveTestManifest(CurrentTest);
+            }
         }
     }
 
     partial void OnSelectedN2ValveChanged(NitrogenValve value)
     {
         OnPropertyChanged(nameof(HasVentValveConflict));
-        if (CurrentTest is not null && !IsRunning && !_isLoadingSettings)
+        if (!_isLoadingSettings)
         {
-            CurrentTest.SelectedNitrogenValve = value;
-            _store.SaveTestManifest(CurrentTest);
+            _settings.Update(s => s with { KlaNitrogenValve = value });
+            if (CurrentTest is not null && !IsRunning)
+            {
+                CurrentTest.SelectedNitrogenValve = value;
+                _store.SaveTestManifest(CurrentTest);
+            }
         }
     }
 
@@ -1398,11 +1465,17 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void SaveAdvancedSettings()
     {
-        if (!TryBuildSettings(out _, out var error))
+        if (!TryBuildSettings(out var settings, out var error))
         {
             StatusMessage = error;
             return;
         }
+        _settings.Update(s => s with
+        {
+            KlaTest = settings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
         ApplyLiveSettings();
         IsAdvancedSettingsDialogOpen = false;
     }

@@ -189,12 +189,32 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0"
-                           Text="TECNAL-Hub"
-                           VerticalAlignment="Center"
-                           FontFamily="{DynamicResource FontDisplay}"
-                           FontSize="{DynamicResource FontSizeSubtitle}"
-                           FontWeight="SemiBold" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="TECNAL-Hub"
+                               VerticalAlignment="Center"
+                               FontFamily="{DynamicResource FontDisplay}"
+                               FontSize="{DynamicResource FontSizeSubtitle}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="|"
+                               Margin="10,0"
+                               VerticalAlignment="Center"
+                               FontSize="{DynamicResource FontSizeBody}"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="8" Height="8" Margin="0,0,6,0"
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding SystemState, Converter={StaticResource StateToBrush}}" />
+                        <TextBlock Text="{Binding SystemStateText}"
+                                   FontSize="{DynamicResource FontSizeCaption}" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding LastUpdateText, StringFormat=' ({0})'}"
+                                   Margin="4,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource FontNumeric}"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                    </StackPanel>
+                </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -441,6 +461,13 @@
                  ConverterParameter, which is not a DependencyProperty and throws at
                  parse time. -->
             <DockPanel>
+                <DockPanel.Resources>
+                    <CollectionViewSource x:Key="NavItems" Source="{Binding NavigationItems}">
+                        <CollectionViewSource.GroupDescriptions>
+                            <PropertyGroupDescription PropertyName="GroupName" />
+                        </CollectionViewSource.GroupDescriptions>
+                    </CollectionViewSource>
+                </DockPanel.Resources>
 
             <!-- ══ Rail footer: Active Session Name ══ -->
             <Border DockPanel.Dock="Bottom"
@@ -480,12 +507,41 @@
                 </StackPanel>
             </Border>
 
-            <ListBox ItemsSource="{Binding NavigationItems}"
+            <ListBox ItemsSource="{Binding Source={StaticResource NavItems}}"
                      SelectedValuePath="Id"
                      SelectedValue="{Binding SelectedNavigationId, Mode=TwoWay}"
                      Background="Transparent"
                      BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.ContainerStyle>
+                            <Style TargetType="{x:Type GroupItem}">
+                                <Setter Property="Margin" Value="0,0,0,8"/>
+                            </Style>
+                        </GroupStyle.ContainerStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="11" 
+                                           Foreground="{DynamicResource TextMutedBrush}" 
+                                           Margin="12,8,12,4">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.IsNavigationCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ListBox.GroupStyle>
                 <ListBox.Style>
                     <Style TargetType="ListBox">
                         <Setter Property="Margin" Value="8,12" />
@@ -556,9 +612,7 @@
                     <DataTemplate DataType="{x:Type vm:NavigationItem}">
                         <StackPanel Orientation="Horizontal">
                             <ctl:Icon Key="{Binding Glyph}" Size="20"
-                                      Stroke="{Binding
-                                          RelativeSource={RelativeSource AncestorType=ListBoxItem},
-                                          Path=Foreground}" />
+                                      Stroke="{Binding GroupColor}" />
                             <TextBlock Text="{Binding Label}"
                                        Margin="12,0,0,0"
                                        VerticalAlignment="Center"
@@ -755,85 +809,9 @@
 
             <!-- Painel -->
             <Grid Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
-                                       ConverterParameter=dashboard}">
-        <!-- ══ Content: synoptic + detail pane ══
-                 Responsive. At >=1200 px the detail pane sits beside the synoptic so
-                 process context is never lost while tuning. Below that it becomes a
-                 drawer over the diagram - the same ViewModel in a different template,
-                 so behaviour is identical and only presentation changes. -->
-            <Grid x:Name="ContentRoot" Margin="16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="SynopticColumn" Width="*" />
-                    <ColumnDefinition x:Name="DetailColumn" Width="380" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition x:Name="DrawerRow" Height="0" />
-                </Grid.RowDefinitions>
-
-                <Border Grid.Row="0" Grid.Column="0"
-                        CornerRadius="{StaticResource RadiusMedium}"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1">
-                    <views:SynopticView />
-                </Border>
-
-                <!-- Side pane: wide windows.
-                     The HOST is what the responsive switch shows or hides; which of the
-                     two panes appears inside it is a data question, decided by whether
-                     the selected variable has anything to command. Setting Visibility on
-                     the pane itself from code-behind would overwrite the binding with a
-                     local value and it would never bind again. -->
-                <Grid x:Name="SideDetailHost" Grid.Row="0" Grid.Column="1" Margin="16,0,0,0">
-                    <views:DetailPaneView
-                        DataContext="{Binding SelectedSubsystem}"
-                        Visibility="{Binding DataContext.SelectedSubsystem,
-                                     RelativeSource={RelativeSource AncestorType=Window},
-                                     Converter={StaticResource NullToVis}}" />
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Padding="0,0,12,0"
-                                  Visibility="{Binding DataContext.IsPHSelected,
-                                               RelativeSource={RelativeSource AncestorType=Window},
-                                               Converter={StaticResource BoolToVis}}">
-                        <views:PHControlView DataContext="{Binding DataContext.PHControl,
-                                                   RelativeSource={RelativeSource AncestorType=Window}}" />
-                    </ScrollViewer>
-                    <views:ReadOnlyDetailView
-                        DataContext="{Binding SelectedVariable}"
-                        Visibility="{Binding DataContext.ShowReadOnlyDetail,
-                                     RelativeSource={RelativeSource AncestorType=Window},
-                                     Converter={StaticResource BoolToVis}}" />
-                </Grid>
-
-                <!-- Drawer: narrow windows. Same two panes, same rules - the same
-                     ViewModel in a different position, so behaviour is identical and
-                     only presentation changes. -->
-                <Grid x:Name="DrawerDetailHost" Grid.Row="1" Grid.ColumnSpan="2"
-                      Margin="0,12,0,0" Visibility="Collapsed">
-                    <views:DetailPaneView
-                        DataContext="{Binding SelectedSubsystem}"
-                        Visibility="{Binding DataContext.SelectedSubsystem,
-                                     RelativeSource={RelativeSource AncestorType=Window},
-                                     Converter={StaticResource NullToVis}}" />
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Padding="0,0,12,0"
-                                  Visibility="{Binding DataContext.IsPHSelected,
-                                               RelativeSource={RelativeSource AncestorType=Window},
-                                               Converter={StaticResource BoolToVis}}">
-                        <views:PHControlView DataContext="{Binding DataContext.PHControl,
-                                                   RelativeSource={RelativeSource AncestorType=Window}}" />
-                    </ScrollViewer>
-                    <views:ReadOnlyDetailView
-                        DataContext="{Binding SelectedVariable}"
-                        Visibility="{Binding DataContext.ShowReadOnlyDetail,
-                                     RelativeSource={RelativeSource AncestorType=Window},
-                                     Converter={StaticResource BoolToVis}}" />
-                </Grid>
-
-            </Grid>
+                                       ConverterParameter=dashboard}"
+                  Margin="16,4,16,16">
+                <views:SynopticView />
             </Grid>
 
             <!-- Controle -->
@@ -842,13 +820,6 @@
                                                     RelativeSource={RelativeSource AncestorType=Window},
                                                     Converter={StaticResource EqualsToVis},
                                                     ConverterParameter=control}" />
-
-            <!-- Gráficos -->
-            <views:ChartsView DataContext="{Binding Charts}"
-                              Visibility="{Binding DataContext.SelectedNavigationId,
-                                                   RelativeSource={RelativeSource AncestorType=Window},
-                                                   Converter={StaticResource EqualsToVis},
-                                                   ConverterParameter=charts}" />
 
             <!-- Históricos: file inventory and contract preview. The dual graph remains
                  its own dedicated page and receives a selected session on request. -->

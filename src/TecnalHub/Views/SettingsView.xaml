@@ -117,9 +117,15 @@
             </DockPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="0" Grid.Column="1"
-                      VerticalScrollBarVisibility="Auto" Padding="18">
-            <Grid MaxWidth="760" HorizontalAlignment="Left">
+        <Grid Grid.Row="0" Grid.Column="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="520" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer Grid.Column="0"
+                          VerticalScrollBarVisibility="Auto" Padding="18">
+                <Grid HorizontalAlignment="Stretch">
 
                 <!-- Conexão -->
                 <Border Style="{StaticResource Card}"
@@ -410,6 +416,17 @@
                 </Border>
             </Grid>
         </ScrollViewer>
+
+        <Viewbox Grid.Column="1" Stretch="Uniform" Margin="24,18,24,18" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Canvas Width="430" Height="470">
+                <Image Canvas.Left="5" Canvas.Top="25" Width="420" Height="420"
+                       Source="/TecnalHub;component/Resources/Images/Imagem_biorreator_side.png"
+                       Stretch="Uniform" IsHitTestVisible="False"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       AutomationProperties.Name="Biorreator TECNAL" />
+            </Canvas>
+        </Viewbox>
+    </Grid>
 
         <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="16,12"
                 Background="{DynamicResource SurfaceCardBrush}"

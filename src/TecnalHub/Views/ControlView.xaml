@@ -214,13 +214,13 @@
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
                                                         <Setter Property="IsEnabled" Value="False" />
-                                                        <Setter Property="ToolTip" Value="Controle bloqueado pela cascata de oxigênio." />
+                                                        <Setter Property="ToolTip" Value="Controle bloqueado pelo controle de oxigênio." />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBox.Style>
                                     </TextBox>
-                                    <ctl:ProvenanceBadge Text="cascata" Margin="4,0,0,0" Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                    <ctl:ProvenanceBadge Text="controle o₂" Margin="4,0,0,0" Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
@@ -231,7 +231,7 @@
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
                                                     <Setter Property="IsEnabled" Value="False" />
-                                                    <Setter Property="ToolTip" Value="Controlado pela cascata de oxigênio." />
+                                                    <Setter Property="ToolTip" Value="Controlado pelo controle de oxigênio." />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -240,59 +240,88 @@
                             </Grid>
 
                             <!-- 2. Temperatura -->
-                            <Grid Margin="0,4" VerticalAlignment="Center" DataContext="{Binding TemperatureRow}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="28" />
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="270" />
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="160" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="130" />
-                                    <ColumnDefinition Width="60" />
-                                </Grid.ColumnDefinitions>
-                                <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" State="{Binding EffectiveActive, Converter={StaticResource ActiveToState}}" />
-                                <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
-                                        Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ctl:Icon Key="{Binding IconKey}" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="{Binding Subsystem.DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <StackPanel DataContext="{Binding TemperatureRow}">
+                                <Grid Margin="0,4" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="270" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="160" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="60" />
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
+                                                  IsChecked="{Binding DataContext.IsExpandedTemperature, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                                                  ToolTip="Saúde do sensor de temperatura" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" State="{Binding EffectiveActive, Converter={StaticResource ActiveToState}}" />
+                                    <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ctl:Icon Key="{Binding IconKey}" Style="{StaticResource ProcessRowIconStyle}" />
+                                            <TextBlock Text="{Binding Subsystem.DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}" Style="{StaticResource NumericTextStyle}" />
+                                            <TextBlock Text="{Binding Subsystem.Unit}" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </Button>
-                                <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}" Style="{StaticResource NumericTextStyle}" />
-                                        <TextBlock Text="{Binding Subsystem.Unit}" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Subsystem.FormattedAppliedSetpoint}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBox Width="90" VerticalAlignment="Center"
+                                                 Text="{Binding Subsystem.SetpointText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="{Binding Subsystem.ValidationError}">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Subsystem.HasPendingChange}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Subsystem.IsValid}" Value="False">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
                                     </StackPanel>
-                                </StackPanel>
-                                <TextBlock Grid.Column="4" Text="{Binding Subsystem.FormattedAppliedSetpoint}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBox Width="90" VerticalAlignment="Center"
-                                             Text="{Binding Subsystem.SetpointText, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="{Binding Subsystem.ValidationError}">
-                                        <TextBox.Style>
-                                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Subsystem.HasPendingChange}" Value="True">
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
-                                                        <Setter Property="BorderThickness" Value="2" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Subsystem.IsValid}" Value="False">
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
-                                                        <Setter Property="BorderThickness" Value="2" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBox.Style>
-                                    </TextBox>
-                                </StackPanel>
-                                <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
-                                <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                              IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de temperatura" />
-                            </Grid>
+                                    <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                                  IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de temperatura" />
+                                </Grid>
+
+                                <!-- Dropdown Drawer: Temperatura -->
+                                <Border Visibility="{Binding DataContext.IsExpandedTemperature, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource RadiusSmall}"
+                                        Margin="28,4,8,8"
+                                        Padding="14,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Temperatura do Processo" FontWeight="SemiBold" Margin="0,0,0,2" />
+                                            <TextBlock Text="Controle térmico integrado do módulo TECNAL." Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" MinWidth="260">
+                                            <TextBlock Text="Saúde do Sensor" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <ctl:SensorHealthView DataContext="{Binding Subsystem.Variable}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
 
                             <!-- 3. pH (com dropdown) -->
                             <StackPanel DataContext="{Binding PHControl}">
@@ -355,32 +384,52 @@
                                         CornerRadius="{DynamicResource RadiusSmall}"
                                         Margin="28,4,8,8"
                                         Padding="14,10">
-                                    <StackPanel>
-                                        <WrapPanel>
-                                            <StackPanel Width="130" Margin="0,0,12,6">
-                                                <TextBlock Text="Histerese (±)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Text="{Binding InactiveBandText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Banda inativa: 0,01 a 2,00 pH" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Left: pH Parameters -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <WrapPanel>
+                                                <StackPanel Width="130" Margin="0,0,12,6">
+                                                    <TextBlock Text="Histerese (±)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding InactiveBandText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Banda inativa: 0,01 a 2,00 pH" />
+                                                </StackPanel>
+                                                <StackPanel Width="140" Margin="0,0,12,6">
+                                                    <TextBlock Text="Operação da bomba (s)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding OperationSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
+                                                </StackPanel>
+                                                <StackPanel Width="130" Margin="0,0,12,6">
+                                                    <TextBlock Text="Mistura (s)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding MixSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
+                                                </StackPanel>
+                                                <StackPanel Width="130" Margin="0,0,12,6">
+                                                    <TextBlock Text="Intensidade (%)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding PumpSpeedPercentText, UpdateSourceTrigger=PropertyChanged}" ToolTip="0 a 99%" />
+                                                </StackPanel>
+                                                <StackPanel Width="100" Margin="0,0,12,6" VerticalAlignment="Center">
+                                                    <TextBlock Text="Leitura Bruta" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBlock Text="{Binding LiveRawText, StringFormat='Raw: {0}'}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                            </WrapPanel>
+                                            <TextBlock Text="{Binding ValidationError}" Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                                                       Foreground="{DynamicResource StateAlarmTextBrush}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,4,0,0" />
+                                        </StackPanel>
+
+                                        <!-- Right: Calibration & Sensor Health -->
+                                        <StackPanel Grid.Column="1" MinWidth="260">
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Calibração" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,4" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <Button Content="Calibrar pH" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"
+                                                        Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="ph" />
                                             </StackPanel>
-                                            <StackPanel Width="140" Margin="0,0,12,6">
-                                                <TextBlock Text="Operação da bomba (s)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Text="{Binding OperationSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
-                                            </StackPanel>
-                                            <StackPanel Width="130" Margin="0,0,12,6">
-                                                <TextBlock Text="Mistura (s)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Text="{Binding MixSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
-                                            </StackPanel>
-                                            <StackPanel Width="130" Margin="0,0,12,6">
-                                                <TextBlock Text="Intensidade (%)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Text="{Binding PumpSpeedPercentText, UpdateSourceTrigger=PropertyChanged}" ToolTip="0 a 99%" />
-                                            </StackPanel>
-                                            <StackPanel Width="100" Margin="0,0,12,6" VerticalAlignment="Center">
-                                                <TextBlock Text="Leitura Bruta" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBlock Text="{Binding LiveRawText, StringFormat='Raw: {0}'}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
-                                            </StackPanel>
-                                        </WrapPanel>
-                                        <TextBlock Text="{Binding ValidationError}" Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
-                                                   Foreground="{DynamicResource StateAlarmTextBrush}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,4,0,0" />
-                                    </StackPanel>
+                                            <TextBlock Text="Saúde do Sensor" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <ctl:SensorHealthView DataContext="{Binding DataContext.PHVariable, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
                             </StackPanel>
 
@@ -440,59 +489,98 @@
                             </Grid>
 
                             <!-- 5. Oxigênio -->
-                            <Grid Margin="0,4" VerticalAlignment="Center" DataContext="{Binding OxygenRow}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="28" />
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="270" />
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="160" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="130" />
-                                    <ColumnDefinition Width="60" />
-                                </Grid.ColumnDefinitions>
-                                <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" State="{Binding IsCascadeEngaged, Converter={StaticResource ActiveToState}}" />
-                                <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
-                                        Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ctl:Icon Key="{Binding IconKey}" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="{Binding Subsystem.DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}" Style="{StaticResource NumericTextStyle}" />
-                                        <TextBlock Text="{Binding Subsystem.Unit}" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
-                                    </StackPanel>
-                                </StackPanel>
-                                <TextBlock Grid.Column="4" Text="—" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                
-                                <!-- The selector gets the full setpoint column so no mode label is cropped. -->
-                                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                    <ComboBox ItemsSource="{Binding OxygenModeOptions}"
-                                              SelectedItem="{Binding SelectedOxygenMode}"
-                                              IsEnabled="{Binding CanEditOxygenMode}"
-                                              Width="90"
-                                              Height="40"
-                                              ToolTip="Modo: Agitação, Aeração, Cascata ou Mapa"
-                                              VerticalAlignment="Center" />
-                                    <Button Margin="4,0,0,0"
-                                            Padding="4,3"
-                                            Width="40" Height="40"
-                                            ToolTip="Configuração do Controle de Oxigênio"
-                                            Command="{Binding DataContext.OpenOxygenConfigCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                        <ctl:Icon Key="Gear" Size="18" />
+                            <StackPanel DataContext="{Binding OxygenRow}">
+                                <Grid Margin="0,4" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="270" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="160" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="60" />
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
+                                                  IsChecked="{Binding DataContext.IsExpandedOxygen, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                                                  ToolTip="Saúde e calibração do sensor de oxigênio" />
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" State="{Binding IsCascadeEngaged, Converter={StaticResource ActiveToState}}" />
+                                    <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ctl:Icon Key="{Binding IconKey}" Style="{StaticResource ProcessRowIconStyle}" />
+                                            <TextBlock Text="{Binding Subsystem.DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
                                     </Button>
-                                </StackPanel>
-                                
-                                <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
-                                <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                              IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}"
-                                              ToolTip="Ativa o controle automático de oxigênio (cascata)." />
-                            </Grid>
+                                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}" Style="{StaticResource NumericTextStyle}" />
+                                            <TextBlock Text="{Binding Subsystem.Unit}" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="4" Text="—" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    
+                                    <!-- The selector gets the full setpoint column so no mode label is cropped. -->
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <ComboBox ItemsSource="{Binding OxygenModeOptions}"
+                                                  SelectedItem="{Binding SelectedOxygenMode}"
+                                                  IsEnabled="{Binding CanEditOxygenMode}"
+                                                  Width="90"
+                                                  Height="40"
+                                                  ToolTip="Modo: Agitação, Aeração, Cascata ou Mapa"
+                                                  VerticalAlignment="Center" />
+                                        <Button Margin="4,0,0,0"
+                                                Padding="4,3"
+                                                Width="40" Height="40"
+                                                ToolTip="Configuração do Controle de Oxigênio"
+                                                Command="{Binding DataContext.OpenOxygenConfigCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                            <ctl:Icon Key="Gear" Size="18" />
+                                        </Button>
+                                    </StackPanel>
+                                    
+                                    <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                                  IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}"
+                                                  ToolTip="Ativa o controle automático de oxigênio (cascata)." />
+                                </Grid>
+
+                                <!-- Dropdown Drawer: Oxigênio -->
+                                <Border Visibility="{Binding DataContext.IsExpandedOxygen, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource RadiusSmall}"
+                                        Margin="28,4,8,8"
+                                        Padding="14,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Left info -->
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Controle de Oxigênio Dissolvido" FontWeight="SemiBold" Margin="0,0,0,2" />
+                                            <TextBlock Text="Controle em malha fechada via cascata de agitação e aeração." Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+
+                                        <!-- Right: Calibration & Sensor Health -->
+                                        <StackPanel Grid.Column="1" MinWidth="260">
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Calibração" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,4" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <Button Content="Calibrar Oxigênio" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"
+                                                        Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="oxygen" />
+                                            </StackPanel>
+                                            <TextBlock Text="Saúde do Sensor" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <ctl:SensorHealthView DataContext="{Binding Subsystem.Variable}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
 
                             <!-- 6. Dosagem de Nutrientes (com dropdown) -->
                             <StackPanel DataContext="{Binding NutrientControl}">
@@ -775,13 +863,13 @@
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
                                                             <Setter Property="IsEnabled" Value="False" />
-                                                            <Setter Property="ToolTip" Value="Controle bloqueado pela cascata de oxigênio." />
+                                                            <Setter Property="ToolTip" Value="Controle bloqueado pelo controle de oxigênio." />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
-                                        <ctl:ProvenanceBadge Text="cascata" Margin="4,0,0,0" Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                        <ctl:ProvenanceBadge Text="controle o₂" Margin="4,0,0,0" Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
@@ -798,7 +886,7 @@
                                                         <Setter Property="IsEnabled" Value="True" />
                                                     </MultiDataTrigger>
                                                     <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
-                                                        <Setter Property="ToolTip" Value="Controlado pela cascata de oxigênio." />
+                                                        <Setter Property="ToolTip" Value="Controlado pelo controle de oxigênio." />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -813,107 +901,126 @@
                                         BorderThickness="1"
                                         CornerRadius="{DynamicResource RadiusSmall}"
                                         Margin="28,4,8,8"
-                                        Padding="14,10"
-                                        DataContext="{Binding FlowControl}">
+                                        Padding="14,10">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.1*" />
-                                            <ColumnDefinition Width="1.1*" />
-                                            <ColumnDefinition Width="1.5*" />
-                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Válvula auxiliar" FontWeight="SemiBold" />
-                                            <ToggleButton Margin="0,6,0,0" IsChecked="{Binding RequestedValve1, Mode=TwoWay}">
-                                                <ToggleButton.Style>
-                                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
-                                                        <Setter Property="IsEnabled" Value="False" />
-                                                        <Style.Triggers>
-                                                            <MultiDataTrigger>
-                                                                <MultiDataTrigger.Conditions>
-                                                                    <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                                                                    <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
-                                                                </MultiDataTrigger.Conditions>
-                                                                <Setter Property="IsEnabled" Value="True" />
-                                                            </MultiDataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </ToggleButton.Style>
-                                            </ToggleButton>
-                                            <TextBlock Text="{Binding Valve1ActualText, StringFormat='Telemetria: {0}'}"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       Margin="0,4,0,0" />
-                                        </StackPanel>
+                                        <!-- Left: Valves & Flow Configuration -->
+                                        <Grid Grid.Column="0" DataContext="{Binding FlowControl}" Margin="0,0,16,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.1*" />
+                                                <ColumnDefinition Width="1.1*" />
+                                                <ColumnDefinition Width="1.5*" />
+                                                <ColumnDefinition Width="1.1*" />
+                                            </Grid.ColumnDefinitions>
 
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="Válvula de N₂" FontWeight="SemiBold" />
-                                            <ToggleButton Margin="0,6,0,0" IsChecked="{Binding RequestedValve2, Mode=TwoWay}">
-                                                <ToggleButton.Style>
-                                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
-                                                        <Setter Property="IsEnabled" Value="False" />
-                                                        <Style.Triggers>
-                                                            <MultiDataTrigger>
-                                                                <MultiDataTrigger.Conditions>
-                                                                    <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                                                                    <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
-                                                                </MultiDataTrigger.Conditions>
-                                                                <Setter Property="IsEnabled" Value="True" />
-                                                            </MultiDataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </ToggleButton.Style>
-                                            </ToggleButton>
-                                            <TextBlock Text="{Binding Valve2ActualText, StringFormat='Telemetria: {0}'}"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       Margin="0,4,0,0" />
-                                        </StackPanel>
-
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Válvula de fechamento" FontWeight="SemiBold" />
-                                            <ToggleButton Margin="0,6,0,0"
-                                                          IsChecked="{Binding RequestedMainValveClosed, Mode=TwoWay}">
-                                                <ToggleButton.Style>
-                                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
-                                                        <Setter Property="IsEnabled" Value="False" />
-                                                        <Style.Triggers>
-                                                            <MultiDataTrigger>
-                                                                <MultiDataTrigger.Conditions>
-                                                                    <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                                                                    <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
-                                                                </MultiDataTrigger.Conditions>
-                                                                <Setter Property="IsEnabled" Value="True" />
-                                                            </MultiDataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </ToggleButton.Style>
-                                            </ToggleButton>
-                                            <TextBlock Text="{Binding MainValveActualText, StringFormat='Telemetria: {0}'}"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       Margin="0,4,0,0" />
-                                        </StackPanel>
-
-                                        <StackPanel Grid.Column="3">
-                                            <TextBlock Text="maxFlow" FontWeight="SemiBold" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                                <TextBox Width="80"
-                                                         IsEnabled="{Binding CanSendFlowCommands}"
-                                                         Text="{Binding MaxFlowText, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="{Binding ValidationError}" />
-                                                <TextBlock Text="L/min"
-                                                           Margin="6,0,0,0"
-                                                           VerticalAlignment="Center"
-                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Válvula auxiliar" FontWeight="SemiBold" />
+                                                <ToggleButton Margin="0,6,0,0" IsChecked="{Binding RequestedValve1, Mode=TwoWay}">
+                                                    <ToggleButton.Style>
+                                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                                        <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="IsEnabled" Value="True" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ToggleButton.Style>
+                                                </ToggleButton>
+                                                <TextBlock Text="{Binding Valve1ActualText, StringFormat='Telemetria: {0}'}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           Margin="0,4,0,0" />
                                             </StackPanel>
-                                            <TextBlock Text="{Binding DataContext.FlowRequestError, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                       Visibility="{Binding DataContext.FlowRequestError, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToVis}}"
-                                                       Foreground="{DynamicResource StateAlarmTextBrush}"
-                                                       FontSize="{DynamicResource FontSizeCaption}"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,4,0,0" />
+
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Válvula de N₂" FontWeight="SemiBold" />
+                                                <ToggleButton Margin="0,6,0,0" IsChecked="{Binding RequestedValve2, Mode=TwoWay}">
+                                                    <ToggleButton.Style>
+                                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                                        <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="IsEnabled" Value="True" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ToggleButton.Style>
+                                                </ToggleButton>
+                                                <TextBlock Text="{Binding Valve2ActualText, StringFormat='Telemetria: {0}'}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Válvula de fechamento" FontWeight="SemiBold" />
+                                                <ToggleButton Margin="0,6,0,0"
+                                                              IsChecked="{Binding RequestedMainValveClosed, Mode=TwoWay}">
+                                                    <ToggleButton.Style>
+                                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                                        <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="IsEnabled" Value="True" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ToggleButton.Style>
+                                                </ToggleButton>
+                                                <TextBlock Text="{Binding MainValveActualText, StringFormat='Telemetria: {0}'}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="3">
+                                                <TextBlock Text="maxFlow" FontWeight="SemiBold" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                    <TextBox Width="80"
+                                                             IsEnabled="{Binding CanSendFlowCommands}"
+                                                             Text="{Binding MaxFlowText, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="{Binding ValidationError}" />
+                                                    <TextBlock Text="L/min"
+                                                               Margin="6,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding DataContext.FlowRequestError, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                           Visibility="{Binding DataContext.FlowRequestError, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToVis}}"
+                                                           Foreground="{DynamicResource StateAlarmTextBrush}"
+                                                           FontSize="{DynamicResource FontSizeCaption}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Right: Calibration & Sensor Health -->
+                                        <StackPanel Grid.Column="1" MinWidth="260">
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Calibração" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,4" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <Button Content="Calibrar Vazão" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"
+                                                        Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="flow" />
+                                            </StackPanel>
+                                            <TextBlock Text="Saúde do Sensor" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <ctl:SensorHealthView DataContext="{Binding DataContext.FlowVariable, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -1009,32 +1116,46 @@
                                         CornerRadius="{DynamicResource RadiusSmall}"
                                         Margin="28,4,8,8"
                                         Padding="14,10">
-                                    <StackPanel>
-                                        <WrapPanel>
-                                            <StackPanel Width="140" Margin="0,0,12,6">
-                                                <TextBlock Text="Atraso inicial (s)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                         Text="{Binding StartDelaySecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="0 a 3600 s" />
-                                            </StackPanel>
-                                            <StackPanel Width="130" Margin="0,0,12,6">
-                                                <TextBlock Text="Pulso (s)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                         Text="{Binding PulseSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
-                                            </StackPanel>
-                                            <StackPanel Width="130" Margin="0,0,12,6">
-                                                <TextBlock Text="Intervalo (s)" Style="{StaticResource DosingFieldLabel}" />
-                                                <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                         Text="{Binding IntervalSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
-                                            </StackPanel>
-                                        </WrapPanel>
-                                        <TextBlock Text="ℹ O sensor de distância é utilizado como sensor de espuma e utiliza a bomba de nutrientes como atuador de antiespumante para controle da espuma."
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   TextWrapping="Wrap"
-                                                   Margin="0,4,0,0" />
-                                        <TextBlock Text="{Binding ValidationError}" Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
-                                                   Foreground="{DynamicResource StateAlarmTextBrush}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,4,0,0" />
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Left: Distance/Foam controls -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <WrapPanel>
+                                                <StackPanel Width="140" Margin="0,0,12,6">
+                                                    <TextBlock Text="Atraso inicial (s)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                             Text="{Binding StartDelaySecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="0 a 3600 s" />
+                                                </StackPanel>
+                                                <StackPanel Width="130" Margin="0,0,12,6">
+                                                    <TextBlock Text="Pulso (s)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                             Text="{Binding PulseSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
+                                                </StackPanel>
+                                                <StackPanel Width="130" Margin="0,0,12,6">
+                                                    <TextBlock Text="Intervalo (s)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                             Text="{Binding IntervalSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s" />
+                                                </StackPanel>
+                                            </WrapPanel>
+                                            <TextBlock Text="ℹ O sensor de distância é utilizado como sensor de espuma e utiliza a bomba de nutrientes como atuador de antiespumante para controle da espuma."
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0" />
+                                            <TextBlock Text="{Binding ValidationError}" Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                                                       Foreground="{DynamicResource StateAlarmTextBrush}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,4,0,0" />
+                                        </StackPanel>
+
+                                        <!-- Right: Sensor Health -->
+                                        <StackPanel Grid.Column="1" MinWidth="260">
+                                            <TextBlock Text="Saúde do Sensor" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <ctl:SensorHealthView DataContext="{Binding DataContext.DistanceVariable, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
                             </StackPanel>
 
@@ -1238,7 +1359,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                         <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                                        <TextBlock Grid.Column="0" Text="{Binding StatusText}"
                                                    Visibility="{Binding StatusText, Converter={StaticResource NullToVis}}"
                                                    Style="{StaticResource CaptionTextStyle}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
@@ -1286,15 +1407,9 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
-                                            <!-- Trailing spacer: keeps the chip beside the name it
-                                                 describes rather than pinned to the cell's right edge,
-                                                 where it read as though it belonged to Valor Lido. -->
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <ctl:Icon Grid.Column="0" Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <!-- The name yields first. A chip pushed out of a horizontal
-                                             stack would take the device's state with it, and the state
-                                             is the part the operator cannot reconstruct. -->
                                         <TextBlock Grid.Column="1" Text="Sensor de Biomassa" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
@@ -1331,6 +1446,8 @@
                                     <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar o sensor de biomassa" />
                                 </Grid>
+
+                                <!-- Dropdown Drawer: Biomassa -->
                                 <Border Visibility="{Binding DataContext.IsExpandedBiomass, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
                                         Background="{DynamicResource SurfaceHoverBrush}"
                                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -1338,79 +1455,99 @@
                                         CornerRadius="{DynamicResource RadiusSmall}"
                                         Margin="28,4,8,8"
                                         Padding="14,10">
-                                <StackPanel>
-                                    <!-- Live readouts -->
-                                    <WrapPanel>
-                                        <StackPanel Width="110" Margin="0,0,10,10">
-                                            <TextBlock Text="Abs (AU)" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBlock Text="{Binding AbsorbanceText}" Style="{StaticResource NumericTextStyle}" />
-                                        </StackPanel>
-                                        <StackPanel Width="110" Margin="0,0,10,10">
-                                            <TextBlock Text="Raw" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBlock Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" />
-                                        </StackPanel>
-                                        <StackPanel Width="110" Margin="0,0,10,10">
-                                            <TextBlock Text="IT (ms)" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBlock Text="{Binding IntegrationTimeText}" Style="{StaticResource NumericTextStyle}" />
-                                        </StackPanel>
-                                        <StackPanel Width="110" Margin="0,0,10,10">
-                                            <TextBlock Text="PWM (%)" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBlock Text="{Binding PwmText}" Style="{StaticResource NumericTextStyle}" />
-                                        </StackPanel>
-                                    </WrapPanel>
-
-                                    <!-- Momentary actions (enabled only while the sensor is on) -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                        <Button Content="Capturar branco" Command="{Binding BlankCommand}" Margin="0,0,6,0" />
-                                        <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
-                                        <Button Content="Parar" Command="{Binding StopCommand}" />
-                                    </StackPanel>
-
-                                    <!-- Integration thresholds (raw counts), applied atomically -->
-                                    <WrapPanel Margin="0,14,0,0">
-                                        <StackPanel Width="150" Margin="0,0,10,10">
-                                            <TextBlock Text="Limiar baixo" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                     Text="{Binding LowThresholdText, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="Contagens brutas; menor que o alto" />
-                                        </StackPanel>
-                                        <StackPanel Width="150" Margin="0,0,10,10">
-                                            <TextBlock Text="Limiar alto" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                     Text="{Binding HighThresholdText, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="Contagens brutas; maior que o baixo" />
-                                        </StackPanel>
-                                        <StackPanel Width="150" Margin="0,0,10,10">
-                                            <TextBlock Text="Limiar ótimo" Style="{StaticResource DosingFieldLabel}" />
-                                            <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                     Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="Contagens brutas; entre baixo e alto" />
-                                        </StackPanel>
-                                    </WrapPanel>
-                                    <TextBlock Text="{Binding ValidationError}"
-                                               Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
-                                               Foreground="{DynamicResource StateAlarmTextBrush}"
-                                               FontSize="{DynamicResource FontSizeCaption}"
-                                               TextWrapping="Wrap" Margin="0,0,0,8" />
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                         <TextBlock Grid.Column="0" Text="{Binding StatusText}"
-                                                   Visibility="{Binding StatusText, Converter={StaticResource NullToVis}}"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                   TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal"
-                                                    IsEnabled="{Binding Status.IsOnline}">
-                                            <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
-                                            <Button Content="Enviar limiares" Style="{StaticResource AccentButtonStyle}"
-                                                    Command="{Binding ApplyThresholdsCommand}" />
+
+                                        <!-- Left: Biomass settings -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <!-- Live readouts -->
+                                            <WrapPanel>
+                                                <StackPanel Width="110" Margin="0,0,10,10">
+                                                    <TextBlock Text="Abs (AU)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBlock Text="{Binding AbsorbanceText}" Style="{StaticResource NumericTextStyle}" />
+                                                </StackPanel>
+                                                <StackPanel Width="110" Margin="0,0,10,10">
+                                                    <TextBlock Text="Raw" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBlock Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" />
+                                                </StackPanel>
+                                                <StackPanel Width="110" Margin="0,0,10,10">
+                                                    <TextBlock Text="IT (ms)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBlock Text="{Binding IntegrationTimeText}" Style="{StaticResource NumericTextStyle}" />
+                                                </StackPanel>
+                                                <StackPanel Width="110" Margin="0,0,10,10">
+                                                    <TextBlock Text="PWM (%)" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBlock Text="{Binding PwmText}" Style="{StaticResource NumericTextStyle}" />
+                                                </StackPanel>
+                                            </WrapPanel>
+
+                                            <!-- Momentary actions (enabled only while the sensor is on) -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Button Content="Capturar branco" Command="{Binding BlankCommand}" Margin="0,0,6,0" />
+                                                <Button Content="Iniciar" Command="{Binding StartCommand}" Margin="0,0,6,0" />
+                                                <Button Content="Parar" Command="{Binding StopCommand}" />
+                                            </StackPanel>
+
+                                            <!-- Integration thresholds (raw counts), applied atomically -->
+                                            <WrapPanel Margin="0,14,0,0">
+                                                <StackPanel Width="150" Margin="0,0,10,10">
+                                                    <TextBlock Text="Limiar baixo" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                             Text="{Binding LowThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="Contagens brutas; menor que o alto" />
+                                                </StackPanel>
+                                                <StackPanel Width="150" Margin="0,0,10,10">
+                                                    <TextBlock Text="Limiar alto" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                             Text="{Binding HighThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="Contagens brutas; maior que o baixo" />
+                                                </StackPanel>
+                                                <StackPanel Width="150" Margin="0,0,10,10">
+                                                    <TextBlock Text="Limiar ótimo" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                             Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="Contagens brutas; entre baixo e alto" />
+                                                </StackPanel>
+                                            </WrapPanel>
+                                            <TextBlock Text="{Binding ValidationError}"
+                                                       Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                                                       Foreground="{DynamicResource StateAlarmTextBrush}"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       TextWrapping="Wrap" Margin="0,0,0,8" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                                                           Visibility="{Binding StatusText, Converter={StaticResource NullToVis}}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                            IsEnabled="{Binding Status.IsOnline}">
+                                                    <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
+                                                    <Button Content="Enviar limiares" Style="{StaticResource AccentButtonStyle}"
+                                                            Command="{Binding ApplyThresholdsCommand}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- Right: Calibration & Sensor Health -->
+                                        <StackPanel Grid.Column="1" MinWidth="260">
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Calibração" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,4" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <Button Content="Calibrar Biomassa" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"
+                                                        Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="biomass" />
+                                            </StackPanel>
+                                            <TextBlock Text="Saúde do Sensor" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <ctl:SensorHealthView DataContext="{Binding DataContext.BiomassVariable, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                         </StackPanel>
                                     </Grid>
-                                </StackPanel>
-                            </Border>
+                                </Border>
                             </StackPanel>
 
                             <!-- 12. Frasco Agitador -->

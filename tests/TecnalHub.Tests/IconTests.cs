@@ -105,7 +105,7 @@ public sealed class IconTests
         var shell = File.ReadAllText(Path.Combine(
             TestPaths.RepositoryRoot, "src", "TecnalHub", "ViewModels", "ShellViewModel.cs"));
 
-        var glyphs = Regex.Matches(shell, @"new NavigationItem\(""[^""]*"",\s*""[^""]*"",\s*""([^""]*)""\)")
+        var glyphs = Regex.Matches(shell, @"new NavigationItem\(""[^""]*"",\s*""[^""]*"",\s*""([^""]*)""(?:,\s*""[^""]*"")*\)")
             .Select(m => m.Groups[1].Value)
             .ToList();
 

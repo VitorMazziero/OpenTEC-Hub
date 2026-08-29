@@ -74,23 +74,49 @@
             </WrapPanel>
         </Border>
 
-        <Border Grid.Row="1" Margin="0,12,0,0" Padding="8"
-                Background="{DynamicResource SurfaceCardBrush}"
-                BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
-            <ListView x:Name="EventList" ItemsSource="{Binding VisibleEvents}"
-                      SelectedItem="{Binding SelectedEvent, Mode=TwoWay}"
-                      AutomationProperties.Name="Eventos da aplicação">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="Hora" Width="92" DisplayMemberBinding="{Binding TimestampText}" />
-                        <GridViewColumn Header="Fonte" Width="105" DisplayMemberBinding="{Binding SourceLabel}" />
-                        <GridViewColumn Header="Severidade" Width="92" DisplayMemberBinding="{Binding SeverityLabel}" />
-                        <GridViewColumn Header="Mensagem" Width="620" DisplayMemberBinding="{Binding Message}" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
-        </Border>
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Padding="8"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+                <ListView x:Name="EventList" ItemsSource="{Binding VisibleEvents}"
+                          SelectedItem="{Binding SelectedEvent, Mode=TwoWay}"
+                          AutomationProperties.Name="Eventos da aplicação">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Hora" Width="92" DisplayMemberBinding="{Binding TimestampText}" />
+                            <GridViewColumn Header="Fonte" Width="105" DisplayMemberBinding="{Binding SourceLabel}" />
+                            <GridViewColumn Header="Severidade" Width="92" DisplayMemberBinding="{Binding SeverityLabel}" />
+                            <GridViewColumn Header="Mensagem" Width="400" DisplayMemberBinding="{Binding Message}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Border>
+
+            <Border Grid.Column="2" Padding="8"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Dados brutos" FontWeight="SemiBold" Margin="4,0,0,8" />
+                    <ListBox ItemsSource="{Binding RawEvents}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Dados brutos da comunicação">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="{DynamicResource FontMono}" Margin="0,0,0,4" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
 
         <Border Grid.Row="2" Margin="0,10,0,0" Padding="12"
                 Background="{DynamicResource SurfaceSunkenBrush}"

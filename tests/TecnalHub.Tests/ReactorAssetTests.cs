@@ -24,29 +24,16 @@ public sealed class ReactorAssetTests
     }
 
     [Fact]
-    public void Synoptic_uses_only_the_approved_reactor_figure()
+    public void Settings_uses_only_the_approved_reactor_figure()
     {
-        var xaml = File.ReadAllText(Path.Combine(
-            TestPaths.RepositoryRoot, "src", "TecnalHub", "Views", "SynopticView.xaml"));
+        var settingsXaml = File.ReadAllText(Path.Combine(
+            TestPaths.RepositoryRoot, "src", "TecnalHub", "Views", "SettingsView.xaml"));
 
-        Assert.Contains("Imagem_biorreator_side.png", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("reactor-neutral.png", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("reactor-impellers.png", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("VectorFallback", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<Polyline", xaml, StringComparison.Ordinal);
-        Assert.Contains("CommandParameter=\"ph\"", xaml, StringComparison.Ordinal);
-
-        // WP7 dosing tags share the synoptic; the flask agitator deliberately does not,
-        // because it is a separate bench device.
-        Assert.Contains("CommandParameter=\"nutrient\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("CommandParameter=\"antifoam\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("CommandParameter=\"level\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("CommandParameter=\"agitator\"", xaml, StringComparison.Ordinal);
-
-        // Phase 3 sensors on the drawing; the flask agitator stays off it.
-        Assert.Contains("CommandParameter=\"biomass\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("CommandParameter=\"pump\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("bomba externa em mL/min", xaml, StringComparison.Ordinal);
+        Assert.Contains("Imagem_biorreator_side.png", settingsXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("reactor-neutral.png", settingsXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("reactor-impellers.png", settingsXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VectorFallback", settingsXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Polyline", settingsXaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -93,20 +80,11 @@ public sealed class ReactorAssetTests
             Assert.Contains($"Tag=\"{label}\"", externalSection, StringComparison.Ordinal);
         }
 
-        // Presence is shown for every external node, through one shared control. The flowmeter
-        // used to be the only tile with chips at all, and it built them by hand.
-        var chipCount = externalSection.Split("<ctl:ExternalDeviceChips").Length - 1;
-        Assert.Equal(4, chipCount);
-        Assert.Contains("FlowControl.Status", externalSection, StringComparison.Ordinal);
-
-        Assert.Contains("<UniformGrid Columns=\"2\">", xaml, StringComparison.Ordinal);
-        Assert.Contains("<ScrollViewer Grid.Column=\"0\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<Viewbox Grid.Column=\"2\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<Viewbox Grid.Row=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Orientation=\"Horizontal\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", xaml, StringComparison.Ordinal);
         Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"COMANDADO\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<Setter Property=\"MinHeight\" Value=\"72\" />", xaml, StringComparison.Ordinal);
-        Assert.Contains("<ColumnDefinition Width=\"350\" />", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"MinWidth\" Value=\"85\" />", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("CommandParameter=\"agitator\"", xaml, StringComparison.Ordinal);
     }
 

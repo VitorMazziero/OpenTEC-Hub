@@ -31,7 +31,7 @@ public sealed partial class CascadeDetailViewModel : ObservableObject, IDisposab
 
     /// <summary>The one-line state shown at the top of every cascade tab.</summary>
     public string StateText => !_cascade.IsArmed
-        ? "Cascata parada."
+        ? "Controle de O₂ inativo."
         : _cascade.IsEngaged
             ? "Automático ativo · enviando comandos."
             : "Consultiva · calcula, mas não envia.";

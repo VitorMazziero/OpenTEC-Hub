@@ -51,7 +51,7 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("Text=\"Novo Setpoint\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Confira e aplique toda a configuração", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"Parâmetros do processo\"", xaml, StringComparison.Ordinal);
-        Assert.Equal(8, Count(xaml, "Tag=\"ExpanderToggle\""));
+        Assert.Equal(10, Count(xaml, "Tag=\"ExpanderToggle\""));
         Assert.DoesNotContain("ProvenanceBadge Text=\"comandado\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"Aplicar", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("(0 = desligado)", xaml, StringComparison.Ordinal);

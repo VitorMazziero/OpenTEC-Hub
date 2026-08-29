@@ -344,7 +344,7 @@
 
 
             <!-- Biomass blank / threshold procedure (Phase 3 WP1) -->
-            <TabItem Header="Biomassa" Style="{StaticResource SegmentedItemStyle}">
+            <TabItem Header="Sensor de Biomassa" Style="{StaticResource SegmentedItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="0,12,0,0" DataContext="{Binding Biomass}">
                         <Border Background="{DynamicResource SurfaceSunkenBrush}"

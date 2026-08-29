@@ -46,7 +46,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
             _analysisEngine,
             _profileStore,
             _dialogs,
-            new FakeFileInteractionService());
+            new FakeFileInteractionService(),
+            _settings);
     }
 
     public void Dispose()

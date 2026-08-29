@@ -78,6 +78,7 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
 
     public event Action<ConnectionStateChange>? StateChanged;
     public event Action<SensorSnapshot>? TelemetryReceived;
+    public event Action<string>? RawTelemetryReceived;
     public event Action<string>? DeviceLogReceived;
     public event Action<string>? CommandSent;
     public event Action<double>? SessionTimeZeroed;
@@ -250,6 +251,7 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
         _framesReceived++;
         _lastFrameAt = DateTimeOffset.Now;
         TelemetryReceived?.Invoke(Latest);
+        RawTelemetryReceived?.Invoke("{ \"simulated\": true }");
     }
 
     private void SeekNextDescendingSegment()

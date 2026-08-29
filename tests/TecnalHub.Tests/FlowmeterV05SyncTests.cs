@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Control;
@@ -26,7 +26,6 @@ public sealed class FlowmeterV05SyncTests
 
         Assert.Contains("FlowControl.Status", controlXaml, StringComparison.Ordinal);
         Assert.Contains("CanSendFlowCommands", controlXaml, StringComparison.Ordinal);
-        Assert.Contains("FlowControl.Status", panelXaml, StringComparison.Ordinal);
 
         // No hand-built copies left. Qualified by FlowControl on purpose: the bare property
         // names still appear on the rows, where they feed the state dot so it carries the same

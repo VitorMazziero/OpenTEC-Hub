@@ -114,7 +114,7 @@ public static class DispatchRefusal
 
     private static string OwnerLabel(CommandOwner owner) => owner switch
     {
-        CommandOwner.Automatic => "Cascata",
+        CommandOwner.Automatic => "Controle O₂",
         CommandOwner.Recipe => "Receita",
         CommandOwner.KlaAssay => "Ensaio de kLa",
         _ => "Operador",

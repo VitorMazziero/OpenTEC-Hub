@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -63,7 +63,7 @@ public sealed partial class KpiOption : ObservableObject
 /// with a rule and no heading - a heading per group would cost more vertical space than
 /// the grouping saves at four destinations.
 /// </param>
-public sealed record NavigationItem(string Id, string Label, string Glyph, bool StartsGroup = false);
+public sealed record NavigationItem(string Id, string Label, string Glyph, string GroupName, string GroupColor, bool StartsGroup = false);
 
 /// <summary>One searchable page or action exposed by the Ctrl+K palette.</summary>
 public sealed record CommandPaletteEntry(
@@ -277,7 +277,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Control = new ControlViewModel(
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
             biomassControl, pumpControl, device, settings, dialogs, cascade, receitas, klaProfileStore,
-            alarms);
+            alarms,
+            phVariable: Ph,
+            distanceVariable: Level,
+            biomassVariable: Biomass);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 
@@ -286,16 +289,18 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         NavigationItems =
         [
-            new NavigationItem("dashboard", "Painel", "Vessel"),
-            new NavigationItem("control", "Controle", "Sliders"),
-            new NavigationItem("recipes", "Receitas", "NodeGraph"),
-            new NavigationItem("charts", "Gráficos", "Trend", StartsGroup: true),
-            new NavigationItem("history", "Históricos", "Export"),
-            new NavigationItem("events", "Eventos", "EventLog"),
-            new NavigationItem("calibrations", "Calibrações", "Target", StartsGroup: true),
-            new NavigationItem("settings", "Configurações", "Gear"),
-            new NavigationItem("kla-determination", "Determinar kLa", "Target", StartsGroup: true),
-            new NavigationItem("kla-mapping", "Mapeamento kLa", "NodeGraph"),
+            new NavigationItem("dashboard", "Painel", "Vessel", "Controle e Monitoramento", "#81C784"),
+            new NavigationItem("control", "Controle", "Sliders", "Controle e Monitoramento", "#81C784"),
+
+            new NavigationItem("recipes", "Receitas", "NodeGraph", "Automação", "#64B5F6"),
+            new NavigationItem("kla-determination", "Determinar kLa", "Airflow", "Automação", "#64B5F6"),
+            new NavigationItem("kla-mapping", "Mapeamento kLa", "Search", "Automação", "#64B5F6"),
+
+            new NavigationItem("history", "Históricos", "Export", "Dados", "#FFB74D"),
+            new NavigationItem("events", "Eventos", "EventLog", "Dados", "#FFB74D"),
+
+            new NavigationItem("calibrations", "Calibrações", "Target", "Ajustes", "#BA68C8"),
+            new NavigationItem("settings", "Configurações", "Gear", "Ajustes", "#BA68C8"),
         ];
         _commandPaletteCatalog =
         [
@@ -404,6 +409,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>All-setpoints and valve-control page.</summary>
     public ControlViewModel Control { get; }
+
+    /// <summary>True when oxygen control/cascade is engaged on the control page or oxygen subsystem is active.</summary>
+    public bool IsOxygenControlActive => (Control?.IsCascadeActive ?? false) || Oxygen.IsEnabled;
 
     /// <summary>Live cascade state behind the oxygen detail pane's Cascata/PID/Saída tabs.</summary>
     public CascadeDetailViewModel CascadeDetail { get; }
@@ -760,7 +768,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedNavigationId = "dashboard";
     }
 
-    private void OnOpenGraphsRequested() => SelectedNavigationId = "charts";
+    private void OnOpenGraphsRequested() => SelectedNavigationId = "dashboard";
 
     partial void OnSelectedNavigationIdChanged(string value)
     {
@@ -811,7 +819,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     Connection.ReconnectCommand.Execute(null);
                     break;
                 case "charts-pause":
-                    SelectedNavigationId = "charts";
+                    SelectedNavigationId = "dashboard";
                     Charts.TogglePauseCommand.Execute(null);
                     break;
                 case "theme":

@@ -33,6 +33,8 @@ public interface IDeviceService
     /// <summary>Raised on the UI thread for each telemetry frame.</summary>
     event Action<SensorSnapshot>? TelemetryReceived;
 
+    event Action<string>? RawTelemetryReceived;
+
     /// <summary>Raised on the UI thread for device log lines.</summary>
     event Action<string>? DeviceLogReceived;
 
@@ -106,6 +108,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
 
         _manager.StateChanged += OnStateChanged;
         _manager.TelemetryReceived += OnTelemetryReceived;
+        _manager.RawTelemetryReceived += OnRawTelemetryReceived;
         _manager.DeviceLogReceived += OnDeviceLogReceived;
         _manager.CommandSent += OnCommandSent;
         _manager.SessionTimeZeroed += OnSessionTimeZeroed;
@@ -128,6 +131,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     public event Action<ConnectionStateChange>? StateChanged;
 
     public event Action<SensorSnapshot>? TelemetryReceived;
+
+    public event Action<string>? RawTelemetryReceived;
 
     public event Action<string>? DeviceLogReceived;
 
@@ -244,6 +249,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     });
 
     private void OnDeviceLogReceived(string line) => ToUi(() => DeviceLogReceived?.Invoke(line));
+
+    private void OnRawTelemetryReceived(string line) => ToUi(() => RawTelemetryReceived?.Invoke(line));
 
     private void OnCommandSent(string json) => ToUi(() => CommandSent?.Invoke(json));
 

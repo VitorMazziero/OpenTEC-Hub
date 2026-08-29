@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
 using TecnalHub.Services.Platform;
 using TecnalHub.Services.Telemetry;
@@ -59,6 +60,7 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
     private readonly ISessionLogger _sessionLogger;
     private readonly ISettingsService _settings;
     private readonly IFileInteractionService _files;
+    private readonly IDeviceService _device;
     private long _clearedThroughSequence;
     private bool _filtersReady;
 
@@ -68,12 +70,14 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
         IEventJournal journal,
         ISessionLogger sessionLogger,
         ISettingsService settings,
-        IFileInteractionService files)
+        IFileInteractionService files,
+        IDeviceService device)
     {
         _journal = journal;
         _sessionLogger = sessionLogger;
         _settings = settings;
         _files = files;
+        _device = device;
 
         SourceOptions =
         [
@@ -93,6 +97,7 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
 
         journal.EntryAdded += OnEntryAdded;
         sessionLogger.StatusChanged += OnSessionStatusChanged;
+        _device.RawTelemetryReceived += OnRawTelemetryReceived;
         RefreshVisible();
         RefreshSessionStatus();
     }
@@ -102,6 +107,8 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
     public IReadOnlyList<AuditSeverityOption> SeverityOptions { get; }
 
     public ObservableCollection<AuditEventRow> VisibleEvents { get; } = [];
+
+    public ObservableCollection<string> RawEvents { get; } = [];
 
     [ObservableProperty]
     public partial AuditSourceOption SelectedSource { get; set; }
@@ -196,6 +203,7 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
     {
         _clearedThroughSequence = _journal.Snapshot().LastOrDefault()?.Sequence ?? _clearedThroughSequence;
         VisibleEvents.Clear();
+        RawEvents.Clear();
         SelectedEvent = null;
         StatusText = "Visualização limpa; o arquivo de aplicação não foi alterado.";
     }
@@ -265,6 +273,33 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
             if (!IsPaused && entry.Sequence > _clearedThroughSequence && Matches(entry))
             {
                 VisibleEvents.Add(new AuditEventRow(entry));
+            }
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(AddOnUi);
+        }
+        else
+        {
+            AddOnUi();
+        }
+    }
+
+    private void OnRawTelemetryReceived(string line)
+    {
+        void AddOnUi()
+        {
+            if (IsPaused)
+            {
+                return;
+            }
+
+            RawEvents.Add(line);
+            if (RawEvents.Count > 100)
+            {
+                RawEvents.RemoveAt(0);
             }
         }
 
@@ -374,5 +409,6 @@ public sealed partial class EventsViewModel : ObservableObject, IDisposable
     {
         _journal.EntryAdded -= OnEntryAdded;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;
+        _device.RawTelemetryReceived -= OnRawTelemetryReceived;
     }
 }

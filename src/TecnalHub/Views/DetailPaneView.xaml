@@ -227,7 +227,7 @@
                             </StackPanel>
                         </Grid>
                     </TabItem>
-                    <TabItem Header="Cascata"
+                    <TabItem Header="Controle O₂"
                              Visibility="{Binding HasCascade, Converter={StaticResource BoolToVis}}">
                         <StackPanel DataContext="{Binding DataContext.CascadeDetail, RelativeSource={RelativeSource AncestorType=Window}}">
                             <TextBlock Text="{Binding StateText}" TextWrapping="Wrap"

@@ -400,12 +400,12 @@
                         <TextBlock Text="Agem imediatamente e podem destruir o estado de processo. A confirmação mostra o JSON exato antes do envio."
                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,14" />
                         <WrapPanel>
-                            <Button Content="Resetar variáveis do módulo" Margin="0,0,8,0"
+                            <Button Content="Resetar variáveis do módulo" Margin="0,0,8,8"
                                     Command="{Binding ResetDeviceVariablesCommand}" />
-                            <Button Content="Reiniciar comunicações"
+                            <Button Content="Reiniciar comunicações" Margin="0,0,0,8"
                                     Command="{Binding RestartDeviceCommsCommand}" />
                         </WrapPanel>
-                        <Separator Margin="0,18,0,14" />
+                        <Separator Margin="0,10,0,14" />
                         <Button Content="Carregar valores de fábrica para revisão"
                                 HorizontalAlignment="Left"
                                 Command="{Binding RestoreDefaultsCommand}" />

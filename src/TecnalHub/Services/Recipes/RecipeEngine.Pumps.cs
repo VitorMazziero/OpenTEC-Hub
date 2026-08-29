@@ -22,14 +22,6 @@ public sealed partial class RecipeEngine
                 ExecuteNutrientPump(node);
                 break;
 
-            case NodeType.PumpControl:
-                // The external feed pump is WP2's surface (its actuator is not owned on this branch);
-                // record the intent so the recipe reads honestly until WP2 wires the profile modes in.
-                Log(RecipeLogSeverity.Info,
-                    $"Controle da bomba externa (temporizado): {node.Number("tempoLigadoS"):0.##}s ligado / " +
-                    $"{node.Number("tempoDesligadoS"):0.##}s desligado — atuação externa entra na WP2.",
-                    node.Id);
-                break;
         }
     }
 

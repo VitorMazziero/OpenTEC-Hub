@@ -67,6 +67,87 @@ public sealed partial class RecipeEngine
             s => s.FlowControlEnabled,
             ct);
 
+    // ── External Wi-Fi nodes ─────────────────────────────────────────────────
+    //
+    // Every predicate below shares one escape clause: it is satisfied when the Hub has said
+    // nothing at all about the device. Against a Hub built before the presence keys existed,
+    // holding would be a hold on evidence that firmware cannot produce - every one of these
+    // blocks would stall forever and the operator would have to skip each in turn. Absence of
+    // evidence is not evidence of absence here either; the hold is only for a device the Hub
+    // is actively reporting as absent, or one that has not yet echoed what it was told.
+
+    /// <summary>Holds until the Hub echoes the pump routing flag in the requested state.</summary>
+    private Task AwaitPumpRoutingAsync(RecipeNode node, bool enabled, CancellationToken ct)
+        => AwaitDeviceAsync(
+            node,
+            "Bomba externa",
+            enabled
+                ? "o Hub não confirmou o roteamento da bomba como ativo."
+                : "o Hub não confirmou o roteamento da bomba como desligado.",
+            s => s.PumpCommEnabled is not { } routed || routed == enabled,
+            ct);
+
+    /// <summary>
+    /// Holds until the pump node reports it is running the mode that was just sent.
+    /// </summary>
+    /// <remarks>
+    /// <c>PumpMode</c> is the node's own report of what it loaded, not an echo of the frame, so
+    /// this is real evidence the profile arrived and was parsed - the thing a recipe needs before
+    /// it starts timing a feed.
+    /// </remarks>
+    private Task AwaitPumpProfileAsync(RecipeNode node, PumpProfileMode mode, CancellationToken ct)
+        => AwaitDeviceAsync(
+            node,
+            "Bomba externa",
+            $"o perfil enviado não foi confirmado pela bomba (modo {(int)mode}).",
+            s => !s.HasPumpTelemetry || (s.PumpOnline && s.PumpMode == (int)mode),
+            ct);
+
+    /// <summary>Holds until the Hub echoes the biomass routing flag in the requested state.</summary>
+    private Task AwaitBiomassRoutingAsync(RecipeNode node, bool enabled, CancellationToken ct)
+        => AwaitDeviceAsync(
+            node,
+            "Sensor de biomassa",
+            enabled
+                ? "o Hub não confirmou o roteamento do sensor de biomassa como ativo."
+                : "o Hub não confirmou o roteamento do sensor de biomassa como desligado.",
+            s => s.BiomassCommEnabled is not { } routed || routed == enabled,
+            ct);
+
+    /// <summary>
+    /// Holds until a fresh absorbance sample arrives.
+    /// </summary>
+    /// <remarks>
+    /// The only honest confirmation that <c>start</c> took effect. The node publishes nothing at
+    /// all while idle except a liveness beat, and the Hub tracks presence and sample freshness on
+    /// separate clocks - so an arriving sample means the acquisition loop really is running,
+    /// which an online flag alone would not.
+    /// </remarks>
+    private Task AwaitBiomassMeasuringAsync(RecipeNode node, CancellationToken ct)
+        => AwaitDeviceAsync(
+            node,
+            "Sensor de biomassa",
+            "a aquisição não começou: nenhuma leitura de absorbância chegou.",
+            s => !s.HasBiomassTelemetry ||
+                 (s.BiomassOnline && s.BiomassAbsorbance > SensorReadings.NotReceived),
+            ct);
+
+    /// <summary>Holds until the agitator node reports the magnitude it was told to hold.</summary>
+    /// <remarks>
+    /// For a stop the target is zero, and reaching it is exactly what proves the bench
+    /// potentiometer did not take the motor back - which is why the recipe's stop locks the
+    /// potentiometer out rather than leaving the operator's preference in place.
+    /// </remarks>
+    private Task AwaitAgitatorAppliedAsync(RecipeNode node, double targetPercent, CancellationToken ct)
+        => AwaitDeviceAsync(
+            node,
+            "Agitador de frasco",
+            $"o agitador não confirmou {targetPercent:0.#}%.",
+            s => !s.HasAgitatorTelemetry ||
+                 (s.AgitatorOnline &&
+                  Math.Abs(s.AgitatorPercent - targetPercent) <= AgitatorEchoTolerancePercent),
+            ct);
+
     /// <summary>
     /// Holds the strand until <paramref name="confirmed"/> is satisfied by a telemetry frame.
     /// </summary>

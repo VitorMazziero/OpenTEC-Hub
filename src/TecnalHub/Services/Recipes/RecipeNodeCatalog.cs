@@ -1,3 +1,5 @@
+using TecnalHub.Protocol;
+
 namespace TecnalHub.Services.Recipes;
 
 /// <summary>Category presentation: pt-BR heading and header colour (§5.3.6).</summary>
@@ -28,6 +30,7 @@ public static class RecipeNodeCatalog
     private const string BlueHeader = "#3182F6";
     private const string OrangeHeader = "#E89A18";
     private const string TealHeader = "#0E8A8A";
+    private const string CyanHeader = "#1F6FB2";
 
     /// <summary>Category presentation, keyed by category.</summary>
     public static IReadOnlyDictionary<BlockCategory, BlockCategoryInfo> Categories { get; } =
@@ -38,6 +41,7 @@ public static class RecipeNodeCatalog
             [BlockCategory.Triggers] = new("Gatilhos", BlueHeader),
             [BlockCategory.Actions] = new("Ações", OrangeHeader),
             [BlockCategory.Pumps] = new("Bombas", TealHeader),
+            [BlockCategory.ExternalDevices] = new("Dispositivos Externos", CyanHeader),
             [BlockCategory.Utilities] = new("Utilitários", SlateHeader),
         };
 
@@ -167,10 +171,43 @@ public static class RecipeNodeCatalog
         new("Endpoints", "Diferença de extremos"),
     ];
 
-    // The external feed pump's timed mode. Phase 3 WP2 widens this to the five profile modes.
-    private static readonly RecipeOption[] PumpControlModes =
+    private static readonly RecipeOption[] ExternalPumpActions =
     [
-        new("Timed", "Temporizado"),
+        new(nameof(ExternalPumpAction.Enable), "Ativar roteamento"),
+        new(nameof(ExternalPumpAction.SendProfile), "Enviar perfil"),
+        new(nameof(ExternalPumpAction.Stop), "Parar e desativar"),
+    ];
+
+    /// <summary>The five firmware profiles. <c>Idle</c> is absent: it is a stop, not a profile.</summary>
+    private static readonly RecipeOption[] PumpProfileModes =
+    [
+        new(nameof(PumpProfileMode.Constant), "Constante"),
+        new(nameof(PumpProfileMode.Linear), "Linear"),
+        new(nameof(PumpProfileMode.Exponential), "Exponencial"),
+        new(nameof(PumpProfileMode.Polynomial), "Polinomial"),
+        new(nameof(PumpProfileMode.Piecewise), "Segmentos"),
+    ];
+
+    private static readonly RecipeOption[] BiomassActions =
+    [
+        new(nameof(BiomassAction.Enable), "Ativar roteamento"),
+        new(nameof(BiomassAction.Blank), "Capturar branco"),
+        new(nameof(BiomassAction.Start), "Iniciar aquisição"),
+        new(nameof(BiomassAction.Stop), "Parar aquisição"),
+        new(nameof(BiomassAction.Thresholds), "Enviar limiares"),
+        new(nameof(BiomassAction.Disable), "Parar e desativar"),
+    ];
+
+    private static readonly RecipeOption[] FlaskAgitatorActions =
+    [
+        new(nameof(FlaskAgitatorAction.Run), "Acionar"),
+        new(nameof(FlaskAgitatorAction.Stop), "Parar (bloqueia o potenciômetro)"),
+    ];
+
+    private static readonly RecipeOption[] AgitatorDirections =
+    [
+        new(nameof(AgitatorDirection.Clockwise), "Horário"),
+        new(nameof(AgitatorDirection.CounterClockwise), "Anti-horário"),
     ];
 
     private static IReadOnlyList<RecipeNodeDefinition> Build() =>
@@ -354,17 +391,67 @@ public static class RecipeNodeCatalog
                 EnumP("acaoManual", "Ação manual", nameof(PumpManualAction.On), PumpManualActions),
             ],
         },
+        // ── Dispositivos Externos ─────────────────────────────────────────────
+        // The three Wi-Fi nodes behind the Hub. Each of these blocks can hold waiting for its
+        // device to confirm, which is what separates them from the dosing pumps above: those
+        // are inside the module and cannot be absent on their own.
         new()
         {
             Type = NodeType.PumpControl,
-            Title = "Controle da Bomba",
-            Category = BlockCategory.Pumps,
+            Title = "Bomba Externa",
+            Category = BlockCategory.ExternalDevices,
             Ports = InOut,
             Parameters =
             [
-                EnumP("modo", "Modo", "Timed", PumpControlModes),
-                Num("tempoLigadoS", "Tempo ligado", 1, min: 0, max: 3600, unit: "s"),
-                Num("tempoDesligadoS", "Tempo desligado", 1, min: 0, max: 3600, unit: "s"),
+                EnumP("acao", "Ação", nameof(ExternalPumpAction.Enable), ExternalPumpActions),
+                EnumP("modo", "Perfil", nameof(PumpProfileMode.Constant), PumpProfileModes,
+                    visibleWhen: $"acao={nameof(ExternalPumpAction.SendProfile)}"),
+                Num("inicioMin", "Início", 0, min: 0, max: 100000, unit: "min",
+                    visibleWhen: $"acao={nameof(ExternalPumpAction.SendProfile)}"),
+                Num("fimMin", "Fim", 60, min: 0, max: 100000, unit: "min",
+                    visibleWhen: $"acao={nameof(ExternalPumpAction.SendProfile)}"),
+                // λ and φ carry different meanings per mode (see PumpProfileMath), so they are
+                // one pair of fields rather than three near-duplicate pairs.
+                Num("lambda", "λ", 1.0, min: 0, unit: "mL/min",
+                    visibleWhen: $"acao={nameof(ExternalPumpAction.SendProfile)}"),
+                Num("phi", "φ", 0.0,
+                    visibleWhen: $"acao={nameof(ExternalPumpAction.SendProfile)}"),
+                Text("coeficientes", "Coeficientes p0..pN", "1"),
+                Text("tempos", "Tempos dos segmentos (min)", "0, 60"),
+                Text("vazoes", "Vazões dos segmentos (mL/min)", "1, 1"),
+            ],
+        },
+        new()
+        {
+            Type = NodeType.BiomassSensor,
+            Title = "Sensor de Biomassa",
+            Category = BlockCategory.ExternalDevices,
+            Ports = InOut,
+            Parameters =
+            [
+                EnumP("acao", "Ação", nameof(BiomassAction.Enable), BiomassActions),
+                Int("limiarBaixo", "Limiar baixo", 10000, min: 0, max: 200000, unit: "contagens",
+                    visibleWhen: $"acao={nameof(BiomassAction.Thresholds)}"),
+                Int("limiarAlto", "Limiar alto", 40000, min: 0, max: 200000, unit: "contagens",
+                    visibleWhen: $"acao={nameof(BiomassAction.Thresholds)}"),
+                Int("limiarOtimo", "Limiar ótimo", 25000, min: 0, max: 200000, unit: "contagens",
+                    visibleWhen: $"acao={nameof(BiomassAction.Thresholds)}"),
+            ],
+        },
+        new()
+        {
+            Type = NodeType.FlaskAgitator,
+            Title = "Agitador de Frasco",
+            Category = BlockCategory.ExternalDevices,
+            Ports = InOut,
+            Parameters =
+            [
+                EnumP("acao", "Ação", nameof(FlaskAgitatorAction.Run), FlaskAgitatorActions),
+                Num("intensidade", "Intensidade", 50, min: 0, max: 100, unit: "%",
+                    visibleWhen: $"acao={nameof(FlaskAgitatorAction.Run)}"),
+                EnumP("sentido", "Sentido", nameof(AgitatorDirection.Clockwise), AgitatorDirections,
+                    visibleWhen: $"acao={nameof(FlaskAgitatorAction.Run)}"),
+                Bool("automatico", "Modo automático", false),
             ],
         },
 

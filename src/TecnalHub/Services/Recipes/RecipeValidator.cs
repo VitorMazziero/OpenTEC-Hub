@@ -259,8 +259,15 @@ public static class RecipeValidator
                 break;
 
             case NodeType.PumpControl:
-                RequireFinite(node, "tempoLigadoS", "O tempo ligado", findings, allowNegative: false);
-                RequireFinite(node, "tempoDesligadoS", "O tempo desligado", findings, allowNegative: false);
+                ValidateExternalPump(node, findings);
+                break;
+
+            case NodeType.BiomassSensor:
+                ValidateBiomass(node, findings);
+                break;
+
+            case NodeType.FlaskAgitator:
+                ValidateFlaskAgitator(node, findings);
                 break;
 
             case NodeType.CascadeControl:
@@ -449,6 +456,199 @@ public static class RecipeValidator
         {
             findings.Add(Error($"{label} é inválida.", node.Id));
         }
+    }
+
+    /// <summary>
+    /// The external feed pump. Only the selected action's fields are checked, so an operator can
+    /// leave the other modes' values staged in the block without failing validation.
+    /// </summary>
+    private static void ValidateExternalPump(RecipeNode node, List<RecipeFinding> findings)
+    {
+        if (!Enum.TryParse<ExternalPumpAction>(node.Text("acao"), out var action))
+        {
+            findings.Add(Error("Ação da bomba externa desconhecida.", node.Id));
+            return;
+        }
+
+        if (action != ExternalPumpAction.SendProfile)
+        {
+            return;
+        }
+
+        if (!Enum.TryParse<TecnalHub.Protocol.PumpProfileMode>(node.Text("modo"), out var mode) ||
+            mode == TecnalHub.Protocol.PumpProfileMode.Idle)
+        {
+            findings.Add(Error("Perfil da bomba externa desconhecido.", node.Id));
+            return;
+        }
+
+        var init = node.Number("inicioMin");
+        var final = node.Number("fimMin");
+        if (double.IsNaN(init) || double.IsNaN(final) || init < 0 || final < 0)
+        {
+            findings.Add(Error("A janela de operação da bomba é inválida.", node.Id));
+        }
+        else if (final <= init)
+        {
+            findings.Add(Error("O fim da janela da bomba deve ser maior que o início.", node.Id));
+        }
+
+        switch (mode)
+        {
+            case TecnalHub.Protocol.PumpProfileMode.Constant:
+            case TecnalHub.Protocol.PumpProfileMode.Linear:
+            case TecnalHub.Protocol.PumpProfileMode.Exponential:
+                RequireFinite(node, "lambda", "O parâmetro λ", findings, allowNegative: false);
+                if (mode != TecnalHub.Protocol.PumpProfileMode.Constant)
+                {
+                    RequireFinite(node, "phi", "O parâmetro φ", findings, allowNegative: true);
+                }
+
+                break;
+
+            case TecnalHub.Protocol.PumpProfileMode.Polynomial:
+            {
+                // p0..p20 is what the firmware forwards; more coefficients would be dropped
+                // silently and the delivered profile would not be the one on screen.
+                var coefficients = ParseNumberList(node.Text("coeficientes"));
+                if (coefficients.Count is < 1 or > 21)
+                {
+                    findings.Add(Error(
+                        "O perfil polinomial precisa de 1 a 21 coeficientes (p0..p20).", node.Id));
+                }
+
+                break;
+            }
+
+            case TecnalHub.Protocol.PumpProfileMode.Piecewise:
+            {
+                var times = ParseNumberList(node.Text("tempos"));
+                var flows = ParseNumberList(node.Text("vazoes"));
+
+                if (times.Count != flows.Count)
+                {
+                    findings.Add(Error(
+                        "Os segmentos precisam do mesmo número de tempos e de vazões.", node.Id));
+                }
+                else if (times.Count is < 2 or > 100)
+                {
+                    findings.Add(Error("O perfil por segmentos precisa de 2 a 100 pontos.", node.Id));
+                }
+                else
+                {
+                    // Interpolation between two points at the same time is a division by zero, and
+                    // a decreasing series would silently reorder the profile.
+                    for (var i = 1; i < times.Count; i++)
+                    {
+                        if (times[i] <= times[i - 1])
+                        {
+                            findings.Add(Error(
+                                "Os tempos dos segmentos devem ser estritamente crescentes.", node.Id));
+                            break;
+                        }
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+
+    /// <summary>The biomass sensor. Only the threshold action carries values to check.</summary>
+    private static void ValidateBiomass(RecipeNode node, List<RecipeFinding> findings)
+    {
+        if (!Enum.TryParse<BiomassAction>(node.Text("acao"), out var action))
+        {
+            findings.Add(Error("Ação do sensor de biomassa desconhecida.", node.Id));
+            return;
+        }
+
+        if (action != BiomassAction.Thresholds)
+        {
+            return;
+        }
+
+        var low = node.Number("limiarBaixo");
+        var high = node.Number("limiarAlto");
+        var optimal = node.Number("limiarOtimo");
+
+        foreach (var (value, label) in new[]
+                 {
+                     (low, "baixo"), (high, "alto"), (optimal, "ótimo"),
+                 })
+        {
+            if (double.IsNaN(value) || value is < 0 or > 200_000)
+            {
+                findings.Add(Error($"O limiar {label} deve estar entre 0 e 200000 contagens.", node.Id));
+            }
+        }
+
+        // Same ordering the manual card enforces: the integration-time search walks low → optimal
+        // → high, and an out-of-order triple makes the node's gear selection meaningless.
+        if (low >= high)
+        {
+            findings.Add(Error("O limiar baixo deve ser menor que o alto.", node.Id));
+        }
+        else if (optimal <= low || optimal >= high)
+        {
+            findings.Add(Error("O limiar ótimo deve ficar entre o baixo e o alto.", node.Id));
+        }
+    }
+
+    private static void ValidateFlaskAgitator(RecipeNode node, List<RecipeFinding> findings)
+    {
+        if (!Enum.TryParse<FlaskAgitatorAction>(node.Text("acao"), out var action))
+        {
+            findings.Add(Error("Ação do agitador de frasco desconhecida.", node.Id));
+            return;
+        }
+
+        if (action != FlaskAgitatorAction.Run)
+        {
+            return;
+        }
+
+        var magnitude = node.Number("intensidade");
+        if (double.IsNaN(magnitude) || magnitude is < 0 or > 100)
+        {
+            findings.Add(Error("A intensidade do agitador deve estar entre 0 e 100%.", node.Id));
+        }
+
+        if (!Enum.TryParse<AgitatorDirection>(node.Text("sentido"), out _))
+        {
+            findings.Add(Error("Sentido do agitador desconhecido.", node.Id));
+        }
+    }
+
+    /// <summary>
+    /// Reads a comma or semicolon separated numeric list, matching the engine's parser.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the same acceptance as <c>RecipeEngine.ParseList</c>: a validator that is
+    /// stricter than the engine passes recipes the engine then mangles, and one that is looser
+    /// blocks recipes that would have run.
+    /// </remarks>
+    private static IReadOnlyList<double> ParseNumberList(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        List<double> values = [];
+        foreach (var part in text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (double.TryParse(
+                    part.Trim().Replace(',', '.'),
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var value))
+            {
+                values.Add(value);
+            }
+        }
+
+        return values;
     }
 
     private static RecipeFinding Error(string message, string? nodeId = null)

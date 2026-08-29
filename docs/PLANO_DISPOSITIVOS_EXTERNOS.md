@@ -513,11 +513,11 @@ conexão como diagnóstico de rádio.
 Cada etapa é um commit num branch dedicado, com testes verdes, conforme
 [CONVENTIONS.md](CONVENTIONS.md).
 
-> **Estado em 2026-08-29: etapas 0 a 3 e 5 concluídas em código** (`dotnet test -c Release`:
-> 627 aprovados, 1 ignorado — o teste de tema hospedado de sempre; `dotnet build`: 0 avisos,
+> **Estado em 2026-08-29: todas as etapas concluídas em código** (`dotnet test -c Release`:
+> 641 aprovados, 1 ignorado — o teste de tema hospedado de sempre; `dotnet build`: 0 avisos,
 > 0 erros). Os firmwares estão escritos e aguardam gravação; ver
-> [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](FIRMWARE_DISPOSITIVOS_EXTERNOS.md). A etapa 4 não se
-> aplica na forma escrita — ver abaixo.
+> [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](FIRMWARE_DISPOSITIVOS_EXTERNOS.md). Falta a passagem visual
+> da etapa 3 e os recibos de bancada.
 
 **Etapa 0 — contrato e testes que falham. ✅ concluída.** Atualizar `PROTOCOL.md` com a seção 1.2 deste
 documento (matriz real do Hub v8, incluindo `Servo*`, `Pump*` completo e as flags novas).
@@ -575,12 +575,19 @@ pelo `ExternalDeviceStateConverter`, e o Painel foi reagrupado por topologia.
 
 Falta: captura de tela em tema claro e escuro, 1280×720 e 125 %.
 
-**Etapa 4 — receitas. ❌ não se aplica como escrita.** O plano pressupunha blocos de receita
-para esses dispositivos. Eles não existem: `RecipeNodeCatalog` cobre bomba de pH, antiespumante,
-vazão, oxigênio e motor, e **nenhum** bloco atua biomassa, bomba externa ou agitador de frasco.
-`AwaitDeviceAsync` já é genérico e continua pronto; os predicados entram junto com os blocos, se
-e quando eles forem criados. Criar blocos de receita para três dispositivos é uma adição de
-funcionalidade, não parte de padronizar a comunicação.
+**Etapa 4 — receitas. ✅ concluída, com os blocos que faltavam.** O plano pressupunha blocos que
+não existiam. Eles agora existem, numa categoria nova **Dispositivos Externos**:
+
+- **Bomba Externa** — era `Controle da Bomba`, um marcador que registrava a intenção e não enviava
+  nada, escrito enquanto a atuação da WP2 estava pendente. Agora envia os cinco perfis pelo mesmo
+  `PumpProfileMath.BuildCommand` do card manual, e a parada usa os dois quadros ordenados.
+- **Sensor de Biomassa** — ativar, branco, iniciar, parar, limiares e parar-e-desativar.
+- **Agitador de Frasco** — acionar com intensidade e sentido, ou parar.
+
+Os predicados de `AwaitDeviceAsync` entraram junto. Todos compartilham uma cláusula de escape: são
+satisfeitos quando o Hub **não disse nada** sobre o dispositivo, porque contra um Hub anterior às
+chaves de presença segurar seria segurar por evidência que aquele firmware não produz. Ver
+[DECISIONS D-030](DECISIONS.md).
 
 **Etapa 5 — firmware 4.2. ✅ escrita; aguarda gravação.** Deixou de ser opcional: a caixa
 revisionada entrou no Hub como `ReliableMailbox` e nos três nós como `cmd_id` idempotente mais

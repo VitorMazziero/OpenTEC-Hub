@@ -160,15 +160,20 @@ public sealed class ReceitasViewModelTests
         Assert.Contains(Tab(vm).Nodes, n => n.Type == NodeType.End);
     }
 
+    /// <summary>
+    /// Start and End are placed by the canvas when a recipe is created, so dragging a second one
+    /// in would produce a document the validator rejects. Everything else is authorable —
+    /// including the external pump, which was excluded only while it was a placeholder.
+    /// </summary>
     [Fact]
-    public void Library_does_not_contain_start_end_or_pump_control_blocks()
+    public void Library_does_not_contain_start_or_end_blocks()
     {
         var vm = Build();
         var allLibraryTypes = vm.Library.SelectMany(g => g.Items).Select(i => i.Type).ToList();
 
         Assert.DoesNotContain(NodeType.Start, allLibraryTypes);
         Assert.DoesNotContain(NodeType.End, allLibraryTypes);
-        Assert.DoesNotContain(NodeType.PumpControl, allLibraryTypes);
+        Assert.Contains(NodeType.PumpControl, allLibraryTypes);
     }
 
     [Fact]
@@ -185,12 +190,42 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
-    public void Library_covers_all_sixteen_authorable_blocks_in_five_categories()
+    public void Library_covers_every_authorable_block_grouped_by_category()
     {
         var vm = Build();
 
-        Assert.Equal(5, vm.Library.Count);
-        Assert.Equal(16, vm.Library.Sum(g => g.Items.Count));
+        // Six groups: Flow drops out because Start and End are placed by the canvas rather than
+        // dragged, so it has no authorable member. Dispositivos Externos is the sixth.
+        Assert.Equal(6, vm.Library.Count);
+        Assert.Equal(Enum.GetValues<NodeType>().Length - 2, vm.Library.Sum(g => g.Items.Count));
+
+        var external = vm.Library.Single(g => g.Label == "Dispositivos Externos");
+        Assert.Equal(
+            [NodeType.PumpControl, NodeType.BiomassSensor, NodeType.FlaskAgitator],
+            external.Items.Select(i => i.Type));
+    }
+
+    /// <summary>
+    /// The external-device blocks select an action and then show only that action's fields. Listing
+    /// every field on the card would not merely be noisy — it would read as though all of them were
+    /// in effect, which for a pump block means five profiles at once.
+    /// </summary>
+    [Fact]
+    public void An_external_device_block_summarises_only_the_fields_its_action_uses()
+    {
+        var vm = Build();
+        vm.AddBlockCommand.Execute(NodeType.PumpControl);
+        var node = Tab(vm).Nodes.First(n => n.Type == NodeType.PumpControl);
+
+        // Default action is Enable, which uses no profile fields at all.
+        Assert.Contains("Ativar roteamento", node.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("λ", node.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("Segmentos", node.Summary, StringComparison.Ordinal);
+
+        node.Fields.First(f => f.Key == "acao").TextValue = nameof(ExternalPumpAction.SendProfile);
+
+        Assert.Contains("λ", node.Summary, StringComparison.Ordinal);
+        Assert.Contains("Perfil", node.Summary, StringComparison.Ordinal);
     }
 
     [Fact]

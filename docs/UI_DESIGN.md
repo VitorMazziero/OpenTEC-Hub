@@ -1043,7 +1043,8 @@ ESP32-S3 protocol**. Nineteen block types in six categories.
 | **Lógica / Cascata** | violet `#8B3CC2` | Sincronizar (E) · Qualquer (OU) · Controle Cascata O₂ |
 | **Gatilhos** | blue `#3182F6` | Temporizador · Monitorar Variável · Intervenção Manual |
 | **Ações** | orange `#E89A18` | Definir Ponto de Ajuste · Múltiplos Pontos de Ajuste · Controle de Malha · Múltiplos Controles |
-| **Bombas** | teal `#0E8A8A` | Bomba pH · Bomba Antiespuma · Bomba Nutrientes · Controle da Bomba |
+| **Bombas** | teal `#0E8A8A` | Bomba pH · Bomba Antiespuma · Bomba Nutrientes |
+| **Dispositivos Externos** | cyan `#1F6FB2` | Bomba Externa · Sensor de Biomassa · Agitador de Frasco |
 | **Utilitários** | slate `#596575` | Aquisição de Dados · Registrar Evento · Zerar Variáveis |
 
 `Fim` keeps a **green** header `#3AA75B` as the single exception — successful termination
@@ -1068,7 +1069,9 @@ Full parameter inventory:
 | **Bomba pH** | in, out | `Bomba alvo ▾` `Ácido`/`Base` · `Operação ▾` · `Intensidade %` 0-100 · `Tempo ligada (s)` · `Tempo desligada (s)` · `Ação manual ▾` `Ligar`/`Desligar` | Maps to `pHOperation`, `pHMix`, `pHIntensity` |
 | **Bomba Antiespuma** | in, out | `Operação ▾` · `Intensidade %` · `Tempo ligada` · `Tempo desligada` · `Ação manual ▾` | Maps to `antifoamOperation`, `antifoamMix`, `antifoamIntensity`. Renamed from "Bomba Espuma" — it dispenses antifoam |
 | **Bomba Nutrientes** | in, out | `Operação ▾` · `Tempo dosagem ligada` · `Tempo dosagem desligada` · `Volume a dosar` · `Ação manual ▾` | Maps to `nutriOperation`, `nutriMix`, `nutriOpCycle`, `nutriMixCycle`, `nutriIntensity`. Cycle-only; the v2.x `Dosagem` mode was removed upstream |
-| **Controle da Bomba** | in, out | `Modo ▾` `Temporizado` · `Tempo ligado` · `Tempo desligado` | Phase 3 widens this to the external pump's five profile modes |
+| **Bomba Externa** | in, out | `Ação ▾` `Ativar roteamento / Enviar perfil / Parar e desativar` · `Perfil ▾` · janela `Início`/`Fim` · `λ` `φ` · coeficientes · segmentos | Só os campos da ação selecionada aparecem. Segura até a bomba reportar o modo que recebeu |
+| **Sensor de Biomassa** | in, out | `Ação ▾` `Ativar / Branco / Iniciar / Parar / Limiares / Parar e desativar` · limiares baixo/alto/ótimo | Iniciar segura até chegar uma absorbância. O branco não é confirmável — siga-o com um temporizador |
+| **Agitador de Frasco** | in, out | `Ação ▾` `Acionar / Parar` · `Intensidade` · `Sentido ▾` · `Modo automático` | Parar bloqueia o potenciômetro de bancada, senão a parada não para |
 | **Aquisição de Dados** | in, out | `Modo ▾` `Tempo definido`/`Finalização manual` · `Duração` · `Unidade ▾` | Marks a labelled acquisition window in the session log |
 | **Registrar Evento** | in, out | `Mensagem` | Writes to Eventos ([5.6](#56-eventos)) |
 | **Zerar Variáveis** | in, out | — | **Re-targeted.** Was `Zerar Acumulador` writing Modbus register 20; becomes `resetVariables:1`. **Confirms before running**, because it destroys module process state |

@@ -478,8 +478,11 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
             .Select(category => new BlockLibraryGroup(
                 RecipeNodeCatalog.Categories[category].Label,
                 RecipeNodeCatalog.Categories[category].HeaderColor,
+                // Start and End are placed by the canvas, not dragged from the library. PumpControl
+                // used to be excluded too, because it was a placeholder that only logged an
+                // intent; it now drives the real profile frames, so it belongs in the palette.
                 [.. RecipeNodeCatalog.All
-                    .Where(d => d.Category == category && d.Type is not (NodeType.Start or NodeType.End or NodeType.PumpControl))
+                    .Where(d => d.Category == category && d.Type is not (NodeType.Start or NodeType.End))
                     .Select(d => new BlockLibraryItem(d.Type, d.Title, RecipeNodeCatalog.HeaderColor(d.Type)))]))
             .Where(g => g.Items.Count > 0)];
 

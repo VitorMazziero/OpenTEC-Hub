@@ -46,6 +46,16 @@ All notable changes to TECNAL-Hub. Version numbers follow
   divergente no Hub`. Os quatro primeiros são qualificados pelo eco de roteamento do Hub, então
   um dispositivo desligado de propósito não gera alarme; um Hub que não publica as chaves novas
   não gera nenhum, em vez de reportar todos como falhos.
+- **Três blocos de receita para os dispositivos externos**, numa categoria nova
+  *Dispositivos Externos*. **Bomba Externa** substitui o antigo *Controle da Bomba*, que era um
+  marcador: registrava a intenção e não enviava nada, porque foi escrito enquanto a atuação da
+  bomba ainda não existia. Agora envia os cinco perfis pelo mesmo construtor do card manual.
+  **Sensor de Biomassa** e **Agitador de Frasco** são novos. Cada bloco despacha e então segura
+  até o dispositivo confirmar, com as saídas *pular bloco* e *parar receita* de sempre — e todos
+  prosseguem quando o Hub não diz nada sobre aquele dispositivo, para não travar contra um Hub
+  ainda não regravado. A parada do agitador numa receita bloqueia o potenciômetro de bancada,
+  ao contrário do *Desligar* manual: uma parada que um botão desfaz não é uma parada.
+  [DECISIONS D-030](DECISIONS.md).
 - **Painel reagrupado por topologia.** Os sensores de biomassa e distância — nós Wi-Fi
   independentes — estavam em *Parâmetros Internos*, e as bombas de nutriente e antiespumante —
   que ficam dentro do módulo TECNAL, na UART interna — estavam em *Dispositivos Externos*. Um

@@ -817,6 +817,48 @@ owner-aware safe stop are unchanged and still open.
 
 ---
 
+### D-030 · Os três dispositivos externos ganham blocos de receita que esperam confirmação
+
+**Decisão.** `Bomba Externa` (o antigo `Controle da Bomba`, que era um marcador), `Sensor de
+Biomassa` e `Agitador de Frasco` são blocos de receita numa categoria nova, **Dispositivos
+Externos**, separada de **Bombas**. Cada um despacha e então **segura** até o dispositivo
+confirmar, pelo mesmo `AwaitDeviceAsync` que o fluxômetro já usava.
+
+**Por quê.** O bloco da bomba externa registrava a intenção e não enviava nada — foi escrito
+enquanto a atuação da WP2 ainda não existia. Agora existe, e uma receita que alimenta um cultivo
+precisa poder acionar a bomba. A categoria separada não é cosmética: estes três são ESP32s
+independentes no SoftAP do Hub e podem sumir sozinhos, enquanto as bombas de dosagem ficam dentro
+do módulo e não podem — um bloco que pode segurar esperando um dispositivo pertence ao lado dos
+outros que também podem.
+
+**Consequências.**
+
+- **O silêncio prossegue.** Todo predicado é satisfeito quando o Hub não disse nada sobre o
+  dispositivo. Contra um Hub anterior às chaves de presença, segurar seria segurar por evidência
+  que aquele firmware não produz: os blocos travariam todos e o operador teria de pular um a um.
+- **A parada do agitador numa receita bloqueia o potenciômetro** (`agitatorReEnablePot:0`), ao
+  contrário do **Desligar** manual, que respeita a preferência do operador. Uma parada de receita
+  precisa ser determinística: com o potenciômetro ativo o nó relê o botão no ciclo seguinte, a
+  parada não para, e o bloco ficaria preso esperando um zero que nunca chega.
+- **As duas sequências de desligamento são dois quadros ordenados**, como no caminho manual, por
+  meio de `DispatchRecipeSeparateFrame`. O Hub descarta o sub-comando de um dispositivo assim que
+  o flag de roteamento é limpo, então parar e desativar no mesmo quadro não para nada.
+- **O branco da biomassa não é confirmável** e o bloco não segura: o nó varre por ~15 s e não
+  publica nada que distinga uma referência nova da anterior. O bloco diz isso no log e sugere um
+  temporizador.
+- **Iniciar a aquisição espera uma absorbância**, não o flag de online. Com os dois relógios do
+  Hub, "online" só diz que o nó responde; uma amostra chegando é o que prova que o laço de
+  aquisição está rodando.
+- O resumo do bloco no canvas passa a respeitar `VisibleWhen`. Listar os campos de todos os cinco
+  perfis leria como se todos estivessem em vigor.
+
+**Rejeitado.** Um bloco por ação (multiplicaria a paleta por seis sem ganho); segurar sempre até
+`*Online` ser verdadeiro (trava contra Hub antigo, e para a biomassa é circular — ela só publica
+depois do `start` que ficaria bloqueado); e manter a preferência do potenciômetro na parada de
+receita (uma parada que um botão desfaz não é uma parada).
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

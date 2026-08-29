@@ -386,9 +386,12 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
                 return HeaderHeight + 12 + lineCount * 18 + 32;
             }
 
-            if (Type is NodeType.PhPump or NodeType.AntifoamPump or NodeType.NutrientPump or NodeType.PumpControl)
+            if (Type is NodeType.PhPump or NodeType.AntifoamPump or NodeType.NutrientPump
+                     or NodeType.PumpControl or NodeType.BiomassSensor or NodeType.FlaskAgitator)
             {
-                var lineCount = Math.Max(1, Model.Definition.Parameters.Count);
+                // Counts only what the summary will actually print, or a mode-selecting block
+                // would reserve height for every mode's fields and sit half empty.
+                var lineCount = Math.Max(1, Model.Definition.Parameters.Count(p => IsParameterActive(Model, p)));
                 return HeaderHeight + 12 + lineCount * 18 + 32;
             }
 
@@ -938,10 +941,31 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         NodeType.AntifoamPump => FormatPump(Model),
         NodeType.NutrientPump => FormatPump(Model),
         NodeType.PumpControl => FormatPump(Model),
+        NodeType.BiomassSensor => FormatPump(Model),
+        NodeType.FlaskAgitator => FormatPump(Model),
         NodeType.MultiSetpoint => FormatMultiSetpoint(Model),
         NodeType.MultiLoop => FormatMultiLoop(Model),
         _ => Model.Definition.Title,
     };
+
+    /// <summary>
+    /// Whether a parameter's <c>VisibleWhen</c> guard is satisfied by the node's current values.
+    /// </summary>
+    /// <remarks>
+    /// Evaluated from the model rather than from <see cref="Fields"/> so it holds before the field
+    /// view-models exist — the summary and the node height are both computed during construction.
+    /// Kept in step with <c>RecipeFieldViewModel.EvaluateVisibility</c>.
+    /// </remarks>
+    private static bool IsParameterActive(RecipeNode node, RecipeParameter parameter)
+    {
+        if (parameter.VisibleWhen is not { } guard)
+        {
+            return true;
+        }
+
+        var parts = guard.Split('=', 2);
+        return parts.Length != 2 || node.Text(parts[0]) == parts[1];
+    }
 
     private static string FormatCascade(RecipeNode node)
     {
@@ -958,11 +982,24 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         return $"SP: {sp:0.##} %\nModo: {modo}";
     }
 
+    /// <summary>
+    /// A block whose card lists its parameters, one per line.
+    /// </summary>
+    /// <remarks>
+    /// Parameters the editor is hiding are skipped. The external-device blocks select a mode and
+    /// then show only that mode's fields, so listing all of them would not merely be noisy — it
+    /// would read as though every mode's values were in effect at once.
+    /// </remarks>
     private string FormatPump(RecipeNode node)
     {
         var lines = new List<string>();
         foreach (var param in node.Definition.Parameters)
         {
+            if (!IsParameterActive(node, param))
+            {
+                continue;
+            }
+
             var key = param.Key;
             var label = param.Label;
             if (param.Kind == ParameterKind.Enum)

@@ -54,8 +54,20 @@ public sealed partial class RecipeEngine
             case NodeType.PhPump:
             case NodeType.AntifoamPump:
             case NodeType.NutrientPump:
-            case NodeType.PumpControl:
                 ExecutePump(node);
+                break;
+
+            // The Wi-Fi nodes are awaited, not fire-and-forget: each can be absent on its own.
+            case NodeType.PumpControl:
+                await ExecuteExternalPumpAsync(node, ct).ConfigureAwait(false);
+                break;
+
+            case NodeType.BiomassSensor:
+                await ExecuteBiomassAsync(node, ct).ConfigureAwait(false);
+                break;
+
+            case NodeType.FlaskAgitator:
+                await ExecuteFlaskAgitatorAsync(node, ct).ConfigureAwait(false);
                 break;
 
             case NodeType.CascadeControl:

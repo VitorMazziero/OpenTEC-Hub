@@ -65,8 +65,21 @@ public enum NodeType
     /// <summary>Configures the nutrient dosing pump (cycle-only).</summary>
     NutrientPump,
 
-    /// <summary>Timed on/off control of the external feed pump.</summary>
+    /// <summary>
+    /// The external feed pump: routing enable, one of the five firmware profile modes, or a stop.
+    /// </summary>
+    /// <remarks>
+    /// Was a placeholder that only logged a timed on/off intent while WP2 was outstanding. WP2 is
+    /// done, so this now drives the same <c>PumpProfileMath.BuildCommand</c> path the manual card
+    /// uses — one profile builder, not two that can drift.
+    /// </remarks>
     PumpControl,
+
+    /// <summary>The biomass optical sensor: routing, blank, start/stop and the integration thresholds.</summary>
+    BiomassSensor,
+
+    /// <summary>The separate flask agitator: run at a magnitude and direction, or stop.</summary>
+    FlaskAgitator,
 
     /// <summary>Marks a labelled data-acquisition window in the session log.</summary>
     DataAcquisition,
@@ -109,8 +122,19 @@ public enum BlockCategory
     /// <summary>Setpoint and loop actions. Orange.</summary>
     Actions,
 
-    /// <summary>Dosing and feed pumps. Teal.</summary>
+    /// <summary>The module's own dosing pumps: pH, antifoam, nutrient. Teal.</summary>
     Pumps,
+
+    /// <summary>
+    /// The Wi-Fi nodes behind the Hub: external pump, biomass sensor, flask agitator. Cyan.
+    /// </summary>
+    /// <remarks>
+    /// Split out from <see cref="Pumps"/> for the same reason the synoptic was regrouped: these
+    /// devices are separate ESP32s on the Hub's SoftAP and can be absent on their own, while the
+    /// dosing pumps live inside the TECNAL module on its internal UART and cannot. A block that
+    /// may hold waiting for a device to answer belongs beside the others that can.
+    /// </remarks>
+    ExternalDevices,
 
     /// <summary>Aquisição · Registrar Evento · Zerar Variáveis. Slate.</summary>
     Utilities,
@@ -177,6 +201,68 @@ public enum ControlLoop
 
     /// <summary>Nutrient dosing loop.</summary>
     Nutrient,
+}
+
+/// <summary>What a <see cref="NodeType.PumpControl"/> block does to the external feed pump.</summary>
+public enum ExternalPumpAction
+{
+    /// <summary>Switch the Hub's routing on, so the node receives commands at all.</summary>
+    Enable,
+
+    /// <summary>Send one of the five firmware profiles. Requires routing to already be on.</summary>
+    SendProfile,
+
+    /// <summary>Stop the profile and clear routing, in that order.</summary>
+    Stop,
+}
+
+/// <summary>What a <see cref="NodeType.BiomassSensor"/> block does.</summary>
+public enum BiomassAction
+{
+    /// <summary>Switch the Hub's routing on. Everything else needs this first.</summary>
+    Enable,
+
+    /// <summary>Capture the zero-absorbance reference. Blocks the node for roughly 15 s.</summary>
+    Blank,
+
+    /// <summary>Start the acquisition loop.</summary>
+    Start,
+
+    /// <summary>Stop the acquisition loop, leaving routing on.</summary>
+    Stop,
+
+    /// <summary>Send the three integration-time thresholds together.</summary>
+    Thresholds,
+
+    /// <summary>Stop acquisition and clear routing, in that order.</summary>
+    Disable,
+}
+
+/// <summary>What a <see cref="NodeType.FlaskAgitator"/> block does.</summary>
+public enum FlaskAgitatorAction
+{
+    /// <summary>Run at the block's magnitude and direction.</summary>
+    Run,
+
+    /// <summary>
+    /// Stop, <b>locking the bench potentiometer out</b>.
+    /// </summary>
+    /// <remarks>
+    /// A recipe stop has to be deterministic. Leaving the potentiometer enabled means the node
+    /// re-reads the knob on its next loop and a stop with the knob at 60 % restarts the motor at
+    /// 60 % — and the recipe would then hold forever waiting for a zero that never comes.
+    /// </remarks>
+    Stop,
+}
+
+/// <summary>Flask-agitator direction, as the operator picks it.</summary>
+public enum AgitatorDirection
+{
+    /// <summary>Clockwise — <c>agitatorDir:1</c> on the wire.</summary>
+    Clockwise,
+
+    /// <summary>Counter-clockwise — <c>agitatorDir:0</c>.</summary>
+    CounterClockwise,
 }
 
 /// <summary>Comparison operators for <see cref="NodeType.MonitorVariable"/>.</summary>

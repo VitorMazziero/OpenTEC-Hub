@@ -191,11 +191,17 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="TECNAL-Hub"
+                    <TextBlock Text="BioProcess Hub"
                                VerticalAlignment="Center"
                                FontFamily="{DynamicResource FontDisplay}"
                                FontSize="{DynamicResource FontSizeSubtitle}"
                                FontWeight="SemiBold" />
+                    <!-- Version from Git/MSBuild -->
+                    <TextBlock Text="{Binding AppVersion, StringFormat='v{0}'}"
+                               VerticalAlignment="Bottom"
+                               Margin="8,0,0,2"
+                               Foreground="{DynamicResource TextCaptionBrush}"
+                               FontSize="{DynamicResource FontSizeCaption}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal"

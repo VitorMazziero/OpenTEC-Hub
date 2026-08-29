@@ -58,6 +58,10 @@
     <!-- Composition root lives in App.xaml.cs. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="MinVer" Version="7.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <!-- Unified logging with a rolling file. All managed DLLs - they travel with
          the self-contained publish, nothing to install on the target machine. -->
     <PackageReference Include="Serilog" Version="4.2.0" />

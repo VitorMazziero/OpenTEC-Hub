@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Reflection;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -105,8 +106,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>Suppresses persistence while the constructor seeds the UI state.</summary>
     private readonly bool _uiLoaded;
 
+    /// <summary>Application version with git hash appended via MSBuild (InformationalVersion).</summary>
+    public string AppVersion { get; }
+
     public ShellViewModel(
         IDeviceService device,
+        IAlarmService alarms,
         ISettingsService settings,
         IThemeService theme,
         ConnectionViewModel connection,
@@ -128,7 +133,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IDialogService dialogs,
         ICascadeService cascade,
         IOurSoftSensor ourSensor,
-        IAlarmService alarms,
         ITelemetryHistory history,
         ISessionLogger sessionLogger,
         IRecipeEngine recipeEngine,
@@ -143,6 +147,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _sessionLogger = sessionLogger;
         _dialogs = dialogs;
         _log = log;
+
+        AppVersion = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? "Dev";
+
         Connection = connection;
         Charts = charts;
         Historical = historical;

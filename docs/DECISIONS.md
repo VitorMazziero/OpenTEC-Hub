@@ -704,6 +704,119 @@ condition to the existing `Fluxômetro offline` alarm, which needs the firmware 
 
 ---
 
+### D-026 · Every external device gets the flowmeter's contract: presence, routing and acceptance kept apart
+
+**Decision.** The five external Wi-Fi nodes are modelled the way the flowmeter already was, with
+three states that are never collapsed into one: **requested** (the operator's switch),
+**routed** (`*CommEnabled`, the Hub's own persisted forwarding flag) and **present**
+(`*Online`, the Hub's staleness window). `ExternalDeviceStatus` is that vocabulary, shared by
+biomass, the external pump, the flask agitator and the level/foam sensor;
+`FlowControlViewModel` keeps its own property names so its bindings and tests are untouched.
+
+**Why.** Only the flowmeter told the truth about the device on the other end. Every other row
+bound its state dot to `IsEnabled` — the operator's own checkbox — so the UI reported the
+operator's intent back to them and called it hardware state. Three concrete consequences:
+stock Hub v8 has no staleness window for the pump at all and republishes a dead node's last
+sample forever; the biomass node pushes only while measuring, so "stopped" and "gone" were
+indistinguishable and the parser held a stale absorbance indefinitely; and the Hub persists its
+routing flags in NVS while the app persists the switches on the PC, so after a Hub reboot every
+biomass or pump sub-command could be dropped by `if (cmdFound && commOn)` without a word.
+
+**Consequence.** When a device reports absent, the app **invalidates** its readings rather than
+holding them. Absence of evidence is handled separately: a device the Hub has never mentioned
+reads *aguardando telemetria*, never *desconectado*, and is **not blocked** — blocking on
+`HasTelemetry` would deadlock the biomass sensor, which reports nothing until it is started and
+cannot be started while it reports nothing. Against a Hub without the presence keys the app
+falls back to ageing the value keys locally, which keeps it honest unflashed.
+
+**Rejected.** Deriving presence from `HubStations` (a radio-association count that says nothing
+about which node is which); treating a missing key as `false` (it is the same signal an old Hub
+emits, so it would report every device as failed); and blocking every card until its first frame
+(the biomass deadlock above).
+
+---
+
+### D-027 · A stop and the routing switch that follows it are two ordered frames
+
+**Decision.** Turning an external device off is **two frames, in order**: the stop while the Hub
+is still routing, then the routing flag on its own. `{"stop":1}` → `{"biomassComm":0}` for
+biomass; `{"mode":0,"speed":0}` → `{"pumpComm":0}` for the pump. The outgoing buffer merges by
+design, so the second frame goes through a new ordered-frame path
+(`ConnectionManager.SendCommandAfterCurrentFrame` → `IDeviceService.SendAfterCurrentFrame` →
+`ICommandArbiter.DispatchSeparateFrame`) rather than a plain `Send`.
+
+**Why.** `processJsonCommand` parses the routing flag before it reaches the device's command
+block, and that block is gated on the flag it just wrote. v.6's single
+`{"pumpComm":0,"mode":0,"speed":0}` therefore clears routing and then discards its own `mode:0`:
+**the pump keeps dosing and only its telemetry goes quiet**, which is the worst failure mode a
+feed pump has. The same holds for biomass. Once the first frame is in the Hub's mailbox it
+survives the second — neither `/pumpCommand` nor `/biomassCommand` has a routing gate — so
+ordering is the only requirement, not a delay.
+
+**Consequence.** `CommandBuilders.PumpDisable` is replaced by `PumpStopProfile` and
+`PumpRoutingDisabled`, and the `pump disable` golden string in
+[PROTOCOL.md](PROTOCOL.md#4-golden-strings) is replaced by two. This is a deliberate departure
+from v.6 byte-parity, taken because the v.6 frame is demonstrably wrong against this firmware
+rather than merely redundant. The operator safe-stop keeps its single merged frame for
+everything else and appends only `{"pumpComm":0}` after it, so the destructive-confirmation
+preview still shows what actually goes out.
+
+**Rejected.** Waiting for an acknowledgement between the two frames (nothing acknowledges, and
+the mailbox makes it unnecessary); redefining "disable" as profile-stop-only and leaving routing
+to a separate control (hides a real switch from the operator); and patching the Hub to reorder
+its own parse (a firmware change to work around a two-line app change).
+
+---
+
+### D-028 · The agitator safe-stop locks the bench potentiometer out; an ordinary stop does not
+
+**Decision.** `CommandBuilders.FlaskAgitatorSafeStop` sends `agitatorReEnablePot:0` alongside
+`agitatorOn:0`. `FlaskAgitatorOff` — the card's ordinary **Desligar** — omits the key and leaves
+the Hub's persisted preference alone, with a warning on the card when the node reports the knob
+live.
+
+**Why.** The Hub turns `agitatorOn:0` into `{"RPM_percent":0,"ActivePot":agitatorReEnablePot}`,
+and the node's loop re-reads the potentiometer on its very next pass whenever `ActivePot` is 1 —
+the persisted default. A safe stop with the bench knob at 60 % restarts the motor at 60 %. A
+stop a knob can undo is not a stop.
+
+**Consequence.** The lockout persists on the Hub until the operator deliberately re-arms it with
+the existing **Reativar potenciômetro** action. That is the intended posture after an emergency
+stop. The ordinary off keeps the documented meaning of the operator's own switch, because
+handing the motor back to the knob is what that switch is for; the card says so rather than
+silently overriding it. The app never tracks the flag locally — the Hub owns it and the momentary
+re-enable is the only thing that sets it back — so there is no local preference to desynchronise.
+
+**Rejected.** Forcing the lockout on every stop (removes a working bench workflow); leaving the
+safe stop alone and only warning (a safety action that depends on the operator having read a
+warning is not a safety action); and tracking the flag in `AppSettings` (a second copy of state
+the Hub already persists, with nothing to reconcile it against).
+
+---
+
+### D-029 · Manual sends report acceptance; UI state commits only after it
+
+**Decision.** `IManualDispatcher` wraps the arbiter's Manual dispatch and returns
+`CommandDispatchResult`. The biomass, pump, agitator and foam cards commit — persist settings,
+clear `HasPendingChange`, bump a profile version, advance the proportional-gas last-sent value —
+**only when the dispatch was accepted**, and otherwise keep the staged input and name the owner
+that refused it.
+
+**Why.** `IDeviceService.Send` is `void`, and in the composition root it is a Manual dispatch
+through `CommandArbiter`, which atomically refuses a whole frame when a recipe or the cascade
+owns any actuator it touches. The `void` signature discards that. A card could persist a
+calibration the sensor never received and report success (AUD-003), and
+`PumpControlViewModel.MaybeSendProportionalGas` recorded a refused target as sent, suppressing
+every retry until the calculated flow moved by the resend threshold (AUD-004).
+
+**Consequence.** The view-models take the dispatcher as an optional constructor argument that
+defaults to wrapping whatever `IDeviceService` they were given, so existing tests and the
+simulator harness keep working. `DispatchRefusal.Describe` supplies the pt-BR wording. This
+closes AUD-003 and AUD-004 for these four cards; the remaining manual surfaces and AUD-001's
+owner-aware safe stop are unchanged and still open.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

@@ -118,8 +118,14 @@ public sealed class BiomassPumpTests
 
     // ── Pump ViewModel ───────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Disabling is two ordered frames, not v.6's single one. The Hub parses
+    /// <c>pumpComm</c> before it reaches the pump block, so a combined
+    /// <c>{"pumpComm":0,"mode":0,"speed":0}</c> clears routing and then discards its own
+    /// <c>mode:0</c> — the node keeps dosing and only its telemetry goes quiet.
+    /// </summary>
     [Fact]
-    public void Pump_enable_and_disable_send_the_v6_frames()
+    public void Pump_disable_stops_the_profile_before_it_clears_routing()
     {
         var device = new RecordingDeviceService();
         using var vm = new PumpControlViewModel(device, new MemorySettingsService());
@@ -127,8 +133,12 @@ public sealed class BiomassPumpTests
         vm.IsEnabled = true;
         Assert.Equal("""{"pumpComm":1}""", Assert.Single(device.Sent));
 
+        device.Sent.Clear();
         vm.IsEnabled = false;
-        Assert.Equal("""{"pumpComm":0,"mode":0,"speed":0}""", device.Sent[^1]);
+
+        Assert.Equal(
+            ["""{"mode":0,"speed":0}""", """{"pumpComm":0}"""],
+            device.Sent);
     }
 
     [Fact]
@@ -205,11 +215,15 @@ public sealed class BiomassPumpTests
     }
 
     [Fact]
-    public void Pump_safe_stop_is_the_disabled_frame()
-        => Assert.Equal(
-            """{"pumpComm":0,"mode":0,"speed":0}""",
-            new PumpControlViewModel(new RecordingDeviceService(), new MemorySettingsService())
-                .BuildSafeStop().ToJson());
+    public void Pump_safe_stop_contributes_only_the_profile_stop_to_the_merged_frame()
+    {
+        using var vm = new PumpControlViewModel(new RecordingDeviceService(), new MemorySettingsService());
+
+        // pumpComm:0 must not travel in the merged safe frame: the Hub would clear routing
+        // while parsing it and then discard the mode:0 beside it.
+        Assert.Equal("""{"mode":0,"speed":0}""", vm.BuildSafeStop().ToJson());
+        Assert.Equal("""{"pumpComm":0}""", vm.BuildRoutingDisable().ToJson());
+    }
 
     [Fact]
     public void Proportional_gas_drives_aeration_from_pump_volume_while_active()

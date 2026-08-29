@@ -12,32 +12,82 @@ namespace TecnalHub.ViewModels;
 /// direction and the potentiometer re-enable.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This is a <b>bench device, not the reactor impeller</b>, so it never appears on the
 /// reactor synoptic. The operator picks a magnitude and a direction; the two combine into
 /// the signed percent the command builder splits back into the wire's separate magnitude
 /// (<c>agitatorPercent</c>) and direction (<c>agitatorDir</c>) keys. The signed form never
 /// reaches the wire (<c>docs/PROTOCOL.md</c> §3.3).
+/// </para>
+/// <para>
+/// It is also the <b>only external device the Hub reports nothing about</b> until its push
+/// handler is flashed: the node polls for commands and never answers. So the card stays
+/// usable with <see cref="ExternalDeviceStatus.HasTelemetry"/> false and says
+/// <i>awaiting telemetry</i> rather than pretending either success or failure.
+/// </para>
+/// <para>
+/// The potentiometer is the safety subtlety. The Hub turns an off command into
+/// <c>ActivePot = agitatorReEnablePot</c>, and the node re-reads the bench knob on its next
+/// loop whenever that is set — so an ordinary "Desligar" with the knob at 60 % restarts the
+/// motor at 60 %. The ordinary stop keeps that behaviour, because it is the documented
+/// meaning of that switch; the <b>safe stop locks the pot out</b>, because a stop that a
+/// knob can undo is not a stop.
+/// </para>
 /// </remarks>
-public sealed partial class FlaskAgitatorViewModel : ObservableObject
+public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
     private bool _syncing;
     private FlaskAgitatorSettings _committed;
 
-    public FlaskAgitatorViewModel(IDeviceService device, ISettingsService settings)
+    public FlaskAgitatorViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null,
+        TimeProvider? timeProvider = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.FlaskAgitator;
+        Status = new ExternalDeviceStatus("Agitador de frasco", "do agitador de frasco", timeProvider);
+        Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
         AppliedIsEnabled = false;
+        _device.TelemetryReceived += OnTelemetryReceived;
+        _device.StateChanged += OnDeviceStateChanged;
         _initialised = true;
         ValidateAndRefresh();
         HasPendingChange = false;
     }
+
+    /// <summary>Presence and pending state of the node behind the Hub.</summary>
+    public ExternalDeviceStatus Status { get; }
+
+    /// <summary>Magnitude the node reports actually driving, or an em dash.</summary>
+    [ObservableProperty]
+    public partial string ActualPercentText { get; set; } = "—";
+
+    /// <summary>Direction the node reports actually driving.</summary>
+    [ObservableProperty]
+    public partial string ActualDirectionText { get; set; } = "—";
+
+    /// <summary>
+    /// What last moved the motor. When this reads <c>Potenciômetro</c>, the bench knob is in
+    /// charge and the staged setpoint above is not what the motor is doing.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPotentiometerInControl))]
+    public partial string ActualSourceText { get; set; } = "—";
+
+    /// <summary>The node's potentiometer is live and outranks the app.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPotentiometerInControl))]
+    public partial bool IsPotentiometerActive { get; set; }
 
     /// <summary>Agitator running — <c>agitatorOn</c>.</summary>
     [ObservableProperty]
@@ -78,9 +128,21 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => !IsEnabled || IsValid;
+    public bool CanApply => (!IsEnabled || IsValid) && Status.CanSend;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
+
+    /// <summary>The bench knob currently holds the motor, whatever the card was told.</summary>
+    public bool IsPotentiometerInControl =>
+        IsPotentiometerActive || string.Equals(ActualSourceText, "Potenciômetro", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Warns that an ordinary stop can be undone by the knob, when the node says it is live.
+    /// </summary>
+    public string? PotentiometerWarning => IsPotentiometerInControl
+        ? "O potenciômetro da bancada está ativo: desligar devolve o controle a ele e o motor " +
+          "volta a girar se o botão não estiver em zero. A parada segura bloqueia o potenciômetro."
+        : null;
 
     /// <summary>Direction picked as counter-clockwise, for the second radio.</summary>
     public bool CounterClockwise
@@ -138,11 +200,20 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
         CommitPendingCommand();
+        Status.MarkCommandDispatched();
         StatusText = IsEnabled
             ? "Estado completo do agitador de frasco enviado."
-            : "Agitador de frasco desligado.";
+            : IsPotentiometerInControl
+                ? "Agitador de frasco desligado; o potenciômetro da bancada reassume o controle."
+                : "Agitador de frasco desligado.";
     }
 
     [RelayCommand]
@@ -158,7 +229,14 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
     [RelayCommand]
     private void ReEnablePot()
     {
-        _device.Send(CommandBuilders.FlaskAgitatorReEnablePot());
+        var result = _dispatcher.Dispatch(CommandBuilders.FlaskAgitatorReEnablePot());
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        Status.MarkCommandDispatched();
         StatusText = "Reativação do potenciômetro enviada ao agitador.";
     }
 
@@ -167,7 +245,10 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
     {
         if (!IsEnabled)
         {
-            command = BuildSafeStop();
+            // An ordinary stop, which leaves the Hub's potentiometer flag alone. Only the
+            // operator safe-stop locks the knob out - see BuildSafeStop.
+            command = CommandBuilders.FlaskAgitatorOff(
+                SignedPercent(TryGetStagedSettings(out var stagedOff) ? stagedOff : _committed));
             return true;
         }
 
@@ -181,7 +262,15 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
         return true;
     }
 
-    /// <summary>Stops the agitator, keeping the staged magnitude and direction.</summary>
+    /// <summary>
+    /// Stops the agitator and locks the potentiometer out, keeping the staged magnitude and
+    /// direction so re-enabling resumes where the operator left it.
+    /// </summary>
+    /// <remarks>
+    /// The pot lockout persists on the Hub until the operator re-arms it with
+    /// <see cref="ReEnablePotCommand"/>. That is deliberate: after an emergency stop the
+    /// bench knob does not get to restart the motor on its own.
+    /// </remarks>
     public TecnalCommand BuildSafeStop()
     {
         var staged = TryGetStagedSettings(out var parsed) ? parsed : _committed;
@@ -249,6 +338,62 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject
         => DosingInput.TryParseDouble(MagnitudePercentText, out var magnitude) && magnitude is >= 0.0 and <= 100.0
             ? null
             : "Intensidade: valor de 0 a 100%.";
+
+    private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ExternalDeviceStatus.CanSend) or null)
+        {
+            OnPropertyChanged(nameof(CanApply));
+            ApplyCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private void OnDeviceStateChanged(ConnectionStateChange change)
+    {
+        if (change.State != ConnectionState.Connected)
+        {
+            Status.MarkHubUnavailable();
+        }
+    }
+
+    private void OnTelemetryReceived(SensorSnapshot snapshot)
+    {
+        Status.Update(
+            snapshot.HasAgitatorTelemetry,
+            snapshot.AgitatorOnline,
+            snapshot.AgitatorCommandPending,
+            commEnabled: null);
+
+        ActualPercentText = snapshot.AgitatorPercent > SensorReadings.NotReceived
+            ? snapshot.AgitatorPercent.ToString("F0", CultureInfo.CurrentCulture)
+            : "—";
+
+        ActualDirectionText = snapshot.AgitatorDirection switch
+        {
+            1 => "Horário",
+            0 => "Anti-horário",
+            _ => "—",
+        };
+
+        IsPotentiometerActive = snapshot.AgitatorPotActive;
+        ActualSourceText = snapshot.AgitatorSource switch
+        {
+            "Pot" => "Potenciômetro",
+            "Hub" => "Hub",
+            "USB" => "USB",
+            "Wi-Fi" => "Wi-Fi",
+            _ => "—",
+        };
+
+        OnPropertyChanged(nameof(PotentiometerWarning));
+    }
+
+    public void Dispose()
+    {
+        _device.TelemetryReceived -= OnTelemetryReceived;
+        _device.StateChanged -= OnDeviceStateChanged;
+        Status.PropertyChanged -= OnStatusChanged;
+    }
 
     private void RefreshPendingState()
     {

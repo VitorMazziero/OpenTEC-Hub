@@ -9,6 +9,53 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Contrato de dispositivo externo unificado (presença, roteamento e confirmação).** Os cinco
+  nós Wi-Fi passam a ser modelados como o fluxômetro já era, com três estados que nunca se
+  confundem: o interruptor do operador, o roteamento que o Hub persiste (`*CommEnabled`) e a
+  presença do nó (`*Online`). `ExternalDeviceStatus` é esse vocabulário, compartilhado por
+  biomassa, bomba externa, agitador de frasco e sensor de nível/espuma. Quando um dispositivo é
+  reportado ausente, o parser **invalida** suas leituras em vez de segurá-las — o defeito que
+  deixava uma absorbância de dez minutos atrás na tela como se fosse atual. Um dispositivo sobre
+  o qual o Hub nunca falou lê *aguardando telemetria*, nunca *desconectado*, e não é bloqueado:
+  exigir telemetria antes de aceitar comando travaria o sensor de biomassa, que não publica nada
+  enquanto está parado e é justamente o `start` que o faria publicar. Contra um Hub sem as
+  chaves novas, a presença é inferida por envelhecimento local. Ver
+  [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) e
+  [DECISIONS D-026](DECISIONS.md).
+- **Seis canais da bomba que já estavam no fio e eram descartados.** `PumpMode`, `PumpPWM`,
+  `PumpSpeed`, `PumpTargetVol`, `PumpActive` e `PumpWaiting` passam a ser lidos. O volume-alvo é
+  a própria integral do perfil calculada pelo nó — a única forma de ver a bomba atrasada em
+  relação ao perfil sem recalculá-la a partir de outro relógio.
+- **Envio em quadro ordenado.** `ConnectionManager.SendCommandAfterCurrentFrame`,
+  `IDeviceService.SendAfterCurrentFrame` e `ICommandArbiter.DispatchSeparateFrame` enviam um
+  quadro sozinho, depois do que já estiver no buffer. O buffer normal funde por projeto, o que é
+  errado para pares de chaves que a ordem de parsing do firmware faz interagir.
+- **Telemetria do agitador de frasco na interface**, quando o Hub publicá-la: magnitude e
+  sentido reais, e **quem está comandando o motor**. Com o potenciômetro de bancada ativo, o
+  card avisa que desligar devolve o controle a ele.
+
+### Fixed
+- **A desativação da bomba externa não parava a bomba.** O quadro único da v.6
+  `{"pumpComm":0,"mode":0,"speed":0}` limpa o roteamento e em seguida descarta o próprio
+  `mode:0` (`if (pumpCmdFound && pumpCommOn)`): o nó continuava dosando e só a telemetria
+  silenciava. Agora são dois quadros ordenados, `{"mode":0,"speed":0}` e depois
+  `{"pumpComm":0}`. O mesmo vale para a biomassa, `{"stop":1}` antes de `{"biomassComm":0}`.
+  [DECISIONS D-027](DECISIONS.md).
+- **A parada segura do agitador podia ser desfeita pelo potenciômetro.** `agitatorOn:0` vira
+  `ActivePot = agitatorReEnablePot` no Hub, e o nó relê o botão de bancada no ciclo seguinte —
+  uma parada com o botão em 60 % religava o motor em 60 %. A parada segura agora envia
+  `agitatorReEnablePot:0` junto; o **Desligar** comum continua respeitando a preferência do
+  operador, com aviso no card. [DECISIONS D-028](DECISIONS.md).
+- **Os três momentâneos da biomassa perdiam cliques.** A caixa de comando do Hub guarda um
+  comando só, é limpa na leitura e é sobrescrita por `setPending`; com o nó consultando a cada
+  2 s, um `blank` seguido de `start` entregava só o `start`. Agora são serializados atrás de uma
+  trava de pendência visível.
+- **AUD-003 e AUD-004 nos cards de dispositivo externo.** `IManualDispatcher` devolve
+  `CommandDispatchResult`, e biomassa, bomba, agitador e espuma só persistem estado, limpam
+  `HasPendingChange`, incrementam a versão do perfil ou avançam o último valor de gás
+  proporcional **após aceitação**. Em recusa, o valor encenado permanece e o proprietário do
+  atuador é nomeado. O acoplamento de gás proporcional também é suspenso — e não recalculado a
+  partir de zero — enquanto a bomba estiver ausente. [DECISIONS D-029](DECISIONS.md).
 - **Estabilização da vazão no alívio antes do `t₀` do ensaio de kLa.** Bancadas com uma válvula
   de alívio instalada logo após o fluxômetro podem marcar *Abrir o alívio e esperar a vazão
   assentar* nos parâmetros do teste. Depois da estabilização pós-N₂, o runner abre a válvula

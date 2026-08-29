@@ -113,6 +113,18 @@ public sealed class ConnectionManager : IAsyncDisposable
     private ITransport? _transport;
     private TecnalCommand _pending = TecnalCommand.Create();
 
+    /// <summary>
+    /// Frames that must leave on their own, after whatever is currently buffered.
+    /// </summary>
+    /// <remarks>
+    /// Merging is normally what we want - one UI gesture, one frame on the shared UART.
+    /// It is wrong when the firmware's own parse order makes two keys interact: the Hub
+    /// drops an external device's sub-commands once that device's routing flag is clear,
+    /// so <c>{"mode":0,"pumpComm":0}</c> stops nothing. Those pairs have to arrive as two
+    /// frames, in order, and this is the queue that guarantees it.
+    /// </remarks>
+    private readonly List<TecnalCommand> _frames = [];
+
     private SerialTransportConfig? _serialConfig;
     private HttpTransportConfig? _httpConfig;
     private int _backupIndex = -1;
@@ -260,6 +272,31 @@ public sealed class ConnectionManager : IAsyncDisposable
         lock (_bufferLock)
         {
             _pending.Merge(command);
+        }
+
+        Post(new FlushRequest());
+    }
+
+    /// <summary>
+    /// Queues <paramref name="command"/> as its own frame, sent after everything already
+    /// buffered.
+    /// </summary>
+    /// <remarks>
+    /// Use only where merging would change the meaning of the command - see
+    /// <see cref="_frames"/>. Everything else should keep using <see cref="SendCommand"/>,
+    /// because one frame per gesture is cheaper on the shared bus.
+    /// </remarks>
+    public void SendCommandAfterCurrentFrame(TecnalCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.IsEmpty)
+        {
+            return;
+        }
+
+        lock (_bufferLock)
+        {
+            _frames.Add(command);
         }
 
         Post(new FlushRequest());
@@ -727,21 +764,43 @@ public sealed class ConnectionManager : IAsyncDisposable
     private async Task FlushCommandsAsync(CancellationToken token)
     {
         TecnalCommand payload;
+        var sequenced = false;
+        bool more;
         lock (_bufferLock)
         {
-            if (_pending.IsEmpty)
+            // The merging buffer drains first, then one queued frame per pass. That order
+            // is what makes "stop the profile, then stop routing" arrive as two frames in
+            // the sequence the firmware needs.
+            if (!_pending.IsEmpty)
+            {
+                payload = _pending;
+                _pending = TecnalCommand.Create();
+            }
+            else if (_frames.Count > 0)
+            {
+                payload = _frames[0];
+                _frames.RemoveAt(0);
+                sequenced = true;
+            }
+            else
             {
                 return;
             }
 
-            payload = _pending;
-            _pending = TecnalCommand.Create();
+            more = !_pending.IsEmpty || _frames.Count > 0;
+        }
+
+        if (more)
+        {
+            // Wake ourselves for the next frame; a queued frame must not wait for the next
+            // unrelated command to push the loop along.
+            Post(new FlushRequest());
         }
 
         var transport = await GetTransportAsync(token).ConfigureAwait(false);
         if (transport is null)
         {
-            Requeue(payload);
+            Requeue(payload, sequenced);
             return;
         }
 
@@ -756,14 +815,14 @@ public sealed class ConnectionManager : IAsyncDisposable
         catch (TransportFaultException ex)
         {
             _lastError = ex.Message;
-            Requeue(payload);
+            Requeue(payload, sequenced);
             Post(new LinkLostRequest(ex.Message));
             return;
         }
 
         if (!sent)
         {
-            Requeue(payload);
+            Requeue(payload, sequenced);
             Post(new LinkLostRequest("falha ao enviar comando"));
             return;
         }
@@ -800,10 +859,21 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// conflicts, so the failed payload is merged <i>under</i> it - matching v.6's
     /// <c>payload | replay</c>.
     /// </remarks>
-    private void Requeue(TecnalCommand payload)
+    /// <param name="sequenced">
+    /// True when the payload came from the ordered frame queue. Such a frame goes back to
+    /// the front of that queue rather than into the merging buffer - merging it is exactly
+    /// what it was queued to avoid.
+    /// </param>
+    private void Requeue(TecnalCommand payload, bool sequenced = false)
     {
         lock (_bufferLock)
         {
+            if (sequenced)
+            {
+                _frames.Insert(0, payload);
+                return;
+            }
+
             _pending = payload.Merge(_pending);
         }
     }

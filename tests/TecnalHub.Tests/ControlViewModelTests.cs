@@ -92,7 +92,7 @@ public sealed class ControlViewModelTests
         Assert.Empty(fixture.Device.Sent);
         Assert.Equal(1, fixture.Dialogs.Calls);
         Assert.Equal(
-            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.17,"pHOperation":3.0,"pHMix":10.0,"pHIntensity":0.0,"nutriOperation":999.0,"nutriMix":1.0,"nutriOpCycle":500.0,"nutriMixCycle":1.0,"nutriIntensity":0.0,"antifoamOperation":0.0,"antifoamMix":2.0,"antifoamIntensity":0.0,"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":1,"pumpComm":0,"mode":0,"speed":0}""",
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.17,"pHOperation":3.0,"pHMix":10.0,"pHIntensity":0.0,"nutriOperation":999.0,"nutriMix":1.0,"nutriOpCycle":500.0,"nutriMixCycle":1.0,"nutriIntensity":0.0,"antifoamOperation":0.0,"antifoamMix":2.0,"antifoamIntensity":0.0,"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":1,"agitatorReEnablePot":0,"mode":0,"speed":0}""",
             fixture.Dialogs.ExactCommand);
     }
 
@@ -106,7 +106,10 @@ public sealed class ControlViewModelTests
 
         fixture.Control.SafeStopCommand.Execute(null);
 
-        Assert.Single(fixture.Device.Sent);
+        // The merged safe frame, then the pump's routing switch on its own: merged in, the
+        // Hub would drop the mode:0 travelling beside it.
+        Assert.Equal(2, fixture.Device.Sent.Count);
+        Assert.Equal("""{"pumpComm":0}""", fixture.Device.Sent[^1]);
         Assert.All(fixture.Subsystems, subsystem => Assert.False(subsystem.IsEnabled));
         Assert.False(fixture.Flow.RequestedValve1);
         Assert.False(fixture.Flow.RequestedValve2);
@@ -134,10 +137,12 @@ public sealed class ControlViewModelTests
 
         fixture.Control.SafeStopCommand.Execute(null);
 
-        var json = Assert.Single(fixture.Device.Sent);
+        var json = fixture.Device.Sent[0];
         Assert.Contains(""","nutriIntensity":0.0""", json, StringComparison.Ordinal);
         Assert.Contains(""","antifoamIntensity":0.0""", json, StringComparison.Ordinal);
         Assert.Contains("\"agitatorOn\":0", json, StringComparison.Ordinal);
+        // A safe stop must not be undone by the bench potentiometer.
+        Assert.Contains("\"agitatorReEnablePot\":0", json, StringComparison.Ordinal);
         // Foam monitoring must survive a stop: the sensor keys are absent.
         Assert.DoesNotContain("distanceSensorComm", json, StringComparison.Ordinal);
         Assert.False(fixture.Nutrient.IsEnabled);

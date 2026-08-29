@@ -12,30 +12,49 @@ namespace TecnalHub.ViewModels;
 /// three timers that shape the automatic antifoam response.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This is sensor and automation configuration, not a held actuator, so it sits outside the
 /// command arbiter and the global safe-stop — a safe-stop stops the antifoam pump but must
 /// not blind foam monitoring. The card has its own apply, independent of the bulk apply.
+/// </para>
+/// <para>
+/// Its presence is reported like every other external device, but unlike them it is
+/// <b>never gated on</b>: the foam keys configure the Hub's own automatic response, not the
+/// node, so they land whether or not the ultrasonic sensor is answering. Losing the node
+/// must not also cost the operator the ability to configure what happens when it returns.
+/// </para>
 /// </remarks>
 public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
     private FoamControlSettings _committed;
 
-    public FoamControlViewModel(IDeviceService device, ISettingsService settings)
+    public FoamControlViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null,
+        TimeProvider? timeProvider = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.FoamControl;
+        Status = new ExternalDeviceStatus("Sensor de distância", "do sensor de distância", timeProvider);
 
         Load(_committed);
         AppliedSensorEnabled = false;
         _device.TelemetryReceived += OnTelemetryReceived;
+        _device.StateChanged += OnDeviceStateChanged;
         _initialised = true;
         ValidateAndRefresh();
         HasPendingChange = false;
     }
+
+    /// <summary>Presence and routing state of the node behind the Hub, for display only.</summary>
+    public ExternalDeviceStatus Status { get; }
 
     [ObservableProperty]
     public partial bool SensorEnabled { get; set; }
@@ -103,13 +122,20 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _device.Send(CommandBuilders.FoamControl(
+        var result = _dispatcher.Dispatch(CommandBuilders.FoamControl(
             staged.SensorEnabled,
             staged.ReferenceMillimetres,
             staged.StartDelaySeconds,
             staged.PulseSeconds,
             staged.IntervalSeconds));
 
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        Status.IsCommRequested = staged.SensorEnabled;
         _committed = staged;
         _settings.Update(settings => settings with { FoamControl = staged });
         AppliedSensorEnabled = staged.SensorEnabled;
@@ -209,9 +235,29 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
-        => LiveDistanceText = snapshot.Distance > SensorReadings.NotReceived
+    {
+        Status.Update(
+            snapshot.HasDistanceTelemetry,
+            snapshot.DistanceOnline,
+            pending: null,
+            snapshot.DistanceCommEnabled);
+
+        LiveDistanceText = snapshot.Distance > SensorReadings.NotReceived
             ? snapshot.Distance.ToString("F0", CultureInfo.CurrentCulture)
             : "—";
+    }
 
-    public void Dispose() => _device.TelemetryReceived -= OnTelemetryReceived;
+    private void OnDeviceStateChanged(ConnectionStateChange change)
+    {
+        if (change.State != ConnectionState.Connected)
+        {
+            Status.MarkHubUnavailable();
+        }
+    }
+
+    public void Dispose()
+    {
+        _device.TelemetryReceived -= OnTelemetryReceived;
+        _device.StateChanged -= OnDeviceStateChanged;
+    }
 }

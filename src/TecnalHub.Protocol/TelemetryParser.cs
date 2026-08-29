@@ -34,6 +34,22 @@ public sealed record ParserConfig
     /// not-received sentinel.
     /// </summary>
     public TimeSpan DistanceTimeout { get; init; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Local presence window for the biomass node, used only when the Hub does not
+    /// publish an explicit presence flag.
+    /// </summary>
+    /// <remarks>
+    /// Longer than the Hub's own 10 s biomass window so the two do not race: if the Hub
+    /// is going to declare the node absent, it does so first and the app follows.
+    /// </remarks>
+    public TimeSpan BiomassTimeout { get; init; } = TimeSpan.FromSeconds(12);
+
+    /// <summary>Local presence window for the external pump. It pushes once a second.</summary>
+    public TimeSpan PumpTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Local presence window for the flask agitator, once it pushes at all.</summary>
+    public TimeSpan AgitatorTimeout { get; init; } = TimeSpan.FromSeconds(4);
 }
 
 /// <summary>Outcome of parsing one line read from the device.</summary>
@@ -175,12 +191,17 @@ public sealed class TelemetryParser
             return ParseOutcome.Malformed;
         }
 
+        // One clock read per frame: every presence window must age against the same
+        // instant, or two devices in the same frame disagree about what "now" is.
+        var now = _time.GetUtcNow();
+
         ParseTemperature(root);
         ParseOxygen(root);
         ParsePH(root);
-        ParseFlowAndMisc(root);
-        ParseBiomass(root);
-        ParsePump(root);
+        ParseFlowAndMisc(root, now);
+        ParseBiomass(root, now);
+        ParsePump(root, now);
+        ParseAgitator(root, now);
         ParseTime(root);
 
         return ParseOutcome.Updated;
@@ -251,7 +272,7 @@ public sealed class TelemetryParser
         }
     }
 
-    private void ParseFlowAndMisc(JsonElement root)
+    private void ParseFlowAndMisc(JsonElement root, DateTimeOffset now)
     {
         if (TryGetDouble(root, TelemetryKeys.Pressure, out var pressure))
         {
@@ -326,36 +347,95 @@ public sealed class TelemetryParser
         AssignInt(root, TelemetryKeys.FlowCommandAgeMs, v => Readings.FlowCommandAgeMs = v);
         AssignInt(root, TelemetryKeys.HubStations, v => Readings.HubStations = v);
 
-        ParseDistance(root);
+        ParseDistance(root, now);
     }
 
-    private void ParseDistance(JsonElement root)
+    private void ParseDistance(JsonElement root, DateTimeOffset now)
     {
-        var now = _time.GetUtcNow();
+        var sawValue = false;
 
-        if (root.TryGetProperty(TelemetryKeys.Distance, out _))
+        if (TryGetPropertyCaseInsensitive(root, TelemetryKeys.Distance, out _))
         {
             if (TryGetDouble(root, TelemetryKeys.Distance, out var distance) &&
                 distance is >= 0.0 and < 1000.0)
             {
                 Readings.Distance = distance;
                 Readings.DistanceLastSeenAt = now;
+                sawValue = true;
             }
-
-            return;
+        }
+        else if (Readings.DistanceLastSeenAt is { } lastSeen &&
+                 now - lastSeen >= _config.DistanceTimeout)
+        {
+            // The ultrasonic sensor simply stops emitting when unplugged, so silence has to
+            // be aged out explicitly or a stale height would sit on screen forever.
+            Readings.Distance = SensorReadings.NotReceived;
         }
 
-        // The ultrasonic sensor simply stops emitting when unplugged, so silence has
-        // to be aged out explicitly or a stale height would sit on screen forever.
-        if (Readings.DistanceLastSeenAt is { } lastSeen &&
-            now - lastSeen >= _config.DistanceTimeout)
+        var presence = ResolvePresence(
+            root,
+            TelemetryKeys.DistanceOnline,
+            sawValue,
+            _config.DistanceTimeout,
+            new Presence(Readings.HasDistanceTelemetry, Readings.DistanceOnline, Readings.DistanceLastSeenAt),
+            now);
+
+        Readings.HasDistanceTelemetry = presence.HasTelemetry;
+        Readings.DistanceOnline = presence.Online;
+        Readings.DistanceLastSeenAt = presence.LastSeenAt;
+
+        if (presence.HasTelemetry && !presence.Online)
         {
             Readings.Distance = SensorReadings.NotReceived;
         }
+
+        if (TryGetBool(root, TelemetryKeys.DistanceCommEnabled, out var commEnabled))
+        {
+            Readings.DistanceCommEnabled = commEnabled;
+        }
     }
 
-    private void ParseBiomass(JsonElement root)
+    private void ParseBiomass(JsonElement root, DateTimeOffset now)
     {
+        var sawValues = TryGetPropertyCaseInsensitive(root, TelemetryKeys.BiomassAbs, out _) ||
+                        TryGetPropertyCaseInsensitive(root, TelemetryKeys.BiomassRaw, out _);
+
+        var presence = ResolvePresence(
+            root,
+            TelemetryKeys.BiomassOnline,
+            sawValues,
+            _config.BiomassTimeout,
+            new Presence(Readings.HasBiomassTelemetry, Readings.BiomassOnline, Readings.BiomassLastSeenAt),
+            now);
+
+        Readings.HasBiomassTelemetry = presence.HasTelemetry;
+        Readings.BiomassOnline = presence.Online;
+        Readings.BiomassLastSeenAt = presence.LastSeenAt;
+
+        if (TryGetBool(root, TelemetryKeys.BiomassCommEnabled, out var commEnabled))
+        {
+            Readings.BiomassCommEnabled = commEnabled;
+        }
+
+        // Not sticky, exactly like FlowCommandPending: a frame that does not mention a
+        // pending command is saying there is none.
+        // Null, not false, when the key is absent: a Hub with no acknowledgement channel
+        // for this device is silent about it, and silence is not a confirmation.
+        Readings.BiomassCommandPending =
+            TryGetBool(root, TelemetryKeys.BiomassCommandPending, out var pending) ? pending : null;
+
+        if (presence.HasTelemetry && !presence.Online)
+        {
+            // The Hub stops publishing the four biomass channels once the node's window
+            // lapses. Holding the last good sample would leave a ten-minute-old absorbance
+            // on screen looking live - the defect this whole change exists to close.
+            Readings.BiomassAbsorbance = SensorReadings.NotReceived;
+            Readings.BiomassRaw = 0;
+            Readings.BiomassIntegrationTimeMs = 0;
+            Readings.BiomassPwmPercent = 0;
+            return;
+        }
+
         if (TryGetDouble(root, TelemetryKeys.BiomassAbs, out var absorbance))
         {
             Readings.BiomassAbsorbance = absorbance;
@@ -370,8 +450,49 @@ public sealed class TelemetryParser
         }
     }
 
-    private void ParsePump(JsonElement root)
+    private void ParsePump(JsonElement root, DateTimeOffset now)
     {
+        var sawValues = TryGetPropertyCaseInsensitive(root, TelemetryKeys.PumpFlow, out _) ||
+                        TryGetPropertyCaseInsensitive(root, TelemetryKeys.PumpVolume, out _);
+
+        var presence = ResolvePresence(
+            root,
+            TelemetryKeys.PumpOnline,
+            sawValues,
+            _config.PumpTimeout,
+            new Presence(Readings.HasPumpTelemetry, Readings.PumpOnline, Readings.PumpLastSeenAt),
+            now);
+
+        Readings.HasPumpTelemetry = presence.HasTelemetry;
+        Readings.PumpOnline = presence.Online;
+        Readings.PumpLastSeenAt = presence.LastSeenAt;
+
+        if (TryGetBool(root, TelemetryKeys.PumpCommEnabled, out var commEnabled))
+        {
+            Readings.PumpCommEnabled = commEnabled;
+        }
+
+        // Null, not false, when the key is absent: a Hub with no acknowledgement channel
+        // for this device is silent about it, and silence is not a confirmation.
+        Readings.PumpCommandPending =
+            TryGetBool(root, TelemetryKeys.PumpCommandPending, out var pending) ? pending : null;
+
+        if (presence.HasTelemetry && !presence.Online)
+        {
+            // A Hub without the pump presence window republishes the last sample forever.
+            // Invalidating here is what stops the card - and the proportional-gas coupling
+            // that reads PumpVolume - from acting on a dead node's numbers.
+            Readings.PumpFlow = SensorReadings.NotReceived;
+            Readings.PumpVolume = SensorReadings.NotReceived;
+            Readings.PumpPwm = SensorReadings.NotReceived;
+            Readings.PumpSpeed = SensorReadings.NotReceived;
+            Readings.PumpTargetVolume = SensorReadings.NotReceived;
+            Readings.PumpMode = -1;
+            Readings.PumpActive = false;
+            Readings.PumpWaiting = false;
+            return;
+        }
+
         if (TryGetDouble(root, TelemetryKeys.PumpFlow, out var flow))
         {
             Readings.PumpFlow = flow;
@@ -381,6 +502,147 @@ public sealed class TelemetryParser
         {
             Readings.PumpVolume = volume;
         }
+
+        AssignInt(root, TelemetryKeys.PumpMode, v => Readings.PumpMode = v);
+
+        if (TryGetDouble(root, TelemetryKeys.PumpPwm, out var pwm))
+        {
+            Readings.PumpPwm = pwm;
+        }
+
+        if (TryGetDouble(root, TelemetryKeys.PumpSpeed, out var speed))
+        {
+            Readings.PumpSpeed = speed;
+        }
+
+        if (TryGetDouble(root, TelemetryKeys.PumpTargetVolume, out var targetVolume))
+        {
+            Readings.PumpTargetVolume = targetVolume;
+        }
+
+        // Sticky: the node's profile state only changes when it says so.
+        if (TryGetBool(root, TelemetryKeys.PumpActive, out var active))
+        {
+            Readings.PumpActive = active;
+        }
+
+        if (TryGetBool(root, TelemetryKeys.PumpWaiting, out var waiting))
+        {
+            Readings.PumpWaiting = waiting;
+        }
+    }
+
+    /// <summary>
+    /// The flask agitator, which reports nothing at all through a Hub that predates its
+    /// push handler.
+    /// </summary>
+    /// <remarks>
+    /// That case leaves <c>HasAgitatorTelemetry</c> false, and the UI must read that as
+    /// "no evidence" rather than "offline". The agitator is the one device where an
+    /// unflashed Hub cannot be worked around locally: there are no value keys to age.
+    /// </remarks>
+    private void ParseAgitator(JsonElement root, DateTimeOffset now)
+    {
+        var sawValues = TryGetPropertyCaseInsensitive(root, TelemetryKeys.AgitatorPercent, out _);
+
+        var presence = ResolvePresence(
+            root,
+            TelemetryKeys.AgitatorOnline,
+            sawValues,
+            _config.AgitatorTimeout,
+            new Presence(Readings.HasAgitatorTelemetry, Readings.AgitatorOnline, Readings.AgitatorLastSeenAt),
+            now);
+
+        Readings.HasAgitatorTelemetry = presence.HasTelemetry;
+        Readings.AgitatorOnline = presence.Online;
+        Readings.AgitatorLastSeenAt = presence.LastSeenAt;
+
+        // Null, not false, when the key is absent: a Hub with no acknowledgement channel
+        // for this device is silent about it, and silence is not a confirmation.
+        Readings.AgitatorCommandPending =
+            TryGetBool(root, TelemetryKeys.AgitatorCommandPending, out var pending) ? pending : null;
+
+        if (presence.HasTelemetry && !presence.Online)
+        {
+            Readings.AgitatorPercent = SensorReadings.NotReceived;
+            Readings.AgitatorDirection = -1;
+            Readings.AgitatorPotActive = false;
+            Readings.AgitatorSource = "unknown";
+            return;
+        }
+
+        if (TryGetDouble(root, TelemetryKeys.AgitatorPercent, out var percent))
+        {
+            Readings.AgitatorPercent = percent;
+        }
+
+        AssignInt(root, TelemetryKeys.AgitatorDirection, v => Readings.AgitatorDirection = v);
+
+        if (TryGetBool(root, TelemetryKeys.AgitatorPotActive, out var potActive))
+        {
+            Readings.AgitatorPotActive = potActive;
+        }
+
+        if (TryGetPropertyCaseInsensitive(root, TelemetryKeys.AgitatorSource, out var source) &&
+            source.ValueKind == JsonValueKind.String)
+        {
+            Readings.AgitatorSource = source.GetString() ?? Readings.AgitatorSource;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // External-device presence
+    // ------------------------------------------------------------------
+
+    /// <summary>One external device's presence, as of the frame being parsed.</summary>
+    private readonly record struct Presence(bool HasTelemetry, bool Online, DateTimeOffset? LastSeenAt);
+
+    /// <summary>
+    /// Resolves whether an external node is present, from the best evidence in this frame.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two sources, in order of authority. The Hub's own flag wins whenever the frame
+    /// carries it: only the Hub can time a node's pushes, and only the Hub can tell
+    /// "stopped" from "gone" for a node that goes quiet when idle.
+    /// </para>
+    /// <para>
+    /// Without the flag - any Hub built before it existed - the only evidence is whether
+    /// the device's value keys are still arriving, so they are aged out locally. That is
+    /// slower and coarser than the Hub's window, and deliberately kept: the app has to
+    /// stay honest against an unflashed Hub rather than assume the newest firmware.
+    /// </para>
+    /// <para>
+    /// A device the Hub has never mentioned keeps <see cref="Presence.HasTelemetry"/>
+    /// false. The UI renders that as <i>awaiting telemetry</i>, never as <i>offline</i>:
+    /// absence of evidence is not evidence of absence, and an operator must not be told a
+    /// device failed when nothing has been claimed about it.
+    /// </para>
+    /// </remarks>
+    private static Presence ResolvePresence(
+        JsonElement root,
+        string onlineKey,
+        bool sawValues,
+        TimeSpan timeout,
+        Presence previous,
+        DateTimeOffset now)
+    {
+        if (TryGetBool(root, onlineKey, out var reported))
+        {
+            return new Presence(true, reported, reported ? now : previous.LastSeenAt);
+        }
+
+        if (sawValues)
+        {
+            return new Presence(true, true, now);
+        }
+
+        if (previous.LastSeenAt is { } lastSeen && now - lastSeen >= timeout)
+        {
+            return previous with { Online = false };
+        }
+
+        return previous;
     }
 
     private void ParseTime(JsonElement root)

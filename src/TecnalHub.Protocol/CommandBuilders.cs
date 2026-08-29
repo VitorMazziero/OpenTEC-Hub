@@ -241,24 +241,60 @@ public static class CommandBuilders
     /// See <c>docs/PROTOCOL.md</c> §3.3. This is the separate flask agitator, not the
     /// reactor impeller (<see cref="MotorSetpoint"/>).
     /// </remarks>
-    public static TecnalCommand FlaskAgitator(bool on, bool automatic, double signedPercent)
+    /// <param name="reEnablePot">
+    /// When set, also writes the Hub's potentiometer re-enable flag. Leave null to keep
+    /// whatever the Hub has persisted - which is what an ordinary on/off must do.
+    /// </param>
+    public static TecnalCommand FlaskAgitator(
+        bool on, bool automatic, double signedPercent, bool? reEnablePot = null)
     {
         var magnitude = Math.Clamp(Math.Abs(signedPercent), 0.0, 100.0);
         var clockwise = signedPercent >= 0.0;
 
-        return TecnalCommand.Create()
+        var command = TecnalCommand.Create()
             .Set(CommandKeys.AgitatorOn, on)
             .Set(CommandKeys.AgitatorAuto, automatic)
             .Set(CommandKeys.AgitatorPercent, magnitude)
             .Set(CommandKeys.AgitatorDir, clockwise);
+
+        // The Hub reads agitatorReEnablePot into its persisted flag before it acts on
+        // agitatorOn, whichever order the keys appear in - it matches on the raw text. So
+        // one frame is enough to switch the flag and stop in the intended state.
+        return reEnablePot is { } pot ? command.Set(CommandKeys.AgitatorReEnablePot, pot) : command;
     }
 
     /// <summary>
-    /// Stops the flask agitator — off and out of automatic mode — keeping the operator's
-    /// staged magnitude and direction so re-enabling resumes it.
+    /// Ordinary stop: off and out of automatic mode, keeping the operator's staged
+    /// magnitude and direction so re-enabling resumes it.
     /// </summary>
-    public static TecnalCommand FlaskAgitatorSafeStop(double signedPercent)
+    /// <remarks>
+    /// The potentiometer flag is deliberately left alone. If the Hub has it set, the bench
+    /// knob takes the motor back on the node's next loop - which is the documented
+    /// behaviour of that switch, and the operator's choice to make.
+    /// </remarks>
+    public static TecnalCommand FlaskAgitatorOff(double signedPercent)
         => FlaskAgitator(on: false, automatic: false, signedPercent);
+
+    /// <summary>
+    /// Safe stop: off, out of automatic mode, <b>and the potentiometer locked out</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the one place the pot flag is forced. The Hub turns <c>agitatorOn:0</c> into
+    /// <c>{"RPM_percent":0,"ActivePot":agitatorReEnablePot}</c>, and the node's loop
+    /// re-reads the knob on the very next pass whenever <c>ActivePot</c> is 1. A safe stop
+    /// with the bench knob at 60 % would therefore restart the motor at 60 % - a stop that
+    /// does not stop.
+    /// </para>
+    /// <para>
+    /// The flag is persisted on the Hub, so it stays locked out until the operator
+    /// deliberately re-arms it with <see cref="FlaskAgitatorReEnablePot"/>. That is the
+    /// intended posture after an emergency stop: the knob does not get to restart the
+    /// motor on its own.
+    /// </para>
+    /// </remarks>
+    public static TecnalCommand FlaskAgitatorSafeStop(double signedPercent)
+        => FlaskAgitator(on: false, automatic: false, signedPercent, reEnablePot: false);
 
     /// <summary>Re-enables the flask agitator's physical potentiometer. A momentary action.</summary>
     public static TecnalCommand FlaskAgitatorReEnablePot()
@@ -306,18 +342,42 @@ public static class CommandBuilders
         => TecnalCommand.Create().Set(CommandKeys.PumpComm, 1);
 
     /// <summary>
-    /// The safe disabled frame: <c>{"pumpComm":0,"mode":0,"speed":0}</c>.
+    /// Stops the running profile: <c>{"mode":0,"speed":0}</c>.
     /// </summary>
     /// <remarks>
-    /// Byte-identical to v.6's <c>send_extern_pump_comm(false)</c>. The firmware ignores the
-    /// vestigial <c>speed</c> key (it forwards <c>pump_speed</c>), and drops <c>mode</c> once
-    /// <c>pumpComm:0</c> has cleared routing; both are reproduced only for parity.
+    /// <para>
+    /// <b>Must be sent while routing is still on.</b> The Hub forwards the pump block only
+    /// under <c>if (pumpCmdFound &amp;&amp; pumpCommOn)</c>, and it parses <c>pumpComm</c>
+    /// before it reaches that block - so v.6's combined
+    /// <c>{"pumpComm":0,"mode":0,"speed":0}</c> clears routing and then discards its own
+    /// <c>mode:0</c>. The node keeps dosing; only the telemetry goes quiet.
+    /// </para>
+    /// <para>
+    /// Once this frame is queued in the Hub's mailbox it survives a later
+    /// <c>pumpComm:0</c>: <c>/pumpCommand</c> has no routing gate, so the node still
+    /// collects it on its next poll. The two frames only have to arrive in order, which is
+    /// what <see cref="PumpRoutingDisabled"/> and the ordered-frame send guarantee.
+    /// </para>
+    /// <para>
+    /// <c>speed</c> stays for byte-parity with v.6 and is inert - the firmware forwards
+    /// <c>pump_speed</c>, not <c>speed</c>.
+    /// </para>
     /// </remarks>
-    public static TecnalCommand PumpDisable()
+    public static TecnalCommand PumpStopProfile()
         => TecnalCommand.Create()
-            .Set(CommandKeys.PumpComm, 0)
             .Set(CommandKeys.Mode, 0)
             .Set(CommandKeys.Speed, 0);
+
+    /// <summary>
+    /// Clears the Hub's pump routing: <c>{"pumpComm":0}</c>.
+    /// </summary>
+    /// <remarks>
+    /// Always the <i>second</i> frame, after <see cref="PumpStopProfile"/>. On its own it
+    /// stops the Hub forwarding and publishing, and leaves the node running whatever
+    /// profile it last received.
+    /// </remarks>
+    public static TecnalCommand PumpRoutingDisabled()
+        => TecnalCommand.Create().Set(CommandKeys.PumpComm, 0);
 
     /// <summary>Mode-1 constant profile: <c>Q(t') = λ</c> mL/min.</summary>
     public static TecnalCommand PumpConstant(double initMinutes, double finalMinutes, double lambda)

@@ -630,6 +630,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _cascade.Disengage("parada segura");
         _device.Send(command);
 
+        // The pump's routing switch travels on its own frame, after the one above. Merged in,
+        // the Hub would clear routing while parsing and then discard the mode:0 beside it,
+        // leaving the node dosing through a stop that reported success.
+        _device.SendAfterCurrentFrame(PumpControl.BuildRoutingDisable());
+
         foreach (var row in Rows)
         {
             row.Subsystem.IsEnabled = false;

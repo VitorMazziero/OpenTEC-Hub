@@ -19,6 +19,15 @@ namespace TecnalHub.ViewModels;
 /// applied together (raw ADC counts, ints).
 /// </para>
 /// <para>
+/// Two firmware facts shape everything below. First, <b>disabling drops the same frame's
+/// sub-commands</b>: the Hub parses <c>biomassComm</c> before it reaches the biomass block, so
+/// <c>{"stop":1,"biomassComm":0}</c> clears routing and then discards its own stop, leaving the
+/// node acquiring. Turning the sensor off is therefore two ordered frames. Second, the Hub's
+/// biomass mailbox is <b>consume-on-read and overwritten</b>, and the node polls it every 2 s, so
+/// a blank issued just before a start is silently replaced — the momentary actions are serialised
+/// behind <see cref="ExternalDeviceStatus.CanSend"/> rather than all being live at once.
+/// </para>
+/// <para>
 /// Biomass is a <b>measurement</b>: it is deliberately excluded from the operator safe-stop, so a
 /// stop never blinds the reading — the same treatment the level/foam sensor gets. It is still an
 /// owned arbiter actuator, so a future recipe cannot fight the operator over blank/thresholds.
@@ -27,22 +36,38 @@ namespace TecnalHub.ViewModels;
 public sealed partial class BiomassControlViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
+
+    /// <summary>Guards the enable setter while a refused toggle is being rolled back.</summary>
+    private bool _revertingEnable;
+
     private BiomassControlSettings _committed;
 
-    public BiomassControlViewModel(IDeviceService device, ISettingsService settings)
+    public BiomassControlViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null,
+        TimeProvider? timeProvider = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.BiomassControl;
+        Status = new ExternalDeviceStatus("Sensor de biomassa", "do sensor de biomassa", timeProvider);
+        Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
         _device.TelemetryReceived += OnTelemetryReceived;
+        _device.StateChanged += OnDeviceStateChanged;
         _initialised = true;
         ValidateAndRefresh();
         HasPendingChange = false;
     }
+
+    /// <summary>Presence, routing and pending state of the node behind the Hub.</summary>
+    public ExternalDeviceStatus Status { get; }
 
     /// <summary>Sensor enabled — <c>biomassComm</c>. Sent immediately on change, like v.6.</summary>
     [ObservableProperty]
@@ -81,27 +106,81 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => IsValid;
+    /// <summary>
+    /// Thresholds may be applied only when a frame can actually reach the node.
+    /// </summary>
+    public bool CanApply => IsValid && Status.CanSend;
+
+    /// <summary>
+    /// The momentary actions need the sensor on <i>and</i> a free mailbox: the Hub keeps one
+    /// pending biomass command, and a second one overwrites the first before the node polls.
+    /// </summary>
+    public bool CanActuate => IsEnabled && Status.CanSend;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
     partial void OnIsEnabledChanged(bool value)
     {
         OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(CanActuate));
         BlankCommand.NotifyCanExecuteChanged();
         StartCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
 
-        if (!_initialised)
+        if (!_initialised || _revertingEnable)
         {
             return;
         }
 
-        // The enable is an immediate mode switch on the hub, not a staged field.
-        _device.Send(CommandBuilders.BiomassComm(value));
-        StatusText = value
-            ? "Sensor de biomassa ativado."
-            : "Sensor de biomassa desativado.";
+        if (value)
+        {
+            // The enable is an immediate mode switch on the hub, not a staged field.
+            var enable = _dispatcher.Dispatch(CommandBuilders.BiomassComm(true));
+            if (!enable.Accepted)
+            {
+                RevertEnable(true);
+                StatusText = DispatchRefusal.Describe(enable);
+                return;
+            }
+
+            Status.IsCommRequested = true;
+            StatusText = "Sensor de biomassa ativado.";
+            return;
+        }
+
+        // Stop first, while the Hub is still routing to the node: the same frame carrying
+        // biomassComm:0 would have its stop discarded, and the node would keep acquiring
+        // with the operator looking at a switch that says otherwise.
+        var stop = _dispatcher.Dispatch(CommandBuilders.BiomassStop());
+        if (!stop.Accepted)
+        {
+            RevertEnable(false);
+            StatusText = DispatchRefusal.Describe(stop);
+            return;
+        }
+
+        // Its own frame, after the stop, or the buffer merges the two back together.
+        var disable = _dispatcher.DispatchSeparateFrame(CommandBuilders.BiomassComm(false));
+        if (!disable.Accepted)
+        {
+            // The acquisition did stop; only the routing switch did not land. Say so rather
+            // than claiming either full success or full failure.
+            StatusText = "Aquisição interrompida, mas o roteamento do Hub não foi desligado: " +
+                         DispatchRefusal.Describe(disable);
+            return;
+        }
+
+        Status.IsCommRequested = false;
+        Status.MarkCommandDispatched();
+        StatusText = "Sensor de biomassa desativado (aquisição parada e roteamento desligado).";
+    }
+
+    /// <summary>Puts the switch back after a refused toggle, without resending anything.</summary>
+    private void RevertEnable(bool attempted)
+    {
+        _revertingEnable = true;
+        IsEnabled = !attempted;
+        _revertingEnable = false;
     }
 
     partial void OnLowThresholdTextChanged(string value) => ValidateAndRefresh();
@@ -111,27 +190,36 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     partial void OnOptimalThresholdTextChanged(string value) => ValidateAndRefresh();
 
     /// <summary>Captures the blank (zero-absorbance) reference. Momentary; needs the sensor on.</summary>
-    [RelayCommand(CanExecute = nameof(IsEnabled))]
-    private void Blank()
-    {
-        _device.Send(CommandBuilders.BiomassBlank());
-        StatusText = "Comando de branco enviado ao sensor de biomassa.";
-    }
+    [RelayCommand(CanExecute = nameof(CanActuate))]
+    private void Blank() => SendMomentary(CommandBuilders.BiomassBlank(), "branco");
 
     /// <summary>Starts the acquisition loop. Momentary; needs the sensor on.</summary>
-    [RelayCommand(CanExecute = nameof(IsEnabled))]
-    private void Start()
-    {
-        _device.Send(CommandBuilders.BiomassStart());
-        StatusText = "Comando de início enviado ao sensor de biomassa.";
-    }
+    [RelayCommand(CanExecute = nameof(CanActuate))]
+    private void Start() => SendMomentary(CommandBuilders.BiomassStart(), "início");
 
     /// <summary>Stops the acquisition loop. Momentary; needs the sensor on.</summary>
-    [RelayCommand(CanExecute = nameof(IsEnabled))]
-    private void Stop()
+    [RelayCommand(CanExecute = nameof(CanActuate))]
+    private void Stop() => SendMomentary(CommandBuilders.BiomassStop(), "parada");
+
+    /// <summary>
+    /// Sends one momentary action and holds the others until it is confirmed.
+    /// </summary>
+    /// <remarks>
+    /// The Hub keeps a single pending biomass command and the node polls it every 2 s, so two
+    /// momentaries issued back to back deliver only the second. The pending lock is what makes
+    /// the mailbox depth of one visible to the operator instead of losing their first click.
+    /// </remarks>
+    private void SendMomentary(TecnalCommand command, string label)
     {
-        _device.Send(CommandBuilders.BiomassStop());
-        StatusText = "Comando de parada enviado ao sensor de biomassa.";
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        Status.MarkCommandDispatched();
+        StatusText = $"Comando de {label} enviado ao sensor de biomassa; aguardando o dispositivo.";
     }
 
     [RelayCommand(CanExecute = nameof(CanApply))]
@@ -143,12 +231,21 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
             return;
         }
 
-        _device.Send(CommandBuilders.BiomassThresholds(
+        var result = _dispatcher.Dispatch(CommandBuilders.BiomassThresholds(
             staged.LowThreshold, staged.HighThreshold, staged.OptimalThreshold));
+
+        if (!result.Accepted)
+        {
+            // Keep the staged values: the operator's entry is still the pending intent, and
+            // persisting it now would record a calibration the sensor never received.
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
 
         _committed = staged;
         _settings.Update(settings => settings with { BiomassControl = staged });
         HasPendingChange = false;
+        Status.MarkCommandDispatched();
         StatusText = "Limiares de biomassa (baixo/alto/ótimo) enviados.";
     }
 
@@ -201,6 +298,29 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         RefreshPendingState();
     }
 
+    private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ExternalDeviceStatus.CanSend) or null))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(CanActuate));
+        ApplyThresholdsCommand.NotifyCanExecuteChanged();
+        BlankCommand.NotifyCanExecuteChanged();
+        StartCommand.NotifyCanExecuteChanged();
+        StopCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnDeviceStateChanged(ConnectionStateChange change)
+    {
+        if (change.State != ConnectionState.Connected)
+        {
+            Status.MarkHubUnavailable();
+        }
+    }
+
     private string? Validate()
     {
         if (!DosingInput.TryParseInteger(LowThresholdText, out var low) || low is < 0 or > 200_000)
@@ -243,8 +363,16 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        Status.Update(
+            snapshot.HasBiomassTelemetry,
+            snapshot.BiomassOnline,
+            snapshot.BiomassCommandPending,
+            snapshot.BiomassCommEnabled);
+
         // The four biomass channels arrive together; Abs carries the not-received sentinel,
-        // so gate the whole block on it rather than showing 0 counts before any frame.
+        // so gate the whole block on it rather than showing 0 counts before any frame. The
+        // parser now clears it when the node goes absent, so a stale absorbance can no longer
+        // sit here looking live.
         if (snapshot.BiomassAbsorbance <= SensorReadings.NotReceived)
         {
             AbsorbanceText = RawText = IntegrationTimeText = PwmText = "—";
@@ -257,5 +385,10 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         PwmText = snapshot.BiomassPwmPercent.ToString("F1", CultureInfo.CurrentCulture);
     }
 
-    public void Dispose() => _device.TelemetryReceived -= OnTelemetryReceived;
+    public void Dispose()
+    {
+        _device.TelemetryReceived -= OnTelemetryReceived;
+        _device.StateChanged -= OnDeviceStateChanged;
+        Status.PropertyChanged -= OnStatusChanged;
+    }
 }

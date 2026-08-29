@@ -15,6 +15,7 @@ Index of the project documentation. The repository entry point is
 | [UI_DESIGN.md](UI_DESIGN.md) | Visual identity, dashboard layout, connection UX |
 | [DECISIONS.md](DECISIONS.md) | Decision log, and the open questions |
 | [CONVENTIONS.md](CONVENTIONS.md) | Code conventions |
+| [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) | Auditoria dos firmwares dos dispositivos externos contra o app e plano de padronização (presença, ACK, Controle e Painel) |
 | [PLANO_IMPLEMENTACAO_TESTES_KLA.md](PLANO_IMPLEMENTACAO_TESTES_KLA.md) | Plano detalhado da página Determinar kLa, armazenamento em `Testes-kLa` e importação bidirecional com Mapas |
 | [SIMULACAO_TESTES_KLA.md](SIMULACAO_TESTES_KLA.md) | Como iniciar o modo offline de Testes-kLa com reprodução de arquivo experimental e ACKs simulados |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |

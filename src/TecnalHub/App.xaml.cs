@@ -249,6 +249,12 @@ public partial class App : Application
         services.AddSingleton<IDeviceService>(sp => sp.GetRequiredService<CommandArbiter>());
         services.AddSingleton<ICommandArbiter>(sp => sp.GetRequiredService<CommandArbiter>());
 
+        // Manual sends that report whether they were accepted. IDeviceService.Send is void
+        // and swallows an ownership refusal; a card that commits on it can persist a
+        // setpoint the hardware never received (AUD-003).
+        services.AddSingleton<IManualDispatcher>(sp =>
+            new ManualDispatcher(sp.GetRequiredService<IDeviceService>()));
+
         services.AddSingleton<ITelemetryHistory>(_ => new TelemetryHistory());
 
         // The oxygen cascade subscribes to telemetry and actuates only while engaged,

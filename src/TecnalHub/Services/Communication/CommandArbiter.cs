@@ -107,6 +107,17 @@ public interface ICommandArbiter
     /// <summary>Sends <paramref name="command"/> if <paramref name="requester"/> owns everything it touches.</summary>
     CommandDispatchResult Dispatch(CommandOwner requester, TecnalCommand command);
 
+    /// <summary>
+    /// The same ownership check, but the frame is sent on its own rather than merged.
+    /// </summary>
+    /// <remarks>
+    /// Needed where merging would defeat the command: the Hub drops an external device's
+    /// sub-commands once that device's routing flag is clear, so a stop and the disable
+    /// that follows it must be two frames.
+    /// </remarks>
+    CommandDispatchResult DispatchSeparateFrame(CommandOwner requester, TecnalCommand command)
+        => Dispatch(requester, command);
+
     /// <summary>Transfers a set of actuators to <paramref name="owner"/>, explicitly and journalled.</summary>
     OwnershipTransfer Claim(CommandOwner owner, IReadOnlyList<ActuatorId> actuators, string reason);
 
@@ -215,6 +226,12 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
     public event Action<OwnershipTransfer>? OwnershipRevoked;
 
     public CommandDispatchResult Dispatch(CommandOwner requester, TecnalCommand command)
+        => Dispatch(requester, command, separateFrame: false);
+
+    public CommandDispatchResult DispatchSeparateFrame(CommandOwner requester, TecnalCommand command)
+        => Dispatch(requester, command, separateFrame: true);
+
+    private CommandDispatchResult Dispatch(CommandOwner requester, TecnalCommand command, bool separateFrame)
     {
         ArgumentNullException.ThrowIfNull(command);
         if (command.IsEmpty)
@@ -288,7 +305,15 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
             CommandTracked?.Invoke(entry);
         }
 
-        _inner.Send(command);
+        if (separateFrame)
+        {
+            _inner.SendAfterCurrentFrame(command);
+        }
+        else
+        {
+            _inner.Send(command);
+        }
+
         return new CommandDispatchResult(true, [], requester);
     }
 
@@ -498,6 +523,9 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
 
     /// <summary>A plain send is a Manual dispatch — the operator writing a setpoint.</summary>
     public void Send(TecnalCommand command) => Dispatch(CommandOwner.Manual, command);
+
+    public void SendAfterCurrentFrame(TecnalCommand command)
+        => DispatchSeparateFrame(CommandOwner.Manual, command);
 
     public void ZeroSessionTime() => _inner.ZeroSessionTime();
 

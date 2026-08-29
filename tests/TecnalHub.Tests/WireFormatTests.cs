@@ -162,8 +162,44 @@ public class WireFormatTests
     public void Pump_enable_and_safe_disable_match_v6()
     {
         Assert.Equal("""{"pumpComm":1}""", CommandBuilders.PumpEnable().ToJson());
-        // v.6's send_extern_pump_comm(false): the safe frame with the vestigial speed:0.
-        Assert.Equal("""{"pumpComm":0,"mode":0,"speed":0}""", CommandBuilders.PumpDisable().ToJson());
+
+        // v.6 sent one frame, {"pumpComm":0,"mode":0,"speed":0}, and it does not stop the
+        // pump: the Hub parses pumpComm before it reaches the pump block, so its own mode:0
+        // is dropped by "if (pumpCmdFound && pumpCommOn)" and the node keeps dosing. The
+        // disable is therefore two ordered frames. speed:0 stays for parity and is inert -
+        // the firmware forwards pump_speed, not speed.
+        Assert.Equal("""{"mode":0,"speed":0}""", CommandBuilders.PumpStopProfile().ToJson());
+        Assert.Equal("""{"pumpComm":0}""", CommandBuilders.PumpRoutingDisabled().ToJson());
+    }
+
+    // ── Flask agitator (WP7) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Flask_agitator_splits_the_signed_percent_into_magnitude_and_direction()
+    {
+        Assert.Equal(
+            """{"agitatorOn":1,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1}""",
+            CommandBuilders.FlaskAgitator(on: true, automatic: false, 80.0).ToJson());
+
+        Assert.Equal(
+            """{"agitatorOn":1,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":0}""",
+            CommandBuilders.FlaskAgitator(on: true, automatic: false, -80.0).ToJson());
+    }
+
+    [Fact]
+    public void Flask_agitator_safe_stop_locks_the_potentiometer_out_and_an_ordinary_stop_does_not()
+    {
+        // An ordinary stop leaves agitatorReEnablePot alone, so the Hub keeps whatever the
+        // operator chose - including handing the motor back to the bench knob.
+        Assert.Equal(
+            """{"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1}""",
+            CommandBuilders.FlaskAgitatorOff(80.0).ToJson());
+
+        // The safe stop forces it to 0: with ActivePot set, the node re-reads the knob on its
+        // next loop and a stop with the knob at 60 % restarts the motor at 60 %.
+        Assert.Equal(
+            """{"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1,"agitatorReEnablePot":0}""",
+            CommandBuilders.FlaskAgitatorSafeStop(80.0).ToJson());
     }
 
     [Fact]

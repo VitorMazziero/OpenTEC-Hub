@@ -177,5 +177,61 @@ public static class TelemetryKeys
     public const string PumpFlow = "PumpFlow";
     public const string PumpVolume = "PumpVol";
 
+    /// <summary>Profile mode the pump node reports running (1-5, 0 = idle).</summary>
+    public const string PumpMode = "PumpMode";
+
+    public const string PumpPwm = "PumpPWM";
+    public const string PumpSpeed = "PumpSpeed";
+
+    /// <summary>Volume the node's own profile integral expects by now, mL.</summary>
+    public const string PumpTargetVolume = "PumpTargetVol";
+
+    /// <summary>The node is inside its operating window and dosing.</summary>
+    public const string PumpActive = "PumpActive";
+
+    /// <summary>The node has a profile but is still before <c>init_t</c>.</summary>
+    public const string PumpWaiting = "PumpWaiting";
+
+    // ---- External-device presence and routing ----------------------------
+    // Every external node gets the three states the flowmeter already publishes, so
+    // "the operator switched it off", "the Hub is not routing to it" and "the node is
+    // not there" stay distinguishable. See docs/PLANO_DISPOSITIVOS_EXTERNOS.md §2.
+    //
+    // A Hub that predates these keys simply omits them; TelemetryParser then falls back
+    // to ageing out the device's value keys, so the app keeps working unflashed.
+
+    /// <summary>Hub saw biomass telemetry inside its window.</summary>
+    public const string BiomassOnline = "BiomassOnline";
+
+    /// <summary>Hub echo of the <c>biomassComm</c> routing flag it persisted.</summary>
+    public const string BiomassCommEnabled = "BiomassCommEnabled";
+
+    /// <summary>A biomass command is queued and not yet acknowledged by the node.</summary>
+    public const string BiomassCommandPending = "BiomassCommandPending";
+
+    public const string PumpOnline = "PumpOnline";
+    public const string PumpCommEnabled = "PumpCommEnabled";
+    public const string PumpCommandPending = "PumpCommandPending";
+
+    public const string DistanceOnline = "DistanceOnline";
+    public const string DistanceCommEnabled = "DistanceCommEnabled";
+
+    public const string AgitatorOnline = "AgitatorOnline";
+    public const string AgitatorCommandPending = "AgitatorCommandPending";
+
+    /// <summary>Magnitude the agitator node is actually driving, 0-100 %.</summary>
+    public const string AgitatorPercent = "AgitatorPercent";
+
+    /// <summary>Direction the node is actually driving: 1 CW, 0 CCW.</summary>
+    public const string AgitatorDirection = "AgitatorDir";
+
+    /// <summary>
+    /// The node's potentiometer is live and can override whatever the app commanded.
+    /// </summary>
+    public const string AgitatorPotActive = "AgitatorPotActive";
+
+    /// <summary>What last moved the agitator: <c>Pot</c>, <c>Hub</c>, <c>Wi-Fi</c> or <c>USB</c>.</summary>
+    public const string AgitatorSource = "AgitatorSource";
+
     public const string Time = "Time";
 }

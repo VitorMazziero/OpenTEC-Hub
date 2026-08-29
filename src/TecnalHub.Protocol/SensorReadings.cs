@@ -65,11 +65,74 @@ public sealed class SensorReadings
     public int BiomassIntegrationTimeMs { get; set; }
     public double BiomassPwmPercent { get; set; }
 
+    /// <summary>The Hub has reported on the biomass node at least once this session.</summary>
+    public bool HasBiomassTelemetry { get; set; }
+
+    /// <summary>The Hub is receiving biomass samples inside its window.</summary>
+    public bool BiomassOnline { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.BiomassCommEnabled"/>
+    public bool? BiomassCommEnabled { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.BiomassCommandPending"/>
+    public bool? BiomassCommandPending { get; set; }
+
     /// <summary>True while the ESP32 reports its internal sensor-module UART healthy.</summary>
     public bool SensorCommOk { get; set; } = true;
 
     public double PumpFlow { get; set; } = NotReceived;
     public double PumpVolume { get; set; } = NotReceived;
+
+    /// <summary>Profile mode the node reports running; -1 before any frame.</summary>
+    public int PumpMode { get; set; } = -1;
+
+    public double PumpPwm { get; set; } = NotReceived;
+    public double PumpSpeed { get; set; } = NotReceived;
+    public double PumpTargetVolume { get; set; } = NotReceived;
+    public bool PumpActive { get; set; }
+    public bool PumpWaiting { get; set; }
+
+    /// <summary>The Hub has reported on the external pump at least once this session.</summary>
+    public bool HasPumpTelemetry { get; set; }
+
+    public bool PumpOnline { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.PumpCommEnabled"/>
+    public bool? PumpCommEnabled { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.PumpCommandPending"/>
+    public bool? PumpCommandPending { get; set; }
+
+    /// <summary>The Hub has reported on the level/foam sensor at least once this session.</summary>
+    public bool HasDistanceTelemetry { get; set; }
+
+    public bool DistanceOnline { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.DistanceCommEnabled"/>
+    public bool? DistanceCommEnabled { get; set; }
+
+    /// <summary>The Hub has reported on the flask agitator at least once this session.</summary>
+    /// <remarks>
+    /// False against every Hub built before the agitator push handler existed, which is
+    /// honest: that Hub genuinely knows nothing about the agitator.
+    /// </remarks>
+    public bool HasAgitatorTelemetry { get; set; }
+
+    public bool AgitatorOnline { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.AgitatorCommandPending"/>
+    public bool? AgitatorCommandPending { get; set; }
+
+    public double AgitatorPercent { get; set; } = NotReceived;
+
+    /// <summary>1 clockwise, 0 counter-clockwise, -1 before any frame.</summary>
+    public int AgitatorDirection { get; set; } = -1;
+
+    /// <inheritdoc cref="SensorSnapshot.AgitatorPotActive"/>
+    public bool AgitatorPotActive { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.AgitatorSource"/>
+    public string AgitatorSource { get; set; } = "unknown";
 
     /// <summary>Seconds since controller boot, as reported by the device.</summary>
     public double TimeRawSeconds { get; set; }
@@ -82,6 +145,19 @@ public sealed class SensorReadings
 
     /// <summary>When a frame last carried a Distance key. Null before the first one.</summary>
     internal DateTimeOffset? DistanceLastSeenAt { get; set; }
+
+    /// <summary>When a frame last carried biomass values. Null before the first one.</summary>
+    /// <remarks>
+    /// Only consulted against a Hub that does not publish the explicit presence flag; with
+    /// the flag present the Hub's own window is authoritative.
+    /// </remarks>
+    internal DateTimeOffset? BiomassLastSeenAt { get; set; }
+
+    /// <summary>When a frame last carried pump values. Null before the first one.</summary>
+    internal DateTimeOffset? PumpLastSeenAt { get; set; }
+
+    /// <summary>When a frame last carried agitator values. Null before the first one.</summary>
+    internal DateTimeOffset? AgitatorLastSeenAt { get; set; }
 
     /// <summary>Treats the current device clock as the run's zero point.</summary>
     public void ZeroTime() => TimeOffsetMinutes = TimeRawSeconds / 60.0;
@@ -116,9 +192,33 @@ public sealed class SensorReadings
         BiomassRaw = BiomassRaw,
         BiomassIntegrationTimeMs = BiomassIntegrationTimeMs,
         BiomassPwmPercent = BiomassPwmPercent,
+        HasBiomassTelemetry = HasBiomassTelemetry,
+        BiomassOnline = BiomassOnline,
+        BiomassCommEnabled = BiomassCommEnabled,
+        BiomassCommandPending = BiomassCommandPending,
         SensorCommOk = SensorCommOk,
         PumpFlow = PumpFlow,
         PumpVolume = PumpVolume,
+        PumpMode = PumpMode,
+        PumpPwm = PumpPwm,
+        PumpSpeed = PumpSpeed,
+        PumpTargetVolume = PumpTargetVolume,
+        PumpActive = PumpActive,
+        PumpWaiting = PumpWaiting,
+        HasPumpTelemetry = HasPumpTelemetry,
+        PumpOnline = PumpOnline,
+        PumpCommEnabled = PumpCommEnabled,
+        PumpCommandPending = PumpCommandPending,
+        HasDistanceTelemetry = HasDistanceTelemetry,
+        DistanceOnline = DistanceOnline,
+        DistanceCommEnabled = DistanceCommEnabled,
+        HasAgitatorTelemetry = HasAgitatorTelemetry,
+        AgitatorOnline = AgitatorOnline,
+        AgitatorCommandPending = AgitatorCommandPending,
+        AgitatorPercent = AgitatorPercent,
+        AgitatorDirection = AgitatorDirection,
+        AgitatorPotActive = AgitatorPotActive,
+        AgitatorSource = AgitatorSource,
         TimeRawSeconds = TimeRawSeconds,
         TimeMinutes = TimeMinutes,
     };
@@ -156,9 +256,83 @@ public sealed record SensorSnapshot
     public int BiomassRaw { get; init; }
     public int BiomassIntegrationTimeMs { get; init; }
     public double BiomassPwmPercent { get; init; }
+
+    /// <summary>The Hub has reported on the biomass node at least once this session.</summary>
+    /// <remarks>
+    /// False means "no evidence either way" and must render as <i>awaiting telemetry</i>,
+    /// never as <i>offline</i> - the same distinction the flowmeter row already draws.
+    /// </remarks>
+    public bool HasBiomassTelemetry { get; init; }
+
+    public bool BiomassOnline { get; init; }
+
+    /// <summary>
+    /// The Hub's own biomass routing flag, echoed back. Null when the Hub does not publish
+    /// it, which is the only honest answer for a Hub that predates the key.
+    /// </summary>
+    public bool? BiomassCommEnabled { get; init; }
+
+    /// <summary>
+    /// A command is queued for the node and not yet acknowledged. Null when the Hub
+    /// has no acknowledgement channel for this device, which is not the same as
+    /// "nothing pending" and must not be read as one.
+    /// </summary>
+    public bool? BiomassCommandPending { get; init; }
+
     public bool SensorCommOk { get; init; }
     public double PumpFlow { get; init; }
     public double PumpVolume { get; init; }
+    public int PumpMode { get; init; }
+    public double PumpPwm { get; init; }
+    public double PumpSpeed { get; init; }
+    public double PumpTargetVolume { get; init; }
+
+    /// <summary>The node is inside its operating window and dosing.</summary>
+    public bool PumpActive { get; init; }
+
+    /// <summary>The node has a profile loaded but has not reached its start time yet.</summary>
+    public bool PumpWaiting { get; init; }
+
+    public bool HasPumpTelemetry { get; init; }
+    public bool PumpOnline { get; init; }
+
+    /// <inheritdoc cref="BiomassCommEnabled"/>
+    public bool? PumpCommEnabled { get; init; }
+
+    /// <summary>
+    /// A command is queued for the node and not yet acknowledged. Null when the Hub
+    /// has no acknowledgement channel for this device, which is not the same as
+    /// "nothing pending" and must not be read as one.
+    /// </summary>
+    public bool? PumpCommandPending { get; init; }
+
+    public bool HasDistanceTelemetry { get; init; }
+    public bool DistanceOnline { get; init; }
+
+    /// <inheritdoc cref="BiomassCommEnabled"/>
+    public bool? DistanceCommEnabled { get; init; }
+
+    public bool HasAgitatorTelemetry { get; init; }
+    public bool AgitatorOnline { get; init; }
+    /// <summary>
+    /// A command is queued for the node and not yet acknowledged. Null when the Hub
+    /// has no acknowledgement channel for this device, which is not the same as
+    /// "nothing pending" and must not be read as one.
+    /// </summary>
+    public bool? AgitatorCommandPending { get; init; }
+    public double AgitatorPercent { get; init; }
+
+    /// <summary>1 clockwise, 0 counter-clockwise, -1 before any frame.</summary>
+    public int AgitatorDirection { get; init; }
+
+    /// <summary>
+    /// The node's potentiometer is live. While it is, the bench knob outranks anything the
+    /// app commanded, so the row must say so rather than show a setpoint it does not hold.
+    /// </summary>
+    public bool AgitatorPotActive { get; init; }
+
+    /// <summary>What last moved the agitator: Pot, Hub, Wi-Fi or USB.</summary>
+    public string AgitatorSource { get; init; } = "unknown";
     public double TimeRawSeconds { get; init; }
     public double TimeMinutes { get; init; }
 }

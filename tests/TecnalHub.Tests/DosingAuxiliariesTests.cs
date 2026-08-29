@@ -63,9 +63,20 @@ public sealed class DosingAuxiliariesTests
     }
 
     [Fact]
-    public void Agitator_safe_stop_is_off_and_out_of_auto_keeping_magnitude_and_direction()
+    public void Agitator_ordinary_stop_leaves_the_potentiometer_preference_alone()
         => Assert.Equal(
             """{"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":0}""",
+            CommandBuilders.FlaskAgitatorOff(-50.0).ToJson());
+
+    /// <summary>
+    /// The Hub turns an off command into <c>ActivePot = agitatorReEnablePot</c>, and the node
+    /// re-reads the bench knob on its next loop whenever that is set. A safe stop that left the
+    /// flag alone would be undone by a knob sitting at 60 %.
+    /// </summary>
+    [Fact]
+    public void Agitator_safe_stop_locks_the_potentiometer_out()
+        => Assert.Equal(
+            """{"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":0,"agitatorReEnablePot":0}""",
             CommandBuilders.FlaskAgitatorSafeStop(-50.0).ToJson());
 
     [Fact]

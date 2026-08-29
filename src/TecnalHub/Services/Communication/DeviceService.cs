@@ -60,6 +60,16 @@ public interface IDeviceService
     void Send(TecnalCommand command);
 
     /// <summary>
+    /// Queues a command as its own frame, after everything already buffered.
+    /// </summary>
+    /// <remarks>
+    /// Only for key pairs the firmware's parse order makes interact - see
+    /// <c>ConnectionManager.SendCommandAfterCurrentFrame</c>. The default merges, which is
+    /// right for any transport that is not the real link.
+    /// </remarks>
+    void SendAfterCurrentFrame(TecnalCommand command) => Send(command);
+
+    /// <summary>
     /// Zeroes the operator session clock: stores a local display/log offset without ever
     /// resetting the device clock or rewriting samples already logged.
     /// </summary>
@@ -199,6 +209,9 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     public void Disconnect() => _manager.Disconnect();
 
     public void Send(TecnalCommand command) => _manager.SendCommand(command);
+
+    public void SendAfterCurrentFrame(TecnalCommand command)
+        => _manager.SendCommandAfterCurrentFrame(command);
 
     public void ZeroSessionTime() => _manager.ZeroSessionTime();
 

@@ -1,8 +1,16 @@
 # ESP32-S3 Protocol Contract
 
-> **Status:** FROZEN — the firmware is not being changed.
+> **Status:** the **v.6 core loop is frozen** — every byte in sections 1 to 3.3 is
+> byte-identical to what v.6 puts on the wire and stays that way.
+> The **external-device sections (3.4, 3.5 and the presence keys in section 2) are not**:
+> the Hub firmware moved to v8 and is being extended for them. Anything below marked
+> **`[hub-patch]`** requires the Hub build described in
+> [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) § 4; the app degrades to
+> ageing the value keys locally when a Hub does not publish it.
+>
 > **Source of truth:** reverse-engineered from `v.6/communication/{transport,data_parser,connection_manager}.py`
-> and every `send_command()` call site in the v.6 tree.
+> and every `send_command()` call site in the v.6 tree, plus a read of
+> `TECNAL_ESP32_v8.ino` and the five node firmwares on 2026-08-29.
 >
 > **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md)
 
@@ -153,9 +161,60 @@ sentinel for floats.
 | `BiomassRaw` | int | counts | |
 | `BiomassIT` | int | ms | Integration time |
 | `BiomassPWM` | float | % | |
-| `PumpFlow` | float | — | External pump |
-| `PumpVol` | float | — | External pump |
+| `PumpFlow` | float | mL/min | External pump, instantaneous |
+| `PumpVol` | float | mL | External pump, accumulated |
+| `PumpMode` | int | — | Profile mode the node reports running (1-5; `0` idle) |
+| `PumpPWM` | int | counts | Motor duty the node is driving |
+| `PumpSpeed` | float | — | Commanded speed the node derived from the profile |
+| `PumpTargetVol` | float | mL | The node's own profile integral — what it *should* have dosed by now |
+| `PumpActive` | bool | — | Inside the operating window and dosing |
+| `PumpWaiting` | bool | — | Profile loaded, still before `init_t` |
 | `Time` | float | s | Seconds since controller boot; the app subtracts a user-zeroed offset |
+
+The whole `Pump*` block is emitted **only while `pumpComm` is set**, and stock v8 has
+**no staleness window for it at all** — a dead node's last sample is republished
+indefinitely. `PumpOnline` below is what fixes that; until the Hub carries it, the app ages
+`PumpFlow`/`PumpVol` locally instead (`ParserConfig.PumpTimeout`, 5 s).
+
+### 2.0.1 External-device presence and routing `[hub-patch]`
+
+The flowmeter has published `FlowmeterOnline` and `FlowControlEnabled` since v7, and it is
+the only external device that did. The rest were observable only through the **absence** of
+their value keys, which cannot separate three different things: the operator switched the
+device off, the Hub is not routing to it, or the node is gone.
+
+These keys give every external device the same three states. Each is **always present** once
+the Hub carries them, so absence of the key means "this Hub predates it", not "false".
+
+| JSON key | Type | Meaning |
+|---|---|---|
+| `BiomassOnline`, `PumpOnline`, `DistanceOnline`, `AgitatorOnline` | bool | The Hub received a push from the node inside its window |
+| `BiomassCommEnabled`, `PumpCommEnabled`, `DistanceCommEnabled` | bool | Echo of the routing flag the Hub persists in NVS |
+| `BiomassCommandPending`, `PumpCommandPending`, `AgitatorCommandPending` | bool | A command is queued for the node and not yet acknowledged |
+| `AgitatorPercent` | float | Magnitude the node is actually driving, 0-100 % |
+| `AgitatorDir` | int | Direction the node is actually driving: `1` CW, `0` CCW |
+| `AgitatorPotActive` | bool | The bench potentiometer is live and outranks the app |
+| `AgitatorSource` | string | What last moved the motor: `Pot`, `Hub`, `Wi-Fi`, `USB` |
+
+> **The routing echo is not cosmetic.** The Hub persists `bioComm`, `pumpComm`, `distComm`
+> and `flowComm` in NVS while the app persists the operator's switches on the PC. After a Hub
+> reboot the two can differ, and the Hub then drops every biomass or pump sub-command in
+> silence (`if (cmdFound && commOn)`). Without the echo there is nothing to notice that with.
+
+> **Parsing rules.** The `*Online` flags are authoritative when present. The `*CommEnabled`
+> flags are **sticky and nullable**: null means "this Hub does not publish it", which is not
+> the same as `false`. The `*CommandPending` flags are **not sticky and nullable** for the
+> same reason — a Hub with no acknowledgement channel for a device is silent about it, and
+> silence is not a confirmation. When a device's `*Online` is false the app **invalidates**
+> that device's values rather than holding them, exactly as it already does for the
+> flowmeter.
+
+> **`Servo*` is on the wire and out of app scope.** Stock v8 publishes `ServoOnline`,
+> `ServoRpm`, `ServoTorquePct`, `ServoTorqueNm`, `ServoLoadPct`, `ServoPowerW`,
+> `ServoEnergyWh`, `ServoState`, `ServoAlarm`, `ServoCommOk/Err` from the Delta ASDA-B2 node,
+> and accepts `servoComm`, `resetServoEnergy` and `servoPollMs`. The RS-485 wiring is not
+> built yet, so none of it is parsed or displayed; the parser ignores unknown keys, so a v8
+> Hub emitting them is harmless.
 
 ### 2.0 Not every line is telemetry
 
@@ -355,6 +414,18 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > wire carries magnitude and direction as two separate keys. Do not leak the
 > signed form onto the wire.
 
+> **`agitatorOn:0` is not, by itself, a stop.** The Hub turns it into
+> `{"RPM_percent":0,"Dir":d,"ActivePot":agitatorReEnablePot}`, and the node's loop re-reads
+> the bench potentiometer on its very next pass whenever `ActivePot` is `1` — which is the
+> persisted default. A stop issued with the knob at 60 % restarts the motor at 60 %.
+>
+> So the two stops differ deliberately. The **ordinary off** omits `agitatorReEnablePot` and
+> keeps whatever the operator chose; the **operator safe-stop sends `agitatorReEnablePot:0`**
+> in the same frame, locking the knob out until it is deliberately re-armed with
+> `{"agitatorReEnablePot":1}`. The Hub reads that key into its persisted flag before it acts
+> on `agitatorOn`, whichever order the two appear in — it matches on raw text — so one frame
+> is enough. See [DECISIONS D-026](DECISIONS.md).
+
 > **Intensity `× 10` is pH-only.** `pHIntensity` is `percent × 10` (0-990); `nutriIntensity`
 > and `antifoamIntensity` carry the **raw** operator percent (0-99). Nutrient and antifoam are
 > atomic like pH — all their keys travel in one frame — and their timing/cycle values are
@@ -370,11 +441,23 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 
 | Keys | Meaning |
 |---|---|
-| `biomassComm` | `1`/`0` enable. Handled on the hub; while `0` it drops the sub-commands below |
+| `biomassComm` | `1`/`0` enable. Handled on the hub; while `0` it drops the sub-commands below — **including any travelling in the same frame** |
 | `blank` | `1` — momentary, capture the blank (zero-absorbance) reference |
 | `start` | `1` — momentary, start the acquisition loop |
 | `stop` | `1` — momentary, stop the acquisition loop |
 | `low`, `high`, `opt` | Integration-time thresholds (ints, raw counts), sent together |
+
+> **Disabling is two frames, in order.** `processJsonCommand` parses `biomassComm` before it
+> reaches the biomass block, so `{"stop":1,"biomassComm":0}` clears routing and then discards
+> its own stop: the node keeps acquiring while the operator looks at a switch that says
+> otherwise. TECNAL-Hub therefore sends `{"stop":1}` and then `{"biomassComm":0}` as a
+> separate frame. The outgoing buffer merges by default, so the second frame goes through the
+> ordered-frame path (`IDeviceService.SendAfterCurrentFrame`) rather than a plain `Send`.
+
+> **The hub's biomass mailbox holds exactly one command, and reading it clears it.** The node
+> polls `/biomassCommand` every 2 s and never acknowledges, and `setPending` overwrites — so a
+> `blank` issued just before a `start` is silently replaced. The app serialises the three
+> momentary actions behind a pending lock rather than offering all of them at once.
 
 > **`start`/`stop` were not in v.6's Python `send_command` table** — v.6's biomass block issues
 > them (`send_biomass_start`/`send_biomass_stop`) and the firmware forwards them
@@ -385,7 +468,17 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 ### 3.5 External pump (Phase 3 WP2)
 
 `pumpComm` (`1`/`0`) enables the hub's routing. A profile carries a `mode`, the operating window
-`init_t`/`final_t` (minutes) and the mode's parameters. Disabling sends `pumpComm:0, mode:0, speed:0`.
+`init_t`/`final_t` (minutes) and the mode's parameters.
+
+> **v.6's disable frame does not stop the pump.** `{"pumpComm":0,"mode":0,"speed":0}` is one
+> frame, and the Hub parses `pumpComm` before it reaches the pump block — so its own `mode:0`
+> is dropped by `if (pumpCmdFound && pumpCommOn)`. The node keeps dosing; only the telemetry
+> goes quiet, which is the worst possible failure for a feed pump.
+>
+> TECNAL-Hub therefore sends **`{"mode":0,"speed":0}` first, while routing is still on**, then
+> `{"pumpComm":0}` as a separate frame. Once the first is in the Hub's mailbox it survives the
+> second — `/pumpCommand` has no routing gate, so the node still collects it on its next poll.
+> The two only have to arrive in order. `speed` remains vestigial either way (§ below).
 
 | `mode` | Profile | Parameters (after `mode`, `init_t`, `final_t`) |
 |---|---|---|
@@ -436,13 +529,18 @@ Flow cal setpoint  {"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
 Flow cal curve     {"maxFlow":50.0,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
 Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
 Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
+                   ... plus the dosing, agitator and pump-profile fragments, then {"pumpComm":0} on the next frame
 kLa combined       {"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}
 biomass enable     {"biomassComm":1}
 biomass blank      {"blank":1}
 biomass start/stop {"start":1}   /   {"stop":1}
 biomass thresholds {"low":10000,"high":40000,"opt":25000}
 pump enable        {"pumpComm":1}
-pump disable       {"pumpComm":0,"mode":0,"speed":0}
+pump stop profile  {"mode":0,"speed":0}
+pump clear routing {"pumpComm":0}
+agitator on        {"agitatorOn":1,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1}
+agitator off       {"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1}
+agitator safe-stop {"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1,"agitatorReEnablePot":0}
 pump constant      {"mode":1,"init_t":0.0,"final_t":60.0,"lambda_const":1.5}
 pump linear        {"mode":2,"init_t":0.0,"final_t":60.0,"lambda_linear":1.0,"phi_linear":0.5}
 pump exponential   {"mode":3,"init_t":0.0,"final_t":60.0,"lambda_exp":1.0,"phi_exp":0.1}

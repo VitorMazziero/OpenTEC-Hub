@@ -22,10 +22,13 @@ public sealed record PumpModeOption(PumpProfileMode Mode, string Label)
 /// </summary>
 /// <remarks>
 /// <para>
-/// The enable is an immediate toggle: on it sends <c>pumpComm:1</c>, off sends the safe disabled
-/// frame <c>pumpComm:0, mode:0, speed:0</c>. A profile is staged (mode + operating window +
-/// parameters) and sent by <b>Aplicar perfil</b>; the operating window is shared across modes
-/// rather than stored per mode as v.6 did ([[D-021]], <c>docs/DECISIONS.md</c>).
+/// The enable is an immediate toggle: on it sends <c>pumpComm:1</c>; off sends <b>two ordered
+/// frames</b>, <c>{"mode":0,"speed":0}</c> and then <c>{"pumpComm":0}</c>. v.6's single
+/// <c>{"pumpComm":0,"mode":0,"speed":0}</c> does not stop the pump — the Hub clears routing
+/// while parsing that frame and then drops its own <c>mode:0</c>, so the node keeps dosing and
+/// only its telemetry goes quiet. A profile is staged (mode + operating window + parameters) and
+/// sent by <b>Aplicar perfil</b>; the operating window is shared across modes rather than stored
+/// per mode as v.6 did ([[D-021]], <c>docs/DECISIONS.md</c>).
 /// </para>
 /// <para>
 /// Proportional gas couples the pump volume to the air flow: <c>Q_g = (V₀ + PumpVol/1000)·vvm</c>,
@@ -41,19 +44,31 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     private const double GasFlowResendThresholdLpm = 0.01;
 
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
+
+    /// <summary>Guards the enable setter while a refused toggle is being rolled back.</summary>
+    private bool _revertingEnable;
+
     private PumpControlSettings _committed;
 
     /// <summary>Latest pump volume from telemetry, mL. Drives the gas coupling and the readout.</summary>
     private double _lastPumpVolumeMl;
     private double? _lastGasFlowSentLpm;
 
-    public PumpControlViewModel(IDeviceService device, ISettingsService settings)
+    public PumpControlViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null,
+        TimeProvider? timeProvider = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.PumpControl;
+        Status = new ExternalDeviceStatus("Bomba externa", "da bomba externa", timeProvider);
+        Status.PropertyChanged += OnStatusChanged;
 
         ModeOptions =
         [
@@ -66,12 +81,16 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
         Load(_committed);
         _device.TelemetryReceived += OnTelemetryReceived;
+        _device.StateChanged += OnDeviceStateChanged;
         _initialised = true;
         ValidateAndRefresh();
         HasPendingChange = false;
     }
 
     public IReadOnlyList<PumpModeOption> ModeOptions { get; }
+
+    /// <summary>Presence, routing and pending state of the node behind the Hub.</summary>
+    public ExternalDeviceStatus Status { get; }
 
     /// <summary>Pump command routing enabled — <c>pumpComm</c>. Immediate, like v.6.</summary>
     [ObservableProperty]
@@ -149,6 +168,24 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string PumpVolumeText { get; set; } = "—";
 
+    /// <summary>Volume the node's own profile integral expects by now, mL.</summary>
+    [ObservableProperty]
+    public partial string PumpTargetVolumeText { get; set; } = "—";
+
+    /// <summary>Profile mode the node reports running, compared against what was staged.</summary>
+    [ObservableProperty]
+    public partial string PumpModeText { get; set; } = "—";
+
+    /// <summary>Dosing / waiting for the window / stopped, from the node's own state machine.</summary>
+    [ObservableProperty]
+    public partial string PumpRunStateText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string PumpPwmText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string PumpSpeedText { get; set; } = "—";
+
     [ObservableProperty]
     public partial string StatusText { get; set; } =
         "Parâmetros restaurados para revisão; nenhum comando foi enviado.";
@@ -165,7 +202,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => IsEnabled && IsValid;
+    public bool CanApply => IsEnabled && IsValid && Status.CanSend;
 
     public string StateText => IsEnabled ? "Ativa" : "Desligada";
 
@@ -174,20 +211,58 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(StateText));
         ValidateAndRefresh();
 
-        if (!_initialised)
+        if (!_initialised || _revertingEnable)
         {
             return;
         }
 
-        _device.Send(value ? CommandBuilders.PumpEnable() : CommandBuilders.PumpDisable());
-        if (!value)
+        if (value)
         {
-            _lastGasFlowSentLpm = null;
+            var enable = _dispatcher.Dispatch(CommandBuilders.PumpEnable());
+            if (!enable.Accepted)
+            {
+                RevertEnable(true);
+                StatusText = DispatchRefusal.Describe(enable);
+                return;
+            }
+
+            Status.IsCommRequested = true;
+            StatusText = "Bomba externa ativada.";
+            return;
         }
 
-        StatusText = value
-            ? "Bomba externa ativada."
-            : "Bomba externa desativada (quadro seguro pumpComm:0, mode:0, speed:0).";
+        // Stop the profile while the Hub is still routing. Sent the other way round - or
+        // merged into one frame, as v.6 did - the Hub discards mode:0 and the node keeps
+        // dosing behind a switch that reads "Desligada".
+        var stop = _dispatcher.Dispatch(CommandBuilders.PumpStopProfile());
+        if (!stop.Accepted)
+        {
+            RevertEnable(false);
+            StatusText = DispatchRefusal.Describe(stop);
+            return;
+        }
+
+        _lastGasFlowSentLpm = null;
+
+        var disable = _dispatcher.DispatchSeparateFrame(CommandBuilders.PumpRoutingDisabled());
+        if (!disable.Accepted)
+        {
+            StatusText = "Perfil interrompido, mas o roteamento do Hub não foi desligado: " +
+                         DispatchRefusal.Describe(disable);
+            return;
+        }
+
+        Status.IsCommRequested = false;
+        Status.MarkCommandDispatched();
+        StatusText = "Bomba externa desativada (perfil parado e roteamento desligado).";
+    }
+
+    /// <summary>Puts the switch back after a refused toggle, without resending anything.</summary>
+    private void RevertEnable(bool attempted)
+    {
+        _revertingEnable = true;
+        IsEnabled = !attempted;
+        _revertingEnable = false;
     }
 
     partial void OnSelectedModeOptionChanged(PumpModeOption value) => ValidateAndRefresh();
@@ -237,7 +312,15 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         }
 
         var command = PumpProfileMath.BuildCommand(spec);
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            // The staged profile stays staged and unversioned: bumping the persisted version
+            // for a frame that never left would make a later comparison against the node's
+            // reported mode meaningless.
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
 
         if (TryGetStagedSettings(out var staged))
         {
@@ -246,6 +329,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         }
 
         HasPendingChange = false;
+        Status.MarkCommandDispatched();
         StatusText = $"Perfil {SelectedModeOption.Label.ToLower(CultureInfo.CurrentCulture)} enviado " +
                      $"({command.Count} campos, versão {_committed.Version}).";
     }
@@ -258,8 +342,18 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         StatusText = "Alterações não enviadas do perfil da bomba foram revertidas.";
     }
 
-    /// <summary>The safe disabled frame, for the operator safe-stop on Controle.</summary>
-    public TecnalCommand BuildSafeStop() => CommandBuilders.PumpDisable();
+    /// <summary>
+    /// The pump's contribution to the merged operator safe-stop frame.
+    /// </summary>
+    /// <remarks>
+    /// Only the profile stop belongs in the merged frame. Adding <c>pumpComm:0</c> to it
+    /// would make the Hub drop the <c>mode:0</c> travelling beside it, so routing is cleared
+    /// by <see cref="BuildRoutingDisable"/> on the frame after.
+    /// </remarks>
+    public TecnalCommand BuildSafeStop() => CommandBuilders.PumpStopProfile();
+
+    /// <summary>The follow-up frame that clears the Hub's pump routing after a safe stop.</summary>
+    public TecnalCommand BuildRoutingDisable() => CommandBuilders.PumpRoutingDisabled();
 
     /// <summary>Marks the pump stopped after a bulk safe-stop already sent its disable frame.</summary>
     public void MarkStopped()
@@ -499,6 +593,14 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        Status.Update(
+            snapshot.HasPumpTelemetry,
+            snapshot.PumpOnline,
+            snapshot.PumpCommandPending,
+            snapshot.PumpCommEnabled);
+
+        UpdateNodeStateReadouts(snapshot);
+
         _lastPumpVolumeMl = snapshot.PumpVolume > SensorReadings.NotReceived ? snapshot.PumpVolume : 0.0;
 
         PumpFlowText = snapshot.PumpFlow > SensorReadings.NotReceived
@@ -518,6 +620,14 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     /// </summary>
     private void MaybeSendProportionalGas()
     {
+        // A dead node's last volume is not a measurement. The parser invalidates PumpVolume
+        // when the pump goes absent, and recomputing Q_g from the zero that leaves behind
+        // would silently drop aeration to its base rate; hold the last gas setpoint instead.
+        if (Status.IsOffline)
+        {
+            return;
+        }
+
         if (!_initialised || !GasProportionalEnabled || !IsEnabled)
         {
             return;
@@ -536,7 +646,18 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _device.Send(CommandBuilders.FlowSetpoint(qg, maxFlow, valve1: false, valve2: false));
+        var result = _dispatcher.Dispatch(
+            CommandBuilders.FlowSetpoint(qg, maxFlow, valve1: false, valve2: false));
+
+        if (!result.Accepted)
+        {
+            // Aeration is owned by the cascade or a recipe. Remembering qg as sent would
+            // suppress every retry until the calculated flow moved by the resend threshold,
+            // so the coupling would stay dead long after ownership came back (AUD-004).
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
         _lastGasFlowSentLpm = qg;
     }
 
@@ -569,5 +690,68 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     private static string FormatList(IReadOnlyList<double> values)
         => string.Join(", ", values.Select(v => DosingInput.Format(v, 3)));
 
-    public void Dispose() => _device.TelemetryReceived -= OnTelemetryReceived;
+    /// <summary>
+    /// The node's own view of what it is doing: mode, profile state and target volume.
+    /// </summary>
+    /// <remarks>
+    /// All of this was already on the wire and thrown away. The target volume in particular
+    /// is the node's own profile integral, which is the only way to see the pump falling
+    /// behind its profile without recomputing it here from a different clock.
+    /// </remarks>
+    private void UpdateNodeStateReadouts(SensorSnapshot snapshot)
+    {
+        PumpTargetVolumeText = snapshot.PumpTargetVolume > SensorReadings.NotReceived
+            ? snapshot.PumpTargetVolume.ToString("F3", CultureInfo.CurrentCulture)
+            : "—";
+
+        PumpPwmText = snapshot.PumpPwm > SensorReadings.NotReceived
+            ? snapshot.PumpPwm.ToString("F0", CultureInfo.CurrentCulture)
+            : "—";
+
+        PumpSpeedText = snapshot.PumpSpeed > SensorReadings.NotReceived
+            ? snapshot.PumpSpeed.ToString("F1", CultureInfo.CurrentCulture)
+            : "—";
+
+        PumpModeText = snapshot.PumpMode switch
+        {
+            < 0 => "—",
+            0 => "Nenhum",
+            var mode when mode <= ModeOptions.Count => ModeOptions[mode - 1].Label,
+            var mode => mode.ToString(CultureInfo.CurrentCulture),
+        };
+
+        PumpRunStateText = !Status.IsOnline
+            ? "—"
+            : snapshot.PumpActive
+                ? "Dosando"
+                : snapshot.PumpWaiting
+                    ? "Aguardando janela"
+                    : "Parada";
+    }
+
+    private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ExternalDeviceStatus.CanSend) or null))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CanApply));
+        ApplyProfileCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnDeviceStateChanged(ConnectionStateChange change)
+    {
+        if (change.State != ConnectionState.Connected)
+        {
+            Status.MarkHubUnavailable();
+        }
+    }
+
+    public void Dispose()
+    {
+        _device.TelemetryReceived -= OnTelemetryReceived;
+        _device.StateChanged -= OnDeviceStateChanged;
+        Status.PropertyChanged -= OnStatusChanged;
+    }
 }

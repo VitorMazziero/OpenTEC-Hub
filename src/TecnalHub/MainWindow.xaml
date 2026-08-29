@@ -195,25 +195,6 @@
                                FontFamily="{DynamicResource FontDisplay}"
                                FontSize="{DynamicResource FontSizeSubtitle}"
                                FontWeight="SemiBold" />
-                    <TextBlock Text="|"
-                               Margin="10,0"
-                               VerticalAlignment="Center"
-                               FontSize="{DynamicResource FontSizeBody}"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="8" Height="8" Margin="0,0,6,0"
-                                 VerticalAlignment="Center"
-                                 Fill="{Binding SystemState, Converter={StaticResource StateToBrush}}" />
-                        <TextBlock Text="{Binding SystemStateText}"
-                                   FontSize="{DynamicResource FontSizeCaption}" FontWeight="SemiBold"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding LastUpdateText, StringFormat=' ({0})'}"
-                                   Margin="4,0,0,0"
-                                   VerticalAlignment="Center"
-                                   FontFamily="{DynamicResource FontNumeric}"
-                                   FontSize="{DynamicResource FontSizeCaption}"
-                                   Foreground="{DynamicResource TextMutedBrush}" />
-                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal"

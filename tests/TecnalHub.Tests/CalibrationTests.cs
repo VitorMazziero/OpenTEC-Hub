@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using TecnalHub.Protocol;
 using TecnalHub.Services.Calibration;
@@ -272,12 +272,33 @@ public sealed class GuidedCalibrationTests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
-        using var vm = new OxygenCalibrationViewModel(device, settings);
+        using var vm = new OxygenCalibrationViewModel(device, settings)
+        {
+            StabilityWindowText = "2",
+            StabilityThresholdText = "5",
+            AverageSamplesText = "2",
+        };
 
         PushOxygen(device, raw: 1000, calibrated: 0);
-        vm.CapturePoint1Command.Execute(null);
+        vm.StartTwoPointCommand.Execute(null);
+        vm.ConfirmPointCommand.Execute(null);
+
+        // Stabilize and average point 1
+        PushOxygen(device, raw: 1000, calibrated: 0);
+        PushOxygen(device, raw: 1000, calibrated: 0);
+        PushOxygen(device, raw: 1000, calibrated: 0);
+        PushOxygen(device, raw: 1000, calibrated: 0);
+
+        Assert.Equal(OxygenCalibrationStage.AwaitingSecondStandard, vm.Stage);
+        vm.ConfirmPointCommand.Execute(null);
+
+        // Stabilize and average point 2
         PushOxygen(device, raw: 2000, calibrated: 100);
-        vm.CapturePoint2Command.Execute(null);
+        PushOxygen(device, raw: 2000, calibrated: 100);
+        PushOxygen(device, raw: 2000, calibrated: 100);
+        PushOxygen(device, raw: 2000, calibrated: 100);
+
+        Assert.Equal(OxygenCalibrationStage.Proposed, vm.Stage);
         vm.ApplyProposalCommand.Execute(null);
 
         Assert.Equal(0.1, settings.Current.Calibration.OxygenA, precision: 12);
@@ -459,15 +480,27 @@ public sealed class GuidedCalibrationTests
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
         var slope = settings.Current.Calibration.OxygenA;
-        using var vm = new OxygenCalibrationViewModel(device, settings);
+        using var vm = new OxygenCalibrationViewModel(device, settings)
+        {
+            StabilityWindowText = "2",
+            StabilityThresholdText = "5",
+            AverageSamplesText = "2",
+        };
 
         vm.IsOnePoint = true;
         Assert.Equal("100", vm.Reference1Text); // air saturation is the usual single standard
 
         PushOxygen(device, raw: 3000, calibrated: 60);
-        vm.CapturePoint1Command.Execute(null);
+        vm.StartOnePointCommand.Execute(null);
+        vm.ConfirmPointCommand.Execute(null);
 
-        Assert.False(vm.CanCapturePoint2); // the second standard belongs to the two-point run
+        // Stabilize and average point 1
+        PushOxygen(device, raw: 3000, calibrated: 60);
+        PushOxygen(device, raw: 3000, calibrated: 60);
+        PushOxygen(device, raw: 3000, calibrated: 60);
+        PushOxygen(device, raw: 3000, calibrated: 60);
+
+        Assert.Equal(OxygenCalibrationStage.Proposed, vm.Stage);
         Assert.True(vm.CanApplyProposal);
 
         vm.ApplyProposalCommand.Execute(null);
@@ -476,6 +509,33 @@ public sealed class GuidedCalibrationTests
         Assert.Equal(slope, applied.OxygenA, precision: 12);
         Assert.Equal(100.0, applied.DecodeOxygen(3000), precision: 9);
         Assert.Empty(device.Sent);
+    }
+
+    [Fact]
+    public void Oxygen_acquisition_criteria_can_be_changed_while_the_run_is_in_progress()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new OxygenCalibrationViewModel(device, settings)
+        {
+            StabilityWindowText = "3",
+            StabilityThresholdText = "5",
+            AverageSamplesText = "2",
+        };
+
+        PushOxygen(device, 1000, 0);
+        vm.StartOnePointCommand.Execute(null);
+        vm.ConfirmPointCommand.Execute(null);
+
+        // Two frames into a three-frame window
+        PushOxygen(device, 1000, 0);
+        PushOxygen(device, 1000, 0);
+        Assert.Equal(OxygenCalibrationStage.StabilizingFirst, vm.Stage);
+
+        vm.StabilityWindowText = "2";
+
+        // The window now holds enough stable frames, so the run advances immediately.
+        Assert.Equal(OxygenCalibrationStage.AveragingFirst, vm.Stage);
     }
 
     [Fact]

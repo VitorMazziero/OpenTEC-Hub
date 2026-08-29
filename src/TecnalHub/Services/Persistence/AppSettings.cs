@@ -177,6 +177,15 @@ public sealed record CalibrationSettings
     /// <summary>Accepted raw frames averaged after stability is reached.</summary>
     public int PHAverageSamples { get; init; } = 20;
 
+    /// <summary>Accepted raw frames required before Oxygen is considered stable.</summary>
+    public int OxygenStabilityWindow { get; init; } = 20;
+
+    /// <summary>Maximum sample standard deviation in raw ADC counts for Oxygen.</summary>
+    public double OxygenStabilityStandardDeviation { get; init; } = 5.0;
+
+    /// <summary>Accepted raw frames averaged after stability is reached for Oxygen.</summary>
+    public int OxygenAverageSamples { get; init; } = 20;
+
     /// <summary>Distinct FlowVoltage frames averaged for one certified flow point.</summary>
     public int FlowCaptureSamples { get; init; } = 10;
 

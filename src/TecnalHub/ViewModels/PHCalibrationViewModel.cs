@@ -98,6 +98,9 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
     public partial string CurrentRawText { get; set; } = "—";
 
     [ObservableProperty]
+    public partial string CurrentCalibratedText { get; set; } = "—";
+
+    [ObservableProperty]
     public partial string CurrentStandardDeviationText { get; set; } = "—";
 
     [ObservableProperty]
@@ -290,6 +293,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
 
         var raw = snapshot.PHRaw;
         CurrentRawText = raw.ToString("F1", CultureInfo.CurrentCulture);
+        CurrentCalibratedText = snapshot.PHCalibrated.ToString("F2", CultureInfo.CurrentCulture);
         if (!IsAcquiring)
         {
             return;

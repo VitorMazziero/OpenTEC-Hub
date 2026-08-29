@@ -179,34 +179,26 @@
                                 </DataGrid.Columns>
                             </DataGrid>
 
-                            <!-- Integrated Manual Add Row (Inline Labels & Synchronized Alignment) -->
-                            <Grid Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaLbl1" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaLbl2" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaLbl3" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaBtnCol" />
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0" Text="N (rpm):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
-                                <TextBox Grid.Column="1" Text="{Binding NewConditionRpm, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" Margin="0,0,8,0" />
-
-                                <TextBlock Grid.Column="2" Text="Q (L/min):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
-                                <TextBox Grid.Column="3" Text="{Binding NewConditionFlow, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" Margin="0,0,8,0" />
-
-                                <TextBlock Grid.Column="4" Text="Reps:" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
-                                <TextBox Grid.Column="5" Text="{Binding NewConditionReplicates, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" Margin="0,0,6,0" />
-
-                                <Button Grid.Column="6" Width="30" Height="30" Padding="0" VerticalAlignment="Center"
+                            <!-- Integrated Manual Add Row (Inline Labels & Tight Alignment) -->
+                            <DockPanel Margin="0,8,0,0">
+                                <Button DockPanel.Dock="Right" Width="30" Height="30" Padding="0" VerticalAlignment="Center"
                                         Command="{Binding AddManualConditionCommand}" IsEnabled="{Binding CanStartSequence}"
                                         Style="{StaticResource AccentButtonStyle}"
                                         ToolTip="Adicionar condição manual à matriz">
                                     <ctl:Icon Key="Plus" Size="14" Stroke="{DynamicResource TextOnAccentBrush}" />
                                 </Button>
-                            </Grid>
+
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="N (rpm):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
+                                    <TextBox Text="{Binding NewConditionRpm, UpdateSourceTrigger=PropertyChanged}" Width="65" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" Margin="0,0,14,0" />
+
+                                    <TextBlock Text="Q (L/min):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
+                                    <TextBox Text="{Binding NewConditionFlow, UpdateSourceTrigger=PropertyChanged}" Width="55" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" Margin="0,0,14,0" />
+
+                                    <TextBlock Text="Reps:" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
+                                    <TextBox Text="{Binding NewConditionReplicates, UpdateSourceTrigger=PropertyChanged}" Width="48" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" Margin="0,0,8,0" />
+                                </StackPanel>
+                            </DockPanel>
                         </StackPanel>
                     </Border>
 

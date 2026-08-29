@@ -289,8 +289,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         NavigationItems =
         [
-            new NavigationItem("dashboard", "Painel", "Vessel", "Controle e Monitoramento", "#81C784"),
-            new NavigationItem("control", "Controle", "Sliders", "Controle e Monitoramento", "#81C784"),
+            new NavigationItem("dashboard", "Painel", "Vessel", "Controle", "#81C784"),
+            new NavigationItem("control", "Controle", "Sliders", "Controle", "#81C784"),
 
             new NavigationItem("recipes", "Receitas", "NodeGraph", "Automação", "#64B5F6"),
             new NavigationItem("kla-determination", "Determinar kLa", "Airflow", "Automação", "#64B5F6"),

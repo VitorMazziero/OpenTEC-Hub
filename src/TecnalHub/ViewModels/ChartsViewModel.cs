@@ -84,7 +84,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.PH, "pH", "", "Series3Brush"),
             new(TelemetryChannel.Flow, "Vazão de ar", "L/min", "Series4Brush"),
             new(TelemetryChannel.Pressure, "Pressão", "kPa", "Series5Brush"),
-            new(TelemetryChannel.MotorRpm, "Agitação (comandada)", "rpm", "Series6Brush"),
+            new(TelemetryChannel.MotorRpm, "Agitação", "rpm", "Series6Brush"),
             new(TelemetryChannel.Antifoam, "Antiespumante", "", "Series1Brush"),
             new(TelemetryChannel.Distance, "Distância", "mm", "Series2Brush"),
             new(TelemetryChannel.Biomass, "Biomassa", "Abs", "Series3Brush"),

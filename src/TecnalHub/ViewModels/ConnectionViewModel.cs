@@ -206,7 +206,6 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
             {
                 SelectedPort = found;
                 UseWiFi = false;
-                _device.ConnectUsb(found);
             }
             else
             {

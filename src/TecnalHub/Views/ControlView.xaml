@@ -1217,6 +1217,7 @@
                                               ItemsSource="{Binding ModeOptions}"
                                               SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}"
                                               DisplayMemberPath="Label"
+                                              IsEnabled="{Binding Status.IsOnline}"
                                               ToolTip="Modo do perfil de dosagem" />
                                     <TextBlock Grid.Column="6" Text="mL/min" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="5 perfis + gás prop." Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />

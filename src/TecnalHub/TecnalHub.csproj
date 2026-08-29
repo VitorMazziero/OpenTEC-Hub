@@ -35,6 +35,14 @@
       <Link>Resources\Images\Imagem_biorreator_side.png</Link>
       <LogicalName>Resources/Images/Imagem_biorreator_side.png</LogicalName>
     </Resource>
+    <Resource Include="..\..\docs\UI_design_guides\logos-fapesp.png">
+      <Link>Resources\Images\logos-fapesp.png</Link>
+      <LogicalName>Resources/Images/logos-fapesp.png</LogicalName>
+    </Resource>
+    <Resource Include="..\..\docs\UI_design_guides\Logo_Unesp.png">
+      <Link>Resources\Images\Logo_Unesp.png</Link>
+      <LogicalName>Resources/Images/Logo_Unesp.png</LogicalName>
+    </Resource>
   </ItemGroup>
 
   <ItemGroup>

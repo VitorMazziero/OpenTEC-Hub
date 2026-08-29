@@ -218,6 +218,22 @@ public partial class SynopticView : UserControl
         plot.Axes.Left.FrameLineStyle.Color = stroke;
         plot.Axes.Bottom.FrameLineStyle.Color = stroke;
 
+        // Major ticks and removal of secondary (minor) ticks
+        plot.Axes.Left.MajorTickStyle.Color = stroke;
+        plot.Axes.Bottom.MajorTickStyle.Color = stroke;
+        plot.Axes.Left.MajorTickStyle.Length = 4;
+        plot.Axes.Bottom.MajorTickStyle.Length = 4;
+        plot.Axes.Left.MinorTickStyle.Length = 0;
+        plot.Axes.Bottom.MinorTickStyle.Length = 0;
+        plot.Axes.Top.MajorTickStyle.Length = 0;
+        plot.Axes.Top.MinorTickStyle.Length = 0;
+        plot.Axes.Right.MajorTickStyle.Length = 0;
+        plot.Axes.Right.MinorTickStyle.Length = 0;
+
+        // Consistent decimal labels (e.g. 0, 0.5, 1.0, 1.5...)
+        plot.Axes.Left.TickGenerator = new TecnalHub.Controls.ConsistentNumericTickGenerator();
+        plot.Axes.Bottom.TickGenerator = new TecnalHub.Controls.ConsistentNumericTickGenerator();
+
         plot.Axes.Left.TickLabelStyle.ForeColor = text;
         plot.Axes.Bottom.TickLabelStyle.ForeColor = text;
         plot.Axes.Left.TickLabelStyle.FontSize = 11;
@@ -419,8 +435,30 @@ public partial class SynopticView : UserControl
         }
     }
 
+    private void Plot_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.StringFormat))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+    }
+
     private void Plot_DragLeave(object sender, DragEventArgs e)
     {
+        if (sender is FrameworkElement fe)
+        {
+            var pos = e.GetPosition(fe);
+            if (pos.X >= 0 && pos.Y >= 0 && pos.X <= fe.ActualWidth && pos.Y <= fe.ActualHeight)
+            {
+                return;
+            }
+        }
+
         if (_activeSubmenuTarget == null)
         {
             ShowDefaultDropCue(sender as Border, false);
@@ -543,6 +581,7 @@ public partial class SynopticView : UserControl
 
         if (!visible)
         {
+            overlay.IsHitTestVisible = false;
             overlay.Visibility = Visibility.Collapsed;
             presenter.Content = null;
             return;
@@ -555,7 +594,8 @@ public partial class SynopticView : UserControl
         var panel = new StackPanel
         {
             HorizontalAlignment = HAlign.Center,
-            VerticalAlignment = VAlign.Center
+            VerticalAlignment = VAlign.Center,
+            IsHitTestVisible = false
         };
 
         panel.Children.Add(new TextBlock
@@ -577,6 +617,7 @@ public partial class SynopticView : UserControl
         });
 
         presenter.Content = panel;
+        overlay.IsHitTestVisible = false;
         overlay.Visibility = Visibility.Visible;
     }
 
@@ -662,6 +703,7 @@ public partial class SynopticView : UserControl
 
         card.Child = stack;
         presenter.Content = card;
+        overlay.IsHitTestVisible = true;
         overlay.Visibility = Visibility.Visible;
     }
 
@@ -756,6 +798,7 @@ public partial class SynopticView : UserControl
 
         card.Child = stack;
         presenter.Content = card;
+        overlay.IsHitTestVisible = true;
         overlay.Visibility = Visibility.Visible;
     }
 
@@ -783,6 +826,7 @@ public partial class SynopticView : UserControl
         var (overlay, presenter) = GetOverlayElements(dropTarget);
         if (overlay != null && presenter != null)
         {
+            overlay.IsHitTestVisible = false;
             overlay.Visibility = Visibility.Collapsed;
             presenter.Content = null;
         }

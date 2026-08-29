@@ -212,12 +212,13 @@
                     BorderThickness="1"
                     AllowDrop="True"
                     DragEnter="Plot_DragEnter"
+                    DragOver="Plot_DragOver"
                     DragLeave="Plot_DragLeave"
                     Drop="Plot_Drop">
                 <Grid>
                     <Border x:Name="LeftHost" />
                     <!-- Drag feedback & sub-selection overlay -->
-                    <Border x:Name="LeftOverlay" Visibility="Collapsed"
+                    <Border x:Name="LeftOverlay" Visibility="Collapsed" IsHitTestVisible="False"
                             Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
                             CornerRadius="{DynamicResource RadiusMedium}">
                         <ContentPresenter x:Name="LeftOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -234,12 +235,13 @@
                     BorderThickness="1"
                     AllowDrop="True"
                     DragEnter="Plot_DragEnter"
+                    DragOver="Plot_DragOver"
                     DragLeave="Plot_DragLeave"
                     Drop="Plot_Drop">
                 <Grid>
                     <Border x:Name="RightHost" />
                     <!-- Drag feedback & sub-selection overlay -->
-                    <Border x:Name="RightOverlay" Visibility="Collapsed"
+                    <Border x:Name="RightOverlay" Visibility="Collapsed" IsHitTestVisible="False"
                             Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
                             CornerRadius="{DynamicResource RadiusMedium}">
                         <ContentPresenter x:Name="RightOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -256,12 +258,13 @@
                     BorderThickness="1"
                     AllowDrop="True"
                     DragEnter="Plot_DragEnter"
+                    DragOver="Plot_DragOver"
                     DragLeave="Plot_DragLeave"
                     Drop="Plot_Drop">
                 <Grid>
                     <Border x:Name="BottomLeftHost" />
                     <!-- Drag feedback & sub-selection overlay -->
-                    <Border x:Name="BottomLeftOverlay" Visibility="Collapsed"
+                    <Border x:Name="BottomLeftOverlay" Visibility="Collapsed" IsHitTestVisible="False"
                             Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
                             CornerRadius="{DynamicResource RadiusMedium}">
                         <ContentPresenter x:Name="BottomLeftOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -278,12 +281,13 @@
                     BorderThickness="1"
                     AllowDrop="True"
                     DragEnter="Plot_DragEnter"
+                    DragOver="Plot_DragOver"
                     DragLeave="Plot_DragLeave"
                     Drop="Plot_Drop">
                 <Grid>
                     <Border x:Name="BottomRightHost" />
                     <!-- Drag feedback & sub-selection overlay -->
-                    <Border x:Name="BottomRightOverlay" Visibility="Collapsed"
+                    <Border x:Name="BottomRightOverlay" Visibility="Collapsed" IsHitTestVisible="False"
                             Background="{DynamicResource SurfaceCardBrush}" Opacity="0.96"
                             CornerRadius="{DynamicResource RadiusMedium}">
                         <ContentPresenter x:Name="BottomRightOverlayContent" HorizontalAlignment="Center" VerticalAlignment="Center" />

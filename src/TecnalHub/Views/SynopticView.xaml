@@ -31,10 +31,13 @@
                     <Ellipse Grid.Column="0" Width="7" Height="7" Margin="0,0,6,0"
                              VerticalAlignment="Center"
                              Fill="{Binding State, Converter={StaticResource StateToBrush}}" />
+                    <!-- 12/26, not 11/22: at FontSize 10 a two-line title such as "Dosagem de
+                         Antiespumante" had its second line's descenders clipped by the cap.
+                         Still inside the tile's 60 px minimum height. -->
                     <TextBlock Grid.Column="1"
                                Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
                                FontSize="10" FontWeight="SemiBold"
-                               LineHeight="11" TextWrapping="Wrap" MaxHeight="22"
+                               LineHeight="12" TextWrapping="Wrap" MaxHeight="26"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Grid>
                 <Grid Grid.Row="1" Margin="13,2,0,0">
@@ -255,7 +258,13 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                             <!-- Every tile here carries its own presence chips. Only the
                                  flowmeter used to, which made it the one device on this page
-                                 whose absence an operator could see. -->
+                                 whose absence an operator could see.
+
+                                 Anchored bottom-right, not top-right: the title is the widest
+                                 thing in these tiles and a two-line one ran straight under an
+                                 overlaid chip. The value row has room precisely when a chip is
+                                 showing, because an absent device's reading is invalidated to
+                                 an em dash. -->
                             <UniformGrid Columns="2">
                                 <Grid>
                                     <Button Style="{StaticResource InstrumentTagStyle}"
@@ -265,23 +274,10 @@
                                             ToolTip="Aeração pelo sparger anular"
                                             Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="flow" />
-                                    <!-- The flowmeter keeps its own status properties: it is the one
-                                         device whose Hub flags predate the shared contract, and its
-                                         bindings and tests are pinned to those names. -->
-                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
-                                            Padding="4,1" CornerRadius="3" IsHitTestVisible="False"
-                                            Background="{DynamicResource SurfaceSunkenBrush}"
-                                            BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
-                                            Visibility="{Binding FlowControl.ShowPendingChip, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="aguardando" FontSize="8" Foreground="{DynamicResource StateWarningTextBrush}" />
-                                    </Border>
-                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
-                                            Padding="4,1" CornerRadius="3" IsHitTestVisible="False"
-                                            Background="{DynamicResource SurfaceSunkenBrush}"
-                                            BorderBrush="{DynamicResource StateAlarmBrush}" BorderThickness="1"
-                                            Visibility="{Binding FlowControl.IsFlowmeterOffline, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="desconectado" FontSize="8" Foreground="{DynamicResource StateAlarmTextBrush}" />
-                                    </Border>
+                                    <ctl:ExternalDeviceChips ChipFontSize="8"
+                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                             Margin="0,0,4,4"
+                                                             Status="{Binding FlowControl.Status}" />
                                 </Grid>
 
                                 <Grid>
@@ -293,8 +289,8 @@
                                             Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="level" />
                                     <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                             Margin="0,5,5,0"
+                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                             Margin="0,0,4,4"
                                                              Status="{Binding FoamControl.Status}" />
                                 </Grid>
 
@@ -307,8 +303,8 @@
                                             Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="biomass" />
                                     <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                             Margin="0,5,5,0"
+                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                             Margin="0,0,4,4"
                                                              Status="{Binding BiomassControl.Status}" />
                                 </Grid>
 
@@ -321,8 +317,8 @@
                                             Command="{Binding DataContext.SelectByIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="pump" />
                                     <ctl:ExternalDeviceChips ChipFontSize="8"
-                                                             HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                             Margin="0,5,5,0"
+                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                             Margin="0,0,4,4"
                                                              Status="{Binding PumpControl.Status}" />
                                 </Grid>
                             </UniformGrid>

@@ -50,7 +50,7 @@
                 Background="{DynamicResource SurfaceSunkenBrush}"
                 BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
                 ToolTip="{Binding CommMismatchText}"
-                Visibility="{Binding HasCommMismatch, Converter={StaticResource BoolToVis}}">
+                Visibility="{Binding ShowRoutingChipOnly, Converter={StaticResource BoolToVis}}">
             <TextBlock Text="roteamento"
                        FontSize="{Binding ChipFontSize, ElementName=Root}"
                        Foreground="{DynamicResource StateWarningTextBrush}" />

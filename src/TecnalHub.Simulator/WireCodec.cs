@@ -70,6 +70,8 @@ public static class WireCodec
             AppendBool(buffer, "FlowControlEnabled", model.FlowmeterEnabled);
         }
 
+        AppendExternalDevices(buffer, model);
+
         AppendBool(buffer, "SensorCommOK", online);
 
         // Trim the trailing separator.
@@ -79,6 +81,63 @@ public static class WireCodec
         }
 
         return buffer.Append('}').ToString();
+    }
+
+    /// <summary>
+    /// The external-device presence contract, as a patched Hub publishes it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Presence and routing go out on <b>every</b> frame, true or false. That is the whole point of
+    /// them: the absence of one of these keys means "this Hub predates it", which is a different
+    /// thing from <c>false</c>, and an app that cannot tell those apart has to treat an old Hub as
+    /// a shelf of failed devices.
+    /// </para>
+    /// <para>
+    /// Value blocks follow the Hub's own rule and are emitted only while the node is present, so
+    /// the app's invalidation path is exercised rather than assumed.
+    /// </para>
+    /// </remarks>
+    private static void AppendExternalDevices(StringBuilder buffer, DeviceModel model)
+    {
+        var present = model.ExternalNodesOnline;
+
+        AppendBool(buffer, "BiomassOnline", present && model.BiomassEnabled);
+        AppendBool(buffer, "BiomassCommEnabled", model.RoutingEcho(model.BiomassEnabled));
+        AppendBool(buffer, "BiomassCommandPending", false);
+
+        AppendBool(buffer, "DistanceOnline", present && model.DistanceSensorEnabled);
+        AppendBool(buffer, "DistanceCommEnabled", model.RoutingEcho(model.DistanceSensorEnabled));
+        if (present && model.DistanceSensorEnabled)
+        {
+            Append(buffer, "Distance", 118.0, 2);
+        }
+
+        AppendBool(buffer, "PumpOnline", present && model.PumpEnabled);
+        AppendBool(buffer, "PumpCommEnabled", model.RoutingEcho(model.PumpEnabled));
+        AppendBool(buffer, "PumpCommandPending", false);
+        if (present && model.PumpEnabled)
+        {
+            AppendInt(buffer, "PumpMode", model.PumpMode);
+            AppendInt(buffer, "PumpPWM", 180);
+            Append(buffer, "PumpSpeed", 42.5, 1);
+            Append(buffer, "PumpFlow", 1.25, 3);
+            Append(buffer, "PumpVol", model.UptimeSeconds * 1.25 / 60.0, 3);
+            Append(buffer, "PumpTargetVol", model.UptimeSeconds * 1.25 / 60.0, 3);
+            AppendBool(buffer, "PumpActive", model.PumpMode > 0);
+            AppendBool(buffer, "PumpWaiting", false);
+        }
+
+        // The agitator has no routing flag on the wire: the Hub forwards to it unconditionally.
+        AppendBool(buffer, "AgitatorOnline", present);
+        AppendBool(buffer, "AgitatorCommandPending", false);
+        if (present)
+        {
+            Append(buffer, "AgitatorPercent", model.AgitatorPercent, 1);
+            AppendInt(buffer, "AgitatorDir", model.AgitatorClockwise ? 1 : 0);
+            AppendBool(buffer, "AgitatorPotActive", model.AgitatorPotActive);
+            AppendString(buffer, "AgitatorSource", model.AgitatorPotActive ? "Pot" : "Hub");
+        }
     }
 
     /// <summary>
@@ -201,6 +260,51 @@ public static class WireCodec
             model.FlowmeterEnabled = flowEnabled != 0;
         }
 
+        if (TryDouble(root, CommandKeys.BiomassComm, out var biomassEnabled))
+        {
+            model.BiomassEnabled = biomassEnabled != 0;
+        }
+
+        if (TryDouble(root, CommandKeys.PumpComm, out var pumpEnabled))
+        {
+            model.PumpEnabled = pumpEnabled != 0;
+        }
+
+        if (TryDouble(root, CommandKeys.DistanceSensorComm, out var distanceEnabled))
+        {
+            model.DistanceSensorEnabled = distanceEnabled != 0;
+        }
+
+        // The Hub forwards the pump block only while routing is on, so mode:0 arriving in the
+        // same frame as pumpComm:0 is dropped - which is exactly why the app sends two.
+        if (model.PumpEnabled && TryDouble(root, CommandKeys.Mode, out var pumpMode))
+        {
+            model.PumpMode = (int)pumpMode;
+        }
+
+        if (TryDouble(root, CommandKeys.AgitatorPercent, out var agitatorPercent))
+        {
+            model.AgitatorPercent = agitatorPercent;
+        }
+
+        if (TryDouble(root, CommandKeys.AgitatorDir, out var agitatorDir))
+        {
+            model.AgitatorClockwise = agitatorDir != 0;
+        }
+
+        if (TryDouble(root, CommandKeys.AgitatorOn, out var agitatorOn))
+        {
+            if (agitatorOn == 0)
+            {
+                model.AgitatorPercent = 0.0;
+            }
+        }
+
+        if (TryDouble(root, CommandKeys.AgitatorReEnablePot, out var reEnablePot))
+        {
+            model.AgitatorPotActive = reEnablePot != 0;
+        }
+
         if (TryDouble(root, CommandKeys.FlowSetpoint, out var flow))
         {
             model.FlowSetpoint = flow;
@@ -266,4 +370,10 @@ public static class WireCodec
         => buffer.Append('"').Append(key).Append("\":")
                  .Append(value ? "true" : "false")
                  .Append(',');
+
+    /// <summary>A quoted string value, as the Hub emits AgitatorSource and FlowCommandSource.</summary>
+    private static void AppendString(StringBuilder buffer, string key, string value)
+        => buffer.Append('"').Append(key).Append("\":\"")
+                 .Append(value)
+                 .Append("\",");
 }

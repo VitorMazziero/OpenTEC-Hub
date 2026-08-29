@@ -241,19 +241,22 @@ public sealed class ActiveToStateConverter : IValueConverter
 }
 
 /// <summary>
-/// An external device's dot: <c>(isEnabled, isOffline)</c>.
+/// An external device's dot:
+/// <c>(isEnabled, isOffline, isPending, hasRoutingMismatch, [variableState])</c>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The dot on the four external-device rows used to bind straight to the operator's own
 /// enable checkbox, so it reported their intent back at them and called it hardware state.
-/// This is the correction: the switch decides idle from active, and the Hub's presence
-/// decides whether "active" is a claim the app can actually support.
+/// This is the correction: the switch only decides idle from active, and what the Hub says
+/// decides everything above that.
 /// </para>
 /// <para>
-/// A reported absence outranks the switch. A device the operator has enabled and that is
-/// not answering is an alarm, not an active loop - and it is an alarm whether or not they
-/// remembered to look at the chip beside it.
+/// <b>It carries the same severity as the chip beside it, deliberately.</b> A red
+/// <i>desconectado</i> chip next to an amber dot is two different answers to one question,
+/// and the operator has to work out which to believe. So the order here is the chip's own
+/// precedence: a reported absence is an alarm even when the operator's switch is off —
+/// the device is not there, and that is true regardless of what they meant to do with it.
 /// </para>
 /// </remarks>
 public sealed class ExternalDeviceStateConverter : IMultiValueConverter
@@ -262,10 +265,26 @@ public sealed class ExternalDeviceStateConverter : IMultiValueConverter
     {
         var enabled = values.Length > 0 && values[0] is true;
         var offline = values.Length > 1 && values[1] is true;
+        var pending = values.Length > 2 && values[2] is true;
+        var routingMismatch = values.Length > 3 && values[3] is true;
 
         if (offline)
         {
-            return enabled ? VariableState.Alarm : VariableState.Warning;
+            return VariableState.Alarm;
+        }
+
+        if (pending || routingMismatch)
+        {
+            return VariableState.Warning;
+        }
+
+        // A fifth value is the row's own variable state, for the one external device that has
+        // a measured band to report. Nothing above this point can be expressed by that state -
+        // it knows about the reading, not about the link - so the link conditions come first
+        // and this only fills in the healthy case.
+        if (values.Length > 4 && values[4] is VariableState measured)
+        {
+            return enabled ? measured : VariableState.Idle;
         }
 
         return enabled ? VariableState.Ok : VariableState.Idle;

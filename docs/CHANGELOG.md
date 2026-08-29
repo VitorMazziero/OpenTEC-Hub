@@ -56,6 +56,14 @@ All notable changes to TECNAL-Hub. Version numbers follow
   ainda não regravado. A parada do agitador numa receita bloqueia o potenciômetro de bancada,
   ao contrário do *Desligar* manual: uma parada que um botão desfaz não é uma parada.
   [DECISIONS D-030](DECISIONS.md).
+- **O ponto de estado de cada dispositivo externo passa a carregar a mesma severidade do
+  chip ao lado** — vermelho em *desconectado*, âmbar em *aguardando* ou *roteamento*. Antes
+  seguia apenas o interruptor do operador, então um chip vermelho podia ficar ao lado de um
+  ponto âmbar: duas respostas para a mesma pergunta.
+- **O fluxômetro usa o mesmo controle de chips dos demais** e ganhou o chip `roteamento`, que
+  não tinha. O Hub persiste `flowComm` na NVS como os outros flags, e `FlowControlEnabled` é a
+  condição do alarme `Fluxômetro offline` — uma divergência silenciosa desligava o alarme junto
+  com a malha.
 - **Painel reagrupado por topologia.** Os sensores de biomassa e distância — nós Wi-Fi
   independentes — estavam em *Parâmetros Internos*, e as bombas de nutriente e antiespumante —
   que ficam dentro do módulo TECNAL, na UART interna — estavam em *Dispositivos Externos*. Um
@@ -63,6 +71,11 @@ All notable changes to TECNAL-Hub. Version numbers follow
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
 ### Fixed
+- **A faixa de alarme escondia o fim do texto atrás dos botões.** Os dois painéis eram filhos
+  sobrepostos de uma célula única, e um `StackPanel` horizontal dá largura infinita ao filho —
+  o `TextTrimming` nunca disparava. Agora o texto é limitado por uma coluna e quebra linha.
+- **A linha do agitador mostrava o valor encenado na coluna *Valor Lido***, que é exatamente o
+  defeito que este conjunto de mudanças existe para remover. Passa a mostrar o que o nó reporta.
 - **A desativação da bomba externa não parava a bomba.** O quadro único da v.6
   `{"pumpComm":0,"mode":0,"speed":0}` limpa o roteamento e em seguida descarta o próprio
   `mode:0` (`if (pumpCmdFound && pumpCommOn)`): o nó continuava dosando e só a telemetria

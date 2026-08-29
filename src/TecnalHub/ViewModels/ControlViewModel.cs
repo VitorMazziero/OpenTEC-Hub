@@ -208,6 +208,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         BiomassControl.PropertyChanged += OnDosingStateChanged;
         PumpControl.PropertyChanged += OnDosingStateChanged;
 
+        FlowControl.IsLoopRequested = _flowSubsystem.IsEnabled;
         PublishRoutingIntent();
 
         var presetsSource = settings.Current.SetpointPresets.Length > 0
@@ -936,6 +937,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             return;
         }
 
+        _alarms.SetRoutingRequested("Vazão de ar", _flowSubsystem.IsEnabled);
         _alarms.SetRoutingRequested("Sensor de biomassa", BiomassControl.IsEnabled);
         _alarms.SetRoutingRequested("Bomba externa", PumpControl.IsEnabled);
         _alarms.SetRoutingRequested("Sensor de distância", FoamControl.SensorEnabled);
@@ -943,6 +945,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // The flow row's own enable lives on the subsystem, not on FlowControl, so it is
+        // mirrored across wherever that changes.
+        FlowControl.IsLoopRequested = _flowSubsystem.IsEnabled;
         PublishRoutingIntent();
 
         // The distance/foam firmware routine actuates the physical nutrient pump.

@@ -65,6 +65,7 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsOffline))]
     [NotifyPropertyChangedFor(nameof(CanSend))]
     [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    [NotifyPropertyChangedFor(nameof(ShowRoutingChipOnly))]
     [NotifyPropertyChangedFor(nameof(HasStatusAlert))]
     [NotifyPropertyChangedFor(nameof(PresenceText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
@@ -75,6 +76,7 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsOffline))]
     [NotifyPropertyChangedFor(nameof(CanSend))]
     [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    [NotifyPropertyChangedFor(nameof(ShowRoutingChipOnly))]
     [NotifyPropertyChangedFor(nameof(HasStatusAlert))]
     [NotifyPropertyChangedFor(nameof(PresenceText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
@@ -84,6 +86,7 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSend))]
     [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    [NotifyPropertyChangedFor(nameof(ShowRoutingChipOnly))]
     [NotifyPropertyChangedFor(nameof(HasStatusAlert))]
     [NotifyPropertyChangedFor(nameof(PendingStatusText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
@@ -95,6 +98,7 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCommMismatch))]
+    [NotifyPropertyChangedFor(nameof(ShowRoutingChipOnly))]
     [NotifyPropertyChangedFor(nameof(CommMismatchText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     public partial bool? CommEnabledOnHub { get; set; }
@@ -102,6 +106,7 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     /// <summary>What the operator's own enable switch currently says.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCommMismatch))]
+    [NotifyPropertyChangedFor(nameof(ShowRoutingChipOnly))]
     [NotifyPropertyChangedFor(nameof(CommMismatchText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     public partial bool IsCommRequested { get; set; }
@@ -133,6 +138,18 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     /// visible.
     /// </remarks>
     public bool HasCommMismatch => CommEnabledOnHub is { } hub && hub != IsCommRequested;
+
+    /// <summary>
+    /// Show the routing chip only when nothing more severe is already showing.
+    /// </summary>
+    /// <remarks>
+    /// A row shows <b>one</b> chip. Two of them overflow the device-name column and collide with
+    /// the reading beside it — measured at 1280 px with a name as long as
+    /// <i>Bomba Dosadora Externa</i>. The precedence is the same one <see cref="StatusText"/>
+    /// uses, and the tooltip carries the full sentence, so nothing is lost: a device that is both
+    /// absent and misrouted reads as absent, which is the condition to act on first.
+    /// </remarks>
+    public bool ShowRoutingChipOnly => HasCommMismatch && !IsOffline && !ShowPendingChip;
 
     public string PresenceText => !HasTelemetry
         ? "Aguardando telemetria do Hub"

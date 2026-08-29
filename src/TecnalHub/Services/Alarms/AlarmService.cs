@@ -513,15 +513,25 @@ public sealed class AlarmService : IAlarmService
         }
 
         List<string> conflicts = [];
+
+        // The flowmeter has the same divergence, and worse consequences: FlowControlEnabled is
+        // what the Fluxômetro offline alarm is conditioned on, so a silent disagreement disables
+        // that alarm along with the loop. Only compared once the Hub has spoken about the
+        // flowmeter at all, so a pre-connection frame does not read as a conflict.
+        Check("Vazão de ar", snapshot.FlowmeterOnline ? snapshot.FlowControlEnabled : null);
+
         Check("Sensor de biomassa", snapshot.BiomassCommEnabled);
         Check("Bomba externa", snapshot.PumpCommEnabled);
         Check("Sensor de distância", snapshot.DistanceCommEnabled);
 
+        // The banner shows one line, so the detail leads with the consequence and names the
+        // devices plainly. The earlier wording spelled out the Hub's state per device and was
+        // truncated before it reached the part that mattered.
         return conflicts.Count == 0
             ? (false, "")
             : (true,
-               $"O Hub e o painel discordam sobre o roteamento de: {string.Join(", ", conflicts)}. " +
-               "Comandos para esses dispositivos podem estar sendo descartados sem aviso.");
+               $"Comandos podem estar sendo descartados sem aviso: {string.Join(", ", conflicts)}. " +
+               "Reative o dispositivo no painel Controle.");
 
         void Check(string device, bool? hubSays)
         {
@@ -529,7 +539,7 @@ public sealed class AlarmService : IAlarmService
                 _routingRequested.TryGetValue(device, out var requested) &&
                 routed != requested)
             {
-                conflicts.Add($"{device} (Hub: {(routed ? "ligado" : "desligado")})");
+                conflicts.Add(device);
             }
         }
     }

@@ -33,6 +33,27 @@ public enum Scenario
 
     /// <summary>Malformed lines, to exercise the parse-failure path.</summary>
     Garbage,
+
+    /// <summary>
+    /// Every external Wi-Fi node stops answering the Hub while the Hub itself stays up.
+    /// </summary>
+    /// <remarks>
+    /// The failure the presence keys exist to make visible. Without them the app cannot separate
+    /// this from "the operator switched the device off" or "this Hub is too old to say", and the
+    /// pump in particular used to have no staleness window at all — a dead node's last sample was
+    /// republished forever.
+    /// </remarks>
+    NodeDropout,
+
+    /// <summary>
+    /// The Hub's persisted routing flags disagree with what the app last commanded.
+    /// </summary>
+    /// <remarks>
+    /// What a Hub reboot produces: the Hub reloads its flags from NVS while the app reloads the
+    /// operator's switches from disk. From then on the Hub drops that device's sub-commands with
+    /// no reply at all, so nothing but the echo can notice.
+    /// </remarks>
+    RoutingDrift,
 }
 
 /// <summary>
@@ -147,6 +168,43 @@ public sealed class DeviceModel
 
     /// <summary>The Hub's persisted flow-loop preference, republished as FlowControlEnabled.</summary>
     public bool FlowmeterEnabled { get; set; }
+
+    /// <summary>The Hub's persisted routing flags for the three commandable external nodes.</summary>
+    public bool BiomassEnabled { get; set; }
+
+    public bool PumpEnabled { get; set; }
+
+    public bool DistanceSensorEnabled { get; set; }
+
+    /// <summary>
+    /// What the Hub reports for a routing flag, which is not always what was commanded.
+    /// </summary>
+    /// <remarks>
+    /// Under <see cref="Scenario.RoutingDrift"/> the echo is inverted, reproducing the post-reboot
+    /// divergence between the Hub's NVS and the app's own persisted switches.
+    /// </remarks>
+    public bool RoutingEcho(bool commanded)
+        => Scenario == Scenario.RoutingDrift ? !commanded : commanded;
+
+    /// <summary>True while the external Wi-Fi nodes are answering the Hub.</summary>
+    public bool ExternalNodesOnline => Scenario != Scenario.NodeDropout;
+
+    /// <summary>The profile mode the pump node reports running; 0 is idle.</summary>
+    public int PumpMode { get; set; }
+
+    /// <summary>What the flask-agitator node reports actually driving.</summary>
+    public double AgitatorPercent { get; set; }
+
+    public bool AgitatorClockwise { get; set; } = true;
+
+    /// <summary>
+    /// The bench potentiometer is live, so the knob outranks anything the app commanded.
+    /// </summary>
+    /// <remarks>
+    /// Defaults on, matching the Hub's own persisted default. The operator safe-stop and the
+    /// recipe's stop both clear it; nothing else does except the explicit re-enable.
+    /// </remarks>
+    public bool AgitatorPotActive { get; set; } = true;
 
     public bool VentValveOpen { get; set; } = true;
 

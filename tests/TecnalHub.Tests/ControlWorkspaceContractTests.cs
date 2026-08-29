@@ -131,7 +131,9 @@ public sealed class ControlWorkspaceContractTests
 
         // A dot pinned to a state cannot report whether the loop is running.
         Assert.DoesNotContain("<ctl:StateDot Grid.Column=\"1\" State=\"Ok\"", xaml, StringComparison.Ordinal);
-        Assert.Equal(5, Count(xaml, "Converter=\"{StaticResource ActiveVariableState}\""));
+        // Four: the flow row's dot moved to the external-device converter, so that it cannot
+        // contradict the chip beside it.
+        Assert.Equal(4, Count(xaml, "Converter=\"{StaticResource ActiveVariableState}\""));
 
         // Three rows left on the plain enable-to-state converter: the dosing pumps, which
         // have no device behind them to be present or absent.
@@ -149,12 +151,12 @@ public sealed class ControlWorkspaceContractTests
     {
         var xaml = File.ReadAllText(ViewPath);
 
-        // Level/foam, external pump, biomass and flask agitator.
-        Assert.Equal(4, Count(xaml, "StaticResource ExternalDeviceState"));
-        Assert.Equal(4, Count(xaml, "Binding Path=\"Status.IsOffline\""));
+        // All five external rows: level/foam, pump, biomass, agitator and the flowmeter.
+        Assert.Equal(5, Count(xaml, "StaticResource ExternalDeviceState"));
+        Assert.Equal(5, Count(xaml, "<ctl:ExternalDeviceChips"));
 
-        // Each of those rows also carries the shared presence/routing chips.
-        Assert.Equal(4, Count(xaml, "<ctl:ExternalDeviceChips"));
+        // The dot takes the same three signals the chip does, so the two can never disagree.
+        Assert.Equal(5, Count(xaml, "Status.ShowRoutingChipOnly"));
     }
 
     /// <summary>

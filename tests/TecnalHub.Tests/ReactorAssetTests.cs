@@ -93,11 +93,11 @@ public sealed class ReactorAssetTests
             Assert.Contains($"Tag=\"{label}\"", externalSection, StringComparison.Ordinal);
         }
 
-        // Presence is shown for every external node, not only the flowmeter — which was
-        // the one device on this page whose absence an operator could actually see.
+        // Presence is shown for every external node, through one shared control. The flowmeter
+        // used to be the only tile with chips at all, and it built them by hand.
         var chipCount = externalSection.Split("<ctl:ExternalDeviceChips").Length - 1;
-        Assert.Equal(3, chipCount);
-        Assert.Contains("FlowControl.IsFlowmeterOffline", externalSection, StringComparison.Ordinal);
+        Assert.Equal(4, chipCount);
+        Assert.Contains("FlowControl.Status", externalSection, StringComparison.Ordinal);
 
         Assert.Contains("<UniformGrid Columns=\"2\">", xaml, StringComparison.Ordinal);
         Assert.Contains("<ScrollViewer Grid.Column=\"0\"", xaml, StringComparison.Ordinal);

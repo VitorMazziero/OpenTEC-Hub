@@ -376,22 +376,39 @@
                 BorderBrush="{Binding AlarmState, Converter={StaticResource StateToBrush}}"
                 BorderThickness="0,0,0,2"
                 Padding="16,7">
+            <!-- Two columns, not one cell with two overlapping children. Overlapped, the
+                 detail ran underneath the buttons: a horizontal StackPanel hands its child
+                 infinite width, so the TextTrimming on it could never fire and the end of
+                 the sentence was simply hidden. Bounded by a star column the detail wraps
+                 instead, and the banner grows a line rather than losing the text. -->
             <Grid>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <ctl:StateDot State="{Binding AlarmState}" Margin="0,0,10,0" />
-                    <TextBlock Text="{Binding AlarmHeadlineText}"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ctl:StateDot Grid.Column="0" State="{Binding AlarmState}" Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding AlarmHeadlineText}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Foreground="{Binding AlarmState, Converter={StaticResource StateToBrush}, ConverterParameter=Text}" />
-                    <TextBlock Text="{Binding AlarmMoreText}" Margin="8,0,0,0"
+                    <TextBlock Grid.Column="2" Text="{Binding AlarmMoreText}" Margin="8,0,0,0"
                                VerticalAlignment="Center"
                                Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Text="{Binding AlarmHeadlineDetail}" Margin="16,0,0,0"
+                    <TextBlock Grid.Column="3" Text="{Binding AlarmHeadlineDetail}" Margin="16,0,0,0"
                                VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                Style="{StaticResource CaptionTextStyle}" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal"
+                </Grid>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="Silenciar áudio (10 min)" Padding="10,4" Margin="0,0,8,0"
                             Visibility="{Binding IsAlarmAudible, Converter={StaticResource BoolToVis}}"

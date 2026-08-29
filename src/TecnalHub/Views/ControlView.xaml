@@ -143,7 +143,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -167,7 +167,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -245,7 +245,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -308,7 +308,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -397,7 +397,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -459,7 +459,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -522,7 +522,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -610,7 +610,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -693,7 +693,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -718,7 +718,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="160" />
@@ -731,31 +731,40 @@
                                                   ToolTip="Opções do fluxômetro de massa (válvulas, N2, maxFlow)" />
                                     <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Vazão de Ar">
                                         <ctl:StateDot.State>
-                                            <MultiBinding Converter="{StaticResource ActiveVariableState}">
-                                                <Binding Path="Subsystem.Variable.State" />
+                                            <!-- Same converter as the other external rows, so this dot cannot
+                                                 contradict the chip beside it. The trailing variable state is
+                                                 the flowmeter's alone: it is the one external device with a
+                                                 measured band, and that band still shows once the link is
+                                                 healthy. -->
+                                            <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="EffectiveActive" />
+                                                <Binding Path="DataContext.FlowControl.Status.IsOffline" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                                <Binding Path="DataContext.FlowControl.Status.ShowPendingChip" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                                <Binding Path="DataContext.FlowControl.Status.ShowRoutingChipOnly" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                                <Binding Path="Subsystem.Variable.State" />
                                             </MultiBinding>
                                         </ctl:StateDot.State>
                                     </ctl:StateDot>
                                     <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                             Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding Subsystem.Variable}" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal">
-                                            <ctl:Icon Key="Airflow" Style="{StaticResource ProcessRowIconStyle}" />
-                                            <TextBlock Text="Vazão de Ar" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Fluxômetro de massa e controle de aeração" />
-                                            <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="3"
-                                                    Background="{DynamicResource SurfaceSunkenBrush}"
-                                                    BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
-                                                    Visibility="{Binding DataContext.FlowControl.ShowPendingChip, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                                                <TextBlock Text="aguardando" FontSize="10" Foreground="{DynamicResource StateWarningTextBrush}" />
-                                            </Border>
-                                            <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="3"
-                                                    Background="{DynamicResource SurfaceSunkenBrush}"
-                                                    BorderBrush="{DynamicResource StateAlarmBrush}" BorderThickness="1"
-                                                    Visibility="{Binding DataContext.FlowControl.IsFlowmeterOffline, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                                                <TextBlock Text="desconectado" FontSize="10" Foreground="{DynamicResource StateAlarmTextBrush}" />
-                                            </Border>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ctl:Icon Grid.Column="0" Key="Airflow" Style="{StaticResource ProcessRowIconStyle}" />
+                                            <TextBlock Grid.Column="1" Text="Vazão de Ar" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="Fluxômetro de massa e controle de aeração" />
+                                            <!-- The same chips as every other external device, including the
+                                                 routing one: the Hub persists flowComm in NVS and the app
+                                                 persists this row's switch, so they can diverge exactly as the
+                                                 others do — and FlowControlEnabled is what the Fluxômetro
+                                                 offline alarm is conditioned on. -->
+                                            <ctl:ExternalDeviceChips Grid.Column="2" Status="{Binding DataContext.FlowControl.Status, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        </Grid>
                                     </Button>
                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
@@ -938,7 +947,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -954,17 +963,36 @@
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="SensorEnabled" />
                                                 <Binding Path="Status.IsOffline" />
+                                                <Binding Path="Status.ShowPendingChip" />
+                                                <Binding Path="Status.ShowRoutingChipOnly" />
                                             </MultiBinding>
                                         </ctl:StateDot.State>
                                     </ctl:StateDot>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <ctl:Icon Key="Level" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Sensor de Distância" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Sensor de espuma via distância" />
-                                        <!-- The foam keys are Hub-side configuration, so this row is never blocked
-                                             on presence: losing the node must not also cost the operator the
-                                             ability to configure what happens when it comes back. -->
-                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
-                                    </StackPanel>
+                                    <!-- The foam keys are Hub-side configuration, so this row is never
+                                         blocked on presence: losing the node must not also cost the operator
+                                         the ability to configure what happens when it comes back. -->
+                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- Trailing spacer: keeps the chip beside the name it
+                                                 describes rather than pinned to the cell's right edge,
+                                                 where it read as though it belonged to Valor Lido. -->
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ctl:Icon Grid.Column="0" Key="Level" Style="{StaticResource ProcessRowIconStyle}" />
+                                        <!-- The name yields first. A chip pushed out of a horizontal
+                                             stack would take the device's state with it, and the state
+                                             is the part the operator cannot reconstruct. -->
+                                        <TextBlock Grid.Column="1" Text="Sensor de Distância" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   MaxWidth="150" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="Sensor de espuma via distância" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ctl:ExternalDeviceChips Status="{Binding Status}" />
+                                        </StackPanel>
+                                    </Grid>
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding LiveDistanceText}" Style="{StaticResource NumericTextStyle}" />
                                     </StackPanel>
@@ -1035,7 +1063,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -1051,14 +1079,33 @@
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="IsEnabled" />
                                                 <Binding Path="Status.IsOffline" />
+                                                <Binding Path="Status.ShowPendingChip" />
+                                                <Binding Path="Status.ShowRoutingChipOnly" />
                                             </MultiBinding>
                                         </ctl:StateDot.State>
                                     </ctl:StateDot>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <ctl:Icon Key="Pump" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Bomba Dosadora Externa" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
-                                    </StackPanel>
+                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- Trailing spacer: keeps the chip beside the name it
+                                                 describes rather than pinned to the cell's right edge,
+                                                 where it read as though it belonged to Valor Lido. -->
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ctl:Icon Grid.Column="0" Key="Pump" Style="{StaticResource ProcessRowIconStyle}" />
+                                        <!-- The name yields first. A chip pushed out of a horizontal
+                                             stack would take the device's state with it, and the state
+                                             is the part the operator cannot reconstruct. -->
+                                        <TextBlock Grid.Column="1" Text="Bomba Dosadora Externa" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   MaxWidth="150" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="Bomba peristáltica externa de alimentação" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ctl:ExternalDeviceChips Status="{Binding Status}" />
+                                        </StackPanel>
+                                    </Grid>
                                     <TextBlock Grid.Column="3" Text="{Binding PumpFlowText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding PumpVolumeText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <ComboBox Grid.Column="5"
@@ -1260,7 +1307,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -1276,14 +1323,33 @@
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="IsEnabled" />
                                                 <Binding Path="Status.IsOffline" />
+                                                <Binding Path="Status.ShowPendingChip" />
+                                                <Binding Path="Status.ShowRoutingChipOnly" />
                                             </MultiBinding>
                                         </ctl:StateDot.State>
                                     </ctl:StateDot>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <ctl:Icon Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Sensor de Biomassa" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
-                                    </StackPanel>
+                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- Trailing spacer: keeps the chip beside the name it
+                                                 describes rather than pinned to the cell's right edge,
+                                                 where it read as though it belonged to Valor Lido. -->
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ctl:Icon Grid.Column="0" Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
+                                        <!-- The name yields first. A chip pushed out of a horizontal
+                                             stack would take the device's state with it, and the state
+                                             is the part the operator cannot reconstruct. -->
+                                        <TextBlock Grid.Column="1" Text="Sensor de Biomassa" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   MaxWidth="150" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="Sensor óptico de biomassa (absorbância)" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ctl:ExternalDeviceChips Status="{Binding Status}" />
+                                        </StackPanel>
+                                    </Grid>
                                     <TextBlock Grid.Column="3" Text="{Binding AbsorbanceText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Grid.Column="5"
@@ -1420,7 +1486,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="250" />
+                                        <ColumnDefinition Width="270" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="160" />
@@ -1436,27 +1502,51 @@
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="IsEnabled" />
                                                 <Binding Path="Status.IsOffline" />
+                                                <Binding Path="Status.ShowPendingChip" />
+                                                <Binding Path="Status.ShowRoutingChipOnly" />
                                             </MultiBinding>
                                         </ctl:StateDot.State>
                                     </ctl:StateDot>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <ctl:Icon Key="Impeller" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Frasco Agitador" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Dispositivo de bancada separado" />
-                                        <ctl:ExternalDeviceChips Status="{Binding Status}" />
-                                        <!-- The knob outranks the app whenever it is live, so this cannot be a
-                                             tooltip: the staged percent beside it is not what the motor holds. -->
-                                        <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="3"
-                                                Background="{DynamicResource SurfaceSunkenBrush}"
-                                                BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
-                                                ToolTip="{Binding PotentiometerWarning}"
-                                                Visibility="{Binding IsPotentiometerInControl, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock Text="potenciômetro" FontSize="10"
-                                                       Foreground="{DynamicResource StateWarningTextBrush}" />
-                                        </Border>
-                                    </StackPanel>
+                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- Trailing spacer: keeps the chip beside the name it
+                                                 describes rather than pinned to the cell's right edge,
+                                                 where it read as though it belonged to Valor Lido. -->
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ctl:Icon Grid.Column="0" Key="Impeller" Style="{StaticResource ProcessRowIconStyle}" />
+                                        <!-- The name yields first. A chip pushed out of a horizontal
+                                             stack would take the device's state with it, and the state
+                                             is the part the operator cannot reconstruct. -->
+                                        <TextBlock Grid.Column="1" Text="Frasco Agitador" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   MaxWidth="150" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="Dispositivo de bancada separado" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ctl:ExternalDeviceChips Status="{Binding Status}" />
+                                            <!-- The knob outranks the app whenever it is live, so this
+                                                 cannot be a tooltip: the staged percent beside it is not
+                                                 what the motor holds. -->
+                                            <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="3"
+                                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                                    BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
+                                                    ToolTip="{Binding PotentiometerWarning}"
+                                                    Visibility="{Binding IsPotentiometerInControl, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="potenciômetro" FontSize="10"
+                                                           Foreground="{DynamicResource StateWarningTextBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding MagnitudePercentText}" Style="{StaticResource NumericTextStyle}" />
+                                            <!-- The node's reported magnitude, not the staged one. This column is
+                                                 headed "Valor Lido"; showing what the operator typed there was the
+                                                 same defect this whole change set exists to remove, and it is now
+                                                 fixable because the node actually reports. -->
+                                            <TextBlock Text="{Binding ActualPercentText}" Style="{StaticResource NumericTextStyle}" />
                                             <TextBlock Text="%" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
                                         </StackPanel>
                                     </StackPanel>

@@ -573,7 +573,32 @@ pelo `ExternalDeviceStateConverter`, e o Painel foi reagrupado por topologia.
 > agitador aparece em Controle, que é onde o dispositivo é operado, e a legenda do Painel diz
 > isso.
 
-Falta: captura de tela em tema claro e escuro, 1280×720 e 125 %.
+**Passagem visual feita em 2026-08-29** contra o simulador, tema claro e escuro, 1280×720 e o
+equivalente de 125 % (1024×576 lógicos). Evidências em `docs/evidence/ui/wp9-*`. O simulador
+ganhou as chaves novas e dois cenários (`node-dropout`, `routing-drift`) — sem eles não havia como
+pôr os chips na tela.
+
+Sete correções saíram dela:
+
+1. **Um chip por linha, não três.** Dois chips estouravam a coluna do nome e invadiam *Valor
+   Lido*. A precedência é a mesma do texto de status: desconectado > aguardando > roteamento, com
+   a frase completa no tooltip.
+2. **O chip fica colado ao nome**, com um espaçador antes de *Valor Lido*; o nome trunca com
+   reticências quando precisa, porque um chip empurrado para fora levaria o estado junto.
+3. **O ponto de estado carrega a mesma severidade do chip.** Vermelho com *desconectado*, âmbar
+   com *aguardando* ou *roteamento*. Antes o ponto seguia só o interruptor: um chip vermelho ao
+   lado de um ponto âmbar são duas respostas para a mesma pergunta.
+4. **O fluxômetro entrou no mesmo controle de chips** e ganhou o chip `roteamento`, que não tinha.
+   O Hub persiste `flowComm` na NVS exatamente como os outros flags — e `FlowControlEnabled` é a
+   condição do alarme `Fluxômetro offline`, então uma divergência silenciosa desliga o alarme
+   junto com a malha.
+5. **A faixa de alarme quebra linha em vez de esconder texto.** Os dois painéis eram filhos
+   sobrepostos de uma célula única, e um `StackPanel` horizontal dá largura infinita ao filho —
+   o `TextTrimming` nunca disparava e o fim da frase ficava atrás dos botões.
+6. **A linha do agitador mostrava o valor encenado em *Valor Lido***, que é o mesmo defeito que
+   este trabalho existe para remover. Agora mostra o que o nó reporta.
+7. **Título de duas linhas cortado** nos cards do Painel, e o chip sobrepondo o título — o chip
+   passou para a base do card, onde há espaço justamente quando ele aparece.
 
 **Etapa 4 — receitas. ✅ concluída, com os blocos que faltavam.** O plano pressupunha blocos que
 não existiam. Eles agora existem, numa categoria nova **Dispositivos Externos**:

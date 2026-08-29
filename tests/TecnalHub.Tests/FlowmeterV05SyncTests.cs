@@ -11,19 +11,56 @@ namespace TecnalHub.Tests;
 
 public sealed class FlowmeterV05SyncTests
 {
+    /// <summary>
+    /// The flowmeter's chips are now the shared control, not a hand-built pair. It was the only
+    /// device rendering presence its own way — and, because of that, the only one without the
+    /// routing chip, despite the Hub persisting <c>flowComm</c> exactly as it persists the others.
+    /// </summary>
     [Fact]
-    public void Control_and_panel_expose_pending_and_offline_flowmeter_chips()
+    public void Control_and_panel_expose_the_flowmeter_chips_through_the_shared_control()
     {
         var controlXaml = File.ReadAllText(Path.Combine(
             TestPaths.RepositoryRoot, "src", "TecnalHub", "Views", "ControlView.xaml"));
         var panelXaml = File.ReadAllText(Path.Combine(
             TestPaths.RepositoryRoot, "src", "TecnalHub", "Views", "SynopticView.xaml"));
 
-        Assert.Contains("FlowControl.ShowPendingChip", controlXaml, StringComparison.Ordinal);
-        Assert.Contains("FlowControl.IsFlowmeterOffline", controlXaml, StringComparison.Ordinal);
+        Assert.Contains("FlowControl.Status", controlXaml, StringComparison.Ordinal);
         Assert.Contains("CanSendFlowCommands", controlXaml, StringComparison.Ordinal);
-        Assert.Contains("FlowControl.ShowPendingChip", panelXaml, StringComparison.Ordinal);
-        Assert.Contains("FlowControl.IsFlowmeterOffline", panelXaml, StringComparison.Ordinal);
+        Assert.Contains("FlowControl.Status", panelXaml, StringComparison.Ordinal);
+
+        // No hand-built copies left. Qualified by FlowControl on purpose: the bare property
+        // names still appear on the rows, where they feed the state dot so it carries the same
+        // severity as the chip beside it.
+        Assert.DoesNotContain("FlowControl.ShowPendingChip", controlXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlowControl.IsFlowmeterOffline", controlXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlowControl.IsFlowmeterOffline", panelXaml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Hub persists flowComm in NVS and the app persists the Vazão de Ar switch on the PC.
+    /// A reboot can leave them disagreeing, and FlowControlEnabled is what the Fluxômetro offline
+    /// alarm is conditioned on — so a silent divergence disables that alarm along with the loop.
+    /// </summary>
+    [Fact]
+    public void The_flowmeter_reports_a_routing_disagreement_like_every_other_device()
+    {
+        var flow = new FlowControlViewModel(50) { IsLoopRequested = true };
+
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowControlEnabled = false,
+        });
+
+        Assert.True(flow.Status.HasCommMismatch);
+
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowControlEnabled = true,
+        });
+
+        Assert.False(flow.Status.HasCommMismatch);
     }
 
     [Fact]

@@ -23,18 +23,33 @@ public sealed partial class FlowControlViewModel : ObservableObject
     private bool _appliedMainValveClosed;
     private double _appliedMaxFlow;
 
-    public FlowControlViewModel(double initialMaxFlow)
+    public FlowControlViewModel(double initialMaxFlow, TimeProvider? timeProvider = null)
     {
         if (!double.IsFinite(initialMaxFlow) || initialMaxFlow <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(initialMaxFlow));
         }
 
+        Status = new ExternalDeviceStatus("Fluxômetro", "do fluxômetro", timeProvider);
+
         _appliedMaxFlow = initialMaxFlow;
         MaxFlowText = Format(initialMaxFlow);
         Validate();
         _initialised = true;
     }
+
+    /// <summary>
+    /// The shared external-device status, so the flowmeter row renders the same chips as
+    /// every other external device.
+    /// </summary>
+    /// <remarks>
+    /// The flowmeter kept its own hand-rolled status properties because its Hub flags predate
+    /// the shared contract and its bindings are pinned to those names. Those stay; this is
+    /// added beside them, mirroring the same state, so the row is not the one place on the page
+    /// that renders presence differently — and so it gains the routing chip, which it needs for
+    /// exactly the reason every other device does.
+    /// </remarks>
+    public ExternalDeviceStatus Status { get; }
 
     /// <summary>Auxiliary valve requested by the operator.</summary>
     [ObservableProperty]
@@ -269,8 +284,27 @@ public sealed partial class FlowControlViewModel : ObservableObject
         RefreshDerivedState();
     }
 
+    /// <summary>
+    /// What the operator's Vazão de Ar switch says, for the routing comparison.
+    /// </summary>
+    /// <remarks>
+    /// The Hub persists <c>flowComm</c> in NVS and the app persists this switch on the PC. After
+    /// a Hub reboot the two can differ — and <c>FlowControlEnabled</c> is what the
+    /// <c>Fluxômetro offline</c> alarm is conditioned on, so a silent divergence disables that
+    /// alarm as well as the loop.
+    /// </remarks>
+    public bool IsLoopRequested
+    {
+        get => Status.IsCommRequested;
+        set => Status.IsCommRequested = value;
+    }
+
     /// <summary>Locks the local controls before the asynchronous transport returns.</summary>
-    public void MarkCommandDispatched() => IsAwaitingAck = true;
+    public void MarkCommandDispatched()
+    {
+        IsAwaitingAck = true;
+        Status.MarkCommandDispatched();
+    }
 
     /// <summary>Separates loss of the app-to-Hub link from an internal flowmeter outage.</summary>
     public void MarkHubUnavailable()
@@ -278,6 +312,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
         HasFlowmeterTelemetry = false;
         IsFlowmeterOnline = false;
         IsFlowCommandPending = false;
+        Status.MarkHubUnavailable();
     }
 
     /// <summary>Updates the read-only physical valve states from telemetry.</summary>
@@ -287,6 +322,14 @@ public sealed partial class FlowControlViewModel : ObservableObject
         IsFlowmeterOnline = snapshot.FlowmeterOnline;
         IsFlowCommandPending = snapshot.FlowCommandPending;
         IsAwaitingAck = snapshot.FlowCommandPending;
+
+        // The Hub has published FlowControlEnabled since v7, so a plain bool is honest here —
+        // unlike the other devices, there is no "this Hub does not say" case to represent.
+        Status.Update(
+            hasTelemetry: true,
+            snapshot.FlowmeterOnline,
+            snapshot.FlowCommandPending,
+            snapshot.FlowControlEnabled);
         ActualValve1 = ToState(snapshot.FlowValve1);
         ActualValve2 = ToState(snapshot.FlowValve2);
         ActualVentValve = ToState(snapshot.FlowValveMain);

@@ -43,6 +43,10 @@ public sealed class BiomassPumpTests
         vm.IsEnabled = true;
         device.Sent.Clear();
 
+        // Enabling the local routing request is not evidence that the node is present.
+        Assert.False(vm.BlankCommand.CanExecute(null));
+        device.PushTelemetry(new SensorSnapshot { HasBiomassTelemetry = true, BiomassOnline = true });
+
         Assert.True(vm.BlankCommand.CanExecute(null));
         vm.BlankCommand.Execute(null);
         vm.StartCommand.Execute(null);

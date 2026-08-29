@@ -18,10 +18,10 @@ namespace TecnalHub.ViewModels;
 /// not blind foam monitoring. The card has its own apply, independent of the bulk apply.
 /// </para>
 /// <para>
-/// Its presence is reported like every other external device, but unlike them it is
-/// <b>never gated on</b>: the foam keys configure the Hub's own automatic response, not the
-/// node, so they land whether or not the ultrasonic sensor is answering. Losing the node
-/// must not also cost the operator the ability to configure what happens when it returns.
+/// Its presence is reported like every other external device. The values configure the Hub's
+/// automatic response, but the operator surface stays locked until the distance node is known
+/// online. This prevents focus loss or Enter from dispatching a configuration while the page is
+/// showing that the sensor is disconnected.
 /// </para>
 /// </remarks>
 public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
@@ -43,6 +43,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.FoamControl;
         Status = new ExternalDeviceStatus("Sensor de distância", "do sensor de distância", timeProvider);
+        Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
         AppliedSensorEnabled = false;
@@ -93,7 +94,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => IsValid;
+    public bool CanApply => IsValid && Status.IsOnline && Status.CanSend;
 
     public string StateText => SensorEnabled ? "Ativo" : "Desligado";
 
@@ -255,9 +256,21 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ExternalDeviceStatus.IsOnline) or nameof(ExternalDeviceStatus.CanSend) or null))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CanApply));
+        ApplyCommand.NotifyCanExecuteChanged();
+    }
+
     public void Dispose()
     {
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnDeviceStateChanged;
+        Status.PropertyChanged -= OnStatusChanged;
     }
 }

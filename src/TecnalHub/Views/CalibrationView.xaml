@@ -62,7 +62,9 @@
             </StackPanel>
         </StackPanel>
 
-        <TabControl Grid.Row="1" Grid.Column="0" Style="{StaticResource SegmentedControlStyle}">
+        <TabControl Grid.Row="1" Grid.Column="0"
+                    SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                    Style="{StaticResource SegmentedControlStyle}">
             <!-- pH calibration -->
             <TabItem Header="pH" Style="{StaticResource SegmentedItemStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

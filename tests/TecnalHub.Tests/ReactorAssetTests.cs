@@ -104,7 +104,9 @@ public sealed class ReactorAssetTests
         Assert.Contains("<Viewbox Grid.Column=\"2\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("<Viewbox Grid.Row=\"1\"", xaml, StringComparison.Ordinal);
         Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"COMANDADO\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"COMANDADO\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"MinHeight\" Value=\"72\" />", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ColumnDefinition Width=\"350\" />", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("CommandParameter=\"agitator\"", xaml, StringComparison.Ordinal);
     }
 

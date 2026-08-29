@@ -101,21 +101,20 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     public partial string PwmText { get; set; } = "—";
 
     [ObservableProperty]
-    public partial string StatusText { get; set; } =
-        "Parâmetros restaurados para revisão; nenhum comando foi enviado.";
+    public partial string StatusText { get; set; } = "";
 
     public bool IsValid => ValidationError is null;
 
     /// <summary>
     /// Thresholds may be applied only when a frame can actually reach the node.
     /// </summary>
-    public bool CanApply => IsValid && Status.CanSend;
+    public bool CanApply => IsValid && Status.IsOnline && Status.CanSend;
 
     /// <summary>
     /// The momentary actions need the sensor on <i>and</i> a free mailbox: the Hub keeps one
     /// pending biomass command, and a second one overwrites the first before the node polls.
     /// </summary>
-    public bool CanActuate => IsEnabled && Status.CanSend;
+    public bool CanActuate => IsEnabled && Status.IsOnline && Status.CanSend;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 

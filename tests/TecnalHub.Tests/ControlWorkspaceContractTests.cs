@@ -131,13 +131,10 @@ public sealed class ControlWorkspaceContractTests
 
         // A dot pinned to a state cannot report whether the loop is running.
         Assert.DoesNotContain("<ctl:StateDot Grid.Column=\"1\" State=\"Ok\"", xaml, StringComparison.Ordinal);
-        // Four: the flow row's dot moved to the external-device converter, so that it cannot
-        // contradict the chip beside it.
-        Assert.Equal(4, Count(xaml, "Converter=\"{StaticResource ActiveVariableState}\""));
-
-        // Three rows left on the plain enable-to-state converter: the dosing pumps, which
-        // have no device behind them to be present or absent.
-        Assert.Equal(3, Count(xaml, "Converter={StaticResource ActiveToState}"));
+        // The seven internal rows report their effective loop state. The five external rows
+        // use ExternalDeviceState below so known device absence can outrank operator intent.
+        Assert.DoesNotContain("Converter=\"{StaticResource ActiveVariableState}\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(7, Count(xaml, "Converter={StaticResource ActiveToState}"));
     }
 
     /// <summary>
@@ -181,13 +178,49 @@ public sealed class ControlWorkspaceContractTests
         var start = xaml.IndexOf("Text=\"Dispositivos Externos\"", StringComparison.Ordinal);
         var section = xaml[start..];
 
-        Assert.Contains("DataContext.CanActuate", xaml, StringComparison.Ordinal);
+        Assert.Contains("Status.IsOnline", xaml, StringComparison.Ordinal);
 
-        // Five device rows plus the pump and biomass drawer twins.
-        Assert.Equal(7, Count(section, "ExternalDeviceToggleStyle"));
+        // One switch per external row. Pump and biomass no longer duplicate their switch
+        // inside the drawer; four non-flow devices use the stricter node-online style.
+        Assert.Equal(5, Count(section, "ExternalDeviceToggleStyle"));
+        Assert.Equal(4, Count(section, "ConnectedExternalDeviceToggleStyle"));
 
-        // Air flow, distance and flask agitator are the rows with a setpoint entry.
-        Assert.Equal(3, Count(section, "ExternalDeviceEntryStyle"));
+        // Distance, biomass and flask editors require actual node presence, not merely the
+        // app-to-Hub link. The flowmeter retains its acknowledgement-aware inline guard.
+        Assert.Equal(10, Count(section, "ConnectedExternalDeviceEntryStyle"));
+    }
+
+    [Fact]
+    public void External_drawers_share_the_theme_and_do_not_duplicate_primary_switches()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+        var markers = new[]
+        {
+            "<!-- 8. Vazão de Ar",
+            "<!-- 9. Sensor de Distância",
+            "<!-- 10. Bomba Dosadora Externa",
+            "<!-- 11. Sensor de Biomassa",
+            "<!-- 12. Frasco Agitador",
+        };
+
+        for (var index = 0; index < markers.Length; index++)
+        {
+            var start = xaml.IndexOf(markers[index], StringComparison.Ordinal);
+            var end = index + 1 < markers.Length
+                ? xaml.IndexOf(markers[index + 1], start, StringComparison.Ordinal)
+                : xaml.IndexOf("<!-- Bottom Action & Safety Bar -->", start, StringComparison.Ordinal);
+            var device = xaml[start..end];
+
+            Assert.Contains("Background=\"{DynamicResource SurfaceHoverBrush}\"", device, StringComparison.Ordinal);
+            Assert.Contains("CornerRadius=\"{DynamicResource RadiusSmall}\"", device, StringComparison.Ordinal);
+            Assert.Contains("Margin=\"28,4,8,8\"", device, StringComparison.Ordinal);
+            Assert.Equal(1, Count(device, "ExternalDeviceToggleStyle"));
+        }
+
+        Assert.DoesNotContain("Modo automático pelo potenciômetro", xaml, StringComparison.Ordinal);
+        Assert.Contains("Automação por espuma", xaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{StaticResource AppSliderStyle}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Contagens brutas de integração", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -323,6 +323,48 @@ public sealed class ExternalDeviceTests
 
     // ── Biomass view-model ───────────────────────────────────────────────────
 
+    [Fact]
+    public void Device_specific_editors_wait_for_confirmed_online_presence()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var foam = new FoamControlViewModel(device, settings);
+        using var biomass = new BiomassControlViewModel(device, settings);
+        using var agitator = new FlaskAgitatorViewModel(device, settings);
+
+        Assert.False(foam.ApplyCommand.CanExecute(null));
+        Assert.False(biomass.ApplyThresholdsCommand.CanExecute(null));
+        Assert.False(agitator.ApplyCommand.CanExecute(null));
+        Assert.False(agitator.ReEnablePotCommand.CanExecute(null));
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasDistanceTelemetry = true,
+            DistanceOnline = true,
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            HasAgitatorTelemetry = true,
+            AgitatorOnline = true,
+        });
+
+        Assert.True(foam.ApplyCommand.CanExecute(null));
+        Assert.True(biomass.ApplyThresholdsCommand.CanExecute(null));
+        Assert.True(agitator.ApplyCommand.CanExecute(null));
+        Assert.True(agitator.ReEnablePotCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Pump_and_biomass_start_without_a_false_restored_parameters_message()
+    {
+        using var pump = new PumpControlViewModel(
+            new RecordingDeviceService(), new MemorySettingsService());
+        using var biomass = new BiomassControlViewModel(
+            new RecordingDeviceService(), new MemorySettingsService());
+
+        Assert.Equal("", pump.StatusText);
+        Assert.Equal("", biomass.StatusText);
+    }
+
     /// <summary>
     /// The Hub parses <c>biomassComm</c> before it reaches the biomass block, so a single
     /// <c>{"stop":1,"biomassComm":0}</c> clears routing and then discards its own stop — the
@@ -363,6 +405,7 @@ public sealed class ExternalDeviceTests
         };
         dispatcher.Sent.Clear();
 
+        device.PushTelemetry(new SensorSnapshot { HasBiomassTelemetry = true, BiomassOnline = true });
         Assert.True(vm.BlankCommand.CanExecute(null));
         vm.BlankCommand.Execute(null);
 

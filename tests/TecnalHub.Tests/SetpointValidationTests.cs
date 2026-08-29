@@ -1,6 +1,7 @@
 using TecnalHub.Protocol;
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
+using TecnalHub.Services.Telemetry;
 using TecnalHub.ViewModels;
 using Xunit;
 
@@ -366,5 +367,46 @@ public class SetpointValidationTests
 
         Assert.Equal("""{"motorSetpoint":450}""", Assert.Single(device.Sent));
         Assert.Equal(450.0, variable.Value);
+    }
+
+    [Fact]
+    public void Sensor_health_uses_detrended_recent_noise()
+    {
+        var variable = new ProcessVariableViewModel(
+            "temperature", "Temperatura", "°C", decimals: 1,
+            channel: TelemetryChannel.Temperature);
+
+        // A ramp is a process trend, not sensor noise. Linear detrending keeps it stable.
+        for (var index = 0; index < 12; index++)
+        {
+            variable.Push(25.0 + (index * 0.2));
+        }
+
+        Assert.Equal("Estável", variable.HealthStatusText);
+        Assert.Equal(VariableState.Ok, variable.HealthState);
+        Assert.Equal("Sim", variable.SignalPresentText);
+        Assert.NotEqual("—", variable.HealthNoiseText);
+    }
+
+    [Fact]
+    public void Sensor_health_flags_noise_and_resets_when_signal_is_cleared()
+    {
+        var variable = new ProcessVariableViewModel(
+            "ph", "pH", "", decimals: 2, channel: TelemetryChannel.PH);
+
+        for (var index = 0; index < 12; index++)
+        {
+            variable.Push(index % 2 == 0 ? 6.7 : 7.3);
+        }
+
+        Assert.Equal("Ruído elevado", variable.HealthStatusText);
+        Assert.Equal(VariableState.Alarm, variable.HealthState);
+        Assert.Equal("ph", variable.CalibrationTarget);
+
+        variable.Clear();
+
+        Assert.Equal("Sem sinal", variable.HealthStatusText);
+        Assert.Equal("Não", variable.SignalPresentText);
+        Assert.Equal("0/30", variable.HealthSampleCountText);
     }
 }

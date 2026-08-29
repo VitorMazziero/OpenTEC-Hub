@@ -1716,7 +1716,7 @@ is inspected. **The information architecture never changes; only which sections 
 present.**
 
 ```text
-O₂ (Oxigênio dissolvido)                    ● Normal   ✕
+O₂ (Oxigênio dissolvido)                [toggle] ● Normal   ✕
 ──────────────────────────────────────────────────────────
 PV                    SP                    Δ
 40,2 %                40,0 %                +0,2 %
@@ -1732,17 +1732,16 @@ Estado
 ──────────────────────────────────────────────────────────
 Calibração                                             ›
 Saúde do Sensor                                        ›
-Configurações avançadas                                ›
 ```
 
 | Region | Contents |
 |---|---|
-| **Header** | Icon · name · state chip (dot + word) · `✕` to deselect |
+| **Header** | Icon · name · activation toggle (when controllable) · state chip (dot + word) · `✕` to deselect |
 | **PV / SP / Δ** | Three columns. PV 36-40 px Semibold tabular; SP and Δ 18 px. Δ signed and coloured by state, not by sign |
 | **Trend** | ~120 px sparkline-plus, role palette, window matching the KPI default. Click opens Históricos with this channel loaded |
 | **Controle** | `Modo de Controle` dropdown, then a segmented tab strip |
 | **Tabs** | Only the tabs that exist for this device — see the matrix |
-| **Expanders** | `Calibração` · `Saúde do Sensor` · `Configurações avançadas`, each navigating to the relevant page section rather than duplicating it |
+| **Expanders** | `Calibração`, only when a matching calibration tab exists, and `Saúde do Sensor`, only for measured sensors. There is no generic advanced-settings placeholder |
 
 **Section matrix.** This is where [section 2](#2-reality-check--the-mockups-against-the-hardware)
 item 7 lands concretely — the tabs are not uniform, because the underlying control is not.
@@ -1750,13 +1749,13 @@ item 7 lands concretely — the tabs are not uniform, because the underlying con
 | Device | SP & Limites | Cascata | PID | Saída | Dosagem | Calibração | Saúde |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | `temperature` | ✅ | — | — | — | — | — | ✅ |
-| `ph` | ✅ *(P2)* | — | — | — | ✅ *(P2)* | ✅ | ✅ |
+| `ph` | ✅ | — | — | — | ✅ | ✅ | ✅ |
 | `oxygen` | ✅ | ✅ *(P2)* | ✅ *(P2)* | ✅ *(P2)* | — | ✅ | ✅ |
 | `motor` | ✅ | — | — | — | — | — | — |
 | `flow` | ✅ | — | — | ✅ | — | ✅ | ✅ |
 | `valves` | — | — | — | ✅ | — | — | — |
-| `pressure` | ✅ | — | — | — | — | — | ✅ |
-| `level` | ✅ *(P2)* | — | — | — | — | ✅ | ✅ |
+| `pressure` | ✅ | — | — | — | — | — | — |
+| `level` | — | — | — | — | — | — | ✅ |
 | `antifoam` | — | — | — | — | ✅ *(P2)* | — | — |
 | `nutrient` | — | — | — | — | ✅ *(P2)* | — | — |
 | `biomass` | — | — | — | — | — | ✅ *(P3)* | ✅ |
@@ -1766,10 +1765,11 @@ item 7 lands concretely — the tabs are not uniform, because the underlying con
 > device; the app sends `tempSetpoint` and can see neither the terms nor the actuator
 > output. A PID tab there would describe a controller the application cannot observe.
 
-**`Saúde do Sensor`** shows what the parser knows and nothing more: last accepted value
-and timestamp, raw count, whether the spike filter is currently holding a candidate,
-consecutive rejected samples, sentinel state, and — for flow — `FlowmeterOnline` plus the
-`FlowCommandId`/`FlowCommandAck` correlation.
+**`Saúde do Sensor`** uses the latest 30 accepted readings. It shows last acceptance time,
+signal presence, sample count and the residual standard deviation after removing a linear
+trend. This separates short-term readout noise from a legitimate process ramp. Classification
+starts after eight readings and uses channel-specific warning/alarm limits. It is an online
+stability indicator, not a substitute for calibration or a hardware diagnostic receipt.
 
 ### 6.2 `KpiTile`
 
@@ -1794,7 +1794,7 @@ Setpoint
 | Range hint | 11 px `TextMuted` below |
 | Pending marker | `● não aplicado` in `StateWarningText` when the entry differs from the acknowledged value |
 | Error | Inline, 11 px `StateAlarmText`, replacing the range hint. **The command is not sent** |
-| Actions | `Aplicar` (primary, disabled while invalid) · `Reverter` |
+| Commit | `Enter` or loss of keyboard focus sends a valid pending value. `Esc` restores the last applied value; invalid text never reaches the wire |
 
 ### 6.4 `StateChip` and `StateDot`
 

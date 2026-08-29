@@ -45,48 +45,6 @@
             <StackPanel>
                 <ctl:SetpointField Label="Setpoint"
                                    Visibility="{Binding HasSetpointEntry, Converter={StaticResource BoolToVis}}" />
-
-                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                    <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
-                                  VerticalAlignment="Center"
-                                  AutomationProperties.Name="Subsistema ativo"
-                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
-                    <TextBlock Text="Subsistema ativo" Margin="10,0,0,0"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                    <Button Content="Aplicar"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Command="{Binding ApplyCommand}"
-                            Margin="0,0,8,0" />
-                    <Button Content="Reverter"
-                            Command="{Binding RevertCommand}"
-                            IsEnabled="{Binding HasPendingChange}" />
-                </StackPanel>
-
-                <Grid Margin="0,16,0,0"
-                      Visibility="{Binding HasSetpointEntry, Converter={StaticResource BoolToVis}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition /><RowDefinition />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Aplicado"
-                               Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right"
-                               Style="{StaticResource NumericTextStyle}" FontSize="11"
-                               Text="{Binding AppliedSetpoint, TargetNullValue=—}" />
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Confirmado pelo equipamento"
-                               Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right"
-                               Style="{StaticResource NumericTextStyle}" FontSize="11"
-                               Text="{Binding Variable.FormattedSetpoint}" />
-                </Grid>
             </StackPanel>
         </DataTemplate>
 
@@ -132,8 +90,9 @@
             BorderThickness="1"
             CornerRadius="{DynamicResource RadiusMedium}"
             Padding="18">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="0,0,16,0">
 
                 <!-- ── Header ─────────────────────────────────────────────── -->
                 <Grid>
@@ -141,14 +100,22 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
                                FontSize="{DynamicResource FontSizeSubtitle}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center" />
-                    <ctl:StateChip Grid.Column="1" State="{Binding Variable.State}"
+                    <ToggleButton Grid.Column="1" Margin="10,0,0,0"
+                                  Style="{StaticResource ToggleSwitchStyle}"
+                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                  Click="OnToggleClicked"
+                                  AutomationProperties.Name="{Binding DisplayName, StringFormat='Ativar ou desligar {0}'}"
+                                  ToolTip="Ativar ou desligar; o comando é enviado imediatamente" />
+                    <ctl:StateChip Grid.Column="2" Margin="10,0,0,0"
+                                   State="{Binding Variable.State}"
                                    VerticalAlignment="Center" />
-                    <Button Grid.Column="2" Margin="10,0,0,0" Padding="4"
+                    <Button Grid.Column="3" Margin="10,0,0,0" Padding="4"
                             Background="Transparent" BorderThickness="0"
                             AutomationProperties.Name="Fechar painel"
                             ToolTip="Fechar"
@@ -202,9 +169,6 @@
                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                     </StackPanel>
                 </Grid>
-
-                <ctl:ProvenanceBadge Margin="0,8,0,0"
-                                     Visibility="{Binding Variable.IsCommandedOnly, Converter={StaticResource BoolToVis}}" />
 
                 <!-- ── Trend ──────────────────────────────────────────────── -->
                 <ctl:TrendSpark Margin="0,14,0,0"
@@ -347,60 +311,19 @@
                     <Expander.Header>
                         <TextBlock Text="Calibração" />
                     </Expander.Header>
-                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
-                               Text="O equipamento envia contagens brutas; a conversão é feita no aplicativo. Os coeficientes ficam em Configurações → Calibração das sondas." />
+                    <Button Content="Abrir calibração"
+                            HorizontalAlignment="Left"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding DataContext.OpenCalibrationCommand,
+                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding CalibrationTarget}" />
                 </Expander>
 
                 <Expander Visibility="{Binding HasHealth, Converter={StaticResource BoolToVis}}">
                     <Expander.Header>
                         <TextBlock Text="Saúde do sensor" />
                     </Expander.Header>
-                    <StackPanel>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition /><RowDefinition /><RowDefinition />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Última leitura aceita"
-                                       Style="{StaticResource CaptionTextStyle}" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right"
-                                       Style="{StaticResource NumericTextStyle}" FontSize="11"
-                                       Text="{Binding DataContext.LastUpdateText,
-                                              RelativeSource={RelativeSource AncestorType=Window}}" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Sinal presente"
-                                       Style="{StaticResource CaptionTextStyle}" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right"
-                                       Style="{StaticResource CaptionTextStyle}"
-                                       Text="{Binding Variable.HasValue}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Estado"
-                                       Style="{StaticResource CaptionTextStyle}" />
-                            <ctl:StateChip Grid.Row="2" Grid.Column="1" HorizontalAlignment="Right"
-                                           State="{Binding Variable.State}" />
-                        </Grid>
-
-                        <!-- Honest about its own limits. Raw counts and the spike
-                             filter's hold state are inside the parser and are not
-                             exposed yet; claiming to show sensor health while
-                             omitting the filter would be worse than saying so. -->
-                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
-                                   Margin="0,10,0,0"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   Text="Contagem bruta, estado do filtro de spike e amostras rejeitadas exigem expor o estado do parser — ainda não disponível." />
-                    </StackPanel>
-                </Expander>
-
-                <Expander>
-                    <Expander.Header>
-                        <TextBlock Text="Configurações avançadas" />
-                    </Expander.Header>
-                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
-                               Text="Filtros, calibração, conexão e comandos do equipamento ficam em Configurações." />
+                    <ctl:SensorHealthView DataContext="{Binding Variable}" />
                 </Expander>
             </StackPanel>
         </ScrollViewer>

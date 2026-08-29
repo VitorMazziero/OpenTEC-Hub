@@ -1,0 +1,51 @@
+<UserControl x:Class="TecnalHub.Controls.SensorHealthView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:TecnalHub.Controls">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition />
+            <RowDefinition />
+            <RowDefinition />
+            <RowDefinition />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Última leitura aceita"
+                   Style="{StaticResource CaptionTextStyle}" />
+        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LastAcceptedText}"
+                   HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
+                   FontSize="11" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Sinal presente"
+                   Style="{StaticResource CaptionTextStyle}" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SignalPresentText}"
+                   HorizontalAlignment="Right" Style="{StaticResource CaptionTextStyle}" />
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Amostras recentes"
+                   Style="{StaticResource CaptionTextStyle}" />
+        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HealthSampleCountText}"
+                   HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
+                   FontSize="11" />
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Ruído sem tendência (σ)"
+                   ToolTip="Desvio padrão dos resíduos após remover a tendência linear das últimas 30 leituras."
+                   Style="{StaticResource CaptionTextStyle}" />
+        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HealthNoiseText}"
+                   HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
+                   FontSize="11" />
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Estabilidade"
+                   Style="{StaticResource CaptionTextStyle}" />
+        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <TextBlock Text="{Binding HealthStatusText}" Margin="0,0,7,0"
+                       VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+            <local:StateChip State="{Binding HealthState}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

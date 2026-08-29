@@ -15,7 +15,7 @@
          presentation-only and is the sole equipment figure on this page. -->
     <UserControl.Resources>
         <conv:StateToBrushConverter x:Key="StateToBrush" />
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <conv:ActiveToStateConverter x:Key="ActiveToState" />
 
         <DataTemplate x:Key="InstrumentTagTemplate">
             <Grid>
@@ -28,16 +28,13 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Ellipse Grid.Column="0" Width="7" Height="7" Margin="0,0,6,0"
-                             VerticalAlignment="Center"
-                             Fill="{Binding State, Converter={StaticResource StateToBrush}}" />
-                    <!-- 12/26, not 11/22: at FontSize 10 a two-line title such as "Dosagem de
-                         Antiespumante" had its second line's descenders clipped by the cap.
-                         Still inside the tile's 60 px minimum height. -->
+                    <ctl:StateDot Grid.Column="0" Size="7" Margin="0,0,6,0"
+                                  VerticalAlignment="Center"
+                                  State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" />
                     <TextBlock Grid.Column="1"
                                Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
-                               FontSize="10" FontWeight="SemiBold"
-                               LineHeight="12" TextWrapping="Wrap" MaxHeight="26"
+                               FontSize="11" FontWeight="SemiBold"
+                               LineHeight="14" TextWrapping="Wrap" MaxHeight="30"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Grid>
                 <Grid Grid.Row="1" Margin="13,2,0,0">
@@ -48,30 +45,21 @@
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                         <TextBlock Text="{Binding FormattedValue}"
                                    FontFamily="{DynamicResource FontNumeric}"
-                                   FontSize="16" FontWeight="SemiBold"
+                                   FontSize="18" FontWeight="SemiBold"
                                    Typography.NumeralAlignment="Tabular" />
                         <TextBlock Text="{Binding Unit}" Margin="4,0,0,2"
-                                   VerticalAlignment="Bottom" FontSize="9"
+                                   VerticalAlignment="Bottom" FontSize="10"
                                    Foreground="{DynamicResource TextMutedBrush}" />
                     </StackPanel>
-                    <Border Grid.Column="1" Margin="4,1,0,0" Padding="3,1"
-                            VerticalAlignment="Center" CornerRadius="2"
-                            Background="{DynamicResource SurfaceSunkenBrush}"
-                            Visibility="{Binding IsCommandedOnly,
-                                                 Converter={StaticResource BoolToVisibility}}"
-                            ToolTip="Valor comandado; o equipamento não fornece realimentação">
-                        <TextBlock Text="COMANDADO" FontSize="7" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextMutedBrush}" />
-                    </Border>
                 </Grid>
             </Grid>
         </DataTemplate>
 
         <!-- Compact, keyboard-accessible instrument card pinned to real hardware. -->
         <Style x:Key="InstrumentTagStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="60" />
-            <Setter Property="Margin" Value="3" />
-            <Setter Property="Padding" Value="7,5" />
+            <Setter Property="MinHeight" Value="72" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Padding" Value="10,8" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -164,7 +152,7 @@
 
         <Grid Grid.Row="1" Margin="10,6">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="316" />
+                <ColumnDefinition Width="350" />
                 <ColumnDefinition Width="18" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -190,7 +178,7 @@
                                  dropout has to know which of the two links to look at. -->
                             <TextBlock Text="PARÂMETROS INTERNOS"
                                        Margin="3,0,0,4"
-                                       FontSize="9" FontWeight="SemiBold"
+                                       FontSize="10" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                             <UniformGrid Columns="2">
                                 <Button Style="{StaticResource InstrumentTagStyle}"
@@ -254,7 +242,7 @@
                         <StackPanel>
                             <TextBlock Text="DISPOSITIVOS EXTERNOS"
                                        Margin="3,0,0,4"
-                                       FontSize="9" FontWeight="SemiBold"
+                                       FontSize="10" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                             <!-- Every tile here carries its own presence chips. Only the
                                  flowmeter used to, which made it the one device on this page

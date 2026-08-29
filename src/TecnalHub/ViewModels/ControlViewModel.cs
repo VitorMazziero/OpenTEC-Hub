@@ -919,7 +919,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _flowCommitPending = false;
         _flowRowCommitPending = false;
         PersistAppliedSetpoints();
-        StatusText = "Estado de vazão e válvulas confirmado pelo fluxômetro.";
+        StatusText = "";
     }
 
     /// <summary>

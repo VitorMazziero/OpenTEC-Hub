@@ -8,7 +8,7 @@ using TecnalHub.Services.Persistence;
 namespace TecnalHub.ViewModels;
 
 /// <summary>
-/// The separate flask agitator (WP7): on/off, automatic mode, a 0-100 magnitude, a
+/// The separate flask agitator (WP7): on/off, foam-automatic mode, a 0-100 magnitude, a
 /// direction and the potentiometer re-enable.
 /// </summary>
 /// <remarks>
@@ -93,7 +93,10 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     public partial bool IsEnabled { get; set; }
 
-    /// <summary>Automatic mode — <c>agitatorAuto</c>. The potentiometer drives speed when set.</summary>
+    /// <summary>
+    /// Hub-side automatic foam response — <c>agitatorAuto</c>. The physical potentiometer is
+    /// the separate manual-local source represented by <c>agitatorReEnablePot</c>/<c>ActivePot</c>.
+    /// </summary>
     [ObservableProperty]
     public partial bool IsAutomatic { get; set; }
 
@@ -128,7 +131,9 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => (!IsEnabled || IsValid) && Status.CanSend;
+    public bool CanApply => (!IsEnabled || IsValid) && Status.IsOnline && Status.CanSend;
+
+    public bool CanActuate => Status.IsOnline && Status.CanSend;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
@@ -226,7 +231,7 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
     }
 
     /// <summary>Re-enables the physical potentiometer. A momentary action, sent at once.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanActuate))]
     private void ReEnablePot()
     {
         var result = _dispatcher.Dispatch(CommandBuilders.FlaskAgitatorReEnablePot());
@@ -341,10 +346,12 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
 
     private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ExternalDeviceStatus.CanSend) or null)
+        if (e.PropertyName is nameof(ExternalDeviceStatus.IsOnline) or nameof(ExternalDeviceStatus.CanSend) or null)
         {
             OnPropertyChanged(nameof(CanApply));
+            OnPropertyChanged(nameof(CanActuate));
             ApplyCommand.NotifyCanExecuteChanged();
+            ReEnablePotCommand.NotifyCanExecuteChanged();
         }
     }
 

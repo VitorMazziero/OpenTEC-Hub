@@ -744,6 +744,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
+    [RelayCommand]
+    private void OpenCalibration(string target)
+    {
+        Calibration.Select(target);
+        SelectedVariable = null;
+        SelectedNavigationId = "calibrations";
+    }
+
     /// <summary>Opens a Controle table row in the process-first dashboard.</summary>
     [RelayCommand]
     private void OpenVariableFromControl(ProcessVariableViewModel variable)

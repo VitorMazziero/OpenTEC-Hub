@@ -56,6 +56,8 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     private double? _previousValue;
     private double _displayScale = 1.0;
     private double _displayOffset;
+    private readonly Queue<double> _healthSamples = new();
+    private DateTimeOffset? _lastAcceptedAt;
 
     public ProcessVariableViewModel(
         string id,
@@ -104,6 +106,42 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     /// added.
     /// </remarks>
     public TelemetryChannel? Channel { get; }
+
+    /// <summary>Calibration page tab associated with this sensor, when one exists.</summary>
+    public string? CalibrationTarget => Channel switch
+    {
+        TelemetryChannel.PH => "ph",
+        TelemetryChannel.Oxygen => "oxygen",
+        TelemetryChannel.Flow => "flow",
+        TelemetryChannel.Biomass => "biomass",
+        _ => null,
+    };
+
+    public bool HasCalibration => CalibrationTarget is not null;
+
+    /// <summary>
+    /// Only sensors requested for the operator health summary participate. Actuators,
+    /// commanded-only values and undocumented auxiliary readings deliberately do not.
+    /// </summary>
+    public bool SupportsSensorHealth => Channel is
+        TelemetryChannel.Temperature or
+        TelemetryChannel.PH or
+        TelemetryChannel.Oxygen or
+        TelemetryChannel.Flow or
+        TelemetryChannel.Biomass or
+        TelemetryChannel.Distance;
+
+    public string LastAcceptedText => _lastAcceptedAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) ?? "—";
+
+    public string SignalPresentText => HasValue ? "Sim" : "Não";
+
+    public string HealthSampleCountText => $"{_healthSamples.Count}/30";
+
+    public string HealthNoiseText { get; private set; } = "—";
+
+    public string HealthStatusText { get; private set; } = "Sem sinal";
+
+    public VariableState HealthState { get; private set; } = VariableState.Idle;
 
     /// <summary>False for read-only readings such as pressure.</summary>
     public bool IsControllable { get; }
@@ -202,6 +240,7 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         OnPropertyChanged(nameof(Decimals));
         OnPropertyChanged(nameof(FormattedValue));
         OnPropertyChanged(nameof(FormattedSetpoint));
+        ResetHealth();
     }
 
     /// <summary>
@@ -217,6 +256,7 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         {
             Value = null;
             Trend = TrendDirection.Flat;
+            ResetHealth();
             if (State != VariableState.Alarm)
             {
                 State = VariableState.Idle;
@@ -241,6 +281,7 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
 
         _previousValue = reading;
         Value = reading;
+        RecordHealthSample(reading);
     }
 
     /// <summary>
@@ -261,5 +302,97 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         _previousValue = null;
         Trend = TrendDirection.Flat;
         State = VariableState.Idle;
+        ResetHealth();
+    }
+
+    private void ResetHealth()
+    {
+        _lastAcceptedAt = null;
+        _healthSamples.Clear();
+        HealthNoiseText = "—";
+        HealthStatusText = "Sem sinal";
+        HealthState = VariableState.Idle;
+        NotifyHealthChanged();
+    }
+
+    private void RecordHealthSample(double reading)
+    {
+        if (!SupportsSensorHealth || !double.IsFinite(reading))
+        {
+            return;
+        }
+
+        _lastAcceptedAt = DateTimeOffset.Now;
+        _healthSamples.Enqueue(ToDisplay(reading));
+        while (_healthSamples.Count > 30)
+        {
+            _healthSamples.Dequeue();
+        }
+
+        if (_healthSamples.Count < 8)
+        {
+            HealthNoiseText = "—";
+            HealthStatusText = $"Coletando ({_healthSamples.Count}/8)";
+            HealthState = VariableState.Idle;
+            NotifyHealthChanged();
+            return;
+        }
+
+        // A linear trend is removed before calculating sigma. This estimates short-term
+        // readout noise without classifying a legitimate heating or dosing ramp as a bad
+        // sensor merely because the process value is moving.
+        var samples = _healthSamples.ToArray();
+        var n = samples.Length;
+        var meanX = (n - 1) / 2.0;
+        var meanY = samples.Average();
+        var sumXx = 0.0;
+        var sumXy = 0.0;
+        for (var index = 0; index < n; index++)
+        {
+            var centeredX = index - meanX;
+            sumXx += centeredX * centeredX;
+            sumXy += centeredX * (samples[index] - meanY);
+        }
+
+        var slope = sumXx > 0 ? sumXy / sumXx : 0.0;
+        var residualSquares = 0.0;
+        for (var index = 0; index < n; index++)
+        {
+            var fitted = meanY + slope * (index - meanX);
+            var residual = samples[index] - fitted;
+            residualSquares += residual * residual;
+        }
+
+        var sigma = Math.Sqrt(residualSquares / Math.Max(1, n - 2));
+        var (warning, alarm) = HealthNoiseLimits();
+        HealthNoiseText = $"{sigma.ToString("F" + Math.Max(Decimals, 2), CultureInfo.CurrentCulture)} {Unit}".TrimEnd();
+        (HealthStatusText, HealthState) = sigma switch
+        {
+            _ when sigma >= alarm => ("Ruído elevado", VariableState.Alarm),
+            _ when sigma >= warning => ("Ruído moderado", VariableState.Warning),
+            _ => ("Estável", VariableState.Ok),
+        };
+        NotifyHealthChanged();
+    }
+
+    private (double Warning, double Alarm) HealthNoiseLimits() => Channel switch
+    {
+        TelemetryChannel.Temperature => (0.5, 1.5),
+        TelemetryChannel.PH => (0.04, 0.15),
+        TelemetryChannel.Oxygen => (1.0, 4.0),
+        TelemetryChannel.Flow => (0.15, 0.50),
+        TelemetryChannel.Biomass => (0.01, 0.04),
+        TelemetryChannel.Distance => (3.0, 10.0),
+        _ => (double.PositiveInfinity, double.PositiveInfinity),
+    };
+
+    private void NotifyHealthChanged()
+    {
+        OnPropertyChanged(nameof(LastAcceptedText));
+        OnPropertyChanged(nameof(SignalPresentText));
+        OnPropertyChanged(nameof(HealthSampleCountText));
+        OnPropertyChanged(nameof(HealthNoiseText));
+        OnPropertyChanged(nameof(HealthStatusText));
+        OnPropertyChanged(nameof(HealthState));
     }
 }

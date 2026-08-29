@@ -793,6 +793,7 @@
                                      Converter={StaticResource NullToVis}}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,12,0"
                                   Visibility="{Binding DataContext.IsPHSelected,
                                                RelativeSource={RelativeSource AncestorType=Window},
                                                Converter={StaticResource BoolToVis}}">
@@ -818,6 +819,7 @@
                                      Converter={StaticResource NullToVis}}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,12,0"
                                   Visibility="{Binding DataContext.IsPHSelected,
                                                RelativeSource={RelativeSource AncestorType=Window},
                                                Converter={StaticResource BoolToVis}}">
@@ -994,5 +996,4 @@
         </Grid>
     </DockPanel>
 </Window>
-
 

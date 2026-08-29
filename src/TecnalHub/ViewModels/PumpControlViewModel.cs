@@ -187,8 +187,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     public partial string PumpSpeedText { get; set; } = "—";
 
     [ObservableProperty]
-    public partial string StatusText { get; set; } =
-        "Parâmetros restaurados para revisão; nenhum comando foi enviado.";
+    public partial string StatusText { get; set; } = "";
 
     public bool ShowConstant => SelectedModeOption.Mode == PumpProfileMode.Constant;
 

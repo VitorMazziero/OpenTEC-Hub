@@ -1,10 +1,12 @@
 using TecnalHub.Services.Communication;
 using TecnalHub.Services.Persistence;
 
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace TecnalHub.ViewModels;
 
 /// <summary>Calibration procedures exposed as one navigation destination.</summary>
-public sealed class CalibrationViewModel : IDisposable
+public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
 {
     public CalibrationViewModel(
         IDeviceService device,
@@ -25,6 +27,21 @@ public sealed class CalibrationViewModel : IDisposable
 
     /// <summary>Guided biomass blank/threshold procedure (Phase 3 WP1).</summary>
     public BiomassCalibrationViewModel Biomass { get; }
+
+    [ObservableProperty]
+    public partial int SelectedTabIndex { get; set; }
+
+    public void Select(string target)
+    {
+        SelectedTabIndex = target switch
+        {
+            "ph" => 0,
+            "oxygen" => 1,
+            "flow" => 2,
+            "biomass" => 3,
+            _ => SelectedTabIndex,
+        };
+    }
 
     public void Dispose()
     {

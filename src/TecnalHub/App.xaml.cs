@@ -52,7 +52,10 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
         var playback = ParseKlaPlaybackOptions(e.Args);
-        PromptOrInitializeWorkspace(skipPrompt: playback is not null);
+        var workspace = ParseWorkspaceStartupOptions(e.Args);
+        PromptOrInitializeWorkspace(
+            explicitWorkspace: workspace.Path,
+            skipPrompt: workspace.SkipPrompt || playback is not null);
         ConfigureLogging();
         WireBindingDiagnostics();
 
@@ -125,12 +128,21 @@ public partial class App : Application
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
     }
 
-    private static void PromptOrInitializeWorkspace(bool skipPrompt = false)
+    private static void PromptOrInitializeWorkspace(string? explicitWorkspace = null, bool skipPrompt = false)
     {
         var configured = AppPaths.ReadConfiguredWorkspace();
-        if (skipPrompt && !string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
+        if (!string.IsNullOrWhiteSpace(explicitWorkspace))
         {
-            AppPaths.InitializeWorkspace(configured);
+            AppPaths.InitializeWorkspace(Path.GetFullPath(explicitWorkspace));
+            return;
+        }
+
+        if (skipPrompt)
+        {
+            AppPaths.InitializeWorkspace(
+                !string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured)
+                    ? configured
+                    : AppPaths.DefaultDataDirectory);
             return;
         }
 
@@ -155,6 +167,29 @@ public partial class App : Application
         {
             AppPaths.InitializeWorkspace(configured ?? AppPaths.DefaultDataDirectory);
         }
+    }
+
+    private sealed record WorkspaceStartupOptions(string? Path, bool SkipPrompt);
+
+    private static WorkspaceStartupOptions ParseWorkspaceStartupOptions(IReadOnlyList<string> args)
+    {
+        string? path = null;
+        var skipPrompt = false;
+        for (var index = 0; index < args.Count; index++)
+        {
+            if (string.Equals(args[index], "--no-workspace-prompt", StringComparison.OrdinalIgnoreCase))
+            {
+                skipPrompt = true;
+            }
+            else if (string.Equals(args[index], "--workspace", StringComparison.OrdinalIgnoreCase) &&
+                     index + 1 < args.Count && !string.IsNullOrWhiteSpace(args[index + 1]))
+            {
+                path = args[++index];
+                skipPrompt = true;
+            }
+        }
+
+        return new WorkspaceStartupOptions(path, skipPrompt);
     }
 
     private static void ConfigureLogging()

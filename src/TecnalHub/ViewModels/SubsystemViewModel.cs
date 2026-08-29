@@ -139,9 +139,11 @@ public sealed partial class SubsystemViewModel : ObservableObject
 
     public bool HasPid => _spec.HasPid;
 
-    public bool HasCalibration => _spec.HasCalibration;
+    public bool HasCalibration => _spec.HasCalibration && Variable.HasCalibration;
 
-    public bool HasHealth => _spec.HasHealth;
+    public bool HasHealth => _spec.HasHealth && Variable.SupportsSensorHealth;
+
+    public string? CalibrationTarget => Variable.CalibrationTarget;
 
     public bool HasSetpointEntry => _spec.HasSetpointEntry;
 

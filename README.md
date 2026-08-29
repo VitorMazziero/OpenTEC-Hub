@@ -54,6 +54,14 @@ dotnet build TecnalHub.slnx
 dotnet run --project src/TecnalHub
 ```
 
+Para iniciar sem abrir o seletor de pasta do Windows, informe o workspace explicitamente:
+
+```bash
+dotnet run --project src/TecnalHub -- --workspace "C:\Users\usuario\Documents\TECNAL-Hub"
+```
+
+`--no-workspace-prompt` reutiliza o workspace configurado ou o diretório padrão.
+
 ```bash
 dotnet test TecnalHub.slnx
 ```

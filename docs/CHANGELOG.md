@@ -9,6 +9,14 @@ All notable changes to TECNAL-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Saúde estatística compartilhada dos sensores.** Temperatura, pH, oxigênio, vazão,
+  biomassa e distância acumulam as 30 leituras aceitas mais recentes e exibem o desvio
+  padrão residual após remover a tendência linear. Assim uma rampa legítima do processo não é
+  confundida com ruído do sensor; oito amostras são exigidas antes de classificar a leitura como
+  estável, ruído moderado ou ruído elevado.
+- **Inicialização automatizável do workspace.** `--workspace <caminho>` inicia diretamente no
+  workspace informado e `--no-workspace-prompt` reutiliza o caminho configurado ou o padrão,
+  sem abrir o seletor de pasta do Windows.
 - **Contrato de dispositivo externo unificado (presença, roteamento e confirmação).** Os cinco
   nós Wi-Fi passam a ser modelados como o fluxômetro já era, com três estados que nunca se
   confundem: o interruptor do operador, o roteamento que o Hub persiste (`*CommEnabled`) e a
@@ -71,6 +79,14 @@ All notable changes to TECNAL-Hub. Version numbers follow
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
 ### Fixed
+- **Painéis laterais do sinóptico padronizados.** O pH agora usa o mesmo resumo PV/SP/Δ e
+  minigráfico dos outros parâmetros, com seus campos dentro de *Controle*. Toggles ficam no
+  cabeçalho e enviam imediatamente; campos enviam em `Enter` ou perda de foco. Foram removidos
+  Aplicar/Reverter, a falsa indicação de confirmação, textos de implementação, o selo
+  *COMANDADO* e *Configurações avançadas*. pH, oxigênio, vazão e biomassa oferecem um botão que
+  abre diretamente a aba correspondente em *Calibrações*.
+- **Resumo do biorreator mais legível.** Cards, fontes e área da coluna de parâmetros foram
+  ampliados, e o conteúdo dos painéis ganhou afastamento consistente da barra de rolagem.
 - **A faixa de alarme escondia o fim do texto atrás dos botões.** Os dois painéis eram filhos
   sobrepostos de uma célula única, e um `StackPanel` horizontal dá largura infinita ao filho —
   o `TextTrimming` nunca disparava. Agora o texto é limitado por uma coluna e quebra linha.

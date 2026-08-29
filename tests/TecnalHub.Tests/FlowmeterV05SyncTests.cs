@@ -147,7 +147,7 @@ public sealed class FlowmeterV05SyncTests
         fixture.PushFlow(online: true, pending: false);
         Assert.False(fixture.Subsystems[3].HasPendingChange);
         Assert.Equal(0, fixture.Control.DirtyCount);
-        Assert.Contains("confirmado", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("", fixture.Control.StatusText);
     }
 
     [Fact]

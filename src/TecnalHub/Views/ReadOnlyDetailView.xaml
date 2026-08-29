@@ -29,10 +29,11 @@
             Background="{DynamicResource SurfaceCardBrush}"
             BorderBrush="{DynamicResource StrokeDefaultBrush}"
             BorderThickness="1">
-        <StackPanel>
+        <StackPanel Margin="0,0,16,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
@@ -40,6 +41,13 @@
                            FontWeight="SemiBold"
                            VerticalAlignment="Center" />
                 <ctl:StateChip Grid.Column="1" State="{Binding State}" />
+                <Button Grid.Column="2" Margin="10,0,0,0" Padding="4"
+                        Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="Fechar painel" ToolTip="Fechar"
+                        Command="{Binding DataContext.ClearSelectionCommand,
+                                  RelativeSource={RelativeSource AncestorType=Window}}">
+                    <TextBlock Text="✕" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
+                </Button>
             </Grid>
 
             <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
@@ -51,21 +59,27 @@
                            Foreground="{DynamicResource TextMutedBrush}" />
             </StackPanel>
 
-            <!-- A commanded-only pump (nutrient) never has a measured value; say so. -->
-            <ctl:ProvenanceBadge Margin="0,8,0,0"
-                                 Visibility="{Binding IsCommandedOnly, Converter={StaticResource BoolToVis}}" />
-
             <ctl:TrendSpark Margin="0,14,0,0"
                             PlotHeight="120"
                             Channel="{Binding Channel}"
                             History="{Binding DataContext.History,
                                       RelativeSource={RelativeSource AncestorType=Window}}" />
 
-            <Separator Margin="0,16,0,12" />
+            <Separator Margin="0,16,0,4" />
 
-            <TextBlock Style="{StaticResource CaptionTextStyle}"
-                       TextWrapping="Wrap"
-                       Text="{Binding DetailNote}" />
+            <Expander Header="Calibração"
+                      Visibility="{Binding HasCalibration, Converter={StaticResource BoolToVis}}">
+                <Button Content="Abrir calibração" HorizontalAlignment="Left"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Command="{Binding DataContext.OpenCalibrationCommand,
+                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding CalibrationTarget}" />
+            </Expander>
+
+            <Expander Header="Saúde do sensor"
+                      Visibility="{Binding SupportsSensorHealth, Converter={StaticResource BoolToVis}}">
+                <ctl:SensorHealthView DataContext="{Binding}" />
+            </Expander>
         </StackPanel>
     </Border>
 </UserControl>

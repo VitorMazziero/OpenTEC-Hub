@@ -68,6 +68,21 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string LiveRawText { get; set; } = "—";
 
+    private double? _livePHValue;
+
+    public string FormattedDeviation
+    {
+        get
+        {
+            if (_livePHValue is not { } live || !TryParseDouble(SetpointText, out var setpoint))
+            {
+                return "—";
+            }
+
+            return (live - setpoint).ToString("+0.00;-0.00;0.00", CultureInfo.CurrentCulture);
+        }
+    }
+
     [ObservableProperty]
     public partial string StatusText { get; set; } =
         "Parâmetros restaurados para revisão; nenhum comando foi enviado.";
@@ -79,7 +94,11 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
-    partial void OnSetpointTextChanged(string value) => ValidateAndRefresh();
+    partial void OnSetpointTextChanged(string value)
+    {
+        ValidateAndRefresh();
+        OnPropertyChanged(nameof(FormattedDeviation));
+    }
 
     partial void OnInactiveBandTextChanged(string value) => ValidateAndRefresh();
 
@@ -295,12 +314,16 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        _livePHValue = snapshot.PHCalibrated > SensorReadings.NotReceived
+            ? snapshot.PHCalibrated
+            : null;
         LivePHText = snapshot.PHCalibrated > SensorReadings.NotReceived
             ? snapshot.PHCalibrated.ToString("F2", CultureInfo.CurrentCulture)
             : "—";
         LiveRawText = snapshot.PHRaw > SensorReadings.NotReceived
             ? snapshot.PHRaw.ToString("F1", CultureInfo.CurrentCulture)
             : "—";
+        OnPropertyChanged(nameof(FormattedDeviation));
     }
 
     private static bool TryParseDouble(string? text, out double value)

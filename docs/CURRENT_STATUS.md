@@ -1,13 +1,14 @@
 # TECNAL-Hub current status and stabilization audit
 
-> **Audit date:** 2026-08-26 · **Revised:** 2026-08-28  
+> **Audit date:** 2026-08-26 · **Revised:** 2026-08-29  
 > **Current version:** 0.24.0  
 > **Next release target:** 0.25.0 — safety stabilization and UI polish  
-> **Implementation base:** `0a962ee` on `main` — committed and fully integrated
+> **Implementation base:** `230c6ce` on `main` — committed and fully integrated
 
-The 2026-08-28 revision re-measured branch integration, repository integrity and the Release test
-suite, and nothing else. Rows and findings marked **26/08** carry over from the original audit and
-were not re-run today; read an undated claim in this document as evidence from 26/08.
+The 2026-08-29 revision re-measured branch integration and the Debug/Release test suites, then
+launched the current executable with an explicit workspace. Rows and findings marked **26/08**
+carry over from the original audit and were not re-run today; read an undated claim in this
+document as evidence from 26/08.
 
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
@@ -15,12 +16,10 @@ This document is the current release-status source. The detailed build sequence 
 
 ## Executive status
 
-Branch integration is now **complete**. The two lines that had diverged from `5152b69` on 26/08 —
-kLa/flowmeter and UI/receitas — were unified on 2026-08-28 at `0a962ee`, resolving four conflicting
-files (`CHANGELOG.md`, `SharedConverters.cs`, `RecipeEngine.Actuation.cs`, `ControlView.xaml`). All
-17 local branches are ancestors of `main`; none carries a commit outside it, and the working tree is
-clean. The application core is substantially built, but **0.24.0 is not yet a field-release
-candidate**.
+Branch integration is now **complete**. The kLa/flowmeter, UI/receitas and external-device/detail-
+panel lines are unified on `main` through `230c6ce`. All 20 local branches are ancestors of `main`;
+none carries a commit outside it. The application core is substantially built, but **0.24.0 is not
+yet a field-release candidate**.
 
 The 42 commits added since the audited baseline are feature, UI and integration work. They close no
 P0/P1 finding outright — AUD-002 is the only one that moved, and only partially. The release
@@ -42,14 +41,14 @@ gates in this document pass.
 
 | Check | Result (date) | Interpretation |
 |---|---|---|
-| Git integration | **28/08:** `main` at `0a962ee`, working tree clean; all 17 local branches are ancestors of `main`, none ahead | Both live lines are unified; nothing is stranded on a side branch |
+| Git integration | **29/08:** `main` contains `230c6ce`; all 20 local branches are ancestors of `main`, none ahead | The external-device and detail-panel lines are integrated without conflicts; nothing is stranded on a side branch |
 | Repository integrity | **28/08:** `git fsck --full` reports only dangling objects, `garbage: 0`; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
 | Authoritative version | `Directory.Build.props` = `0.24.0` | Correctly held while the P0 findings are open |
-| Release tests | **28/08: 587 passed, 1 skipped, 0 failed** (`dotnet test TecnalHub.slnx -c Release`) | Adds the gassing-out determination, vent-stabilization and recipe device-wait suites; the skip is still the hosted-WPF theme-cycle test |
+| Release tests | **29/08: 651 passed, 1 skipped, 0 failed** (`dotnet test TecnalHub.slnx -c Release --no-build --no-restore`, repeated after one isolated timing flake passed) | Includes external-device, detail-pane, calibration-navigation and sensor-health contracts; the skip is still the hosted-WPF theme-cycle test |
 | Package vulnerability scan | **26/08:** no known vulnerable direct or transitive packages | Does not waive compatibility warnings; not re-scanned after the merge |
-| Runtime startup smoke test | **26/08:** two Release launches reached the first frame; no binding failure, fatal exception or unhandled exception was logged | Not repeated after the merge, which added a workspace page and the determination page to startup |
-| First-frame time | **26/08:** 1.788 s and 6.011 s, target `< 2 s` | The startup target is not repeatably met; not re-measured |
-| Build compatibility | **28/08:** Debug and Release solution builds, **0 warnings, 0 errors** | `NU1701` stays resolved through the merge; published chart/theme verification remains a release receipt |
+| Runtime startup smoke test | **29/08:** Debug executable launched with `--workspace C:\Users\vitor\Documents\TECNAL-Hub`; first frame rendered and the fresh log contained no binding failure, fatal exception or unhandled exception | `--workspace` and `--no-workspace-prompt` now bypass the Windows folder picker; the expected offline COM1 warnings do not establish hardware operation |
+| First-frame time | **29/08:** 2.347 s, target `< 2 s` | The startup target remains unmet and is still a stabilization item |
+| Build compatibility | **29/08:** Debug and Release solution builds, **0 warnings, 0 errors** | `NU1701` stays resolved; published chart/theme verification remains a release receipt |
 | Formatting gate | **26/08:** `dotnet format --verify-no-changes --no-restore` fails repository-wide | Formatting/analyzer debt is not CI-ready; not re-run |
 
 The skipped theme test depends on a hosted WPF `Application`; token parity is tested headlessly,
@@ -69,7 +68,7 @@ but a packaged light/dark/light runtime test remains part of the UI acceptance w
 | External pump and proportional gas | Software-complete | Rejected-dispatch retry correction and hardware receipt |
 | Receitas authoring and execution | Feature-complete | P0 safe-stop/manual-lock corrections, minor canvas polish and hardware confirmation |
 | Receitas holding for an unresponsive external device | Software-complete **(new since the audit)** | Flow-setpoint and aeration-enable blocks wait for the flowmeter to confirm, latch the `Receita aguardando dispositivo` alarm after 8 s and offer skip/stop; needs a bench receipt with a genuinely offline meter |
-| Synoptic and main UI | Broad inventory present | Placement, scaling, keyboard, theme and operator walkthrough |
+| Synoptic and main UI | Detail panels standardized; pH has PV/SP/Δ, trend, control and direct calibration navigation; summary cards enlarged; measured sensors expose detrended-noise health | Screenshot capture failed with Windows `0x80004002`; accessibility/runtime tree passed, but final visual spacing and operator walkthrough remain open |
 | Packaging and field cutover | Not complete | Installer, first-run path, crash reporting, performance soak and operator manual |
 
 ## Audit findings

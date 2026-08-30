@@ -19,7 +19,7 @@
     -->
     <!-- MinVer will automatically derive the version from git tags and commits. -->
     <MinVerDefaultPreReleaseIdentifiers>dev</MinVerDefaultPreReleaseIdentifiers>
-    <MinVerMinimumMajorMinor>0.24</MinVerMinimumMajorMinor>
+    <MinVerMinimumMajorMinor>0.25</MinVerMinimumMajorMinor>
   </PropertyGroup>
 
   <PropertyGroup Label="Product metadata">

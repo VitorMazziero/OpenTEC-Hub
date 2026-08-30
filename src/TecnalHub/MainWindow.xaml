@@ -191,7 +191,13 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="BioProcess Hub"
+                    <!-- Application Icon -->
+                    <Image Source="pack://application:,,,/Resources/Icons/app_icon.ico"
+                           Width="24" Height="24"
+                           Margin="0,0,10,0"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <!-- Application Title -->
+                    <TextBlock Text="OpenTEC"
                                VerticalAlignment="Center"
                                FontFamily="{DynamicResource FontDisplay}"
                                FontSize="{DynamicResource FontSizeSubtitle}"

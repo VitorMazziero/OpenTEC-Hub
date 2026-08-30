@@ -79,6 +79,31 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
 ### Fixed
+- **Texto dos gráficos ilegível no tema escuro.** Rótulos de eixo e números de escala usavam
+  `TextSecondaryBrush`, um cinza médio pensado para texto acessório — mas num gráfico o eixo
+  *é* o conteúdo. Passam a usar `TextPrimaryBrush` nos quatro gráficos grandes (mapeamento kLa,
+  determinação de kLa, calibração e sinóptico). A barra de cores é um painel, não um eixo, então
+  `Plot.Axes.Color` nunca a alcançava: seu rótulo e seus ticks ficavam no quase-preto padrão do
+  ScottPlot durante todo o tema escuro, e agora seguem o tema. Os minigráficos (`TrendSpark`,
+  `PumpPreviewChart`) continuam no tom `muted` de propósito.
+- **Arquivos de experimento kLa eram um GUID puro.** `Experimentos\099afd80-…​.kla.json` não diz
+  a ninguém de qual ensaio se trata. Passam a ser gravados como `<nome>_<id>.kla.json` — o nome
+  na frente para leitura, o id no fim porque é ele que garante unicidade e permite localizar o
+  arquivo. Renomear o experimento renomeia o arquivo, sem deixar cópia antiga para trás, e os
+  arquivos já existentes com nome de GUID são renomeados na primeira leitura (apenas renomeados;
+  o conteúdo não é tocado).
+- **"Parar" durante a reconexão demorava segundos para valer.** O laço de repetição lia o
+  canal de pedidos apenas *entre* tentativas, e uma tentativa real é abrir a porta mais o
+  handshake, seguidos do atraso de backup — então o operador clicava em Parar e via o
+  aplicativo continuar reconectando. Agora `Disconnect` e `Connect` cancelam a tentativa em
+  voo: o pedido é postado no canal e o `CancellationTokenSource` da recuperação é cancelado
+  logo em seguida, de modo que o laço acorda com o pedido já disponível para ler.
+- **O alarme "Link perdido" ficava na tela depois de desconectar, e "Reconhecer" não o
+  tirava.** Desconectar pelo operador já encerrava o alarme, mas por um caminho que o
+  `Poll` seguinte não tinha o que reportar — nenhum evento `Changed` era emitido e a faixa
+  continuava desenhada com um alarme que o serviço já havia descartado. Reconhecer também
+  não resolvia: não havia mais nada travado para reconhecer. O `AlarmService` agora notifica
+  ao encerrar o alarme nessa transição.
 - **Trocar a pasta de trabalho deixava os dados partidos entre duas pastas.** "Alterar Pasta..."
   só movia o caminho estático, mas o `settings.json`, as receitas, os mapas, os testes de kLa, o
   serviço de backup e o log já tinham lido o seu diretório no construtor — então sessões e

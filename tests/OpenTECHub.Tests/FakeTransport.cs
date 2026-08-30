@@ -35,6 +35,18 @@ internal sealed class FakeTransport(TransportMedium medium = TransportMedium.Usb
     /// <summary>When set, <see cref="ReadAsync"/> throws it once.</summary>
     public Exception? NextReadThrows { get; set; }
 
+    /// <summary>
+    /// How long <see cref="ConnectAsync"/> stalls, honouring cancellation throughout —
+    /// a real port open plus handshake is seconds, not the instant this fake usually is.
+    /// </summary>
+    public TimeSpan ConnectDuration { get; set; } = TimeSpan.Zero;
+
+    /// <summary>Completes when a stalling <see cref="ConnectAsync"/> is entered.</summary>
+    public Task StalledConnectEntered => _stalledConnect.Task;
+
+    private readonly TaskCompletionSource _stalledConnect =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     // ---- observations ------------------------------------------------
 
     public List<string> Writes { get; } = [];
@@ -52,11 +64,18 @@ internal sealed class FakeTransport(TransportMedium medium = TransportMedium.Usb
 
     // ---- ITransport --------------------------------------------------
 
-    public Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
     {
         ConnectCalls++;
+
+        if (ConnectDuration > TimeSpan.Zero)
+        {
+            _stalledConnect.TrySetResult();
+            await Task.Delay(ConnectDuration, cancellationToken).ConfigureAwait(false);
+        }
+
         IsConnected = ConnectSucceeds;
-        return Task.FromResult(ConnectSucceeds);
+        return ConnectSucceeds;
     }
 
     public Task DisconnectAsync()

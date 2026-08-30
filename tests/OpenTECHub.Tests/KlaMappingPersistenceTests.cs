@@ -44,6 +44,70 @@ public sealed class KlaMappingPersistenceTests
         });
     }
 
+    /// <summary>
+    /// A folder of GUIDs tells the operator nothing about which run is which.
+    /// </summary>
+    [Fact]
+    public async Task Experiment_files_are_named_after_the_experiment()
+    {
+        await WithStoreAsync(async store =>
+        {
+            var snapshot = ReferenceInput() with { Name = "Ensaio Serratia 04/2026" };
+            await store.SaveExperimentAsync(new KlaExperimentDocument { Snapshot = snapshot });
+
+            var fileName = Path.GetFileName(store.GetExperimentFilePath(snapshot.Id));
+
+            // The slash is not a legal file-name character and is dropped, not escaped.
+            Assert.StartsWith("Ensaio Serratia 04", fileName, StringComparison.Ordinal);
+            Assert.EndsWith($"_{snapshot.Id}.kla.json", fileName, StringComparison.Ordinal);
+            Assert.DoesNotContain('/', fileName);
+        });
+    }
+
+    [Fact]
+    public async Task Renaming_an_experiment_renames_its_file_and_leaves_no_duplicate()
+    {
+        await WithStoreAsync(async store =>
+        {
+            var snapshot = ReferenceInput() with { Name = "Primeiro nome" };
+            await store.SaveExperimentAsync(new KlaExperimentDocument { Snapshot = snapshot });
+            var first = store.GetExperimentFilePath(snapshot.Id);
+
+            var renamed = snapshot with { Name = "Segundo nome" };
+            await store.SaveExperimentAsync(new KlaExperimentDocument { Snapshot = renamed });
+
+            var second = store.GetExperimentFilePath(snapshot.Id);
+            Assert.StartsWith("Segundo nome_", Path.GetFileName(second), StringComparison.Ordinal);
+            Assert.False(File.Exists(first));
+            Assert.Single(Directory.GetFiles(store.ExperimentsDirectory, "*.kla.json"));
+            Assert.Single(await store.LoadExperimentsAsync());
+        });
+    }
+
+    /// <summary>Files already on disk under the bare-GUID name are renamed, never rewritten.</summary>
+    [Fact]
+    public async Task Experiments_saved_under_the_old_guid_name_are_renamed_on_load()
+    {
+        await WithStoreAsync(async store =>
+        {
+            var snapshot = ReferenceInput() with { Name = "Ensaio antigo" };
+            var document = new KlaExperimentDocument { Snapshot = snapshot };
+
+            Directory.CreateDirectory(store.ExperimentsDirectory);
+            var legacyPath = Path.Combine(store.ExperimentsDirectory, $"{snapshot.Id}.kla.json");
+            await File.WriteAllTextAsync(
+                legacyPath, JsonSerializer.Serialize(document, KlaFingerprint.JsonOptions));
+
+            var loaded = Assert.Single(await store.LoadExperimentsAsync());
+            Assert.Equal(snapshot.Id, loaded.Snapshot.Id);
+
+            Assert.False(File.Exists(legacyPath));
+            Assert.Equal(
+                $"Ensaio antigo_{snapshot.Id}.kla.json",
+                Path.GetFileName(Assert.Single(Directory.GetFiles(store.ExperimentsDirectory, "*.kla.json"))));
+        });
+    }
+
     [Fact]
     public async Task Publication_makes_profile_available_for_control_and_exportable()
     {

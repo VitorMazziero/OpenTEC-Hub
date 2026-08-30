@@ -207,6 +207,37 @@ public sealed class AlarmServiceTests
             entry.Message.Contains("Link perdido", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The banner is redrawn on <c>Changed</c> and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Resolving on a manual disconnect clears the latch behind the state machine's back,
+    /// so the poll that follows finds no transition to report. Without an explicit
+    /// notification the operator kept looking at a "Link perdido" banner for an alarm the
+    /// service had already dropped — and Reconhecer could not dismiss it either, because
+    /// there was no longer anything latched to acknowledge.
+    /// </remarks>
+    [Fact]
+    public void Manual_disconnect_notifies_that_link_loss_is_gone()
+    {
+        using var h = new Harness();
+
+        h.Device.PushState(ConnectionState.Faulted, cause: ConnectionTransitionCause.LinkLost);
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.1));
+        Assert.True(h.Latched(AlarmId.LinkLost));
+
+        var notifications = 0;
+        h.Service.Changed += () => notifications++;
+
+        h.Device.PushState(
+            ConnectionState.Disconnected,
+            "desconectado pelo usuário",
+            ConnectionTransitionCause.UserDisconnect);
+
+        Assert.Equal(1, notifications);
+        Assert.Empty(h.Service.Snapshot());
+    }
+
     [Fact]
     public void Manual_disconnect_does_not_erase_an_unacknowledged_process_alarm()
     {

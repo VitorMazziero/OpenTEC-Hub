@@ -93,7 +93,8 @@ public partial class KlaDeterminationView : UserControl
     private static void StyleSinglePlot(Plot plot, string yLabel, string xLabel)
     {
         var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
-        var text = ToPlotColor(TryBrush("TextSecondaryBrush"), MediaColors.Gray);
+        // Axis text is content, not chrome; the secondary token reads as dim on a dark card.
+        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
         var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
 
         plot.FigureBackground.Color = surface;

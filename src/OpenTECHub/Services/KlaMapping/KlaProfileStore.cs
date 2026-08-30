@@ -48,6 +48,9 @@ public sealed class KlaProfileStore : IKlaProfileStore
 {
     private const string LegacyDraftFileName = "experiments.json";
 
+    /// <summary>Longest readable prefix kept in a file name, before the id and extension.</summary>
+    private const int MaxNameFragmentLength = 60;
+
     private readonly string _root;
     private readonly string _experiments;
     private readonly string _receipts;
@@ -76,8 +79,17 @@ public sealed class KlaProfileStore : IKlaProfileStore
                 : Path.Combine(root, "Recibos"));
     }
 
+    /// <summary>
+    /// Where the experiment lives, whatever name it was written under.
+    /// </summary>
+    /// <remarks>
+    /// Files are named <c>&lt;nome&gt;_&lt;id&gt;.kla.json</c> so the folder is readable
+    /// in Explorer — a bare GUID told the operator nothing about which run it was. The id
+    /// stays in the name because it is what makes the file unique and findable; the name
+    /// alone is neither. Files written under the old bare-GUID scheme are still found.
+    /// </remarks>
     public string GetExperimentFilePath(Guid experimentId) =>
-        Path.Combine(_experiments, $"{experimentId}.kla.json");
+        FindExperimentFile(experimentId) ?? Path.Combine(_experiments, $"{experimentId}.kla.json");
 
     public async Task<IReadOnlyList<KlaExperimentDocument>> LoadExperimentsAsync(
         CancellationToken cancellationToken = default)
@@ -334,7 +346,10 @@ public sealed class KlaProfileStore : IKlaProfileStore
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_experiments);
-        var filePath = GetExperimentFilePath(experiment.Snapshot.Id);
+
+        // Resolved before the write, or it would find the file this save is about to create.
+        var previousPath = FindExperimentFile(experiment.Snapshot.Id);
+        var filePath = BuildExperimentFilePath(experiment.Snapshot);
         var temporaryPath = filePath + ".tmp";
 
         await using (var stream = new FileStream(
@@ -354,6 +369,168 @@ public sealed class KlaProfileStore : IKlaProfileStore
         }
 
         File.Move(temporaryPath, filePath, overwrite: true);
+
+        // Renaming an experiment renames its file. Without this the old name would stay on
+        // disk holding an older copy of the same id, and the listing would show whichever
+        // the enumeration reached first.
+        if (previousPath is not null &&
+            !string.Equals(previousPath, filePath, StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                File.Delete(previousPath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The new file is already written; a leftover is a tidiness problem, not a
+                // data-loss one, and the id de-duplication in the loader covers it.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gives files written under the bare-GUID scheme their experiment's name.
+    /// </summary>
+    /// <remarks>
+    /// A rename and nothing else — the content is untouched, and a file that cannot be read
+    /// or moved is left exactly where it is. A folder of GUIDs is unreadable, and the
+    /// operator should not have to open each file to find the run they are looking for.
+    /// </remarks>
+    private async Task RenameBareIdFilesUnsafeAsync(CancellationToken cancellationToken)
+    {
+        const string extension = ".kla.json";
+
+        foreach (var directory in ExperimentDirectories())
+        {
+            string[] files;
+            try
+            {
+                files = Directory.GetFiles(directory, "*" + extension);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            foreach (var file in files)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var fileName = Path.GetFileName(file);
+                if (!Guid.TryParse(fileName[..^extension.Length], out _))
+                {
+                    continue; // already carries a name
+                }
+
+                KlaExperimentDocument? document;
+                try
+                {
+                    await using var stream = new FileStream(
+                        file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+                    document = await JsonSerializer
+                        .DeserializeAsync<KlaExperimentDocument>(stream, KlaFingerprint.JsonOptions, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                {
+                    continue;
+                }
+
+                if (document is null)
+                {
+                    continue;
+                }
+
+                var target = Path.Combine(
+                    directory,
+                    $"{FileNameFragment(document.Snapshot.Name)}_{document.Snapshot.Id}{extension}");
+
+                if (File.Exists(target))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Move(file, target);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Keep the GUID name rather than lose the file.
+                }
+            }
+        }
+    }
+
+    /// <summary>The file this experiment should be written to, given its current name.</summary>
+    private string BuildExperimentFilePath(KlaExperimentSnapshot snapshot)
+        => Path.Combine(_experiments, $"{FileNameFragment(snapshot.Name)}_{snapshot.Id}.kla.json");
+
+    /// <summary>Locates an experiment already on disk, under either naming scheme.</summary>
+    private string? FindExperimentFile(Guid experimentId)
+    {
+        foreach (var directory in ExperimentDirectories())
+        {
+            string[] named;
+            try
+            {
+                named = Directory.GetFiles(directory, $"*_{experimentId}.kla.json");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            if (named.Length > 0)
+            {
+                return named[0];
+            }
+
+            var legacy = Path.Combine(directory, $"{experimentId}.kla.json");
+            if (File.Exists(legacy))
+            {
+                return legacy;
+            }
+        }
+
+        return null;
+    }
+
+    private IEnumerable<string> ExperimentDirectories()
+    {
+        if (Directory.Exists(_experiments))
+        {
+            yield return _experiments;
+        }
+
+        var legacy = Path.Combine(_root, "experiments");
+        if (!string.Equals(legacy, _experiments, StringComparison.OrdinalIgnoreCase) &&
+            Directory.Exists(legacy))
+        {
+            yield return legacy;
+        }
+    }
+
+    /// <summary>
+    /// The readable half of an experiment file name.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <c>AppPaths.FormatSessionFileName</c>: invalid characters are dropped rather
+    /// than escaped, so what the operator typed is what they see in Explorer.
+    /// </remarks>
+    private static string FileNameFragment(string? name)
+    {
+        var cleaned = string.Join(
+            "_",
+            (name ?? string.Empty).Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries))
+            .Trim();
+
+        if (cleaned.Length > MaxNameFragmentLength)
+        {
+            cleaned = cleaned[..MaxNameFragmentLength].TrimEnd();
+        }
+
+        return string.IsNullOrWhiteSpace(cleaned) ? "Experimento" : cleaned;
     }
 
     private async Task EnsureMigratedUnsafeAsync(CancellationToken cancellationToken)
@@ -365,6 +542,8 @@ public sealed class KlaProfileStore : IKlaProfileStore
 
         _migrated = true;
         Directory.CreateDirectory(_experiments);
+
+        await RenameBareIdFilesUnsafeAsync(cancellationToken).ConfigureAwait(false);
 
         var legacyDraftPath = Path.Combine(_root, LegacyDraftFileName);
         if (!File.Exists(legacyDraftPath))

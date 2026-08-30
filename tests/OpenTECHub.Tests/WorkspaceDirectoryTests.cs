@@ -1,14 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.Recipes;
+using OpenTECHub.Services.Telemetry;
 using OpenTECHub.Services.Theme;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -99,7 +102,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         var workspace = Path.Combine(_testRoot, "WorkspaceExposed");
         AppPaths.InitializeWorkspace(workspace, persist: false);
 
-        var (viewModel, _, _) = CreateSettingsViewModel();
+        var (viewModel, _, _, _) = CreateSettingsViewModel();
 
         Assert.Equal(workspace, viewModel.WorkspaceDirectory);
         Assert.Equal(7, viewModel.WorkspaceFolders.Count);
@@ -114,41 +117,122 @@ public sealed class WorkspaceDirectoryTests : IDisposable
     }
 
     [Fact]
-    public void SettingsViewModel_ChangeWorkspaceDirectory_Prompts_Warning_And_Cancels_When_Rejected()
+    public async Task SettingsViewModel_ChangeWorkspaceDirectory_Copies_Nothing_When_Rejected()
     {
         var initialWorkspace = Path.Combine(_testRoot, "WorkspaceInitial");
+        var newWorkspace = Path.Combine(_testRoot, "WorkspaceNovo");
         AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
+        await File.WriteAllTextAsync(Path.Combine(AppPaths.RecipesDirectory, "a.recipe.json"), "{}");
 
-        var (viewModel, dialogs, files) = CreateSettingsViewModel();
+        var (viewModel, dialogs, files, restart) = CreateSettingsViewModel();
         dialogs.ConfirmResult = false;
-        files.NextFolder = Path.Combine(_testRoot, "WorkspaceNovo");
+        files.NextFolder = newWorkspace;
 
-        viewModel.ChangeWorkspaceDirectoryCommand.Execute(null);
+        await viewModel.ChangeWorkspaceDirectoryCommand.ExecuteAsync(null);
 
         Assert.True(dialogs.ConfirmCalled);
-        Assert.Contains("NÃO serão migrados automaticamente", dialogs.LastConsequence);
-        Assert.Equal(initialWorkspace, viewModel.WorkspaceDirectory);
+        Assert.Contains("permanece intacta", dialogs.LastConsequence);
+        Assert.Null(restart.RequestedWorkspace);
+        Assert.False(Directory.Exists(newWorkspace));
         Assert.Equal(initialWorkspace, AppPaths.DataDirectory);
     }
 
     [Fact]
-    public void SettingsViewModel_ChangeWorkspaceDirectory_Updates_When_Confirmed()
+    public async Task SettingsViewModel_ChangeWorkspaceDirectory_Copies_And_Restarts_When_Confirmed()
     {
         var initialWorkspace = Path.Combine(_testRoot, "Workspace1");
         var newWorkspace = Path.Combine(_testRoot, "Workspace2");
         AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
 
-        var (viewModel, dialogs, files) = CreateSettingsViewModel();
+        var recipe = Path.Combine(AppPaths.RecipesDirectory, "fermentacao.recipe.json");
+        await File.WriteAllTextAsync(recipe, "{\"name\":\"fermentacao\"}");
+
+        var (viewModel, dialogs, files, restart) = CreateSettingsViewModel();
         dialogs.ConfirmResult = true;
         files.NextFolder = newWorkspace;
 
-        viewModel.ChangeWorkspaceDirectoryCommand.Execute(null);
+        await viewModel.ChangeWorkspaceDirectoryCommand.ExecuteAsync(null);
 
         Assert.True(dialogs.ConfirmCalled);
-        Assert.Equal(newWorkspace, viewModel.WorkspaceDirectory);
-        Assert.Equal(newWorkspace, AppPaths.DataDirectory);
-        Assert.True(Directory.Exists(newWorkspace));
-        Assert.True(Directory.Exists(AppPaths.KlaMappingDirectory));
+
+        // Copied, and the original is still there.
+        Assert.True(File.Exists(Path.Combine(newWorkspace, "Receitas", "fermentacao.recipe.json")));
+        Assert.True(File.Exists(recipe));
+
+        // The new root is what the next launch will use, and the restart carries it.
+        Assert.Equal(newWorkspace, restart.RequestedWorkspace);
+        Assert.Equal(newWorkspace, File.ReadAllText(AppPaths.WorkspaceConfigFile).Trim());
+
+        // This process keeps its own paths: everything it holds open still belongs to the
+        // folder it started in, and only the restart moves the app.
+        Assert.Equal(initialWorkspace, AppPaths.DataDirectory);
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_ChangeWorkspaceDirectory_Closes_The_Session_File_Before_Copying()
+    {
+        // The copy has to be the whole file: the instance that starts in the new workspace
+        // appends to it, and two folders holding two different versions of one session is
+        // worse than a one-second gap in the telemetry.
+        var initialWorkspace = Path.Combine(_testRoot, "WorkspaceSessao");
+        AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
+
+        var sessionPath = Path.Combine(AppPaths.SessionsDirectory, "Ensaio_2026-08-26_1830.txt");
+        await File.WriteAllTextAsync(sessionPath, "Time (min)\n");
+
+        var logger = new MockSessionLogger();
+        logger.Start(sessionPath);
+
+        var (viewModel, dialogs, files, restart) = CreateSettingsViewModel(logger);
+        dialogs.ConfirmResult = true;
+        files.NextFolder = Path.Combine(_testRoot, "WorkspaceSessaoNova");
+
+        await viewModel.ChangeWorkspaceDirectoryCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, logger.StopCount);
+        Assert.False(logger.IsLogging);
+        Assert.NotNull(restart.RequestedWorkspace);
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_ChangeWorkspaceDirectory_Resumes_The_Session_When_The_Restart_Fails()
+    {
+        var initialWorkspace = Path.Combine(_testRoot, "WorkspaceSemReinicio");
+        AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
+
+        var sessionPath = Path.Combine(AppPaths.SessionsDirectory, "Ensaio_2026-08-26_1830.txt");
+        await File.WriteAllTextAsync(sessionPath, "Time (min)\n");
+
+        var logger = new MockSessionLogger();
+        logger.Start(sessionPath);
+
+        var (viewModel, dialogs, files, restart) = CreateSettingsViewModel(logger);
+        dialogs.ConfirmResult = true;
+        restart.Result = false;
+        files.NextFolder = Path.Combine(_testRoot, "WorkspaceSemReinicioNova");
+
+        await viewModel.ChangeWorkspaceDirectoryCommand.ExecuteAsync(null);
+
+        // Still recording, still into the folder this process started in.
+        Assert.Equal(sessionPath, logger.CurrentPath);
+        Assert.Equal(2, logger.StartedPaths.Count);
+        Assert.Contains("Não foi possível reiniciar", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_ChangeWorkspaceDirectory_Refuses_A_Destination_Inside_The_Current_Workspace()
+    {
+        var initialWorkspace = Path.Combine(_testRoot, "WorkspaceAninhado");
+        AppPaths.InitializeWorkspace(initialWorkspace, persist: false);
+
+        var (viewModel, dialogs, files, restart) = CreateSettingsViewModel();
+        files.NextFolder = Path.Combine(initialWorkspace, "Sessoes");
+
+        await viewModel.ChangeWorkspaceDirectoryCommand.ExecuteAsync(null);
+
+        Assert.False(dialogs.ConfirmCalled);
+        Assert.Null(restart.RequestedWorkspace);
+        Assert.Contains("dentro da pasta de trabalho atual", viewModel.StatusMessage);
     }
 
     [Fact]
@@ -157,7 +241,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         var workspace = Path.Combine(_testRoot, "WorkspaceOpen");
         AppPaths.InitializeWorkspace(workspace, persist: false);
 
-        var (viewModel, _, files) = CreateSettingsViewModel();
+        var (viewModel, _, files, _) = CreateSettingsViewModel();
 
         viewModel.OpenWorkspaceFolderCommand.Execute(null);
         Assert.Equal(workspace, files.LastOpenedFolder);
@@ -239,13 +323,15 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         Assert.Equal("Condicao_A_2026-08-26_1830.txt", AppPaths.FormatSessionFileName("Condicao_A_2026-08-26_1830.txt", fixedTime));
     }
 
-    private static (SettingsViewModel vm, MockDialogService dialogs, MockFileInteraction files) CreateSettingsViewModel()
+    private static (SettingsViewModel vm, MockDialogService dialogs, MockFileInteraction files, MockRestartService restart)
+        CreateSettingsViewModel(MockSessionLogger? sessionLogger = null)
     {
         var settingsService = new MemorySettingsService(new AppSettings());
         var theme = new ThemeService(NullLogger<ThemeService>.Instance);
         var dialogs = new MockDialogService();
         var files = new MockFileInteraction();
         var device = new RecordingDeviceService();
+        var restart = new MockRestartService();
 
         var vm = new SettingsViewModel(
             settingsService,
@@ -253,9 +339,61 @@ public sealed class WorkspaceDirectoryTests : IDisposable
             device,
             dialogs,
             backup: null,
-            files: files);
+            files: files,
+            migration: new WorkspaceMigrationService(
+                settingsService, NullLogger<WorkspaceMigrationService>.Instance),
+            restart: restart,
+            sessionLogger: sessionLogger);
 
-        return (vm, dialogs, files);
+        return (vm, dialogs, files, restart);
+    }
+
+    private sealed class MockSessionLogger : ISessionLogger
+    {
+        public event Action? StatusChanged;
+
+        public bool IsLogging => CurrentPath is not null;
+
+        public string? CurrentPath { get; private set; }
+
+        public int RowsWritten => 0;
+
+        public int StopCount { get; private set; }
+
+        public List<string> StartedPaths { get; } = [];
+
+        public void Start(string path)
+        {
+            CurrentPath = path;
+            StartedPaths.Add(path);
+            StatusChanged?.Invoke();
+        }
+
+        public void Stop()
+        {
+            StopCount++;
+            CurrentPath = null;
+            StatusChanged?.Invoke();
+        }
+
+        public void Write(SensorSnapshot snapshot, double commandedRpm, string connectionStatus)
+        {
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class MockRestartService : IApplicationRestartService
+    {
+        public string? RequestedWorkspace { get; private set; }
+
+        public bool Result { get; set; } = true;
+
+        public bool RestartWithWorkspace(string workspacePath)
+        {
+            RequestedWorkspace = workspacePath;
+            return Result;
+        }
     }
 
     private sealed class MemorySettingsService(AppSettings initial) : ISettingsService

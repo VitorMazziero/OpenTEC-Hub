@@ -79,6 +79,19 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
 ### Fixed
+- **Trocar a pasta de trabalho deixava os dados partidos entre duas pastas.** "Alterar Pasta..."
+  só movia o caminho estático, mas o `settings.json`, as receitas, os mapas, os testes de kLa, o
+  serviço de backup e o log já tinham lido o seu diretório no construtor — então sessões e
+  histórico passavam a ser gravados na pasta nova enquanto todo o resto continuava na antiga, sem
+  nenhum aviso, até o próximo reinício. Agora a troca **copia** o workspace inteiro para o
+  destino (sem apagar a origem e sem sobrescrever nada que já exista lá), grava o novo caminho e
+  **reinicia** o aplicativo nele, com `Logging.SessionLogPath` reapontado na cópia para o ensaio
+  correspondente. A operação é recusada com receita ou ensaio de kLa em andamento e avisa quando
+  o equipamento está conectado. Ver [DECISIONS D-031](DECISIONS.md).
+- **Orientação dos mapas de calor fixada por teste.** O eixo N do mapa de folga e da superfície de
+  kLa já havia sido invertido duas vezes a olho. `HeatmapOrientationTests` renderiza um mapa e lê
+  os pixels: com `FlipVertically = true` a linha 0 do arranjo — a agitação mínima — fica na base
+  do eixo, que é a convenção que os dois gráficos usam.
 - **Painéis laterais do sinóptico padronizados.** O pH agora usa o mesmo resumo PV/SP/Δ e
   minigráfico dos outros parâmetros, com seus campos dentro de *Controle*. Toggles ficam no
   cabeçalho e enviam imediatamente; campos enviam em `Enter` ou perda de foco. Foram removidos

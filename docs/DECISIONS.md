@@ -859,6 +859,43 @@ receita (uma parada que um botão desfaz não é uma parada).
 
 ---
 
+### D-031 · Trocar o workspace copia os dados e reinicia o aplicativo
+
+**Decisão.** "Alterar Pasta..." nas Configurações copia todo o workspace atual para a pasta
+escolhida, grava o novo caminho em `workspace.txt` e **reinicia** o OpenTEC-Hub com
+`--workspace <nova> --no-workspace-prompt`. A cópia nunca apaga a origem e nunca sobrescreve
+nada que já exista no destino.
+
+**Por quê.** `AppPaths.InitializeWorkspace` troca um estático, mas metade do aplicativo já leu
+o caminho no construtor: `SettingsService._path`, `RecipeStore`, `KlaProfileStore`,
+`KlaTestStore`, `BackupService` e o sink de arquivo do Serilog são resolvidos uma única vez na
+raiz de composição. Trocar só o estático deixava o aplicativo escrevendo metade dos dados na
+pasta que o operador acabara de abandonar — sessões e histórico na pasta nova, receitas, mapas,
+testes de kLa, `settings.json` e log na antiga — sem nenhum aviso. Reiniciar move tudo de uma
+vez, e os argumentos de inicialização necessários já existiam.
+
+**Consequências.**
+
+- **Copiar, nunca mover.** O workspace guarda a única cópia de corridas concluídas; uma
+  movimentação interrompida na metade perde dado que não se reproduz. Uma migração que falha
+  custa espaço em disco e nada mais.
+- **O destino tem precedência.** Arquivo que já existe na pasta nova é contado como preservado,
+  não sobrescrito — apontar duas máquinas para a mesma pasta compartilhada é uso normal.
+- **`Logging.SessionLogPath` é reescrito na cópia**, e só nela. É um caminho absoluto: intacto,
+  o aplicativo abriria na pasta nova e seguiria gravando telemetria no arquivo da antiga.
+- **A troca é recusada com receita ou ensaio de kLa em execução.** O reinício abandonaria a
+  corrida. Com o equipamento apenas conectado ela é permitida, com aviso: a aquisição para por
+  alguns segundos e os setpoints seguem ativos no Hub.
+- **O processo atual não muda de pasta.** O caminho novo é persistido, não aplicado; se o
+  reinício falhar, o aplicativo continua íntegro na pasta em que abriu e diz para reabrir.
+
+**Rejeitado.** Reapontar os serviços a quente — exigiria um `IWorkspaceService` observável,
+propriedades calculadas no lugar dos campos capturados, um `Rebase` no `SettingsService`,
+reconfiguração do Serilog em runtime e recarga das listas em memória das telas, tudo enquanto
+telemetria chega, para poupar um reinício de dois segundos.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

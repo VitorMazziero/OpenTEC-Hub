@@ -242,7 +242,9 @@ public partial class App : Application
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IFileInteractionService, FileInteractionService>();
+        services.AddSingleton<IApplicationRestartService, ApplicationRestartService>();
         services.AddSingleton<IBackupService, BackupService>();
+        services.AddSingleton<IWorkspaceMigrationService, WorkspaceMigrationService>();
         services.AddSingleton<IKlaMappingEngine, KlaMappingEngine>();
         services.AddSingleton<IKlaProfileStore>(_ => new KlaProfileStore(AppPaths.KlaMappingDirectory));
         services.AddSingleton<IKlaTestStore>(_ => new KlaTestStore(AppPaths.KlaTestsDirectory));

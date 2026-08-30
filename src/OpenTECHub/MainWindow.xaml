@@ -206,7 +206,7 @@
                     <TextBlock Text="{Binding AppVersion, StringFormat='v{0}'}"
                                VerticalAlignment="Bottom"
                                Margin="8,0,0,2"
-                               Foreground="{DynamicResource TextCaptionBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                FontSize="{DynamicResource FontSizeCaption}" />
                 </StackPanel>
 

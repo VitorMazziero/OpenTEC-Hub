@@ -4,8 +4,11 @@ using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Dialogs;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Platform;
+using OpenTECHub.Services.Recipes;
+using OpenTECHub.Services.Telemetry;
 using OpenTECHub.Services.Theme;
 
 namespace OpenTECHub.ViewModels;
@@ -42,6 +45,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IDialogService _dialogs;
     private readonly IBackupService? _backup;
     private readonly IFileInteractionService? _files;
+    private readonly IWorkspaceMigrationService? _migration;
+    private readonly IApplicationRestartService? _restart;
+    private readonly IRecipeEngine? _recipes;
+    private readonly IKlaTestRunner? _klaTests;
+    private readonly ISessionLogger? _sessionLogger;
 
     private bool _loading;
     private CalibrationSettings _persistedCalibration = new();
@@ -52,7 +60,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         IDeviceService device,
         IDialogService dialogs,
         IBackupService? backup = null,
-        IFileInteractionService? files = null)
+        IFileInteractionService? files = null,
+        IWorkspaceMigrationService? migration = null,
+        IApplicationRestartService? restart = null,
+        IRecipeEngine? recipes = null,
+        IKlaTestRunner? klaTests = null,
+        ISessionLogger? sessionLogger = null)
     {
         _settings = settings;
         _theme = theme;
@@ -60,6 +73,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _backup = backup;
         _files = files;
+        _migration = migration;
+        _restart = restart;
+        _recipes = recipes;
+        _klaTests = klaTests;
+        _sessionLogger = sessionLogger;
 
         ThemeOptions = [ThemePreference.System, ThemePreference.Light, ThemePreference.Dark];
         Sections =
@@ -742,20 +760,71 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             AppPaths.BackupsDirectory),
     ];
 
+    /// <summary>
+    /// Copies the workspace onto a new root and restarts the app there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The old command only moved the static path, which the settings file, the recipe,
+    /// map and kLa-test stores, the backup service and the log sink had all already read
+    /// in the composition root - so the app carried on writing half its data to the folder
+    /// the operator had just left. Copying and restarting moves everything at once.
+    /// </para>
+    /// <para>
+    /// The copy never deletes and never overwrites: the old folder stays as it was, and
+    /// anything already present at the destination wins. The switch is refused outright
+    /// while a recipe or a kLa run is executing - the restart would abandon the run.
+    /// </para>
+    /// </remarks>
     [RelayCommand]
-    private void ChangeWorkspaceDirectory()
+    private async Task ChangeWorkspaceDirectoryAsync()
     {
-        if (_files is null)
+        if (_files is null || _migration is null)
         {
             return;
         }
 
+        if (_recipes is not null && _recipes.State is RecipeRunState.Running or RecipeRunState.Paused)
+        {
+            StatusMessage = "Há uma receita em execução. Finalize-a antes de trocar o diretório de trabalho.";
+            return;
+        }
+
+        if (_klaTests is { IsRunning: true })
+        {
+            StatusMessage = "Há um ensaio de kLa em andamento. Finalize-o antes de trocar o diretório de trabalho.";
+            return;
+        }
+
+        var source = AppPaths.DataDirectory;
+        var selected = _files.ChooseFolder("Selecionar Diretório de Trabalho (Workspace / Sessão Global)", WorkspaceDirectory);
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            StatusMessage = "Alteração de diretório cancelada.";
+            return;
+        }
+
+        if (!_migration.CanMigrate(source, selected, out var reason))
+        {
+            StatusMessage = reason ?? "Pasta de destino inválida.";
+            return;
+        }
+
+        var preview = _migration.Preview(source);
+        var connectionWarning = _device.State == ConnectionState.Connected
+            ? "\n\nATENÇÃO: o equipamento está conectado. O reinício interrompe a aquisição por alguns segundos; " +
+              "os setpoints permanecem ativos no Hub."
+            : string.Empty;
+
         var confirmed = _dialogs.Confirm(
             "Alterar Diretório de Trabalho (Workspace)",
-            "Atenção: Os dados locais existentes NÃO serão migrados automaticamente.\n\n" +
-            "Os arquivos antigos se manterão no diretório antigo e novos dados serão salvos no novo diretório.\n\n" +
-            "Deseja selecionar uma nova pasta raiz?",
-            confirmText: "Continuar",
+            $"Os dados atuais serão COPIADOS para a nova pasta. Nada é apagado: a pasta atual permanece intacta.\n\n" +
+            $"De:   {source}\n" +
+            $"Para: {selected}\n\n" +
+            $"{preview.FileCount} arquivo(s), {FormatSize(preview.TotalBytes)}. Arquivos que já existirem no destino " +
+            "não são sobrescritos.\n\n" +
+            $"Ao final o OpenTEC-Hub será REINICIADO automaticamente na nova pasta.{connectionWarning}",
+            confirmText: "Copiar e reiniciar",
             cancelText: "Cancelar");
 
         if (!confirmed)
@@ -764,15 +833,53 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var selected = _files.ChooseFolder("Selecionar Diretório de Trabalho (Workspace / Sessão Global)", WorkspaceDirectory);
-        if (!string.IsNullOrWhiteSpace(selected))
+        StatusMessage = "Copiando dados para a nova pasta de trabalho...";
+
+        // Closed for the duration of the copy so the two folders cannot end up holding two
+        // different versions of the same session file: the instance that starts in the new
+        // workspace reopens the copy and appends to it. The rows not written during the copy
+        // are a gap of a second, and a gap is easier to read than a divergence.
+        var openSession = _sessionLogger?.CurrentPath;
+        _sessionLogger?.Stop();
+
+        var result = await _migration.MigrateAsync(source, selected).ConfigureAwait(true);
+        if (!result.Success)
         {
-            AppPaths.InitializeWorkspace(selected);
-            WorkspaceDirectory = AppPaths.DataDirectory;
-            OnPropertyChanged(nameof(WorkspaceFolders));
-            StatusMessage = $"Diretório de trabalho alterado para: {selected}";
+            if (openSession is { Length: > 0 })
+            {
+                _sessionLogger?.Start(openSession);
+            }
+
+            StatusMessage = result.Message;
+            return;
         }
+
+        // Persisted, not applied: this process keeps its own paths until it exits, so a
+        // failed restart leaves a consistent app pointed at the folder it started in.
+        AppPaths.SaveConfiguredWorkspace(selected);
+
+        if (_restart?.RestartWithWorkspace(selected) != true)
+        {
+            if (openSession is { Length: > 0 })
+            {
+                _sessionLogger?.Start(openSession);
+            }
+
+            StatusMessage = $"{result.Message} Não foi possível reiniciar automaticamente — " +
+                            "feche e abra o OpenTEC-Hub para usar a nova pasta.";
+            return;
+        }
+
+        StatusMessage = $"{result.Message} Reiniciando na nova pasta...";
     }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024 * 1024):0.0} GB",
+        >= 1024L * 1024 => $"{bytes / (1024.0 * 1024):0.0} MB",
+        >= 1024 => $"{bytes / 1024.0:0.0} kB",
+        _ => $"{bytes} B",
+    };
 
     [RelayCommand]
     private void OpenWorkspaceFolder()

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -335,8 +335,9 @@ public partial class KlaMappingView : UserControl
             {
                 heatmap.ManualRange = new ScottPlot.Range(0, 0.5);
             }
-            // row 0 is N minimum and therefore belongs at the bottom of the physical axis.
-            heatmap.FlipVertically = false;
+            // row 0 is N minimum and therefore belongs at the bottom of the physical axis,
+            // but ScottPlot renders row 0 at the top by default (image coordinates).
+            heatmap.FlipVertically = true;
             _headroomColorBar = plot.Add.ColorBar(heatmap);
             _headroomColorBar.Label = "H médio";
 

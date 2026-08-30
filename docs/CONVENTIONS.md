@@ -1,4 +1,4 @@
-# Code Conventions
+﻿# Code Conventions
 
 > Short guide. Formatting and naming are enforced by `.editorconfig` at build time
 > (`EnforceCodeStyleInBuild`); the rest is team convention.
@@ -42,7 +42,7 @@ constant keeps the ugly name so a `grep` for the JSON key finds the code that em
   business rules in code-behind. Only visual-tree concerns XAML cannot express.
 - **ViewModels never open dialogs** — inject `IDialogService`.
 - **Services are always behind an interface** and registered in `App.xaml.cs`.
-- **`TecnalHub.Protocol` never references WPF.** Enforced by the project having no
+- **`OpenTECHub.Protocol` never references WPF.** Enforced by the project having no
   such reference; keep it that way.
 - **Only `ConnectionManager` touches a transport.**
   ([ARCHITECTURE.md](ARCHITECTURE.md#2-threading-model))
@@ -72,7 +72,7 @@ Rules that exist because breaking them breaks real hardware
 - Every long-running operation takes a `CancellationToken` — including port probing,
   which in v.6 could not be cancelled at all
   ([MIGRATION.md](MIGRATION.md#3-known-defects-carried-in-from-v6) item 1).
-- `ConfigureAwait(false)` in `TecnalHub.Protocol` (no UI context to return to).
+- `ConfigureAwait(false)` in `OpenTECHub.Protocol` (no UI context to return to).
 
 ---
 

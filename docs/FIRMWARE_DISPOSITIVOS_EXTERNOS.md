@@ -1,4 +1,4 @@
-# Firmwares dos dispositivos externos — o que gravar
+﻿# Firmwares dos dispositivos externos — o que gravar
 
 > **Data:** 2026-08-29 · **Plano:** [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) §4
 > **Contrato de fio:** [PROTOCOL.md](PROTOCOL.md) §2.0.1, §3.4, §3.5
@@ -13,12 +13,12 @@ trabalho ainda não finalizada.
 
 | Dispositivo | Estava | Gravar | Obrigatório? |
 |---|---|---|---|
-| **Hub ESP32-S3** | `TECNAL_ESP32_v8` | `TECNAL_ESP32_v8` *(editado no lugar)* | **sim — grave primeiro** |
+| **Hub ESP32-S3** | `OpenTEC_ESP32_v8` | `OpenTEC_ESP32_v8` *(editado no lugar)* | **sim — grave primeiro** |
 | **Frasco agitador** | `frasco_agitador_03` | `frasco_agitador_04` | **sim** |
 | **Bomba peristáltica** | `v_3_2_DC_motor_peristaltic` | `v_4_DC_motor_peristaltic` | **sim** |
 | **Sensor de biomassa** | `biomass_sensor_analog_v04_direct` | `biomass_sensor_analog_v05_hubsync` | **sim** |
-| **Fluxômetro** | `flowmeter_TECNALHUB_V05` | — *sem alteração* | não |
-| **Sensor de distância** | `SensorDistanciaTECNAL_v03_reconnect` | — *sem alteração* | não |
+| **Fluxômetro** | `flowmeter_OpenTECHUB_V05` | — *sem alteração* | não |
+| **Sensor de distância** | `SensorDistanciaOpenTEC_v03_reconnect` | — *sem alteração* | não |
 
 **Ordem de gravação: o Hub primeiro.** Ele é retrocompatível com os três nós antigos — a caixa
 de comando revisionada entrega o mesmo JSON com uma chave `cmd_id` a mais, que um nó v03/v04
@@ -34,7 +34,7 @@ haver eco para comparar.
 
 ## Hub ESP32-S3 v8 — editado no lugar
 
-**`_devices\TECNAL_control\_Wifi Hub\Software\_ESP32S3_firmware\TECNAL_ESP32_v8\`**
+**`_devices\OpenTEC_control\_Wifi Hub\Software\_ESP32S3_firmware\OpenTEC_ESP32_v8\`**
 
 1. **`ReliableMailbox`** — a caixa revisionada do fluxômetro, generalizada para biomassa, bomba
    e agitador. O comando fica retido até o nó devolver o `cmd_id` que aplicou. A caixa v6 era
@@ -132,11 +132,11 @@ mostrar um setpoint que o nó não está mantendo.
 
 ## Sem alteração
 
-**Fluxômetro `flowmeter_TECNALHUB_V05`** — é o dispositivo de referência. Já tinha caixa
+**Fluxômetro `flowmeter_OpenTECHUB_V05`** — é o dispositivo de referência. Já tinha caixa
 revisionada, `ack_cmd_id`, presença publicada e polling a 10 Hz. Todo o trabalho acima consiste
 em trazer os outros ao nível dele.
 
-**Sensor de distância `SensorDistanciaTECNAL_v03_reconnect`** — nada a fazer no nó. Ele não
+**Sensor de distância `SensorDistanciaOpenTEC_v03_reconnect`** — nada a fazer no nó. Ele não
 recebe comandos, e o filtro de estagnação com o sentinela `-1` já dá semântica correta. O ajuste
 necessário (a janela de 1,2 s ser apertada demais para um push de 1 Hz) foi feito **no Hub**,
 sem alargar o intertravamento de espuma.

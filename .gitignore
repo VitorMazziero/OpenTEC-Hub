@@ -1,4 +1,4 @@
-# Build output
+﻿# Build output
 bin/
 obj/
 [Dd]ebug/
@@ -17,7 +17,7 @@ publish/
 installer/Output/
 
 # Self-contained publish of the Wi-Fi test harness (~78 MB). Regenerate with:
-#   dotnet publish src/TecnalHub.Harness -c Release -r win-x64 --self-contained true -o tools/wifi-test
+#   dotnet publish src/OpenTECHub.Harness -c Release -r win-x64 --self-contained true -o tools/wifi-test
 # tools/RunWiFiTest.cmd falls back to 'dotnet run' when it is absent.
 tools/wifi-test/
 

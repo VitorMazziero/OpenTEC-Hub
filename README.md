@@ -1,6 +1,6 @@
-# TECNAL-Hub
+﻿# OpenTEC-Hub
 
-Windows control application for the TECNAL bioreactor module, communicating with an
+Windows control application for the OpenTEC bioreactor module, communicating with an
 **ESP32-S3** hub over USB or Wi-Fi.
 
 C# / WPF on .NET 10, rebuilding the working Python application at
@@ -47,29 +47,29 @@ Read in this order:
 Requires the **.NET 10 SDK** (Windows).
 
 ```bash
-dotnet build TecnalHub.slnx
+dotnet build OpenTECHub.slnx
 ```
 
 ```bash
-dotnet run --project src/TecnalHub
+dotnet run --project src/OpenTECHub
 ```
 
 Para iniciar sem abrir o seletor de pasta do Windows, informe o workspace explicitamente:
 
 ```bash
-dotnet run --project src/TecnalHub -- --workspace "C:\Users\usuario\Documents\TECNAL-Hub"
+dotnet run --project src/OpenTECHub -- --workspace "C:\Users\usuario\Documents\OpenTEC-Hub"
 ```
 
 `--no-workspace-prompt` reutiliza o workspace configurado ou o diretório padrão.
 
 ```bash
-dotnet test TecnalHub.slnx
+dotnet test OpenTECHub.slnx
 ```
 
 Release publish, self-contained — the target machine needs no runtime installed:
 
 ```bash
-dotnet publish src/TecnalHub -c Release
+dotnet publish src/OpenTECHub -c Release
 ```
 
 ---
@@ -77,16 +77,16 @@ dotnet publish src/TecnalHub -c Release
 ## Repository layout
 
 ```text
-ProjetoTECNAL/
+ProjetoOpenTEC/
 ├─ docs/                    documentation (start with ROADMAP.md)
 ├─ tools/                   development-time hardware/scientific verification
 ├─ src/
-│  ├─ TecnalHub.Protocol/   ESP32-S3 wire layer — no WPF, headlessly testable
-│  ├─ TecnalHub.Simulator/  localhost HTTP / virtual-serial device simulator
-│  ├─ TecnalHub.Harness/    hardware validation and protocol experiments
-│  └─ TecnalHub/            the WPF operator application
+│  ├─ OpenTECHub.Protocol/   ESP32-S3 wire layer — no WPF, headlessly testable
+│  ├─ OpenTECHub.Simulator/  localhost HTTP / virtual-serial device simulator
+│  ├─ OpenTECHub.Harness/    hardware validation and protocol experiments
+│  └─ OpenTECHub/            the WPF operator application
 └─ tests/
-   └─ TecnalHub.Tests/      golden wire strings, parser, filters, controllers
+   └─ OpenTECHub.Tests/      golden wire strings, parser, filters, controllers
 ```
 
 ---
@@ -104,6 +104,6 @@ ProjetoTECNAL/
 
 | Project | Relationship |
 |---|---|
-| `TECNAL_control/.../_Windows App/v.6` | The working Python app being replaced. Reference implementation and fallback. |
+| `OpenTEC_control/.../_Windows App/v.6` | The working Python app being replaced. Reference implementation and fallback. |
 | `Artigos/04_Cascata_kLa` | The submitted manuscript defining the kLa gradient-path control method implemented in Phase 2. |
-| `Ourofino SA/.../ReceitasTECNAL` | Separate product for a different (PRO/HMI) module. Source of the corrected cascade control design and of the recipe-canvas concept — **not** re-skinned or reused as a product. |
+| `Ourofino SA/.../ReceitasOpenTEC` | Separate product for a different (PRO/HMI) module. Source of the corrected cascade control design and of the recipe-canvas concept — **not** re-skinned or reused as a product. |

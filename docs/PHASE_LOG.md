@@ -1,4 +1,4 @@
-# Phase Execution Log
+﻿# Phase Execution Log
 
 > Running record of decisions taken **while executing** the phases — what was chosen,
 > why, what the evidence was, and what was deliberately deferred.
@@ -47,7 +47,7 @@ comparable to v.6 line by line when debugging the wire.
 
 ### P0-02 · Build a console harness before any UI
 
-**Decided:** ship `TecnalHub.Harness` as a real project, not a throwaway script.
+**Decided:** ship `OpenTECHub.Harness` as a real project, not a throwaway script.
 
 **Why:** the exit criterion is a byte-comparison against v.6 traffic. That needs a
 wire trace, which needs somewhere to put it. A harness also makes every later
@@ -95,7 +95,7 @@ a device emitting every 2 s. The first bench run reconnected in a loop every ~4 
 
 ### P0-05 · Treat the culture hazard as a type-level concern
 
-**Decided:** `TecnalCommand` has no API for putting a raw string on the wire. Every
+**Decided:** `OpenTECCommand` has no API for putting a raw string on the wire. Every
 value is formatted invariantly inside the builder.
 
 **Why:** a `{value:F2}` interpolation on a pt-BR machine emits `6,98` where the
@@ -176,7 +176,7 @@ responds only to *differential* DTR/RTS states, and v.6 drives both lines to the
 value at each end. Whatever reset it causes comes from the transient between two
 non-atomic line changes — an accident, not a design.
 
-**Evidence** (`tecnal-harness reset-test COM3`):
+**Evidence** (`opentec-harness reset-test COM3`):
 
 | Configuration | Wall clock | Device clock | Verdict |
 |---|---|---|---|
@@ -352,7 +352,7 @@ app.
 
 **Consequence:** the existing Python simulator had already reached the same conclusion;
 despite being named `Simulated_MODULE.py`, it simulates the ESP32. Rewritten in C# so
-it shares `TecnalHub.Protocol` and is therefore held to the same golden-string tests as
+it shares `OpenTECHub.Protocol` and is therefore held to the same golden-string tests as
 the app. A simulator that drifted from the contract would quietly certify a broken
 client.
 
@@ -428,7 +428,7 @@ operator's intent - arrived at from the opposite direction.
 
 ### P1-11 · Test project references the app assembly
 
-**Decided:** `TecnalHub.Tests` moved to `net10.0-windows` with `UseWPF`, so ViewModels
+**Decided:** `OpenTECHub.Tests` moved to `net10.0-windows` with `UseWPF`, so ViewModels
 can be tested.
 
 **Why:** setpoint validation is what stands between a typo and a reactor. Leaving it
@@ -749,7 +749,7 @@ retain the labels.
 **Evidence:** 190/190 tests pass. Runtime review covered light, dark and 1280 px layouts
 against the localhost simulator; the final interval logged no binding failure, fatal
 exception or unhandled exception. Release publish succeeded with the PNG and anchor JSON
-inside `TecnalHub.g.resources`. Screenshots:
+inside `OpenTECHub.g.resources`. Screenshots:
 `phase1-final-painel-{light,dark}.png` and `phase1-final-responsive-1280.png`.
 
 **Boundary:** this closes Phase 1 and Phase 1b software. It does not satisfy the real
@@ -767,7 +767,7 @@ production fallback until the bioreactor run is completed.
 ### P2-01 · Build the cascade controller core first, and headlessly
 
 **Decided:** the first Phase 2 increment is the control law alone — rate estimation,
-velocity-form PID, actuator-window allocation — in `src/TecnalHub/Services/Control/`, with
+velocity-form PID, actuator-window allocation — in `src/OpenTECHub/Services/Control/`, with
 no wire, no telemetry, no UI, validated against a simulated first-order DOT plant with dead
 time.
 
@@ -1267,7 +1267,7 @@ standing bioreactor gate. This closes the Phase 2 software scope.
 ### P3-03 · Receitas: one owner, declared-once blocks, and a re-targeted engine
 
 **Decided:** build Receitas — the graphical experimental-protocol editor — in three tested parts
-(domain, engine, page) on one feature branch, porting ReceitasTECNAL's node graph, validator and
+(domain, engine, page) on one feature branch, porting ReceitasOpenTEC's node graph, validator and
 engine slicing while re-targeting everything to the ESP32-S3. See [D-023](DECISIONS.md).
 
 **Starting a recipe is what deactivates manual control.** The engine drives the same
@@ -1286,7 +1286,7 @@ velocity-form PID with prediction and windowed rate — is reused, not re-derive
 
 **Nineteen blocks, declared once.** `RecipeNodeCatalog` holds each block's category, ports and
 parameter schema in one place; the library, the generated property editor and the per-node defaults
-all read from it, replacing ReceitasTECNAL's model+viewmodel+view triple per type. The property pane
+all read from it, replacing ReceitasOpenTEC's model+viewmodel+view triple per type. The property pane
 is projected from the schema at runtime, with `VisibleWhen` guards driving field visibility (pH
 histerese, the gas-mixer cycle period). Recipe JSON is versioned from v1 with a migration hook.
 
@@ -1338,7 +1338,7 @@ procedure, taking the wire contract from the firmware rather than v.6's Python. 
 [D-021](DECISIONS.md).
 
 **The firmware was the source of truth this time.** The owner pointed me at the v.6 tree *and* the
-ESP32 firmware (`TECNAL_ESP32_v7.ino`). v.6's biomass block sends `biomassComm`, `blank`, `start`,
+ESP32 firmware (`OpenTEC_ESP32_v7.ino`). v.6's biomass block sends `biomassComm`, `blank`, `start`,
 `stop` and `{low,high,opt}`; the firmware's command router forwards exactly those (its `biomassCommand`
 assembly lists `start`, `stop`, `blank`, `low`, `high`, `opt`, `test_period`). `start`/`stop` had never
 been written down — they are on the wire, so they became `CommandKeys.BiomassStart`/`BiomassStop` and
@@ -1386,7 +1386,7 @@ the send path — so the preview and the wire can never diverge.
 flow, so it goes out as a standard aeration frame through the arbiter, owned as `Aeration`. That makes it
 *refused* when the cascade owns aeration, which is the single-owner model doing its job — a test pins it.
 It resends only on a material change. v.6's proportional path opened the nitrogen valve at zero flow;
-that contradicts the safe-stop rule and reads as an oversight, so TECNAL-Hub closes both valves and the
+that contradicts the safe-stop rule and reads as an oversight, so OpenTEC-Hub closes both valves and the
 deviation is recorded in [D-022](DECISIONS.md).
 
 **Validation is the firmware's own bounds.** Rather than guess a byte cap for the still-open max-payload

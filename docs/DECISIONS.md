@@ -1,4 +1,4 @@
-# Decision Log
+﻿# Decision Log
 
 > One entry per decision that would otherwise be re-litigated in three months.
 > Newest last. A decision is only "Open" if it genuinely blocks work.
@@ -15,7 +15,7 @@ v.6 works. The rebuild is justified by cold-start time, a UI that does not scale
 unsafe. WPF also gives a genuinely native Windows result, which is a stated goal.
 
 *Consequence:* v.6 stays installed and is the reference implementation until
-TECNAL-Hub has completed a full cultivation.
+OpenTEC-Hub has completed a full cultivation.
 
 ---
 
@@ -38,7 +38,7 @@ wire only.
 today, which would mean shipping onto an already-expiring runtime. Self-contained
 publish plus an installer means lab PCs need nothing preinstalled.
 
-*Rejected:* .NET 8 (matches ReceitasTECNAL, but expiring). Framework-dependent
+*Rejected:* .NET 8 (matches ReceitasOpenTEC, but expiring). Framework-dependent
 (smaller download, but a runtime prerequisite on every lab machine).
 
 ---
@@ -49,7 +49,7 @@ publish plus an installer means lab PCs need nothing preinstalled.
 Gives the "integrated Windows application" feel that was the goal. Colour is reserved
 for equipment state; chrome stays greyscale. See [UI_DESIGN.md](UI_DESIGN.md).
 
-*Rejected:* carrying over the ReceitasTECNAL navy palette — it is that product's
+*Rejected:* carrying over the ReceitasOpenTEC navy palette — it is that product's
 identity, and this is a different product.
 
 ---
@@ -80,7 +80,7 @@ visible. Advanced Settings keeps every existing option, out of the way.
 **Status:** Accepted · 2026-08-19
 
 All identifiers, comments, logs and commit messages in English; all user-facing text
-in pt-BR, in `.resx` files. Diverges from the ReceitasTECNAL mixed convention.
+in pt-BR, in `.resx` files. Diverges from the ReceitasOpenTEC mixed convention.
 
 *Rationale:* the work is attached to an international manuscript and may be read by
 collaborators outside Brazil; English code stays readable to any C# developer, while
@@ -140,8 +140,8 @@ runtime and deployment dependency removed by this rebuild.
 ### D-009 · Recipes — node canvas, new implementation, new identity
 **Status:** Accepted · 2026-08-19
 
-The canvas concept and the engine architecture from ReceitasTECNAL carry over; the
-UI, visual language and product identity do not. TECNAL-Hub is a distinct product,
+The canvas concept and the engine architecture from ReceitasOpenTEC carry over; the
+UI, visual language and product identity do not. OpenTEC-Hub is a distinct product,
 not a re-skin.
 
 Improvements to make while re-implementing rather than copying forward:
@@ -223,7 +223,7 @@ liquid level or operational state.
 ### D-013 · Cascade controller is velocity-form with structural anti-windup, in the app assembly
 **Status:** Accepted · 2026-08-20 · see [PHASE_LOG P2-01…P2-03](PHASE_LOG.md#phase-2--cascade-control--dosing)
 
-The Phase 2 control law lives in `src/TecnalHub/Services/Control/` as pure C# (no WPF, no
+The Phase 2 control law lives in `src/OpenTECHub/Services/Control/` as pure C# (no WPF, no
 wire, no telemetry), per the [ARCHITECTURE.md](ARCHITECTURE.md#3-directory-layout) layout,
 and is unit-tested through the app-assembly reference the test project already carries.
 
@@ -519,7 +519,7 @@ provisional gains are not a field tuning.
 > below D-023–D-025 to avoid rewriting either branch's accepted decision records.
 
 WP4 adds Receitas — the graphical experimental-protocol editor. Its concept and engine slicing
-come from ReceitasTECNAL, but that app drives a **different machine** (a TECNAL HMI over Modbus,
+come from ReceitasOpenTEC, but that app drives a **different machine** (a OpenTEC HMI over Modbus,
 with setpoints written by screen-scraping over VNC), so what ports over is the node graph, the
 validator and the control mathematics — never the transport.
 
@@ -543,7 +543,7 @@ science) directly, steps it on each valid-oxygen frame, and dispatches the combi
 loop ends when O₂ settles at the setpoint, an infinite one when a loop-body `Intervenção Manual`
 passes (*Pular Cascata*).
 
-**Blocks are declared once and generated.** ReceitasTECNAL hand-wrote a model + viewmodel + view
+**Blocks are declared once and generated.** ReceitasOpenTEC hand-wrote a model + viewmodel + view
 triple per node type (~10 near-duplicates). `RecipeNodeCatalog` declares each of the nineteen blocks
 once — category, ports, parameter schema — and the library rows, the property editor and the
 per-node defaults are all projected from it. Recipe JSON is versioned from v1 with a migration hook,
@@ -615,7 +615,7 @@ Phase 3 WP1 adds the biomass optical sensor: enable, the momentary blank/start/s
 thresholds and the live Abs/Raw/IT/PWM readouts, plus a guided Calibrações procedure.
 
 **The wire contract came from the firmware, not v.6's Python.** v.6's biomass block issues
-`biomassComm`, `blank`, `start`, `stop` and `{low,high,opt}`, and `TECNAL_ESP32_v7.ino` forwards
+`biomassComm`, `blank`, `start`, `stop` and `{low,high,opt}`, and `OpenTEC_ESP32_v7.ino` forwards
 exactly those (plus a `test_period` v.6 never sends). `start`/`stop` were absent from the earlier
 protocol notes; they are on the wire, so they are now `CommandKeys.BiomassStart`/`BiomassStop` and
 golden-string pinned. **The firmware exposes no HD-mode state** — the WP asked us to confirm this
@@ -657,7 +657,7 @@ flow, so it is dispatched as a standard aeration frame through the command arbit
 `Aeration` — which means it is refused when the cascade owns aeration, exactly as the single-owner
 model requires. It resends only on a material change to avoid flooding the bus. v.6's proportional
 path opened the nitrogen valve at zero flow (`valve_2:1`), which contradicts the safe-stop rule and
-looks like an oversight; TECNAL-Hub closes both valves on the frame and records the deviation here.
+looks like an oversight; OpenTEC-Hub closes both valves on the frame and records the deviation here.
 
 **Payload-size validation is the firmware's array bounds.** The `.ino` holds `p0..p20` and
 `t0..t99`/`q0..q99`, so the app validates 1–21 coefficients and 2–100 segments (with `t0 = 0` and
@@ -665,7 +665,7 @@ strictly increasing times) rather than guessing a byte cap for the still-open pa
 ([PROTOCOL Q2](PROTOCOL.md#5-open-questions-for-hardware-verification)).
 
 **One shared operating window, not v.6's per-mode windows.** v.6 stored `t_initial`/`t_final`
-separately under each mode; TECNAL-Hub shares one window across modes, because the window is *when the
+separately under each mode; OpenTEC-Hub shares one window across modes, because the window is *when the
 profile runs*, independent of its shape, and per-mode windows are a data-entry trap. `PumpControlSettings`
 is versioned (each applied send bumps it) and keeps every mode's parameters so switching mode loses
 nothing.

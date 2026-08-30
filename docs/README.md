@@ -1,4 +1,4 @@
-# TECNAL-Hub Documentation
+﻿# OpenTEC-Hub Documentation
 
 Index of the project documentation. The repository entry point is
 [../README.md](../README.md).
@@ -29,6 +29,6 @@ Index of the project documentation. The repository entry point is
 
 **Touching anything that reaches the ESP32** → [PROTOCOL.md](PROTOCOL.md), all of it, before writing code
 
-**Building a screen** → [UI_DESIGN.md](UI_DESIGN.md) → the token dictionaries in `src/TecnalHub/Themes/`
+**Building a screen** → [UI_DESIGN.md](UI_DESIGN.md) → the token dictionaries in `src/OpenTECHub/Themes/`
 
 **Wondering why something is the way it is** → [DECISIONS.md](DECISIONS.md), then [MIGRATION.md](MIGRATION.md)

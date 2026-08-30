@@ -1,12 +1,12 @@
-
+﻿
 ======================================================================
-TECNAL-Hub Phase 0 - Wi-Fi validation
+OpenTEC-Hub Phase 0 - Wi-Fi validation
 ======================================================================
 started      : 2026-08-19 18:33:40 -03:00
 target       : http://192.168.4.1
 machine      : DESKTOP-J4OP7IO
 culture      : pt-BR (decimal ',')
-output       : C:\Users\vitor\AppData\Local\Temp\tecnal-wifi-test\2026-08-19_18-33-40
+output       : C:\Users\vitor\AppData\Local\Temp\opentec-wifi-test\2026-08-19_18-33-40
 
 
 ======================================================================
@@ -16,7 +16,7 @@ output       : C:\Users\vitor\AppData\Local\Temp\tecnal-wifi-test\2026-08-19_18-
     addresses : 192.168.4.2
     gateways  : 192.168.4.1
 
-  [PASS] machine holds a 192.168.4.x address (expected on the Modulo_TECNAL_1 AP)
+  [PASS] machine holds a 192.168.4.x address (expected on the Modulo_OpenTEC_1 AP)
   [PASS] no system proxy interferes with the device address
   [PASS] ICMP reachable in 1 ms
 

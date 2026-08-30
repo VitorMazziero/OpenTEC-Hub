@@ -1,0 +1,11 @@
+﻿<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenTECHub.Harness/OpenTECHub.Harness.csproj" />
+    <Project Path="src/OpenTECHub.Protocol/OpenTECHub.Protocol.csproj" />
+    <Project Path="src/OpenTECHub.Simulator/OpenTECHub.Simulator.csproj" />
+    <Project Path="src/OpenTECHub/OpenTECHub.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj" />
+  </Folder>
+</Solution>

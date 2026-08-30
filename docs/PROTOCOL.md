@@ -1,4 +1,4 @@
-# ESP32-S3 Protocol Contract
+﻿# ESP32-S3 Protocol Contract
 
 > **Status:** the **v.6 core loop is frozen** — every byte in sections 1 to 3.3 is
 > byte-identical to what v.6 puts on the wire and stays that way.
@@ -11,7 +11,7 @@
 >
 > **Source of truth:** reverse-engineered from `v.6/communication/{transport,data_parser,connection_manager}.py`
 > and every `send_command()` call site in the v.6 tree, plus a read of
-> `TECNAL_ESP32_v8.ino` and the five node firmwares on 2026-08-29.
+> `OpenTEC_ESP32_v8.ino` and the five node firmwares on 2026-08-29.
 >
 > **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md)
 
@@ -22,7 +22,7 @@
 The ESP32-S3 firmware is **fixed**. Every byte this app puts on the wire must be
 byte-identical to what v.6 puts on the wire. This document is the contract; the
 C# implementation is validated against it by golden-string tests in
-`tests/TecnalHub.Tests`, not by inspection.
+`tests/OpenTECHub.Tests`, not by inspection.
 
 If something here looks wrong or redundant — **it stays**. v.6 talks to real
 hardware successfully today. Cleanups happen *above* the wire, never on it.
@@ -110,7 +110,7 @@ connect, specifically to defeat OS-level socket reuse after the ESP32 reboots.
 Keep this behaviour: in C#, use a fresh `HttpClient` / `SocketsHttpHandler` per
 connect rather than a long-lived singleton.
 
-**Measured 2026-08-19** on the `Modulo_TECNAL_1` SoftAP (client at 192.168.4.2,
+**Measured 2026-08-19** on the `Modulo_OpenTEC_1` SoftAP (client at 192.168.4.2,
 gateway 192.168.4.1):
 
 | | |
@@ -232,7 +232,7 @@ assumes "every line is JSON telemetry" will tear down a healthy link:
 Observed device log lines:
 
 ```text
-[ESP32_AVISO]: Falha de leitura UART do Módulo TECNAL após comando 'b'
+[ESP32_AVISO]: Falha de leitura UART do Módulo OpenTEC após comando 'b'
 [ESP32_AVISO]: Limite de falhas UART atingido; reinicializando UART e iniciando cooldown de 5s
 ```
 
@@ -342,7 +342,7 @@ is **preferred** — it reduces round trips on the shared UART.
 
 > **`v_Flow` closes the gas path when it is 1**, which is the opposite of what "flow" in the
 > name suggests and is easy to get backwards. It is a physical shutoff, not a vent: the v05
-> writes it straight to `VALVE_FLOW_PIN` (`flowmeter_TECNALHUB_V05.ino`, key `v_Flow` /
+> writes it straight to `VALVE_FLOW_PIN` (`flowmeter_OpenTECHUB_V05.ino`, key `v_Flow` /
 > `valveFlow`), and the Hub, when the app omits the key, derives it as
 > `desiredFlowValveFlow = (setpoint > 0) ? 0 : 1` and forces it to `1` on `resetVariables`.
 >
@@ -396,7 +396,7 @@ operationally in [CALIBRATION.md](CALIBRATION.md#5-calibração-da-vazão-de-ar)
 | Distance / foam | `distanceSensorComm`, `distanceSensorReference`, `foamStartDelay_s`, `foamPulse_s`, `foamInterval_s` |
 | Agitator flask | `agitatorAuto`, `agitatorReEnablePot`, `agitatorPercent` (0-100 magnitude), `agitatorDir` (`1` CW / `0` CCW), `agitatorOn` |
 
-The pH state is **atomic** in TECNAL-Hub: all five keys are emitted together. Operator
+The pH state is **atomic** in OpenTEC-Hub: all five keys are emitted together. Operator
 speed is 0-99%; `pHIntensity` carries that value multiplied by ten. The firmware ranges
 reproduced from v.6 are:
 
@@ -451,7 +451,7 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > **Disabling is two frames, in order.** `processJsonCommand` parses `biomassComm` before it
 > reaches the biomass block, so `{"stop":1,"biomassComm":0}` clears routing and then discards
 > its own stop: the node keeps acquiring while the operator looks at a switch that says
-> otherwise. TECNAL-Hub therefore sends `{"stop":1}` and then `{"biomassComm":0}` as a
+> otherwise. OpenTEC-Hub therefore sends `{"stop":1}` and then `{"biomassComm":0}` as a
 > separate frame. The outgoing buffer merges by default, so the second frame goes through the
 > ordered-frame path (`IDeviceService.SendAfterCurrentFrame`) rather than a plain `Send`.
 
@@ -462,9 +462,9 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 
 > **`start`/`stop` were not in v.6's Python `send_command` table** — v.6's biomass block issues
 > them (`send_biomass_start`/`send_biomass_stop`) and the firmware forwards them
-> (`TECNAL_ESP32_v7.ino`: `start`, `stop`, `blank`, `low`, `high`, `opt`, `test_period`). They are on
+> (`OpenTEC_ESP32_v7.ino`: `start`, `stop`, `blank`, `low`, `high`, `opt`, `test_period`). They are on
 > the wire, so they are in the contract. `test_period` exists in the firmware but v.6 never sends it,
-> so TECNAL-Hub does not either. **The firmware exposes no HD-mode state**, so the app shows none.
+> so OpenTEC-Hub does not either. **The firmware exposes no HD-mode state**, so the app shows none.
 
 ### 3.5 External pump (Phase 3 WP2)
 
@@ -476,7 +476,7 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > is dropped by `if (pumpCmdFound && pumpCommOn)`. The node keeps dosing; only the telemetry
 > goes quiet, which is the worst possible failure for a feed pump.
 >
-> TECNAL-Hub therefore sends **`{"mode":0,"speed":0}` first, while routing is still on**, then
+> OpenTEC-Hub therefore sends **`{"mode":0,"speed":0}` first, while routing is still on**, then
 > `{"pumpComm":0}` as a separate frame. Once the first is in the Hub's mailbox it survives the
 > second — `/pumpCommand` has no routing gate, so the node still collects it on its next poll.
 > The two only have to arrive in order. `speed` remains vestigial either way (§ below).
@@ -498,7 +498,7 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > The disable frame's `speed:0` is **vestigial**: the firmware forwards `pump_speed`, not `speed`, so
 > it is ignored — reproduced only for byte-parity with v.6. The proportional-gas coupling
 > `Q_g = (V₀ + PumpVol/1000)·vvm` is not a pump key at all: it computes an **aeration** setpoint and is
-> sent as a flow frame through the command arbiter (owned as `Aeration`). TECNAL-Hub closes both gas
+> sent as a flow frame through the command arbiter (owned as `Aeration`). OpenTEC-Hub closes both gas
 > valves on that frame rather than reproducing v.6's stray `valve_2:1`-at-zero-flow behaviour.
 
 ### 3.6 System
@@ -514,7 +514,7 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 
 ## 4. Golden strings
 
-These exact byte sequences are asserted in `tests/TecnalHub.Tests/WireFormatTests.cs`.
+These exact byte sequences are asserted in `tests/OpenTECHub.Tests/WireFormatTests.cs`.
 Extend this table before adding any new command, never after.
 
 ```text
@@ -568,4 +568,4 @@ the Phase 0 transport is declared done.
 | Q3 | Does `POST /command` ever reply something other than `OK` / non-200? | v.6 treats everything else as failure and silently drops the command. |
 | ~~Q4~~ | ~~Does the ESP32 emit a boot banner after reset?~~ | **Answered 2026-08-19.** No banner, but it does emit `[ESP32_` log lines and bare `OK` acks on the telemetry stream. See section 2.0. |
 | Q5 | Does `dataDelay` apply to both transports? | Drives the Wi-Fi poll period and the chart sample rate. **Partly answered 2026-08-19:** the measured USB emission period is ~2.0 s, matching the field `dataDelay` of 2000 ms. |
-| ~~Q6~~ | ~~Should the DTR/RTS reset pulse be suppressed?~~ | **Answered 2026-08-19** by `tecnal-harness reset-test`. Yes. With the pulse the device clock fell 102.1 s to 2.8 s across a reconnect while 5.1 s of wall time passed; without it the clock advanced 5.5 s against 5.5 s of wall time. The pulse is what reboots the board. Suppressing it takes a connect from 1903 ms to 13 ms and preserves device state. Now default-off, with an escalation to a pulsed connect after repeated handshake failures for the hung-firmware case. |
+| ~~Q6~~ | ~~Should the DTR/RTS reset pulse be suppressed?~~ | **Answered 2026-08-19** by `opentec-harness reset-test`. Yes. With the pulse the device clock fell 102.1 s to 2.8 s across a reconnect while 5.1 s of wall time passed; without it the clock advanced 5.5 s against 5.5 s of wall time. The pulse is what reboots the board. Suppressing it takes a connect from 1903 ms to 13 ms and preserves device state. Now default-off, with an escalation to a pulsed connect after repeated handshake failures for the hung-firmware case. |

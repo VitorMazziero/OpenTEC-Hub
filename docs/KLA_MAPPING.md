@@ -1,4 +1,4 @@
-# kLa mapping and allocation profiles
+﻿# kLa mapping and allocation profiles
 
 > Operator and scientific contract for Phase 2 WP5. This page describes fitting and
 > publishing only. Live cascade ownership and actuation belong to WP6.
@@ -20,7 +20,7 @@ measured triples
 \]
 
 and declares the physical actuator domain. Paper datasets exist only under `tests/`; they
-are never copied to `%APPDATA%\TECNAL-Hub\kla-mapping` and never appear in the production
+are never copied to `%APPDATA%\OpenTEC-Hub\kla-mapping` and never appear in the production
 selector.
 
 The fitting service has no `IDeviceService` dependency. Estimating, searching, reviewing,
@@ -133,7 +133,7 @@ The diagnostics distinguish warnings from publication blockers:
 
 ## 5. Drafts, receipts and import
 
-Mutable drafts live in `%APPDATA%\TECNAL-Hub\kla-mapping\experiments.json`. The raw table
+Mutable drafts live in `%APPDATA%\OpenTEC-Hub\kla-mapping\experiments.json`. The raw table
 text is stored beside the complete numerical snapshot so a blank 3² worksheet survives a
 restart. Computed grids are rebuilt rather than trusted as mutable cached state.
 

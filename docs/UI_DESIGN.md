@@ -1,6 +1,6 @@
-# UI Design Specification
+﻿# UI Design Specification
 
-> Visual language, shell anatomy and **every main window** of TECNAL-Hub.
+> Visual language, shell anatomy and **every main window** of OpenTEC-Hub.
 > Revised 2026-08-20 against the A/B concept mockups and the implemented WP3 calibration workspace.
 >
 > **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Architecture](ARCHITECTURE.md) ·
@@ -124,7 +124,7 @@ Two further constraints the mockups cannot show:
 
 ## 3. Design tokens
 
-All tokens live in `src/TecnalHub/Themes/Tokens.{Light,Dark,Shared}.xaml`. Views bind to
+All tokens live in `src/OpenTECHub/Themes/Tokens.{Light,Dark,Shared}.xaml`. Views bind to
 `*Brush` keys via `DynamicResource` — **never** to a `*Color` key and **never** to a
 literal, so a runtime theme swap repaints without rebuilding the visual tree.
 
@@ -151,7 +151,7 @@ look blue.
 
 ### 3.2 Accent
 
-One interaction colour. **TECNAL Control Blue `#2563D9`.**
+One interaction colour. **OpenTEC Control Blue `#2563D9`.**
 
 | Token | Light | Used for |
 |---|---|---|
@@ -308,7 +308,7 @@ defined by **alignment and thin dividers**.
 Fluent-style outline: 1.5-1.75 px stroke, rounded joins, geometric, minimal internal
 detail, on a 16 / 20 / 24 px grid.
 
-**Source: vector `Path` geometries in `src/TecnalHub/Resources/Icons/`**, merged as a
+**Source: vector `Path` geometries in `src/OpenTECHub/Resources/Icons/`**, merged as a
 `ResourceDictionary` — **not** an icon font. `Segoe Fluent Icons` is Windows 11 only, and
 this project has already been bitten once by a Win11-only font (3.7). Geometries also take
 the theme stroke brush directly.
@@ -361,7 +361,7 @@ navigation.
 
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────┐
-│ ⬡ TECNAL-Hub    Executando: Fed-Batch-01  01:32:46   ● Conectado   🔔² ? ─ □ ✕ │  4.1
+│ ⬡ OpenTEC-Hub    Executando: Fed-Batch-01  01:32:46   ● Conectado   🔔² ? ─ □ ✕ │  4.1
 ├──────────┬────────────────────────────────────────────────────────────────────┤
 │          │  Temp   pH    O₂    Agit   Vazão  Press  Nível  …          ⚙  ‹ ›  │  4.4
 │  Nav     ├───────────────┬────────────────────────────┬───────────────────────┤
@@ -383,7 +383,7 @@ Custom chrome, three zones.
 
 | Zone | Contents |
 |---|---|
-| **Left** | App icon (20 px) · `TECNAL-Hub` (15 px Semibold) · version, muted |
+| **Left** | App icon (20 px) · `OpenTEC-Hub` (15 px Semibold) · version, muted |
 | **Centre** | Run context: `Executando: <nome>` · elapsed `hh:mm:ss` (tabular) · `▶/⏸` when a recipe is running. All `—` when idle |
 | **Right** | Connection chip · alarm bell with badge · help · minimise / maximise / close |
 
@@ -873,15 +873,15 @@ with a large graphical canvas as the main workspace.
 
 #### 5.3.1 What is inherited, and what is removed
 
-The concept and the engine architecture come from **ReceitasTECNAL**
-(`…/Ourofino SA/Aplicativos/ReceitasTECNAL/app`). The UI, visual language and product
+The concept and the engine architecture come from **ReceitasOpenTEC**
+(`…/Ourofino SA/Aplicativos/ReceitasOpenTEC/app`). The UI, visual language and product
 identity do not. Reading that source turns up a structural fact the mockups hide:
 
-> **ReceitasTECNAL drives a different machine.** It reads a TECNAL HMI over **Modbus**
+> **ReceitasOpenTEC drives a different machine.** It reads a OpenTEC HMI over **Modbus**
 > and writes setpoints by **screen-scraping that HMI over VNC** — see its
 > `Services/Automation/VncAutomationService.cs`, `VncScripts/`, and the comment in
 > `ProcessVariable.cs` recording that Modbus control-word writes *do not work* on the
-> real HMI. TECNAL-Hub talks directly to the ESP32-S3 in JSON over USB or Wi-Fi. The node
+> real HMI. OpenTEC-Hub talks directly to the ESP32-S3 in JSON over USB or Wi-Fi. The node
 > graph, the engine slicing and the control mathematics carry over. **The entire
 > transport layer does not.**
 
@@ -890,11 +890,11 @@ identity do not. Reading that source turns up a structural fact the mockups hide
 | Removed | Why |
 |---|---|
 | Ourofino logo, dark-blue branded header, second branded bar | The shell has no branding; the window is the application ([4.1](#41-title-bar--48-px)) |
-| **Entire VCN/VNC robot panel** — `CONFIGURAÇÃO DO ROBÔ VCN`, general parameters (`Tela (s)`, `Pop-up (s)`, `Clique (s)`), user/password, `Modelo VCN-5000`, `Com Port`, rack positions, default volumes, robot calibration, movement tests, `Salvar Configuração` | Pipetting-robot automation is not part of this product. TECNAL-Hub has no VNC layer at all |
+| **Entire VCN/VNC robot panel** — `CONFIGURAÇÃO DO ROBÔ VCN`, general parameters (`Tela (s)`, `Pop-up (s)`, `Clique (s)`), user/password, `Modelo VCN-5000`, `Com Port`, rack positions, default volumes, robot calibration, movement tests, `Salvar Configuração` | Pipetting-robot automation is not part of this product. OpenTEC-Hub has no VNC layer at all |
 | Right-hand pane permanently occupied by hardware settings | The right pane is **contextual**, mirroring the Visão Geral detail pane |
 | Modbus register map, `ScaleType`, `ObterFatorEscala` (×1/×10/×100), `ControlWordBit` numeric positions | Modbus scaling artefacts. The JSON wire carries engineering units |
 | Duplicated in-page navigation (`Editor` / `Modelos` / `Biblioteca` nested under the global rail, as in `Receitas_idea_2.png`) | The global rail is the only global navigation. Recipe sub-views are **tabs inside the page** |
-| Separate connection/controller strip (`Sistema`, `Controlador VCN-5000`, `IP do TECNAL`, `Encontrar`) | Connection lives in the title-bar chip, once, for the whole app ([8](#8-connection-ux)) |
+| Separate connection/controller strip (`Sistema`, `Controlador VCN-5000`, `IP do OpenTEC`, `Encontrar`) | Connection lives in the title-bar chip, once, for the whole app ([8](#8-connection-ux)) |
 | Global action buttons in the title bar (`Receitas_idea_2.png`) | `Salvar` / `Carregar` / `Nova` are **page** actions and belong in the page action bar |
 | Excessive dark chrome, multiple unrelated status bars | One status bar, at the shell level ([4.6](#46-status-bar--32-px)) |
 
@@ -902,12 +902,12 @@ identity do not. Reading that source turns up a structural fact the mockups hide
 
 | Inherited | Improvement |
 |---|---|
-| Node graph, ports, connections, JSON persistence | **Node definitions declared once and generated.** ReceitasTECNAL hand-writes a model + viewmodel + view triple per node type — ~10 near-duplicates in `Models/Nodes`, `ViewModels/Nodes`, `Views` |
+| Node graph, ports, connections, JSON persistence | **Node definitions declared once and generated.** ReceitasOpenTEC hand-writes a model + viewmodel + view triple per node type — ~10 near-duplicates in `Models/Nodes`, `ViewModels/Nodes`, `Views` |
 | `RecipeEngine` sliced by responsibility (`.Flow`, `.Nodes`, `.Actuation`, `.Cascade`, `.Pumps`, `.Safety`, `.State`, `.LiveTuning`, `.Logging`) | Keep the slicing exactly. It is the best-organised part of that codebase |
 | `RecipeValidator` with a real rule set | Keep every rule; surface them in a **persistent validation strip** rather than only on save |
 | `ConnectorNames` with canonical + tolerated spellings | Keep the pattern. Canonical names are written; historical spellings are only *read*, so old hand-written recipes still load |
 | Live parameter tuning during execution (`RecipeEngine.LiveTuning.cs`) | Keep — it is what makes the cascade block usable during a real cultivation |
-| Recipe JSON | **Versioned from v1 with a migration hook.** ReceitasTECNAL learned this late and now converts v2.x recipes at load time with log warnings |
+| Recipe JSON | **Versioned from v1 with a migration hook.** ReceitasOpenTEC learned this late and now converts v2.x recipes at load time with log warnings |
 
 > **One command queue, one owner.** The engine drives the **same** `ITransport` and the
 > same command queue as manual control, so a running recipe and an operator cannot fight
@@ -1034,7 +1034,7 @@ expand/collapse state.
 
 #### 5.3.6 The block inventory
 
-Taken from ReceitasTECNAL's `NodeType` enum and node classes, then **re-targeted to the
+Taken from ReceitasOpenTEC's `NodeType` enum and node classes, then **re-targeted to the
 ESP32-S3 protocol**. Nineteen block types in six categories.
 
 | Category | Header colour | Blocks |
@@ -1057,7 +1057,7 @@ Full parameter inventory:
 | **Início** | out | — | Exactly one per recipe |
 | **Fim** | in | — | At least one per recipe |
 | **Temporizador** | in, out | `Duração` · `Unidade ▾` `Segundos`/`Minutos`/`Horas` | Unchanged |
-| **Monitorar Variável** | in, out | `Variável ▾` · `Condição ▾` `>`,`<`,`≥`,`≤`,`=` · `Valor alvo` · `Intervalo de polling (ms)` · `Confirmações consecutivas` · `Tempo limite (ms)`, 0 = sem limite | **Variable list widens.** ReceitasTECNAL allows only Temperatura, pH, O₂. TECNAL-Hub adds Pressão, Vazão, Nível, Biomassa — all real telemetry |
+| **Monitorar Variável** | in, out | `Variável ▾` · `Condição ▾` `>`,`<`,`≥`,`≤`,`=` · `Valor alvo` · `Intervalo de polling (ms)` · `Confirmações consecutivas` · `Tempo limite (ms)`, 0 = sem limite | **Variable list widens.** ReceitasOpenTEC allows only Temperatura, pH, O₂. OpenTEC-Hub adds Pressão, Vazão, Nível, Biomassa — all real telemetry |
 | **Intervenção Manual** | in, out | `Operação ▾` `Bloquear`/`Passar`, plus a live action button on the block face | The recipe holds in standby at this block until an operator releases it |
 | **Sincronizar (E)** | in ×n, out | — | All inbound branches must complete |
 | **Qualquer (OU)** | in ×n, out | — | First inbound branch to complete wins |
@@ -1076,7 +1076,7 @@ Full parameter inventory:
 | **Registrar Evento** | in, out | `Mensagem` | Writes to Eventos ([5.6](#56-eventos)) |
 | **Zerar Variáveis** | in, out | — | **Re-targeted.** Was `Zerar Acumulador` writing Modbus register 20; becomes `resetVariables:1`. **Confirms before running**, because it destroys module process state |
 
-> **`Monitorar Variável` must refuse actuation variables.** ReceitasTECNAL blocks
+> **`Monitorar Variável` must refuse actuation variables.** ReceitasOpenTEC blocks
 > monitoring Agitação and Aeração because they are setpoints, not measurements. On the
 > ESP32-S3 the reason is stronger still: **agitation has no feedback key on the wire at
 > all** ([2](#2-reality-check--the-mockups-against-the-hardware), item 1). Monitoring it
@@ -1086,7 +1086,7 @@ Full parameter inventory:
 #### 5.3.7 The cascade block
 
 The one block that deserves its own specification, because it is the scientific payload
-and because ReceitasTECNAL's implementation is **the corrected one** the roadmap says to
+and because ReceitasOpenTEC's implementation is **the corrected one** the roadmap says to
 port ([ROADMAP](ROADMAP.md) Phase 2).
 
 Four ports, and the loop pair is what makes it a cascade rather than a step:
@@ -1139,8 +1139,8 @@ one glance.
 > cascade core is stable without it; enrichment needs the changes described in the
 > manuscript and is explicitly deferred ([ROADMAP](ROADMAP.md), *Explicitly deferred*).
 >
-> ReceitasTECNAL's `IntervaloAtuacaoVnc` (batched actuation every 5 s through the VNC
-> screen driver) has **no equivalent here and must not be ported**. TECNAL-Hub writes
+> ReceitasOpenTEC's `IntervaloAtuacaoVnc` (batched actuation every 5 s through the VNC
+> screen driver) has **no equivalent here and must not be ported**. OpenTEC-Hub writes
 > directly to the ESP32-S3; the only rate limit is the command queue.
 
 #### 5.3.8 Canvas
@@ -1542,7 +1542,7 @@ Toolbar: source multi-select · severity filter · text search · time range ·
 | `Novo arquivo` | button — closes the current file, opens the next |
 
 > **Showing the raw wire bytes is deliberate.** [Phase 0's](ROADMAP.md) outstanding exit
-> criterion is that a v.6 session and a TECNAL-Hub session produce **identical command
+> criterion is that a v.6 session and a OpenTEC-Hub session produce **identical command
 > bytes** for the same operator actions. This page is where that comparison is made
 > without attaching a debugger.
 

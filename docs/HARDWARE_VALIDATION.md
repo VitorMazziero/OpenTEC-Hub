@@ -1,8 +1,8 @@
-# TECNAL-Hub — Hardware validation plan
+﻿# OpenTEC-Hub — Hardware validation plan
 
 > **Version:** 1.0 · **Written:** 2026-08-22
 > The single checklist of everything that could only be proven on the real ESP32-S3 and the
-> TECNAL bioreactor. Everything below has passed in software and against the device simulator;
+> OpenTEC bioreactor. Everything below has passed in software and against the device simulator;
 > none of it is biologically or electrically validated until it passes here.
 >
 > **Docs:** [ROADMAP](ROADMAP.md) · [PROTOCOL](PROTOCOL.md) · [PHASE0_RESULTS](PHASE0_RESULTS.md) · [CALIBRATION](CALIBRATION.md) · [DECISIONS](DECISIONS.md) · [SIMULATOR](SIMULATOR.md)
@@ -11,9 +11,9 @@
 
 ## The governing principle
 
-> **v.6 stays installed and working until TECNAL-Hub has run a full cultivation.**
+> **v.6 stays installed and working until OpenTEC-Hub has run a full cultivation.**
 
-v.6 is the reference and the fallback. Every block below either compares TECNAL-Hub against v.6
+v.6 is the reference and the fallback. Every block below either compares OpenTEC-Hub against v.6
 or holds it to a criterion v.6 already meets. Nothing here is a reason to uninstall v.6; the
 **cultivation run in Block E** is what earns that.
 
@@ -33,15 +33,15 @@ box.**
 |---|---|---|---|
 | B-1 | A full v.6 **command log** for a representative session (connect, set every subsystem, safe-stop) | It is the byte-for-byte comparison baseline for Block A-3 | v.6 already writes `command_logs/command_log_*.txt` — just run a session and keep the file |
 | B-2 | A v.6 **telemetry/session CSV** for a real run with live sensors | Baseline for calibration, spike-filter and DOT-tracking comparisons | v.6's session log |
-| B-3 | The **field calibration** currently in `v.6/preferences.json` | TECNAL-Hub ships these defaults; confirm they still match the probes in use | Copy `oxy_a/oxy_b/ph_slope/ph_intercept` and the flow `k/f/c` segments |
-| B-4 | A v.6 **DOT-control run** (the manuscript dataset, or a fresh one) | Block E compares TECNAL-Hub's DOT tracking against it | v.6 session log + notes on agitation/airflow |
+| B-3 | The **field calibration** currently in `v.6/preferences.json` | OpenTEC-Hub ships these defaults; confirm they still match the probes in use | Copy `oxy_a/oxy_b/ph_slope/ph_intercept` and the flow `k/f/c` segments |
+| B-4 | A v.6 **DOT-control run** (the manuscript dataset, or a fresh one) | Block E compares OpenTEC-Hub's DOT tracking against it | v.6 session log + notes on agitation/airflow |
 
 ---
 
 ## How to read a block
 
 Each block lists **prerequisites**, **steps**, and **pass criteria**. Record for every block: the
-firmware build, the transport used (USB/Wi-Fi), the exact TECNAL-Hub version (`Directory.Build.props`),
+firmware build, the transport used (USB/Wi-Fi), the exact OpenTEC-Hub version (`Directory.Build.props`),
 screenshots of the relevant page, and the session CSV / Eventos export. File evidence under
 `docs/evidence/hardware/<block>/`.
 
@@ -54,17 +54,17 @@ The blocks are in **dependency order** — a later block assumes the earlier one
 **Goal:** prove the wire is byte-identical to v.6 and stable on real sensors, and close the four
 Phase-0 link-hygiene items that need real ports.
 
-**Prerequisites:** ESP32-S3 on USB (CH343 adapter) and reachable on Wi-Fi (SoftAP `Modulo_TECNAL_1`,
+**Prerequisites:** ESP32-S3 on USB (CH343 adapter) and reachable on Wi-Fi (SoftAP `Modulo_OpenTEC_1`,
 192.168.4.1). v.6 uninstalled or closed for the exclusive-port tests, available for the comparison.
 
 | # | Test | Steps | Pass criteria |
 |---|---|---|---|
 | A-1 | **USB link, sustained** | Auto-connect on the remembered COM port; leave running 30+ min | Continuous telemetry, no dropped link, first frame < 5 s (target < 2 s to first paint) |
 | A-2 | **Wi-Fi link, sustained + ETag** | Connect to 192.168.4.1; leave running 30+ min | Continuous telemetry; `If-None-Match` 304s handled (no false parse failures); reconnect does **not** reboot the board |
-| A-3 | **Byte-identical commands (Phase 0 exit crit. 3)** | Repeat the B-1 operator actions in TECNAL-Hub; capture the command frames from Eventos (each carries the exact JSON) | For every action, the TECNAL-Hub frame equals the v.6 frame **byte for byte** — key order, `v_Flow` inversion, `pHCal` quoting, `InvariantCulture` decimals |
+| A-3 | **Byte-identical commands (Phase 0 exit crit. 3)** | Repeat the B-1 operator actions in OpenTEC-Hub; capture the command frames from Eventos (each carries the exact JSON) | For every action, the OpenTEC-Hub frame equals the v.6 frame **byte for byte** — key order, `v_Flow` inversion, `pHCal` quoting, `InvariantCulture` decimals |
 | A-4 | **Live-sensor telemetry (Phase 0 exit crit. 4)** | Watch DOT, pH, temperature, flow with real probes across a step change | Spike filter holds through genuine steps and rejects single-sample spikes; calibrated pH/O₂ match a reference reading; the `pHCal` echo is accepted by the firmware |
 | A-5 | **Configured Wi-Fi poll period** *(now wired — verify)* | Set `dataDelay` in Settings to 2000 ms and to 1000 ms; watch the network cadence | The Wi-Fi transport polls at ≈ the configured period, telemetry keeps up, no missed frames, no 304 storm |
-| A-6 | **Safe busy-port handling** *(remaining item)* | Leave **v.6 connected** on the CH343 port; run TECNAL-Hub port discovery | TECNAL-Hub treats the busy port as *busy, skip* — it does **not** hijack or fault v.6's connection, and reports no false "device" on it |
+| A-6 | **Safe busy-port handling** *(remaining item)* | Leave **v.6 connected** on the CH343 port; run OpenTEC-Hub port discovery | OpenTEC-Hub treats the busy port as *busy, skip* — it does **not** hijack or fault v.6's connection, and reports no false "device" on it |
 | A-7 | **WMI / CH343 port ranking** *(remaining item)* | With several COM ports present, run discovery | The CH343 (matched by the `wch` manufacturer string, since CH343 is not in v.6's keyword list) is ranked and tried first; unrelated ports are not opened |
 | A-8 | **Truthful round-trip timing** *(remaining item)* | Send commands on USB and on Wi-Fi; read `LastRoundTripMs` in the connection popover | Decide the honest semantics: correlate the value against the `FlowCommandAck` echo (a real confirmation) rather than timing a fire-and-forget USB write that reads ≈ 0 ms — then rename/relabel it to match |
 
@@ -94,7 +94,7 @@ certified probe), and an external airflow standard.
 
 ## Block C — Core-loop cultivation (Phase 1 exit)
 
-**Goal:** the Phase 1 exit criterion — a real run controlled end to end by TECNAL-Hub with v.6
+**Goal:** the Phase 1 exit criterion — a real run controlled end to end by OpenTEC-Hub with v.6
 closed.
 
 **Prerequisites:** Blocks A–B passed. Vessel with medium (a real or trial cultivation).

@@ -1,4 +1,4 @@
-# TECNAL-Hub - formatting and naming, enforced at build via EnforceCodeStyleInBuild.
+﻿# OpenTEC-Hub - formatting and naming, enforced at build via EnforceCodeStyleInBuild.
 root = true
 
 [*]

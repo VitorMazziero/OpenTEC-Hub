@@ -1,6 +1,6 @@
-# Third-party notices
+﻿# Third-party notices
 
-TECNAL-Hub's managed `CloughTocher2D` coefficient construction and global gradient
+OpenTEC-Hub's managed `CloughTocher2D` coefficient construction and global gradient
 iteration follow the algorithms in SciPy's BSD-licensed `scipy/interpolate/_interpnd.pyx`.
 The application does not bundle SciPy or Python; this notice covers the source-derived
 numerical implementation. Delaunay triangulation, Gaussian filtering, tensor-product

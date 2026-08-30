@@ -1,6 +1,6 @@
-# Changelog
+﻿# Changelog
 
-All notable changes to TECNAL-Hub. Version numbers follow
+All notable changes to OpenTEC-Hub. Version numbers follow
 [Semantic Versioning](https://semver.org/); the single source for the number is
 `<Version>` in `Directory.Build.props`.
 
@@ -74,7 +74,7 @@ All notable changes to TECNAL-Hub. Version numbers follow
   com a malha.
 - **Painel reagrupado por topologia.** Os sensores de biomassa e distância — nós Wi-Fi
   independentes — estavam em *Parâmetros Internos*, e as bombas de nutriente e antiespumante —
-  que ficam dentro do módulo TECNAL, na UART interna — estavam em *Dispositivos Externos*. Um
+  que ficam dentro do módulo OpenTEC, na UART interna — estavam em *Dispositivos Externos*. Um
   operador diagnosticando uma queda precisa saber qual dos dois enlaces olhar. Todos os cards
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
@@ -194,7 +194,7 @@ All notable changes to TECNAL-Hub. Version numbers follow
 **Receitas finalization.** After a first operator run of the page, the canvas becomes a real
 editor: recipe tabs and a Minhas Receitas library, zoom/pan, orthogonal connectors with arrows,
 block and connection deletion, undo/redo, repeating-list editing, and the cascade loop corrected to
-the ReceitasTECNAL semantics. See [D-023](DECISIONS.md).
+the ReceitasOpenTEC semantics. See [D-023](DECISIONS.md).
 
 ### Added
 - **Recipe tabs + Minhas Receitas library.** `Nova Receita` opens a new tab instead of replacing the
@@ -219,13 +219,13 @@ the ReceitasTECNAL semantics. See [D-023](DECISIONS.md).
 
 **Phase 3 WP4 — Receitas.** The graphical experimental-protocol editor, integrated directly into
 the controller: author a node graph, validate it, and run it through an engine that owns the wire.
-Ported from ReceitasTECNAL's node graph, validator and engine slicing, and **re-targeted to the
+Ported from ReceitasOpenTEC's node graph, validator and engine slicing, and **re-targeted to the
 ESP32-S3** — no Modbus, no VNC screen driver, no ×10/×100 scale factors, no robot panel, and no
 O₂-enrichment path. See [UI_DESIGN §5.3](UI_DESIGN.md#53-receitas) and [D-023](DECISIONS.md).
 
 ### Added
 - **Recipe domain (part 1).** `RecipeNodeCatalog` declares the nineteen blocks **once** — category,
-  ports and parameter schema — replacing ReceitasTECNAL's hand-written model+viewmodel+view triple
+  ports and parameter schema — replacing ReceitasOpenTEC's hand-written model+viewmodel+view triple
   per type; one declaration drives editing, validation and the JSON panel. `RecipeDocument` holds
   the graph with parameter values in a schema-keyed `JsonObject`. `RecipeSerializer` versions the
   JSON from v1 with a migration hook and tolerates legacy type/connector spellings (canonical is
@@ -308,7 +308,7 @@ blank/start/stop and the reading itself ride the bioreactor gate.
   Abs/Raw/IT/PWM block (all `—` until a frame carries absorbance).
 - **Guided procedure** on Calibrações (`BiomassCalibrationViewModel`): enable → capture the blank →
   confirm Abs ≈ 0 → set thresholds, with live absorbance feedback and a link-loss refusal. The
-  firmware exposes **no HD-mode state** (confirmed against `TECNAL_ESP32_v7.ino`), so none is shown.
+  firmware exposes **no HD-mode state** (confirmed against `OpenTEC_ESP32_v7.ino`), so none is shown.
 - **`BiomassControlSettings`** — the persisted low/high/optimal thresholds (raw counts); the sensor
   enable is never persisted (it starts off). `ActuatorId.Biomass` is now an owned arbiter actuator so
   a recipe cannot fight the operator over the blank/thresholds — but it is **excluded from the safe-stop**,
@@ -840,12 +840,12 @@ Phase 2 WP1 — the cascade controller core. The scientific payload's control la
 validated headlessly before it meets the wire or the UI. No app behaviour changes yet.
 
 ### Added
-- **`TecnalHub.Services.Control`** — the Phase 2 controller home, pure math with no WPF,
+- **`OpenTECHub.Services.Control`** — the Phase 2 controller home, pure math with no WPF,
   no telemetry and no wire dependency:
   - `LeastSquaresRateEstimator` — windowed slope fit that rejects the polarographic probe's
     quantisation staircase, so the derivative and prediction consume a clean rate rather
     than a noisy endpoint difference.
-  - `VelocityPidController` — the corrected cascade law carried from the ReceitasTECNAL
+  - `VelocityPidController` — the corrected cascade law carried from the ReceitasOpenTEC
     design: **velocity-form output** (holds the actuator at setpoint instead of collapsing
     to zero the way v.6's positional PID did), **structural anti-windup** (the clamped
     output is the integrator; a reported integral bounded by `I_min`/`I_max` is held while
@@ -1090,7 +1090,7 @@ Phase 1's two remaining screens: the synoptic and setpoint entry.
   so behaviour is identical and only presentation changes.
 - **Setpoint entry** for all five core subsystems, with ranges paired to their command
   builders so validation and the wire cannot drift apart.
-- ViewModel tests: `TecnalHub.Tests` now references the app assembly.
+- ViewModel tests: `OpenTECHub.Tests` now references the app assembly.
 
 ### Fixed
 - **Validation guarded only the button, not the send.** `Apply` checked whether the
@@ -1105,7 +1105,7 @@ Phase 1's two remaining screens: the synoptic and setpoint entry.
 ## [0.3.1] — 2026-08-19
 
 ### Added
-- **`TecnalHub.Simulator`** — stands in for the ESP32-S3 and the bioreactor behind it.
+- **`OpenTECHub.Simulator`** — stands in for the ESP32-S3 and the bioreactor behind it.
   HTTP on localhost (no driver, no admin, no reboot) or serial over a virtual COM pair.
   Full design in [SIMULATOR.md](SIMULATOR.md).
   - Reproduces the measured firmware quirks: the buffered `OK` served by `/readData`
@@ -1176,7 +1176,7 @@ Phase 1 begins: the application shell, running and connected to real hardware.
   nothing else recovers.
 
 ### Added
-- `tecnal-harness reset-test` — determines what reboots the board on connect and finds
+- `opentec-harness reset-test` — determines what reboots the board on connect and finds
   the minimum viable boot settle.
 - [PHASE_LOG.md](PHASE_LOG.md) — record of decisions taken while executing each phase.
 
@@ -1225,10 +1225,10 @@ Phase 0: the protocol stack, built and validated over USB against a real ESP32-S
 No UI yet. See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for the measurements.
 
 ### Added
-- `TecnalHub.Protocol`: `ITransport` + `SerialTransport` + `HttpTransport`,
-  `TecnalCommand` (culture-invariant by construction), `CommandKeys`/`TelemetryKeys`,
+- `OpenTECHub.Protocol`: `ITransport` + `SerialTransport` + `HttpTransport`,
+  `OpenTECCommand` (culture-invariant by construction), `CommandKeys`/`TelemetryKeys`,
   `CommandBuilders`, `TelemetryParser`, `SpikeFilter`, `ConnectionManager`.
-- `TecnalHub.Harness`: console harness for hardware validation, with a wire-trace
+- `OpenTECHub.Harness`: console harness for hardware validation, with a wire-trace
   log for byte comparison against v.6 `command_logs/`.
 - 49 tests: golden wire strings, telemetry semantics, spike-filter behaviour, and a
   culture fixture that forces pt-BR.
@@ -1237,7 +1237,7 @@ No UI yet. See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for the measurements.
 - USB handshake, 60 s continuous telemetry, 0 parse failures, 0 spurious reconnects.
 - Parallel port discovery finds the board in **1.9 s** with no port configured
   (v.6 would take ~12 s serially on the same machine).
-- Wi-Fi on the `Modulo_TECNAL_1` SoftAP: 20/21 checks passed, 0 warnings. 90 s soak
+- Wi-Fi on the `Modulo_OpenTEC_1` SoftAP: 20/21 checks passed, 0 warnings. 90 s soak
   gave 45 frames at ~2.1 s with 0 parse failures on a single connect; ETag 304
   conditional polling confirmed; latency p95 33 ms, ~15x headroom over the v.6
   timeouts; reconnect resumes telemetry with the ETag correctly cleared.
@@ -1269,8 +1269,8 @@ No UI yet. See [PHASE0_RESULTS.md](PHASE0_RESULTS.md) for the measurements.
 Project scaffold and plan. No application features yet.
 
 ### Added
-- Solution scaffold: `TecnalHub.Protocol` (net10.0, no WPF) + `TecnalHub`
-  (net10.0-windows, WPF) + `TecnalHub.Tests`. Builds clean with 0 warnings.
+- Solution scaffold: `OpenTECHub.Protocol` (net10.0, no WPF) + `OpenTECHub`
+  (net10.0-windows, WPF) + `OpenTECHub.Tests`. Builds clean with 0 warnings.
 - Build configuration: `Directory.Build.props` (single-source version, analyzers,
   language standards), `global.json` (SDK pin), `.editorconfig` (naming rules
   enforced at build).

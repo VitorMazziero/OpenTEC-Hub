@@ -1,4 +1,4 @@
-# TECNAL-Hub current status and stabilization audit
+﻿# OpenTEC-Hub current status and stabilization audit
 
 > **Audit date:** 2026-08-26 · **Revised:** 2026-08-29  
 > **Current version:** 0.24.0  
@@ -44,9 +44,9 @@ gates in this document pass.
 | Git integration | **29/08:** `main` contains `230c6ce`; all 20 local branches are ancestors of `main`, none ahead | The external-device and detail-panel lines are integrated without conflicts; nothing is stranded on a side branch |
 | Repository integrity | **28/08:** `git fsck --full` reports only dangling objects, `garbage: 0`; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
 | Authoritative version | `Directory.Build.props` = `0.24.0` | Correctly held while the P0 findings are open |
-| Release tests | **29/08: 651 passed, 1 skipped, 0 failed** (`dotnet test TecnalHub.slnx -c Release --no-build --no-restore`, repeated after one isolated timing flake passed) | Includes external-device, detail-pane, calibration-navigation and sensor-health contracts; the skip is still the hosted-WPF theme-cycle test |
+| Release tests | **29/08: 651 passed, 1 skipped, 0 failed** (`dotnet test OpenTECHub.slnx -c Release --no-build --no-restore`, repeated after one isolated timing flake passed) | Includes external-device, detail-pane, calibration-navigation and sensor-health contracts; the skip is still the hosted-WPF theme-cycle test |
 | Package vulnerability scan | **26/08:** no known vulnerable direct or transitive packages | Does not waive compatibility warnings; not re-scanned after the merge |
-| Runtime startup smoke test | **29/08:** Debug executable launched with `--workspace C:\Users\vitor\Documents\TECNAL-Hub`; first frame rendered and the fresh log contained no binding failure, fatal exception or unhandled exception | `--workspace` and `--no-workspace-prompt` now bypass the Windows folder picker; the expected offline COM1 warnings do not establish hardware operation |
+| Runtime startup smoke test | **29/08:** Debug executable launched with `--workspace C:\Users\vitor\Documents\OpenTEC-Hub`; first frame rendered and the fresh log contained no binding failure, fatal exception or unhandled exception | `--workspace` and `--no-workspace-prompt` now bypass the Windows folder picker; the expected offline COM1 warnings do not establish hardware operation |
 | First-frame time | **29/08:** 2.347 s, target `< 2 s` | The startup target remains unmet and is still a stabilization item |
 | Build compatibility | **29/08:** Debug and Release solution builds, **0 warnings, 0 errors** | `NU1701` stays resolved; published chart/theme verification remains a release receipt |
 | Formatting gate | **26/08:** `dotnet format --verify-no-changes --no-restore` fails repository-wide | Formatting/analyzer debt is not CI-ready; not re-run |
@@ -86,9 +86,9 @@ marks every control stopped and displays success even though no stop frame reach
 
 Evidence:
 
-- [`ControlViewModel.cs`](../src/TecnalHub/ViewModels/ControlViewModel.cs) sends and commits success
+- [`ControlViewModel.cs`](../src/OpenTECHub/ViewModels/ControlViewModel.cs) sends and commits success
   without a dispatch result.
-- [`CommandArbiter.cs`](../src/TecnalHub/Services/Communication/CommandArbiter.cs) atomically rejects a
+- [`CommandArbiter.cs`](../src/OpenTECHub/Services/Communication/CommandArbiter.cs) atomically rejects a
   mixed frame and its `IDeviceService.Send` adapter discards `CommandDispatchResult`.
 - Existing tests cover manual and cascade safe-stop, but not the global red stop while Recipe owns the
   wire.
@@ -124,7 +124,7 @@ available. Add UI/view-model tests for acquire, release, abort and reconnect tra
 ### AUD-003 — P1 — manual command acceptance is not observable by view-models
 
 `ICommandArbiter.Dispatch` already returns `CommandDispatchResult`, but most UI code receives only the
-legacy `IDeviceService.Send(TecnalCommand)` `void` method. Biomass, pump and other manual surfaces can
+legacy `IDeviceService.Send(OpenTECCommand)` `void` method. Biomass, pump and other manual surfaces can
 persist staged state and announce "sent" after an ownership rejection.
 
 Required correction: introduce a manual command-dispatch abstraction that returns the result (and,
@@ -278,9 +278,9 @@ Do not bump/release until all of the following are true:
 
 - [ ] AUD-001 and AUD-002 closed with active-recipe tests
 - [ ] AUD-003 through AUD-007 closed; no false command-success state
-- [x] `dotnet test TecnalHub.slnx -c Release` passes with no unexpected skip — **28/08: 587/1 skip/0 fail**; re-confirm at release time
+- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **28/08: 587/1 skip/0 fail**; re-confirm at release time
 - [ ] Release build and self-contained publish have zero warnings, including `NU1701`
-- [ ] `dotnet format TecnalHub.slnx --verify-no-changes --no-restore` passes
+- [ ] `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` passes
 - [ ] package vulnerability scan reports no known vulnerabilities
 - [ ] published UI passes the resolution/DPI/theme/keyboard/state matrix with zero binding errors
 - [ ] startup and hardware receipts meet the roadmap targets

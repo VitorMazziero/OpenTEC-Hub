@@ -1,4 +1,4 @@
-# Plano de implementação — Testes de kLa por Gassing-Out
+﻿# Plano de implementação — Testes de kLa por Gassing-Out
 
 > **Auditoria da implementação — 2026-08-26:** o fluxo de software foi integrado e corrigido após
 > revisão independente do commit `8f1a8ff`. A suíte completa registra 543 testes aprovados, 1
@@ -8,7 +8,7 @@
 
 ## 1. Objetivo
 
-Criar no TECNAL-Hub uma nova página, **Determinar kLa**, dedicada à execução e à análise
+Criar no OpenTEC-Hub uma nova página, **Determinar kLa**, dedicada à execução e à análise
 de testes abióticos de transferência de oxigênio pelo método de Gassing-Out. A página deverá:
 
 - executar automaticamente a remoção de O₂ com N₂ e a reoxigenação com ar;
@@ -52,7 +52,7 @@ TCN, redes neurais ou arquivos `.pth`.
 
 A implementação de referência está em:
 
-`D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\TECNAL_control\_Wifi Hub\Software\_Windows App\v.6\kLa_methods\kla_gassing_out_page.py`
+`D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\OpenTEC_control\_Wifi Hub\Software\_Windows App\v.6\kLa_methods\kla_gassing_out_page.py`
 
 Ela fornece referências úteis de fluxo operacional, mas os seguintes comportamentos não devem
 ser reproduzidos:
@@ -72,9 +72,9 @@ ser reproduzidos:
 Foram considerados:
 
 - Hub ESP32-S3 v7:
-  `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\TECNAL_control\_Wifi Hub\Software\_ESP32S3_firmware\TECNAL_ESP32_v7\TECNAL_ESP32_v7.ino`;
+  `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\OpenTEC_control\_Wifi Hub\Software\_ESP32S3_firmware\OpenTEC_ESP32_v7\OpenTEC_ESP32_v7.ino`;
 - Fluxômetro v05:
-  `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\Fluxometro\Software\__controler_ESP32\flowmeter_TECNALHUB_V05\flowmeter_TECNALHUB_V05.ino`.
+  `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\Fluxometro\Software\__controler_ESP32\flowmeter_OpenTECHUB_V05\flowmeter_OpenTECHUB_V05.ino`.
 
 O protocolo atual já fornece:
 
@@ -118,8 +118,8 @@ português, sem acentos:
 ```
 
 Essa estrutura está declarada em
-[`AppPaths`](../src/TecnalHub/Services/Persistence/AppSettings.cs) e verificada por
-[`WorkspaceDirectoryTests`](../tests/TecnalHub.Tests/WorkspaceDirectoryTests.cs).
+[`AppPaths`](../src/OpenTECHub/Services/Persistence/AppSettings.cs) e verificada por
+[`WorkspaceDirectoryTests`](../tests/OpenTECHub.Tests/WorkspaceDirectoryTests.cs).
 
 ### 4.2 Estrutura proposta
 

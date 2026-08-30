@@ -1,4 +1,4 @@
-# Plano de implementação: padronização dos dispositivos externos
+﻿# Plano de implementação: padronização dos dispositivos externos
 
 > **Data:** 2026-08-29 · **Base:** `d221db7` em `codex/receitas-fluxometro-pos-merge`
 > **Alvo:** 0.25.0 · **Referência de estilo:** fluxômetro v05 (`FlowControlViewModel`, linha "Vazão de Ar")
@@ -14,7 +14,7 @@ verdade sobre o dispositivo do outro lado; as demais mostram o próprio checkbox
 como se fosse o dispositivo.
 
 Este documento é o plano de correção. Ele parte de uma leitura dos seis firmwares e da camada
-`TecnalHub.Protocol` / ViewModels / XAML, e separa o que é corrigível **só no app** do que
+`OpenTECHub.Protocol` / ViewModels / XAML, e separa o que é corrigível **só no app** do que
 exige **regravação de firmware** (seção 4, para upload pelo operador).
 
 ---
@@ -25,16 +25,16 @@ Leitura de 2026-08-29 sobre:
 
 | Dispositivo | Firmware lido |
 |---|---|
-| Hub | `TECNAL_ESP32_v8/TECNAL_ESP32_v8.ino` (2306 linhas) |
-| Fluxômetro | `flowmeter_TECNALHUB_V05.ino` |
+| Hub | `OpenTEC_ESP32_v8/OpenTEC_ESP32_v8.ino` (2306 linhas) |
+| Fluxômetro | `flowmeter_OpenTECHUB_V05.ino` |
 | Biomassa | `biomass_sensor_analog_v04_direct.ino` |
 | Bomba peristáltica | `v_3_2_DC_motor_peristaltic.ino` |
 | Frasco agitador | `frasco_agitador_03.ino` |
-| Sensor de distância | `SensorDistanciaTECNAL_v03_reconnect.ino` |
+| Sensor de distância | `SensorDistanciaOpenTEC_v03_reconnect.ino` |
 
 ### 1.1 Topologia real
 
-O Hub é um SoftAP `ModuloTECNAL_1` (`WiFi.softAP(..., canal 6, máx. 8 estações)`). Cada
+O Hub é um SoftAP `ModuloOpenTEC_1` (`WiFi.softAP(..., canal 6, máx. 8 estações)`). Cada
 dispositivo externo é uma estação que:
 
 - **empurra** telemetria por `GET /<algo>Data?...` (query string, não JSON), e
@@ -161,7 +161,7 @@ Três regras que valem para todos:
 
 ## 3. Alterações no app
 
-### 3.1 `TecnalHub.Protocol` — camada de fio
+### 3.1 `OpenTECHub.Protocol` — camada de fio
 
 **`TelemetryKeys`** — acrescentar:
 
@@ -208,7 +208,7 @@ Em vez de copiar oito propriedades em quatro ViewModels, extrair de `FlowControl
 parte que não é do fluxômetro:
 
 ```
-src/TecnalHub/ViewModels/ExternalDeviceStatus.cs
+src/OpenTECHub/ViewModels/ExternalDeviceStatus.cs
 ```
 
 `ObservableObject` com `HasTelemetry`, `IsOnline`, `IsOffline`, `IsAwaitingAck`, `CanSend`,
@@ -292,7 +292,7 @@ estrutura nova.
 
 ### 3.8 Simulador e testes
 
-`TecnalHub.Simulator/DeviceModel.cs` passa a emitir as flags novas e a **simular queda de nó**
+`OpenTECHub.Simulator/DeviceModel.cs` passa a emitir as flags novas e a **simular queda de nó**
 (um comando de harness `drop biomass` / `drop pump` / `drop agitator`), porque é o único jeito
 de exercitar os caminhos offline sem desligar hardware.
 
@@ -315,7 +315,7 @@ só pode inferir presença por envelhecimento local, que funciona mas é mais le
 
 ### 4.1 Hub v8 — presença e habilitação para todos (obrigatório)
 
-**Arquivo:** `TECNAL_ESP32_v8.ino` · **Motivo:** D-1, D-2, D-6
+**Arquivo:** `OpenTEC_ESP32_v8.ino` · **Motivo:** D-1, D-2, D-6
 
 Acrescentar `unsigned long pumpLastUpdate = 0;` e `const unsigned long PUMP_TIMEOUT = 4000;`
 (4 × o `DATA_PUSH_PERIOD_MS` de 1 s da bomba), gravar `pumpLastUpdate = millis();` no handler
@@ -368,7 +368,7 @@ Do lado dos nós, o custo é pequeno e idêntico ao que o v05 já faz:
 
 ### 4.3 Frasco agitador — telemetria ao Hub (obrigatório para tirá-lo do escuro)
 
-**Arquivos:** `frasco_agitador_03.ino` **e** `TECNAL_ESP32_v8.ino` · **Motivo:** D-3
+**Arquivos:** `frasco_agitador_03.ino` **e** `OpenTEC_ESP32_v8.ino` · **Motivo:** D-3
 
 O nó já monta telemetria a cada 500 ms para USB e `/read`. Falta só empurrá-la:
 
@@ -418,12 +418,12 @@ já expira), mas o filtro de estagnação e o `-1` já dão semântica correta. 
 
 | Firmware | Mudança | Prioridade |
 |---|---|---|
-| `TECNAL_ESP32_v8` | 4.1 presença + habilitação | **obrigatória** |
-| `TECNAL_ESP32_v8` | 4.3 handler `/agitatorData` | **obrigatória** |
+| `OpenTEC_ESP32_v8` | 4.1 presença + habilitação | **obrigatória** |
+| `OpenTEC_ESP32_v8` | 4.3 handler `/agitatorData` | **obrigatória** |
 | `frasco_agitador_03` | 4.3 push de telemetria | **obrigatória** |
 | `biomass_sensor_analog_v04_direct` | 4.4 batimento em IDLE | recomendada |
-| `TECNAL_ESP32_v8` + 3 nós | 4.2 caixa revisionada | recomendada |
-| `TECNAL_ESP32_v8` | 4.5 `DISTANCE_TIMEOUT` 3 s | opcional |
+| `OpenTEC_ESP32_v8` + 3 nós | 4.2 caixa revisionada | recomendada |
+| `OpenTEC_ESP32_v8` | 4.5 `DISTANCE_TIMEOUT` 3 s | opcional |
 
 ---
 
@@ -479,7 +479,7 @@ Dois problemas, um de classificação e um de cobertura.
 
 **Classificação.** Hoje o card `PARÂMETROS INTERNOS` contém `Sensor de Distância` e
 `Sensor de Biomassa` — que são nós Wi-Fi externos —, e o card `DISPOSITIVOS EXTERNOS` contém
-`Dosagem de Nutrientes` e `Dosagem de Antiespumante` — que são bombas do módulo TECNAL na UART
+`Dosagem de Nutrientes` e `Dosagem de Antiespumante` — que são bombas do módulo OpenTEC na UART
 interna. Está trocado em relação à topologia física. Reorganizar para:
 
 - **PARÂMETROS INTERNOS** (UART do módulo): Agitação, Temperatura, pH, Oxigênio, Alívio de
@@ -530,12 +530,12 @@ parar-antes-de-desabilitar em quadro ordenado, bloqueio do potenciômetro na par
 agitador e as seis chaves `Pump*` que já existiam no fio. **Entrega valor imediato sem tocar em
 firmware.**
 
-Arquivos: [`ExternalDeviceStatus.cs`](../src/TecnalHub/ViewModels/ExternalDeviceStatus.cs),
-[`ManualDispatcher.cs`](../src/TecnalHub/Services/Communication/ManualDispatcher.cs),
-[`TelemetryParser.cs`](../src/TecnalHub.Protocol/TelemetryParser.cs),
-[`ConnectionManager.cs`](../src/TecnalHub.Protocol/ConnectionManager.cs),
-[`CommandBuilders.cs`](../src/TecnalHub.Protocol/CommandBuilders.cs), os quatro ViewModels de
-dispositivo externo e [`ExternalDeviceTests.cs`](../tests/TecnalHub.Tests/ExternalDeviceTests.cs)
+Arquivos: [`ExternalDeviceStatus.cs`](../src/OpenTECHub/ViewModels/ExternalDeviceStatus.cs),
+[`ManualDispatcher.cs`](../src/OpenTECHub/Services/Communication/ManualDispatcher.cs),
+[`TelemetryParser.cs`](../src/OpenTECHub.Protocol/TelemetryParser.cs),
+[`ConnectionManager.cs`](../src/OpenTECHub.Protocol/ConnectionManager.cs),
+[`CommandBuilders.cs`](../src/OpenTECHub.Protocol/CommandBuilders.cs), os quatro ViewModels de
+dispositivo externo e [`ExternalDeviceTests.cs`](../tests/OpenTECHub.Tests/ExternalDeviceTests.cs)
 (24 testes novos). Decisões em [D-026 a D-029](DECISIONS.md).
 
 > **O que a etapa 1 ainda não pode fazer.** Sem a regravação da seção 4, o Hub não publica
@@ -634,7 +634,7 @@ Marcado ✅ o que já está provado por teste automatizado; o restante precisa d
 - [x] Parada segura do agitador envia `agitatorReEnablePot:0`
 - [x] Reboot do Hub com checkbox divergente acende o chip `roteamento` e o alarme
       `Roteamento divergente no Hub` *(teste; o recibo de bancada depende da gravação)*
-- [x] `dotnet test TecnalHub.slnx -c Release` verde; `dotnet build` com 0 avisos
+- [x] `dotnet test OpenTECHub.slnx -c Release` verde; `dotnet build` com 0 avisos
 
 ---
 

@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
 
   <!--
     Shared MSBuild settings for every project under this repository. MSBuild imports
@@ -23,7 +23,7 @@
   </PropertyGroup>
 
   <PropertyGroup Label="Product metadata">
-    <Product>TECNAL-Hub</Product>
+    <Product>OpenTEC-Hub</Product>
     <Company>UNESP - Bioprocess Engineering and Biotechnology</Company>
     <Authors>Vitor T. Mazziero</Authors>
     <Copyright>(c) $([System.DateTime]::Now.Year) Vitor T. Mazziero</Copyright>

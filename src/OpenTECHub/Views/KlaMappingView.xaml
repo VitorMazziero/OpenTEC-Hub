@@ -1,0 +1,510 @@
+﻿<UserControl x:Class="OpenTECHub.Views.KlaMappingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
+             xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1500">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+
+        <Style x:Key="KlaSectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,10,0,5" />
+        </Style>
+
+        <Style x:Key="KlaDiagnosticValue" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,2,0,8" />
+        </Style>
+
+        <Style x:Key="KlaCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{DynamicResource SurfaceInputBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource StrokeSubtleBrush}" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserReorderColumns" Value="False" />
+            <Setter Property="CanUserResizeRows" Value="False" />
+            <Setter Property="SelectionMode" Value="Single" />
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="7,6" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4,3" />
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="MinHeight" Value="30" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Page identity and scientific state. -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Mapeamento kLa" FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold" />
+                <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
+                           Text="Dados experimentais → superfície contínua → gradiente normalizado → máxima folga → perfil publicado" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                <Border Background="{DynamicResource AccentSubtleBrush}"
+                        BorderBrush="{DynamicResource AccentBorderBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
+                        Padding="10,5">
+                    <TextBlock Text="{Binding StageLabel}" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </Border>
+                <TextBlock Margin="0,4,0,0" HorizontalAlignment="Right"
+                           Text="Ajuste científico · nunca envia comandos"
+                           Style="{StaticResource CaptionTextStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" MinWidth="360" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: experiment inventory, metadata, domain and anchors. -->
+            <Border Grid.Column="0" Style="{StaticResource KlaCard}" Padding="0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="12">
+                        <TextBlock Text="EXPERIMENTOS" Style="{StaticResource KlaSectionLabel}" Margin="0,0,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding NewExperimentName, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.Name="Nome do novo experimento kLa" />
+                            <Button Grid.Column="1" Margin="6,0,0,0" Padding="10,6"
+                                    Content="Criar" Command="{Binding CreateExperimentCommand}" />
+                        </Grid>
+
+                        <ListBox Margin="0,8,0,0" MaxHeight="116"
+                                 ItemsSource="{Binding Experiments}"
+                                 SelectedItem="{Binding SelectedExperiment, Mode=TwoWay}"
+                                 Background="{DynamicResource SurfaceSunkenBrush}"
+                                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                 AutomationProperties.Name="Experimentos de mapeamento kLa">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:KlaExperimentListItem}">
+                                    <Grid Margin="3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="{Binding StageLabel}" Margin="8,0,0,0"
+                                                   Foreground="{DynamicResource TextMutedBrush}" FontSize="11" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                            <Button Content="Duplicar" Padding="8,4" Command="{Binding DuplicateExperimentCommand}"
+                                    IsEnabled="{Binding HasExperiment}" />
+                            <Button Content="Excluir" Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding DeleteExperimentCommand}" IsEnabled="{Binding HasExperiment}" />
+                            <Button Content="Importar..." Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding ImportExperimentCommand}" />
+                        </StackPanel>
+
+                        <TextBlock Text="IDENTIFICAÇÃO" Style="{StaticResource KlaSectionLabel}" />
+                        <TextBlock Text="Nome" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding ExperimentName, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding HasExperiment}" />
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Caldo / meio" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding Broth, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Ensaio / lote" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding RunCode, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Notas" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" MinHeight="48" TextWrapping="Wrap" />
+
+                        <TextBlock Text="DOMÍNIO DOS ATUADORES" Style="{StaticResource KlaSectionLabel}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Qg mín. (L/min)" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding AirflowMinimum, UpdateSourceTrigger=LostFocus}" />
+                                <TextBlock Text="N mín. (rpm)" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding AgitationMinimum, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Qg máx. (L/min)" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding AirflowMaximum, UpdateSourceTrigger=LostFocus}" />
+                                <TextBlock Text="N máx. (rpm)" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding AgitationMaximum, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,10,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="PONTOS MEDIDOS" Style="{StaticResource KlaSectionLabel}" Margin="0" />
+                            <TextBlock Grid.Column="1" Text="{Binding Anchors.Count, StringFormat={}{0} pontos}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                        </Grid>
+                        <DataGrid Height="245" ItemsSource="{Binding Anchors}"
+                                  AutoGenerateColumns="False"
+                                  AutomationProperties.Name="Tabela de pontos experimentais kLa">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="N (rpm)" Width="*"
+                                    SortMemberPath="AgitationValue"
+                                    Binding="{Binding Agitation, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGridTextColumn Header="Qg (L/min)" Width="*"
+                                    SortMemberPath="AirflowValue"
+                                    Binding="{Binding Airflow, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGridTextColumn Header="kLa (h⁻¹)" Width="*"
+                                    SortMemberPath="KlaValue"
+                                    Binding="{Binding Kla, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGridTemplateColumn Header="" Width="34">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="×" Padding="4,1"
+                                                    ToolTip="Remover ponto"
+                                                    CommandParameter="{Binding}"
+                                                    Command="{Binding DataContext.RemoveAnchorCommand,
+                                                        RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <WrapPanel Margin="0,7,0,0">
+                            <Button Content="+ Ponto" Padding="8,4" Command="{Binding AddAnchorCommand}" />
+                            <Button Content="Desenho 3²" Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding CreateFactorialDesignCommand}" />
+                            <Button Content="Importar de Teste..." Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding OpenImportFromTestDialogCommand}" ToolTip="Importar médias de replicatas aceitas de um teste de kLa" />
+                            <Button Content="Ordenar" Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding SortAnchorsCommand}" ToolTip="Ordenar por N e depois Qg" />
+                        </WrapPanel>
+                        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                                   Text="O desenho 3² cria apenas coordenadas; kLa permanece em branco."
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Center: actual scientific result, not a decorative chart. -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="220" />
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Style="{StaticResource KlaCard}" Padding="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="12,10,12,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Superfície, gradiente e trajetória" FontWeight="SemiBold" />
+                                <TextBlock Text="Eixos físicos; derivadas e integração permanecem normalizadas"
+                                           Style="{StaticResource CaptionTextStyle}" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="● pontos" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,10,0" />
+                                <TextBlock Text="→ ∇kLa" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,10,0" />
+                                <TextBlock Text="━ trajetória" Foreground="{DynamicResource AccentBrush}" />
+                            </StackPanel>
+                        </Grid>
+                        <Border x:Name="SurfacePlotHost" Grid.Row="1" Margin="6,0,6,6"
+                                Background="{DynamicResource SurfaceCardBrush}" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource KlaCard}" Padding="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="12,9,12,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Classificação por folga média aos limites" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="h=min(q,1−q,n,1−n) · H=média(h)"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                        </Grid>
+                        <Border x:Name="HeadroomPlotHost" Grid.Row="1" Margin="6,0,6,6"
+                                Background="{DynamicResource SurfaceCardBrush}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Right: algorithm identity, parameters, refusals and receipts. -->
+            <Border Grid.Column="4" Style="{StaticResource KlaCard}" Padding="0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="12">
+                        <TextBlock Text="IDENTIDADE DO ALGORITMO" Style="{StaticResource KlaSectionLabel}" Margin="0,0,0,5" />
+                        <TextBlock Text="{Binding AlgorithmIdentity}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                        <Border Margin="0,8,0,0" Padding="8,5" CornerRadius="{DynamicResource RadiusSmall}"
+                                BorderThickness="1"
+                                Background="{DynamicResource AccentSubtleBrush}"
+                                BorderBrush="{DynamicResource AccentBorderBrush}">
+                            <TextBlock Text="{Binding IsPaperReference, StringFormat=Parâmetros de referência: {0}}"
+                                       FontFamily="{DynamicResource FontMono}" FontSize="11" />
+                        </Border>
+
+                        <Expander Header="Parâmetros numéricos" Margin="0,10,0,0" IsExpanded="False">
+                            <StackPanel Margin="0,6,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Malha / eixo" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding SurfaceGridResolution, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Tol. gradiente C–T" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding CloughTocherGradientTolerance, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Busca / eixo" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding CandidateGridResolution, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Busca mín. (norm.)" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding CandidateMinimum, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="rtol RK45" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding OdeRelativeTolerance, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="|∇| mínimo" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding GradientTermination, UpdateSourceTrigger=LostFocus}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="σ gaussiano" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding GaussianSigma, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Iterações C–T" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding CloughTocherMaximumIterations, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Busca máx. (norm.)" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding CandidateMaximum, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Passo máx. RK45" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding OdeMaximumStep, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="atol RK45" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding OdeAbsoluteTolerance, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="Horizonte τ" Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Text="{Binding IntegrationHorizon, UpdateSourceTrigger=LostFocus}" />
+                                    </StackPanel>
+                                </Grid>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Content="Referência" Padding="8,4"
+                                            Command="{Binding RestorePaperParametersCommand}" />
+                                    <Button Content="Prévia rápida" Margin="6,0,0,0" Padding="8,4"
+                                            Command="{Binding UsePreviewParametersCommand}" />
+                                </WrapPanel>
+                                <TextBlock Margin="0,6,0,0" Text="{Binding NumericalParametersText}"
+                                           TextWrapping="Wrap" FontFamily="{DynamicResource FontMono}"
+                                           FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <TextBlock Text="DIAGNÓSTICO CIENTÍFICO" Style="{StaticResource KlaSectionLabel}" />
+                        <TextBlock Text="Faixa da superfície" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding SurfaceRangeText}" Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Resíduos nos pontos medidos" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding ResidualText}" Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Cobertura do domínio" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding CoverageText}" Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Condição inicial selecionada" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding SelectedStartText}" Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Folga média normalizada" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding HeadroomText}" Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Relação de alocação" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding PathSummaryText}" Style="{StaticResource KlaDiagnosticValue}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Superfície" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Text="{Binding SurfaceFingerprintShort}" Style="{StaticResource KlaDiagnosticValue}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Trajetória" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Text="{Binding PathFingerprintShort}" Style="{StaticResource KlaDiagnosticValue}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Padding="9" CornerRadius="{DynamicResource RadiusSmall}"
+                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="RECUSAS E AVISOS" FontWeight="SemiBold" FontSize="11" />
+                                <TextBlock Text="{Binding WarningText}" Margin="0,4,0,0"
+                                           TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="CONTROLE E ARQUIVO" Style="{StaticResource KlaSectionLabel}" />
+                        <TextBlock Text="Disponibilidade para controle" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding PublishedStatusText}" FontWeight="SemiBold"
+                                   Style="{StaticResource KlaDiagnosticValue}" />
+                        <TextBlock Text="Última publicação" Margin="0,4,0,0" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{Binding LastPublishedDateText}" Style="{StaticResource KlaDiagnosticValue}" />
+
+                        <TextBlock Text="Arquivo no disco" Margin="0,8,0,0" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding ExperimentFilePath, Mode=OneWay}" IsReadOnly="True"
+                                 FontSize="11" FontFamily="{DynamicResource FontMono}"
+                                 TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,6,0,0">
+                            <Button Content="Copiar caminho" Padding="8,4"
+                                    Command="{Binding CopyFilePathCommand}" />
+                            <Button Content="Abrir pasta" Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding OpenFolderCommand}" />
+                            <Button Content="Exportar..." Margin="6,0,0,0" Padding="8,4"
+                                    Command="{Binding ExportExperimentCommand}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Stage actions and progress stay visible while either side rail scrolls. -->
+        <Border Grid.Row="2" Margin="0,12,0,0" Padding="10"
+                Background="{DynamicResource SurfaceElevatedBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusMedium}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ValidationMessage}" Margin="0,3,0,0"
+                               TextWrapping="Wrap" Foreground="{DynamicResource StateAlarmTextBrush}"
+                               Visibility="{Binding ValidationMessage, Converter={StaticResource NullToVis}}" />
+                    <Grid Margin="0,6,14,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ProgressBar Height="5" Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" />
+                        <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding ProgressText}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </Grid>
+                </StackPanel>
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                    <Button Content="Salvar experimento" Padding="10,6" Command="{Binding SaveExperimentCommand}"
+                            IsEnabled="{Binding HasExperiment}" />
+                    <Button Content="Estimar superfície" Margin="7,0,0,0" Padding="10,6"
+                            Command="{Binding EstimateSurfaceCommand}" />
+                    <Button Content="Calcular trajetória" Margin="7,0,0,0" Padding="10,6"
+                            Command="{Binding CalculatePathCommand}" />
+                    <Button Content="Cancelar" Margin="7,0,0,0" Padding="10,6"
+                            Command="{Binding CancelWorkCommand}"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                    <Button Content="Publicar para controle" Margin="7,0,0,0" Padding="12,6"
+                            Style="{StaticResource AccentButtonStyle}" Command="{Binding PublishForControlCommand}" />
+                </WrapPanel>
+            </Grid>
+        </Border>
+        <!-- ── Modal: Importar de Teste kLa ─────────────────────────────────── -->
+        <Grid Grid.RowSpan="3"
+              Visibility="{Binding IsImportFromTestDialogOpen, Converter={StaticResource BoolToVis}}">
+            <!-- Scrim / Backdrop -->
+            <Border Background="{DynamicResource SurfaceBaseBrush}" Opacity="0.75" />
+
+            <!-- Solid Modal Dialog Card -->
+            <Border Style="{StaticResource KlaCard}" Background="{DynamicResource SurfaceElevatedBrush}" Width="720" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Importar Replicatas de Teste de kLa" FontSize="15" FontWeight="Bold" Margin="0,0,0,12" />
+                    <TextBlock Text="Selecione o ensaio realizado em Testes-kLa:" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,6" />
+                    <ComboBox ItemsSource="{Binding AvailableKlaTests}" SelectedItem="{Binding SelectedKlaTestForImport}" DisplayMemberPath="FolderName" Margin="0,0,0,14" />
+                    <DataGrid ItemsSource="{Binding KlaTestImportCandidates}" AutoGenerateColumns="False" HeadersVisibility="Column"
+                              CanUserAddRows="False" Height="180" Margin="0,0,0,12">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Importar" Binding="{Binding IsSelected}" Width="65" />
+                            <DataGridTextColumn Header="Condição" Binding="{Binding Condition}" IsReadOnly="True" Width="125" />
+                            <DataGridTextColumn Header="Resultado / revisão" Binding="{Binding Result}" IsReadOnly="True" Width="*" />
+                            <DataGridTextColumn Header="Estado" Binding="{Binding ImportStatus}" IsReadOnly="True" Width="95" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancelar" Margin="0,0,8,0" Command="{Binding CloseImportFromTestDialogCommand}" />
+                        <Button Content="Importar e Agregar" Style="{StaticResource AccentButtonStyle}" Command="{Binding ImportSelectedKlaTestCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

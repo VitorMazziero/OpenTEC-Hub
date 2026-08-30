@@ -1,4 +1,4 @@
-# TECNAL-Hub — Build Roadmap
+﻿# OpenTEC-Hub — Build Roadmap
 
 > **Version:** 0.24.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-26
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
@@ -16,7 +16,7 @@
 
 ## The governing principle
 
-> **v.6 stays installed and working until TECNAL-Hub has run a full cultivation.**
+> **v.6 stays installed and working until OpenTEC-Hub has run a full cultivation.**
 
 There is no cutover date, no big-bang switch. v.6 is the reference implementation
 and the fallback. Every phase below ends in something that can be *run against real
@@ -80,7 +80,7 @@ standalone project ([D-010](DECISIONS.md)); `HubStations` waits for a real secon
 and the old positional/simple PID implementation is replaced by the corrected controller,
 while its agitation-only and aeration-only operator modes are preserved.
 
-**Parity gate:** Receitas is a new TECNAL-Hub capability, not a v.6 feature. Its execution
+**Parity gate:** Receitas is a new OpenTEC-Hub capability, not a v.6 feature. Its execution
 engine starts only after P0-P2 hardware behaviour is closed, so automation cannot become a
 second command source before ownership and safe-abort semantics are proven.
 
@@ -97,8 +97,8 @@ boot settle, that must surface now — not in month three.
 
 **Deliverables**
 
-- [x] `TecnalHub.Protocol` — `ITransport`, `SerialTransport`, `HttpTransport`
-- [x] `TecnalCommand` — flat JSON builder, **`InvariantCulture` enforced at the type level**
+- [x] `OpenTECHub.Protocol` — `ITransport`, `SerialTransport`, `HttpTransport`
+- [x] `OpenTECCommand` — flat JSON builder, **`InvariantCulture` enforced at the type level**
 - [x] `TelemetryParser` — key-by-key port of `data_parser.py`, sentinel semantics intact
 - [x] `SpikeFilter` — direct port, same thresholds
 - [x] `ConnectionManager` — the state machine, as an `async` service (no Qt signals)
@@ -112,7 +112,7 @@ boot settle, that must surface now — not in month three.
 
 1. [x] USB connect, sustained telemetry, no dropped link.
 2. [x] Wi-Fi connect, sustained telemetry, ETag 304s handled correctly.
-3. [ ] A captured v.6 session and a captured TECNAL-Hub session produce **identical
+3. [ ] A captured v.6 session and a captured OpenTEC-Hub session produce **identical
    command bytes** for the same operator actions. *(needs the bioreactor)*
 4. [ ] Telemetry with **live sensors** — calibration, spike filters and the `pHCal`
    echo have never met real data. *(needs the bioreactor)*
@@ -154,7 +154,7 @@ responds. Full design in [SIMULATOR.md](SIMULATOR.md).
       "staircase" signal the least-squares rate estimator exists to handle (`--dead-time`, `--quantisation`)
 - [x] Scripted cultivation profiles for repeatable controller comparison (`default`, `batch-ecoli`, `fed-batch`, `step-test`)
 - [x] Headless run mode: fixed seed, accelerated clock, CSV out — so a tuning change
-      can be regression-tested rather than eyeballed (`tecnal-simulator headless`)
+      can be regression-tested rather than eyeballed (`opentec-simulator headless`)
 
 **Later**
 
@@ -222,7 +222,7 @@ valves · Pressure. Nothing else.
 - [x] Advanced settings — calibration, spike filters, connection options, logging,
       appearance, device commands
 
-**Exit criteria:** a real cultivation run controlled end-to-end by TECNAL-Hub with
+**Exit criteria:** a real cultivation run controlled end-to-end by OpenTEC-Hub with
 v.6 closed, temperature and agitation and flow all holding setpoint, and a CSV that
 the existing analysis scripts read without modification.
 
@@ -267,7 +267,7 @@ re-presented — with two exceptions called out as open decisions below.
 **Three things WP1 turned up that were not on the list:**
 
 - [x] **`TokenParityTests` written.** Both token files carried a comment claiming they were
-      "asserted against each other in TecnalHub.Tests". **They were not** — no such test
+      "asserted against each other in OpenTECHub.Tests". **They were not** — no such test
       existed. WP1 added ~25 keys to each file, where a key in one and not the other is a
       crash on theme switch, so the test was written before the keys were added. It also
       computes WCAG contrast from the token files on every run.
@@ -311,7 +311,7 @@ part of the application. Present before this WP: `Button`, `TextBox`, `ComboBox`
       foreign chrome in the app, visible on Configurações
 - [x] `ListView` / `ListViewItem` / `GridViewColumnHeader` for the Controle table —
       row separators only, no grid lines, no header chrome
-- [x] Shared components in `src/TecnalHub/Controls/`: `StateDot`, `StateChip`,
+- [x] Shared components in `src/OpenTECHub/Controls/`: `StateDot`, `StateChip`,
       `ProvenanceBadge`, `SetpointField`
 - [x] `StateToBrushConverter` gained a `Text` parameter for the darkened variants;
       new `StateToLabelConverter` so **every state reaches the screen as a word too**
@@ -625,7 +625,7 @@ and the real bioreactor still has to demonstrate the locked exit criterion above
 
 **Goal:** the scientific core. This is the phase the paper depends on.
 
-**Cascade controllers.** Ported from the **ReceitasTECNAL** implementation, which
+**Cascade controllers.** Ported from the **ReceitasOpenTEC** implementation, which
 is the corrected one — not from v.6. The design is already written up in that
 project's `docs/CASCATA_OD.md` and fixes three structural defects:
 
@@ -680,7 +680,7 @@ as the v.6 runs already recorded in the manuscript dataset.
 ### WP1 — Cascade controller core — **done 2026-08-20**
 
 The scientific core's control law, built and validated headlessly before any of it is
-wired to the wire or the UI. It is pure math in `src/TecnalHub/Services/Control/`, held to
+wired to the wire or the UI. It is pure math in `src/OpenTECHub/Services/Control/`, held to
 the [ARCHITECTURE §5](ARCHITECTURE.md#5-testing-strategy) controller strategy — a simulated
 first-order DOT plant with dead time, asserting no windup and no zero-at-setpoint collapse.
 
@@ -987,7 +987,7 @@ and `stop` are momentary and gated on the sensor being on; the three integration
 and applied atomically as `{"low","high","opt"}` (raw counts). The command surface is
 `CommandBuilders.BiomassComm/BiomassBlank/BiomassStart/BiomassStop/BiomassThresholds`, with `start`/`stop`
 added to `CommandKeys` — undocumented in v.6's Python tree but exactly what the firmware forwards
-(`TECNAL_ESP32_v7.ino`). **The firmware exposes no HD-mode state** (confirmed against the `.ino`), so
+(`OpenTEC_ESP32_v7.ino`). **The firmware exposes no HD-mode state** (confirmed against the `.ino`), so
 none is displayed — the open question in this WP is answered. `ActuatorId.Biomass` is an **owned**
 arbiter actuator (a recipe cannot fight the operator over the blank/thresholds) but is **excluded from
 the operator safe-stop**, because it is a measurement and a stop must not blind it — the same rule the
@@ -1058,23 +1058,23 @@ safe-stop. Pump actuation rides the bioreactor gate.
 > wire. These are the v0.25.0 P0 findings AUD-001/AUD-002 in
 > [CURRENT_STATUS.md](CURRENT_STATUS.md), not completed behavior.
 
-On recipes: the concept and the engine architecture come from ReceitasTECNAL —
+On recipes: the concept and the engine architecture come from ReceitasOpenTEC —
 node graph, validator, engine sliced by responsibility. The **UI, visual language
 and product identity are new**; this is not a re-skin of that app. Improvements to
 make while re-implementing, rather than copying forward:
 
 - Node definitions declared once and generated, instead of hand-written model +
-  viewmodel + view per node type (ReceitasTECNAL has ~10 near-duplicate triples).
+  viewmodel + view per node type (ReceitasOpenTEC has ~10 near-duplicate triples).
 - The engine drives the same `ITransport` as manual control, so a recipe and an
   operator cannot fight over the link — one command queue, one owner.
-- Recipe JSON versioned from v1, with a migration hook. ReceitasTECNAL learned this late.
+- Recipe JSON versioned from v1, with a migration hook. ReceitasOpenTEC learned this late.
 
 > **Read [UI_DESIGN §5.3](UI_DESIGN.md#53-receitas) before starting.** It carries the full
-> block inventory — nineteen types in six categories, taken from ReceitasTECNAL's
+> block inventory — nineteen types in six categories, taken from ReceitasOpenTEC's
 > `NodeType` enum — with each block's parameters and its **re-targeting to the ESP32-S3**.
 >
-> The re-targeting is the part that is easy to get wrong: **ReceitasTECNAL drives a
-> different machine.** It reads a TECNAL HMI over Modbus and writes setpoints by
+> The re-targeting is the part that is easy to get wrong: **ReceitasOpenTEC drives a
+> different machine.** It reads a OpenTEC HMI over Modbus and writes setpoints by
 > screen-scraping that HMI over VNC. The graph, the engine slicing and the control
 > mathematics port over; the VNC layer, the Modbus register map, the ×10/×100 scale
 > factors and `IntervaloAtuacaoVnc` **must not**. Nor may the robot-configuration panel
@@ -1139,7 +1139,7 @@ make while re-implementing, rather than copying forward:
 |---|---|---|
 | **kLa gassing-out estimation** | Depends on torch + a `.pth` model. The single largest startup cost and an awkward runtime dependency. | Own project, as a standalone analysis module — not inside the controller app. |
 | **torch / neural inference of any kind** | Same. | With the gassing-out module. |
-| **Nitrogen enrichment path** | The kLa controller core is stable in ReceitasTECNAL but *without* enrichment; the enrichment path needs the changes described in the manuscript. | Phase 2, after the base cascade is validated. |
+| **Nitrogen enrichment path** | The kLa controller core is stable in ReceitasOpenTEC but *without* enrichment; the enrichment path needs the changes described in the manuscript. | Phase 2, after the base cascade is validated. |
 | **Multi-station hub support** | Telemetry exposes `HubStations` but v.6 never used it. | Only when a second module physically exists. |
 
 ---

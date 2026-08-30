@@ -1,4 +1,4 @@
-# Device Simulator
+﻿# Device Simulator
 
 > A stand-in for the ESP32-S3 and the bioreactor behind it, so the application can be
 > developed and tested without hardware — and so the cascade controllers can be tuned
@@ -30,7 +30,7 @@ that model, so the physics is not guesswork.
 
 ## 2. What it is not
 
-It does **not** simulate the TECNAL sensor module, and it does not sit behind a real
+It does **not** simulate the OpenTEC sensor module, and it does not sit behind a real
 ESP32.
 
 That topology — app → real ESP32 → simulated module — was considered and rejected:
@@ -41,7 +41,7 @@ That topology — app → real ESP32 → simulated module — was considered and
   creates PC-internal port pairs.
 - The module-side protocol is undocumented and entirely different from the PC-side
   one. All that is known is that it uses single-character commands — visible in
-  `[ESP32_AVISO]: Falha de leitura UART do Módulo TECNAL após comando 'b'`.
+  `[ESP32_AVISO]: Falha de leitura UART do Módulo OpenTEC após comando 'b'`.
 - It would exercise the **firmware**, which is frozen and already works, rather than
   the app, which is what needs testing.
 
@@ -118,13 +118,13 @@ the lab.
 ## 5. Usage
 
 ```bash
-dotnet run --project src/TecnalHub.Simulator -- http
+dotnet run --project src/OpenTECHub.Simulator -- http
 ```
 
 Then point the app at `127.0.0.1` (connection chip → Wi-Fi → address). No setup.
 
 ```bash
-dotnet run --project src/TecnalHub.Simulator -- serial COM11
+dotnet run --project src/OpenTECHub.Simulator -- serial COM11
 ```
 
 Serial mode, where `COM11` is one half of a virtual pair; the app connects to the
@@ -167,7 +167,7 @@ Only needed for Level 2b. HTTP mode requires none of this.
 3. Run the simulator on one end, point the app at the other:
 
 ```bash
-dotnet run --project src/TecnalHub.Simulator -- serial COM11
+dotnet run --project src/OpenTECHub.Simulator -- serial COM11
 ```
 
 Then connect the app to `COM10`.

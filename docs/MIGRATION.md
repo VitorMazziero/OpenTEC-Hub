@@ -1,9 +1,9 @@
-# Migration Map — Python v.6 to C# TECNAL-Hub
+﻿# Migration Map — Python v.6 to C# OpenTEC-Hub
 
 > What each piece of the working Python app becomes, what gets fixed on the way,
 > and what is deliberately left behind.
 >
-> **Source:** `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\TECNAL_control\_Wifi Hub\Software\_Windows App\v.6`
+> **Source:** `D:\OneDrive\Doutorado_CNPq\_Automacao_Controle\_devices\OpenTEC_control\_Wifi Hub\Software\_Windows App\v.6`
 > (11,519 lines of Python across 18 modules)
 >
 > **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Architecture](ARCHITECTURE.md) · [Decisions](DECISIONS.md)
@@ -74,7 +74,7 @@ cannot be aborted once started — the window is unresponsive until it finishes.
 
 | v.6 | Lines | Becomes |
 |---|---:|---|
-| `kLa_methods/simple_cascade_control.py` | 422 | `Services/Control/CascadeController.cs` — **rewritten** from the ReceitasTECNAL design, not ported |
+| `kLa_methods/simple_cascade_control.py` | 422 | `Services/Control/CascadeController.cs` — **rewritten** from the ReceitasOpenTEC design, not ported |
 | `kLa_methods/kla_cascade_control.py` | 368 | `Services/Control/KlaPathController.cs` — **rewritten** per the manuscript |
 | `kLa_methods/kla_cascade_page.py` | 918 | Dedicated `Mapeamento kLa` workspace + published-path selector in Controle. Preserve interactive experimental points/profile management, but replace v.6's numerical shortcut with the paper-reference D-008 workflow |
 | `kLa_methods/kla_gassing_out_page.py` | 1716 | **Removed** — separate project |

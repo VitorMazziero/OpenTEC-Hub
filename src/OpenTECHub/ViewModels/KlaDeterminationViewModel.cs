@@ -1,0 +1,1995 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Dialogs;
+using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.KlaTesting;
+using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Platform;
+
+namespace OpenTECHub.ViewModels;
+
+public sealed partial class KlaConditionRowViewModel : ObservableObject
+{
+    public KlaTestCondition Model { get; }
+
+    public KlaConditionRowViewModel(KlaTestCondition model)
+    {
+        Model = model;
+    }
+
+    public Guid ConditionId => Model.ConditionId;
+    public int OrderIndex => Model.OrderIndex + 1;
+    public double AgitationRpm => Model.AgitationRpm;
+    public double AirflowLpm => Model.AirflowLpm;
+    public int RequestedReplicates
+    {
+        get => Model.RequestedReplicates;
+        set
+        {
+            var normalized = Math.Clamp(value, 1, 99);
+            if (Model.RequestedReplicates == normalized)
+            {
+                return;
+            }
+
+            Model.RequestedReplicates = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayReplicates));
+        }
+    }
+    public int CompletedReplicates => Model.CompletedReplicates;
+    public int AcceptedReplicates => Model.AcceptedReplicates;
+    public int RejectedReplicates => Model.RejectedReplicates;
+    public ConditionStatus Status => Model.Status;
+    public ConditionOrigin Origin => Model.Origin;
+
+    public string DisplayStatus => Status switch
+    {
+        ConditionStatus.Pending => "Pendente",
+        ConditionStatus.InProgress => "Em Execução",
+        ConditionStatus.Completed => "Concluído",
+        ConditionStatus.Skipped => "Ignorado",
+        _ => Status.ToString()
+    };
+
+    public string DisplayCondition => $"{AgitationRpm:F0} rpm · {AirflowLpm:F2} L/min";
+    public string DisplayReplicates => $"{AcceptedReplicates}/{RequestedReplicates}";
+    public bool CanExecute => Status != ConditionStatus.Completed;
+
+    public void NotifyChanged()
+    {
+        OnPropertyChanged(nameof(CompletedReplicates));
+        OnPropertyChanged(nameof(AcceptedReplicates));
+        OnPropertyChanged(nameof(RejectedReplicates));
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(DisplayStatus));
+        OnPropertyChanged(nameof(DisplayReplicates));
+        OnPropertyChanged(nameof(CanExecute));
+    }
+}
+
+public sealed partial class KlaMatrixRowViewModel : ObservableObject
+{
+    public KlaTestCondition Condition { get; }
+    public Guid ConditionId => Condition.ConditionId;
+    public int OrderIndex { get; set; }
+    public int ReplicateIndex { get; set; } = 1;
+    public double AgitationRpm => Condition.AgitationRpm;
+    public double AirflowLpm => Condition.AirflowLpm;
+
+    public string ReplicateLabel => $"R{ReplicateIndex}";
+
+    private ConditionStatus _status = ConditionStatus.Pending;
+    public ConditionStatus Status
+    {
+        get => _status;
+        set
+        {
+            if (SetProperty(ref _status, value))
+            {
+                OnPropertyChanged(nameof(DisplayStatus));
+            }
+        }
+    }
+
+    private RunPhase? _loadedRunPhase;
+    public RunPhase? LoadedRunPhase
+    {
+        get => _loadedRunPhase;
+        set
+        {
+            if (SetProperty(ref _loadedRunPhase, value))
+            {
+                OnPropertyChanged(nameof(DisplayStatus));
+            }
+        }
+    }
+
+    public string DisplayStatus => LoadedRunPhase switch
+    {
+        RunPhase.Accepted => "Concluído",
+        RunPhase.Rejected => "Rejeitado",
+        RunPhase.Reviewing => "Para revisar",
+        _ => Status switch
+        {
+            ConditionStatus.Pending => "Pendente",
+            ConditionStatus.InProgress => "Em Execução",
+            ConditionStatus.Completed => "Concluído",
+            ConditionStatus.Skipped => "Ignorado",
+            _ => Status.ToString()
+        }
+    };
+
+    private double? _klaPerHour;
+    public double? KlaPerHour
+    {
+        get => _klaPerHour;
+        set
+        {
+            if (SetProperty(ref _klaPerHour, value))
+            {
+                OnPropertyChanged(nameof(DisplayKla));
+            }
+        }
+    }
+
+    private double? _analysisR2;
+    public double? AnalysisR2
+    {
+        get => _analysisR2;
+        set
+        {
+            if (SetProperty(ref _analysisR2, value))
+            {
+                OnPropertyChanged(nameof(DisplayR2));
+            }
+        }
+    }
+
+    public string DisplayKla => KlaPerHour.HasValue ? KlaPerHour.Value.ToString("F1", CultureInfo.InvariantCulture) : "—";
+    public string DisplayR2 => AnalysisR2.HasValue ? AnalysisR2.Value.ToString("F4", CultureInfo.InvariantCulture) : "—";
+
+    public string? RunFolderName { get; set; }
+    public bool HasRunData => !string.IsNullOrEmpty(RunFolderName);
+
+    public KlaMatrixRowViewModel(KlaTestCondition condition, int replicateIndex = 1)
+    {
+        Condition = condition;
+        ReplicateIndex = replicateIndex;
+        OrderIndex = condition.OrderIndex + 1;
+        Status = condition.Status;
+    }
+
+    public void NotifyChanged()
+    {
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(DisplayStatus));
+        OnPropertyChanged(nameof(KlaPerHour));
+        OnPropertyChanged(nameof(AnalysisR2));
+        OnPropertyChanged(nameof(DisplayKla));
+        OnPropertyChanged(nameof(DisplayR2));
+        OnPropertyChanged(nameof(LoadedRunPhase));
+        OnPropertyChanged(nameof(HasRunData));
+    }
+}
+
+public sealed partial class KlaDeterminationViewModel : ObservableObject, IDisposable
+{
+    private readonly IKlaTestRunner _runner;
+    private readonly IKlaTestStore _store;
+    private readonly IKlaAnalysisEngine _analysisEngine;
+    private readonly IKlaProfileStore _mappingStore;
+    private readonly IDialogService _dialogs;
+    private readonly IFileInteractionService _files;
+    private readonly ISettingsService _settings;
+
+    private bool _disposed;
+    private bool _isLoadingSettings;
+
+    public KlaDeterminationViewModel(
+        IKlaTestRunner runner,
+        IKlaTestStore store,
+        IKlaAnalysisEngine analysisEngine,
+        IKlaProfileStore mappingStore,
+        IDialogService dialogs,
+        IFileInteractionService files,
+        ISettingsService settings,
+        KlaPlaybackOptions? playbackOptions = null)
+    {
+        _runner = runner;
+        _store = store;
+        _analysisEngine = analysisEngine;
+        _mappingStore = mappingStore;
+        _dialogs = dialogs;
+        _files = files;
+        _settings = settings;
+
+        _isLoadingSettings = true;
+        try
+        {
+            var klaSettings = settings.Current.KlaTest;
+            SettingDOMin = klaSettings.DOMinPercent;
+            SettingDOMax = klaSettings.DOMaxPercent;
+            SettingDegassingAgitation = klaSettings.DegassingAgitationRpm;
+            SettingSmoothingWindow = klaSettings.SmoothingWindowSize;
+            SettingMaxDegassingMinutes = klaSettings.MaxDegassingTimeMinutes;
+            SettingMaxReoxygenationMinutes = klaSettings.MaxReoxygenationTimeMinutes;
+            SettingPostNitrogenMinimumDelaySeconds = klaSettings.PostNitrogenMinimumDelaySeconds;
+            SettingStabilityDerivativeSpanSeconds = klaSettings.StabilityDerivativeSpanSeconds;
+            SettingStabilityDerivativeThreshold = klaSettings.StabilityDerivativeThresholdPercentPerSecond;
+            SettingStabilityRequiredSamples = klaSettings.StabilityRequiredSamples;
+            SettingMaxPostNitrogenStabilizationSeconds = klaSettings.MaxPostNitrogenStabilizationSeconds;
+            UseVentStabilization = klaSettings.VentStabilizationEnabled;
+            SettingVentAgitationRpm = klaSettings.VentAgitationRpm;
+            SettingVentFlowTolerance = klaSettings.VentFlowToleranceLpm;
+            SettingVentFlowStableSamples = klaSettings.VentFlowStableSamples;
+            SettingMaxVentStabilizationSeconds = klaSettings.MaxVentStabilizationSeconds;
+            SelectedVentValve = settings.Current.KlaVentValve;
+            SelectedN2Valve = settings.Current.KlaNitrogenValve;
+            SettingDefaultCeq = klaSettings.DefaultCeqPercent;
+            AutoAcceptRuns = klaSettings.AutoAcceptRuns;
+            SettingAutoLinearStartPercent = klaSettings.AutoLinearStartPercent;
+            SettingAutoLinearEndPercent = klaSettings.AutoLinearEndPercent;
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
+
+        IsSimulationMode = playbackOptions is not null;
+        SimulationDescription = playbackOptions is null
+            ? ""
+            : $"SIMULAÇÃO · {playbackOptions.DisplayName} · {playbackOptions.Speed:G}× · nenhum comando é enviado ao hardware";
+        if (playbackOptions is not null)
+        {
+            // O arquivo experimental padrão inicia em ~9% e atinge ~4,54%.
+            // Estes limiares permitem percorrer N₂, espera estável e reoxigenação.
+            SettingDOMin = 5.0;
+            SettingDOMax = 95.0;
+        }
+
+        _runner.StateChanged += OnRunnerStateChanged;
+        _runner.DataPointAdded += OnDataPointAdded;
+        _runner.Logged += OnRunnerLogged;
+
+        RefreshTestsList();
+        RefreshAvailableMaps();
+    }
+
+    // ── Observable Properties ──────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private KlaTestSummary? _selectedTestSummary;
+
+    [ObservableProperty]
+    private KlaTestDocument? _currentTest;
+
+    [ObservableProperty]
+    private KlaTestRun? _currentRun;
+
+    [ObservableProperty]
+    private KlaTestCondition? _currentCondition;
+
+    [ObservableProperty]
+    private RunPhase _phase = RunPhase.Idle;
+
+    [ObservableProperty]
+    private string _statusMessage = "Pronto para iniciar novo teste ou abrir existente.";
+
+    [ObservableProperty]
+    private double _currentDO;
+
+    [ObservableProperty]
+    private double _currentFlow;
+
+    [ObservableProperty]
+    private double _phaseElapsedSeconds;
+
+    [ObservableProperty]
+    private double _totalElapsedSeconds;
+
+    // Test Creation Form
+    [ObservableProperty]
+    private string _newTestName = "";
+
+    [ObservableProperty]
+    private NitrogenValve _selectedN2Valve = NitrogenValve.Valve1;
+
+    [ObservableProperty]
+    private double _settingDOMin = 15.0;
+
+    [ObservableProperty]
+    private double _settingDOMax = 85.0;
+
+    [ObservableProperty]
+    private double _settingDegassingAgitation = 700.0;
+
+    [ObservableProperty]
+    private int _settingSmoothingWindow = 5;
+
+    [ObservableProperty]
+    private double _settingMaxDegassingMinutes = 30;
+
+    [ObservableProperty]
+    private double _settingMaxReoxygenationMinutes = 60;
+
+    [ObservableProperty]
+    private double _settingPostNitrogenMinimumDelaySeconds = 5;
+
+    [ObservableProperty]
+    private double _settingStabilityDerivativeSpanSeconds = 6;
+
+    [ObservableProperty]
+    private double _settingStabilityDerivativeThreshold = 0.05;
+
+    [ObservableProperty]
+    private int _settingStabilityRequiredSamples = 5;
+
+    [ObservableProperty]
+    private double _settingMaxPostNitrogenStabilizationSeconds = 120;
+
+    [ObservableProperty]
+    private bool _useVentStabilization;
+
+    [ObservableProperty]
+    private NitrogenValve _selectedVentValve = NitrogenValve.Valve2;
+
+    [ObservableProperty]
+    private double _settingVentAgitationRpm = 50;
+
+    [ObservableProperty]
+    private double _settingVentFlowTolerance = 0.2;
+
+    [ObservableProperty]
+    private int _settingVentFlowStableSamples = 5;
+
+    [ObservableProperty]
+    private double _settingMaxVentStabilizationSeconds = 120;
+
+    [ObservableProperty]
+    private double _settingDefaultCeq = 100;
+
+    [ObservableProperty]
+    private bool _autoAcceptRuns;
+
+    [ObservableProperty]
+    private double _settingAutoLinearStartPercent = 45.0;
+
+    [ObservableProperty]
+    private double _settingAutoLinearEndPercent = 70.0;
+
+    [ObservableProperty]
+    private KlaExperimentDocument? _selectedMapForImport;
+
+    [ObservableProperty]
+    private bool _isCreateDialogOpen;
+
+    [ObservableProperty]
+    private bool _isLoadTestDialogOpen;
+
+    [ObservableProperty]
+    private KlaMatrixRowViewModel? _selectedMatrixRow;
+
+    partial void OnSelectedMatrixRowChanged(KlaMatrixRowViewModel? value)
+    {
+        if (value is not null && value.HasRunData && !IsRunning)
+        {
+            LoadMatrixRow(value);
+        }
+    }
+
+    private KlaTestRunSummary? _currentlyEditingRun;
+    private KlaMatrixRowViewModel? _currentlyEditingRow;
+
+    [ObservableProperty]
+    private bool _isAdvancedSettingsDialogOpen;
+
+    [ObservableProperty]
+    private bool _isStartSequenceDialogOpen;
+
+    [ObservableProperty]
+    private bool _isSequenceModePending = true;
+
+    [ObservableProperty]
+    private bool _isSequenceModeFromSelected;
+
+    [ObservableProperty]
+    private bool _isSequenceModeAll;
+
+    [ObservableProperty]
+    private string _sequenceSelectedRowDescription = "Nenhuma linha selecionada";
+
+    [ObservableProperty]
+    private bool _hasSelectedRowForSequence;
+
+    [ObservableProperty]
+    private string _sequenceQueueSummaryText = "";
+
+    [ObservableProperty]
+    private ObservableCollection<KlaConditionRowViewModel> _sequencePreviewQueue = new();
+
+    private List<KlaTestCondition> _activeSequenceQueue = new();
+
+    partial void OnIsSequenceModePendingChanged(bool value)
+    {
+        if (value) { UpdateSequencePreview(0); }
+    }
+
+    partial void OnIsSequenceModeFromSelectedChanged(bool value)
+    {
+        if (value) { UpdateSequencePreview(1); }
+    }
+
+    partial void OnIsSequenceModeAllChanged(bool value)
+    {
+        if (value) { UpdateSequencePreview(2); }
+    }
+
+    // Review Drawer Properties
+    [ObservableProperty]
+    private bool _isReviewOpen;
+
+    [ObservableProperty]
+    private double _reviewMinTime = 0.0;
+
+    [ObservableProperty]
+    private double _reviewMaxTime = 100.0;
+
+    [ObservableProperty]
+    private double _reviewCeq = 100.0;
+
+    [ObservableProperty]
+    private bool _reviewCeqIsManual;
+
+    [ObservableProperty]
+    private double _reviewTStart;
+
+    [ObservableProperty]
+    private double _reviewTEnd = 100.0;
+
+    [ObservableProperty]
+    private double _reviewCeqTStart;
+
+    [ObservableProperty]
+    private double _reviewCeqTEnd = 100.0;
+
+    [ObservableProperty]
+    private double _reviewKla;
+
+    [ObservableProperty]
+    private double _reviewR2;
+
+    [ObservableProperty]
+    private double _reviewRmse;
+
+    [ObservableProperty]
+    private double _reviewCi95Low;
+
+    [ObservableProperty]
+    private double _reviewCi95High;
+
+    [ObservableProperty]
+    private double _reviewSensLow;
+
+    [ObservableProperty]
+    private double _reviewSensHigh;
+
+    [ObservableProperty]
+    private DecisionQuality _reviewQuality = DecisionQuality.Inconclusive;
+
+    [ObservableProperty]
+    private string? _reviewWarning;
+
+    [ObservableProperty]
+    private string? _reviewRejectionReason;
+
+    [ObservableProperty]
+    private KlaAnalysisRevision? _currentAnalysis;
+
+    public string DisplayReviewKla => IsReviewOpen && CurrentAnalysis != null ? $"{ReviewKla:F1} h⁻¹" : "—";
+    public string DisplayReviewR2 => IsReviewOpen && CurrentAnalysis != null ? $"R²: {ReviewR2:F4}" : "R²: —";
+    public string DisplayReviewRmse => IsReviewOpen && CurrentAnalysis != null ? $"RMSE: {ReviewRmse:F4}" : "RMSE: —";
+    public string DisplayReviewCi95 => IsReviewOpen && CurrentAnalysis != null ? $"IC 95%: [{ReviewCi95Low:F1}; {ReviewCi95High:F1}]" : "IC 95%: [—; —]";
+    public string DisplayReviewSens => IsReviewOpen && CurrentAnalysis != null ? $"[{ReviewSensLow:F1}; {ReviewSensHigh:F1}] h⁻¹" : "[—; —] h⁻¹";
+    public string DisplayReviewQuality => !IsReviewOpen || CurrentAnalysis == null
+        ? "Inativo"
+        : ReviewQuality switch
+        {
+            DecisionQuality.Acceptable => "Aceitável",
+            DecisionQuality.AcceptableWithWarning => "Atenção / Ruído",
+            DecisionQuality.Inconclusive => "Inconclusivo",
+            _ => ReviewQuality.ToString()
+        };
+
+    private bool _isRecomputing;
+
+    partial void OnIsReviewOpenChanged(bool value) => NotifyDisplayReviewChanged();
+    partial void OnReviewKlaChanged(double value) => OnPropertyChanged(nameof(DisplayReviewKla));
+    partial void OnReviewR2Changed(double value) => OnPropertyChanged(nameof(DisplayReviewR2));
+    partial void OnReviewRmseChanged(double value) => OnPropertyChanged(nameof(DisplayReviewRmse));
+    partial void OnReviewCi95LowChanged(double value) => OnPropertyChanged(nameof(DisplayReviewCi95));
+    partial void OnReviewCi95HighChanged(double value) => OnPropertyChanged(nameof(DisplayReviewCi95));
+    partial void OnReviewSensLowChanged(double value) => OnPropertyChanged(nameof(DisplayReviewSens));
+    partial void OnReviewSensHighChanged(double value) => OnPropertyChanged(nameof(DisplayReviewSens));
+    partial void OnReviewQualityChanged(DecisionQuality value) => OnPropertyChanged(nameof(DisplayReviewQuality));
+    partial void OnCurrentAnalysisChanged(KlaAnalysisRevision? value) => NotifyDisplayReviewChanged();
+
+    private void NotifyDisplayReviewChanged()
+    {
+        OnPropertyChanged(nameof(DisplayReviewKla));
+        OnPropertyChanged(nameof(DisplayReviewR2));
+        OnPropertyChanged(nameof(DisplayReviewRmse));
+        OnPropertyChanged(nameof(DisplayReviewCi95));
+        OnPropertyChanged(nameof(DisplayReviewSens));
+        OnPropertyChanged(nameof(DisplayReviewQuality));
+    }
+
+    partial void OnReviewTStartChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewTStart = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewTEndChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewTEnd = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewCeqTStartChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewCeqTStart = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewCeqTEndChanged(double value)
+    {
+        var rounded = Math.Round(value, 1);
+        if (Math.Abs(value - rounded) > 0.001)
+        {
+            ReviewCeqTEnd = rounded;
+            return;
+        }
+        AutoRecompute();
+    }
+
+    partial void OnReviewCeqChanged(double value)
+    {
+        if (ReviewCeqIsManual)
+        {
+            AutoRecompute();
+        }
+    }
+    partial void OnReviewCeqIsManualChanged(bool value) => AutoRecompute();
+
+    private void AutoRecompute()
+    {
+        if (!_isRecomputing && IsReviewOpen)
+        {
+            RecomputeReviewAnalysis();
+        }
+    }
+
+    // New condition manual entry
+    [ObservableProperty]
+    private double _newConditionRpm = 300;
+
+    [ObservableProperty]
+    private double _newConditionFlow = 2.0;
+
+    [ObservableProperty]
+    private int _newConditionReplicates = 1;
+
+    // Collections
+    public ObservableCollection<KlaTestSummary> Tests { get; } = [];
+    public ObservableCollection<KlaExperimentDocument> AvailableMaps { get; } = [];
+    public ObservableCollection<KlaConditionRowViewModel> Conditions { get; } = [];
+    public ObservableCollection<KlaMatrixRowViewModel> MatrixRows { get; } = [];
+    public ObservableCollection<KlaRawDataPoint> LivePoints { get; } = [];
+    public ObservableCollection<InstantaneousKlaPoint> InstantaneousKlaSeries { get; } = [];
+    public ObservableCollection<LogLinearPoint> LogLinearSeries { get; } = [];
+    public ObservableCollection<string> RunLogs { get; } = [];
+
+    public bool IsSimulationMode { get; }
+    public string SimulationDescription { get; }
+
+    // Computed / Display helpers
+    public bool HasActiveTest => CurrentTest is not null;
+    public bool IsRunning => _runner.IsRunning;
+    public bool IsIdle => !IsRunning && !IsReviewOpen;
+    public bool CanStartSequence => HasActiveTest && IsIdle;
+    public bool CanChangeNitrogenValve => !IsRunning;
+    public bool CanChangeVentValve => !IsRunning;
+
+    /// <summary>
+    /// The vent and the N₂ line cannot share a flowmeter output: venting through the nitrogen
+    /// valve would open the N₂ line while the runner believed it was dumping air.
+    /// </summary>
+    public bool HasVentValveConflict => UseVentStabilization && SelectedVentValve == SelectedN2Valve;
+    public string DisplayDODerivative => _runner.CurrentDODerivative.HasValue
+        ? $"{_runner.CurrentDODerivative.Value:+0.000;-0.000;0.000} %/s"
+        : "—";
+    public string DisplayStabilityProgress => CurrentTest is null
+        ? "—"
+        : $"{_runner.StabilityConfirmationCount}/{CurrentTest.Settings.StabilityRequiredSamples}";
+    public string DisplayVentFlowDeviation => _runner.VentFlowDeviation.HasValue
+        ? $"{_runner.VentFlowDeviation.Value:+0.00;-0.00;0.00} L/min"
+        : "—";
+    public string DisplayVentFlowProgress => CurrentTest is null
+        ? "—"
+        : $"{_runner.VentFlowStableCount}/{CurrentTest.Settings.VentFlowStableSamples}";
+    public string DisplayPhase => Phase switch
+    {
+        RunPhase.Idle => "Inativo",
+        RunPhase.Preflight => "Pré-voo",
+        RunPhase.ClosingAllGas => "Fechando todas as válvulas",
+        RunPhase.OpeningNitrogen => "Abrindo N₂",
+        RunPhase.Deoxygenating => "Desoxigenando (N₂)",
+        RunPhase.ClosingNitrogen => "Fechando N₂",
+        RunPhase.WaitingForDOStability => "Estabilizando após N₂",
+        RunPhase.OpeningVent => "Abrindo Alívio",
+        RunPhase.StabilizingVentFlow => "Estabilizando Vazão (Alívio)",
+        RunPhase.OpeningAir => "Abrindo Ar",
+        RunPhase.Reoxygenating => "Reoxigenando (Ar)",
+        RunPhase.StoppingRun => "Fechando válvulas da corrida",
+        RunPhase.Reviewing => "Em Revisão",
+        RunPhase.Accepted => "Corrida Aceita",
+        RunPhase.Rejected => "Corrida Rejeitada",
+        RunPhase.Completed => "Teste Concluído",
+        RunPhase.Faulted => "Falha / Interrompido",
+        _ => Phase.ToString(),
+    };
+
+    public string FormattedTotalTime => TimeSpan.FromSeconds(TotalElapsedSeconds).ToString(@"hh\:mm\:ss");
+    public string FormattedPhaseTime => TimeSpan.FromSeconds(PhaseElapsedSeconds).ToString(@"mm\:ss");
+
+    // ── Commands ───────────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    public void OpenCreateDialog()
+    {
+        NewTestName = $"Ensaio_kLa_{DateTime.Now:yyyy-MM-dd_HHmm}";
+        RefreshAvailableMaps();
+        IsCreateDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseCreateDialog()
+    {
+        IsCreateDialogOpen = false;
+    }
+
+    [RelayCommand]
+    public void OpenLoadTestDialog()
+    {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de carregar outro ensaio.", "OK", "");
+            return;
+        }
+        RefreshTestsList();
+        IsLoadTestDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseLoadTestDialog()
+    {
+        IsLoadTestDialogOpen = false;
+    }
+
+    [RelayCommand]
+    public void ConfirmLoadTest()
+    {
+        if (SelectedTestSummary is null)
+        {
+            return;
+        }
+        LoadTest(SelectedTestSummary.FolderName);
+        IsLoadTestDialogOpen = false;
+    }
+
+    [RelayCommand]
+    public void ImportTestFolder()
+    {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de importar outro ensaio.", "OK", "");
+            return;
+        }
+
+        var selectedFolder = _files.ChooseFolder("Selecione a pasta completa do ensaio de kLa", _store.RootDirectory);
+        if (string.IsNullOrWhiteSpace(selectedFolder))
+        {
+            return;
+        }
+
+        try
+        {
+            var importedFolder = _store.ImportTestFolder(selectedFolder);
+            RefreshTestsList();
+            LoadTest(importedFolder);
+            IsLoadTestDialogOpen = false;
+            StatusMessage = $"Ensaio completo importado para Testes-kLa/{importedFolder}. Selecione uma linha com curva para revisar.";
+        }
+        catch (Exception ex)
+        {
+            _dialogs.Confirm("Falha ao importar ensaio", ex.Message, "OK", "");
+        }
+    }
+
+    [RelayCommand]
+    public void CreateNewTest()
+    {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de criar outro ensaio.", "OK", "");
+            return;
+        }
+        if (!_store.ValidateTestName(NewTestName, out var error))
+        {
+            _dialogs.Confirm("Nome Inválido", error ?? "Nome de teste inválido.", "OK", "");
+            return;
+        }
+
+        if (_store.TestExists(NewTestName))
+        {
+            _dialogs.Confirm("Nome Duplicado", $"Já existe um teste com o nome '{NewTestName}'. Escolha outro nome.", "OK", "");
+            return;
+        }
+
+        if (!TryBuildSettings(out var settings, out var settingsError))
+        {
+            _dialogs.Confirm("Parâmetros inválidos", settingsError, "OK", "");
+            return;
+        }
+
+        KlaMapReference? mapRef = null;
+        IReadOnlyList<KlaTestCondition>? initialConditions = null;
+
+        if (SelectedMapForImport is not null)
+        {
+            (mapRef, initialConditions) = KlaMapImportHelper.ImportConditionsFromMap(SelectedMapForImport, 1);
+        }
+
+        var doc = _store.CreateTest(NewTestName, settings, SelectedN2Valve, mapRef, initialConditions, SelectedVentValve);
+        _settings.Update(s => s with
+        {
+            KlaTest = settings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
+        IsCreateDialogOpen = false;
+
+        LoadTest(doc.FolderName);
+        RefreshTestsList();
+    }
+
+    [RelayCommand]
+    public void LoadSelectedTest()
+    {
+        if (SelectedTestSummary is null)
+        {
+            return;
+        }
+        LoadTest(SelectedTestSummary.FolderName);
+    }
+
+    public void LoadTest(string folderName)
+    {
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Ensaio em execução", "Pare ou conclua a corrida antes de carregar outro ensaio.", "OK", "");
+            return;
+        }
+        var doc = _store.LoadTest(folderName);
+        if (doc is null)
+        {
+            _dialogs.Confirm("Erro", $"Não foi possível carregar o teste '{folderName}'.", "OK", "");
+            return;
+        }
+
+        CurrentTest = doc;
+        SelectedMatrixRow = null;
+        _currentlyEditingRun = null;
+        _currentlyEditingRow = null;
+        CurrentAnalysis = null;
+        IsReviewOpen = false;
+        LivePoints.Clear();
+        InstantaneousKlaSeries.Clear();
+        LogLinearSeries.Clear();
+        _isLoadingSettings = true;
+        try
+        {
+            SettingDOMin = doc.Settings.DOMinPercent;
+            SettingDOMax = doc.Settings.DOMaxPercent;
+            SettingDegassingAgitation = doc.Settings.DegassingAgitationRpm;
+            SettingSmoothingWindow = doc.Settings.SmoothingWindowSize;
+            SettingMaxDegassingMinutes = doc.Settings.MaxDegassingTimeMinutes;
+            SettingMaxReoxygenationMinutes = doc.Settings.MaxReoxygenationTimeMinutes;
+            SettingPostNitrogenMinimumDelaySeconds = doc.Settings.PostNitrogenMinimumDelaySeconds;
+            SettingStabilityDerivativeSpanSeconds = doc.Settings.StabilityDerivativeSpanSeconds;
+            SettingStabilityDerivativeThreshold = doc.Settings.StabilityDerivativeThresholdPercentPerSecond;
+            SettingStabilityRequiredSamples = doc.Settings.StabilityRequiredSamples;
+            SettingMaxPostNitrogenStabilizationSeconds = doc.Settings.MaxPostNitrogenStabilizationSeconds;
+            UseVentStabilization = doc.Settings.VentStabilizationEnabled;
+            SettingVentAgitationRpm = doc.Settings.VentAgitationRpm;
+            SettingVentFlowTolerance = doc.Settings.VentFlowToleranceLpm;
+            SettingVentFlowStableSamples = doc.Settings.VentFlowStableSamples;
+            SettingMaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
+            SelectedVentValve = doc.SelectedVentValve;
+            SettingDefaultCeq = doc.Settings.DefaultCeqPercent;
+            AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
+            SettingAutoLinearStartPercent = doc.Settings.AutoLinearStartPercent;
+            SettingAutoLinearEndPercent = doc.Settings.AutoLinearEndPercent;
+            SelectedN2Valve = doc.SelectedNitrogenValve;
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
+
+        Conditions.Clear();
+        foreach (var c in doc.Conditions)
+        {
+            Conditions.Add(new KlaConditionRowViewModel(c));
+        }
+
+        RefreshConditionsList();
+
+        _runner.PrepareTest(doc);
+        UpdateUiState();
+
+        // If doc has runs, load the first completed run into charts for immediate viewing
+        var firstRun = doc.Runs.FirstOrDefault(r => r.KlaPerHour.HasValue) ?? doc.Runs.FirstOrDefault();
+        if (firstRun is not null)
+        {
+            var matchingRow = MatrixRows.FirstOrDefault(r => r.ConditionId == firstRun.ConditionId && r.ReplicateIndex == firstRun.ReplicateNumber)
+                           ?? MatrixRows.FirstOrDefault(r => r.ConditionId == firstRun.ConditionId);
+            if (matchingRow is not null)
+            {
+                LoadMatrixRow(matchingRow);
+            }
+        }
+    }
+
+    [RelayCommand]
+    public void LoadMatrixRow(KlaMatrixRowViewModel? row)
+    {
+        if (row is null || CurrentTest is null)
+        {
+            return;
+        }
+
+        if (!row.HasRunData)
+        {
+            StatusMessage = $"Condição #{row.OrderIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min) ainda não possui dados gravados.";
+            return;
+        }
+
+        SelectedMatrixRow = row;
+        _currentlyEditingRow = row;
+
+        // 1. Locate matching run in doc
+        var run = FindBestRun(CurrentTest.Runs, row.ConditionId, row.ReplicateIndex)
+               ?? FindBestRun(CurrentTest.Runs, row.ConditionId, null);
+
+        if (run is null && !string.IsNullOrEmpty(row.RunFolderName))
+        {
+            run = new KlaTestRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                ConditionId = row.ConditionId,
+                ReplicateNumber = row.ReplicateIndex,
+                FolderName = row.RunFolderName,
+                AgitationRpm = row.AgitationRpm,
+                AirflowLpm = row.AirflowLpm,
+                Phase = RunPhase.Accepted,
+                StartedUtc = DateTimeOffset.UtcNow,
+            };
+        }
+
+        if (run is null)
+        {
+            // Scan folder on disk
+            var pattern = KlaTestFileContracts.FormatRunFolderName(row.AgitationRpm, row.AirflowLpm, row.ReplicateIndex);
+            var runsDir = System.IO.Path.Combine(_store.RootDirectory, CurrentTest.FolderName, KlaTestFileContracts.RunsDirectoryName);
+            if (System.IO.Directory.Exists(runsDir))
+            {
+                var match = System.IO.Directory.GetDirectories(runsDir, $"*{pattern}*").FirstOrDefault();
+                if (match != null)
+                {
+                    var folderName = System.IO.Path.GetFileName(match);
+                    run = new KlaTestRunSummary
+                    {
+                        RunId = Guid.NewGuid(),
+                        ConditionId = row.ConditionId,
+                        ReplicateNumber = row.ReplicateIndex,
+                        FolderName = folderName,
+                        AgitationRpm = row.AgitationRpm,
+                        AirflowLpm = row.AirflowLpm,
+                        Phase = RunPhase.Accepted,
+                        StartedUtc = DateTimeOffset.UtcNow,
+                    };
+                    CurrentTest.Runs.Add(run);
+                }
+            }
+        }
+
+        if (run is null)
+        {
+            StatusMessage = $"Não há dados gravados para a réplica #{row.ReplicateIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min).";
+            return;
+        }
+
+        _currentlyEditingRun = run;
+
+        // 2. Load Raw Data Points from CSV
+        var rawPoints = _store.LoadRunRawData(CurrentTest.FolderName, run.FolderName);
+        if (rawPoints.Count == 0)
+        {
+            StatusMessage = $"O arquivo de dados brutos da corrida '{run.FolderName}' está vazio ou não foi encontrado.";
+            return;
+        }
+
+        LivePoints.Clear();
+        foreach (var p in rawPoints)
+        {
+            LivePoints.Add(p);
+        }
+
+        // 3. Load or initialize analysis
+        var analysis = _store.LoadRunAnalysis(CurrentTest.FolderName, run.FolderName);
+        if (analysis is not null)
+        {
+            ReviewTStart = analysis.TStartSeconds;
+            ReviewTEnd = analysis.TEndSeconds;
+            ReviewCeqTStart = analysis.CeqTStartSeconds > 0 ? analysis.CeqTStartSeconds : analysis.TStartSeconds;
+            ReviewCeqTEnd = analysis.CeqTEndSeconds > 0 ? analysis.CeqTEndSeconds : analysis.TEndSeconds;
+            ReviewCeq = analysis.CeqPercent;
+            ReviewCeqIsManual = analysis.IsCeqManual;
+            CurrentAnalysis = analysis;
+            ReviewKla = analysis.KlaPerHour;
+            ReviewR2 = analysis.AnalysisR2;
+            ReviewRmse = analysis.AnalysisRmse;
+            ReviewCi95Low = analysis.ConfidenceInterval95Low;
+            ReviewCi95High = analysis.ConfidenceInterval95High;
+            ReviewSensLow = analysis.KlaSensitivityLow;
+            ReviewSensHigh = analysis.KlaSensitivityHigh;
+            ReviewQuality = analysis.Quality;
+            ReviewWarning = analysis.WarningJustification;
+            ReviewRejectionReason = analysis.RejectionReason;
+
+            var times = LivePoints.Select(p => p.RelativeSeconds).ToList();
+            var dos = LivePoints.Select(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw).ToList();
+
+            LogLinearSeries.Clear();
+            foreach (var lp in _analysisEngine.ComputeLogLinearPoints(times, dos, ReviewCeq, ReviewTStart, ReviewTEnd))
+            {
+                LogLinearSeries.Add(lp);
+            }
+
+            InstantaneousKlaSeries.Clear();
+            foreach (var ip in _analysisEngine.CalculateInstantaneousKlaSeries(times, dos, ReviewCeq, SettingSmoothingWindow))
+            {
+                InstantaneousKlaSeries.Add(ip);
+            }
+
+            ReviewMinTime = Math.Floor(times.First());
+            ReviewMaxTime = Math.Ceiling(times.Last());
+            IsReviewOpen = true;
+        }
+        else
+        {
+            OpenReviewDrawer();
+        }
+
+        StatusMessage = $"Ensaio carregado: #{row.OrderIndex} - {row.AgitationRpm:F0} rpm · {row.AirflowLpm:F2} L/min (Réplica {row.ReplicateIndex})";
+    }
+
+    [RelayCommand]
+    public void AddManualCondition()
+    {
+        if (CurrentTest is null)
+        {
+            return;
+        }
+
+        var cond = new KlaTestCondition
+        {
+            ConditionId = Guid.NewGuid(),
+            OrderIndex = CurrentTest.Conditions.Count,
+            AgitationRpm = NewConditionRpm,
+            AirflowLpm = NewConditionFlow,
+            RequestedReplicates = NewConditionReplicates,
+            Origin = ConditionOrigin.Manual,
+            Status = ConditionStatus.Pending,
+        };
+
+        CurrentTest.Conditions.Add(cond);
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        Conditions.Add(new KlaConditionRowViewModel(cond));
+        RefreshConditionsList();
+        UpdateUiState();
+    }
+
+    [RelayCommand]
+    public void RemoveMatrixRow(KlaMatrixRowViewModel? row)
+    {
+        if (row is null || CurrentTest is null)
+        {
+            return;
+        }
+
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "", isDanger: false);
+            return;
+        }
+
+        if (!_dialogs.Confirm("Excluir Condição", $"Deseja realmente remover a condição #{row.OrderIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min) da matriz?", "Excluir", "Cancelar", isDanger: true))
+        {
+            return;
+        }
+
+        CurrentTest.Conditions.Remove(row.Condition);
+        for (int i = 0; i < CurrentTest.Conditions.Count; i++)
+        {
+            CurrentTest.Conditions[i].OrderIndex = i;
+        }
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+
+        Conditions.Clear();
+        foreach (var c in CurrentTest.Conditions)
+        {
+            Conditions.Add(new KlaConditionRowViewModel(c));
+        }
+
+        RefreshConditionsList();
+        UpdateUiState();
+        StatusMessage = $"Condição #{row.OrderIndex} removida da matriz.";
+    }
+
+    [RelayCommand]
+    public void RemoveCondition(KlaConditionRowViewModel? row)
+    {
+        if (row is null || CurrentTest is null)
+        {
+            return;
+        }
+
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Aviso", "Não é possível remover condições enquanto um ensaio está em execução.", "OK", "", isDanger: false);
+            return;
+        }
+
+        if (!_dialogs.Confirm("Excluir Condição", $"Deseja realmente remover a condição #{row.OrderIndex} ({row.AgitationRpm:F0} rpm, {row.AirflowLpm:F2} L/min)?", "Excluir", "Cancelar", isDanger: true))
+        {
+            return;
+        }
+
+        CurrentTest.Conditions.Remove(row.Model);
+        for (int i = 0; i < CurrentTest.Conditions.Count; i++)
+        {
+            CurrentTest.Conditions[i].OrderIndex = i;
+        }
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+
+        Conditions.Clear();
+        foreach (var c in CurrentTest.Conditions)
+        {
+            Conditions.Add(new KlaConditionRowViewModel(c));
+        }
+
+        RefreshConditionsList();
+        UpdateUiState();
+        StatusMessage = $"Condição #{row.OrderIndex} removida da matriz.";
+    }
+
+    [RelayCommand]
+    public void OpenStartSequenceDialog()
+    {
+        if (CurrentTest is null || Conditions.Count == 0)
+        {
+            StatusMessage = "Crie ou importe um ensaio com condições experimentais antes de iniciar a sequência.";
+            return;
+        }
+
+        if (IsRunning)
+        {
+            _dialogs.Confirm("Aviso", "Já existe um ensaio em andamento.", "OK", "", isDanger: false);
+            return;
+        }
+
+        HasSelectedRowForSequence = SelectedMatrixRow is not null;
+        SequenceSelectedRowDescription = SelectedMatrixRow is not null
+            ? $"Condição #{SelectedMatrixRow.OrderIndex} ({SelectedMatrixRow.AgitationRpm:F0} rpm, {SelectedMatrixRow.AirflowLpm:F2} L/min)"
+            : "Nenhuma linha selecionada na matriz";
+
+        var pendingCount = Conditions.Count(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+        if (pendingCount > 0)
+        {
+            IsSequenceModePending = true;
+            IsSequenceModeFromSelected = false;
+            IsSequenceModeAll = false;
+            UpdateSequencePreview(0);
+        }
+        else if (HasSelectedRowForSequence)
+        {
+            IsSequenceModePending = false;
+            IsSequenceModeFromSelected = true;
+            IsSequenceModeAll = false;
+            UpdateSequencePreview(1);
+        }
+        else
+        {
+            IsSequenceModePending = false;
+            IsSequenceModeFromSelected = false;
+            IsSequenceModeAll = true;
+            UpdateSequencePreview(2);
+        }
+
+        IsStartSequenceDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseStartSequenceDialog()
+    {
+        IsStartSequenceDialogOpen = false;
+    }
+
+    public void UpdateSequencePreview(int mode)
+    {
+        SequencePreviewQueue.Clear();
+
+        IEnumerable<KlaConditionRowViewModel> targetList;
+        if (mode == 0)
+        {
+            // Pending only
+            targetList = Conditions.Where(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates);
+        }
+        else if (mode == 1)
+        {
+            // From selected
+            var startIdx = SelectedMatrixRow is not null ? SelectedMatrixRow.OrderIndex - 1 : 0;
+            targetList = Conditions.Where(c => c.Model.OrderIndex >= startIdx);
+        }
+        else
+        {
+            // All
+            targetList = Conditions;
+        }
+
+        foreach (var c in targetList)
+        {
+            SequencePreviewQueue.Add(c);
+        }
+
+        SequenceQueueSummaryText = SequencePreviewQueue.Count == 1
+            ? "1 condição na fila de execução."
+            : $"{SequencePreviewQueue.Count} condições na fila de execução.";
+    }
+
+    [RelayCommand]
+    public async Task ConfirmStartSequenceAsync()
+    {
+        if (CurrentTest is null || SequencePreviewQueue.Count == 0)
+        {
+            StatusMessage = "Nenhuma condição selecionada para execução.";
+            return;
+        }
+
+        _activeSequenceQueue = SequencePreviewQueue.Select(c => c.Model).ToList();
+        IsStartSequenceDialogOpen = false;
+
+        var firstCondition = _activeSequenceQueue.FirstOrDefault();
+        if (firstCondition is not null)
+        {
+            LivePoints.Clear();
+            InstantaneousKlaSeries.Clear();
+            LogLinearSeries.Clear();
+
+            var nextRep = firstCondition.CompletedReplicates + 1;
+            StatusMessage = $"Iniciando sequência: condição #{firstCondition.OrderIndex + 1} ({firstCondition.AgitationRpm:F0} rpm, {firstCondition.AirflowLpm:F2} L/min - réplica {nextRep}/{firstCondition.RequestedReplicates})...";
+            await _runner.StartRunAsync(firstCondition, nextRep);
+        }
+    }
+
+    [RelayCommand]
+    public async Task StartSequenceAsync()
+    {
+        if (CurrentTest is null || IsRunning)
+        {
+            return;
+        }
+
+        UpdateSequencePreview(IsSequenceModePending ? 0 : (IsSequenceModeFromSelected ? 1 : 2));
+        await ConfirmStartSequenceAsync();
+    }
+
+    [RelayCommand]
+    public async Task StartConditionRunAsync(KlaConditionRowViewModel? row)
+    {
+        if (row is null || CurrentTest is null)
+        {
+            return;
+        }
+
+        var cond = row.Model;
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        var nextRep = cond.CompletedReplicates + 1;
+
+        LivePoints.Clear();
+        InstantaneousKlaSeries.Clear();
+        LogLinearSeries.Clear();
+
+        await _runner.StartRunAsync(cond, nextRep);
+    }
+
+    [RelayCommand]
+    public async Task StopRunAsync()
+    {
+        await _runner.StopRunAndReviewAsync("Parada manual pelo operador");
+    }
+
+    [RelayCommand]
+    public void ApplyLiveSettings()
+    {
+        if (CurrentTest is null)
+        {
+            return;
+        }
+
+        if (!TryBuildSettings(out var newSettings, out var error))
+        {
+            StatusMessage = error;
+            return;
+        }
+
+        CurrentTest.Settings = newSettings;
+        CurrentTest.SelectedNitrogenValve = SelectedN2Valve;
+        CurrentTest.SelectedVentValve = SelectedVentValve;
+        _runner.UpdateLiveSettings(newSettings);
+        _store.SaveTestManifest(CurrentTest);
+        _settings.Update(s => s with
+        {
+            KlaTest = newSettings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
+        OnPropertyChanged(nameof(DisplayStabilityProgress));
+    }
+
+    partial void OnSettingDOMinChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingDOMaxChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingDegassingAgitationChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingSmoothingWindowChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxDegassingMinutesChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxReoxygenationMinutesChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingPostNitrogenMinimumDelaySecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingStabilityDerivativeSpanSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingStabilityDerivativeThresholdChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingStabilityRequiredSamplesChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxPostNitrogenStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnUseVentStabilizationChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HasVentValveConflict));
+        AutoApplyLiveSettings();
+    }
+    partial void OnSettingVentAgitationRpmChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingVentFlowToleranceChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingVentFlowStableSamplesChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxVentStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingDefaultCeqChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingAutoLinearStartPercentChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingAutoLinearEndPercentChanged(double value) => AutoApplyLiveSettings();
+
+    private void AutoApplyLiveSettings()
+    {
+        if (_isLoadingSettings)
+        {
+            return;
+        }
+
+        if (!TryBuildSettings(out var newSettings, out _))
+        {
+            return;
+        }
+
+        _settings.Update(s => s with
+        {
+            KlaTest = newSettings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
+
+        if (CurrentTest is not null)
+        {
+            ApplyLiveSettings();
+        }
+    }
+
+    partial void OnAutoAcceptRunsChanged(bool value)
+    {
+        if (CurrentTest is not null && !_isLoadingSettings)
+        {
+            CurrentTest.Settings = CurrentTest.Settings with { AutoAcceptRuns = value };
+            _runner.UpdateLiveSettings(CurrentTest.Settings);
+            _store.SaveTestManifest(CurrentTest);
+        }
+    }
+
+    partial void OnSelectedVentValveChanged(NitrogenValve value)
+    {
+        OnPropertyChanged(nameof(HasVentValveConflict));
+        if (!_isLoadingSettings)
+        {
+            _settings.Update(s => s with { KlaVentValve = value });
+            if (CurrentTest is not null && !IsRunning)
+            {
+                CurrentTest.SelectedVentValve = value;
+                _store.SaveTestManifest(CurrentTest);
+            }
+        }
+    }
+
+    partial void OnSelectedN2ValveChanged(NitrogenValve value)
+    {
+        OnPropertyChanged(nameof(HasVentValveConflict));
+        if (!_isLoadingSettings)
+        {
+            _settings.Update(s => s with { KlaNitrogenValve = value });
+            if (CurrentTest is not null && !IsRunning)
+            {
+                CurrentTest.SelectedNitrogenValve = value;
+                _store.SaveTestManifest(CurrentTest);
+            }
+        }
+    }
+
+    private bool TryBuildSettings(out KlaTestSettings settings, out string error)
+    {
+        settings = CurrentTest?.Settings ?? new KlaTestSettings();
+        error = "";
+        if (!double.IsFinite(SettingDOMin) || !double.IsFinite(SettingDOMax) ||
+            SettingDOMin < 0 || SettingDOMax > 110 || SettingDOMin >= SettingDOMax)
+        {
+            error = "DO de desligamento do N₂ deve ser menor que DO final, dentro de 0–110%.";
+            return false;
+        }
+        if (!double.IsFinite(SettingDegassingAgitation) || SettingDegassingAgitation <= 0 ||
+            SettingSmoothingWindow is < 1 or > 101 || SettingSmoothingWindow % 2 == 0 ||
+            !double.IsFinite(SettingMaxDegassingMinutes) || SettingMaxDegassingMinutes <= 0 ||
+            !double.IsFinite(SettingMaxReoxygenationMinutes) || SettingMaxReoxygenationMinutes <= 0)
+        {
+            error = "Rotação, tempos máximos e janela ímpar de suavização (1–101) devem ser válidos.";
+            return false;
+        }
+        if (!double.IsFinite(SettingPostNitrogenMinimumDelaySeconds) || SettingPostNitrogenMinimumDelaySeconds < 0 ||
+            !double.IsFinite(SettingStabilityDerivativeSpanSeconds) || SettingStabilityDerivativeSpanSeconds <= 0 ||
+            !double.IsFinite(SettingStabilityDerivativeThreshold) || SettingStabilityDerivativeThreshold <= 0 ||
+            SettingStabilityRequiredSamples is < 1 or > 100 ||
+            !double.IsFinite(SettingMaxPostNitrogenStabilizationSeconds) ||
+            SettingMaxPostNitrogenStabilizationSeconds <= SettingPostNitrogenMinimumDelaySeconds)
+        {
+            error = "Revise atraso, janela, limiar, confirmações e tempo máximo da estabilização pós-N₂.";
+            return false;
+        }
+        if (!double.IsFinite(SettingVentFlowTolerance) || SettingVentFlowTolerance <= 0 || SettingVentFlowTolerance > 10 ||
+            SettingVentFlowStableSamples is < 1 or > 100 ||
+            !double.IsFinite(SettingMaxVentStabilizationSeconds) || SettingMaxVentStabilizationSeconds <= 0)
+        {
+            error = "Revise tolerância de vazão, confirmações e tempo máximo da estabilização no alívio.";
+            return false;
+        }
+        if (!double.IsFinite(SettingVentAgitationRpm) || SettingVentAgitationRpm is < 50 or > 1000)
+        {
+            error = "A rotação durante o alívio deve ficar entre 50 e 1000 rpm.";
+            return false;
+        }
+        if (UseVentStabilization && SelectedVentValve == SelectedN2Valve)
+        {
+            error = "A válvula de alívio deve ser diferente da válvula do N₂.";
+            return false;
+        }
+        if (!double.IsFinite(SettingDefaultCeq) || SettingDefaultCeq <= SettingDOMax || SettingDefaultCeq > 200 ||
+            !double.IsFinite(SettingAutoLinearStartPercent) || !double.IsFinite(SettingAutoLinearEndPercent) ||
+            SettingAutoLinearStartPercent < 0 || SettingAutoLinearEndPercent > 100 ||
+            SettingAutoLinearStartPercent >= SettingAutoLinearEndPercent)
+        {
+            error = "Ceq deve superar o DO final e a faixa automática deve ser crescente dentro de 0–100%.";
+            return false;
+        }
+
+        settings = settings with
+        {
+            DOMinPercent = SettingDOMin,
+            DOMaxPercent = SettingDOMax,
+            DegassingAgitationRpm = SettingDegassingAgitation,
+            SmoothingWindowSize = SettingSmoothingWindow,
+            MaxDegassingTimeMinutes = SettingMaxDegassingMinutes,
+            MaxReoxygenationTimeMinutes = SettingMaxReoxygenationMinutes,
+            PostNitrogenMinimumDelaySeconds = SettingPostNitrogenMinimumDelaySeconds,
+            StabilityDerivativeSpanSeconds = SettingStabilityDerivativeSpanSeconds,
+            StabilityDerivativeThresholdPercentPerSecond = SettingStabilityDerivativeThreshold,
+            StabilityRequiredSamples = SettingStabilityRequiredSamples,
+            MaxPostNitrogenStabilizationSeconds = SettingMaxPostNitrogenStabilizationSeconds,
+            VentStabilizationEnabled = UseVentStabilization,
+            VentAgitationRpm = SettingVentAgitationRpm,
+            VentFlowToleranceLpm = SettingVentFlowTolerance,
+            VentFlowStableSamples = SettingVentFlowStableSamples,
+            MaxVentStabilizationSeconds = SettingMaxVentStabilizationSeconds,
+            DefaultCeqPercent = SettingDefaultCeq,
+            AutoAcceptRuns = AutoAcceptRuns,
+            AutoLinearStartPercent = SettingAutoLinearStartPercent,
+            AutoLinearEndPercent = SettingAutoLinearEndPercent,
+        };
+        return true;
+    }
+
+    [RelayCommand]
+    public void OpenAdvancedSettingsDialog()
+    {
+        IsAdvancedSettingsDialogOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseAdvancedSettingsDialog()
+    {
+        IsAdvancedSettingsDialogOpen = false;
+    }
+
+    [RelayCommand]
+    public void SaveAdvancedSettings()
+    {
+        if (!TryBuildSettings(out var settings, out var error))
+        {
+            StatusMessage = error;
+            return;
+        }
+        _settings.Update(s => s with
+        {
+            KlaTest = settings,
+            KlaNitrogenValve = SelectedN2Valve,
+            KlaVentValve = SelectedVentValve
+        });
+        ApplyLiveSettings();
+        IsAdvancedSettingsDialogOpen = false;
+    }
+
+    [RelayCommand]
+    public void RecomputeReviewAnalysis()
+    {
+        if (LivePoints.Count < 5)
+        {
+            return;
+        }
+
+        var recovery = LivePoints.Where(p => p.Phase == RunPhase.Reoxygenating).ToList();
+        if (recovery.Count < 5)
+        {
+            ReviewRejectionReason = "A corrida não contém ao menos 5 pontos de reoxigenação.";
+            return;
+        }
+
+        _isRecomputing = true;
+        try
+        {
+            var times = recovery.Select(p => p.RelativeSeconds).ToList();
+            var dos = recovery.Select(p => p.DORaw).ToList();
+
+            var ceqPoints = recovery.Where(p => p.RelativeSeconds >= ReviewCeqTStart && p.RelativeSeconds <= ReviewCeqTEnd).ToList();
+
+            // 1. Ceq Fit / Override
+            var ceqResult = _analysisEngine.EstimateCeq(
+                ceqPoints.Select(p => p.RelativeSeconds).ToList(),
+                ceqPoints.Select(p => p.DORaw).ToList(),
+                ReviewCeqIsManual ? ReviewCeq : null);
+
+            if (!ReviewCeqIsManual && ceqResult.Converged)
+            {
+                ReviewCeq = Math.Round(ceqResult.CeqPercent, 2);
+            }
+
+            // 2. Perform Log-Linear OLS
+            var analysis = _analysisEngine.PerformLogLinearAnalysis(
+                times,
+                dos,
+                ReviewCeq,
+                ReviewCeqIsManual,
+                ReviewTStart,
+                ReviewTEnd,
+                ceqResult);
+
+            CurrentAnalysis = analysis;
+            analysis.CeqTStartSeconds = ReviewCeqTStart;
+            analysis.CeqTEndSeconds = ReviewCeqTEnd;
+            ReviewKla = analysis.KlaPerHour;
+            ReviewR2 = analysis.AnalysisR2;
+            ReviewRmse = analysis.AnalysisRmse;
+            ReviewCi95Low = analysis.ConfidenceInterval95Low;
+            ReviewCi95High = analysis.ConfidenceInterval95High;
+            ReviewSensLow = analysis.KlaSensitivityLow;
+            ReviewSensHigh = analysis.KlaSensitivityHigh;
+            ReviewQuality = analysis.Quality;
+            ReviewWarning = analysis.WarningJustification;
+            ReviewRejectionReason = analysis.RejectionReason;
+
+            // 3. Update Chart Series
+            var logPoints = _analysisEngine.ComputeLogLinearPoints(
+                times,
+                dos,
+                ReviewCeq,
+                ReviewTStart,
+                ReviewTEnd);
+
+            LogLinearSeries.Clear();
+            foreach (var lp in logPoints)
+            {
+                LogLinearSeries.Add(lp);
+            }
+
+            var instPoints = _analysisEngine.CalculateInstantaneousKlaSeries(
+                times,
+                dos,
+                ReviewCeq,
+                SettingSmoothingWindow);
+
+            InstantaneousKlaSeries.Clear();
+            foreach (var ip in instPoints)
+            {
+                InstantaneousKlaSeries.Add(ip);
+            }
+        }
+        finally
+        {
+            _isRecomputing = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task AcceptCurrentRunAsync()
+    {
+        if (CurrentAnalysis is null)
+        {
+            RecomputeReviewAnalysis();
+        }
+
+        if (CurrentAnalysis is null)
+        {
+            return;
+        }
+
+        if (CurrentAnalysis.Quality == DecisionQuality.Inconclusive)
+        {
+            _dialogs.Confirm("Análise inconclusiva", CurrentAnalysis.RejectionReason ?? "Ajuste a análise ou rejeite a corrida.", "OK", "");
+            return;
+        }
+
+        if (_runner.IsInReview || (_runner.CurrentCondition is not null && _currentlyEditingRun is null))
+        {
+            await _runner.AcceptRunAsync(CurrentAnalysis);
+            IsReviewOpen = false;
+            RefreshConditionsList();
+
+            // Auto-advance to the next pending condition/replicate in sequence
+            _activeSequenceQueue.RemoveAll(c => c.ConditionId == _runner.CurrentCondition?.ConditionId && c.AcceptedReplicates >= c.RequestedReplicates);
+            var nextCondition = _activeSequenceQueue.FirstOrDefault()
+                ?? (AutoAcceptRuns ? Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates)?.Model : null);
+
+            if (nextCondition is not null && CurrentTest is not null)
+            {
+                var cond = nextCondition;
+                var nextRep = cond.CompletedReplicates + 1;
+
+                LivePoints.Clear();
+                InstantaneousKlaSeries.Clear();
+                LogLinearSeries.Clear();
+
+                StatusMessage = $"Iniciando automaticamente condição #{cond.OrderIndex + 1} ({cond.AgitationRpm:F0} rpm, {cond.AirflowLpm:F2} L/min - réplica {nextRep}/{cond.RequestedReplicates})...";
+                await _runner.StartRunAsync(cond, nextRep);
+            }
+            else
+            {
+                _activeSequenceQueue.Clear();
+                StatusMessage = "Todas as condições da sequência foram concluídas com sucesso!";
+                _dialogs.Confirm("Sequência Concluída", "Todas as condições da sequência experimental foram concluídas com sucesso. O ensaio pode ser finalizado.", "OK", "", isDanger: false);
+            }
+
+            UpdateUiState();
+        }
+        else if (_currentlyEditingRun is not null && CurrentTest is not null)
+        {
+            // Saving edited analysis on an existing / imported run
+            CurrentAnalysis.RevisionNumber++;
+            CurrentAnalysis.AnalyzedUtc = DateTimeOffset.UtcNow;
+            _store.SaveRunAnalysis(CurrentTest.FolderName, _currentlyEditingRun.FolderName, CurrentAnalysis);
+
+            var existingRunIndex = CurrentTest.Runs.FindIndex(r => r.RunId == _currentlyEditingRun.RunId || r.FolderName == _currentlyEditingRun.FolderName);
+            var updatedRunSummary = _currentlyEditingRun with
+            {
+                Phase = RunPhase.Accepted,
+                Decision = CurrentAnalysis.Quality,
+                KlaPerHour = CurrentAnalysis.KlaPerHour,
+                AnalysisR2 = CurrentAnalysis.AnalysisR2,
+                CompletedUtc = DateTimeOffset.UtcNow,
+            };
+            if (existingRunIndex >= 0)
+            {
+                CurrentTest.Runs[existingRunIndex] = updatedRunSummary;
+            }
+            else
+            {
+                CurrentTest.Runs.Add(updatedRunSummary);
+            }
+            _currentlyEditingRun = updatedRunSummary;
+            _store.SaveTestManifest(CurrentTest);
+
+            if (_currentlyEditingRow is not null)
+            {
+                _currentlyEditingRow.KlaPerHour = CurrentAnalysis.KlaPerHour;
+                _currentlyEditingRow.AnalysisR2 = CurrentAnalysis.AnalysisR2;
+                _currentlyEditingRow.Status = ConditionStatus.Completed;
+                _currentlyEditingRow.LoadedRunPhase = RunPhase.Accepted;
+                _currentlyEditingRow.NotifyChanged();
+            }
+
+            RefreshConditionsList();
+            StatusMessage = $"Revisão do ensaio '{_currentlyEditingRun.FolderName}' salva com sucesso (kLa = {CurrentAnalysis.KlaPerHour:F1} h⁻¹, R² = {CurrentAnalysis.AnalysisR2:F4}).";
+        }
+    }
+
+    [RelayCommand]
+    public async Task RejectCurrentRunAsync()
+    {
+        var reason = ReviewRejectionReason ?? "Rejeitado pelo operador na revisão.";
+        await _runner.RejectRunAsync(reason);
+        IsReviewOpen = false;
+        RefreshConditionsList();
+    }
+
+    [RelayCommand]
+    public async Task RepeatCurrentRunAsync()
+    {
+        IsReviewOpen = false;
+        await _runner.RepeatRunAsync();
+    }
+
+    [RelayCommand]
+    public async Task CompleteTestAsync()
+    {
+        await _runner.CompleteTestAsync();
+        if (CurrentTest is not null)
+        {
+            foreach (var cond in CurrentTest.Conditions)
+            {
+                if (cond.Status == ConditionStatus.InProgress)
+                {
+                    cond.Status = cond.AcceptedReplicates >= cond.RequestedReplicates
+                        ? ConditionStatus.Completed
+                        : (cond.AcceptedReplicates > 0 ? ConditionStatus.Completed : ConditionStatus.Pending);
+                }
+            }
+            _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        }
+        RefreshConditionsList();
+        RefreshTestsList();
+        UpdateUiState();
+    }
+
+    [RelayCommand]
+    public async Task AbortTestAsync()
+    {
+        await _runner.AbortTestAsync("Cancelado pelo operador");
+        if (CurrentTest is not null)
+        {
+            foreach (var cond in CurrentTest.Conditions)
+            {
+                if (cond.Status == ConditionStatus.InProgress)
+                {
+                    cond.Status = cond.AcceptedReplicates >= cond.RequestedReplicates
+                        ? ConditionStatus.Completed
+                        : ConditionStatus.Pending;
+                }
+            }
+            _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        }
+        RefreshConditionsList();
+        RefreshTestsList();
+        UpdateUiState();
+    }
+
+    // ── Event Handlers ─────────────────────────────────────────────────────────
+
+    private void OnRunnerStateChanged()
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(OnRunnerStateChanged);
+            return;
+        }
+        Phase = _runner.Phase;
+        StatusMessage = _runner.StatusMessage;
+        CurrentDO = _runner.CurrentDO;
+        CurrentFlow = _runner.CurrentFlowMeasured;
+        PhaseElapsedSeconds = _runner.PhaseElapsedSeconds;
+        TotalElapsedSeconds = _runner.TotalElapsedSeconds;
+        CurrentRun = _runner.CurrentRun;
+        CurrentCondition = _runner.CurrentCondition;
+        OnPropertyChanged(nameof(DisplayDODerivative));
+        OnPropertyChanged(nameof(DisplayStabilityProgress));
+        OnPropertyChanged(nameof(DisplayVentFlowDeviation));
+        OnPropertyChanged(nameof(DisplayVentFlowProgress));
+
+        if (_runner.IsInReview && !IsReviewOpen)
+        {
+            OpenReviewDrawer();
+        }
+
+        UpdateUiState();
+    }
+
+    private void OnDataPointAdded(KlaRawDataPoint point)
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => OnDataPointAdded(point));
+            return;
+        }
+        LivePoints.Add(point);
+        if (point.Phase == RunPhase.Reoxygenating)
+        {
+            var recovery = LivePoints.Where(p => p.Phase == RunPhase.Reoxygenating).ToList();
+            if (recovery.Count >= 5)
+            {
+                var times = recovery.Select(p => p.RelativeSeconds).ToList();
+                var values = recovery.Select(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw).ToList();
+                var ceq = CurrentTest?.Settings.DefaultCeqPercent ?? 100;
+                InstantaneousKlaSeries.Clear();
+                foreach (var item in _analysisEngine.CalculateInstantaneousKlaSeries(times, values, ceq, SettingSmoothingWindow))
+                {
+                    InstantaneousKlaSeries.Add(item);
+                }
+
+                LogLinearSeries.Clear();
+                foreach (var item in _analysisEngine.ComputeLogLinearPoints(times, values, ceq, times[0], times[^1]))
+                {
+                    LogLinearSeries.Add(item);
+                }
+            }
+        }
+    }
+
+    private void OnRunnerLogged(string message)
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => OnRunnerLogged(message));
+            return;
+        }
+        RunLogs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+    }
+
+    private async void OpenReviewDrawer()
+    {
+        if (LivePoints.Count > 0)
+        {
+            var times = LivePoints.Select(p => p.RelativeSeconds).ToList();
+            var reoxPoints = LivePoints.Where(p => p.Phase == RunPhase.Reoxygenating).ToList();
+            if (reoxPoints.Count >= 5)
+            {
+                var minT = reoxPoints.First().RelativeSeconds;
+                var maxT = reoxPoints.Last().RelativeSeconds;
+                var tSpan = Math.Max(1.0, maxT - minT);
+
+                ReviewMinTime = Math.Floor(times.First());
+                ReviewMaxTime = Math.Ceiling(times.Last());
+
+                var startFraction = Math.Clamp(SettingAutoLinearStartPercent / 100.0, 0.01, 0.95);
+                var endFraction = Math.Clamp(SettingAutoLinearEndPercent / 100.0, startFraction + 0.05, 0.99);
+
+                var minDO = reoxPoints.Min(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw);
+                var maxDO = reoxPoints.Max(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw);
+                var doSpan = maxDO - minDO;
+                if (doSpan > 5.0)
+                {
+                    var targetStartDO = minDO + (doSpan * startFraction);
+                    var targetEndDO = minDO + (doSpan * endFraction);
+                    var ptStart = reoxPoints.FirstOrDefault(p => (p.DOFiltered > 0 ? p.DOFiltered : p.DORaw) >= targetStartDO);
+                    var ptEnd = reoxPoints.FirstOrDefault(p => (p.DOFiltered > 0 ? p.DOFiltered : p.DORaw) >= targetEndDO);
+                    ReviewTStart = ptStart != null ? Math.Round(ptStart.RelativeSeconds, 1) : Math.Round(minT + (startFraction * tSpan), 1);
+                    ReviewTEnd = ptEnd != null ? Math.Round(ptEnd.RelativeSeconds, 1) : Math.Round(minT + (endFraction * tSpan), 1);
+                }
+                else
+                {
+                    ReviewTStart = Math.Round(minT + (startFraction * tSpan), 1);
+                    ReviewTEnd = Math.Round(minT + (endFraction * tSpan), 1);
+                }
+
+                ReviewCeqTStart = Math.Round(minT + (0.85 * tSpan), 1);
+                ReviewCeqTEnd = Math.Round(maxT, 1);
+            }
+            else
+            {
+                ReviewMinTime = Math.Floor(times.First());
+                ReviewMaxTime = Math.Ceiling(times.Last());
+                ReviewTStart = Math.Round(times.First(), 1);
+                ReviewTEnd = Math.Round(times.Last(), 1);
+                ReviewCeqTStart = ReviewTStart;
+                ReviewCeqTEnd = ReviewTEnd;
+            }
+
+            ReviewCeqIsManual = false;
+            IsReviewOpen = true;
+            RecomputeReviewAnalysis();
+
+            if (AutoAcceptRuns)
+            {
+                await Task.Delay(100);
+                if (IsReviewOpen)
+                {
+                    await AcceptCurrentRunAsync();
+                }
+            }
+        }
+        else
+        {
+            IsReviewOpen = true;
+        }
+    }
+
+    public void RefreshTestsList()
+    {
+        Tests.Clear();
+        foreach (var t in _store.ListTests())
+        {
+            Tests.Add(t);
+        }
+    }
+
+    public async void RefreshAvailableMaps()
+    {
+        try
+        {
+            var maps = await _mappingStore.LoadExperimentsAsync();
+            AvailableMaps.Clear();
+            foreach (var m in maps)
+            {
+                AvailableMaps.Add(m);
+            }
+        }
+        catch
+        {
+            // Best effort
+        }
+    }
+
+    public void RefreshConditionsList()
+    {
+        foreach (var c in Conditions)
+        {
+            c.NotifyChanged();
+        }
+
+        MatrixRows.Clear();
+        if (CurrentTest is null)
+        {
+            return;
+        }
+
+        var rowIndex = 1;
+        foreach (var cond in CurrentTest.Conditions)
+        {
+            var requestedReps = Math.Max(1, cond.RequestedReplicates);
+            for (var rep = 1; rep <= requestedReps; rep++)
+            {
+                var row = new KlaMatrixRowViewModel(cond, rep)
+                {
+                    OrderIndex = rowIndex++,
+                };
+
+                // Find matching run in CurrentTest.Runs
+                var run = FindBestRun(CurrentTest.Runs, cond.ConditionId, rep)
+                       ?? (requestedReps == 1 ? FindBestRun(CurrentTest.Runs, cond.ConditionId, null) : null);
+
+                if (run is not null)
+                {
+                    row.RunFolderName = run.FolderName;
+                    row.LoadedRunPhase = run.Phase;
+                    var analysis = _store.LoadRunAnalysis(CurrentTest.FolderName, run.FolderName);
+                    if (analysis is not null && analysis.Quality != DecisionQuality.Inconclusive)
+                    {
+                        row.KlaPerHour = analysis.KlaPerHour;
+                        row.AnalysisR2 = analysis.AnalysisR2;
+                        row.Status = ConditionStatus.Completed;
+                    }
+                    else if (run.KlaPerHour.HasValue)
+                    {
+                        row.KlaPerHour = run.KlaPerHour;
+                        row.AnalysisR2 = run.AnalysisR2;
+                        row.Status = ConditionStatus.Completed;
+                    }
+                    else if (run.Phase == RunPhase.Accepted)
+                    {
+                        row.Status = ConditionStatus.Completed;
+                    }
+                }
+                else if (cond.Status == ConditionStatus.Completed)
+                {
+                    row.Status = ConditionStatus.Completed;
+                }
+                else if (cond.Status == ConditionStatus.InProgress)
+                {
+                    row.Status = rep <= cond.CompletedReplicates ? ConditionStatus.Completed : ConditionStatus.InProgress;
+                }
+                else
+                {
+                    row.Status = ConditionStatus.Pending;
+                }
+
+                MatrixRows.Add(row);
+            }
+        }
+    }
+
+    private static KlaTestRunSummary? FindBestRun(
+        IEnumerable<KlaTestRunSummary> runs,
+        Guid conditionId,
+        int? replicateNumber)
+    {
+        return runs
+            .Where(r => r.ConditionId == conditionId && (!replicateNumber.HasValue || r.ReplicateNumber == replicateNumber.Value))
+            .OrderByDescending(r => r.Phase == RunPhase.Accepted && r.KlaPerHour.HasValue)
+            .ThenByDescending(r => r.CompletedUtc ?? r.StartedUtc)
+            .FirstOrDefault();
+    }
+
+    private void UpdateUiState()
+    {
+        OnPropertyChanged(nameof(HasActiveTest));
+        OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(IsIdle));
+        OnPropertyChanged(nameof(CanStartSequence));
+        OnPropertyChanged(nameof(CanChangeNitrogenValve));
+        OnPropertyChanged(nameof(CanChangeVentValve));
+        OnPropertyChanged(nameof(DisplayPhase));
+        OnPropertyChanged(nameof(FormattedTotalTime));
+        OnPropertyChanged(nameof(FormattedPhaseTime));
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+
+        _runner.StateChanged -= OnRunnerStateChanged;
+        _runner.DataPointAdded -= OnDataPointAdded;
+        _runner.Logged -= OnRunnerLogged;
+    }
+}

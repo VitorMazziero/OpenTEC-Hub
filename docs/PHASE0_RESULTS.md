@@ -1,8 +1,8 @@
-# Phase 0 — Hardware Validation Results
+﻿# Phase 0 — Hardware Validation Results
 
 > **Date:** 2026-08-19 · **Status:** USB and Wi-Fi both validated
 > **Hardware:** ESP32-S3 — USB on COM3 (`USB-Enhanced-SERIAL CH343`, wch.cn, VID_1A86/PID_55D3);
-> Wi-Fi on the `Modulo_TECNAL_1` SoftAP (client 192.168.4.2, gateway 192.168.4.1)
+> Wi-Fi on the `Modulo_OpenTEC_1` SoftAP (client 192.168.4.2, gateway 192.168.4.1)
 > **Configuration:** board alone, **no bioreactor module attached** — firmware-level test only
 >
 > **Docs:** [ROADMAP](ROADMAP.md) · [PROTOCOL](PROTOCOL.md) · [MIGRATION](MIGRATION.md) · [DECISIONS](DECISIONS.md)
@@ -28,7 +28,7 @@ sentinel, because no bioreactor was attached.
 
 ## Measured results
 
-Final run: `tecnal-harness usb --probe --for 60`
+Final run: `opentec-harness usb --probe --for 60`
 
 | Metric | Result |
 |---|---|
@@ -49,7 +49,7 @@ Expected with no bioreactor attached, and correctly represented: `SensorCommOK:f
 all probe channels at the not-received sentinel, and the ESP32 reporting internal UART
 failures to the absent module.
 
-### Wi-Fi (`tecnal-harness wifi-test`)
+### Wi-Fi (`opentec-harness wifi-test`)
 
 | Check | Result |
 |---|---|
@@ -82,7 +82,7 @@ On USB the command acknowledgement comes back on the **same serial stream** as
 telemetry, and the device interleaves human-readable log lines:
 
 ```text
-[ESP32_AVISO]: Falha de leitura UART do Módulo TECNAL após comando 'b'
+[ESP32_AVISO]: Falha de leitura UART do Módulo OpenTEC após comando 'b'
 [ESP32_AVISO]: Limite de falhas UART atingido; reinicializando UART e iniciando cooldown de 5s
 ```
 
@@ -135,7 +135,7 @@ Running the harness under the machine's real pt-BR locale immediately produced
 `t=0,05min` and `Found ESP32 in 1,9 s` — from interpolated `{value:F2}` holes that
 silently use the current culture.
 
-Those were display-only; the wire itself was safe because `TecnalCommand` formats
+Those were display-only; the wire itself was safe because `OpenTECCommand` formats
 invariantly by construction. But it is exactly the slip that breaks the firmware
 parse when it happens in a command builder, and it happened within an hour of writing
 the rule down.
@@ -240,7 +240,7 @@ confirmed to **fail** against the previous implementation before the fix was kep
 | Deliverable | Status |
 |---|---|
 | `ITransport`, `SerialTransport`, `HttpTransport` | Done |
-| `TecnalCommand` — invariant by construction | Done |
+| `OpenTECCommand` — invariant by construction | Done |
 | `TelemetryParser` — key-by-key port | Done |
 | `SpikeFilter` — direct port, same thresholds | Done |
 | `ConnectionManager` — async state machine | Done |
@@ -277,15 +277,15 @@ instrument.
 ## Reproducing
 
 ```bash
-dotnet run --project src/TecnalHub.Harness -- ports
+dotnet run --project src/OpenTECHub.Harness -- ports
 ```
 
 ```bash
-dotnet run --project src/TecnalHub.Harness -- usb --probe --for 60
+dotnet run --project src/OpenTECHub.Harness -- usb --probe --for 60
 ```
 
 ```bash
-dotnet test tests/TecnalHub.Tests
+dotnet test tests/OpenTECHub.Tests
 ```
 
 Each session writes `harness-trace-<timestamp>.log`: one record per line,

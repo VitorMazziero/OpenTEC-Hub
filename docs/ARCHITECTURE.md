@@ -1,6 +1,6 @@
-# Architecture
+﻿# Architecture
 
-> How TECNAL-Hub is put together and why.
+> How OpenTEC-Hub is put together and why.
 >
 > **Docs:** [README](README.md) · [Roadmap](ROADMAP.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [kLa mapping](KLA_MAPPING.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Conventions](CONVENTIONS.md)
 
@@ -20,7 +20,7 @@
 │                        kLa mapping · telemetry · persistence  │
 │  every one behind an interface, registered in App.xaml.cs    │
 ├─────────────────────────────────────────────────────────────┤
-│  TecnalHub.Protocol    SEPARATE ASSEMBLY                     │
+│  OpenTECHub.Protocol    SEPARATE ASSEMBLY                     │
 │  transports · command builder · telemetry parser · filters   │
 │  no WPF reference — headlessly testable                      │
 └─────────────────────────────────────────────────────────────┘
@@ -31,7 +31,7 @@
 The protocol layer is a **separate assembly**, not just a folder. That is load-bearing:
 it makes it structurally impossible for wire-format code to reach for a `Dispatcher`
 or a UI type, and it lets the whole ESP32 contract be tested without starting WPF.
-If something in `TecnalHub.Protocol` needs the UI thread, it is in the wrong project.
+If something in `OpenTECHub.Protocol` needs the UI thread, it is in the wrong project.
 
 ---
 
@@ -60,8 +60,8 @@ has no room for one.
 ## 3. Directory layout
 
 ```text
-ProjetoTECNAL/
-├─ TecnalHub.slnx
+ProjetoOpenTEC/
+├─ OpenTECHub.slnx
 ├─ Directory.Build.props        version + language standards, ALL projects
 ├─ global.json                  SDK pin (.NET 10)
 ├─ .editorconfig                formatting + naming, enforced at build
@@ -69,11 +69,11 @@ ProjetoTECNAL/
 ├─ docs/                        this documentation
 │
 ├─ src/
-│  ├─ TecnalHub.Protocol/       net10.0 — no WPF
+│  ├─ OpenTECHub.Protocol/       net10.0 — no WPF
 │  │   ITransport · SerialTransport · HttpTransport
-│  │   TecnalCommand · TelemetryParser · SpikeFilter · SensorReadings
+│  │   OpenTECCommand · TelemetryParser · SpikeFilter · SensorReadings
 │  │
-│  └─ TecnalHub/               net10.0-windows — the WPF app
+│  └─ OpenTECHub/               net10.0-windows — the WPF app
 │     ├─ App.xaml(.cs)          composition root
 │     ├─ MainWindow.xaml(.cs)   shell
 │     ├─ Models/                process variables, recipe nodes
@@ -94,7 +94,7 @@ ProjetoTECNAL/
 │     └─ Resources/              icons + neutral reactor art/anchors
 │
 └─ tests/
-   └─ TecnalHub.Tests/          golden wire strings, parser, filters, controllers
+   └─ OpenTECHub.Tests/          golden wire strings, parser, filters, controllers
 ```
 
 ---

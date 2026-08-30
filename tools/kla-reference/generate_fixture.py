@@ -1,4 +1,4 @@
-"""Generate an auditable SciPy oracle for TECNAL-Hub's D-008 implementation.
+﻿"""Generate an auditable SciPy oracle for OpenTEC-Hub's D-008 implementation.
 
 This script calls the paper analysis functions unchanged. It parallelizes only the
 independent candidate rows because the reference 150 x 150 scan is otherwise slow in
@@ -25,7 +25,7 @@ _spline = None
 
 
 def load_paper(path: str):
-    spec = importlib.util.spec_from_file_location("tecnal_kla_paper_reference", path)
+    spec = importlib.util.spec_from_file_location("opentec_kla_paper_reference", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load paper script: {path}")
     module = importlib.util.module_from_spec(spec)

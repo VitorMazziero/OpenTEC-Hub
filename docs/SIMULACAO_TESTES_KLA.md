@@ -1,8 +1,8 @@
-# Simulação de Testes de kLa com arquivo experimental
+﻿# Simulação de Testes de kLa com arquivo experimental
 
 ## Objetivo
 
-O TECNAL-Hub pode ser iniciado em um modo offline dedicado à página **Determinar kLa**. Nesse modo,
+O OpenTEC-Hub pode ser iniciado em um modo offline dedicado à página **Determinar kLa**. Nesse modo,
 nenhuma conexão USB ou Wi-Fi é tentada e nenhum comando alcança hardware. A interface e a máquina
 de estados, entretanto, usam o mesmo `CommandArbiter`, o mesmo `KlaTestRunner`, os mesmos ACKs e os
 mesmos contratos de persistência usados em campo.
@@ -47,7 +47,7 @@ tools\RunKlaFileSimulation.cmd "D:\dados\outro-teste.txt" 5
 Alternativamente, use diretamente:
 
 ```text
-TecnalHub.exe --kla-test-file "D:\dados\teste.txt" --kla-test-speed 10
+OpenTECHub.exe --kla-test-file "D:\dados\teste.txt" --kla-test-speed 10
 ```
 
 A velocidade aceita valores de `0.1×` a `100×`.

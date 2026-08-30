@@ -1,15 +1,15 @@
-# Plano de implementação: sincronização do Fluxômetro v05 via ESP32 Hub v7
+﻿# Plano de implementação: sincronização do Fluxômetro v05 via ESP32 Hub v7
 
 ## Objetivo
 
-Adaptar o `TecnalHub` para tratar o ESP32 Hub v7 como intermediário obrigatório do
-`flowmeter_TECNALHUB_V05`, usando `FlowCommandPending` como confirmação assíncrona e
+Adaptar o `OpenTECHub` para tratar o ESP32 Hub v7 como intermediário obrigatório do
+`flowmeter_OpenTECHUB_V05`, usando `FlowCommandPending` como confirmação assíncrona e
 `FlowmeterOnline` como estado do enlace interno. A interface deve impedir comandos concorrentes,
 distinguir a perda do Hub da perda do fluxômetro e nunca anunciar aplicação antes da confirmação.
 
 ## Premissas congeladas
 
-1. Os firmwares `TECNAL_ESP32_v7` e `flowmeter_TECNALHUB_V05` não serão modificados.
+1. Os firmwares `OpenTEC_ESP32_v7` e `flowmeter_OpenTECHUB_V05` não serão modificados.
 2. O app se comunica somente com o Hub, por USB serial ou HTTP em `192.168.4.1`.
 3. `cmd_id`, repetição, idempotência e ACK entre Hub e fluxômetro pertencem aos firmwares.
 4. O app não expõe `kp_flow`, `ki_flow` nem `reconnect_wifi`.

@@ -31,3 +31,9 @@ Thumbs.db
 desktop.ini
 harness-trace-*.log
 shot*.png
+
+# Throwaway probes dropped at the root while chasing a behaviour ("what does this
+# store write?", "what is this ScottPlot default?"). All real code lives under src/
+# or tests/, so a .cs file here is always scratch - and the answer belongs in a test,
+# where it keeps being checked. Root only: nothing inside the projects is hidden.
+/test_*.cs

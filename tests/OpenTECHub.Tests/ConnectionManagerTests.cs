@@ -461,6 +461,67 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
+    /// Parar has to bite while an attempt is in flight, not after it.
+    /// </summary>
+    /// <remarks>
+    /// The retry loop reads its request channel between attempts. With a real port that is
+    /// an open plus a handshake and then the backup delay, so an operator watched the app
+    /// go on reconnecting for seconds after clicking Parar — and the link-lost alarm stayed
+    /// up with it.
+    /// </remarks>
+    [Fact]
+    public async Task Disconnect_aborts_the_connect_attempt_in_flight()
+    {
+        var fake = new FakeTransport { ConnectSucceeds = false };
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: true), transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Reconnecting));
+
+        // From here every attempt hangs far longer than this test is willing to wait.
+        fake.ConnectDuration = TimeSpan.FromSeconds(30);
+        Assert.True(
+            await Task.WhenAny(fake.StalledConnectEntered, Task.Delay(3000)) == fake.StalledConnectEntered,
+            "the retry loop never entered a stalled attempt");
+
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        manager.Disconnect();
+
+        Assert.True(
+            await WaitForAsync(() => manager.State == ConnectionState.Disconnected, timeoutMs: 2000),
+            "Disconnect waited out the attempt in flight");
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2), $"took {elapsed.ElapsedMilliseconds} ms");
+    }
+
+    /// <summary>Connecting is the same kind of operator intervention as stopping.</summary>
+    [Fact]
+    public async Task Connect_aborts_the_connect_attempt_in_flight()
+    {
+        var fake = new FakeTransport { ConnectSucceeds = false };
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: true), transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Reconnecting));
+
+        fake.ConnectDuration = TimeSpan.FromSeconds(30);
+        Assert.True(
+            await Task.WhenAny(fake.StalledConnectEntered, Task.Delay(3000)) == fake.StalledConnectEntered,
+            "the retry loop never entered a stalled attempt");
+
+        fake.ConnectDuration = TimeSpan.Zero;
+        fake.ConnectSucceeds = true;
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+
+        Assert.True(
+            await WaitForAsync(() => manager.State == ConnectionState.Connected, timeoutMs: 2000),
+            "Connect waited out the attempt in flight");
+    }
+
+    /// <summary>
     /// Device log lines and command acks are traffic, not telemetry. They must not be
     /// counted as parse failures - but nor should they keep a stalled link alive.
     /// </summary>

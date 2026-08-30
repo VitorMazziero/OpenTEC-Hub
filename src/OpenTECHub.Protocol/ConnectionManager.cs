@@ -110,6 +110,18 @@ public sealed class ConnectionManager : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _worker;
 
+    /// <summary>
+    /// Live only while the retry loop is running, and cancelled the moment the operator
+    /// asks to connect or disconnect.
+    /// </summary>
+    /// <remarks>
+    /// The loop reads the request channel between attempts, which is not the same as
+    /// obeying it: one attempt is a port open plus a handshake, followed by the backup
+    /// delay, so a request posted mid-attempt waited several seconds to take effect. A
+    /// Parar that keeps reconnecting reads as an app that ignored the click.
+    /// </remarks>
+    private volatile CancellationTokenSource? _recoveryInterrupt;
+
     private ITransport? _transport;
     private OpenTECCommand _pending = OpenTECCommand.Create();
 
@@ -237,6 +249,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(config);
         _serialConfig = config;
         Post(new ConnectRequest(TransportMedium.Usb));
+        InterruptRecovery();
     }
 
     /// <summary>Connects over Wi-Fi, remembering the settings for auto-reconnect.</summary>
@@ -245,10 +258,35 @@ public sealed class ConnectionManager : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(config);
         _httpConfig = config;
         Post(new ConnectRequest(TransportMedium.WiFi));
+        InterruptRecovery();
     }
 
     /// <summary>Disconnects and cancels any retry loop.</summary>
-    public void Disconnect() => Post(new DisconnectRequest());
+    public void Disconnect()
+    {
+        Post(new DisconnectRequest());
+        InterruptRecovery();
+    }
+
+    /// <summary>
+    /// Aborts the attempt the retry loop has in flight, if there is one.
+    /// </summary>
+    /// <remarks>
+    /// Always called after the request has been posted: the channel write is synchronous,
+    /// so by the time the loop wakes from the cancellation the request it must obey is
+    /// already there to read.
+    /// </remarks>
+    private void InterruptRecovery()
+    {
+        try
+        {
+            _recoveryInterrupt?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The retry loop ended on its own between the read and the cancel.
+        }
+    }
 
     /// <summary>
     /// Merges <paramref name="command"/> into the outgoing buffer and wakes the worker.
@@ -511,79 +549,127 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// </summary>
     private async Task RunReconnectCycleAsync(CancellationToken token)
     {
-        while (!token.IsCancellationRequested && State == ConnectionState.Reconnecting)
+        // Reading the channel between attempts is not the same as obeying it: every await
+        // below has to give way too, or Parar waits out the attempt in flight plus the
+        // backup delay before anything happens. Connect and Disconnect cancel this source.
+        using var interrupt = CancellationTokenSource.CreateLinkedTokenSource(token);
+        _recoveryInterrupt = interrupt;
+
+        try
         {
-            // A user request outranks the retry loop.
-            while (_requests.Reader.TryRead(out var pending))
+            while (!token.IsCancellationRequested && State == ConnectionState.Reconnecting)
             {
-                switch (pending)
+                // A user request outranks the retry loop.
+                while (_requests.Reader.TryRead(out var pending))
                 {
-                    case DisconnectRequest:
-                        await HandleDisconnectAsync().ConfigureAwait(false);
-                        return;
-
-                    case ConnectRequest connect:
-                        await HandleConnectAsync(connect.Medium, token).ConfigureAwait(false);
-                        return;
-
-                    default:
-                        break;
-                }
-            }
-
-            if (NextMedium() is not { } medium)
-            {
-                await Task.Delay(_options.BackupDelay, token).ConfigureAwait(false);
-                continue;
-            }
-
-            CountAttempt(medium);
-            var transport = BuildTransport(medium);
-
-            if (transport is not null)
-            {
-                var connected = false;
-                try
-                {
-                    connected = await transport.ConnectAsync(token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    await transport.DisposeAsync().ConfigureAwait(false);
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _lastError = ex.Message;
-                }
-
-                if (connected)
-                {
-                    await _transportGate.WaitAsync(token).ConfigureAwait(false);
-                    try
+                    switch (pending)
                     {
-                        _transport = transport;
-                    }
-                    finally
-                    {
-                        _transportGate.Release();
-                    }
+                        case DisconnectRequest:
+                            await HandleDisconnectAsync().ConfigureAwait(false);
+                            return;
 
-                    ResetLinkCounters();
-                    Transition(ConnectionState.Connected, medium, transport.Endpoint, "reconectado");
+                        case ConnectRequest connect:
+                            await HandleConnectAsync(connect.Medium, token).ConfigureAwait(false);
+                            return;
+
+                        default:
+                            break;
+                    }
+                }
+
+                if (interrupt.IsCancellationRequested)
+                {
+                    // Interrupted with the channel already drained: whatever asked for it has
+                    // been handled, so there is nothing left for this cycle to retry.
                     return;
                 }
 
-                await transport.DisposeAsync().ConfigureAwait(false);
-
-                if (medium == TransportMedium.Usb)
+                if (NextMedium() is not { } medium)
                 {
-                    _samePortFailures++;
-                    await TryReprobeUsbAsync(token).ConfigureAwait(false);
+                    await WaitBetweenAttemptsAsync(interrupt.Token, token).ConfigureAwait(false);
+                    continue;
                 }
-            }
 
-            await Task.Delay(_options.BackupDelay, token).ConfigureAwait(false);
+                CountAttempt(medium);
+                var transport = BuildTransport(medium);
+
+                if (transport is not null)
+                {
+                    var connected = false;
+                    try
+                    {
+                        connected = await transport.ConnectAsync(interrupt.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested)
+                    {
+                        // The operator intervened mid-attempt; the request is already queued.
+                        await transport.DisposeAsync().ConfigureAwait(false);
+                        continue;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        await transport.DisposeAsync().ConfigureAwait(false);
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _lastError = ex.Message;
+                    }
+
+                    if (connected)
+                    {
+                        await _transportGate.WaitAsync(token).ConfigureAwait(false);
+                        try
+                        {
+                            _transport = transport;
+                        }
+                        finally
+                        {
+                            _transportGate.Release();
+                        }
+
+                        ResetLinkCounters();
+                        Transition(ConnectionState.Connected, medium, transport.Endpoint, "reconectado");
+                        return;
+                    }
+
+                    await transport.DisposeAsync().ConfigureAwait(false);
+
+                    if (medium == TransportMedium.Usb)
+                    {
+                        _samePortFailures++;
+                        try
+                        {
+                            await TryReprobeUsbAsync(interrupt.Token).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                await WaitBetweenAttemptsAsync(interrupt.Token, token).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _recoveryInterrupt = null;
+        }
+    }
+
+    /// <summary>
+    /// Waits out the backup delay, returning early when the operator intervenes.
+    /// </summary>
+    private async Task WaitBetweenAttemptsAsync(CancellationToken interrupt, CancellationToken shutdown)
+    {
+        try
+        {
+            await Task.Delay(_options.BackupDelay, interrupt).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!shutdown.IsCancellationRequested)
+        {
+            // A request is already in the channel; the loop head reads it next.
         }
     }
 

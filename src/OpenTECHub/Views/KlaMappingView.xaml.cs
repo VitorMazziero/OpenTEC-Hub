@@ -157,6 +157,7 @@ public partial class KlaMappingView : UserControl
             heatmap.FlipVertically = true;
             _surfaceColorBar = plot.Add.ColorBar(heatmap);
             _surfaceColorBar.Label = "kLa (h⁻¹)";
+            StyleColorBar(_surfaceColorBar);
 
             var contours = plot.Add.ContourLines(contourValues, count: 12);
             contours.LineColor = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black).WithAlpha(0.35);
@@ -340,6 +341,7 @@ public partial class KlaMappingView : UserControl
             heatmap.FlipVertically = true;
             _headroomColorBar = plot.Add.ColorBar(heatmap);
             _headroomColorBar.Label = "H médio";
+            StyleColorBar(_headroomColorBar);
 
             var best = plot.Add.Scatter(
                 new double[] { path.Diagnostics.SelectedStartAirflowLpm },
@@ -366,10 +368,29 @@ public partial class KlaMappingView : UserControl
         }
     }
 
+    /// <summary>
+    /// Paints the colour bar's label and ticks with the theme's text colour.
+    /// </summary>
+    /// <remarks>
+    /// A colour bar is a panel, not an axis, so <c>Plot.Axes.Color</c> never reaches it -
+    /// it kept ScottPlot's default near-black through the whole dark theme.
+    /// </remarks>
+    private static void StyleColorBar(ScottPlot.Panels.ColorBar bar)
+    {
+        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
+        bar.LabelStyle.ForeColor = text;
+        bar.Axis.TickLabelStyle.ForeColor = text;
+        bar.Axis.MajorTickStyle.Color = text;
+        bar.Axis.MinorTickStyle.Color = text;
+        bar.Axis.FrameLineStyle.Color = text;
+    }
+
     private static void StylePlot(Plot plot, string xLabel, string yLabel)
     {
         var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
-        var text = ToPlotColor(TryBrush("TextSecondaryBrush"), MediaColors.Gray);
+        // Axis text is content, not chrome. The secondary token is a mid grey that reads as
+        // dim on the dark card the plot sits in - the axes are what the figure is telling you.
+        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
         var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
         plot.FigureBackground.Color = surface;
         plot.DataBackground.Color = surface;

@@ -104,7 +104,8 @@ public partial class CalibrationView : UserControl
         var hasCalibrationData = false;
 
         var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
-        var text = ToPlotColor(TryBrush("TextSecondaryBrush"), MediaColors.Gray);
+        // Axis text is content, not chrome; the secondary token reads as dim on a dark card.
+        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
         var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
         var accent = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);
 

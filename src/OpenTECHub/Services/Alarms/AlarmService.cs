@@ -559,8 +559,9 @@ public sealed class AlarmService : IAlarmService
     {
         _state = change.State;
 
-        if (change.Cause == ConnectionTransitionCause.UserDisconnect &&
-            _conditions[AlarmId.LinkLost].Resolve())
+        var resolved = change.Cause == ConnectionTransitionCause.UserDisconnect &&
+                       _conditions[AlarmId.LinkLost].Resolve();
+        if (resolved)
         {
             _journal.Add(AuditSource.Alarm, AuditSeverity.Information,
                 "Alarme encerrado pelo operador ao desconectar: Link perdido.");
@@ -575,6 +576,15 @@ public sealed class AlarmService : IAlarmService
         }
 
         Poll();
+
+        // Resolve clears the latch behind the state machine's back, so Poll finds nothing
+        // to report and would not raise Changed. Without this the banner keeps showing an
+        // alarm that no longer exists — and Reconhecer cannot dismiss it either, because
+        // there is no longer anything latched for it to acknowledge.
+        if (resolved)
+        {
+            Changed?.Invoke();
+        }
     }
 
     private void OnTelemetry(SensorSnapshot snapshot)

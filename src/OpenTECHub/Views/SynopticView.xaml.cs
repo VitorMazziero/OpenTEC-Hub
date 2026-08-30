@@ -202,8 +202,9 @@ public partial class SynopticView : UserControl
     {
         var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
         var sunken = ToPlotColor(TryBrush("SurfaceSunkenBrush"), new MediaColor { R = 243, G = 246, B = 250, A = 255 });
-        var text = ToPlotColor(TryBrush("TextSecondaryBrush"), MediaColors.Gray);
+        // Axis text is content, not chrome; the secondary token reads as dim on a dark card.
         var textPrimary = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
+        var text = textPrimary;
         var stroke = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.SlateGray);
         var grid = ToPlotColor(TryBrush("StrokeSubtleBrush"), MediaColors.LightGray);
 

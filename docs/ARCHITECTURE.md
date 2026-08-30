@@ -107,6 +107,14 @@ CommunityToolkit.Mvvm. No hand-written `INotifyPropertyChanged`.
 **DI, one composition root.** Everything is registered in `App.xaml.cs`. Services are
 constructor-injected behind interfaces. No service locator, no statics holding state.
 
+**The workspace root is fixed for the life of the process.** `AppPaths` is resolved once,
+before the container is built, and the services that keep files — `SettingsService`,
+`RecipeStore`, `KlaProfileStore`, `KlaTestStore`, `BackupService` and the Serilog file sink —
+capture their directory in the composition root. That is the one static the DI rule above
+concedes, and the price is that changing the folder is a restart, not a live swap: the
+Configurações command copies the workspace and relaunches with `--workspace`. See
+[DECISIONS D-031](DECISIONS.md).
+
 **ViewModels never open dialogs.** They call `IDialogService`. This keeps them testable
 and keeps every pt-BR user-facing string in one reviewable place.
 

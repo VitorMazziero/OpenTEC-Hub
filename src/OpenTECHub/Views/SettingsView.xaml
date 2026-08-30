@@ -296,7 +296,7 @@
                                 BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,14">
                             <StackPanel>
                                 <TextBlock Text="Diretório de Trabalho (Workspace / Sessão Global)" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                <TextBlock Text="Pasta raiz padrão compartilhada onde o sistema organiza e salva todos os dados em subpastas dedicadas."
+                                <TextBlock Text="Pasta raiz padrão compartilhada onde o sistema organiza e salva todos os dados em subpastas dedicadas. Ao alterar a pasta, os dados atuais são copiados para o novo destino (nada é apagado) e o aplicativo reinicia nele."
                                            Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10" />
 
                                 <WrapPanel Margin="0,0,0,12" VerticalAlignment="Center">

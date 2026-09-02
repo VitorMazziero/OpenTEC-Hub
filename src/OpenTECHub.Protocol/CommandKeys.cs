@@ -19,7 +19,26 @@ public static class CommandKeys
 
     // ---- Core loop (Phase 1) ---------------------------------------------
     public const string TempSetpoint = "tempSetpoint";
+
+    /// <summary>
+    /// Agitation reference, 0-1000 rpm. A <b>reference</b>, not an actuator position.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// From Hub firmware 9.1.0-dev the Hub inverts the CN1's affine calibration before
+    /// emitting to the TECNAL module, so the shaft delivers what was asked. The wire
+    /// contract is unchanged - same key, same range - and an app that knows nothing about
+    /// the correction simply starts hitting the requested speed.
+    /// </para>
+    /// <para>
+    /// <b>Zero is not "stop", it is "disable".</b> The module's UART vocabulary uses
+    /// <c>V</c> as the motor-enable flag: a zero reference sends <c>0V</c> and the module
+    /// latches disabled - its own keypad will not bring the motor back until a non-zero
+    /// setpoint arrives. Anything offering this as a stop control must say so.
+    /// </para>
+    /// </remarks>
     public const string MotorSetpoint = "motorSetpoint";
+
     public const string OxygenMonitor = "oxygenMonitor";
     public const string PressureReference = "pressureReference";
 
@@ -98,6 +117,24 @@ public static class CommandKeys
     public const string Low = "low";
     public const string High = "high";
     public const string Opt = "opt";
+
+    // ---- ASDA-B2 servo drive telemetry node (Hub v9) ----------------------
+    // Three commands, and none of them touches the motor. Speed stays exclusively on
+    // CN1 via MotorSetpoint; the servo node is read-only towards the drive by design.
+
+    /// <summary>Routing for the servo node, persisted in the Hub's NVS.</summary>
+    /// <remarks>
+    /// The only routing flag that is born <c>true</c>, so the node comes up on its own
+    /// when energised. A module that has no servo is told so once, with <c>0</c>, and
+    /// remembers it - which is what keeps it from reporting a permanent phantom failure.
+    /// </remarks>
+    public const string ServoComm = "servoComm";
+
+    /// <summary>Zeroes the energy accumulator kept on the node. Only the value 1 counts.</summary>
+    public const string ResetServoEnergy = "resetServoEnergy";
+
+    /// <summary>Modbus sampling interval on the node, 250-10000 ms.</summary>
+    public const string ServoPollMs = "servoPollMs";
 
     // ---- External pump (Phase 3 WP2) -------------------------------------
     public const string PumpComm = "pumpComm";
@@ -232,6 +269,84 @@ public static class TelemetryKeys
 
     /// <summary>What last moved the agitator: <c>Pot</c>, <c>Hub</c>, <c>Wi-Fi</c> or <c>USB</c>.</summary>
     public const string AgitatorSource = "AgitatorSource";
+
+    // ---- ASDA-B2 servo drive (Hub v9) ------------------------------------
+    // These split into two groups that behave differently, and the split governs the
+    // whole parser.
+    //
+    // The four below are published in EVERY frame, node present or not. They are what
+    // lets "this module has no servo" be told apart from "the servo went missing".
+
+    /// <summary>A valid push arrived inside the Hub's 6000 ms window.</summary>
+    public const string ServoOnline = "ServoOnline";
+
+    /// <inheritdoc cref="BiomassCommEnabled"/>
+    public const string ServoCommEnabled = "ServoCommEnabled";
+
+    public const string ServoCommandPending = "ServoCommandPending";
+
+    /// <summary>Depth of the Hub's fixed FIFO of eight, 0-8.</summary>
+    /// <remarks>
+    /// The servo command link has no acknowledgement, so this and
+    /// <see cref="ServoCommandPending"/> are the only observation of a command's life:
+    /// it entering the queue and being consumed. A full queue drains at one per 2 s
+    /// pull, so sixteen seconds is the floor before concluding anything failed.
+    /// </remarks>
+    public const string ServoCommandQueueDepth = "ServoCommandQueueDepth";
+
+    // The ten below appear ONLY when there is a publishable sample - fresh presence AND
+    // routing on. Otherwise the keys are simply absent from the JSON, and absence is not
+    // zero: ServoRpm 0.0 is a stopped motor, a missing ServoRpm is no data at all.
+
+    /// <summary>Measured shaft speed. Zero is a legitimate reading.</summary>
+    public const string ServoRpm = "ServoRpm";
+
+    /// <summary>Instantaneous torque feedback, signed, as a percentage of rated.</summary>
+    public const string ServoTorquePct = "ServoTorquePct";
+
+    /// <summary>
+    /// Torque in N·m, derived on the node as <c>torque% × rated torque</c>.
+    /// </summary>
+    /// <remarks>
+    /// The drive does not measure N·m. It reports a fraction of rated torque, and the
+    /// node multiplies by the motor's nameplate figure - 1.27 N·m for the ECMA-C20604ES.
+    /// Every N·m and watt scales linearly with that constant, so a motor swap without a
+    /// firmware change produces plausible wrong numbers with no error anywhere.
+    /// </remarks>
+    public const string ServoTorqueNm = "ServoTorqueNm";
+
+    /// <summary>Average load rate, whole percent. Not the same quantity as torque.</summary>
+    public const string ServoLoadPct = "ServoLoadPct";
+
+    /// <summary>Estimated mechanical shaft power, <c>T·ω</c>. Not electrical draw.</summary>
+    public const string ServoPowerW = "ServoPowerW";
+
+    /// <summary>Mechanical energy integrated on the node. May go backwards.</summary>
+    /// <remarks>
+    /// Integration lives on the node because it needs the continuous 1 Hz series. It
+    /// resets when the node reboots and on <see cref="CommandKeys.ResetServoEnergy"/>,
+    /// and it refuses to integrate across gaps rather than inventing energy that was
+    /// never measured. Charts must survive a series that steps down.
+    /// </remarks>
+    public const string ServoEnergyWh = "ServoEnergyWh";
+
+    /// <summary>Drive state from P0-46: 0 OFF, 1 READY, 2 SON, 3 ALARM.</summary>
+    public const string ServoState = "ServoState";
+
+    /// <summary>Raw P0-01 alarm code.</summary>
+    /// <remarks>
+    /// The hexadecimal digits mirror the number on the drive's panel: <c>0x0011</c> is
+    /// the panel's <c>AL011</c>. It is not a decimal code, and rendering it as one
+    /// produces a number that matches nothing in the manual. Verified on the bench
+    /// against a real AL011 (encoder disconnected).
+    /// </remarks>
+    public const string ServoAlarm = "ServoAlarm";
+
+    /// <summary>Successful Modbus transactions; grows by three per accepted sample.</summary>
+    public const string ServoCommOk = "ServoCommOk";
+
+    /// <summary>Failed Modbus samples. Alarm on the rate, never on the total.</summary>
+    public const string ServoCommErr = "ServoCommErr";
 
     public const string Time = "Time";
 }

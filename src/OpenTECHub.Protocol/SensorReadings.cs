@@ -134,6 +134,42 @@ public sealed class SensorReadings
     /// <inheritdoc cref="SensorSnapshot.AgitatorSource"/>
     public string AgitatorSource { get; set; } = "unknown";
 
+    /// <summary>The Hub has reported on the servo drive node at least once this session.</summary>
+    public bool HasServoTelemetry { get; set; }
+
+    public bool ServoOnline { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.ServoCommEnabled"/>
+    public bool? ServoCommEnabled { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.ServoCommandPending"/>
+    public bool? ServoCommandPending { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.ServoCommandQueueDepth"/>
+    public int ServoCommandQueueDepth { get; set; } = -1;
+
+    public double ServoRpm { get; set; } = NotReceived;
+
+    /// <inheritdoc cref="SensorSnapshot.ServoTorquePct"/>
+    public double ServoTorquePct { get; set; } = NotReceived;
+
+    public double ServoTorqueNm { get; set; } = NotReceived;
+    public double ServoLoadPct { get; set; } = NotReceived;
+    public double ServoPowerW { get; set; } = NotReceived;
+    public double ServoEnergyWh { get; set; } = NotReceived;
+
+    /// <inheritdoc cref="SensorSnapshot.ServoState"/>
+    public int ServoState { get; set; } = -1;
+
+    /// <inheritdoc cref="SensorSnapshot.ServoAlarm"/>
+    public int ServoAlarm { get; set; } = -1;
+
+    /// <inheritdoc cref="SensorSnapshot.ServoCommOk"/>
+    public long ServoCommOk { get; set; } = -1;
+
+    /// <inheritdoc cref="SensorSnapshot.ServoCommErr"/>
+    public long ServoCommErr { get; set; } = -1;
+
     /// <summary>Seconds since controller boot, as reported by the device.</summary>
     public double TimeRawSeconds { get; set; }
 
@@ -158,6 +194,9 @@ public sealed class SensorReadings
 
     /// <summary>When a frame last carried agitator values. Null before the first one.</summary>
     internal DateTimeOffset? AgitatorLastSeenAt { get; set; }
+
+    /// <summary>When a frame last carried servo values. Null before the first one.</summary>
+    internal DateTimeOffset? ServoLastSeenAt { get; set; }
 
     /// <summary>Treats the current device clock as the run's zero point.</summary>
     public void ZeroTime() => TimeOffsetMinutes = TimeRawSeconds / 60.0;
@@ -219,6 +258,21 @@ public sealed class SensorReadings
         AgitatorDirection = AgitatorDirection,
         AgitatorPotActive = AgitatorPotActive,
         AgitatorSource = AgitatorSource,
+        HasServoTelemetry = HasServoTelemetry,
+        ServoOnline = ServoOnline,
+        ServoCommEnabled = ServoCommEnabled,
+        ServoCommandPending = ServoCommandPending,
+        ServoCommandQueueDepth = ServoCommandQueueDepth,
+        ServoRpm = ServoRpm,
+        ServoTorquePct = ServoTorquePct,
+        ServoTorqueNm = ServoTorqueNm,
+        ServoLoadPct = ServoLoadPct,
+        ServoPowerW = ServoPowerW,
+        ServoEnergyWh = ServoEnergyWh,
+        ServoState = ServoState,
+        ServoAlarm = ServoAlarm,
+        ServoCommOk = ServoCommOk,
+        ServoCommErr = ServoCommErr,
         TimeRawSeconds = TimeRawSeconds,
         TimeMinutes = TimeMinutes,
     };
@@ -333,6 +387,81 @@ public sealed record SensorSnapshot
 
     /// <summary>What last moved the agitator: Pot, Hub, Wi-Fi or USB.</summary>
     public string AgitatorSource { get; init; } = "unknown";
+
+    // ---- ASDA-B2 servo drive (Hub v9) ------------------------------------
+    //
+    // Presence and routing are orthogonal here, and collapsing them is the likeliest
+    // mistake this type can invite. All four combinations are legitimate and only one
+    // is a failure:
+    //
+    //   Online  CommEnabled
+    //   true    true          operating
+    //   true    false         node present, routing off - a choice, not a fault
+    //   false   true          node missing with routing on - THIS is the failure
+    //   false   false         this module has no servo - do not alarm
+    //
+    // The last one is the bench module's permanent, correct state.
+
+    /// <inheritdoc cref="HasBiomassTelemetry"/>
+    public bool HasServoTelemetry { get; init; }
+
+    /// <summary>A valid push reached the Hub inside its 6000 ms window.</summary>
+    public bool ServoOnline { get; init; }
+
+    /// <inheritdoc cref="BiomassCommEnabled"/>
+    public bool? ServoCommEnabled { get; init; }
+
+    /// <inheritdoc cref="BiomassCommandPending"/>
+    public bool? ServoCommandPending { get; init; }
+
+    /// <summary>Depth of the Hub's fixed queue of eight; -1 before any frame.</summary>
+    /// <remarks>
+    /// With no acknowledgement on this link, this and <see cref="ServoCommandPending"/>
+    /// are the only way to watch a command enter the queue and be consumed. A full queue
+    /// drains at one per 2 s pull, so nothing should be called failed inside sixteen
+    /// seconds.
+    /// </remarks>
+    public int ServoCommandQueueDepth { get; init; }
+
+    // The ten below hold NotReceived / -1 whenever there is no publishable sample. The
+    // sentinel is what the UI renders as a dash: zero is a real reading here, and
+    // showing it for missing data would claim a measurement that was never taken.
+
+    /// <summary>Measured shaft speed. Zero is a legitimate reading, not missing data.</summary>
+    public double ServoRpm { get; init; }
+
+    /// <summary>Instantaneous torque, signed, as a percentage of rated torque.</summary>
+    /// <remarks>
+    /// Legitimately negative during braking, which is why validity is decided by
+    /// <see cref="HasServoTelemetry"/> and <see cref="ServoOnline"/> rather than by
+    /// testing against the sentinel: a torque of exactly -1.0 % is a real reading.
+    /// </remarks>
+    public double ServoTorquePct { get; init; }
+
+    /// <summary>Torque in N·m, derived from rated torque on the node.</summary>
+    public double ServoTorqueNm { get; init; }
+
+    /// <summary>Average load rate, whole percent. A different quantity from torque.</summary>
+    public double ServoLoadPct { get; init; }
+
+    /// <summary>Estimated mechanical shaft power. Not electrical draw, and must be labelled so.</summary>
+    public double ServoPowerW { get; init; }
+
+    /// <summary>Mechanical energy integrated on the node. Can decrease.</summary>
+    public double ServoEnergyWh { get; init; }
+
+    /// <summary>0 OFF, 1 READY, 2 SON, 3 ALARM; -1 before any frame.</summary>
+    public int ServoState { get; init; }
+
+    /// <summary>Raw P0-01 alarm code, whose hex digits mirror the drive panel. -1 before any frame.</summary>
+    public int ServoAlarm { get; init; }
+
+    /// <summary>Successful Modbus transactions this node session; -1 before any frame.</summary>
+    public long ServoCommOk { get; init; }
+
+    /// <summary>Failed Modbus samples; -1 before any frame. Judge the rate, never the total.</summary>
+    public long ServoCommErr { get; init; }
+
     public double TimeRawSeconds { get; init; }
     public double TimeMinutes { get; init; }
 }

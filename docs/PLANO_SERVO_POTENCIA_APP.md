@@ -918,8 +918,13 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
       `Motor.Setpoint`. Um teste que fixa o comportamento atual, antes de tudo
       _(feito em 2026-09-02: `ShellViewModel.cs:1224` e
       `tests/OpenTECHub.Tests/CommandedRpmProvenanceTests.cs`, 23 testes verdes)_
-- [ ] **2. Protocolo** — `CommandKeys`, `CommandBuilders`, `SensorReadings`,
+- [x] **2. Protocolo** — `CommandKeys`, `CommandBuilders`, `SensorReadings`,
       `SensorSnapshot`, `Snapshot()`
+      _(2026-09-02: 14 chaves de telemetria + 3 de comando; `ServoRouting`,
+      `ResetServoEnergy` e `ServoPollInterval` com a faixa 250..10000 **recusada**
+      e não saturada; contadores em `long`; testes em `WireFormatTests.cs`.
+      `motorSetpoint` reanotado como referência, com o zero documentado como
+      desabilitação e não parada)_
 - [ ] **3. Parser** — `ServoTimeout`, `ParseServo`, as cinco linhas da tabela
 - [ ] **4. RPM medida** — `isCommandedOnly: false`, `Motor.Push`, o caso especial
       do zero, canal `ServoRpm`

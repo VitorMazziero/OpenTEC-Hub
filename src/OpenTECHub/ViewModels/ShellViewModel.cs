@@ -1221,7 +1221,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         LastUpdateText = _lastFrameAt.Value.ToString("HH:mm:ss");
         // History first: the charts read from it, and a row written to the log should
         // never describe a frame the charts have not seen.
-        var commandedRpm = Motor.Value ?? 0;
+        //
+        // Read from the setpoint, not from the tile's value. They carry the same number
+        // today - SubsystemViewModel writes both from AppliedSetpoint - but only the
+        // setpoint keeps meaning "what was asked for" once the servo node starts
+        // reporting real RPM into the tile. Column 2 of the session log and
+        // TelemetryChannel.MotorRpm are a frozen contract that downstream analysis reads
+        // as the command; sourcing them from a tile that is about to show a measurement
+        // would change what they mean without changing their name.
+        var commandedRpm = Motor.Setpoint ?? 0;
         _history.Add(snapshot, commandedRpm);
         _sessionLogger.Write(snapshot, commandedRpm, DescribeConnection());
 

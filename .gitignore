@@ -37,3 +37,9 @@ shot*.png
 # or tests/, so a .cs file here is always scratch - and the answer belongs in a test,
 # where it keeps being checked. Root only: nothing inside the projects is hidden.
 /test_*.cs
+
+# Somewhere for that scratch to sit instead of the repository root: bench captures,
+# screenshots taken while chasing something, one-off traces. Ignored wholesale, so
+# nothing in here is a commit waiting to happen - if a capture turns out to be
+# evidence, it belongs in docs/evidence/ under a name that says what it shows.
+/scratch/

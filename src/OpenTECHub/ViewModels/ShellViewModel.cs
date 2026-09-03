@@ -75,6 +75,21 @@ public sealed record CommandPaletteEntry(
     bool IsAvailable = true,
     string UnavailableReason = "");
 
+/// <summary>One alarm as the banner and its expandable list render it.</summary>
+/// <param name="Id">The alarm identity, so a row can acknowledge exactly itself.</param>
+/// <param name="Title">pt-BR title.</param>
+/// <param name="Detail">Live fault detail, or a recovery line once the condition clears.</param>
+/// <param name="StateText">Operator-facing latch state, e.g. "Não reconhecido".</param>
+/// <param name="State">The colour it renders in, de-escalated once it returns to normal.</param>
+/// <param name="CanAcknowledge">True while the row is latched and unacknowledged.</param>
+public sealed record AlarmListItem(
+    AlarmId Id,
+    string Title,
+    string Detail,
+    string StateText,
+    VariableState State,
+    bool CanAcknowledge);
+
 /// <summary>
 /// Shell state: navigation, the always-visible KPI strip, and the live variables.
 /// </summary>
@@ -670,14 +685,38 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>The alarm the banner headlines, or null.</summary>
     public AlarmSnapshot? AlarmHeadline => _alarms.Headline;
 
-    public string AlarmHeadlineText => AlarmHeadline?.Title ?? "";
+    /// <summary>The headline as a display row, so the banner and the list agree.</summary>
+    public AlarmListItem? AlarmHeadlineItem
+        => AlarmHeadline is { } headline ? ToAlarmListItem(headline) : null;
 
-    public string AlarmHeadlineDetail => AlarmHeadline?.Detail ?? "";
+    public string AlarmHeadlineText => AlarmHeadlineItem?.Title ?? "";
 
-    /// <summary>The banner colour, reusing the process-state palette.</summary>
-    public VariableState AlarmState => AlarmHeadline?.Severity == AlarmSeverity.Warning
-        ? VariableState.Warning
-        : VariableState.Alarm;
+    /// <summary>
+    /// The headline's detail. Once the condition has cleared, this stops repeating the
+    /// original fault text — which read as if the fault were still live — and says the
+    /// condition normalised and only needs acknowledging.
+    /// </summary>
+    public string AlarmHeadlineDetail => AlarmHeadlineItem?.Detail ?? "";
+
+    /// <summary>The headline's latch state, e.g. "Normalizado, não reconhecido".</summary>
+    public string AlarmHeadlineStateText => AlarmHeadlineItem?.StateText ?? "";
+
+    /// <summary>
+    /// The banner colour. Reuses the process-state palette, and steps down from red to
+    /// amber once the condition has returned to normal: a latched-but-recovered alarm is
+    /// waiting for acknowledgement, not signalling a live fault.
+    /// </summary>
+    public VariableState AlarmState => AlarmHeadlineItem?.State ?? VariableState.Alarm;
+
+    /// <summary>
+    /// Every other latched alarm, for the banner's expandable list. The headline is
+    /// excluded because its own row already shows it above the list.
+    /// </summary>
+    public IReadOnlyList<AlarmListItem> OtherAlarms
+        => _alarms.Snapshot()
+            .Where(a => _alarms.Headline is not { } head || a.Id != head.Id)
+            .Select(ToAlarmListItem)
+            .ToArray();
 
     /// <summary>
     /// A count suffix for the banner when more than one alarm is latched, e.g. "+2".
@@ -691,28 +730,102 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>True when more than one alarm is latched, so the expander is offered.</summary>
+    public bool HasMultipleAlarms => _alarms.Snapshot().Count > 1;
+
+    /// <summary>Whether the banner's list of the other alarms is expanded.</summary>
+    [ObservableProperty]
+    public partial bool IsAlarmListExpanded { get; set; }
+
+    /// <summary>Label for the expander toggle, reflecting its current state.</summary>
+    public string AlarmExpandLabel => IsAlarmListExpanded ? "Ocultar  ⌃" : "Ver todos  ⌄";
+
+    partial void OnIsAlarmListExpandedChanged(bool value)
+        => OnPropertyChanged(nameof(AlarmExpandLabel));
+
     /// <summary>Whether the annunciator is currently sounding, so Silenciar is offered.</summary>
     public bool IsAlarmAudible => _alarms.IsAudible;
 
-    /// <summary>Whether there is anything left to acknowledge.</summary>
+    /// <summary>Whether there is anything left to acknowledge, anywhere.</summary>
     public bool HasUnacknowledgedAlarms => _alarms.AnnunciatingCount > 0;
 
+    /// <summary>Whether the headline alarm can still be acknowledged.</summary>
+    public bool CanAcknowledgeHeadline => AlarmHeadline?.IsAnnunciating ?? false;
+
+    /// <summary>
+    /// Maps one alarm occurrence to its banner/list presentation.
+    /// </summary>
+    /// <remarks>
+    /// The state and the detail both de-escalate once the raw condition has cleared: a
+    /// latched alarm that has returned to normal is kept until acknowledged, but showing it
+    /// as a live red fault — still quoting "SensorCommOK falso" after the module came back —
+    /// is what makes the banner read as broken. Amber, "Normalizado", and a recovery line
+    /// say what is actually true: the condition is gone, only the acknowledgement is missing.
+    /// </remarks>
+    private static AlarmListItem ToAlarmListItem(AlarmSnapshot alarm)
+    {
+        var state = !alarm.ConditionActive
+            ? VariableState.Warning
+            : alarm.Severity == AlarmSeverity.Warning
+                ? VariableState.Warning
+                : VariableState.Alarm;
+
+        var detail = alarm.ConditionActive
+            ? alarm.Detail
+            : "Condição normalizada — reconheça para limpar o alarme.";
+
+        return new AlarmListItem(
+            alarm.Id, alarm.Title, detail, alarm.StateLabel, state, alarm.IsAnnunciating);
+    }
+
+    /// <summary>Acknowledges only the headline alarm (the first banner row).</summary>
     [RelayCommand]
-    private void AcknowledgeAlarms() => _alarms.AcknowledgeAll();
+    private void AcknowledgeHeadline()
+    {
+        if (_alarms.Headline is { } headline)
+        {
+            _alarms.Acknowledge(headline.Id);
+        }
+    }
+
+    /// <summary>Acknowledges one specific alarm row from the expanded list.</summary>
+    [RelayCommand]
+    private void AcknowledgeAlarm(AlarmListItem? item)
+    {
+        if (item is not null)
+        {
+            _alarms.Acknowledge(item.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleAlarmList() => IsAlarmListExpanded = !IsAlarmListExpanded;
 
     [RelayCommand]
     private void SilenceAlarms() => _alarms.Silence();
 
     private void OnAlarmsChanged()
     {
+        // A list that shrank to a single alarm has no expander to fold it back, so close it
+        // rather than stranding the panel open with nothing to toggle it.
+        if (!HasMultipleAlarms && IsAlarmListExpanded)
+        {
+            IsAlarmListExpanded = false;
+        }
+
         OnPropertyChanged(nameof(HasAlarms));
         OnPropertyChanged(nameof(AlarmHeadline));
+        OnPropertyChanged(nameof(AlarmHeadlineItem));
         OnPropertyChanged(nameof(AlarmHeadlineText));
         OnPropertyChanged(nameof(AlarmHeadlineDetail));
+        OnPropertyChanged(nameof(AlarmHeadlineStateText));
         OnPropertyChanged(nameof(AlarmState));
+        OnPropertyChanged(nameof(OtherAlarms));
         OnPropertyChanged(nameof(AlarmMoreText));
+        OnPropertyChanged(nameof(HasMultipleAlarms));
         OnPropertyChanged(nameof(IsAlarmAudible));
         OnPropertyChanged(nameof(HasUnacknowledgedAlarms));
+        OnPropertyChanged(nameof(CanAcknowledgeHeadline));
     }
 
     [ObservableProperty]

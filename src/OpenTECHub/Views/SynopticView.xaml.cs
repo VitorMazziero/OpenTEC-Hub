@@ -846,7 +846,7 @@ public partial class SynopticView : UserControl
         btnCancel.Click += (_, _) => DismissSubMenu(dropTarget);
         stack.Children.Add(btnCancel);
 
-        card.Child = stack;
+        SetSubMenuContent(card, dropTarget, stack);
         presenter.Content = card;
         overlay.IsHitTestVisible = true;
         overlay.Visibility = Visibility.Visible;
@@ -963,7 +963,7 @@ public partial class SynopticView : UserControl
         btnCancel.Click += (_, _) => DismissSubMenu(dropTarget);
         stack.Children.Add(btnCancel);
 
-        card.Child = stack;
+        SetSubMenuContent(card, dropTarget, stack);
         presenter.Content = card;
         overlay.IsHitTestVisible = true;
         overlay.Visibility = Visibility.Visible;
@@ -997,6 +997,28 @@ public partial class SynopticView : UserControl
             overlay.Visibility = Visibility.Collapsed;
             presenter.Content = null;
         }
+    }
+
+    /// <summary>
+    /// Hosts a drop sub-menu's content so a panel too short to show every option scrolls
+    /// to the rest instead of clipping them.
+    /// </summary>
+    /// <remarks>
+    /// The four-panel layout leaves each plot short enough that the agitation menu's seven
+    /// series ran off the bottom, taking Cancelar with them. Capping the card to the panel
+    /// height gives the ScrollViewer a bound to scroll within; a comfortable floor keeps it
+    /// usable even on a very short panel.
+    /// </remarks>
+    private void SetSubMenuContent(Border card, Border dropTarget, UIElement content)
+    {
+        card.Child = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = content,
+        };
+
+        card.MaxHeight = Math.Max(160, dropTarget.ActualHeight - 8);
     }
 
     private (Border? Overlay, ContentPresenter? Presenter) GetOverlayElements(Border dropTarget)

@@ -39,7 +39,6 @@ public sealed record HttpTransportConfig
 public sealed class HttpTransport : ITransport
 {
     private const string HandshakePayload = """{"comTest":1}""";
-    private const string HandshakeExpected = "OK";
     private const double PollPeriodSafetyFactor = 0.98;
 
     private readonly HttpTransportConfig _config;
@@ -92,17 +91,25 @@ public sealed class HttpTransport : ITransport
                 using var response = await client.SendAsync(request, timeout.Token).ConfigureAwait(false);
                 var body = (await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false)).Trim();
 
-                if (string.Equals(body, HandshakeExpected, StringComparison.Ordinal))
+                // The Hub's HTTP /command handler queues the frame and answers 200 "Queued";
+                // it does NOT run comTest inline the way the USB path does (that one prints
+                // "OK" on the serial line). So a healthy Wi-Fi handshake is any success
+                // status, not a specific body. The old body == "OK" check could never pass
+                // against this firmware, which left Wi-Fi stuck reconnecting for ever while
+                // USB worked. The queued comTest still lands: the command task sets the "OK"
+                // sample the next /readData carries.
+                if (response.IsSuccessStatusCode)
                 {
                     _client = client;
                     _etag = null;
                     _nextPollTicks = 0;
-                    _log.LogInformation("Wi-Fi {Ip}: handshake ok", _config.IpAddress);
+                    _log.LogInformation("Wi-Fi {Ip}: handshake ok ({Status} '{Body}')",
+                        _config.IpAddress, (int)response.StatusCode, body);
                     return true;
                 }
 
-                _log.LogTrace("Wi-Fi {Ip}: unexpected handshake reply (attempt {Attempt})",
-                    _config.IpAddress, attempt);
+                _log.LogTrace("Wi-Fi {Ip}: unexpected handshake reply {Status} '{Body}' (attempt {Attempt})",
+                    _config.IpAddress, (int)response.StatusCode, body, attempt);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -236,13 +243,12 @@ public sealed class HttpTransport : ITransport
             timeout.CancelAfter(_config.WriteTimeout);
 
             using var response = await client.SendAsync(request, timeout.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return false;
-            }
 
-            var body = (await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false)).Trim();
-            return string.Equals(body, HandshakeExpected, StringComparison.Ordinal);
+            // A queued command answers 200 "Queued"; the firmware never echoes "OK" over
+            // HTTP. Success is the 2xx — 4xx/5xx (queue full, bad JSON, too large) are the
+            // real failures. Requiring an "OK" body here rejected every command the Hub
+            // accepted, so each write looked like a link fault.
+            return response.IsSuccessStatusCode;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

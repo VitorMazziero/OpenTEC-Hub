@@ -45,6 +45,20 @@
                         <TextBlock Text="{Binding Unit}" Margin="3,0,0,2"
                                    VerticalAlignment="Bottom" FontSize="9"
                                    Foreground="{DynamicResource TextMutedBrush}" />
+                        <!-- The second reading, for the one variable measured by two
+                             instruments at once. Agitation is a speed AND the torque it
+                             takes to hold it; on separate cards nobody reads them
+                             together, and together is the only way either means much. -->
+                        <TextBlock Text="{Binding SecondaryText}" Margin="8,0,0,0"
+                                   VerticalAlignment="Bottom" FontSize="11"
+                                   FontFamily="{DynamicResource FontNumeric}"
+                                   Typography.NumeralAlignment="Tabular"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Visibility="{Binding HasSecondaryReading, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding SecondaryLabel}" Margin="2,0,0,2"
+                                   VerticalAlignment="Bottom" FontSize="9"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Visibility="{Binding HasSecondaryReading, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                 </Grid>
             </Grid>

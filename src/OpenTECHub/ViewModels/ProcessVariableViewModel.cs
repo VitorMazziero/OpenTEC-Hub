@@ -163,6 +163,33 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasValue))]
     public partial double? Value { get; set; }
 
+    /// <summary>
+    /// A second reading shown beside the first, already formatted. Null for most variables.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Agitation is the one variable measured by two instruments at once: the shaft turns at
+    /// a speed, and it takes a torque to turn it there. The second number is what says
+    /// whether the first one is being reached easily or against a load, and separating them
+    /// onto different cards would hide exactly that relationship.
+    /// </para>
+    /// <para>
+    /// Formatted by the caller rather than derived here. This type knows one unit and one
+    /// decimal count, and the second reading is a different quantity in a different unit -
+    /// pretending otherwise would mean torque inheriting rpm's formatting.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSecondaryReading))]
+    public partial string? SecondaryText { get; set; }
+
+    /// <summary>What the second reading is, e.g. <c>% torque</c>. Shown beside its value.</summary>
+    [ObservableProperty]
+    public partial string? SecondaryLabel { get; set; }
+
+    /// <summary>True while there is a second reading worth the space it takes.</summary>
+    public bool HasSecondaryReading => !string.IsNullOrEmpty(SecondaryText);
+
     /// <summary>Setpoint the device has acknowledged, or null when not controlled.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FormattedSetpoint))]

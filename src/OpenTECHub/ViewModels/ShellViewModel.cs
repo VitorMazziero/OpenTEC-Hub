@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Windows.Threading;
@@ -1223,6 +1224,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // With no node, an older Hub, or routing switched off, this is null and the tile
         // shows a dash. The command has not been lost, it is the setpoint beside it.
         Motor.Push(snapshot.HasServoSample ? snapshot.ServoRpm : null);
+
+        // Torque beside the speed, on the same card. The two come from the same shaft and
+        // read together: 600 rpm at 2 % is a free-running impeller, 600 rpm at 40 % is a
+        // vessel fighting back, and on separate cards nobody puts them side by side.
+        Motor.SecondaryText = snapshot.HasServoSample
+            ? snapshot.ServoTorquePct.ToString("F1", CultureInfo.CurrentCulture)
+            : null;
+        Motor.SecondaryLabel = "% torque";
 
         Flow.Setpoint = snapshot.FlowSetpoint >= 0 ? snapshot.FlowSetpoint : null;
         FlowControl.UpdateTelemetry(snapshot);

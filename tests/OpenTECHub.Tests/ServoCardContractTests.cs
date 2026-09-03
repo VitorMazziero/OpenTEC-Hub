@@ -4,7 +4,7 @@ using Xunit;
 namespace OpenTECHub.Tests;
 
 /// <summary>
-/// What the servo card must and must not put in front of an operator.
+/// What the servo drawer must and must not put in front of an operator.
 /// </summary>
 /// <remarks>
 /// The view takes the whole application graph and cannot be exercised in isolation, so
@@ -17,39 +17,81 @@ public sealed class ServoCardContractTests
     private static readonly string ViewPath = Path.Combine(
         TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", "ControlView.xaml");
 
+    /// <summary>
+    /// The Agitação row and its drawer, where the servo drive now lives.
+    /// </summary>
+    /// <remarks>
+    /// It was card 13 of Dispositivos Externos until the drive turned out to be the wrong
+    /// shape for that list: it is inside the module, the operator does not switch it on, and
+    /// it measures the very shaft the Agitação row commands. Listing it as a peripheral
+    /// suggested a choice nobody has.
+    /// </remarks>
     private static string Card()
     {
         var xaml = File.ReadAllText(ViewPath);
-        var start = xaml.IndexOf("<!-- 13. Servo Drive", StringComparison.Ordinal);
-        Assert.True(start >= 0, "O card do servo drive não está no ControlView.");
+        var start = xaml.IndexOf("<!-- 1. Agitação", StringComparison.Ordinal);
+        Assert.True(start >= 0, "A linha de Agitação não está no ControlView.");
 
-        // Bounded at the safety bar. Slicing to the end of the file would pull in the
-        // "Parada Segura" block, and the assertion that this card carries no stop control
-        // would fail against a control that is not on it.
-        var end = xaml.IndexOf("<!-- Bottom Action & Safety Bar -->", start, StringComparison.Ordinal);
-        Assert.True(end > start, "A barra de ação não foi encontrada após o card.");
+        var end = xaml.IndexOf("<!-- 2. Temperatura", start, StringComparison.Ordinal);
+        Assert.True(end > start, "A linha de Temperatura não foi encontrada após a Agitação.");
         return xaml[start..end];
     }
 
     /// <summary>
-    /// Nothing on this card can move the motor.
+    /// The speed entry is the agitation subsystem own binding, and the servo section adds none.
     /// </summary>
     /// <remarks>
-    /// Agitation stays exclusively on CN1 through <c>motorSetpoint</c>. A rotation entry
-    /// here would be a second command path to the same physical quantity over a link with
-    /// no acknowledgement - and <c>motorSetpoint</c> zero disables the TECNAL module rather
-    /// than stopping it, latching its own keypad, so a stop button here would be worse than
-    /// useless.
+    /// The drawer does carry a rotation setpoint - deliberately, so it is the whole agitation
+    /// surface - but it is <c>Subsystem.SetpointText</c>, the same binding the row above uses,
+    /// going out through the same validation and the same arbiter. What must never appear is a
+    /// second path: the servo view model has no speed command at all, and no stop control
+    /// belongs here, because <c>motorSetpoint</c> zero disables the TECNAL module rather than
+    /// stopping it and latches its own keypad.
     /// </remarks>
     [Fact]
-    public void The_card_offers_no_way_to_command_the_motor()
+    public void The_only_speed_entry_is_the_agitation_subsystem_binding()
     {
         var card = Card();
 
+        Assert.Equal(2, Occurrences(card, "Binding Subsystem.SetpointText"));
         Assert.DoesNotContain("MotorSetpoint", card, StringComparison.Ordinal);
         Assert.DoesNotContain("motorSetpoint", card, StringComparison.Ordinal);
         Assert.DoesNotContain("Parada", card, StringComparison.Ordinal);
         Assert.DoesNotContain("Parar", card, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Torque sits beside the speed on the row, not only inside the drawer.
+    /// </summary>
+    /// <remarks>
+    /// The two come off the same shaft and only mean something together: 600 rpm at 2 % is a
+    /// free-running impeller, 600 rpm at 40 % is a vessel fighting back. Behind a drawer
+    /// nobody puts them side by side.
+    /// </remarks>
+    [Fact]
+    public void Torque_is_shown_next_to_the_speed_on_the_row()
+    {
+        var card = Card();
+        var drawer = card.IndexOf("IsExpandedServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter",
+            StringComparison.Ordinal);
+        Assert.True(drawer > 0, "A gaveta não foi encontrada.");
+
+        var row = card[..drawer];
+        Assert.Contains("{Binding TorquePercentText}", row, StringComparison.Ordinal);
+        Assert.Contains("% torque", row, StringComparison.Ordinal);
+    }
+
+    private static int Occurrences(string text, string value)
+    {
+        var count = 0;
+        var index = text.IndexOf(value, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            count++;
+            index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+        }
+
+        return count;
     }
 
     /// <summary>
@@ -61,11 +103,11 @@ public sealed class ServoCardContractTests
     /// out by orders of magnitude, and a tooltip is not read before that happens.
     /// </remarks>
     [Fact]
-    public void Power_carries_its_qualifier_in_the_row_itself()
+    public void Power_and_energy_are_named_as_estimated_mechanical()
     {
         var card = Card();
 
-        Assert.Contains("W mec. est.", card, StringComparison.Ordinal);
+        Assert.Contains("Potência mecânica estimada", card, StringComparison.Ordinal);
         Assert.Contains("Energia mecânica acumulada", card, StringComparison.Ordinal);
     }
 
@@ -110,15 +152,22 @@ public sealed class ServoCardContractTests
         Assert.Contains("ele continua presente", card, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The drawer keeps the shared presence vocabulary, without pretending to be a device row.
+    /// </summary>
+    /// <remarks>
+    /// The chips stay: presence and routing still have to be told apart, and that is what they
+    /// say. The state dot does not - the Agitação row already has one, reporting whether
+    /// agitation is running, and a second dot on the same row reporting a different thing would
+    /// be two answers to one question.
+    /// </remarks>
     [Fact]
-    public void The_card_reuses_the_shared_external_device_vocabulary()
+    public void The_drawer_reuses_the_shared_presence_chips()
     {
         var card = Card();
 
         Assert.Contains("ctl:ExternalDeviceChips", card, StringComparison.Ordinal);
-        Assert.Contains("ExternalDeviceState", card, StringComparison.Ordinal);
-        Assert.Contains("Status.IsOffline", card, StringComparison.Ordinal);
-        Assert.Contains("Status.ShowRoutingChipOnly", card, StringComparison.Ordinal);
+        Assert.Contains("Status.StatusText", card, StringComparison.Ordinal);
     }
 
     /// <summary>The alarm block appears only when the drive raised one.</summary>
@@ -144,13 +193,13 @@ public sealed class ServoCardContractTests
 
         foreach (var binding in new[]
                  {
-                     "{Binding RpmText}",
+                     "{Binding RpmText,",
                      "{Binding TorquePercentText}",
-                     "{Binding PowerWattText, Mode=OneWay}",
+                     "{Binding PowerWattText,",
                      "{Binding TorqueNewtonMetreText",
                      "{Binding LoadPercentText",
                      "{Binding EnergyWattHourText",
-                     "{Binding StateText}",
+                     "{Binding StateText,",
                      "{Binding ErrorRateText",
                      "{Binding QueueDepthText",
                  })
@@ -176,7 +225,12 @@ public sealed class ServoCardContractTests
         var card = Card();
 
         Assert.DoesNotContain("Content=\"Aplicar", card, StringComparison.Ordinal);
-        Assert.Contains("Enter para enviar", card, StringComparison.Ordinal);
+
+        // The hint that used to sit beside the field is gone: it explained a convention the
+        // whole page already follows, and repeating it on one field implied the others behaved
+        // differently. The tooltip still says it, where someone unsure would look.
+        Assert.DoesNotContain("Enter para enviar", card, StringComparison.Ordinal);
+        Assert.Contains("Confirma ao sair do campo ou com Enter", card, StringComparison.Ordinal);
 
         var codeBehind = File.ReadAllText(Path.ChangeExtension(ViewPath, ".xaml.cs"));
         Assert.Contains("case ServoDriveViewModel servo", codeBehind, StringComparison.Ordinal);

@@ -21,13 +21,13 @@ public sealed class ControlWorkspaceContractTests
             "<!-- 3. pH (com dropdown) -->",
             "<!-- 4. Pressão -->",
             "<!-- 5. Oxigênio -->",
-            "<!-- 6. Dosagem de Nutrientes (com dropdown) -->",
-            "<!-- 7. Dosagem de Antiespumante (com dropdown) -->",
+            "<!-- 6. Nutrientes (com dropdown) -->",
+            "<!-- 7. Antiespumante (com dropdown) -->",
             "Text=\"Dispositivos Externos\"",
             "<!-- 8. Vazão de Ar (com dropdown) -->",
-            "<!-- 9. Sensor de Distância (Controle de espuma) -->",
-            "<!-- 10. Bomba Dosadora Externa (roadmap) -->",
-            "<!-- 11. Sensor de Biomassa -->",
+            "<!-- 9. Distância (Controle de espuma) -->",
+            "<!-- 10. Bomba Externa (roadmap) -->",
+            "<!-- 11. Absorbância -->",
             "<!-- 12. Frasco Agitador -->",
         };
 
@@ -76,8 +76,8 @@ public sealed class ControlWorkspaceContractTests
     public void External_pump_drawer_exposes_the_implemented_profile_controls()
     {
         var xaml = File.ReadAllText(ViewPath);
-        var start = xaml.IndexOf("<!-- 10. Bomba Dosadora Externa", StringComparison.Ordinal);
-        var end = xaml.IndexOf("<!-- 11. Sensor de Biomassa", start, StringComparison.Ordinal);
+        var start = xaml.IndexOf("<!-- 10. Bomba Externa", StringComparison.Ordinal);
+        var end = xaml.IndexOf("<!-- 11. Absorbância", start, StringComparison.Ordinal);
         var section = xaml[start..end];
 
         Assert.Contains("IsExpandedExternalPump", section, StringComparison.Ordinal);
@@ -94,7 +94,7 @@ public sealed class ControlWorkspaceContractTests
     public void Biomass_row_exposes_a_validated_optimal_threshold_entry()
     {
         var xaml = File.ReadAllText(ViewPath);
-        var start = xaml.IndexOf("<!-- 11. Sensor de Biomassa", StringComparison.Ordinal);
+        var start = xaml.IndexOf("<!-- 11. Absorbância", StringComparison.Ordinal);
         var end = xaml.IndexOf("<!-- 12. Frasco Agitador", start, StringComparison.Ordinal);
         var section = xaml[start..end];
 
@@ -200,9 +200,9 @@ public sealed class ControlWorkspaceContractTests
         var markers = new[]
         {
             "<!-- 8. Vazão de Ar",
-            "<!-- 9. Sensor de Distância",
-            "<!-- 10. Bomba Dosadora Externa",
-            "<!-- 11. Sensor de Biomassa",
+            "<!-- 9. Distância",
+            "<!-- 10. Bomba Externa",
+            "<!-- 11. Absorbância",
             "<!-- 12. Frasco Agitador",
         };
 

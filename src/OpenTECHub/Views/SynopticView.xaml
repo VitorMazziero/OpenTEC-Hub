@@ -151,12 +151,12 @@
                                             DataContext="{Binding Pressure}" Content="{Binding}"
                                             ToolTip="Arraste para o gráfico ou visualize a pressão" />
                             <ContentControl Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Dosagem de Nutrientes"
+                                            Tag="{x:Static vm:DeviceNames.Nutrient}"
                                             MouseMove="Card_MouseMove"
                                             DataContext="{Binding Nutrient}" Content="{Binding}"
                                             ToolTip="Bomba de nutrientes do módulo OpenTEC" />
                             <ContentControl Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Dosagem de Antiespumante"
+                                            Tag="{x:Static vm:DeviceNames.Antifoam}"
                                             MouseMove="Card_MouseMove"
                                             DataContext="{Binding Antifoam}" Content="{Binding}"
                                             ToolTip="Arraste para o gráfico ou visualize o antiespumante" />
@@ -186,17 +186,17 @@
                                             DataContext="{Binding Flow}" Content="{Binding}"
                                             ToolTip="Arraste para o gráfico ou visualize a vazão de aeração" />
                             <ContentControl Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Sensor de Distância"
+                                            Tag="{x:Static vm:DeviceNames.Distance}"
                                             MouseMove="Card_MouseMove"
                                             DataContext="{Binding Level}" Content="{Binding}"
                                             ToolTip="Arraste para o gráfico ou visualize a distância/nível" />
                             <ContentControl Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Sensor de Biomassa"
+                                            Tag="{x:Static vm:DeviceNames.Absorbance}"
                                             MouseMove="Card_MouseMove"
                                             DataContext="{Binding Biomass}" Content="{Binding}"
                                             ToolTip="Arraste para o gráfico ou visualize a absorbância de biomassa" />
                             <ContentControl Style="{StaticResource InstrumentTagStyle}"
-                                            Tag="Bomba Dosadora Externa"
+                                            Tag="{x:Static vm:DeviceNames.ExternalPump}"
                                             MouseMove="Card_MouseMove"
                                             DataContext="{Binding Pump}" Content="{Binding}"
                                             ToolTip="Arraste para o gráfico ou visualize a bomba externa" />

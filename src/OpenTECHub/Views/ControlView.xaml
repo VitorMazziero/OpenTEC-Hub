@@ -788,7 +788,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 6. Dosagem de Nutrientes (com dropdown) -->
+                            <!-- 6. Nutrientes (com dropdown) -->
                             <StackPanel DataContext="{Binding NutrientControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -808,7 +808,7 @@
                                     <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Nutriente" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Nutrient" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Dosagem de Nutrientes" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static vm:DeviceNames.Nutrient}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
@@ -876,7 +876,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 7. Dosagem de Antiespumante (com dropdown) -->
+                            <!-- 7. Antiespumante (com dropdown) -->
                             <StackPanel DataContext="{Binding AntifoamControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -896,7 +896,7 @@
                                     <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Antiespumante" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Foam" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Dosagem de Antiespumante" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static vm:DeviceNames.Antifoam}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding LiveAntifoamText}" Style="{StaticResource NumericTextStyle}" />
@@ -1232,7 +1232,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 9. Sensor de Distância (Controle de espuma) -->
+                            <!-- 9. Distância (Controle de espuma) -->
                             <StackPanel DataContext="{Binding FoamControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1276,7 +1276,7 @@
                                         <!-- The name yields first. A chip pushed out of a horizontal
                                              stack would take the device's state with it, and the state
                                              is the part the operator cannot reconstruct. -->
-                                        <TextBlock Grid.Column="1" Text="Sensor de Distância" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{x:Static vm:DeviceNames.Distance}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
                                                    ToolTip="Sensor de espuma via distância" />
@@ -1314,7 +1314,7 @@
                                                   IsChecked="{Binding SensorEnabled, Mode=TwoWay}" ToolTip="Ativar sensor de distância/espuma" />
                                 </Grid>
 
-                                <!-- Dropdown Drawer: Sensor de Distância -->
+                                <!-- Dropdown Drawer: Distância -->
                                 <Border Visibility="{Binding DataContext.IsExpandedDistance, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
                                         Background="{DynamicResource SurfaceHoverBrush}"
                                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -1365,7 +1365,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 10. Bomba Dosadora Externa (roadmap) -->
+                            <!-- 10. Bomba Externa (roadmap) -->
                             <StackPanel DataContext="{Binding PumpControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1382,7 +1382,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações da bomba dosadora externa" />
-                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Bomba externa">
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{x:Static vm:DeviceNames.ExternalPump}">
                                         <ctl:StateDot.State>
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="IsEnabled" />
@@ -1406,7 +1406,7 @@
                                         <!-- The name yields first. A chip pushed out of a horizontal
                                              stack would take the device's state with it, and the state
                                              is the part the operator cannot reconstruct. -->
-                                        <TextBlock Grid.Column="1" Text="Bomba Dosadora Externa" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{x:Static vm:DeviceNames.ExternalPump}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
                                                    ToolTip="Bomba peristáltica externa de alimentação" />
@@ -1582,7 +1582,7 @@
                             </Border>
                             </StackPanel>
 
-                            <!-- 11. Sensor de Biomassa -->
+                            <!-- 11. Absorbância -->
                             <StackPanel DataContext="{Binding BiomassControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1617,7 +1617,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <ctl:Icon Grid.Column="0" Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Grid.Column="1" Text="Sensor de Biomassa" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{x:Static vm:DeviceNames.Absorbance}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
                                                    ToolTip="Sensor óptico de biomassa (absorbância)" />

@@ -965,10 +965,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _alarms.SetRoutingRequested("Vazão de ar", _flowSubsystem.IsEnabled);
-        _alarms.SetRoutingRequested("Sensor de biomassa", BiomassControl.IsEnabled);
-        _alarms.SetRoutingRequested("Bomba externa", PumpControl.IsEnabled);
-        _alarms.SetRoutingRequested("Sensor de distância", FoamControl.SensorEnabled);
+        _alarms.SetRoutingRequested(DeviceNames.Routing.Airflow, _flowSubsystem.IsEnabled);
+        _alarms.SetRoutingRequested(DeviceNames.Routing.Absorbance, BiomassControl.IsEnabled);
+        _alarms.SetRoutingRequested(DeviceNames.Routing.ExternalPump, PumpControl.IsEnabled);
+        _alarms.SetRoutingRequested(DeviceNames.Routing.Distance, FoamControl.SensorEnabled);
     }
 
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)

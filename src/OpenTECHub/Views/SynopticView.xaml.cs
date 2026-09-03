@@ -671,7 +671,7 @@ public partial class SynopticView : UserControl
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Bomba Dosadora Externa",
+            Text = DeviceNames.ExternalPump,
             FontSize = 14,
             FontWeight = FontWeights.Bold,
             Foreground = TryBrush("TextPrimaryBrush") ?? Brushes.Black,
@@ -1018,9 +1018,12 @@ public partial class SynopticView : UserControl
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Flow);
         }
+        // Nutriente has no telemetry channel: it is a commanded-only pump, and the
+        // device reports nothing back. This used to return the antifoam series, so
+        // dragging Nutrientes onto a plot charted a different device under its name.
         if (tag.Contains("Nutrientes", StringComparison.OrdinalIgnoreCase))
         {
-            return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Antifoam);
+            return null;
         }
         if (tag.Contains("Antiespumante", StringComparison.OrdinalIgnoreCase))
         {
@@ -1030,7 +1033,8 @@ public partial class SynopticView : UserControl
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Distance);
         }
-        if (tag.Contains("Biomassa", StringComparison.OrdinalIgnoreCase))
+        if (tag.Contains("Absorbância", StringComparison.OrdinalIgnoreCase) ||
+            tag.Contains("Biomassa", StringComparison.OrdinalIgnoreCase))
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Biomass);
         }

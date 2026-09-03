@@ -424,7 +424,7 @@ public static class RecipeNodeCatalog
         new()
         {
             Type = NodeType.BiomassSensor,
-            Title = "Sensor de Biomassa",
+            Title = "Absorbância",
             Category = BlockCategory.ExternalDevices,
             Ports = InOut,
             Parameters =

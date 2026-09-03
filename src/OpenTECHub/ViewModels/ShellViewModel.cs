@@ -214,7 +214,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             channel: TelemetryChannel.Biomass,
             detailNote: "Absorbância do sensor óptico. Ative o sensor e capture o branco em Controle → Biomassa.");
         Pump = new ProcessVariableViewModel(
-            "pump", "Bomba externa", "mL/min", decimals: 3, isControllable: false,
+            "pump", DeviceNames.ExternalPump, "mL/min", decimals: 3, isControllable: false,
             channel: TelemetryChannel.PumpFlow,
             detailNote: "Vazão informada pela bomba peristáltica. Configure o perfil em Controle → Bomba externa.");
 

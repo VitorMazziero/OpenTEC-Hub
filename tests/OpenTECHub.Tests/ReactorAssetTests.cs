@@ -61,8 +61,8 @@ public sealed class ReactorAssetTests
                      "pH",
                      "Oxigênio",
                      "Alívio de Pressão",
-                     "Dosagem de Nutrientes",
-                     "Dosagem de Antiespumante",
+                     "{x:Static vm:DeviceNames.Nutrient}",
+                     "{x:Static vm:DeviceNames.Antifoam}",
                  })
         {
             Assert.Contains($"Tag=\"{label}\"", internalSection, StringComparison.Ordinal);
@@ -72,9 +72,9 @@ public sealed class ReactorAssetTests
         foreach (var label in new[]
                  {
                      "Vazão de Ar",
-                     "Sensor de Distância",
-                     "Sensor de Biomassa",
-                     "Bomba Dosadora Externa",
+                     "{x:Static vm:DeviceNames.Distance}",
+                     "{x:Static vm:DeviceNames.Absorbance}",
+                     "{x:Static vm:DeviceNames.ExternalPump}",
                  })
         {
             Assert.Contains($"Tag=\"{label}\"", externalSection, StringComparison.Ordinal);

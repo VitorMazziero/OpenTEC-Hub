@@ -189,8 +189,10 @@ public sealed class ControlWorkspaceContractTests
         Assert.Equal(4, Count(section, "ConnectedExternalDeviceToggleStyle"));
 
         // Distance, biomass and flask editors require actual node presence, not merely the
-        // app-to-Hub link. The flowmeter retains its acknowledgement-aware inline guard.
-        Assert.Equal(10, Count(section, "ConnectedExternalDeviceEntryStyle"));
+        // app-to-Hub link. The flowmeter retains its acknowledgement-aware inline guard. The
+        // external-pump drawer adds one more use as a scoped implicit style, so its mode
+        // selector and every entry gate on the node being online with a single reference.
+        Assert.Equal(11, Count(section, "ConnectedExternalDeviceEntryStyle"));
     }
 
     [Fact]

@@ -181,6 +181,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
             {
                 PreferredMedium = TransportMedium.Usb,
                 LastKnownPort = portName,
+                LastSessionConnected = true,
             },
         });
 
@@ -197,6 +198,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
             {
                 PreferredMedium = TransportMedium.WiFi,
                 IpAddress = ipAddress,
+                LastSessionConnected = true,
             },
         });
 
@@ -211,7 +213,18 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         });
     }
 
-    public void Disconnect() => _manager.Disconnect();
+    public void Disconnect()
+    {
+        // An explicit operator disconnect is a standing intent to stay offline: record it
+        // so the next launch does not auto-reconnect. A link that merely drops never
+        // reaches here (it is handled inside the manager), so an unattended reboot resumes.
+        _settings.Update(s => s with
+        {
+            Connection = s.Connection with { LastSessionConnected = false },
+        });
+
+        _manager.Disconnect();
+    }
 
     public void Send(OpenTECCommand command) => _manager.SendCommand(command);
 

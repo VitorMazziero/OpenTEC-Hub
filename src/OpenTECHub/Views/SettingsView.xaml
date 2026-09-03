@@ -443,8 +443,8 @@
                         <Run Text="Vítor Teixeira Mazziero" FontWeight="Bold" FontSize="13"/>
                         <Run Text="FAPESP (2026/04877-4)" FontSize="11" FontWeight="SemiBold"/>
                     </TextBlock>
-                    <Image Source="/OpenTECHub;component/Resources/Images/Logo_Unesp.png" Height="24" Margin="16,0,8,0" RenderOptions.BitmapScalingMode="HighQuality" />
-                    <Image Source="/OpenTECHub;component/Resources/Images/logos-fapesp.png" Height="24" Margin="0,0,0,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Image Source="{Binding UnespLogoSource}" Height="24" Margin="16,0,8,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Image Source="{Binding FapespLogoSource}" Height="24" Margin="0,0,0,0" RenderOptions.BitmapScalingMode="HighQuality" />
                 </StackPanel>
                 
                 <StackPanel VerticalAlignment="Center" Margin="16,0,0,0">

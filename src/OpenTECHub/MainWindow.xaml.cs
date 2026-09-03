@@ -98,6 +98,16 @@ public partial class MainWindow : Window
     {
         if (_settings?.Current.Ui.Window is not { HasBounds: true } saved)
         {
+            // No remembered placement (first run). On a traditional laptop panel the
+            // 1280×800 default barely fits — or overhangs a 768 px-tall screen — so open
+            // maximized there and leave larger desktop monitors on the windowed default.
+            // Once a placement is saved, that operator choice is what gets restored.
+            if (ShouldStartMaximizedForSmallScreen())
+            {
+                _lastNonMinimizedState = WindowState.Maximized;
+                WindowState = WindowState.Maximized;
+            }
+
             return;
         }
 
@@ -123,6 +133,21 @@ public partial class MainWindow : Window
             _lastNonMinimizedState = WindowState.Maximized;
             WindowState = WindowState.Maximized;
         }
+    }
+
+    /// <summary>
+    /// True on a traditional-laptop-sized panel, where the app should open maximized.
+    /// </summary>
+    /// <remarks>
+    /// Measured against the primary work area in device-independent units, so display
+    /// scaling counts: a 1920×1080 panel at 150 % has the effective room of a small
+    /// screen and is treated as one. The 1600×900 bound catches 1366×768, 1440×900 and
+    /// 1536×864 laptops while leaving 1080p-and-larger desktop monitors windowed.
+    /// </remarks>
+    private static bool ShouldStartMaximizedForSmallScreen()
+    {
+        var work = SystemParameters.WorkArea;
+        return work.Width <= 1600 || work.Height <= 900;
     }
 
     private void OnWindowStateChanged(object? sender, EventArgs e)

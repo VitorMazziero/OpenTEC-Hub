@@ -111,8 +111,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _device.TelemetryReceived += OnTelemetryReceived;
         _settings.Changed += OnSettingsChanged;
 
+        // The footer logos follow the applied theme, which can change from outside this
+        // page (caption toggle, live Windows switch), so track the service, not Theme.
+        IsDarkTheme = _theme.IsDark;
+        _theme.ThemeChanged += OnThemeChanged;
+
         Load(settings.Current);
     }
+
+    private void OnThemeChanged(bool isDark) => IsDarkTheme = isDark;
 
     private void OnTelemetryReceived(SensorSnapshot _)
     {
@@ -262,6 +269,26 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasChanges))]
     public partial ThemePreference Theme { get; set; }
+
+    /// <summary>
+    /// Tracks the theme actually applied (not the staged <see cref="Theme"/>), so the
+    /// footer logos swap the instant the theme changes — including from the caption
+    /// toggle or a live Windows theme switch, before Apply is pressed.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UnespLogoSource))]
+    [NotifyPropertyChangedFor(nameof(FapespLogoSource))]
+    public partial bool IsDarkTheme { get; set; }
+
+    /// <summary>UNESP credit logo, white-ink under the dark theme and dark-ink otherwise.</summary>
+    public string UnespLogoSource => IsDarkTheme
+        ? "/OpenTECHub;component/Resources/Images/Logo_Unesp_dark_theme.png"
+        : "/OpenTECHub;component/Resources/Images/Logo_Unesp.png";
+
+    /// <summary>FAPESP credit logo, paired with <see cref="UnespLogoSource"/>.</summary>
+    public string FapespLogoSource => IsDarkTheme
+        ? "/OpenTECHub;component/Resources/Images/logos-fapesp_dark_theme.png"
+        : "/OpenTECHub;component/Resources/Images/logos-fapesp.png";
 
     // ---- Presentation units -----------------------------------------
 
@@ -900,6 +927,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         _device.TelemetryReceived -= OnTelemetryReceived;
         _settings.Changed -= OnSettingsChanged;
+        _theme.ThemeChanged -= OnThemeChanged;
     }
 }
 

@@ -147,6 +147,19 @@ public sealed record ConnectionSettings
     /// </summary>
     public bool AutoConnect { get; init; } = true;
 
+    /// <summary>
+    /// Whether the operator's last session ended in a connected/connecting state.
+    /// </summary>
+    /// <remarks>
+    /// Set true whenever a link is opened and false on an explicit disconnect, so a
+    /// restart resumes the last state instead of always re-probing USB: a session left
+    /// connected reconnects over <see cref="PreferredMedium"/> (Wi-Fi stays Wi-Fi, USB
+    /// stays USB), while one the operator disconnected stays offline until they connect
+    /// again. Gated by <see cref="AutoConnect"/>; a link that merely dropped is not a
+    /// disconnect, so an unattended reboot still resumes.
+    /// </remarks>
+    public bool LastSessionConnected { get; init; } = true;
+
     /// <summary>Cycle to the other medium automatically when a link drops.</summary>
     public bool BackupEnabled { get; init; } = true;
 

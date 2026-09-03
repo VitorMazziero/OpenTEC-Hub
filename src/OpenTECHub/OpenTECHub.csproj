@@ -42,6 +42,16 @@
       <Link>Resources\Images\Logo_Unesp.png</Link>
       <LogicalName>Resources/Images/Logo_Unesp.png</LogicalName>
     </Resource>
+    <!-- Dark-theme variants: the light logos are dark ink and vanish on the dark ground,
+         so a white-ink pair is swapped in when the dark theme is active. -->
+    <Resource Include="..\..\docs\UI_design_guides\logos-fapesp_dark_theme.png">
+      <Link>Resources\Images\logos-fapesp_dark_theme.png</Link>
+      <LogicalName>Resources/Images/logos-fapesp_dark_theme.png</LogicalName>
+    </Resource>
+    <Resource Include="..\..\docs\UI_design_guides\Logo_Unesp_dark_theme.png">
+      <Link>Resources\Images\Logo_Unesp_dark_theme.png</Link>
+      <LogicalName>Resources/Images/Logo_Unesp_dark_theme.png</LogicalName>
+    </Resource>
     <Resource Include="Resources\Icons\app_icon.ico" />
   </ItemGroup>
 

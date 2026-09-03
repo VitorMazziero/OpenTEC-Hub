@@ -1145,13 +1145,24 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// </remarks>
     public void StartAutoConnect()
     {
-        if (!_settings.Current.Connection.AutoConnect)
+        var connection = _settings.Current.Connection;
+
+        if (!connection.AutoConnect)
         {
             _log.LogInformation("Auto-connect disabled by settings");
             return;
         }
 
-        _log.LogInformation("Auto-connect starting");
+        // Resume the last state rather than always re-probing: a session the operator
+        // left connected reconnects over the remembered medium; one they disconnected
+        // stays offline until they connect again.
+        if (!connection.LastSessionConnected)
+        {
+            _log.LogInformation("Last session ended disconnected; staying offline until the operator connects");
+            return;
+        }
+
+        _log.LogInformation("Auto-connect starting ({Medium})", connection.PreferredMedium);
         _device.Connect();
     }
 

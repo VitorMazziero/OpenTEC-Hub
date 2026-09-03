@@ -1438,6 +1438,17 @@
                                         Margin="28,4,8,8"
                                         Padding="14,10">
                                 <StackPanel>
+                                    <StackPanel.Resources>
+                                        <!-- The pump cannot be commanded while its node is offline, so every
+                                             input in the drawer stays disabled — and dimmed — until it reports
+                                             online, the same rule as the row switch and the Enviar/Reverter
+                                             buttons. Scoped here so it reaches the mode selector and each entry
+                                             without repeating the binding on every control. -->
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource ConnectedExternalDeviceEntryStyle}" />
+                                        <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                            <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />
+                                        </Style>
+                                    </StackPanel.Resources>
                                     <!-- The primary row already carries on/off, live flow and volume.
                                          Keep only the node-specific diagnostics here so the drawer does not
                                          duplicate the row or present a second switch. -->
@@ -1530,6 +1541,7 @@
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal">
                                                 <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                              IsEnabled="{Binding Status.IsOnline}"
                                                               IsChecked="{Binding GasProportionalEnabled, Mode=TwoWay}"
                                                               VerticalAlignment="Center" />
                                                 <TextBlock Text="Gás proporcional — Q_g = (V₀ + Vol/1000)·vvm"

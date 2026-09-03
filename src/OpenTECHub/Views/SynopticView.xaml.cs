@@ -436,6 +436,12 @@ public partial class SynopticView : UserControl
         if (e.LeftButton == MouseButtonState.Pressed && sender is FrameworkElement card && card.Tag is string tag)
         {
             DragDrop.DoDragDrop(card, tag, DragDropEffects.Copy);
+
+            // DoDragDrop returns only once the drag has ended (dropped or cancelled). A cue
+            // still lit on a panel the pointer merely crossed on the way to the drop is now
+            // stale — WPF can swallow that panel's DragLeave — so clear every default cue.
+            // A panel that opened a sub-menu on drop keeps its overlay.
+            ClearDefaultDropCues();
         }
     }
 
@@ -446,6 +452,9 @@ public partial class SynopticView : UserControl
             e.Effects = DragDropEffects.Copy;
             if (_activeSubmenuTarget == null)
             {
+                // Only the panel under the pointer shows the cue; drop any left lit on a
+                // panel the drag has since left, so two are never shown at once.
+                ClearDefaultDropCues(sender as Border);
                 ShowDefaultDropCue(sender as Border, true);
             }
         }
@@ -589,6 +598,31 @@ public partial class SynopticView : UserControl
         if (match != null)
         {
             SetPanelChannel(panelIndex, match);
+        }
+    }
+
+    /// <summary>
+    /// Hides the "Solte para visualizar" cue on every panel except <paramref name="except"/>.
+    /// </summary>
+    /// <remarks>
+    /// The cue is lit per panel on <see cref="Plot_DragEnter"/> and is meant to clear on the
+    /// matching leave, but a drag that crosses one panel on the way to another can leave that
+    /// crossing's DragLeave unbalanced (WPF reports the pointer still inside the panel as it
+    /// moves onto the child plot), so the cue stays lit after the drop. Clearing the others
+    /// whenever a panel lights its cue, and once more when the drag ends, keeps at most one
+    /// cue shown and leaves none stuck. A panel showing a drop sub-menu owns its overlay and
+    /// is skipped.
+    /// </remarks>
+    private void ClearDefaultDropCues(Border? except = null)
+    {
+        foreach (var target in new[] { LeftDropTarget, RightDropTarget, BottomLeftDropTarget, BottomRightDropTarget })
+        {
+            if (target == except || target == _activeSubmenuTarget)
+            {
+                continue;
+            }
+
+            ShowDefaultDropCue(target, false);
         }
     }
 

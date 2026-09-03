@@ -566,4 +566,187 @@ public sealed class AlarmServiceTests
         Assert.True(h.Latched(AlarmId.SensorAbsent));
         Assert.Equal(AlarmId.ModuleOffline, h.Service.Headline!.Id); // critical outranks warning
     }
+
+    // ── ASDA-B2 servo drive ──────────────────────────────────────────────────
+    //
+    // Four legitimate states here can be mistaken for a fault, and each of them would
+    // produce an alarm nothing could ever clear. The negative tests are the point; the
+    // two positive ones are the easy half.
+
+    /// <summary>A frame with the servo present, routed and healthy.</summary>
+    private static SensorSnapshot ServoFrame(
+        bool hasTelemetry = true,
+        bool online = true,
+        bool? commEnabled = true,
+        bool hasSample = true,
+        int state = 2,
+        int alarm = 0) => HealthyFrame() with
+        {
+            HasServoTelemetry = hasTelemetry,
+            HasServoSample = hasSample,
+            ServoOnline = online,
+            ServoCommEnabled = commEnabled,
+            ServoState = state,
+            ServoAlarm = alarm,
+            ServoRpm = 600.5,
+        };
+
+    [Fact]
+    public void An_absent_servo_node_with_routing_on_raises_the_offline_alarm()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(online: false, commEnabled: true, hasSample: false));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(11));
+
+        Assert.True(h.Latched(AlarmId.ServoDriveOffline));
+    }
+
+    /// <summary>
+    /// The on-delay outlasts the Hub's own presence window plus one aggregate frame.
+    /// </summary>
+    /// <remarks>
+    /// The Hub's servo window is 6 s and it publishes at the <c>dataDelay</c> of 2 s, so a
+    /// node that misses a single push can be reported absent for up to eight seconds through
+    /// no fault of its own. The two seconds the other device alarms use would fire on that.
+    /// </remarks>
+    [Fact]
+    public void The_servo_offline_alarm_waits_out_the_hubs_own_window()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(online: false, commEnabled: true, hasSample: false));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(8));
+
+        Assert.False(h.Latched(AlarmId.ServoDriveOffline));
+    }
+
+    [Fact]
+    public void A_drive_in_alarm_raises_a_critical_alarm_carrying_the_panel_code()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(state: 3, alarm: 0x0011));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+
+        var snapshot = h.Get(AlarmId.ServoDriveAlarm);
+        Assert.NotNull(snapshot);
+        Assert.Equal(AlarmSeverity.Critical, snapshot!.Severity);
+
+        // AL011 is what the drive's own panel shows for 0x0011. Decimal 17 matches nothing
+        // in the manual and would send whoever looks it up to the wrong page.
+        Assert.Contains("AL011", snapshot.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>A fault code alone is enough; the bench saw one arrive before the state.</summary>
+    [Fact]
+    public void A_servo_fault_code_without_the_alarm_state_still_raises_it()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(state: 2, alarm: 0x0011));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+
+        Assert.True(h.Latched(AlarmId.ServoDriveAlarm));
+    }
+
+    /// <summary>
+    /// A module configured without a servo: both flags false, for ever.
+    /// </summary>
+    /// <remarks>
+    /// The bench module's permanent state after <c>{"servoComm":0}</c>, persisted in NVS and
+    /// confirmed across a reboot on 2026-09-02. An alarm here would raise an event nothing
+    /// could ever clear, on a module behaving exactly as configured.
+    /// </remarks>
+    [Fact]
+    public void A_module_without_a_servo_never_alarms()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(online: false, commEnabled: false, hasSample: false));
+        h.AdvanceAndPoll(TimeSpan.FromMinutes(5));
+
+        Assert.False(h.Latched(AlarmId.ServoDriveOffline));
+        Assert.False(h.Latched(AlarmId.ServoDriveAlarm));
+        Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
+
+    /// <summary>An older Hub has claimed nothing, which is not a report of failure.</summary>
+    [Fact]
+    public void A_hub_without_the_servo_keys_never_alarms_about_it()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(
+            hasTelemetry: false, online: false, commEnabled: null, hasSample: false));
+        h.AdvanceAndPoll(TimeSpan.FromMinutes(5));
+
+        Assert.False(h.Latched(AlarmId.ServoDriveOffline));
+        Assert.False(h.Latched(AlarmId.ServoDriveAlarm));
+    }
+
+    /// <summary>Routing off with the node present is a configuration, not a fault.</summary>
+    [Fact]
+    public void Servo_routing_switched_off_with_the_node_present_never_alarms()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame(online: true, commEnabled: false, hasSample: false));
+        h.AdvanceAndPoll(TimeSpan.FromMinutes(5));
+
+        Assert.False(h.Latched(AlarmId.ServoDriveOffline));
+    }
+
+    /// <summary>
+    /// Modbus errors raise nothing on their own — not at this stage.
+    /// </summary>
+    /// <remarks>
+    /// The bench saw exactly one error in 256 reads, on the first transaction after boot. A
+    /// threshold on the running total would fire on a perfectly healthy link and never
+    /// clear. The rate is on the card; the threshold waits for the 2 h soak to say what a
+    /// bad rate actually looks like.
+    /// </remarks>
+    [Fact]
+    public void Servo_modbus_errors_do_not_raise_an_alarm_yet()
+    {
+        using var h = new Harness();
+
+        h.Device.PushTelemetry(ServoFrame() with { ServoCommOk = 255, ServoCommErr = 40 });
+        h.AdvanceAndPoll(TimeSpan.FromMinutes(5));
+
+        Assert.False(h.Latched(AlarmId.ServoDriveAlarm));
+        Assert.False(h.Latched(AlarmId.ServoDriveOffline));
+    }
+
+    /// <summary>
+    /// The Hub routing a servo the operator switched off is worth saying.
+    /// </summary>
+    /// <remarks>
+    /// The dangerous direction is the other one: with the Hub not routing, the servo's ten
+    /// values silently stop reaching the aggregate frame while the switch still reads "on".
+    /// </remarks>
+    [Fact]
+    public void A_routing_disagreement_on_the_servo_is_annunciated()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested("Servo drive", requested: false);
+
+        h.Device.PushTelemetry(ServoFrame(commEnabled: true));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(6));
+
+        Assert.True(h.Latched(AlarmId.DeviceRoutingMismatch));
+        Assert.Contains("Servo drive", h.Get(AlarmId.DeviceRoutingMismatch)!.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Agreement_on_the_servo_routing_annunciates_nothing()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested("Servo drive", requested: true);
+
+        h.Device.PushTelemetry(ServoFrame(commEnabled: true));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(6));
+
+        Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
 }

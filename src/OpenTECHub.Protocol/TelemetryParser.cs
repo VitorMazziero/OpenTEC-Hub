@@ -50,6 +50,16 @@ public sealed record ParserConfig
 
     /// <summary>Local presence window for the flask agitator, once it pushes at all.</summary>
     public TimeSpan AgitatorTimeout { get; init; } = TimeSpan.FromSeconds(4);
+
+    /// <summary>Local presence window for the ASDA-B2 servo node. It pushes once a second.</summary>
+    /// <remarks>
+    /// The Hub's own window is 6 s and is authoritative whenever it publishes
+    /// <c>ServoOnline</c>; this is the fallback for a Hub that predates the key. Two
+    /// seconds of slack is one aggregate frame at the default <c>dataDelay</c>, which is
+    /// the resolution anything downstream can actually observe - a tighter window would
+    /// race the Hub and declare the node absent first.
+    /// </remarks>
+    public TimeSpan ServoTimeout { get; init; } = TimeSpan.FromSeconds(8);
 }
 
 /// <summary>Outcome of parsing one line read from the device.</summary>
@@ -202,6 +212,8 @@ public sealed class TelemetryParser
         ParseBiomass(root, now);
         ParsePump(root, now);
         ParseAgitator(root, now);
+        ParseHubIdentity(root);
+        ParseServo(root, now);
         ParseTime(root);
 
         return ParseOutcome.Updated;
@@ -606,6 +618,164 @@ public sealed class TelemetryParser
         }
     }
 
+    /// <summary>
+    /// The ASDA-B2 servo node: presence, routing, queue state and the ten measurements.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Presence and routing are <b>orthogonal</b> here, and this method exists mainly to
+    /// keep them apart. All four combinations are legitimate and only one is a failure:
+    /// a node that is absent while routing is on. Routing off with the node present is a
+    /// deliberate configuration; both off is a module that simply has no servo, which is
+    /// the bench module's permanent and correct state.
+    /// </para>
+    /// <para>
+    /// So the four always-published keys are read <i>before</i> any early return. They
+    /// are the whole point: without <c>ServoCommEnabled</c>, "this module has no servo"
+    /// and "the servo went missing" look identical, and the second is an alarm.
+    /// </para>
+    /// </remarks>
+    /// <summary>Who is on the other end, for diagnostics and for the session header.</summary>
+    /// <remarks>
+    /// Sticky: a Hub that published its identity once has not stopped being that Hub, and
+    /// the aggregate frame carries these on every frame anyway. Absence means a Hub built
+    /// before the keys existed, which leaves the version null and -1 rather than guessing.
+    /// </remarks>
+    private void ParseHubIdentity(JsonElement root)
+    {
+        if (TryGetPropertyCaseInsensitive(root, TelemetryKeys.HubFirmwareVersion, out var firmware) &&
+            firmware.ValueKind == JsonValueKind.String)
+        {
+            Readings.HubFirmwareVersion = firmware.GetString();
+        }
+
+        AssignInt(root, TelemetryKeys.HubProtocolVersion, v => Readings.HubProtocolVersion = v);
+    }
+
+    private void ParseServo(JsonElement root, DateTimeOffset now)
+    {
+        var sawValues = TryGetPropertyCaseInsensitive(root, TelemetryKeys.ServoRpm, out _) ||
+                        TryGetPropertyCaseInsensitive(root, TelemetryKeys.ServoPowerW, out _);
+
+        var presence = ResolvePresence(
+            root,
+            TelemetryKeys.ServoOnline,
+            sawValues,
+            _config.ServoTimeout,
+            new Presence(Readings.HasServoTelemetry, Readings.ServoOnline, Readings.ServoLastSeenAt),
+            now);
+
+        Readings.HasServoTelemetry = presence.HasTelemetry;
+        Readings.ServoOnline = presence.Online;
+        Readings.ServoLastSeenAt = presence.LastSeenAt;
+
+        if (TryGetBool(root, TelemetryKeys.ServoCommEnabled, out var commEnabled))
+        {
+            Readings.ServoCommEnabled = commEnabled;
+        }
+
+        AssignInt(root, TelemetryKeys.ServoCommandQueueDepth,
+            v => Readings.ServoCommandQueueDepth = v);
+
+        // Not sticky, and null rather than false when the key is absent: a Hub that does
+        // not mention a pending command is saying there is none, but a Hub that has no
+        // such channel at all is saying nothing, and silence is not a confirmation.
+        Readings.ServoCommandPending =
+            TryGetBool(root, TelemetryKeys.ServoCommandPending, out var pending) ? pending : null;
+
+        // The Hub publishes the ten measurements only when there is a publishable
+        // sample - fresh presence AND routing on - so their absence carries meaning and
+        // has to invalidate. This covers both ways they can stop arriving: the node
+        // going away, and routing being switched off with the node still pushing. In the
+        // second case presence stays true, so an offline check alone would miss it and
+        // leave the last sample on screen looking live.
+        Readings.HasServoSample = sawValues;
+
+        if (!sawValues)
+        {
+            ClearServoReadings();
+            return;
+        }
+
+        if (TryGetFiniteDouble(root, TelemetryKeys.ServoRpm, out var rpm))
+        {
+            Readings.ServoRpm = rpm;
+        }
+
+        if (TryGetFiniteDouble(root, TelemetryKeys.ServoTorquePct, out var torquePct))
+        {
+            Readings.ServoTorquePct = torquePct;
+        }
+
+        if (TryGetFiniteDouble(root, TelemetryKeys.ServoTorqueNm, out var torqueNm))
+        {
+            Readings.ServoTorqueNm = torqueNm;
+        }
+
+        if (TryGetFiniteDouble(root, TelemetryKeys.ServoLoadPct, out var loadPct))
+        {
+            Readings.ServoLoadPct = loadPct;
+        }
+
+        if (TryGetFiniteDouble(root, TelemetryKeys.ServoPowerW, out var powerW))
+        {
+            Readings.ServoPowerW = powerW;
+        }
+
+        if (TryGetFiniteDouble(root, TelemetryKeys.ServoEnergyWh, out var energyWh))
+        {
+            Readings.ServoEnergyWh = energyWh;
+        }
+
+        // The node validates the state before pushing and the Hub rejects the sample
+        // outright if it is outside 0-3, so a stray value here means something upstream
+        // is wrong. Refusing it keeps a nonsense state out of the alarm path, where 3
+        // means ALARM.
+        AssignInt(root, TelemetryKeys.ServoState, v =>
+        {
+            if (v is >= 0 and <= 3)
+            {
+                Readings.ServoState = v;
+            }
+        });
+
+        AssignInt(root, TelemetryKeys.ServoAlarm, v => Readings.ServoAlarm = v);
+
+        if (TryGetCounter(root, TelemetryKeys.ServoCommOk, out var commOk))
+        {
+            Readings.ServoCommOk = commOk;
+        }
+
+        if (TryGetCounter(root, TelemetryKeys.ServoCommErr, out var commErr))
+        {
+            Readings.ServoCommErr = commErr;
+        }
+    }
+
+    /// <summary>
+    /// Returns the ten servo measurements to their sentinels, leaving presence, routing
+    /// and queue state alone.
+    /// </summary>
+    /// <remarks>
+    /// Sentinels, never zero. Zero rpm, zero torque and zero power are all legitimate
+    /// readings from a stopped motor, so a zero here would claim a measurement that was
+    /// never taken - and the UI would have no way to render the dash it owes the
+    /// operator.
+    /// </remarks>
+    private void ClearServoReadings()
+    {
+        Readings.ServoRpm = SensorReadings.NotReceived;
+        Readings.ServoTorquePct = SensorReadings.NotReceived;
+        Readings.ServoTorqueNm = SensorReadings.NotReceived;
+        Readings.ServoLoadPct = SensorReadings.NotReceived;
+        Readings.ServoPowerW = SensorReadings.NotReceived;
+        Readings.ServoEnergyWh = SensorReadings.NotReceived;
+        Readings.ServoState = -1;
+        Readings.ServoAlarm = -1;
+        Readings.ServoCommOk = -1;
+        Readings.ServoCommErr = -1;
+    }
+
     // ------------------------------------------------------------------
     // External-device presence
     // ------------------------------------------------------------------
@@ -720,6 +890,39 @@ public sealed class TelemetryParser
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// <see cref="TryGetDouble"/> plus a finiteness check.
+    /// </summary>
+    /// <remarks>
+    /// JSON has no NaN or infinity literals, so a numeric value cannot be either - but a
+    /// <i>string</i> value can: <c>double.TryParse</c> happily accepts <c>"NaN"</c> and
+    /// <c>"Infinity"</c>, and the firmware quotes some numbers. A NaN reaching a reading
+    /// would poison every average and comparison downstream while looking like data, so
+    /// the servo channels refuse it and keep whatever they had.
+    /// </remarks>
+    private static bool TryGetFiniteDouble(JsonElement root, string key, out double value)
+        => TryGetDouble(root, key, out value) && double.IsFinite(value);
+
+    /// <summary>Reads a <c>uint32</c> counter into a <c>long</c>, refusing anything outside the range.</summary>
+    /// <remarks>
+    /// The counters are unsigned 32-bit on the wire. A negative or oversized value is not
+    /// a counter that wrapped, it is a frame that should not be trusted - and accepting
+    /// one would show up as a huge negative delta in the error <i>rate</i>, which is what
+    /// the alarm watches.
+    /// </remarks>
+    private static bool TryGetCounter(JsonElement root, string key, out long value)
+    {
+        value = -1;
+
+        if (!TryGetFiniteDouble(root, key, out var raw) || raw < 0 || raw > uint.MaxValue)
+        {
+            return false;
+        }
+
+        value = (long)raw;
+        return true;
     }
 
     private static bool TryGetBool(JsonElement root, string key, out bool value)

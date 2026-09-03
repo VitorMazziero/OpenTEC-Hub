@@ -100,9 +100,21 @@ public static class CommandBuilders
             .Set(CommandKeys.PressureReference, 0.0);
 
     /// <summary>
-    /// Motor setpoint in rpm. Valid range is 50-1000; <c>0</c> stops the motor.
+    /// Agitation reference in rpm. Valid range is 50-1000; <c>0</c> <b>disables</b> the motor.
     /// </summary>
-    /// <remarks>Always an integer on the wire.</remarks>
+    /// <remarks>
+    /// <para>
+    /// Always an integer on the wire. From Hub firmware 9.1.0-dev this is a reference, not
+    /// an actuator position: the Hub inverts the CN1's affine calibration before emitting
+    /// to the TECNAL module, so the shaft delivers the requested speed.
+    /// </para>
+    /// <para>
+    /// <b>Zero disables rather than stops.</b> The module's UART vocabulary uses <c>V</c>
+    /// as the enable flag, so a zero reference sends <c>0V</c> and the module latches
+    /// disabled - its own keypad will not restore the motor until a non-zero setpoint
+    /// arrives. Anything presenting this as a stop control has to say so.
+    /// </para>
+    /// </remarks>
     public static OpenTECCommand MotorSetpoint(int rpm)
     {
         if (rpm != 0)
@@ -378,6 +390,80 @@ public static class CommandBuilders
     /// </remarks>
     public static OpenTECCommand PumpRoutingDisabled()
         => OpenTECCommand.Create().Set(CommandKeys.PumpComm, 0);
+
+    // ── ASDA-B2 servo drive (Hub v9) ─────────────────────────────────────────
+    //
+    // Three commands, none of which touches the motor. Speed stays exclusively on CN1
+    // via MotorSetpoint, and the node is read-only towards the drive by design.
+    //
+    // This link has no acknowledgement: the node pulls from a consume-on-read mailbox
+    // every 2 s and never answers. Confirmation is therefore observational - the energy
+    // falling to zero, or the ServoCommOk growth rate changing - and never an ack.
+
+    /// <summary>Servo routing on the Hub: <c>{"servoComm":1/0}</c>.</summary>
+    /// <remarks>
+    /// Persisted in the Hub's NVS and echoed back as <c>ServoCommEnabled</c>. Turning it
+    /// off does not make the node absent: <c>ServoOnline</c> stays true while the node
+    /// keeps pushing, and only the ten measured values leave the frame. That is the
+    /// distinction the v8 contract could not express.
+    /// </remarks>
+    public static OpenTECCommand ServoRouting(bool on)
+        => OpenTECCommand.Create().Set(CommandKeys.ServoComm, on);
+
+    /// <summary>Zeroes the node's energy accumulator: <c>{"resetServoEnergy":1}</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// Only the value <c>1</c> is a command; the Hub queues nothing for <c>0</c>. Never
+    /// coalesced with other queued commands, unlike a bare poll-interval change.
+    /// </para>
+    /// <para>
+    /// It clears a data accumulator and does nothing to the process, so it must not be
+    /// presented alongside a stop control. Confirmation is <c>ServoEnergyWh</c> falling to
+    /// roughly zero - with a full queue that can take up to sixteen seconds to appear.
+    /// </para>
+    /// </remarks>
+    public static OpenTECCommand ResetServoEnergy()
+        => OpenTECCommand.Create().Set(CommandKeys.ResetServoEnergy, 1);
+
+    /// <summary>Modbus sampling interval on the node, 250-10000 ms.</summary>
+    /// <remarks>
+    /// <para>
+    /// Out-of-range values are <b>rejected here</b> rather than clamped. The Hub also
+    /// validates and refuses them, but it does so by printing a warning on its own serial
+    /// port, which nobody is reading: silently sending a value that will be dropped would
+    /// leave the operator waiting for an effect that never arrives.
+    /// </para>
+    /// <para>
+    /// The interval is a <i>delay between samples</i>, not a period. Each sample costs
+    /// about 250 ms of bus time - four Modbus transactions at 9600 8N2 - so 250 ms
+    /// produces a real cycle near 500 ms. Do not compute an expected rate as
+    /// <c>1000/pollMs</c>.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="pollMs"/> is outside 250-10000.
+    /// </exception>
+    public static OpenTECCommand ServoPollInterval(int pollMs)
+    {
+        if (pollMs is < ServoPollMinimumMs or > ServoPollMaximumMs)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pollMs), pollMs,
+                $"O intervalo de amostragem deve estar entre {ServoPollMinimumMs} e {ServoPollMaximumMs} ms.");
+        }
+
+        return OpenTECCommand.Create().Set(CommandKeys.ServoPollMs, pollMs);
+    }
+
+    /// <summary>Shortest sampling interval the Hub accepts, in milliseconds.</summary>
+    public const int ServoPollMinimumMs = 250;
+
+    /// <summary>Longest sampling interval the Hub accepts, in milliseconds.</summary>
+    /// <remarks>
+    /// The node slices its wait and feeds the watchdog on every slice, so the top of this
+    /// range no longer restarts the board the way it did before the v9 fix.
+    /// </remarks>
+    public const int ServoPollMaximumMs = 10000;
 
     /// <summary>Mode-1 constant profile: <c>Q(t') = λ</c> mL/min.</summary>
     public static OpenTECCommand PumpConstant(double initMinutes, double finalMinutes, double lambda)

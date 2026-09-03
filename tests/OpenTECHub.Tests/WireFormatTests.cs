@@ -355,4 +355,174 @@ public class CultureInvarianceTests : IDisposable
         Assert.Equal(3.5, parser.Readings.Pressure);
         Assert.Equal(123.75, parser.Readings.TimeRawSeconds);
     }
+
+    // ── ASDA-B2 servo drive (Hub v9) ─────────────────────────────────────────
+
+    [Theory]
+    [InlineData(true, """{"servoComm":1}""")]
+    [InlineData(false, """{"servoComm":0}""")]
+    public void Servo_routing_is_the_hub_flag(bool on, string expected)
+        => Assert.Equal(expected, CommandBuilders.ServoRouting(on).ToJson());
+
+    [Fact]
+    public void Reset_servo_energy_only_ever_sends_one()
+        => Assert.Equal("""{"resetServoEnergy":1}""", CommandBuilders.ResetServoEnergy().ToJson());
+
+    [Theory]
+    [InlineData(250, """{"servoPollMs":250}""")]
+    [InlineData(1000, """{"servoPollMs":1000}""")]
+    [InlineData(10000, """{"servoPollMs":10000}""")]
+    public void Servo_poll_interval_is_an_integer_in_milliseconds(int pollMs, string expected)
+        => Assert.Equal(expected, CommandBuilders.ServoPollInterval(pollMs).ToJson());
+
+    /// <summary>
+    /// Out of range is refused here, not clamped and not silently forwarded.
+    /// </summary>
+    /// <remarks>
+    /// The Hub refuses these too, but it does so by printing
+    /// <c>[ESP32_AVISO] servoPollMs rejeitado</c> on its own serial port - which nobody is
+    /// watching. Clamping would be worse than refusing: the operator would get an interval
+    /// they did not ask for and no indication of it. Both bounds were exercised against
+    /// the real Hub on 2026-09-02: 249 and 10001 queued nothing.
+    /// </remarks>
+    [Theory]
+    [InlineData(249)]
+    [InlineData(10001)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Servo_poll_interval_outside_the_band_is_refused(int pollMs)
+        => Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.ServoPollInterval(pollMs));
+
+    /// <summary>The band the Hub validates, pinned so a widening is a deliberate edit.</summary>
+    [Fact]
+    public void Servo_poll_band_matches_the_hub()
+    {
+        Assert.Equal(250, CommandBuilders.ServoPollMinimumMs);
+        Assert.Equal(10000, CommandBuilders.ServoPollMaximumMs);
+    }
+
+    /// <summary>
+    /// The exact wire spelling of every servo key, telemetry and command alike.
+    /// </summary>
+    /// <remarks>
+    /// A misspelling here does not fail loudly: the Hub ignores an unknown command key,
+    /// and the parser treats an unknown telemetry key as an absent one - which reads as
+    /// "no data" and looks exactly like a node that is not there.
+    /// </remarks>
+    [Fact]
+    public void Servo_keys_match_the_wire_spelling()
+    {
+        Assert.Equal("servoComm", CommandKeys.ServoComm);
+        Assert.Equal("resetServoEnergy", CommandKeys.ResetServoEnergy);
+        Assert.Equal("servoPollMs", CommandKeys.ServoPollMs);
+
+        Assert.Equal("ServoOnline", TelemetryKeys.ServoOnline);
+        Assert.Equal("ServoCommEnabled", TelemetryKeys.ServoCommEnabled);
+        Assert.Equal("ServoCommandPending", TelemetryKeys.ServoCommandPending);
+        Assert.Equal("ServoCommandQueueDepth", TelemetryKeys.ServoCommandQueueDepth);
+        Assert.Equal("ServoRpm", TelemetryKeys.ServoRpm);
+        Assert.Equal("ServoTorquePct", TelemetryKeys.ServoTorquePct);
+        Assert.Equal("ServoTorqueNm", TelemetryKeys.ServoTorqueNm);
+        Assert.Equal("ServoLoadPct", TelemetryKeys.ServoLoadPct);
+        Assert.Equal("ServoPowerW", TelemetryKeys.ServoPowerW);
+        Assert.Equal("ServoEnergyWh", TelemetryKeys.ServoEnergyWh);
+        Assert.Equal("ServoState", TelemetryKeys.ServoState);
+        Assert.Equal("ServoAlarm", TelemetryKeys.ServoAlarm);
+        Assert.Equal("ServoCommOk", TelemetryKeys.ServoCommOk);
+        Assert.Equal("ServoCommErr", TelemetryKeys.ServoCommErr);
+    }
+
+    /// <summary>
+    /// Fresh readings carry "never received", not zero, on every servo channel.
+    /// </summary>
+    /// <remarks>
+    /// Zero is a legitimate measurement for rpm, torque and power - a stopped motor
+    /// reads exactly that. If the sentinel were zero the UI could not tell a stopped
+    /// motor from an absent node, which is the whole distinction the v9 contract added.
+    /// </remarks>
+    [Fact]
+    public void Servo_readings_start_at_the_not_received_sentinel()
+    {
+        var readings = new SensorReadings();
+
+        Assert.Equal(SensorReadings.NotReceived, readings.ServoRpm);
+        Assert.Equal(SensorReadings.NotReceived, readings.ServoTorquePct);
+        Assert.Equal(SensorReadings.NotReceived, readings.ServoTorqueNm);
+        Assert.Equal(SensorReadings.NotReceived, readings.ServoLoadPct);
+        Assert.Equal(SensorReadings.NotReceived, readings.ServoPowerW);
+        Assert.Equal(SensorReadings.NotReceived, readings.ServoEnergyWh);
+
+        Assert.Equal(-1, readings.ServoState);
+        Assert.Equal(-1, readings.ServoAlarm);
+        Assert.Equal(-1, readings.ServoCommOk);
+        Assert.Equal(-1, readings.ServoCommErr);
+        Assert.Equal(-1, readings.ServoCommandQueueDepth);
+
+        // Null, not false: before any frame the Hub has claimed nothing about routing,
+        // and "no claim" is not the same as "routing is off".
+        Assert.Null(readings.ServoCommEnabled);
+        Assert.Null(readings.ServoCommandPending);
+        Assert.False(readings.HasServoTelemetry);
+    }
+
+    /// <summary>
+    /// Snapshot() copies field by field, so a forgotten line loses a channel silently.
+    /// </summary>
+    [Fact]
+    public void Snapshot_carries_every_servo_field()
+    {
+        var readings = new SensorReadings
+        {
+            HasServoTelemetry = true,
+            ServoOnline = true,
+            ServoCommEnabled = true,
+            ServoCommandPending = false,
+            ServoCommandQueueDepth = 3,
+            ServoRpm = 92.7,
+            ServoTorquePct = 1.4,
+            ServoTorqueNm = 0.0178,
+            ServoLoadPct = 1.0,
+            ServoPowerW = 0.17,
+            ServoEnergyWh = 0.020717,
+            ServoState = 2,
+            ServoAlarm = 0x0011,
+            ServoCommOk = 255,
+            ServoCommErr = 1,
+        };
+
+        var snapshot = readings.Snapshot();
+
+        Assert.True(snapshot.HasServoTelemetry);
+        Assert.True(snapshot.ServoOnline);
+        Assert.True(snapshot.ServoCommEnabled);
+        Assert.False(snapshot.ServoCommandPending);
+        Assert.Equal(3, snapshot.ServoCommandQueueDepth);
+        Assert.Equal(92.7, snapshot.ServoRpm);
+        Assert.Equal(1.4, snapshot.ServoTorquePct);
+        Assert.Equal(0.0178, snapshot.ServoTorqueNm);
+        Assert.Equal(1.0, snapshot.ServoLoadPct);
+        Assert.Equal(0.17, snapshot.ServoPowerW);
+        Assert.Equal(0.020717, snapshot.ServoEnergyWh);
+        Assert.Equal(2, snapshot.ServoState);
+        Assert.Equal(0x0011, snapshot.ServoAlarm);
+        Assert.Equal(255, snapshot.ServoCommOk);
+        Assert.Equal(1, snapshot.ServoCommErr);
+    }
+
+    /// <summary>
+    /// Counters are 32-bit unsigned on the wire and must not overflow the app's type.
+    /// </summary>
+    /// <remarks>
+    /// ServoCommOk grows by three per accepted sample, so at 1 Hz an <c>int</c> would
+    /// overflow in roughly a year and a half of continuous operation - well inside the
+    /// life of a fermentation rig. Hence <c>long</c>.
+    /// </remarks>
+    [Fact]
+    public void Modbus_counters_hold_the_full_unsigned_32_bit_range()
+    {
+        var readings = new SensorReadings { ServoCommOk = uint.MaxValue, ServoCommErr = uint.MaxValue };
+
+        Assert.Equal(4294967295L, readings.Snapshot().ServoCommOk);
+        Assert.Equal(4294967295L, readings.Snapshot().ServoCommErr);
+    }
 }

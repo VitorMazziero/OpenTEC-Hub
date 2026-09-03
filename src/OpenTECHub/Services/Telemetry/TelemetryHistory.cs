@@ -28,6 +28,43 @@ public enum TelemetryChannel
     CascadeRateSetpoint,
     CascadeRateMeasured,
     CascadeKlaDemand,
+
+    /// <summary>Shaft speed measured by the ASDA-B2 servo node, in rpm.</summary>
+    /// <remarks>
+    /// Deliberately separate from <see cref="MotorRpm"/>, which is and remains the
+    /// <i>commanded</i> figure that column 2 of the session log has always carried. The
+    /// two are different quantities and charting them as one would make years of logs
+    /// answer a different question than they used to.
+    /// <para>
+    /// Appended after the existing members on purpose: anything that persisted a channel
+    /// by ordinal would be silently reinterpreted by an insertion.
+    /// </para>
+    /// </remarks>
+    ServoRpm,
+
+    /// <summary>Instantaneous torque, as a percentage of the motor's rated torque.</summary>
+    ServoTorquePct,
+
+    /// <summary>Torque in N·m, derived from the motor's nameplate rating.</summary>
+    /// <remarks>
+    /// The drive never reports N·m. This is a fraction of rated torque multiplied by a
+    /// constant that came off the motor's nameplate, so the whole series rescales if the
+    /// motor is ever changed without the node's constant changing with it.
+    /// </remarks>
+    ServoTorqueNm,
+
+    /// <summary>Average load rate from the drive. A different quantity from torque.</summary>
+    ServoLoadPct,
+
+    /// <summary>Estimated mechanical shaft power. Not electrical draw.</summary>
+    ServoPowerW,
+
+    /// <summary>Mechanical energy accumulated on the node.</summary>
+    /// <remarks>
+    /// Not monotonic. It restarts when the node reboots and when a reset is commanded, so
+    /// this series steps down and any analysis over it has to expect that.
+    /// </remarks>
+    ServoEnergyWh,
 }
 
 /// <summary>Downsampled series ready for a chart.</summary>
@@ -140,10 +177,26 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             _series[(int)TelemetryChannel.CascadeRateMeasured][i] = double.NaN;
             _series[(int)TelemetryChannel.CascadeKlaDemand][i] = double.NaN;
 
-            // Agitation has no feedback path, so what is charted is what was
-            // commanded. Zero means "not commanded", not "measured zero".
+            // The commanded agitation figure, unchanged: zero means "not commanded",
+            // not "measured zero", so it charts as a gap.
             _series[(int)TelemetryChannel.MotorRpm][i] =
                 commandedRpm > 0 ? commandedRpm : double.NaN;
+
+            // The measured one, from the servo node. Gated on the frame having carried a
+            // sample rather than on the sentinel, so a legitimately negative reading is
+            // charted instead of becoming a gap. NaN elsewhere, which draws the break the
+            // node's absence deserves rather than a line falling to zero.
+            _series[(int)TelemetryChannel.ServoRpm][i] =
+                snapshot.HasServoSample ? snapshot.ServoRpm : double.NaN;
+
+            // The other five ride on the same gate. They arrive and leave together -
+            // the Hub publishes the ten as a set - so a per-channel test would be five
+            // chances to disagree about one fact.
+            SetServo(TelemetryChannel.ServoTorquePct, i, snapshot, snapshot.ServoTorquePct);
+            SetServo(TelemetryChannel.ServoTorqueNm, i, snapshot, snapshot.ServoTorqueNm);
+            SetServo(TelemetryChannel.ServoLoadPct, i, snapshot, snapshot.ServoLoadPct);
+            SetServo(TelemetryChannel.ServoPowerW, i, snapshot, snapshot.ServoPowerW);
+            SetServo(TelemetryChannel.ServoEnergyWh, i, snapshot, snapshot.ServoEnergyWh);
 
             _head = (_head + 1) % capacity;
             if (_count < capacity)
@@ -238,4 +291,17 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
     private void Set(TelemetryChannel channel, int index, double value)
         => _series[(int)channel][index] =
             value <= SensorReadings.NotReceived ? double.NaN : value;
+
+    /// <summary>
+    /// Records a servo channel, gated on presence rather than on the sentinel.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Set"/> infers absence from the value, which is right for channels that
+    /// cannot go negative and wrong for these: torque goes negative under braking and rpm
+    /// reads a few tenths below zero at rest, so a reading of exactly -1.0 would be charted
+    /// as a gap. NaN elsewhere, which draws the break the node's absence deserves rather
+    /// than a line falling to zero.
+    /// </remarks>
+    private void SetServo(TelemetryChannel channel, int index, SensorSnapshot snapshot, double value)
+        => _series[(int)channel][index] = snapshot.HasServoSample ? value : double.NaN;
 }

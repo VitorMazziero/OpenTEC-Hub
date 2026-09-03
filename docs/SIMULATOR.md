@@ -154,6 +154,27 @@ Fault injection, switchable at runtime by typing the name:
 | `noise` | Heavy measurement noise on every channel |
 | `drift` | Slow calibration drift, to test long-run charts |
 | `garbage` | Emits malformed lines, to exercise the parse-failure path |
+| `node-dropout` | Every external Wi-Fi node stops answering while the Hub stays up — the failure the presence keys exist to make visible |
+| `routing-drift` | The Hub's persisted routing flags disagree with what the app last commanded, as a Hub reboot produces |
+| `legacy-hub` | Not one `Servo*` key in the frame. The app must render the servo as *awaiting telemetry*, never as *offline* |
+| `servo-alarm` | The drive raises `AL011` (encoder error): `ServoState:3`, `ServoAlarm:0x0011`, shaft stopped |
+
+### The servo drive's operating states
+
+Four of the seven servo shapes are not fault injection — they are reached by
+commanding, which is itself the point. Routing off with the node present is a
+configuration, not a failure, and the app has to render it as one.
+
+| To get | Do |
+|---|---|
+| Node present, motor stopped | `{"motorSetpoint":0}` — the zeros that follow are measurements, not missing data |
+| Node present, turning | `{"motorSetpoint":600}` — torque, N·m and watts reproduce each other by hand |
+| Routing off, node still present | `{"servoComm":0}` — presence stays `true`, only the ten values leave the frame |
+| Energy reset | `{"resetServoEnergy":1}` — queued, collected on the node's next 2 s pull, and only then observable as the total falling |
+
+The command queue holds eight and refuses the ninth without overwriting anything,
+so a full queue takes sixteen seconds to drain. `servoPollMs` outside 250–10000 ms
+is refused outright: nothing is queued and the previous interval stands.
 
 ---
 

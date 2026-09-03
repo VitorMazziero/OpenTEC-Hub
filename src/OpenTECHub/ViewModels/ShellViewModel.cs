@@ -126,6 +126,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         FlaskAgitatorViewModel flaskAgitator,
         BiomassControlViewModel biomassControl,
         PumpControlViewModel pumpControl,
+        ServoDriveViewModel servoDrive,
         CalibrationViewModel calibration,
         KlaDeterminationViewModel klaDetermination,
         KlaMappingViewModel klaMapping,
@@ -167,11 +168,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _appliedUnits = settings.Current.Units;
 
         Temperature = new ProcessVariableViewModel("temperature", "Temperatura", "°C", decimals: 1, channel: TelemetryChannel.Temperature);
-        // No RPM feedback exists on the wire, so this variable can only ever show
-        // what was commanded.
+        // Measured shaft speed, from the ASDA-B2 servo node over Modbus. Until that node
+        // existed the wire carried no RPM feedback at all and this tile could only echo
+        // the command back; it now shows what the shaft is actually doing, with the
+        // command beside it as the setpoint. One decimal, because the drive reports in
+        // 0.1 rpm and the difference between 96.6 and 97 is the whole point.
         Motor = new ProcessVariableViewModel(
-            "motor", "Agitação", "rpm", decimals: 0, isCommandedOnly: true,
-            channel: TelemetryChannel.MotorRpm);
+            "motor", "Agitação", "rpm", decimals: 1,
+            channel: TelemetryChannel.ServoRpm,
+            detailNote: "Rotação medida no eixo pelo servo drive. O desvio contra o " +
+                        "setpoint inclui a cadeia do comando analógico do CN1, não só o motor.");
         // pH is parsed, spike-filtered, calibrated and echoed back to the device as
         // pHCal in Phase 1, and it is already offered as a chart channel. It had no
         // tile, so the charts advertised a variable the dashboard denied existed.
@@ -240,8 +246,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 new SubsystemSpec(50, 1000, IsInteger: true,
                     value => CommandBuilders.MotorSetpoint((int)value),
                     () => CommandBuilders.MotorSetpoint(0),
-                    // The wire carries no RPM key at all, so there is no signal whose
-                    // health could be reported.
+                    // There is a measured signal now, so this is no longer a statement
+                    // about the wire. It stays false because the health summary is a
+                    // curated list of probes the operator is asked to watch, and adding
+                    // agitation to it is a product decision, not a consequence of the
+                    // reading existing - see ProcessVariableViewModel.SupportsSensorHealth.
                     HasHealth: false),
                 device, setpoints.MotorRpm, setpoints.MotorEnabled),
 
@@ -285,7 +294,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
-            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas, klaProfileStore,
+            biomassControl, pumpControl, servoDrive, device, settings, dialogs, cascade, receitas,
+            klaProfileStore,
             alarms,
             phVariable: Ph,
             distanceVariable: Level,
@@ -1207,10 +1217,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // reports no nutrient feedback. Its tile shows the commanded duty cycle, updated
         // in OnNutrientCommandChanged.
 
-        // Motor is deliberately not pushed here: the device reports no RPM feedback,
-        // so there is nothing to measure. Its "value" is whatever was last commanded,
-        // which the UI must present as a command rather than a reading - see
-        // MotorIsCommandedOnly. v.6 logs the same commanded figure.
+        // Measured shaft speed, gated on the servo node having actually reported it this
+        // frame. Not on the sentinel: rpm is legitimately negative - the drive reads a few
+        // tenths below zero at rest - so testing the value would discard real readings.
+        // With no node, an older Hub, or routing switched off, this is null and the tile
+        // shows a dash. The command has not been lost, it is the setpoint beside it.
+        Motor.Push(snapshot.HasServoSample ? snapshot.ServoRpm : null);
+
         Flow.Setpoint = snapshot.FlowSetpoint >= 0 ? snapshot.FlowSetpoint : null;
         FlowControl.UpdateTelemetry(snapshot);
 
@@ -1221,7 +1234,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         LastUpdateText = _lastFrameAt.Value.ToString("HH:mm:ss");
         // History first: the charts read from it, and a row written to the log should
         // never describe a frame the charts have not seen.
-        var commandedRpm = Motor.Value ?? 0;
+        //
+        // Read from the setpoint, not from the tile's value. They carry the same number
+        // today - SubsystemViewModel writes both from AppliedSetpoint - but only the
+        // setpoint keeps meaning "what was asked for" once the servo node starts
+        // reporting real RPM into the tile. Column 2 of the session log and
+        // TelemetryChannel.MotorRpm are a frozen contract that downstream analysis reads
+        // as the command; sourcing them from a tile that is about to show a measurement
+        // would change what they mean without changing their name.
+        var commandedRpm = Motor.Setpoint ?? 0;
         _history.Add(snapshot, commandedRpm);
         _sessionLogger.Write(snapshot, commandedRpm, DescribeConnection());
 

@@ -260,6 +260,7 @@ public sealed class FlowmeterV05SyncTests
             Cascade = new CascadeService(arbiter, arbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
             Control = new ControlViewModel(
                 Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump,
+                new ServoDriveViewModel(Device),
                 Device, Settings, new NullDialogService(), Cascade);
         }
 

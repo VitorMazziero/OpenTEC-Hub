@@ -143,6 +143,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlaskAgitatorViewModel flaskAgitator,
         BiomassControlViewModel biomassControl,
         PumpControlViewModel pumpControl,
+        ServoDriveViewModel servoDrive,
         IDeviceService device,
         ISettingsService settings,
         IDialogService dialogs,
@@ -176,6 +177,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlaskAgitator = flaskAgitator;
         BiomassControl = biomassControl;
         PumpControl = pumpControl;
+        ServoDrive = servoDrive;
 
         Rows =
         [
@@ -295,6 +297,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsExpandedFlaskAgitator { get; set; }
 
+    [ObservableProperty]
+    public partial bool IsExpandedServoDrive { get; set; }
+
     public ProcessVariableViewModel TemperatureVariable => TemperatureRow.Subsystem.Variable;
     public ProcessVariableViewModel OxygenVariable => OxygenRow.Subsystem.Variable;
     public ProcessVariableViewModel FlowVariable => FlowRow.Subsystem.Variable;
@@ -324,6 +329,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     /// <summary>External-pump card (WP2). Self-contained apply; disabled by the safe-stop.</summary>
     public PumpControlViewModel PumpControl { get; }
+
+    /// <summary>The ASDA-B2 servo drive: measured shaft telemetry, and no motor control.</summary>
+    public ServoDriveViewModel ServoDrive { get; }
 
     public bool CanActuate => _device.State == ConnectionState.Connected;
 
@@ -1075,5 +1083,6 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _device.TelemetryReceived -= OnTelemetryReceived;
         BiomassControl.PropertyChanged -= OnDosingStateChanged;
         PumpControl.PropertyChanged -= OnDosingStateChanged;
+        ServoDrive.Dispose();
     }
 }

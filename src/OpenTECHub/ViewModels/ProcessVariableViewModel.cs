@@ -205,12 +205,11 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
                 return "—";
             }
 
-            // Agitação quando zero apresenta traço, indicando malha inativa
-            if (Channel == TelemetryChannel.MotorRpm && Math.Abs(v) < 1e-6)
-            {
-                return "—";
-            }
-
+            // Agitation used to mask a zero here, because the value was the command and a
+            // commanded zero meant an idle loop rather than a measurement. With the servo
+            // node reporting real shaft speed, zero is a stopped motor - a reading, and
+            // one the operator needs to see. Absence is carried by a null Value now, which
+            // the branch above already renders as a dash.
             return ToDisplay(v).ToString(
                 "F" + Decimals.ToString(CultureInfo.InvariantCulture),
                 CultureInfo.CurrentCulture);
@@ -266,8 +265,22 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     /// below it is treated as "no data", not as a measurement.
     /// </param>
     public void Push(double reading)
+        => Push(reading <= SensorReadings.NotReceived ? null : reading);
+
+    /// <summary>
+    /// Applies a reading whose validity the caller has already decided.
+    /// </summary>
+    /// <param name="reading">The measurement, or null for "no data this frame".</param>
+    /// <remarks>
+    /// The <see cref="Push(double)"/> overload infers absence from the sentinel, which is
+    /// right for channels that cannot go negative. It is wrong for the servo: rpm and
+    /// torque are legitimately negative - the drive reports small negative speeds at rest
+    /// - so a reading of exactly -1.0 would be mistaken for "never received". Callers with
+    /// a real presence flag pass it through here instead of encoding absence in the value.
+    /// </remarks>
+    public void Push(double? reading)
     {
-        if (reading <= SensorReadings.NotReceived)
+        if (reading is not { } value)
         {
             Value = null;
             Trend = TrendDirection.Flat;
@@ -284,7 +297,7 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
         {
             // Relative deadband: 0.1 rpm and 0.1 pH are not comparable movements.
             var scale = Math.Max(Math.Abs(previous), 1.0);
-            var change = (reading - previous) / scale;
+            var change = (value - previous) / scale;
 
             Trend = change switch
             {
@@ -294,9 +307,9 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
             };
         }
 
-        _previousValue = reading;
-        Value = reading;
-        RecordHealthSample(reading);
+        _previousValue = value;
+        Value = value;
+        RecordHealthSample(value);
     }
 
     /// <summary>

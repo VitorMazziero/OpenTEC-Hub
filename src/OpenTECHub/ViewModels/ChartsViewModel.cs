@@ -84,7 +84,25 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.PH, "pH", "", "Series3Brush"),
             new(TelemetryChannel.Flow, "Vazão de ar", "L/min", "Series4Brush"),
             new(TelemetryChannel.Pressure, "Pressão", "kPa", "Series5Brush"),
-            new(TelemetryChannel.MotorRpm, "Agitação", "rpm", "Series6Brush"),
+            // Two agitation series, and they are different quantities. The first is what
+            // was asked for and is what column 2 of the session log has always carried;
+            // the second is what the shaft is doing, measured by the servo node. Charting
+            // them as one would have quietly rewritten the meaning of every old log.
+            new(TelemetryChannel.MotorRpm, "Agitação — comandada", "rpm", "Series6Brush"),
+            new(TelemetryChannel.ServoRpm, "Agitação — medida", "rpm", "Series1Brush"),
+
+            // The servo drive's own quantities. Named for the device rather than for the
+            // process variable, because none of them is one: they describe what the drive
+            // is doing to turn the impeller, not the state of the culture.
+            // Two torque series, and the unit has to be in the title: ChartChannelOption
+            // renders through Title alone, so identical names would put two
+            // indistinguishable entries in the picker and make a saved synoptic layout
+            // resolve to whichever came first.
+            new(TelemetryChannel.ServoTorquePct, "Servo — torque (%)", "%", "Series2Brush"),
+            new(TelemetryChannel.ServoTorqueNm, "Servo — torque (N·m)", "N·m", "Series3Brush"),
+            new(TelemetryChannel.ServoLoadPct, "Servo — carga média", "%", "Series4Brush"),
+            new(TelemetryChannel.ServoPowerW, "Servo — potência mecânica estimada", "W", "Series5Brush"),
+            new(TelemetryChannel.ServoEnergyWh, "Servo — energia mecânica acumulada", "Wh", "Series6Brush"),
             new(TelemetryChannel.Antifoam, "Antiespumante", "", "Series1Brush"),
             new(TelemetryChannel.Distance, "Distância", "mm", "Series2Brush"),
             new(TelemetryChannel.Biomass, "Biomassa", "Abs", "Series3Brush"),

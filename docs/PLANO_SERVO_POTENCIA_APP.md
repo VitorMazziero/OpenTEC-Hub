@@ -997,7 +997,17 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
 > automática** — `ControlWorkspaceContractTests` proíbe `Content="Aplicar"` em todo o
 > `ControlView.xaml` — e o card teve de seguir a convenção: Enter ou sair do campo
 > envia, como em toda entrada da página.
-- [ ] **8. Histórico e gráficos** — seis canais, NaN nas lacunas, seleção explícita
+- [x] **8. Histórico e gráficos** — seis canais, NaN nas lacunas, seleção explícita
+      _(2026-09-02: as cinco séries restantes, todas com o mesmo portão de presença
+      do `ServoRpm`; nenhuma nos quatro painéis padrão. 11 testes em
+      `ServoChartChannelTests.cs`)_
+
+> **Ajuste ao §4.4.** O plano dava o mesmo rótulo, "Servo — torque", às duas séries
+> de torque, distinguindo-as só pela unidade. O seletor renderiza um canal pelo
+> título e mais nada, então seriam duas entradas idênticas na lista — e o sinótico
+> resolve um painel salvo pelo título antes de qualquer outra coisa, escolhendo em
+> silêncio a primeira. Passaram a ser "Servo — torque (%)" e "Servo — torque (N·m)",
+> com um teste que proíbe títulos repetidos em toda a lista.
 - [ ] **9. Sidecar** + manifesto + leitura de sessões antigas
 - [ ] **10. Alarmes e eventos**
 - [ ] **11. Suíte completa verde + app iniciado com logs WPF inspecionados**

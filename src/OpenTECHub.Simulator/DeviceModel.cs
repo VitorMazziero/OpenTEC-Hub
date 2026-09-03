@@ -54,6 +54,25 @@ public enum Scenario
     /// no reply at all, so nothing but the echo can notice.
     /// </remarks>
     RoutingDrift,
+
+    /// <summary>
+    /// A Hub from before the servo contract: not one <c>Servo*</c> key in the frame.
+    /// </summary>
+    /// <remarks>
+    /// The app has to keep working against it, and - the part that is easy to get wrong -
+    /// must render the servo as <i>awaiting telemetry</i> rather than <i>offline</i>. A Hub
+    /// that has said nothing has not reported a failure, and an operator told a device
+    /// failed will go looking for hardware that is fine.
+    /// </remarks>
+    LegacyHub,
+
+    /// <summary>The drive raises <c>AL011</c>, encoder error, and the servo stops reporting motion.</summary>
+    /// <remarks>
+    /// The alarm the bench actually produced on 2026-09-02, by powering a drive with the
+    /// motor disconnected. <c>ServoAlarm</c> carries <c>0x0011</c>, whose hex digits mirror
+    /// the number on the drive's panel - reading it as decimal 17 finds nothing in the manual.
+    /// </remarks>
+    ServoAlarm,
 }
 
 /// <summary>
@@ -189,6 +208,134 @@ public sealed class DeviceModel
     /// <summary>True while the external Wi-Fi nodes are answering the Hub.</summary>
     public bool ExternalNodesOnline => Scenario != Scenario.NodeDropout;
 
+    // ------------------------------------------------------------------
+    // ASDA-B2 servo drive node
+    // ------------------------------------------------------------------
+
+    /// <summary>Nameplate torque of the ECMA-C20604ES, in N·m.</summary>
+    /// <remarks>
+    /// The drive reports a fraction of rated torque, never N·m, so every derived torque and
+    /// watt scales linearly with this number. It is here rather than inlined so the
+    /// simulator's arithmetic is visibly the same as the node's.
+    /// </remarks>
+    private const double MotorRatedTorqueNm = 1.27;
+
+    private const double TwoPiOverSixty = 0.10471975511965977;
+
+    private double _servoEnergyJoules;
+    private bool _servoWasPresent = true;
+
+    /// <summary>Servo routing on the Hub. The only routing flag that is born <c>true</c>.</summary>
+    /// <remarks>
+    /// Deliberate in the firmware: the node has to come up on its own when energised, without
+    /// waiting for a command from the PC. A module that has no servo is told so once, and the
+    /// Hub remembers it in NVS.
+    /// </remarks>
+    public bool ServoEnabled { get; set; } = true;
+
+    /// <summary>False under <see cref="Scenario.LegacyHub"/>: no <c>Servo*</c> key at all.</summary>
+    public bool PublishesServo => Scenario != Scenario.LegacyHub;
+
+    /// <summary>The node is answering the Hub inside its 6 s window.</summary>
+    public bool ServoNodePresent => PublishesServo && ExternalNodesOnline;
+
+    /// <summary>
+    /// The Hub emits the ten measurements only with fresh presence <b>and</b> routing on.
+    /// </summary>
+    public bool ServoSamplePublishable => ServoNodePresent && ServoEnabled;
+
+    /// <summary>Measured shaft speed, in rpm.</summary>
+    /// <remarks>
+    /// Tracks the commanded reference, because Hub firmware 9.1.0-dev inverts the CN1's
+    /// affine calibration before emitting. What is left is the residual of that fit - the
+    /// bench measured under half an rpm across the range - so the app is exercised against a
+    /// measurement that is close to the setpoint but never identical to it.
+    /// </remarks>
+    public double ServoRpm => Scenario == Scenario.ServoAlarm
+        ? 0.0
+        : MotorRpm <= 0 ? 0.0 : MotorRpm + _servoResidualRpm;
+
+    /// <summary>
+    /// Torque as a percentage of rated, rising with speed.
+    /// </summary>
+    /// <remarks>
+    /// Fitted to the bench sweep: 1.36 % at 100 rpm climbing monotonically to 2.46 % at
+    /// 1000 rpm, which is viscous friction and windage growing with rotation. At rest it
+    /// falls to nearly zero, as it did on the bench with <c>ZSPD</c> asserted.
+    /// </remarks>
+    public double ServoTorquePct => ServoRpm <= 0.0 ? 0.0 : 1.25 + (ServoRpm * 0.00122);
+
+    public double ServoTorqueNm => ServoTorquePct / 100.0 * MotorRatedTorqueNm;
+
+    /// <summary>Estimated mechanical shaft power, <c>T·ω</c>. Not electrical draw.</summary>
+    public double ServoPowerW => ServoTorqueNm * ServoRpm * TwoPiOverSixty;
+
+    /// <summary>Average load rate, whole percent, as P0-10 reports it.</summary>
+    public double ServoLoadPct => Math.Round(ServoTorquePct);
+
+    /// <summary>Mechanical energy integrated on the node, in watt-hours.</summary>
+    public double ServoEnergyWh => _servoEnergyJoules / 3600.0;
+
+    /// <summary>0 OFF, 1 READY, 2 SON, 3 ALARM.</summary>
+    public int ServoState => Scenario == Scenario.ServoAlarm ? 3 : ServoRpm > 0.0 ? 2 : 1;
+
+    /// <summary>Raw P0-01 code. <c>0x0011</c> is the panel's <c>AL011</c>.</summary>
+    public int ServoAlarmCode => Scenario == Scenario.ServoAlarm ? 0x0011 : 0;
+
+    /// <summary>Successful Modbus transactions, three per accepted sample.</summary>
+    public long ServoCommOk { get; private set; }
+
+    /// <summary>Failed Modbus samples.</summary>
+    /// <remarks>
+    /// Starts at one, not zero. The bench saw exactly one error in 256 reads, on the first
+    /// transaction after boot, and an app that alarms on a non-zero total rather than on the
+    /// rate would fire on a perfectly healthy link.
+    /// </remarks>
+    public long ServoCommErr { get; private set; } = 1;
+
+    /// <summary>Sampling interval the node was last told to use, in milliseconds.</summary>
+    public int ServoPollMs { get; private set; } = 1000;
+
+    /// <summary>The Hub's fixed FIFO of eight, drained one per 2 s node pull.</summary>
+    private readonly Queue<string> _servoCommands = new();
+
+    public int ServoCommandQueueDepth => _servoCommands.Count;
+
+    public bool ServoCommandPending => _servoCommands.Count > 0;
+
+    /// <summary>Queues a servo command, refusing the ninth without overwriting anything.</summary>
+    /// <returns>False when the queue is full, which is back-pressure and not an error.</returns>
+    public bool EnqueueServoCommand(string command)
+    {
+        if (_servoCommands.Count >= 8)
+        {
+            return false;
+        }
+
+        _servoCommands.Enqueue(command);
+        return true;
+    }
+
+    /// <summary>Consume-on-read, exactly as <c>GET /servoCommand</c> behaves.</summary>
+    public string? TakeServoCommand() => _servoCommands.Count > 0 ? _servoCommands.Dequeue() : null;
+
+    /// <summary>Applies the reset the node performs when it collects the command.</summary>
+    public void ResetServoEnergy() => _servoEnergyJoules = 0.0;
+
+    /// <summary>Sets the node's sampling interval, refusing anything outside 250-10000 ms.</summary>
+    public bool SetServoPollMs(int pollMs)
+    {
+        if (pollMs is < 250 or > 10000)
+        {
+            return false;
+        }
+
+        ServoPollMs = pollMs;
+        return true;
+    }
+
+    private double _servoResidualRpm;
+
     /// <summary>The profile mode the pump node reports running; 0 is idle.</summary>
     public int PumpMode { get; set; }
 
@@ -270,6 +417,7 @@ public sealed class DeviceModel
         StepOxygen(dt);
         StepPH(dt);
         StepBiomass(dt);
+        StepServo(dt);
 
         if (Scenario == Scenario.Drift)
         {
@@ -280,6 +428,81 @@ public sealed class DeviceModel
     // ------------------------------------------------------------------
     // Dynamics
     // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Advances the servo node: Modbus counters, and the energy integral it keeps locally.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The integral lives on the node in the real system, because it needs the continuous
+    /// 1 Hz series that the Hub's aggregate frame does not carry. Two consequences the app
+    /// has to survive, and which are reproduced here rather than smoothed over: the total
+    /// <b>zeroes when the node reboots</b>, and it <b>does not integrate across a gap</b> -
+    /// energy that was never measured is not invented.
+    /// </para>
+    /// <para>
+    /// A node that comes back after being absent is a node that rebooted, so its accumulator
+    /// starts again from zero. That is the step backwards a chart has to draw without
+    /// treating it as corruption.
+    /// </para>
+    /// </remarks>
+    private void StepServo(double dt)
+    {
+        var present = ServoNodePresent;
+
+        if (!present)
+        {
+            _servoWasPresent = false;
+            return;
+        }
+
+        if (!_servoWasPresent)
+        {
+            _servoEnergyJoules = 0.0;
+            ServoCommOk = 0;
+            ServoCommErr = 1;
+            _servoWasPresent = true;
+        }
+
+        // A small residual so the measurement is never exactly the setpoint. The CN1
+        // correction in Hub 9.1.0-dev removes the systematic part; what is left is the
+        // scatter of the fit, which the bench put under half an rpm.
+        _servoResidualRpm = (_random.NextDouble() - 0.5) * 0.9;
+
+        // Three transactions per sample, at whatever interval the node was last told.
+        ServoCommOk += (long)Math.Round(3.0 * dt * 1000.0 / ServoPollMs);
+
+        _servoEnergyJoules += ServoPowerW * dt;
+
+        DrainServoQueue(dt);
+    }
+
+    /// <summary>
+    /// The node collecting one queued command per pull, and acting on it.
+    /// </summary>
+    /// <remarks>
+    /// One event per <c>GET /servoCommand</c>, every two seconds, consume-on-read. It matters
+    /// that this is slow: a full queue of eight takes sixteen seconds to empty, which is the
+    /// floor before anything may be called failed. An app that gave up sooner would report a
+    /// phantom failure every time an operator clicked twice.
+    /// </remarks>
+    private void DrainServoQueue(double dt)
+    {
+        _servoPullTimer += dt;
+        if (_servoPullTimer < 2.0)
+        {
+            return;
+        }
+
+        _servoPullTimer = 0.0;
+
+        if (TakeServoCommand() == "reset_energy")
+        {
+            _servoEnergyJoules = 0.0;
+        }
+    }
+
+    private double _servoPullTimer;
 
     private void StepTemperature(double dt)
     {

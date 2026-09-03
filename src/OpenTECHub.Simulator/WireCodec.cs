@@ -138,6 +138,54 @@ public static class WireCodec
             AppendBool(buffer, "AgitatorPotActive", model.AgitatorPotActive);
             AppendString(buffer, "AgitatorSource", model.AgitatorPotActive ? "Pot" : "Hub");
         }
+
+        AppendServo(buffer, model);
+    }
+
+    /// <summary>
+    /// The ASDA-B2 servo node, in the two groups the Hub actually publishes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Under <see cref="Scenario.LegacyHub"/> nothing at all is emitted, which is the shape
+    /// of every Hub built before the servo contract. The app must read that as <i>nothing
+    /// has been claimed</i>, not as a failed device.
+    /// </para>
+    /// <para>
+    /// Otherwise the four presence and queue keys go out on <b>every</b> frame, and the ten
+    /// measurements only when there is a publishable sample - fresh presence <b>and</b>
+    /// routing on. Their absence is meaningful, so they are genuinely omitted rather than
+    /// sent as zeros: a zero rpm is a stopped motor, and the app has to be able to tell that
+    /// from a node that is not reporting.
+    /// </para>
+    /// </remarks>
+    private static void AppendServo(StringBuilder buffer, DeviceModel model)
+    {
+        if (!model.PublishesServo)
+        {
+            return;
+        }
+
+        AppendBool(buffer, "ServoOnline", model.ServoNodePresent);
+        AppendBool(buffer, "ServoCommEnabled", model.RoutingEcho(model.ServoEnabled));
+        AppendBool(buffer, "ServoCommandPending", model.ServoCommandPending);
+        AppendInt(buffer, "ServoCommandQueueDepth", model.ServoCommandQueueDepth);
+
+        if (!model.ServoSamplePublishable)
+        {
+            return;
+        }
+
+        Append(buffer, "ServoRpm", model.ServoRpm, 1);
+        Append(buffer, "ServoTorquePct", model.ServoTorquePct, 1);
+        Append(buffer, "ServoTorqueNm", model.ServoTorqueNm, 4);
+        Append(buffer, "ServoLoadPct", model.ServoLoadPct, 1);
+        Append(buffer, "ServoPowerW", model.ServoPowerW, 2);
+        Append(buffer, "ServoEnergyWh", model.ServoEnergyWh, 6);
+        AppendInt(buffer, "ServoState", model.ServoState);
+        AppendInt(buffer, "ServoAlarm", model.ServoAlarmCode);
+        AppendInt(buffer, "ServoCommOk", (int)model.ServoCommOk);
+        AppendInt(buffer, "ServoCommErr", (int)model.ServoCommErr);
     }
 
     /// <summary>
@@ -273,6 +321,31 @@ public static class WireCodec
         if (TryDouble(root, CommandKeys.DistanceSensorComm, out var distanceEnabled))
         {
             model.DistanceSensorEnabled = distanceEnabled != 0;
+        }
+
+        if (TryDouble(root, CommandKeys.ServoComm, out var servoEnabled))
+        {
+            model.ServoEnabled = servoEnabled != 0;
+        }
+
+        // Only the value 1 is a command. The Hub queues nothing for zero, and an app that
+        // expected otherwise would sit waiting for an energy reset that was never asked for.
+        if (TryDouble(root, CommandKeys.ResetServoEnergy, out var resetEnergy) && resetEnergy != 0)
+        {
+            // Queued, not applied: the node collects it on its next 2 s pull. Watching the
+            // energy fall a frame or two later is the only confirmation this link offers,
+            // because it carries no acknowledgement at all.
+            model.EnqueueServoCommand("reset_energy");
+        }
+
+        // Out of range is refused outright - nothing is queued, and the previous interval
+        // stands. The real Hub says so on its own serial port, which nobody is reading, so
+        // an app that clamped instead would leave the operator with an interval they never
+        // chose and no sign of it.
+        if (TryDouble(root, CommandKeys.ServoPollMs, out var pollMs) &&
+            model.SetServoPollMs((int)pollMs))
+        {
+            model.EnqueueServoCommand("poll_ms");
         }
 
         // The Hub forwards the pump block only while routing is on, so mode:0 arriving in the

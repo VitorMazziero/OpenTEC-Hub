@@ -971,8 +971,16 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
 > sem ela o ladrilho de agitação apontaria para um canal que a lista de gráficos não
 > conhece — arrastá-lo para um painel não faria nada. As outras cinco continuam na
 > etapa 8.
-- [ ] **5. Simulador** — os sete cenários, antes da interface, para que a
+- [x] **5. Simulador** — os sete cenários, antes da interface, para que a
       interface seja desenvolvida contra eles
+      _(2026-09-02: cenários `legacy-hub` e `servo-alarm` novos; os outros cinco são
+      estados de operação alcançados por comando, não injeção de falha. Fila de 8 com
+      recusa do nono e drenagem de 1 a cada 2 s; 19 testes em `ServoSimulatorTests.cs`,
+      todos por ida e volta pelo parser real)_
+
+> **Gate D fechado.** As etapas 1 a 5 estão feitas. O que falta do Gate D no plano
+> original era só isto, e o simulador já produz as sete formas — a interface pode ser
+> construída contra ele sem hardware.
 - [ ] **6. `ServoDriveViewModel`** + registro em `App.xaml.cs`
 - [ ] **7. Card no `ControlView.xaml`**
 - [ ] **8. Histórico e gráficos** — seis canais, NaN nas lacunas, seleção explícita

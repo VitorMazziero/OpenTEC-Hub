@@ -337,7 +337,12 @@ public partial class App : Application
         services.AddSingleton<FlaskAgitatorViewModel>();
         services.AddSingleton<BiomassControlViewModel>();
         services.AddSingleton<PumpControlViewModel>();
-        services.AddSingleton<ServoDriveViewModel>();
+        // Constructed explicitly so the journal reaches it: the servo link carries no
+        // acknowledgement, so the record of a command being sent and of it visibly
+        // taking effect is the only trace an operator will have months later.
+        services.AddSingleton(sp => new ServoDriveViewModel(
+            sp.GetRequiredService<IDeviceService>(),
+            journal: sp.GetRequiredService<IEventJournal>()));
         services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<KlaDeterminationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();

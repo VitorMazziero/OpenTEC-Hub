@@ -41,6 +41,22 @@ public enum AlarmId
     /// <summary>The flask agitator node stopped answering the Hub.</summary>
     FlaskAgitatorOffline,
 
+    /// <summary>The ASDA-B2 servo node stopped answering the Hub while its routing is on.</summary>
+    /// <remarks>
+    /// Qualified by the routing echo, and that qualification is the whole alarm. A module
+    /// with no servo reports both flags false for ever, and an alarm that ignored the echo
+    /// would raise an event on it that nothing could ever clear.
+    /// </remarks>
+    ServoDriveOffline,
+
+    /// <summary>The servo drive itself is in alarm, or reporting a fault code.</summary>
+    /// <remarks>
+    /// Critical rather than a warning: unlike the offline alarms, this is the drive saying
+    /// something is wrong with the machine rather than with a link. The bench raised a real
+    /// one on 2026-09-02 by powering the drive with the motor disconnected.
+    /// </remarks>
+    ServoDriveAlarm,
+
     /// <summary>
     /// The Hub's routing flag for a device disagrees with the operator's switch.
     /// </summary>

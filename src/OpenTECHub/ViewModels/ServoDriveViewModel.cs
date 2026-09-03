@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
+using OpenTECHub.Services.Telemetry;
 
 namespace OpenTECHub.ViewModels;
 
@@ -47,6 +48,21 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
 
     private readonly IDeviceService _device;
     private readonly IManualDispatcher _dispatcher;
+    private readonly IEventJournal? _journal;
+
+    /// <summary>Presence as of the previous frame, so only transitions are journalled.</summary>
+    private bool? _wasOnline;
+
+    /// <summary>Energy last seen, to notice the drop that confirms a reset.</summary>
+    /// <remarks>
+    /// This link has no acknowledgement, so the fall is the only confirmation there is.
+    /// Journalling the request and the observation separately is what lets an operator
+    /// see, months later, that a command was sent and that it actually took.
+    /// </remarks>
+    private double? _lastEnergyWh;
+
+    /// <summary>True while a reset is outstanding, so an unrelated drop is not claimed.</summary>
+    private bool _awaitingEnergyReset;
 
     /// <summary>Counter readings inside the window, oldest first, for the rate.</summary>
     private readonly Queue<(long Ok, long Err)> _counterWindow = new();
@@ -65,10 +81,12 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
     public ServoDriveViewModel(
         IDeviceService device,
         IManualDispatcher? dispatcher = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IEventJournal? journal = null)
     {
         _device = device;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
+        _journal = journal;
 
         Status = new ExternalDeviceStatus("Servo drive", "do servo drive", timeProvider);
 
@@ -206,6 +224,13 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
         }
 
         Status.MarkCommandDispatched();
+        _awaitingEnergyReset = true;
+        _journal?.Add(
+            AuditSource.Command,
+            AuditSeverity.Information,
+            "Zeragem da energia do servo drive solicitada.",
+            "Este enlace não confirma comandos: a confirmação é a queda do acumulado, " +
+            "que pode levar até 16 s com a fila cheia.");
         StatusMessage = "Zeragem da energia enviada. A confirmação é a queda do acumulado.";
     }
 
@@ -271,6 +296,8 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
             snapshot.ServoCommEnabled);
 
         QueueDepth = snapshot.ServoCommandQueueDepth;
+        JournalPresence(snapshot);
+        JournalEnergyReset(snapshot);
 
         ResetEnergyCommand.NotifyCanExecuteChanged();
         ApplyPollIntervalCommand.NotifyCanExecuteChanged();
@@ -369,6 +396,72 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
             : (100.0 * deltaErr / attempts).ToString("F1", CultureInfo.CurrentCulture) + " %";
     }
 
+    /// <summary>
+    /// Journals the node arriving and leaving, once per transition.
+    /// </summary>
+    /// <remarks>
+    /// Events, not alarms. Presence changing is worth a line in the record - it explains a
+    /// gap in the series months later - but only the combination of absent node and routing
+    /// still on is a fault, and that one is the alarm service's to raise.
+    /// </remarks>
+    private void JournalPresence(SensorSnapshot snapshot)
+    {
+        if (!snapshot.HasServoTelemetry)
+        {
+            return;
+        }
+
+        if (_wasOnline == snapshot.ServoOnline)
+        {
+            return;
+        }
+
+        // The first frame establishes a baseline rather than announcing an arrival: the node
+        // did not just appear, the app did.
+        if (_wasOnline is not null)
+        {
+            _journal?.Add(
+                AuditSource.Equipment,
+                AuditSeverity.Information,
+                snapshot.ServoOnline
+                    ? "Nó do servo drive presente."
+                    : "Nó do servo drive deixou de responder.");
+        }
+
+        _wasOnline = snapshot.ServoOnline;
+    }
+
+    /// <summary>
+    /// Journals the energy actually dropping, which is the only confirmation on offer.
+    /// </summary>
+    /// <remarks>
+    /// Gated on a reset having been requested. The accumulator also restarts when the node
+    /// reboots, and recording that as "reset confirmed" would put a confirmation in the
+    /// record for a command nobody sent.
+    /// </remarks>
+    private void JournalEnergyReset(SensorSnapshot snapshot)
+    {
+        if (!snapshot.HasServoSample)
+        {
+            return;
+        }
+
+        var energy = snapshot.ServoEnergyWh;
+
+        if (_awaitingEnergyReset && _lastEnergyWh is { } previous && energy < previous)
+        {
+            _awaitingEnergyReset = false;
+            _journal?.Add(
+                AuditSource.Equipment,
+                AuditSeverity.Information,
+                "Zeragem da energia do servo drive confirmada.",
+                $"O acumulado caiu de {previous.ToString("F4", CultureInfo.CurrentCulture)} para " +
+                $"{energy.ToString("F4", CultureInfo.CurrentCulture)} Wh.");
+        }
+
+        _lastEnergyWh = energy;
+    }
+
     private void ClearReadings()
     {
         RpmText = "—";
@@ -392,6 +485,12 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
             Status.MarkHubUnavailable();
             ClearReadings();
             QueueDepth = -1;
+
+            // The next connection starts a new observation: a drop measured across a
+            // disconnection says nothing about a command sent before it.
+            _wasOnline = null;
+            _lastEnergyWh = null;
+            _awaitingEnergyReset = false;
             ResetEnergyCommand.NotifyCanExecuteChanged();
             ApplyPollIntervalCommand.NotifyCanExecuteChanged();
         }

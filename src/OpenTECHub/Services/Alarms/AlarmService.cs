@@ -223,6 +223,16 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.FlaskAgitatorOffline, "Agitador de frasco offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        // Ten seconds, not two. The servo's presence window on the Hub is 6 s and the
+        // aggregate frame carries it at the dataDelay of 2 s, so a node that misses one
+        // push can take eight seconds to be reported absent through no fault of its own.
+        // Two seconds here would fire on that.
+        new(AlarmId.ServoDriveOffline, "Servo drive offline", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(2)),
+        // No on-delay: the drive has already decided. Debouncing a fault code would only
+        // delay telling the operator something the machine already knows.
+        new(AlarmId.ServoDriveAlarm, "Alarme do servo drive", AlarmSeverity.Critical,
+            TimeSpan.Zero, TimeSpan.FromSeconds(2)),
         // Longer on-delay: this compares two persisted stores, and the app's own enable
         // command needs a telemetry round trip before the Hub's echo can agree with it.
         // A tighter window would fire on every legitimate toggle.
@@ -491,6 +501,19 @@ public sealed class AlarmService : IAlarmService
             connected && _lastSnapshot is { HasAgitatorTelemetry: true, AgitatorOnline: false },
             "O agitador de frasco não está respondendo à Central."),
 
+        AlarmId.ServoDriveOffline => (
+            connected && _lastSnapshot is { ServoCommEnabled: true, ServoOnline: false, HasServoTelemetry: true },
+            "O nó do servo drive não está respondendo à Central, mas o roteamento do Hub está ligado."),
+
+        // Either signal is enough. The state says the drive stopped; the code says why, and
+        // the bench has seen a code arrive a frame before the state caught up.
+        AlarmId.ServoDriveAlarm => (
+            connected && _lastSnapshot is { HasServoSample: true } servo &&
+            (servo.ServoState == 3 || servo.ServoAlarm > 0),
+            _lastSnapshot is { ServoAlarm: > 0 } code
+                ? $"O servo drive está em alarme: AL{code.ServoAlarm:X3}. Consulte o código no manual do ASDA-B2."
+                : "O servo drive está em estado de alarme."),
+
         AlarmId.DeviceRoutingMismatch => RoutingMismatch(connected),
 
         _ => (false, ""),
@@ -523,6 +546,7 @@ public sealed class AlarmService : IAlarmService
         Check("Sensor de biomassa", snapshot.BiomassCommEnabled);
         Check("Bomba externa", snapshot.PumpCommEnabled);
         Check("Sensor de distância", snapshot.DistanceCommEnabled);
+        Check("Servo drive", snapshot.ServoCommEnabled);
 
         // The banner shows one line, so the detail leads with the consequence and names the
         // devices plainly. The earlier wording spelled out the Hub's state per device and was

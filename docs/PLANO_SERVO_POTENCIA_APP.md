@@ -1025,7 +1025,20 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
 > que o app nunca recebe, e escrever um palpite seria pior do que não escrever nada. O
 > arquivo carrega `torque_pct` e `torque_nm` lado a lado justamente por isso:
 > `T_nominal = torque_nm ÷ (torque_pct ÷ 100)` em qualquer linha com torque não nulo.
-- [ ] **10. Alarmes e eventos**
+- [x] **10. Alarmes e eventos**
+      _(2026-09-02: `ServoDriveOffline` (Warning, on-delay de 10 s) e `ServoDriveAlarm`
+      (Critical, sem on-delay); `DeviceRoutingMismatch` passa a cobrir o servo; eventos
+      de presença e de zeragem no journal. 17 testes, dos quais 4 são as condições que
+      **não** podem alarmar)_
+
+> **O on-delay do offline é 10 s, não os 2 s dos outros dispositivos.** A janela de
+> presença do servo no hub é de 6 s e o quadro agregado a carrega a cada `dataDelay` de
+> 2 s, então um nó que perde um único push pode ser reportado ausente por até oito
+> segundos sem culpa nenhuma. Dois segundos dispararia nisso.
+>
+> **A confirmação da zeragem é observada, e só é registrada se foi pedida.** O
+> acumulador também reinicia quando o nó reinicia; registrar isso como "zeragem
+> confirmada" poria no histórico a confirmação de um comando que ninguém enviou.
 - [ ] **11. Suíte completa verde + app iniciado com logs WPF inspecionados**
 Gate D fecha na etapa 5. Gate E fecha na etapa 11. **Gate F é bancada** — os
 critérios estão em `PLANO_INTEGRACAO_POTENCIA_OPENTECHUB.md` §6.

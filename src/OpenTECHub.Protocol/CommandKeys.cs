@@ -270,6 +270,19 @@ public static class TelemetryKeys
     /// <summary>What last moved the agitator: <c>Pot</c>, <c>Hub</c>, <c>Wi-Fi</c> or <c>USB</c>.</summary>
     public const string AgitatorSource = "AgitatorSource";
 
+    // ---- Hub identity (v9) -----------------------------------------------
+
+    /// <summary>Hub firmware build, e.g. <c>9.1.0-dev</c>. Diagnostic only.</summary>
+    /// <remarks>
+    /// Never negotiate on this. It changes for reasons that do not touch the wire - the
+    /// CN1 correction in 9.1.0 altered what the module receives without moving a single
+    /// key - so it belongs in a log header, not in a branch.
+    /// </remarks>
+    public const string HubFirmwareVersion = "HubFirmwareVersion";
+
+    /// <summary>Wire contract version. <b>This</b> is the negotiation key.</summary>
+    public const string HubProtocolVersion = "HubProtocolVersion";
+
     // ---- ASDA-B2 servo drive (Hub v9) ------------------------------------
     // These split into two groups that behave differently, and the split governs the
     // whole parser.

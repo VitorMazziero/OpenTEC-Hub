@@ -134,6 +134,12 @@ public sealed class SensorReadings
     /// <inheritdoc cref="SensorSnapshot.AgitatorSource"/>
     public string AgitatorSource { get; set; } = "unknown";
 
+    /// <inheritdoc cref="SensorSnapshot.HubFirmwareVersion"/>
+    public string? HubFirmwareVersion { get; set; }
+
+    /// <inheritdoc cref="SensorSnapshot.HubProtocolVersion"/>
+    public int HubProtocolVersion { get; set; } = -1;
+
     /// <summary>The Hub has reported on the servo drive node at least once this session.</summary>
     public bool HasServoTelemetry { get; set; }
 
@@ -261,6 +267,8 @@ public sealed class SensorReadings
         AgitatorDirection = AgitatorDirection,
         AgitatorPotActive = AgitatorPotActive,
         AgitatorSource = AgitatorSource,
+        HubFirmwareVersion = HubFirmwareVersion,
+        HubProtocolVersion = HubProtocolVersion,
         HasServoTelemetry = HasServoTelemetry,
         HasServoSample = HasServoSample,
         ServoOnline = ServoOnline,
@@ -405,6 +413,18 @@ public sealed record SensorSnapshot
     //   false   false         this module has no servo - do not alarm
     //
     // The last one is the bench module's permanent, correct state.
+
+    /// <summary>Hub firmware build, or null against a Hub that does not publish it.</summary>
+    /// <remarks>
+    /// Recorded in the session sidecar's header. Firmware 9.1.0-dev inverts the CN1's
+    /// calibration before commanding the module, so a run logged under it and one logged
+    /// under 9.0.0-dev differ in what the shaft actually did for the same setpoint - and
+    /// nothing else in the file would say which.
+    /// </remarks>
+    public string? HubFirmwareVersion { get; init; }
+
+    /// <summary>Wire contract version; -1 against a Hub that predates the key.</summary>
+    public int HubProtocolVersion { get; init; }
 
     /// <inheritdoc cref="HasBiomassTelemetry"/>
     public bool HasServoTelemetry { get; init; }

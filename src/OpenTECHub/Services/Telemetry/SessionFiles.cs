@@ -18,8 +18,12 @@ public sealed record SessionFileSummary(
     double DurationMinutes,
     string ConnectionMedia,
     string FirstRow,
-    string LastRow)
+    string LastRow,
+    bool HasServoSidecar = false)
 {
+    /// <summary>Where the servo sidecar would be, whether or not it exists.</summary>
+    public string ServoSidecarPath => SessionLogger.ServoSidecarPath(Path);
+
     public string DateRangeText => CreatedAt.Date == UpdatedAt.Date
         ? $"{CreatedAt:dd/MM/yyyy HH:mm}–{UpdatedAt:HH:mm}"
         : $"{CreatedAt:dd/MM/yyyy HH:mm}–{UpdatedAt:dd/MM/yyyy HH:mm}";
@@ -38,6 +42,15 @@ public sealed record SessionFileSummary(
     public string HeaderStatus => HeaderValid
         ? "Cabeçalho compatível com SessionLogFormat.Header"
         : "Cabeçalho incompatível — não carregar nos gráficos";
+
+    /// <summary>Whether this run recorded servo telemetry, in the operator's words.</summary>
+    /// <remarks>
+    /// Absence is normal, not a defect: every session recorded before the ASDA-B2 node
+    /// existed has none, and so does any run on a module without a servo.
+    /// </remarks>
+    public string ServoStatus => HasServoSidecar
+        ? "Com telemetria do servo drive"
+        : "Sem telemetria do servo drive";
 }
 
 /// <summary>Parsed session data that the dedicated dual-chart page can display.</summary>
@@ -145,6 +158,14 @@ public sealed class SessionFileService : ISessionFileService
             {
                 foreach (var path in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
                 {
+                    // The sidecar sits beside its session with a .tsv extension and would
+                    // otherwise be listed as a session with an unreadable header - an
+                    // invented problem, in a list the operator uses to find real runs.
+                    if (path.EndsWith(ServoSessionLogFormat.FileSuffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     candidates.Add(path);
                 }
             }
@@ -200,6 +221,12 @@ public sealed class SessionFileService : ISessionFileService
         var series = values.ToDictionary(
             pair => pair.Key,
             pair => new ChannelSeries(timeArray, pair.Value.ToArray()));
+
+        foreach (var (channel, servoSeries) in LoadServoSidecar(summary))
+        {
+            series[channel] = servoSeries;
+        }
+
         return new SessionFileData(summary, series);
     }
 
@@ -221,6 +248,7 @@ public sealed class SessionFileService : ISessionFileService
     internal static SessionFileSummary Inspect(string path)
     {
         var info = new FileInfo(path);
+        var hasServo = File.Exists(SessionLogger.ServoSidecarPath(path));
         var headerValid = false;
         var rowCount = 0;
         var firstRow = "";
@@ -283,7 +311,95 @@ public sealed class SessionFileService : ISessionFileService
             duration,
             media.Count == 0 ? "—" : string.Join(" / ", media.Order()),
             firstRow,
-            lastRow);
+            lastRow,
+            hasServo);
+    }
+
+    /// <summary>Column order of the servo sidecar, mapped to the channels it feeds.</summary>
+    private static readonly IReadOnlyDictionary<TelemetryChannel, int> ServoColumns =
+        new Dictionary<TelemetryChannel, int>
+        {
+            [TelemetryChannel.ServoRpm] = 2,
+            [TelemetryChannel.ServoTorquePct] = 3,
+            [TelemetryChannel.ServoTorqueNm] = 4,
+            [TelemetryChannel.ServoLoadPct] = 5,
+            [TelemetryChannel.ServoPowerW] = 6,
+            [TelemetryChannel.ServoEnergyWh] = 7,
+        };
+
+    /// <summary>
+    /// Reads the servo sidecar, or returns nothing at all when there is none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Absence is the normal case and must never be an error: every session recorded before
+    /// the ASDA-B2 node existed has no sidecar, and so does any run on a module without a
+    /// servo. Returning an empty map leaves those sessions loading exactly as they always
+    /// did.
+    /// </para>
+    /// <para>
+    /// The file carries its own time column and is not assumed to be aligned to the main
+    /// log. It is written row for row with it, but a session that was appended to, or one
+    /// whose sidecar was truncated, would break that assumption silently - so the series
+    /// are built from the sidecar's own <c>time_min</c>.
+    /// </para>
+    /// <para>
+    /// An empty cell means no reading and becomes NaN, which charts as a gap. That is the
+    /// distinction the whole format exists to preserve: a zero in this file is a stopped
+    /// motor.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyDictionary<TelemetryChannel, ChannelSeries> LoadServoSidecar(
+        SessionFileSummary summary)
+    {
+        var path = summary.ServoSidecarPath;
+        if (!File.Exists(path))
+        {
+            return new Dictionary<TelemetryChannel, ChannelSeries>();
+        }
+
+        var minutes = new List<double>();
+        var values = ServoColumns.Keys.ToDictionary(channel => channel, _ => new List<double>());
+
+        try
+        {
+            using var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            while (reader.ReadLine() is { } line)
+            {
+                // Comment lines carry the preamble; the header names the columns. Neither is
+                // data, and both are skipped by shape rather than by counting lines, so a
+                // preamble that grows does not shift the parse.
+                if (string.IsNullOrWhiteSpace(line) ||
+                    line.StartsWith('#') ||
+                    line.StartsWith("time_min", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var fields = line.Split('\t');
+                if (!TryValue(fields, 0, out var minute))
+                {
+                    continue;
+                }
+
+                minutes.Add(minute);
+                foreach (var (channel, column) in ServoColumns)
+                {
+                    values[channel].Add(TryValue(fields, column, out var value) ? value : double.NaN);
+                }
+            }
+        }
+        catch (IOException)
+        {
+            // A sidecar that cannot be read costs the servo series and nothing else. The
+            // session itself is already parsed and still opens.
+            return new Dictionary<TelemetryChannel, ChannelSeries>();
+        }
+
+        var timeArray = minutes.ToArray();
+        return values.ToDictionary(
+            pair => pair.Key,
+            pair => new ChannelSeries(timeArray, pair.Value.ToArray()));
     }
 
     private static bool TryValue(string[] fields, int index, out double value)

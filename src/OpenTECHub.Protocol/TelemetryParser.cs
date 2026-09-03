@@ -212,6 +212,7 @@ public sealed class TelemetryParser
         ParseBiomass(root, now);
         ParsePump(root, now);
         ParseAgitator(root, now);
+        ParseHubIdentity(root);
         ParseServo(root, now);
         ParseTime(root);
 
@@ -634,6 +635,23 @@ public sealed class TelemetryParser
     /// and "the servo went missing" look identical, and the second is an alarm.
     /// </para>
     /// </remarks>
+    /// <summary>Who is on the other end, for diagnostics and for the session header.</summary>
+    /// <remarks>
+    /// Sticky: a Hub that published its identity once has not stopped being that Hub, and
+    /// the aggregate frame carries these on every frame anyway. Absence means a Hub built
+    /// before the keys existed, which leaves the version null and -1 rather than guessing.
+    /// </remarks>
+    private void ParseHubIdentity(JsonElement root)
+    {
+        if (TryGetPropertyCaseInsensitive(root, TelemetryKeys.HubFirmwareVersion, out var firmware) &&
+            firmware.ValueKind == JsonValueKind.String)
+        {
+            Readings.HubFirmwareVersion = firmware.GetString();
+        }
+
+        AssignInt(root, TelemetryKeys.HubProtocolVersion, v => Readings.HubProtocolVersion = v);
+    }
+
     private void ParseServo(JsonElement root, DateTimeOffset now)
     {
         var sawValues = TryGetPropertyCaseInsensitive(root, TelemetryKeys.ServoRpm, out _) ||

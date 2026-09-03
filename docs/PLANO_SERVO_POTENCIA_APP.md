@@ -1008,7 +1008,23 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
 > resolve um painel salvo pelo título antes de qualquer outra coisa, escolhendo em
 > silêncio a primeira. Passaram a ser "Servo — torque (%)" e "Servo — torque (N·m)",
 > com um teste que proíbe títulos repetidos em toda a lista.
-- [ ] **9. Sidecar** + manifesto + leitura de sessões antigas
+- [x] **9. Sidecar** + manifesto + leitura de sessões antigas
+      _(2026-09-02: `servo-power.tsv` aberto e fechado com o log principal, uma linha
+      por quadro para os dois ficarem alinhados, e as seis séries voltando nos gráficos
+      ao reabrir a sessão. 15 testes em `ServoSidecarTests.cs`)_
+
+> **Duas coisas que o plano não previa.**
+>
+> **O preâmbulo é escrito na primeira linha, não na abertura.** `HubFirmwareVersion` e
+> `HubProtocolVersion` vêm da telemetria, e na abertura nenhum quadro chegou ainda —
+> escrevê-lo ali só poderia dizer "desconhecido", que é exatamente o que um leitor
+> futuro precisa saber. Isso exigiu acrescentar as duas chaves ao protocolo, que a
+> etapa 2 não tinha incluído.
+>
+> **O torque nominal do motor não é afirmado no cabeçalho.** É constante de firmware
+> que o app nunca recebe, e escrever um palpite seria pior do que não escrever nada. O
+> arquivo carrega `torque_pct` e `torque_nm` lado a lado justamente por isso:
+> `T_nominal = torque_nm ÷ (torque_pct ÷ 100)` em qualquer linha com torque não nulo.
 - [ ] **10. Alarmes e eventos**
 - [ ] **11. Suíte completa verde + app iniciado com logs WPF inspecionados**
 Gate D fecha na etapa 5. Gate E fecha na etapa 11. **Gate F é bancada** — os

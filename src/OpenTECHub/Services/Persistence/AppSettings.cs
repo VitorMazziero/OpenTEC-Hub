@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using OpenTECHub.Protocol;
@@ -983,6 +984,72 @@ public static class SessionLogFormat
 
     /// <summary>Decimal places per column, matching v.6 exactly.</summary>
     public static readonly int[] Decimals = [2, 2, 3, 2, 3, -1, 3, 3, 2, 5, 4, 3, 3];
+}
+
+/// <summary>
+/// The servo drive's session sidecar: a separate file, written beside the main log.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>A sidecar rather than new columns.</b> The main log's column set is frozen - v.6's
+/// analysis scripts read it positionally, and inserting anything would shift every column
+/// after it while the file still looked the same. The servo's twelve fields go in their
+/// own file, aligned to the main one by <c>time_min</c>, so both can be read row for row
+/// and neither constrains the other.
+/// </para>
+/// <para>
+/// <b>Empty for a missing reading, never zero.</b> Zero rpm and zero power are real
+/// readings from a stopped motor; a zero written for absent data would be indistinguishable
+/// from one, and no later reader could undo the confusion.
+/// </para>
+/// </remarks>
+public static class ServoSessionLogFormat
+{
+    /// <summary>Appended to the main log's name to derive the sidecar's.</summary>
+    public const string FileSuffix = "-servo-power.tsv";
+
+    /// <summary>
+    /// Bumped whenever a column is added, removed or redefined.
+    /// </summary>
+    /// <remarks>
+    /// Written into the header so a reader can refuse a file it does not understand rather
+    /// than misparsing one. The main log has no such marker and cannot gain one; this file
+    /// starts with it.
+    /// </remarks>
+    public const int ContractVersion = 1;
+
+    public const string Header =
+        "time_min\tservo_online\trpm\ttorque_pct\ttorque_nm\tload_pct\t" +
+        "power_w\tenergy_wh\tstate\talarm\tcomm_ok\tcomm_err";
+
+    /// <summary>Comment lines opening the file, so its numbers stay interpretable later.</summary>
+    /// <remarks>
+    /// <para>
+    /// The Hub firmware build matters more than it looks: 9.1.0-dev inverts the CN1's
+    /// calibration before commanding the module, so the same setpoint produces a different
+    /// shaft speed than it did under 9.0.0-dev. Nothing else in either file would say which
+    /// firmware a run was recorded under.
+    /// </para>
+    /// <para>
+    /// The motor's rated torque is deliberately <b>not</b> asserted here. It is a firmware
+    /// constant the app never receives, and writing a guess would be worse than writing
+    /// nothing. It is recoverable from the file itself:
+    /// <c>T_nominal = torque_nm ÷ (torque_pct ÷ 100)</c> on any row where torque is not
+    /// zero, which is why both columns are kept even though one derives from the other.
+    /// </para>
+    /// </remarks>
+    public static string BuildPreamble(string? hubFirmware, int hubProtocol, string appVersion)
+        => string.Join(
+            "\n",
+            $"# opentec-servo-power v{ContractVersion.ToString(CultureInfo.InvariantCulture)}",
+            $"# app: {appVersion}",
+            $"# hub_firmware: {(string.IsNullOrWhiteSpace(hubFirmware) ? "desconhecido" : hubFirmware)}",
+            $"# hub_protocol: {(hubProtocol < 0 ? "desconhecido" : hubProtocol.ToString(CultureInfo.InvariantCulture))}",
+            "# torque_nm deriva de torque_pct e do torque nominal do motor;",
+            "# T_nominal = torque_nm / (torque_pct / 100) em qualquer linha com torque nao nulo.",
+            "# potencia e energia sao MECANICAS ESTIMADAS no eixo, nao consumo eletrico.",
+            "# energia e integrada no no: zera no reboot dele e na zeragem comandada.",
+            "# celula vazia significa sem leitura. Zero e uma leitura.");
 }
 
 /// <summary>Where the application keeps its files.</summary>

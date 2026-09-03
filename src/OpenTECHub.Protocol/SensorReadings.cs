@@ -137,6 +137,9 @@ public sealed class SensorReadings
     /// <summary>The Hub has reported on the servo drive node at least once this session.</summary>
     public bool HasServoTelemetry { get; set; }
 
+    /// <inheritdoc cref="SensorSnapshot.HasServoSample"/>
+    public bool HasServoSample { get; set; }
+
     public bool ServoOnline { get; set; }
 
     /// <inheritdoc cref="SensorSnapshot.ServoCommEnabled"/>
@@ -259,6 +262,7 @@ public sealed class SensorReadings
         AgitatorPotActive = AgitatorPotActive,
         AgitatorSource = AgitatorSource,
         HasServoTelemetry = HasServoTelemetry,
+        HasServoSample = HasServoSample,
         ServoOnline = ServoOnline,
         ServoCommEnabled = ServoCommEnabled,
         ServoCommandPending = ServoCommandPending,
@@ -404,6 +408,20 @@ public sealed record SensorSnapshot
 
     /// <inheritdoc cref="HasBiomassTelemetry"/>
     public bool HasServoTelemetry { get; init; }
+
+    /// <summary>
+    /// This frame carried the servo's ten measurements. When false, every one of them
+    /// holds its sentinel and nothing may be read from them.
+    /// </summary>
+    /// <remarks>
+    /// It exists so consumers never have to test a reading against the sentinel to find
+    /// out whether it is one. That test is subtly wrong here: <c>NotReceived</c> is
+    /// <c>-1.0</c>, and rpm and torque are legitimately negative - the drive reports small
+    /// negative speeds at rest, and torque goes negative under braking. A reading of
+    /// exactly -1.0 rpm would be discarded as "missing" by a sentinel test and charted as
+    /// a gap. This flag answers the question directly instead.
+    /// </remarks>
+    public bool HasServoSample { get; init; }
 
     /// <summary>A valid push reached the Hub inside its 6000 ms window.</summary>
     public bool ServoOnline { get; init; }

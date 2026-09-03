@@ -28,6 +28,19 @@ public enum TelemetryChannel
     CascadeRateSetpoint,
     CascadeRateMeasured,
     CascadeKlaDemand,
+
+    /// <summary>Shaft speed measured by the ASDA-B2 servo node, in rpm.</summary>
+    /// <remarks>
+    /// Deliberately separate from <see cref="MotorRpm"/>, which is and remains the
+    /// <i>commanded</i> figure that column 2 of the session log has always carried. The
+    /// two are different quantities and charting them as one would make years of logs
+    /// answer a different question than they used to.
+    /// <para>
+    /// Appended after the existing members on purpose: anything that persisted a channel
+    /// by ordinal would be silently reinterpreted by an insertion.
+    /// </para>
+    /// </remarks>
+    ServoRpm,
 }
 
 /// <summary>Downsampled series ready for a chart.</summary>
@@ -140,10 +153,17 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             _series[(int)TelemetryChannel.CascadeRateMeasured][i] = double.NaN;
             _series[(int)TelemetryChannel.CascadeKlaDemand][i] = double.NaN;
 
-            // Agitation has no feedback path, so what is charted is what was
-            // commanded. Zero means "not commanded", not "measured zero".
+            // The commanded agitation figure, unchanged: zero means "not commanded",
+            // not "measured zero", so it charts as a gap.
             _series[(int)TelemetryChannel.MotorRpm][i] =
                 commandedRpm > 0 ? commandedRpm : double.NaN;
+
+            // The measured one, from the servo node. Gated on the frame having carried a
+            // sample rather than on the sentinel, so a legitimately negative reading is
+            // charted instead of becoming a gap. NaN elsewhere, which draws the break the
+            // node's absence deserves rather than a line falling to zero.
+            _series[(int)TelemetryChannel.ServoRpm][i] =
+                snapshot.HasServoSample ? snapshot.ServoRpm : double.NaN;
 
             _head = (_head + 1) % capacity;
             if (_count < capacity)

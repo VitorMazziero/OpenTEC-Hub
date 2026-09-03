@@ -84,7 +84,12 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.PH, "pH", "", "Series3Brush"),
             new(TelemetryChannel.Flow, "Vazão de ar", "L/min", "Series4Brush"),
             new(TelemetryChannel.Pressure, "Pressão", "kPa", "Series5Brush"),
-            new(TelemetryChannel.MotorRpm, "Agitação", "rpm", "Series6Brush"),
+            // Two agitation series, and they are different quantities. The first is what
+            // was asked for and is what column 2 of the session log has always carried;
+            // the second is what the shaft is doing, measured by the servo node. Charting
+            // them as one would have quietly rewritten the meaning of every old log.
+            new(TelemetryChannel.MotorRpm, "Agitação — comandada", "rpm", "Series6Brush"),
+            new(TelemetryChannel.ServoRpm, "Agitação — medida", "rpm", "Series1Brush"),
             new(TelemetryChannel.Antifoam, "Antiespumante", "", "Series1Brush"),
             new(TelemetryChannel.Distance, "Distância", "mm", "Series2Brush"),
             new(TelemetryChannel.Biomass, "Biomassa", "Abs", "Series3Brush"),

@@ -949,8 +949,28 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
 > a decair em relógios diferentes, e de propósito: a presença ganha a janela, porque
 > um quadro sem valores não é prova de que o nó morreu; os valores não ganham, porque
 > o hub os publica exatamente quando são publicáveis.
-- [ ] **4. RPM medida** — `isCommandedOnly: false`, `Motor.Push`, o caso especial
+- [x] **4. RPM medida** — `isCommandedOnly: false`, `Motor.Push`, o caso especial
       do zero, canal `ServoRpm`
+      _(2026-09-02: mais `HasServoSample` no contrato, a sobrecarga
+      `Push(double?)`, e a série "Agitação — medida" nos gráficos)_
+
+> **Duas coisas que a implementação acrescentou.**
+>
+> **`HasServoSample` no snapshot.** O plano mandava consumir a medida testando
+> contra o sentinela (`ServoRpm > NotReceived`). Isso é sutilmente errado aqui:
+> `NotReceived` é `-1,0` e o rpm é legitimamente negativo — a bancada capturou
+> −0,30 rpm com o motor em repouso. Uma leitura de exatamente −1,0 rpm seria
+> descartada como "ausente". O parser passa a publicar um flag dizendo se o quadro
+> trouxe os dez valores, e ninguém a jusante precisa mais adivinhar.
+>
+> **Sobrecarga `Push(double?)`.** Pela mesma razão: a `Push(double)` infere ausência
+> do valor, o que está certo para canais que não podem ser negativos e errado para
+> este. Quem tem um flag de presença de verdade passa por ela.
+>
+> A série de gráfico da medida entrou junto, fora do que a etapa 8 previa, porque
+> sem ela o ladrilho de agitação apontaria para um canal que a lista de gráficos não
+> conhece — arrastá-lo para um painel não faria nada. As outras cinco continuam na
+> etapa 8.
 - [ ] **5. Simulador** — os sete cenários, antes da interface, para que a
       interface seja desenvolvida contra eles
 - [ ] **6. `ServoDriveViewModel`** + registro em `App.xaml.cs`

@@ -671,6 +671,8 @@ public sealed class TelemetryParser
         // going away, and routing being switched off with the node still pushing. In the
         // second case presence stays true, so an offline check alone would miss it and
         // leave the last sample on screen looking live.
+        Readings.HasServoSample = sawValues;
+
         if (!sawValues)
         {
             ClearServoReadings();

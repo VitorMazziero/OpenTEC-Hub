@@ -17,7 +17,10 @@
       On release, change ONLY this line, then mirror it in docs/CHANGELOG.md
       and in the installer script.
     -->
-    <!-- MinVer will automatically derive the version from git tags and commits. -->
+    <!-- MinVer will automatically derive the version from git tags and commits.
+         Release tags are 'v'-prefixed (v0.26.1); without this prefix MinVer treats
+         them as non-version tags and falls back to 0.<minimum>-dev. -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
     <MinVerDefaultPreReleaseIdentifiers>dev</MinVerDefaultPreReleaseIdentifiers>
     <MinVerMinimumMajorMinor>0.25</MinVerMinimumMajorMinor>
   </PropertyGroup>

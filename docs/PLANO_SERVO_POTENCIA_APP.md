@@ -669,8 +669,18 @@ Depois, na ordem:
    os publica sempre. São o que distingue "sem servo" de "servo sumido".
 2. `ServoCommandPending` — não pegajoso, `null` quando a chave falta, como
    `PumpCommandPending`. Silêncio não é confirmação.
-3. Se `presence.HasTelemetry && !presence.Online`: invalidar as **dez** grandezas
+3. Se as chaves de valor **não estão neste quadro**: invalidar as **dez** grandezas
    para `NotReceived` / `-1` e retornar. Não segurar a última amostra.
+
+   > O critério é a ausência das chaves, **não** `HasTelemetry && !Online`. O hub
+   > publica os dez exatamente quando são publicáveis, então um quadro sem eles é o
+   > hub dizendo que não há o que publicar. O critério por presença perderia o caso 2
+   > da tabela abaixo — roteamento desligado com o nó presente —, em que nada
+   > envelhece e a última amostra ficaria congelada parecendo atual.
+   >
+   > Presença e valores decaem em relógios diferentes, de propósito: a presença ganha
+   > a janela de tolerância, porque um quadro sem valores não prova que o nó morreu;
+   > os valores não ganham.
 4. Só então ler as dez, cada uma sob `TryGetDouble`/`AssignInt`, rejeitando NaN e
    infinito.
 
@@ -925,7 +935,20 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
       e não saturada; contadores em `long`; testes em `WireFormatTests.cs`.
       `motorSetpoint` reanotado como referência, com o zero documentado como
       desabilitação e não parada)_
-- [ ] **3. Parser** — `ServoTimeout`, `ParseServo`, as cinco linhas da tabela
+- [x] **3. Parser** — `ServoTimeout`, `ParseServo`, as cinco linhas da tabela
+      _(2026-09-02: `ServoTimeout` 8 s, `ParseServo` no molde do `ParsePump`,
+      `TryGetFiniteDouble` e `TryGetCounter` novos; 27 testes em
+      `ServoTelemetryParserTests.cs`)_
+
+> **Ajuste ao desenho, decidido na implementação.** A invalidação não é
+> `HasTelemetry && !Online`, como o §3.4 dizia, e sim **a ausência das chaves de
+> valor no quadro**. O critério antigo perdia o caso 2 da tabela — roteamento
+> desligado com o nó presente —, em que a presença continua `true` e só os valores
+> somem: a última amostra ficaria congelada na tela parecendo atual, que é
+> exatamente o defeito que esta seção existe para evitar. Presença e valores passam
+> a decair em relógios diferentes, e de propósito: a presença ganha a janela, porque
+> um quadro sem valores não é prova de que o nó morreu; os valores não ganham, porque
+> o hub os publica exatamente quando são publicáveis.
 - [ ] **4. RPM medida** — `isCommandedOnly: false`, `Motor.Push`, o caso especial
       do zero, canal `ServoRpm`
 - [ ] **5. Simulador** — os sete cenários, antes da interface, para que a

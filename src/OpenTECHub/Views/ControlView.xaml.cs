@@ -112,6 +112,9 @@ public partial class ControlView : UserControl
             case BiomassControlViewModel biomass when biomass.ApplyThresholdsCommand.CanExecute(null):
                 biomass.ApplyThresholdsCommand.Execute(null);
                 break;
+            case ServoDriveViewModel servo when servo.ApplyPollIntervalCommand.CanExecute(null):
+                servo.ApplyPollIntervalCommand.Execute(null);
+                break;
             case FlowControlViewModel when DataContext is ControlViewModel control && control.ApplyFlowStateCommand.CanExecute(null):
                 control.ApplyFlowStateCommand.Execute(null);
                 break;

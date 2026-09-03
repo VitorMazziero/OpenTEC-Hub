@@ -29,6 +29,7 @@ public sealed class ControlWorkspaceContractTests
             "<!-- 10. Bomba Dosadora Externa (roadmap) -->",
             "<!-- 11. Sensor de Biomassa -->",
             "<!-- 12. Frasco Agitador -->",
+            "<!-- 13. Servo Drive (potência do agitador) -->",
         };
 
         var previous = -1;
@@ -51,7 +52,7 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("Text=\"Novo Setpoint\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Confira e aplique toda a configuração", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"Parâmetros do processo\"", xaml, StringComparison.Ordinal);
-        Assert.Equal(10, Count(xaml, "Tag=\"ExpanderToggle\""));
+        Assert.Equal(11, Count(xaml, "Tag=\"ExpanderToggle\""));
         Assert.DoesNotContain("ProvenanceBadge Text=\"comandado\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"Aplicar", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("(0 = desligado)", xaml, StringComparison.Ordinal);
@@ -68,7 +69,7 @@ public sealed class ControlWorkspaceContractTests
         Assert.Equal(5, Count(xaml, "HorizontalAlignment=\"Left\" HorizontalContentAlignment=\"Left\""));
         Assert.Contains("<Setter Property=\"Width\" Value=\"18\" />", xaml, StringComparison.Ordinal);
         Assert.Contains("<Setter Property=\"Margin\" Value=\"0,0,8,0\" />", xaml, StringComparison.Ordinal);
-        Assert.Equal(14, Count(xaml, "<ColumnDefinition Width=\"160\" />"));
+        Assert.Equal(15, Count(xaml, "<ColumnDefinition Width=\"160\" />"));
         Assert.Contains("Width=\"90\"", xaml, StringComparison.Ordinal);
     }
 
@@ -148,12 +149,13 @@ public sealed class ControlWorkspaceContractTests
     {
         var xaml = File.ReadAllText(ViewPath);
 
-        // All five external rows: level/foam, pump, biomass, agitator and the flowmeter.
-        Assert.Equal(5, Count(xaml, "StaticResource ExternalDeviceState"));
-        Assert.Equal(5, Count(xaml, "<ctl:ExternalDeviceChips"));
+        // All six external rows: level/foam, pump, biomass, agitator, the flowmeter and
+        // the ASDA-B2 servo drive.
+        Assert.Equal(6, Count(xaml, "StaticResource ExternalDeviceState"));
+        Assert.Equal(6, Count(xaml, "<ctl:ExternalDeviceChips"));
 
         // The dot takes the same three signals the chip does, so the two can never disagree.
-        Assert.Equal(5, Count(xaml, "Status.ShowRoutingChipOnly"));
+        Assert.Equal(6, Count(xaml, "Status.ShowRoutingChipOnly"));
     }
 
     /// <summary>
@@ -181,13 +183,13 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("Status.IsOnline", xaml, StringComparison.Ordinal);
 
         // One switch per external row. Pump and biomass no longer duplicate their switch
-        // inside the drawer; four non-flow devices use the stricter node-online style.
-        Assert.Equal(5, Count(section, "ExternalDeviceToggleStyle"));
-        Assert.Equal(4, Count(section, "ConnectedExternalDeviceToggleStyle"));
+        // inside the drawer; five non-flow devices use the stricter node-online style.
+        Assert.Equal(6, Count(section, "ExternalDeviceToggleStyle"));
+        Assert.Equal(5, Count(section, "ConnectedExternalDeviceToggleStyle"));
 
-        // Distance, biomass and flask editors require actual node presence, not merely the
-        // app-to-Hub link. The flowmeter retains its acknowledgement-aware inline guard.
-        Assert.Equal(10, Count(section, "ConnectedExternalDeviceEntryStyle"));
+        // Distance, biomass, flask and servo editors require actual node presence, not
+        // merely the app-to-Hub link. The flowmeter retains its acknowledgement-aware guard.
+        Assert.Equal(11, Count(section, "ConnectedExternalDeviceEntryStyle"));
     }
 
     [Fact]
@@ -201,6 +203,7 @@ public sealed class ControlWorkspaceContractTests
             "<!-- 10. Bomba Dosadora Externa",
             "<!-- 11. Sensor de Biomassa",
             "<!-- 12. Frasco Agitador",
+            "<!-- 13. Servo Drive",
         };
 
         for (var index = 0; index < markers.Length; index++)

@@ -297,6 +297,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsExpandedFlaskAgitator { get; set; }
 
+    [ObservableProperty]
+    public partial bool IsExpandedServoDrive { get; set; }
+
     public ProcessVariableViewModel TemperatureVariable => TemperatureRow.Subsystem.Variable;
     public ProcessVariableViewModel OxygenVariable => OxygenRow.Subsystem.Variable;
     public ProcessVariableViewModel FlowVariable => FlowRow.Subsystem.Variable;

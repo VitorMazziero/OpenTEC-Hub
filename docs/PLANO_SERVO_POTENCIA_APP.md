@@ -986,7 +986,17 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
       alarme em forma de painel (`AL011`), taxa de erro por janela móvel de 30 quadros,
       e os três comandos. Injetado no `ControlViewModel` e descartado com ele;
       32 testes em `ServoDriveViewModelTests.cs`)_
-- [ ] **7. Card no `ControlView.xaml`**
+- [x] **7. Card no `ControlView.xaml`**
+      _(2026-09-02: card 13 na área de dispositivos externos, com a mesma gramática dos
+      outros cinco. Potência rotulada "W mec. est." **na própria linha**, bloco de alarme
+      só quando há alarme, e a zeragem de energia isolada abaixo de um filete no fim da
+      gaveta. 8 testes em `ServoCardContractTests.cs`)_
+
+> **Correção ao desenho, imposta pelo contrato do workspace.** O §4.2 previa um botão
+> "Aplicar" para o intervalo de amostragem. A página inteira é de **aplicação
+> automática** — `ControlWorkspaceContractTests` proíbe `Content="Aplicar"` em todo o
+> `ControlView.xaml` — e o card teve de seguir a convenção: Enter ou sair do campo
+> envia, como em toda entrada da página.
 - [ ] **8. Histórico e gráficos** — seis canais, NaN nas lacunas, seleção explícita
 - [ ] **9. Sidecar** + manifesto + leitura de sessões antigas
 - [ ] **10. Alarmes e eventos**

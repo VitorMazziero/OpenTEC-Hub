@@ -4,6 +4,7 @@ using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.Services.Telemetry;
+using OpenTECHub.ViewModels;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -452,7 +453,7 @@ public sealed class AlarmServiceTests
     public void The_hub_and_the_operator_disagreeing_about_routing_is_annunciated()
     {
         using var h = new Harness();
-        h.Service.SetRoutingRequested("Sensor de biomassa", true);
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
 
         h.Device.PushTelemetry(HealthyFrame() with
         {
@@ -463,14 +464,14 @@ public sealed class AlarmServiceTests
         h.AdvanceAndPoll(TimeSpan.FromSeconds(5.1));
 
         Assert.True(h.Latched(AlarmId.DeviceRoutingMismatch));
-        Assert.Contains("Sensor de biomassa", h.Get(AlarmId.DeviceRoutingMismatch)!.Detail, StringComparison.Ordinal);
+        Assert.Contains(DeviceNames.Absorbance, h.Get(AlarmId.DeviceRoutingMismatch)!.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Agreement_on_routing_raises_nothing()
     {
         using var h = new Harness();
-        h.Service.SetRoutingRequested("Sensor de biomassa", true);
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
 
         h.Device.PushTelemetry(HealthyFrame() with
         {

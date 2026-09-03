@@ -168,8 +168,9 @@
 
                             <Border Height="1" Background="{DynamicResource StrokeDefaultBrush}" Margin="0,0,0,6" />
 
-                            <!-- 1. Agitação -->
-                            <Grid Margin="0,4" VerticalAlignment="Center" DataContext="{Binding AgitationRow}">
+                            <!-- 1. Agitação (com o servo drive na gaveta) -->
+                            <StackPanel DataContext="{Binding AgitationRow}">
+                            <Grid Margin="0,4" VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="20" />
@@ -181,6 +182,9 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="60" />
                                 </Grid.ColumnDefinitions>
+                                <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
+                                              IsChecked="{Binding DataContext.IsExpandedServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                                              ToolTip="Servo drive: telemetria do eixo e controles" />
                                 <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{Binding Subsystem.DisplayName}" State="{Binding EffectiveActive, Converter={StaticResource ActiveToState}}" />
                                 <Button Grid.Column="2" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                                         Command="{Binding DataContext.OpenVariableFromControlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -194,6 +198,16 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Subsystem.Variable.FormattedValue}" Style="{StaticResource NumericTextStyle}" />
                                         <TextBlock Text="{Binding Subsystem.Unit}" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <!-- Torque under the speed. The two come off the same shaft and only
+                                         mean something together: 600 rpm at 2 % is a free impeller,
+                                         600 rpm at 40 % is a vessel fighting back. -->
+                                    <StackPanel Orientation="Horizontal"
+                                                DataContext="{Binding DataContext.ServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        <TextBlock Text="{Binding TorquePercentText}" Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="% torque" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                 </StackPanel>
                                 <TextBlock Grid.Column="4" Text="{Binding Subsystem.FormattedAppliedSetpoint}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -238,6 +252,198 @@
                                     </ToggleButton.Style>
                                 </ToggleButton>
                             </Grid>
+                                <Border Visibility="{Binding DataContext.IsExpandedServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,4,8,8"
+                                        Padding="14,10">
+                                <StackPanel>
+                                    <TextBlock Text="Servo drive — Delta ASDA-B2"
+                                               FontWeight="SemiBold" Margin="0,0,0,2" />
+                                    <!-- Under Agitação rather than among the external devices: the
+                                         drive is inside the module, the operator does not switch it
+                                         on, and it measures the very shaft this row commands. Listing
+                                         it as a peripheral would suggest a choice nobody has. -->
+                                    <TextBlock Text="Interno ao módulo. Mede o eixo que esta linha comanda; a rotação continua sendo comandada pelo CN1."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,10" />
+
+                                    <!-- Rotation setpoint, repeated here so the drawer is the whole
+                                         agitation surface: what was asked for, what the shaft is
+                                         doing, and what it costs, without going back to the row. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <TextBlock Text="Setpoint de rotação" Style="{StaticResource CaptionTextStyle}"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBox Width="90" VerticalAlignment="Center"
+                                                 Text="{Binding Subsystem.SetpointText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="{Binding Subsystem.ValidationError}">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Subsystem.HasPendingChange}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Subsystem.IsValid}" Value="False">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="Controle bloqueado pelo controle de oxigênio." />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                        <TextBlock Text="rpm" Style="{StaticResource CaptionTextStyle}"
+                                                   VerticalAlignment="Center" Margin="6,0,12,0"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <TextBlock Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <ctl:ProvenanceBadge Text="controle o₂" Margin="8,0,0,0"
+                                                             Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+
+                                    <!-- Everything below reads or configures the drive, and none of it
+                                         moves the motor. -->
+                                    <StackPanel DataContext="{Binding DataContext.ServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <ctl:ExternalDeviceChips Status="{Binding Status}" />
+                                            <TextBlock Text="{Binding StateText, StringFormat='Estado: {0}'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                        </StackPanel>
+
+                                        <Border Visibility="{Binding IsInAlarm, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,0,10" Padding="10,8"
+                                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                                BorderBrush="{DynamicResource StateAlarmTextBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="{DynamicResource RadiusSmall}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding AlarmText, StringFormat='Alarme do drive: {0}'}"
+                                                           Foreground="{DynamicResource StateAlarmTextBrush}"
+                                                           FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                <TextBlock Text="consulte o código no manual do ASDA-B2"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           VerticalAlignment="Center" Margin="12,0,0,0" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Em dash for a missing reading, never a zero: zero rpm and
+                                             zero power are real readings from a stopped motor. -->
+                                        <WrapPanel Margin="0,0,0,10">
+                                            <TextBlock Text="{Binding RpmText, StringFormat='Rotação medida: {0} rpm'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
+                                            <TextBlock Text="{Binding TorquePercentText, StringFormat='Torque: {0} %'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
+                                            <TextBlock Text="{Binding TorqueNewtonMetreText, StringFormat='Torque: {0} N·m'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
+                                                       ToolTip="Derivado do torque percentual e do torque nominal de placa do motor (1,27 N·m para o ECMA-C20604ES). Trocar o motor sem trocar essa constante produz números plausíveis e errados." />
+                                            <TextBlock Text="{Binding LoadPercentText, StringFormat='Carga média: {0} %'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
+                                                       ToolTip="Taxa de carga média do drive. Não é a mesma grandeza que o torque instantâneo." />
+                                        </WrapPanel>
+                                        <WrapPanel Margin="0,0,0,10">
+                                            <TextBlock Text="{Binding PowerWattText, StringFormat='Potência mecânica estimada: {0} W'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
+                                                       ToolTip="T·ω no eixo, derivado do torque e da rotação. Não é consumo elétrico: não inclui perdas do drive, do motor nem da eletrônica." />
+                                            <TextBlock Text="{Binding EnergyWattHourText, StringFormat='Energia mecânica acumulada: {0} Wh'}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       ToolTip="Integrada no próprio nó. Zera quando o nó reinicia e quando a zeragem é comandada, então pode andar para trás." />
+                                        </WrapPanel>
+
+                                        <!-- Link diagnostics. The rate, not the total: the bench saw one
+                                             error in 256 reads on the first transaction after boot, and a
+                                             total that never clears would leave a healthy link looking
+                                             sick forever. -->
+                                        <Border Margin="0,0,0,10" Padding="10,8"
+                                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                                BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="{DynamicResource RadiusSmall}">
+                                            <StackPanel>
+                                                <WrapPanel>
+                                                    <TextBlock Text="{Binding ErrorRateText, StringFormat='Erros Modbus: {0}'}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
+                                                               ToolTip="Fração de transações com falha numa janela móvel. Um erro isolado no boot é normal; o que importa é a taxa se manter alta." />
+                                                    <TextBlock Text="{Binding CounterText, StringFormat='Contadores: {0}'}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
+                                                    <TextBlock Text="{Binding QueueDepthText, StringFormat='Fila no Hub: {0}'}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               ToolTip="Comandos aguardando coleta pelo nó. Ele puxa um a cada 2 s, então uma fila cheia leva até 16 s para esvaziar." />
+                                                </WrapPanel>
+                                                <TextBlock Text="{Binding Status.StatusText}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           TextWrapping="Wrap" Margin="0,6,0,0" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="Amostragem" Style="{StaticResource CaptionTextStyle}"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
+                                                     Width="80"
+                                                     Text="{Binding PollIntervalText, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Intervalo de amostragem Modbus no nó, de 250 a 10000 ms. Valores fora da faixa são recusados, não ajustados. Confirma ao sair do campo ou com Enter, como as demais entradas da página." />
+                                            <TextBlock Text="ms" Style="{StaticResource CaptionTextStyle}"
+                                                       VerticalAlignment="Center" Margin="6,0,12,0"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Text="Roteamento no Hub" Style="{StaticResource CaptionTextStyle}"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <ToggleButton VerticalAlignment="Center"
+                                                          Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
+                                                          IsChecked="{Binding IsRoutingEnabled, Mode=TwoWay}"
+                                                          ToolTip="Roteamento do servo no Hub. Desligar não para o nó: ele continua presente, e apenas os valores deixam de ser publicados." />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding PollIntervalError}"
+                                                   Visibility="{Binding PollIntervalError, Converter={StaticResource NullToVis}}"
+                                                   Foreground="{DynamicResource StateAlarmTextBrush}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,4" />
+
+                                        <!-- Fenced off below a rule. This clears a data accumulator and
+                                             does nothing to the process; beside a control that does act
+                                             it would invite the wrong click on a running reactor. -->
+                                        <Border BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="0,1,0,0"
+                                                Margin="0,10,0,0" Padding="0,10,0,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="Zerar energia acumulada"
+                                                        Command="{Binding ResetEnergyCommand}"
+                                                        ToolTip="Zera apenas o acumulador de energia no nó. Não altera nada no processo, e a confirmação é a queda do valor acumulado." />
+                                                <TextBlock Text="Somente o acumulador de dados. Não afeta o processo."
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           VerticalAlignment="Center" Margin="12,0,0,0" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="{Binding StatusMessage}"
+                                                   Visibility="{Binding StatusMessage, Converter={StaticResource NullToVis}}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap" Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                                </Border>
+                            </StackPanel>
 
                             <!-- 2. Temperatura -->
                             <StackPanel DataContext="{Binding TemperatureRow}">
@@ -582,7 +788,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 6. Dosagem de Nutrientes (com dropdown) -->
+                            <!-- 6. Nutrientes (com dropdown) -->
                             <StackPanel DataContext="{Binding NutrientControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -602,7 +808,7 @@
                                     <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Nutriente" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Nutrient" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Dosagem de Nutrientes" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static vm:DeviceNames.Nutrient}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
@@ -670,7 +876,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 7. Dosagem de Antiespumante (com dropdown) -->
+                            <!-- 7. Antiespumante (com dropdown) -->
                             <StackPanel DataContext="{Binding AntifoamControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -690,7 +896,7 @@
                                     <ctl:StateDot Grid.Column="1" State="{Binding IsEnabled, Converter={StaticResource ActiveToState}}" Size="8" VerticalAlignment="Center" Label="Antiespumante" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ctl:Icon Key="Foam" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Text="Dosagem de Antiespumante" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static vm:DeviceNames.Antifoam}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding LiveAntifoamText}" Style="{StaticResource NumericTextStyle}" />
@@ -1026,7 +1232,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 9. Sensor de Distância (Controle de espuma) -->
+                            <!-- 9. Distância (Controle de espuma) -->
                             <StackPanel DataContext="{Binding FoamControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1070,7 +1276,7 @@
                                         <!-- The name yields first. A chip pushed out of a horizontal
                                              stack would take the device's state with it, and the state
                                              is the part the operator cannot reconstruct. -->
-                                        <TextBlock Grid.Column="1" Text="Sensor de Distância" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{x:Static vm:DeviceNames.Distance}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
                                                    ToolTip="Sensor de espuma via distância" />
@@ -1108,7 +1314,7 @@
                                                   IsChecked="{Binding SensorEnabled, Mode=TwoWay}" ToolTip="Ativar sensor de distância/espuma" />
                                 </Grid>
 
-                                <!-- Dropdown Drawer: Sensor de Distância -->
+                                <!-- Dropdown Drawer: Distância -->
                                 <Border Visibility="{Binding DataContext.IsExpandedDistance, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
                                         Background="{DynamicResource SurfaceHoverBrush}"
                                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
@@ -1159,7 +1365,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- 10. Bomba Dosadora Externa (roadmap) -->
+                            <!-- 10. Bomba Externa (roadmap) -->
                             <StackPanel DataContext="{Binding PumpControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1176,7 +1382,7 @@
                                     <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
                                                   IsChecked="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
                                                   ToolTip="Configurações da bomba dosadora externa" />
-                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Bomba externa">
+                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="{x:Static vm:DeviceNames.ExternalPump}">
                                         <ctl:StateDot.State>
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="IsEnabled" />
@@ -1200,7 +1406,7 @@
                                         <!-- The name yields first. A chip pushed out of a horizontal
                                              stack would take the device's state with it, and the state
                                              is the part the operator cannot reconstruct. -->
-                                        <TextBlock Grid.Column="1" Text="Bomba Dosadora Externa" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{x:Static vm:DeviceNames.ExternalPump}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
                                                    ToolTip="Bomba peristáltica externa de alimentação" />
@@ -1376,7 +1582,7 @@
                             </Border>
                             </StackPanel>
 
-                            <!-- 11. Sensor de Biomassa -->
+                            <!-- 11. Absorbância -->
                             <StackPanel DataContext="{Binding BiomassControl}">
                                 <Grid Margin="0,4" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1411,7 +1617,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <ctl:Icon Grid.Column="0" Key="Biomass" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Grid.Column="1" Text="Sensor de Biomassa" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{x:Static vm:DeviceNames.Absorbance}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    MaxWidth="150" TextTrimming="CharacterEllipsis"
                                                    ToolTip="Sensor óptico de biomassa (absorbância)" />
@@ -1745,195 +1951,6 @@
                                                     ToolTip="Devolve o controle ao potenciômetro de bancada. A parada segura o bloqueia." />
                                         </StackPanel>
                                     </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <!-- 13. Servo Drive (potência do agitador) -->
-                            <StackPanel DataContext="{Binding ServoDrive}">
-                                <Grid Margin="0,4" VerticalAlignment="Center">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28" />
-                                        <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="270" />
-                                        <ColumnDefinition Width="110" />
-                                        <ColumnDefinition Width="90" />
-                                        <ColumnDefinition Width="160" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="130" />
-                                        <ColumnDefinition Width="60" />
-                                    </Grid.ColumnDefinitions>
-                                    <ToggleButton Grid.Column="0" Style="{StaticResource RowExpanderToggleStyle}" Tag="ExpanderToggle"
-                                                  IsChecked="{Binding DataContext.IsExpandedServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
-                                                  ToolTip="Telemetria e diagnóstico do servo drive" />
-                                    <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Servo drive">
-                                        <ctl:StateDot.State>
-                                            <MultiBinding Converter="{StaticResource ExternalDeviceState}">
-                                                <Binding Path="IsRoutingEnabled" />
-                                                <Binding Path="Status.IsOffline" />
-                                                <Binding Path="Status.ShowPendingChip" />
-                                                <Binding Path="Status.ShowRoutingChipOnly" />
-                                            </MultiBinding>
-                                        </ctl:StateDot.State>
-                                    </ctl:StateDot>
-                                    <Grid Grid.Column="2" VerticalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <ctl:Icon Grid.Column="0" Key="Impeller" Style="{StaticResource ProcessRowIconStyle}" />
-                                        <TextBlock Grid.Column="1" Text="Servo Drive" FontWeight="SemiBold"
-                                                   VerticalAlignment="Center"
-                                                   MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                   ToolTip="Delta ASDA-B2. Telemetria do eixo por Modbus; a rotação continua sendo comandada pelo CN1." />
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <ctl:ExternalDeviceChips Status="{Binding Status}" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <TextBlock Grid.Column="3" Text="{Binding RpmText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center"
-                                               ToolTip="Rotação medida no eixo. O setpoint fica no card de Agitação." />
-                                    <TextBlock Grid.Column="4" Text="{Binding TorquePercentText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
-                                               ToolTip="Torque instantâneo, em percentual do torque nominal do motor." />
-                                    <!-- The unit carries the qualifier, not a tooltip. This is T·ω at the
-                                         shaft, derived from a torque percentage and the motor's nameplate
-                                         rating: an operator reading it as electrical draw is out by orders
-                                         of magnitude, and a tooltip is not read before that happens. -->
-                                    <TextBlock Grid.Column="5" VerticalAlignment="Center" Style="{StaticResource NumericTextStyle}" HorizontalAlignment="Left">
-                                        <Run Text="{Binding PowerWattText, Mode=OneWay}" />
-                                        <Run Text=" W mec. est." FontSize="{DynamicResource FontSizeCaption}"
-                                             Foreground="{DynamicResource TextMutedBrush}" />
-                                    </TextBlock>
-                                    <TextBlock Grid.Column="6" Text="rpm · %" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="7" Text="{Binding StateText}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
-                                                  IsChecked="{Binding IsRoutingEnabled, Mode=TwoWay}"
-                                                  ToolTip="Roteamento do servo no Hub. Desligar não para o nó: ele continua presente, e apenas os valores deixam de ser publicados." />
-                                </Grid>
-                                <Border Visibility="{Binding DataContext.IsExpandedServoDrive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
-                                        Background="{DynamicResource SurfaceHoverBrush}"
-                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="{DynamicResource RadiusSmall}"
-                                        Margin="28,4,8,8"
-                                        Padding="14,10">
-                                <StackPanel>
-                                    <!-- The alarm goes first and only appears when there is one. A code
-                                         nobody can act on is noise; a code that appears exactly when the
-                                         drive raised one is the first thing to read. -->
-                                    <Border Visibility="{Binding IsInAlarm, Converter={StaticResource BoolToVis}}"
-                                            Margin="0,0,0,10" Padding="10,8"
-                                            Background="{DynamicResource SurfaceSunkenBrush}"
-                                            BorderBrush="{DynamicResource StateAlarmTextBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="{DynamicResource RadiusSmall}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding AlarmText, StringFormat='Alarme do drive: {0}'}"
-                                                       Foreground="{DynamicResource StateAlarmTextBrush}"
-                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <TextBlock Text="consulte o código no manual do ASDA-B2"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       VerticalAlignment="Center" Margin="12,0,0,0" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Readings the primary row has no space for. Every one of these is an
-                                         em dash when the frame carried no sample, never a zero: zero rpm and
-                                         zero power are real readings from a stopped motor. -->
-                                    <WrapPanel Margin="0,0,0,10">
-                                        <TextBlock Text="{Binding TorqueNewtonMetreText, StringFormat='Torque: {0} N·m'}"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
-                                                   ToolTip="Derivado do torque percentual e do torque nominal de placa do motor (1,27 N·m para o ECMA-C20604ES). Trocar o motor sem trocar essa constante produz números plausíveis e errados." />
-                                        <TextBlock Text="{Binding LoadPercentText, StringFormat='Carga média: {0} %'}"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
-                                                   ToolTip="Taxa de carga média do drive. Não é a mesma grandeza que o torque instantâneo." />
-                                        <TextBlock Text="{Binding EnergyWattHourText, StringFormat='Energia mecânica acumulada: {0} Wh'}"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   ToolTip="Integrada no próprio nó. Zera quando o nó reinicia e quando a zeragem é comandada, então pode andar para trás." />
-                                    </WrapPanel>
-
-                                    <!-- Link diagnostics. The rate, not the total: the bench saw one error
-                                         in 256 reads on the first transaction after boot, and a total that
-                                         never clears would leave a healthy link looking sick forever. -->
-                                    <Border Margin="0,0,0,10" Padding="10,8"
-                                            Background="{DynamicResource SurfaceSunkenBrush}"
-                                            BorderBrush="{DynamicResource StrokeSubtleBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="{DynamicResource RadiusSmall}">
-                                        <StackPanel>
-                                            <WrapPanel>
-                                                <TextBlock Text="{Binding ErrorRateText, StringFormat='Erros Modbus: {0}'}"
-                                                           Style="{StaticResource CaptionTextStyle}"
-                                                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0"
-                                                           ToolTip="Fração de transações com falha numa janela móvel. Um erro isolado no boot é normal; o que importa é a taxa se manter alta." />
-                                                <TextBlock Text="{Binding CounterText, StringFormat='Contadores: {0}'}"
-                                                           Style="{StaticResource CaptionTextStyle}"
-                                                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
-                                                <TextBlock Text="{Binding QueueDepthText, StringFormat='Fila no Hub: {0}'}"
-                                                           Style="{StaticResource CaptionTextStyle}"
-                                                           Foreground="{DynamicResource TextMutedBrush}"
-                                                           ToolTip="Comandos aguardando coleta pelo nó. Ele puxa um a cada 2 s, então uma fila cheia leva até 16 s para esvaziar." />
-                                            </WrapPanel>
-                                            <TextBlock Text="{Binding Status.StatusText}"
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       TextWrapping="Wrap" Margin="0,6,0,0" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <TextBlock Text="Amostragem" Style="{StaticResource CaptionTextStyle}"
-                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBox Style="{StaticResource ConnectedExternalDeviceEntryStyle}"
-                                                 Width="80"
-                                                 Text="{Binding PollIntervalText, UpdateSourceTrigger=PropertyChanged}"
-                                                 ToolTip="Intervalo de amostragem Modbus no nó, de 250 a 10000 ms. Valores fora da faixa são recusados, não ajustados." />
-                                        <TextBlock Text="ms" Style="{StaticResource CaptionTextStyle}"
-                                                   VerticalAlignment="Center" Margin="6,0,12,0"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
-                                        <!-- No apply button: this workspace commits on Enter or on
-                                             leaving the field, like every other entry on the page.
-                                             The confirmation is the change in the counters' pace -
-                                             this link carries no acknowledgement. -->
-                                        <TextBlock Text="Enter para enviar"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding PollIntervalError}"
-                                               Visibility="{Binding PollIntervalError, Converter={StaticResource NullToVis}}"
-                                               Foreground="{DynamicResource StateAlarmTextBrush}"
-                                               FontSize="{DynamicResource FontSizeCaption}"
-                                               TextWrapping="Wrap" Margin="0,0,0,4" />
-
-                                    <!-- Deliberately fenced off below a rule and below everything else.
-                                         This clears a data accumulator and does nothing to the process;
-                                         sitting it beside a control that does would invite the wrong click
-                                         on a reactor that is running. -->
-                                    <Border BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="0,1,0,0"
-                                            Margin="0,10,0,0" Padding="0,10,0,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Zerar energia acumulada"
-                                                    Command="{Binding ResetEnergyCommand}"
-                                                    ToolTip="Zera apenas o acumulador de energia no nó. Não altera nada no processo, e a confirmação é a queda do valor acumulado." />
-                                            <TextBlock Text="Somente o acumulador de dados. Não afeta o processo."
-                                                       Style="{StaticResource CaptionTextStyle}"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       VerticalAlignment="Center" Margin="12,0,0,0" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <TextBlock Text="{Binding StatusMessage}"
-                                               Visibility="{Binding StatusMessage, Converter={StaticResource NullToVis}}"
-                                               Style="{StaticResource CaptionTextStyle}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               TextWrapping="Wrap" Margin="0,8,0,0" />
-                                </StackPanel>
                                 </Border>
                             </StackPanel>
 

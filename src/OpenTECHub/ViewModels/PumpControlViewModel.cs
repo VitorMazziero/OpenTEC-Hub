@@ -67,7 +67,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         _settings = settings;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.PumpControl;
-        Status = new ExternalDeviceStatus("Bomba externa", "da bomba externa", timeProvider);
+        Status = new ExternalDeviceStatus(DeviceNames.ExternalPump, "da bomba externa", timeProvider);
         Status.PropertyChanged += OnStatusChanged;
 
         ModeOptions =

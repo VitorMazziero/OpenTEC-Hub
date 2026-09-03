@@ -3,6 +3,7 @@ using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.Services.Telemetry;
+using OpenTECHub.ViewModels;
 
 namespace OpenTECHub.Services.Alarms;
 
@@ -215,11 +216,11 @@ public sealed class AlarmService : IAlarmService
         // The Hub has already applied its own presence window before it reports a node
         // absent, so these carry the same short debounce the flowmeter alarm uses: enough
         // to ride out one late frame, not enough to hide a real outage.
-        new(AlarmId.BiomassOffline, "Sensor de biomassa offline", AlarmSeverity.Warning,
+        new(AlarmId.BiomassOffline, "Absorbância offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.ExternalPumpOffline, "Bomba externa offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
-        new(AlarmId.DistanceSensorOffline, "Sensor de distância offline", AlarmSeverity.Warning,
+        new(AlarmId.DistanceSensorOffline, "Distância offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.FlaskAgitatorOffline, "Agitador de frasco offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
@@ -541,12 +542,12 @@ public sealed class AlarmService : IAlarmService
         // what the Fluxômetro offline alarm is conditioned on, so a silent disagreement disables
         // that alarm along with the loop. Only compared once the Hub has spoken about the
         // flowmeter at all, so a pre-connection frame does not read as a conflict.
-        Check("Vazão de ar", snapshot.FlowmeterOnline ? snapshot.FlowControlEnabled : null);
+        Check(DeviceNames.Routing.Airflow, snapshot.FlowmeterOnline ? snapshot.FlowControlEnabled : null);
 
-        Check("Sensor de biomassa", snapshot.BiomassCommEnabled);
-        Check("Bomba externa", snapshot.PumpCommEnabled);
-        Check("Sensor de distância", snapshot.DistanceCommEnabled);
-        Check("Servo drive", snapshot.ServoCommEnabled);
+        Check(DeviceNames.Routing.Absorbance, snapshot.BiomassCommEnabled);
+        Check(DeviceNames.Routing.ExternalPump, snapshot.PumpCommEnabled);
+        Check(DeviceNames.Routing.Distance, snapshot.DistanceCommEnabled);
+        Check(DeviceNames.Routing.ServoDrive, snapshot.ServoCommEnabled);
 
         // The banner shows one line, so the detail leads with the consequence and names the
         // devices plainly. The earlier wording spelled out the Hub's state per device and was

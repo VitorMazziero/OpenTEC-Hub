@@ -501,6 +501,12 @@ public partial class SynopticView : UserControl
             return;
         }
 
+        if (tag.Contains("Agitação", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowAgitationSubMenu(dropTarget, panelIndex);
+            return;
+        }
+
         if (tag.Contains("Oxigênio", StringComparison.OrdinalIgnoreCase))
         {
             var isOxygenControlActive = (DataContext as ShellViewModel)?.IsOxygenControlActive ?? false;
@@ -665,7 +671,7 @@ public partial class SynopticView : UserControl
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Bomba Dosadora Externa",
+            Text = DeviceNames.ExternalPump,
             FontSize = 14,
             FontWeight = FontWeights.Bold,
             Foreground = TryBrush("TextPrimaryBrush") ?? Brushes.Black,
@@ -725,6 +731,113 @@ public partial class SynopticView : UserControl
         presenter.Content = card;
         overlay.IsHitTestVisible = true;
         overlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// The series behind the agitation card, offered when it is dropped on a plot.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Agitation is the one card backed by more than one instrument. The commanded speed
+    /// comes from this application; everything else is measured on the shaft by the ASDA-B2
+    /// node, and each answers a different question - is it turning at the right speed, is it
+    /// working hard to get there, how much energy has that cost.
+    /// </para>
+    /// <para>
+    /// Offered rather than guessed at, exactly like the pump's two. Dropping the card and
+    /// silently picking one of seven would be picking wrong six times out of seven.
+    /// </para>
+    /// </remarks>
+    private void ShowAgitationSubMenu(Border dropTarget, int panelIndex)
+    {
+        var (overlay, presenter) = GetOverlayElements(dropTarget);
+        if (overlay == null || presenter == null)
+        {
+            return;
+        }
+
+        _activeSubmenuTarget = dropTarget;
+
+        var card = new Border
+        {
+            Padding = new Thickness(16, 12, 16, 12),
+            Background = TryBrush("SurfaceSunkenBrush") ?? Brushes.WhiteSmoke,
+            BorderBrush = TryBrush("StrokeDefaultBrush") ?? Brushes.LightGray,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            MaxWidth = 280
+        };
+
+        var stack = new StackPanel { HorizontalAlignment = HAlign.Stretch };
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Agitação",
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Foreground = TryBrush("TextPrimaryBrush") ?? Brushes.Black,
+            HorizontalAlignment = HAlign.Center
+        });
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Selecione a série para este gráfico:",
+            FontSize = 11,
+            Margin = new Thickness(0, 3, 0, 10),
+            Foreground = TryBrush("TextSecondaryBrush") ?? Brushes.Gray,
+            HorizontalAlignment = HAlign.Center
+        });
+
+        // Measured first: it is what the shaft is doing, and it is the reading the card
+        // itself shows. The commanded figure is second because it is what was asked for -
+        // useful beside the measurement, misleading in place of it.
+        AddSeriesButton(stack, dropTarget, panelIndex, "Rotação medida (rpm)", TelemetryChannel.ServoRpm);
+        AddSeriesButton(stack, dropTarget, panelIndex, "Rotação comandada (rpm)", TelemetryChannel.MotorRpm);
+        AddSeriesButton(stack, dropTarget, panelIndex, "Torque (%)", TelemetryChannel.ServoTorquePct);
+        AddSeriesButton(stack, dropTarget, panelIndex, "Torque (N·m)", TelemetryChannel.ServoTorqueNm);
+        AddSeriesButton(stack, dropTarget, panelIndex, "Carga média (%)", TelemetryChannel.ServoLoadPct);
+        AddSeriesButton(stack, dropTarget, panelIndex, "Potência mecânica estimada (W)", TelemetryChannel.ServoPowerW);
+        AddSeriesButton(stack, dropTarget, panelIndex, "Energia acumulada (Wh)", TelemetryChannel.ServoEnergyWh);
+
+        var btnCancel = new Button
+        {
+            Content = "Cancelar",
+            Margin = new Thickness(0, 4, 0, 0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = TryBrush("TextMutedBrush") ?? Brushes.Gray,
+            Cursor = Cursors.Hand,
+            HorizontalAlignment = HAlign.Center
+        };
+        btnCancel.Click += (_, _) => DismissSubMenu(dropTarget);
+        stack.Children.Add(btnCancel);
+
+        card.Child = stack;
+        presenter.Content = card;
+        overlay.IsHitTestVisible = true;
+        overlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>One series button in a drop sub-menu.</summary>
+    private void AddSeriesButton(
+        StackPanel stack, Border dropTarget, int panelIndex, string label, TelemetryChannel channel)
+    {
+        var button = new Button
+        {
+            Content = label,
+            Margin = new Thickness(0, 0, 0, 5),
+            Padding = new Thickness(12, 5, 12, 5),
+            HorizontalContentAlignment = HAlign.Left,
+            Cursor = Cursors.Hand
+        };
+
+        button.Click += (_, _) =>
+        {
+            DismissSubMenu(dropTarget);
+            SetPanelChannel(panelIndex, channel);
+        };
+
+        stack.Children.Add(button);
     }
 
     private void ShowOxygenSubMenu(Border dropTarget, int panelIndex)
@@ -905,9 +1018,12 @@ public partial class SynopticView : UserControl
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Flow);
         }
+        // Nutriente has no telemetry channel: it is a commanded-only pump, and the
+        // device reports nothing back. This used to return the antifoam series, so
+        // dragging Nutrientes onto a plot charted a different device under its name.
         if (tag.Contains("Nutrientes", StringComparison.OrdinalIgnoreCase))
         {
-            return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Antifoam);
+            return null;
         }
         if (tag.Contains("Antiespumante", StringComparison.OrdinalIgnoreCase))
         {
@@ -917,7 +1033,8 @@ public partial class SynopticView : UserControl
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Distance);
         }
-        if (tag.Contains("Biomassa", StringComparison.OrdinalIgnoreCase))
+        if (tag.Contains("Absorbância", StringComparison.OrdinalIgnoreCase) ||
+            tag.Contains("Biomassa", StringComparison.OrdinalIgnoreCase))
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Biomass);
         }

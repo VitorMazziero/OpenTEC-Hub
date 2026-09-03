@@ -51,6 +51,13 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     private UnitSettings _units;
     private SessionFileData? _loadedSession;
 
+    /// <summary>
+    /// While set, the charts hide every sample older than this process time. A visualisation
+    /// filter only — the in-memory buffer and the saved session are untouched, and
+    /// "Mostrar dados" lifts it.
+    /// </summary>
+    private double? _viewFloorMinutes;
+
     public ChartsViewModel(
         ITelemetryHistory history,
         ISettingsService settings,
@@ -104,6 +111,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.ServoPowerW, "Servo — potência mecânica estimada", "W", "Series5Brush"),
             new(TelemetryChannel.ServoEnergyWh, "Servo — energia mecânica acumulada", "Wh", "Series6Brush"),
             new(TelemetryChannel.Antifoam, "Antiespumante", "", "Series1Brush"),
+            new(TelemetryChannel.Nutrient, "Nutrientes", "%", "Series6Brush"),
             new(TelemetryChannel.Distance, "Distância", "mm", "Series2Brush"),
             new(TelemetryChannel.Biomass, "Biomassa", "Abs", "Series3Brush"),
             new(TelemetryChannel.PumpFlow, "Bomba — vazão", "mL/min", "Series4Brush"),
@@ -205,6 +213,8 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             ? session.GetSeries(option.Channel, SelectedWindow.Window, maxPoints)
             : History.GetSeries(option.Channel, SelectedWindow.Window, maxPoints);
 
+        canonical = ApplyViewFloor(canonical);
+
         if (canonical.Count == 0 ||
             option.Channel is not (TelemetryChannel.Temperature or TelemetryChannel.Pressure))
         {
@@ -224,6 +234,75 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         }
 
         return new ChannelSeries(canonical.Minutes, values);
+    }
+
+    /// <summary>
+    /// The dashed setpoint overlay for a channel, or an empty series when it has none.
+    /// </summary>
+    public ChannelSeries GetSetpointSeries(ChartChannelOption option, int maxPoints)
+    {
+        // Agitation's "setpoint" is the commanded rpm — a real series the charts already hold,
+        // drawn dashed beside the measured rpm. It is the one overlay a loaded session can show
+        // too, since the commanded rpm is column 2 of every log.
+        if (option.Channel == TelemetryChannel.ServoRpm)
+        {
+            var commanded = _loadedSession is { } loaded
+                ? loaded.GetSeries(TelemetryChannel.MotorRpm, SelectedWindow.Window, maxPoints)
+                : History.GetSeries(TelemetryChannel.MotorRpm, SelectedWindow.Window, maxPoints);
+            return ApplyViewFloor(commanded);
+        }
+
+        // The app-side setpoints exist only for the live buffer; a loaded file did not store them.
+        if (_loadedSession is not null)
+        {
+            return ChannelSeries.Empty;
+        }
+
+        var canonical = ApplyViewFloor(History.GetSetpointSeries(option.Channel, SelectedWindow.Window, maxPoints));
+
+        if (canonical.Count == 0 ||
+            option.Channel is not (TelemetryChannel.Temperature or TelemetryChannel.Pressure))
+        {
+            return canonical;
+        }
+
+        var values = new double[canonical.Count];
+        for (var i = 0; i < values.Length; i++)
+        {
+            var value = canonical.Values[i];
+            values[i] = double.IsNaN(value) ? value : option.Channel switch
+            {
+                TelemetryChannel.Temperature => UnitConversions.TemperatureToDisplay(value, _units.Temperature),
+                TelemetryChannel.Pressure => UnitConversions.PressureToDisplay(value, _units.Pressure),
+                _ => value,
+            };
+        }
+
+        return new ChannelSeries(canonical.Minutes, values);
+    }
+
+    /// <summary>Drops samples older than the "Limpar dados" floor, if one is set.</summary>
+    private ChannelSeries ApplyViewFloor(ChannelSeries series)
+    {
+        if (_viewFloorMinutes is not { } floor || series.Count == 0)
+        {
+            return series;
+        }
+
+        var start = 0;
+        while (start < series.Count && series.Minutes[start] < floor)
+        {
+            start++;
+        }
+
+        if (start == 0)
+        {
+            return series;
+        }
+
+        return start >= series.Count
+            ? ChannelSeries.Empty
+            : new ChannelSeries(series.Minutes[start..], series.Values[start..]);
     }
 
     public (double Minutes, double Value)? GetValueAt(ChartChannelOption option, double minutes)
@@ -342,6 +421,42 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         }
 
         return text.ToString();
+    }
+
+    /// <summary>True while "Limpar dados" is hiding the earlier data from the charts.</summary>
+    public bool IsDataCleared => _viewFloorMinutes is not null;
+
+    /// <summary>
+    /// Hides the data currently on the charts, for visualisation only. The saved series and
+    /// the live buffer are untouched; new data keeps arriving and "Mostrar dados" brings all
+    /// of it back.
+    /// </summary>
+    [RelayCommand]
+    private void ClearData()
+    {
+        _viewFloorMinutes = History.LatestMinutes;
+        OnPropertyChanged(nameof(IsDataCleared));
+        LayoutChanged?.Invoke();
+    }
+
+    /// <summary>Shows the complete session again after a "Limpar dados".</summary>
+    [RelayCommand]
+    private void ShowAllData()
+    {
+        _viewFloorMinutes = null;
+        OnPropertyChanged(nameof(IsDataCleared));
+        LayoutChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Called when the live buffer is discarded on a session time-zero: lifts any view floor
+    /// so the fresh, rebased data is not hidden behind a floor from the old time base.
+    /// </summary>
+    public void OnHistoryReset()
+    {
+        _viewFloorMinutes = null;
+        OnPropertyChanged(nameof(IsDataCleared));
+        LayoutChanged?.Invoke();
     }
 
     [RelayCommand]

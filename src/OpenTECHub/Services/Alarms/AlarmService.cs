@@ -20,10 +20,11 @@ internal enum AlarmTransition
 /// to clear.
 /// </summary>
 /// <remarks>
-/// Latching is the point: once raised, the alarm stays until it has been acknowledged
-/// <b>and</b> clear for the deadband. A condition that comes and goes while unacknowledged
-/// stays in the returned-unacknowledged state — an alarm nobody saw is the one worth
-/// keeping. Time is injected, so every delay is deterministic under test.
+/// Latching means a momentary fault still raises: once the on-delay passes the alarm holds
+/// even if the condition immediately clears. It then clears on its own once the condition
+/// has stayed normal for the off-deadband — acknowledged or not — so a fault that has gone
+/// away leaves the banner without needing a click. The occurrence is preserved in the event
+/// journal either way. Time is injected, so every delay is deterministic under test.
 /// </remarks>
 internal sealed class AlarmCondition(AlarmDefinition definition)
 {
@@ -82,9 +83,11 @@ internal sealed class AlarmCondition(AlarmDefinition definition)
         {
             _clearingSince ??= now;
 
-            // Only an acknowledged alarm clears on its own; an unacknowledged one is held
-            // in the returned-unacknowledged state until the operator sees it.
-            if (Acknowledged && now - _clearingSince >= definition.OffDeadband)
+            // Once the condition has been clear for the deadband the alarm clears itself,
+            // acknowledged or not. A fault that has gone away should not keep the banner lit
+            // waiting for a click — the occurrence still lives in the event journal, where
+            // both the raise and the "normalizado" line are recorded, so nothing is lost.
+            if (now - _clearingSince >= definition.OffDeadband)
             {
                 Reset();
                 return AlarmTransition.Cleared;
@@ -462,7 +465,7 @@ public sealed class AlarmService : IAlarmService
             "O ESP32 não está recebendo dados do módulo de sensores (SensorCommOK falso)."),
 
         AlarmId.FlowmeterOffline => (
-            connected && _lastSnapshot is { FlowmeterOnline: false },
+            connected && RoutingRequested(DeviceNames.Routing.Airflow) && _lastSnapshot is { FlowmeterOnline: false },
             "Fluxômetro Desconectado da Central: o Hub está acessível, mas perdeu o enlace interno."),
 
         AlarmId.FrozenData => (stale,
@@ -482,24 +485,31 @@ public sealed class AlarmService : IAlarmService
                   "Pule o bloco ou pare a receita."
                 : ""),
 
-        // Each of these is qualified by the Hub's own routing echo, so a device the
-        // operator has deliberately switched off never raises one. A Hub that does not
-        // publish the echo leaves the flag null, and the alarm stays silent rather than
-        // guessing — the app cannot tell an unflashed Hub from a failed node.
+        // Each of these is qualified twice: by the operator's own switch in Controle (an
+        // external device the operator has not enabled must never alarm, even if the Hub is
+        // still routing it from a flag persisted across a reboot) and by the Hub's routing
+        // echo. A Hub that does not publish the echo leaves the flag null, and the alarm
+        // stays silent rather than guessing — the app cannot tell an unflashed Hub from a
+        // failed node. When the Hub routes a device the operator switched off, the
+        // routing-mismatch alarm carries it instead of a spurious offline.
         AlarmId.BiomassOffline => (
-            connected && _lastSnapshot is { BiomassCommEnabled: true, BiomassOnline: false, HasBiomassTelemetry: true },
+            connected && RoutingRequested(DeviceNames.Routing.Absorbance) &&
+            _lastSnapshot is { BiomassCommEnabled: true, BiomassOnline: false, HasBiomassTelemetry: true },
             "O sensor de biomassa não está respondendo à Central, mas o roteamento do Hub está ligado."),
 
         AlarmId.ExternalPumpOffline => (
-            connected && _lastSnapshot is { PumpCommEnabled: true, PumpOnline: false, HasPumpTelemetry: true },
+            connected && RoutingRequested(DeviceNames.Routing.ExternalPump) &&
+            _lastSnapshot is { PumpCommEnabled: true, PumpOnline: false, HasPumpTelemetry: true },
             "A bomba externa não está respondendo à Central. A dosagem em curso não pode ser confirmada."),
 
         AlarmId.DistanceSensorOffline => (
-            connected && _lastSnapshot is { DistanceCommEnabled: true, DistanceOnline: false, HasDistanceTelemetry: true },
+            connected && RoutingRequested(DeviceNames.Routing.Distance) &&
+            _lastSnapshot is { DistanceCommEnabled: true, DistanceOnline: false, HasDistanceTelemetry: true },
             "O sensor de distância não está respondendo à Central; o controle automático de espuma está sem leitura."),
 
         AlarmId.FlaskAgitatorOffline => (
-            connected && _lastSnapshot is { HasAgitatorTelemetry: true, AgitatorOnline: false },
+            connected && RoutingRequested(DeviceNames.Routing.FlaskAgitator) &&
+            _lastSnapshot is { HasAgitatorTelemetry: true, AgitatorOnline: false },
             "O agitador de frasco não está respondendo à Central."),
 
         AlarmId.ServoDriveOffline => (
@@ -576,6 +586,18 @@ public sealed class AlarmService : IAlarmService
     /// <param name="requested">True when the operator has the device switched on.</param>
     public void SetRoutingRequested(string device, bool requested)
         => _routingRequested[device] = requested;
+
+    /// <summary>
+    /// Whether the operator has this external device switched on in Controle.
+    /// </summary>
+    /// <remarks>
+    /// Gates the external-device offline alarms: a device the operator has not enabled must
+    /// not alarm, even when the Hub is still routing it from a flag persisted across a reboot.
+    /// Unknown means "not requested" — the switch is pushed at startup, so a missing entry is
+    /// the safe, silent default rather than a guess.
+    /// </remarks>
+    private bool RoutingRequested(string device)
+        => _routingRequested.TryGetValue(device, out var requested) && requested;
 
     private static AuditSeverity ToAudit(AlarmSeverity severity)
         => severity == AlarmSeverity.Critical ? AuditSeverity.Error : AuditSeverity.Warning;

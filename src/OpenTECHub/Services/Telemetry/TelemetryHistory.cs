@@ -65,6 +65,15 @@ public enum TelemetryChannel
     /// this series steps down and any analysis over it has to expect that.
     /// </remarks>
     ServoEnergyWh,
+
+    /// <summary>Commanded nutrient dosing duty cycle, in percent.</summary>
+    /// <remarks>
+    /// A commanded-only figure: the device reports no nutrient feedback, so this is what the
+    /// app asked for, recorded per frame. Charted as a flat zero while the pump is disabled —
+    /// a visible line the operator asked for, not the gap an absent measurement would draw.
+    /// Appended last, for the ordinal-stability reason the servo channels were.
+    /// </remarks>
+    Nutrient,
 }
 
 /// <summary>Downsampled series ready for a chart.</summary>
@@ -92,6 +101,15 @@ public interface ITelemetryHistory
     /// <summary>Records cascade control terms for the latest frame.</summary>
     void RecordCascade(double effort, double predictedO2, double rateSetpoint, double rateMeasured, double? klaDemand);
 
+    /// <summary>Records the commanded nutrient duty cycle (percent) for the latest frame.</summary>
+    void RecordNutrient(double percent);
+
+    /// <summary>
+    /// Records a channel's commanded setpoint for the latest frame, for the dashed overlay.
+    /// A non-finite value clears it (no line drawn that frame).
+    /// </summary>
+    void RecordSetpoint(TelemetryChannel channel, double value);
+
     /// <summary>Discards everything, e.g. when a new run starts.</summary>
     void Clear();
 
@@ -100,6 +118,9 @@ public interface ITelemetryHistory
     /// downsampled to at most <paramref name="maxPoints"/>.
     /// </summary>
     ChannelSeries GetSeries(TelemetryChannel channel, TimeSpan? window, int maxPoints);
+
+    /// <summary>The channel's commanded-setpoint series, for the dashed overlay.</summary>
+    ChannelSeries GetSetpointSeries(TelemetryChannel channel, TimeSpan? window, int maxPoints);
 }
 
 /// <summary>
@@ -127,6 +148,13 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
 
     /// <summary>One row per channel, indexed by the enum value.</summary>
     private readonly double[][] _series =
+        [.. Enumerable.Range(0, ChannelCount).Select(_ => new double[capacity])];
+
+    /// <summary>
+    /// The commanded setpoint per channel, for the dashed overlay. NaN where the channel has
+    /// no setpoint or the loop is inactive, so those frames draw no line.
+    /// </summary>
+    private readonly double[][] _setpoints =
         [.. Enumerable.Range(0, ChannelCount).Select(_ => new double[capacity])];
 
     private int _head;   // next write index
@@ -157,6 +185,13 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             var i = _head;
             _minutes[i] = snapshot.TimeMinutes;
 
+            // Every setpoint starts absent; RecordSetpoint fills in the ones the loops publish
+            // this frame, so a stale ring-buffer value never draws a phantom dashed line.
+            for (var c = 0; c < ChannelCount; c++)
+            {
+                _setpoints[c][i] = double.NaN;
+            }
+
             // Sentinels are stored as NaN so a chart shows a gap rather than a line
             // dropping to -1, which would read as a real measurement.
             Set(TelemetryChannel.Temperature, i, snapshot.Temperature);
@@ -176,6 +211,9 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             _series[(int)TelemetryChannel.CascadeRateSetpoint][i] = double.NaN;
             _series[(int)TelemetryChannel.CascadeRateMeasured][i] = double.NaN;
             _series[(int)TelemetryChannel.CascadeKlaDemand][i] = double.NaN;
+
+            // Commanded nutrient duty, written by RecordNutrient each frame; NaN until then.
+            _series[(int)TelemetryChannel.Nutrient][i] = double.NaN;
 
             // The commanded agitation figure, unchanged: zero means "not commanded",
             // not "measured zero", so it charts as a gap.
@@ -224,6 +262,34 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
         }
     }
 
+    public void RecordNutrient(double percent)
+    {
+        lock (_gate)
+        {
+            if (_count == 0)
+            {
+                return;
+            }
+
+            var i = (_head - 1 + capacity) % capacity;
+            _series[(int)TelemetryChannel.Nutrient][i] = double.IsFinite(percent) ? percent : double.NaN;
+        }
+    }
+
+    public void RecordSetpoint(TelemetryChannel channel, double value)
+    {
+        lock (_gate)
+        {
+            if (_count == 0)
+            {
+                return;
+            }
+
+            var i = (_head - 1 + capacity) % capacity;
+            _setpoints[(int)channel][i] = double.IsFinite(value) ? value : double.NaN;
+        }
+    }
+
     public void Clear()
     {
         lock (_gate)
@@ -234,6 +300,12 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
     }
 
     public ChannelSeries GetSeries(TelemetryChannel channel, TimeSpan? window, int maxPoints)
+        => Extract(_series[(int)channel], window, maxPoints);
+
+    public ChannelSeries GetSetpointSeries(TelemetryChannel channel, TimeSpan? window, int maxPoints)
+        => Extract(_setpoints[(int)channel], window, maxPoints);
+
+    private ChannelSeries Extract(double[] source, TimeSpan? window, int maxPoints)
     {
         if (maxPoints < 2)
         {
@@ -247,7 +319,6 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
                 return ChannelSeries.Empty;
             }
 
-            var source = _series[(int)channel];
             var oldest = (_head - _count + capacity) % capacity;
             var latest = _minutes[(_head - 1 + capacity) % capacity];
 

@@ -969,6 +969,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _alarms.SetRoutingRequested(DeviceNames.Routing.Absorbance, BiomassControl.IsEnabled);
         _alarms.SetRoutingRequested(DeviceNames.Routing.ExternalPump, PumpControl.IsEnabled);
         _alarms.SetRoutingRequested(DeviceNames.Routing.Distance, FoamControl.SensorEnabled);
+        // The flask agitator has no Hub routing echo, so its offline alarm leans entirely on
+        // this: it stays silent unless the operator has actually turned the agitator on.
+        _alarms.SetRoutingRequested(DeviceNames.Routing.FlaskAgitator, FlaskAgitator.AppliedIsEnabled);
     }
 
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)

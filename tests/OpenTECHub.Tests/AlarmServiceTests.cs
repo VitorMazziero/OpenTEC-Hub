@@ -300,24 +300,28 @@ public sealed class AlarmServiceTests
     }
 
     [Fact]
-    public void An_alarm_that_returns_to_normal_unacknowledged_stays_in_the_list()
+    public void An_alarm_that_returns_to_normal_clears_itself_even_unacknowledged()
     {
         using var h = new Harness();
         h.Device.PushState(ConnectionState.Faulted);
         h.AdvanceAndPoll(TimeSpan.FromSeconds(1.1));
+        Assert.True(h.Latched(AlarmId.LinkLost));
 
-        // Condition clears while nobody has seen it. It must NOT vanish.
+        // Condition clears while nobody has acknowledged it. During the off-deadband it is
+        // held as returned-unacknowledged...
         h.Device.PushState(ConnectionState.Connected);
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(5));
-
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(0.5)); // still inside the 1 s off-deadband
         var alarm = Assert.Single(h.Service.Snapshot());
         Assert.True(alarm.IsReturnedUnacknowledged);
         Assert.Equal("Normalizado, não reconhecido", alarm.StateLabel);
 
-        // Only the acknowledgement clears it, since the condition is already normal.
-        h.Service.Acknowledge(AlarmId.LinkLost);
-        h.Service.Poll();
+        // ...then it clears on its own once the deadband passes — no acknowledgement needed,
+        // and the occurrence stays in the journal.
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(0.7)); // now past the 1 s deadband
         Assert.Empty(h.Service.Snapshot());
+        Assert.Contains(h.Journal.Entries, e =>
+            e.Message.Contains("normalizado", StringComparison.OrdinalIgnoreCase) &&
+            e.Message.Contains("Link perdido", StringComparison.Ordinal));
     }
 
     // ── Timed audible silence ────────────────────────────────────────────────
@@ -382,6 +386,7 @@ public sealed class AlarmServiceTests
     public void Flowmeter_offline_alarms_even_when_the_legacy_hub_flag_is_disabled()
     {
         using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Airflow, true);
 
         h.Device.PushTelemetry(HealthyFrame() with
         {
@@ -403,6 +408,7 @@ public sealed class AlarmServiceTests
     public void An_absent_external_node_latches_only_while_the_hub_is_routing_to_it()
     {
         using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
 
         // Routed off: absence is expected, and silent.
         h.Device.PushTelemetry(HealthyFrame() with
@@ -482,6 +488,29 @@ public sealed class AlarmServiceTests
         h.AdvanceAndPoll(TimeSpan.FromSeconds(5.1));
 
         Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
+
+    /// <summary>
+    /// An external device the operator has not enabled in Controle stays silent, even when
+    /// the Hub is still routing it (a flag persisted across a reboot) and it is not answering.
+    /// The divergence itself is carried by the routing-mismatch alarm, not by a spurious
+    /// offline.
+    /// </summary>
+    [Fact]
+    public void An_external_offline_alarm_is_silent_when_the_operator_has_the_device_off()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, false);
+
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = false,
+            BiomassCommEnabled = true, // Hub still routing it
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+
+        Assert.False(h.Latched(AlarmId.BiomassOffline));
     }
 
     [Fact]

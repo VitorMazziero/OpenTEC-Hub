@@ -108,6 +108,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly ITelemetryHistory _history;
     private readonly ISessionLogger _sessionLogger;
     private readonly IDialogService _dialogs;
+    private readonly ICascadeService _cascade;
     private readonly IRecipeEngine _recipeEngine;
     private readonly ILogger<ShellViewModel> _log;
     private readonly IReadOnlyList<CommandPaletteEntry> _commandPaletteCatalog;
@@ -163,6 +164,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _history = history;
         _sessionLogger = sessionLogger;
         _dialogs = dialogs;
+        _cascade = cascade;
         _log = log;
 
         AppVersion = Assembly.GetExecutingAssembly()
@@ -772,7 +774,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         var detail = alarm.ConditionActive
             ? alarm.Detail
-            : "Condição normalizada — reconheça para limpar o alarme.";
+            : "Condição normalizada — o alarme será encerrado automaticamente.";
 
         return new AlarmListItem(
             alarm.Id, alarm.Title, detail, alarm.StateLabel, state, alarm.IsAnnunciating);
@@ -1284,7 +1286,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// optimistically; this is the authoritative confirmation from the worker.
     /// </summary>
     private void OnSessionTimeZeroed(double offsetMinutes)
-        => ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+    {
+        ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+
+        // Zeroing rebases the time axis: samples taken before now carry a larger elapsed time
+        // than everything that follows, which plots as a jump backwards. Drop the in-memory
+        // chart buffer so the graphs restart from zero. The session log file keeps every row —
+        // this clears only what the live charts hold.
+        _history.Clear();
+        Charts.OnHistoryReset();
+    }
 
     private void OnStateChanged(ConnectionStateChange change)
     {
@@ -1377,12 +1388,45 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // would change what they mean without changing their name.
         var commandedRpm = Motor.Setpoint ?? 0;
         _history.Add(snapshot, commandedRpm);
+        // Nutrient is commanded-only — record what was asked for so it can be charted: the
+        // duty cycle while enabled, and a flat zero while off (a visible line, not a gap).
+        _history.RecordNutrient(_nutrientControl.AppliedIsEnabled
+            ? _nutrientControl.AppliedDutyCyclePercent ?? 0.0
+            : 0.0);
+        RecordSetpoints(snapshot);
         _sessionLogger.Write(snapshot, commandedRpm, DescribeConnection());
 
         var minutes = snapshot.TimeMinutes;
         ElapsedText = minutes < 0
             ? "—"
             : TimeSpan.FromMinutes(minutes).ToString(@"hh\:mm\:ss");
+    }
+
+    /// <summary>
+    /// Records the commanded setpoints for the charts' dashed overlays, one per frame.
+    /// </summary>
+    /// <remarks>
+    /// Each is <see cref="double.NaN"/> unless its loop is active, so an idle loop draws no
+    /// dashed line. Airflow is the one the operator wants shown whenever a setpoint exists.
+    /// Temperature and pressure are the device-side (raw) values, recorded the same way the
+    /// measured series is, so the chart's unit conversion lands identically on both.
+    /// Agitation is not here: its "setpoint" is the commanded-rpm series the charts already
+    /// hold, drawn dashed beside the measured rpm.
+    /// </remarks>
+    private void RecordSetpoints(SensorSnapshot snapshot)
+    {
+        _history.RecordSetpoint(TelemetryChannel.Temperature,
+            Subsystems[0].AppliedIsEnabled ? Subsystems[0].AppliedSetpoint ?? double.NaN : double.NaN);
+        _history.RecordSetpoint(TelemetryChannel.Pressure,
+            Subsystems[4].AppliedIsEnabled ? Subsystems[4].AppliedSetpoint ?? double.NaN : double.NaN);
+        _history.RecordSetpoint(TelemetryChannel.PH,
+            PHControl.AppliedIsEnabled ? PHControl.AppliedSetpoint ?? double.NaN : double.NaN);
+        _history.RecordSetpoint(TelemetryChannel.Oxygen,
+            IsOxygenControlActive ? _cascade.OxygenSetpoint : double.NaN);
+        _history.RecordSetpoint(TelemetryChannel.Distance,
+            FoamControl.AppliedSensorEnabled ? FoamControl.AppliedReferenceMillimetres ?? double.NaN : double.NaN);
+        _history.RecordSetpoint(TelemetryChannel.Flow,
+            snapshot.FlowSetpoint >= 0 ? snapshot.FlowSetpoint : double.NaN);
     }
 
     private void OnSettingsChanged(AppSettings settings)

@@ -92,5 +92,6 @@ public static class DeviceNames
         public const string ExternalPump = DeviceNames.ExternalPump;
         public const string Distance = DeviceNames.Distance;
         public const string ServoDrive = DeviceNames.ServoDrive;
+        public const string FlaskAgitator = DeviceNames.FlaskAgitator;
     }
 }

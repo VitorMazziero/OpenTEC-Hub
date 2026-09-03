@@ -348,6 +348,13 @@
                     <Button Content="{Binding Charts.CursorLabel}" Margin="0,0,10,0"
                             Command="{Binding Charts.ToggleCursorCommand}" />
 
+                    <Button Content="Limpar dados" Margin="0,0,6,0"
+                            Command="{Binding Charts.ClearDataCommand}"
+                            ToolTip="Limpa os dados exibidos nos gráficos (apenas visualização; a sessão salva não é apagada)." />
+                    <Button Content="Mostrar dados" Margin="0,0,10,0"
+                            Command="{Binding Charts.ShowAllDataCommand}"
+                            ToolTip="Mostra novamente todos os dados da sessão nos gráficos." />
+
                     <Button Content="Nova Etapa" Margin="0,0,6,0"
                             Style="{StaticResource AccentButtonStyle}"
                             Command="{Binding Charts.NewSessionCommand}"

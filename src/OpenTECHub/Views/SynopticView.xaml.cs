@@ -294,8 +294,11 @@ public partial class SynopticView : UserControl
     private static void DrawPanel(WpfPlot host, ChartChannelOption spec, ChartsViewModel viewModel)
     {
         var series = viewModel.GetSeries(spec, MaxPointsPerPanel);
+        var setpoint = viewModel.GetSetpointSeries(spec, MaxPointsPerPanel);
 
         host.Plot.Clear();
+
+        var drewData = false;
 
         if (series.Count >= 2)
         {
@@ -303,7 +306,23 @@ public partial class SynopticView : UserControl
             scatter.MarkerSize = 0;              // continuous line
             scatter.LineWidth = 2.0f;
             scatter.Color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue);
+            drewData = true;
+        }
 
+        // The commanded setpoint, dashed and slightly muted so the measured line stays the
+        // primary read. Drawn only where the loop published one; a gap (NaN) elsewhere.
+        if (HasFinite(setpoint))
+        {
+            var line = host.Plot.Add.Scatter(setpoint.Minutes, setpoint.Values);
+            line.MarkerSize = 0;
+            line.LineWidth = 1.6f;
+            line.LinePattern = LinePattern.Dashed;
+            line.Color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue).WithAlpha(0.55f);
+            drewData = true;
+        }
+
+        if (drewData)
+        {
             host.Plot.Axes.AutoScale();
             var limits = host.Plot.Axes.GetLimits();
             var xMin = Math.Max(0, limits.Left);
@@ -416,6 +435,20 @@ public partial class SynopticView : UserControl
     {
         var c = brush?.Color ?? fallback;
         return new PlotColor(c.R, c.G, c.B, c.A);
+    }
+
+    /// <summary>True when a series has at least one real point to draw (not all gaps).</summary>
+    private static bool HasFinite(ChannelSeries series)
+    {
+        for (var i = 0; i < series.Count; i++)
+        {
+            if (!double.IsNaN(series.Values[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ── Mouse Wheel Scroll for Top Cards ─────────────────────────────────────
@@ -1074,12 +1107,12 @@ public partial class SynopticView : UserControl
         {
             return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Flow);
         }
-        // Nutriente has no telemetry channel: it is a commanded-only pump, and the
-        // device reports nothing back. This used to return the antifoam series, so
-        // dragging Nutrientes onto a plot charted a different device under its name.
+        // Nutriente is commanded-only — the device reports nothing back — so its series is
+        // the duty cycle the app asked for, recorded per frame (a flat zero while off). It
+        // used to return null here, so dragging Nutrientes onto a plot drew no series at all.
         if (tag.Contains("Nutrientes", StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return viewModel.Channels.FirstOrDefault(c => c.Channel == TelemetryChannel.Nutrient);
         }
         if (tag.Contains("Antiespumante", StringComparison.OrdinalIgnoreCase))
         {

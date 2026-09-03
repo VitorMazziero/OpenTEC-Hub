@@ -92,15 +92,17 @@ public sealed class DeviceNamingTests
     }
 
     /// <summary>
-    /// Nutriente has no telemetry, so dragging it to a plot charts nothing at all.
+    /// Nutriente is commanded-only, so dragging it to a plot charts the commanded duty cycle,
+    /// never another device's series.
     /// </summary>
     /// <remarks>
-    /// It used to return the antifoam series: a different device, under the nutrient's name,
-    /// on a chart that looked entirely normal. It is a commanded-only pump - the equipment
-    /// reports nothing back - so no series is the only honest answer.
+    /// It once returned the antifoam series: a different device, under the nutrient's name, on
+    /// a chart that looked entirely normal. The equipment reports no nutrient feedback, so the
+    /// honest series is the duty cycle the app asked for — recorded per frame, and a flat zero
+    /// while the pump is off. It must still never resolve to the antifoam series.
     /// </remarks>
     [Fact]
-    public void Dragging_nutrients_to_a_plot_charts_nothing_rather_than_another_device()
+    public void Dragging_nutrients_to_a_plot_charts_the_commanded_duty_not_another_device()
     {
         var code = Source("Views", "SynopticView.xaml.cs");
         var branch = code.IndexOf("tag.Contains(\"Nutrientes\"", StringComparison.Ordinal);
@@ -112,7 +114,7 @@ public sealed class DeviceNamingTests
         Assert.True(next > branch, "O ramo seguinte não foi encontrado.");
 
         var body = code[branch..next];
-        Assert.Contains("return null;", body, StringComparison.Ordinal);
+        Assert.Contains("TelemetryChannel.Nutrient", body, StringComparison.Ordinal);
         Assert.DoesNotContain("TelemetryChannel.Antifoam", body, StringComparison.Ordinal);
     }
 }

@@ -126,6 +126,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         FlaskAgitatorViewModel flaskAgitator,
         BiomassControlViewModel biomassControl,
         PumpControlViewModel pumpControl,
+        ServoDriveViewModel servoDrive,
         CalibrationViewModel calibration,
         KlaDeterminationViewModel klaDetermination,
         KlaMappingViewModel klaMapping,
@@ -293,7 +294,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedSubsystem = Subsystems[0];
         Control = new ControlViewModel(
             Subsystems, FlowControl, PHControl, nutrientControl, antifoamControl, foamControl, flaskAgitator,
-            biomassControl, pumpControl, device, settings, dialogs, cascade, receitas, klaProfileStore,
+            biomassControl, pumpControl, servoDrive, device, settings, dialogs, cascade, receitas,
+            klaProfileStore,
             alarms,
             phVariable: Ph,
             distanceVariable: Level,

@@ -981,7 +981,11 @@ tem de vir antes da 4, ou a regressão do log entra sem ser vista.
 > **Gate D fechado.** As etapas 1 a 5 estão feitas. O que falta do Gate D no plano
 > original era só isto, e o simulador já produz as sete formas — a interface pode ser
 > construída contra ele sem hardware.
-- [ ] **6. `ServoDriveViewModel`** + registro em `App.xaml.cs`
+- [x] **6. `ServoDriveViewModel`** + registro em `App.xaml.cs`
+      _(2026-09-02: leituras formatadas com traço para ausência, estado em palavras,
+      alarme em forma de painel (`AL011`), taxa de erro por janela móvel de 30 quadros,
+      e os três comandos. Injetado no `ControlViewModel` e descartado com ele;
+      32 testes em `ServoDriveViewModelTests.cs`)_
 - [ ] **7. Card no `ControlView.xaml`**
 - [ ] **8. Histórico e gráficos** — seis canais, NaN nas lacunas, seleção explícita
 - [ ] **9. Sidecar** + manifesto + leitura de sessões antigas

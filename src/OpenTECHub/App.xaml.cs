@@ -337,6 +337,7 @@ public partial class App : Application
         services.AddSingleton<FlaskAgitatorViewModel>();
         services.AddSingleton<BiomassControlViewModel>();
         services.AddSingleton<PumpControlViewModel>();
+        services.AddSingleton<ServoDriveViewModel>();
         services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<KlaDeterminationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();

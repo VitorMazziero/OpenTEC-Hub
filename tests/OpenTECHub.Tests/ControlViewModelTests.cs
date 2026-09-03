@@ -330,8 +330,9 @@ public sealed class ControlViewModelTests
             Agitator = new FlaskAgitatorViewModel(Device, Settings);
             Biomass = new BiomassControlViewModel(Device, Settings);
             Pump = new PumpControlViewModel(Device, Settings);
+            Servo = new ServoDriveViewModel(Device);
             Control = new ControlViewModel(
-                Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump,
+                Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump, Servo,
                 Device, Settings, Dialogs, Cascade);
             Device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true });
         }
@@ -348,6 +349,8 @@ public sealed class ControlViewModelTests
         public FlaskAgitatorViewModel Agitator { get; }
         public BiomassControlViewModel Biomass { get; }
         public PumpControlViewModel Pump { get; }
+
+        public ServoDriveViewModel Servo { get; }
         public IReadOnlyList<SubsystemViewModel> Subsystems { get; }
         public ControlViewModel Control { get; }
 

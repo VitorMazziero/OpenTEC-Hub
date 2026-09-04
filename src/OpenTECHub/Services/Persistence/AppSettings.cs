@@ -1126,6 +1126,9 @@ public static class AppPaths
     /// <summary>Gassing-out kLa determination campaigns, raw series and analyses.</summary>
     public static string KlaTestsDirectory => Path.Combine(DataDirectory, "Testes-kLa");
 
+    /// <summary>Impeller power assays (ungassed Np, gassed P_G/flooding), self-contained per test.</summary>
+    public static string PowerTestsDirectory => Path.Combine(DataDirectory, "Testes-Potencia");
+
     /// <summary>Operator-authored recipes, saved as versioned JSON.</summary>
     public static string RecipesDirectory => Path.Combine(DataDirectory, "Receitas");
 
@@ -1167,6 +1170,7 @@ public static class AppPaths
         Directory.CreateDirectory(ConfigDirectory);
         Directory.CreateDirectory(KlaMappingDirectory);
         Directory.CreateDirectory(KlaTestsDirectory);
+        Directory.CreateDirectory(PowerTestsDirectory);
         Directory.CreateDirectory(RecipesDirectory);
         Directory.CreateDirectory(LogDirectory);
         Directory.CreateDirectory(SessionsDirectory);

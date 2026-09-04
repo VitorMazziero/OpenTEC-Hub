@@ -41,9 +41,13 @@ public sealed class PowerNavigationContractTests
     public void Composition_root_registers_both_power_view_models()
     {
         var app = ReadProjectFile("App.xaml.cs");
+        var interlock = ReadProjectFile(Path.Combine("Services", "PowerTesting", "PowerTestInterlock.cs"));
 
         Assert.Contains("services.AddSingleton<PowerTestViewModel>();", app, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<PowerMapViewModel>();", app, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<IPowerTestInterlock, PowerTestInterlock>();", app, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<IPowerTestRunner, PowerTestRunner>();", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("ISessionLogger", interlock, StringComparison.Ordinal);
     }
 
     [Fact]

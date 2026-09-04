@@ -154,13 +154,13 @@ public static class PowerTestFileContracts
         JsonSerializer.Deserialize<TorqueCalibration>(json, JsonOptions);
 
     public static string FormatGlobalSeriesHeader() =>
-        "TimestampUtc,MonotonicSeconds,TestId,RunId,ConditionId,Replicate,Phase,RpmMeasured,TorquePercent,TorqueNm,ShaftPowerW,FlowLpm,TemperatureC,RunningMeanPowerW,RunningCi95PowerW,SampleCount,SettingsRevision,EventCode,EventDetail";
+        "TimestampUtc,MonotonicSeconds,TestId,RunId,ConditionId,Replicate,Phase,RpmMeasured,TorquePercent,TorqueNm,ShaftPowerW,FlowLpm,TemperatureC,RunningMeanPowerW,RunningCi95PowerW,SampleCount,SettingsRevision,EventCode,EventDetail,Attempt";
 
     public static string FormatGlobalSeriesRow(PowerGlobalSeriesSample s)
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            "{0:O},{1:F3},{2},{3},{4},{5},{6},{7:F1},{8:F3},{9:F5},{10:F4},{11:F2},{12:F2},{13:F4},{14:F4},{15},{16},{17},{18}",
+            "{0:O},{1:F3},{2},{3},{4},{5},{6},{7:F1},{8:F3},{9:F5},{10:F4},{11:F2},{12:F2},{13:F4},{14:F4},{15},{16},{17},{18},{19}",
             s.TimestampUtc,
             s.MonotonicSeconds,
             s.TestId,
@@ -172,24 +172,25 @@ public static class PowerTestFileContracts
             s.TorquePercent,
             s.TorqueNm,
             s.ShaftPowerW,
-            s.FlowLpm,
-            s.TemperatureC,
-            s.RunningMeanPowerW,
-            s.RunningCi95PowerW,
+            s.FlowLpm?.ToString("F2", CultureInfo.InvariantCulture) ?? "",
+            s.TemperatureC?.ToString("F2", CultureInfo.InvariantCulture) ?? "",
+            s.RunningMeanPowerW?.ToString("F4", CultureInfo.InvariantCulture) ?? "",
+            s.RunningCi95PowerW?.ToString("F4", CultureInfo.InvariantCulture) ?? "",
             s.SampleCount,
             s.SettingsRevision,
             EscapeCsv(s.EventCode),
-            EscapeCsv(s.EventDetail));
+            EscapeCsv(s.EventDetail),
+            s.Attempt);
     }
 
     public static string FormatRawDataHeader() =>
-        "TimestampUtc,RelativeSeconds,Phase,RpmMeasured,TorquePercent,TorqueNm,ShaftPowerW,FlowLpm,Counted";
+        "TimestampUtc,RelativeSeconds,Phase,RpmMeasured,TorquePercent,TorqueNm,ShaftPowerW,FlowLpm,Counted,Attempt";
 
     public static string FormatRawDataRow(PowerDataPoint p)
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            "{0:O},{1:F3},{2},{3:F1},{4:F3},{5:F5},{6:F4},{7:F2},{8}",
+            "{0:O},{1:F3},{2},{3:F1},{4:F3},{5:F5},{6:F4},{7:F2},{8},{9}",
             p.TimestampUtc,
             p.RelativeSeconds,
             p.Phase,
@@ -197,12 +198,71 @@ public static class PowerTestFileContracts
             p.TorquePercent,
             p.TorqueNm,
             p.ShaftPowerW,
-            p.FlowLpm,
-            p.Counted ? 1 : 0);
+            p.FlowLpm?.ToString("F2", CultureInfo.InvariantCulture) ?? "",
+            p.Counted ? 1 : 0,
+            p.Attempt);
     }
 
+    public static string FormatRunResultHeader() =>
+        "RunId,ConditionId,Replicate,Phase,AgitationRpm,GasFlowLpm,GasMode,SampleCount,MeanRpmMeasured,MeanTorquePercent,MeanTorqueNm,MeanShaftPowerW,NetPowerW,TorqueCi95Percent,Ci95PowerW,AssemblyNp,AssemblyRe,AssemblyNpCi95,BelowNoiseFloor,StopReason,Tries,IsRelative,StartedUtc,CompletedUtc,RawDataPath,RawDataSha256,ManualElectricalW,ManualInstrument,ManualNote";
+
+    public static string FormatRunResultRow(PowerRun run) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0},{1},{2},{3},{4:F1},{5},{6},{7},{8:F3},{9:F5},{10:F7},{11:F7},{12:F7},{13:F6},{14:F7},{15},{16},{17},{18},{19},{20},{21},{22:O},{23},{24},{25},{26},{27},{28}",
+        run.RunId,
+        run.ConditionId,
+        run.ReplicateNumber,
+        run.CurrentPhase,
+        run.AgitationRpm,
+        run.GasFlowLpm?.ToString("F3", CultureInfo.InvariantCulture) ?? "",
+        run.GasMode,
+        run.SampleCount,
+        run.MeanRpmMeasured,
+        run.MeanTorquePercent,
+        run.MeanTorqueNm,
+        run.MeanShaftPowerW,
+        run.NetPowerW,
+        run.TorqueCi95Percent,
+        run.Ci95PowerW,
+        run.Analysis?.AssemblyPowerNumber.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.Analysis?.AssemblyReynoldsNumber.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.Analysis?.AssemblyPowerNumberCi95.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.Analysis?.BelowNoiseFloor == true ? 1 : 0,
+        run.StopReason,
+        run.Tries,
+        run.IsRelative ? 1 : 0,
+        run.StartedUtc,
+        run.CompletedUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "",
+        EscapeCsv(run.RawDataPath ?? ""),
+        run.RawDataSha256 ?? "",
+        run.ManualElec?.PowerElectricalW.ToString("F4", CultureInfo.InvariantCulture) ?? "",
+        EscapeCsv(run.ManualElec?.Instrument ?? ""),
+        EscapeCsv(run.ManualElec?.Note ?? ""));
+
     public static string FormatResultsSummaryHeader() =>
-        "ConditionId,AgitationRpm,GasFlowLpm,GasMode,RequestedReplicates,CompletedReplicates,AcceptedReplicates,MeanNetPowerW,StdDevNetPowerW";
+        "ConditionId,AgitationRpm,GasFlowLpm,GasMode,RequestedReplicates,CompletedReplicates,AcceptedReplicates,MeanNetPowerW,StdDevNetPowerW,MeanAssemblyNp,StdDevAssemblyNp,MeanAssemblyRe";
+
+    public static string FormatResultsSummaryRow(
+        PowerCondition condition,
+        double? meanNetPowerW,
+        double? stdDevNetPowerW,
+        double? meanAssemblyNp,
+        double? stdDevAssemblyNp,
+        double? meanAssemblyRe) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0},{1:F1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}",
+        condition.ConditionId,
+        condition.AgitationRpm,
+        condition.GasFlowLpm?.ToString("F3", CultureInfo.InvariantCulture) ?? "",
+        condition.GasMode,
+        condition.RequestedReplicates,
+        condition.CompletedReplicates,
+        condition.AcceptedReplicates,
+        meanNetPowerW?.ToString("F7", CultureInfo.InvariantCulture) ?? "",
+        stdDevNetPowerW?.ToString("F7", CultureInfo.InvariantCulture) ?? "",
+        meanAssemblyNp?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        stdDevAssemblyNp?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        meanAssemblyRe?.ToString("G17", CultureInfo.InvariantCulture) ?? "");
 
     public static string FormatEventLogLine(PowerTestEventLogEntry entry) =>
         JsonSerializer.Serialize(entry, JsonOptions);
@@ -212,6 +272,12 @@ public static class PowerTestFileContracts
         var bytes = Encoding.UTF8.GetBytes(content);
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexStringLower(hash);
+    }
+
+    public static string ComputeFileSha256(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexStringLower(SHA256.HashData(stream));
     }
 
     /// <summary>Order-independent hash of the impeller set, to detect a mismatched tare (§9.2).</summary>

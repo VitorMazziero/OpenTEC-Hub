@@ -42,19 +42,28 @@ public sealed record CaptureResult(
 public sealed class PowerCaptureController
 {
     private readonly PowerTestSettings _settings;
+    private readonly double? _tareSigmaTorquePercent;
     private readonly RunningStatistics _torqueStats = new();
     private readonly RunningStatistics _rpmStats = new();
     private readonly List<(double Time, double Torque)> _stationarityWindow = [];
 
     private int _stationaryConsecutive;
-    private double _accumulationStartSeconds;
     private double _lastSampleSeconds;
     private bool _hasStart;
     private double _startSeconds;
 
-    public PowerCaptureController(PowerTestSettings settings)
+    public PowerCaptureController(PowerTestSettings settings, double? tareSigmaTorquePercent = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        if (_settings.MinSamples < 1 || _settings.MaxCaptureSeconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(settings), "Capture limits must be positive.");
+        }
+        if (tareSigmaTorquePercent is { } sigma && (!double.IsFinite(sigma) || sigma < 0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(tareSigmaTorquePercent));
+        }
+        _tareSigmaTorquePercent = tareSigmaTorquePercent;
     }
 
     public CaptureState State { get; private set; } = CaptureState.Settling;
@@ -64,11 +73,23 @@ public sealed class PowerCaptureController
     /// <summary>The confidence half-width on the torque mean right now, for the live indicator (§15).</summary>
     public double CurrentTorqueCi95Percent => _torqueStats.ConfidenceHalfWidth95;
     public double CurrentMeanTorquePercent => _torqueStats.Mean;
+    public double CurrentMeanRpm => _rpmStats.Mean;
+    public double CurrentTargetTorqueCi95Percent
+    {
+        get
+        {
+            var relativeTarget = _settings.RelativeCiFraction * Math.Abs(_torqueStats.Mean);
+            var sigma = _tareSigmaTorquePercent ?? _torqueStats.StandardDeviation;
+            var floorTarget = _settings.CiFloorSigmaMultiple * sigma / Math.Sqrt(_settings.MinSamples);
+            return Math.Max(relativeTarget, floorTarget);
+        }
+    }
 
     /// <summary>Feed one telemetry sample. No effect once the capture is done.</summary>
     public void Add(double monotonicSeconds, double torquePercent, double rpm)
     {
-        if (IsDone)
+        if (IsDone || !double.IsFinite(monotonicSeconds) || !double.IsFinite(torquePercent) ||
+            !double.IsFinite(rpm) || (_hasStart && monotonicSeconds < _lastSampleSeconds))
         {
             return;
         }
@@ -83,6 +104,10 @@ public sealed class PowerCaptureController
         if (State == CaptureState.Settling)
         {
             HandleSettling(monotonicSeconds, torquePercent);
+            if (!IsDone && monotonicSeconds - _startSeconds >= _settings.MaxCaptureSeconds)
+            {
+                State = CaptureState.TimedOut;
+            }
             return;
         }
 
@@ -97,17 +122,21 @@ public sealed class PowerCaptureController
         _stationarityWindow.Clear();
         _stationaryConsecutive = 0;
         _hasStart = false;
+        _startSeconds = 0;
+        _lastSampleSeconds = 0;
         State = CaptureState.Settling;
     }
 
     public CaptureResult Result(PowerStopReason overrideReason = PowerStopReason.Target)
     {
-        var reason = State switch
-        {
-            CaptureState.Converged => PowerStopReason.Target,
-            CaptureState.TimedOut => PowerStopReason.Tmax,
-            _ => overrideReason,
-        };
+        var reason = overrideReason != PowerStopReason.Target
+            ? overrideReason
+            : State switch
+            {
+                CaptureState.Converged => PowerStopReason.Target,
+                CaptureState.TimedOut => PowerStopReason.Tmax,
+                _ => overrideReason,
+            };
 
         return new CaptureResult(
             _torqueStats.Count,
@@ -154,7 +183,6 @@ public sealed class PowerCaptureController
             State = CaptureState.Accumulating;
             _torqueStats.Reset();
             _rpmStats.Reset();
-            _accumulationStartSeconds = seconds;
         }
     }
 
@@ -172,19 +200,14 @@ public sealed class PowerCaptureController
             // Hybrid target, whichever is reached first = the looser bound (§12.1, Q1):
             // relative to the mean, or an absolute floor from the observed torque scatter
             // (the tightest CI worth chasing given the drive's own noise, evaluated at n_min).
-            var relativeTarget = _settings.RelativeCiFraction * Math.Abs(_torqueStats.Mean);
-            var floorTarget = _settings.CiFloorSigmaMultiple * _torqueStats.StandardDeviation
-                              / Math.Sqrt(_settings.MinSamples);
-            var target = Math.Max(relativeTarget, floorTarget);
-
-            if (ci <= target)
+            if (ci <= CurrentTargetTorqueCi95Percent)
             {
                 State = CaptureState.Converged;
                 return;
             }
         }
 
-        if (seconds - _accumulationStartSeconds >= _settings.MaxCaptureSeconds)
+        if (seconds - _startSeconds >= _settings.MaxCaptureSeconds)
         {
             State = CaptureState.TimedOut;
         }

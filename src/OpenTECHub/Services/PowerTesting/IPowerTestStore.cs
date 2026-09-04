@@ -40,9 +40,15 @@ public interface IPowerTestStore
 
     IReadOnlyList<PowerDataPoint> LoadRunRawData(string testFolderName, string runFolderName);
 
+    /// <summary>Atomically writes the scientific result for one run and seals its raw-data hash.</summary>
+    void SaveRunResult(string testFolderName, PowerRun run);
+
     void AppendGlobalSeriesSample(string testFolderName, PowerGlobalSeriesSample sample);
 
     void AppendEventLog(string testFolderName, PowerTestEventLogEntry entry);
+
+    /// <summary>Rebuilds the test-wide, condition-level export from accepted runs.</summary>
+    void UpdateResultsSummary(string testFolderName, PowerTestDocument doc);
 
     bool ValidateTestName(string name, out string? error);
 

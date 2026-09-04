@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using OpenTECHub.Services.Persistence;
@@ -64,6 +65,18 @@ public sealed class PowerTestStoreTests : IDisposable
     }
 
     [Fact]
+    public void CreateTest_Stores_Result_Under_Selected_Workspace()
+    {
+        var created = CreateSampleTest("No Workspace");
+        var expectedRoot = Path.GetFullPath(Path.Combine(_testRoot, "Testes-Potencia"));
+        var testFolder = Path.GetFullPath(Path.Combine(_store.RootDirectory, created.FolderName));
+
+        Assert.Equal(expectedRoot, Path.GetFullPath(_store.RootDirectory));
+        Assert.StartsWith(expectedRoot + Path.DirectorySeparatorChar, testFolder, StringComparison.OrdinalIgnoreCase);
+        Assert.True(Directory.Exists(testFolder));
+    }
+
+    [Fact]
     public void CreateTest_Initializes_Expected_File_Structure()
     {
         var doc = CreateSampleTest("Ensaio Estrutura");
@@ -74,6 +87,7 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.True(File.Exists(Path.Combine(folderPath, PowerTestFileContracts.GlobalSeriesFileName)));
         Assert.True(File.Exists(Path.Combine(folderPath, PowerTestFileContracts.ResultsSummaryFileName)));
         Assert.True(Directory.Exists(Path.Combine(folderPath, PowerTestFileContracts.RunsDirectoryName)));
+        Assert.Empty(Directory.GetFiles(folderPath, "*.tmp-*", SearchOption.AllDirectories));
 
         // Brand new tests are relative until a tare/calibration lands (§9, §20.5).
         Assert.True(doc.RelativeMode);
@@ -83,12 +97,17 @@ public sealed class PowerTestStoreTests : IDisposable
     public void CreateThenLoad_Round_Trips_Geometry_Fluid_And_Conditions()
     {
         var created = CreateSampleTest("Round Trip");
+        created.HubFirmwareVersion = "9.1.0-test";
+        created.HubProtocolVersion = 9;
+        _store.SaveTestManifest(created);
 
         var loaded = _store.LoadTest(created.FolderName);
 
         Assert.NotNull(loaded);
         Assert.Equal(created.TestId, loaded!.TestId);
         Assert.Equal("Round Trip", loaded.Name);
+        Assert.Equal("9.1.0-test", loaded.HubFirmwareVersion);
+        Assert.Equal(9, loaded.HubProtocolVersion);
 
         // Mixed impeller set survives (§4.3, §8).
         Assert.Equal(2, loaded.Geometry.Impellers.Count);
@@ -156,11 +175,11 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.StartsWith("N0300_Seco_Rep01", runFolder);
 
         var t0 = DateTimeOffset.UtcNow;
-        // (timestamp, relSec, phase, rpm, torque%, torqueNm, shaftW, flowLpm, counted)
+        // (timestamp, relSec, phase, rpm, torque%, torqueNm, shaftW, flowLpm, counted, attempt)
         _store.AppendRunRawDataPoint(created.FolderName, runFolder,
-            new PowerDataPoint(t0, 0.0, PowerRunPhase.SettlingTorque, 299.6, 1.57, 0.0199, 0.624, 0.0, false));
+            new PowerDataPoint(t0, 0.0, PowerRunPhase.SettlingTorque, 299.6, 1.57, 0.0199, 0.624, null, false));
         _store.AppendRunRawDataPoint(created.FolderName, runFolder,
-            new PowerDataPoint(t0.AddSeconds(0.5), 0.5, PowerRunPhase.AccumulatingToTarget, 300.1, 1.60, 0.0203, 0.638, 0.0, true));
+            new PowerDataPoint(t0.AddSeconds(0.5), 0.5, PowerRunPhase.AccumulatingToTarget, 300.1, 1.60, 0.0203, 0.638, null, true, 2));
 
         var points = _store.LoadRunRawData(created.FolderName, runFolder);
         Assert.Equal(2, points.Count);
@@ -168,6 +187,112 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.True(points[1].Counted);
         Assert.False(points[0].Counted);
         Assert.Equal(300.1, points[1].RpmMeasured, 1);
+        Assert.Null(points[0].FlowLpm);
+        Assert.Equal(2, points[1].Attempt);
+    }
+
+    [Fact]
+    public void SaveRunResult_Writes_Integrity_Hash_And_Aggregated_Summary()
+    {
+        var created = CreateSampleTest("Resultado");
+        var condition = created.Conditions[0];
+        var run = new PowerRun
+        {
+            TestId = created.TestId,
+            ConditionId = condition.ConditionId,
+            ReplicateNumber = 1,
+            AgitationRpm = condition.AgitationRpm,
+            GasMode = PowerGasMode.Ungassed,
+            CurrentPhase = PowerRunPhase.Accepted,
+            StopReason = PowerStopReason.Target,
+            SampleCount = 60,
+            MeanRpmMeasured = 300.2,
+            MeanTorquePercent = 1.6,
+            MeanTorqueNm = 0.02032,
+            MeanShaftPowerW = 0.6388,
+            NetPowerW = 0.42,
+            TorqueCi95Percent = 0.03,
+            Ci95PowerW = 0.012,
+            StartedUtc = new DateTimeOffset(2026, 9, 3, 12, 0, 0, TimeSpan.Zero),
+            CompletedUtc = new DateTimeOffset(2026, 9, 3, 12, 1, 0, TimeSpan.Zero),
+            Analysis = new PowerPointResult
+            {
+                AssemblyPowerNumber = 4.95,
+                AssemblyReynoldsNumber = 179_640,
+                AssemblyPowerNumberCi95 = 0.14,
+            },
+        };
+        var runFolder = _store.InitializeRunFolder(created.FolderName, run);
+        _store.AppendRunRawDataPoint(created.FolderName, runFolder,
+            new PowerDataPoint(run.StartedUtc, 0, PowerRunPhase.AccumulatingToTarget,
+                300.2, 1.6, 0.02032, 0.6388, null, true));
+
+        _store.SaveRunResult(created.FolderName, run);
+        created.Runs.Add(new PowerRunSummary
+        {
+            RunId = run.RunId,
+            ConditionId = run.ConditionId,
+            ReplicateNumber = run.ReplicateNumber,
+            FolderName = run.FolderName,
+            AgitationRpm = run.AgitationRpm,
+            GasMode = run.GasMode,
+            Phase = PowerRunPhase.Accepted,
+            StopReason = run.StopReason,
+            NetPowerW = run.NetPowerW,
+            Analysis = run.Analysis,
+        });
+        _store.UpdateResultsSummary(created.FolderName, created);
+
+        var resultPath = Path.Combine(_store.RootDirectory, created.FolderName,
+            PowerTestFileContracts.RunsDirectoryName, runFolder, PowerTestFileContracts.RunResultFileName);
+        var result = File.ReadAllText(resultPath);
+        var summary = File.ReadAllText(Path.Combine(_store.RootDirectory, created.FolderName,
+            PowerTestFileContracts.ResultsSummaryFileName));
+
+        Assert.False(string.IsNullOrWhiteSpace(run.RawDataSha256));
+        Assert.Equal(64, run.RawDataSha256!.Length);
+        Assert.Contains("2026-09-03T12:00:00.0000000+00:00", result);
+        Assert.Contains("2026-09-03T12:01:00.0000000+00:00", result);
+        Assert.Contains("0.4200000", summary);
+        Assert.Contains("4.9500000000000002", summary);
+        Assert.Contains("179640", summary);
+    }
+
+    [Fact]
+    public void Csv_Uses_Invariant_Decimals_Under_PtBr_Culture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("pt-BR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("pt-BR");
+            var created = CreateSampleTest("Cultura");
+            var run = new PowerRun
+            {
+                TestId = created.TestId,
+                ConditionId = created.Conditions[0].ConditionId,
+                AgitationRpm = 300,
+                GasMode = PowerGasMode.Ungassed,
+            };
+            var runFolder = _store.InitializeRunFolder(created.FolderName, run);
+            _store.AppendRunRawDataPoint(created.FolderName, runFolder,
+                new PowerDataPoint(DateTimeOffset.UtcNow, 1.25, PowerRunPhase.AccumulatingToTarget,
+                    300.5, 1.6, 0.02032, 0.6388, null, true));
+
+            var csv = File.ReadAllText(_store.GetRunRawDataPath(created.FolderName, runFolder));
+            var loaded = _store.LoadRunRawData(created.FolderName, runFolder);
+
+            Assert.Contains(",1.250,", csv);
+            Assert.Contains(",300.5,1.600,", csv);
+            Assert.Single(loaded);
+            Assert.Equal(1.25, loaded[0].RelativeSeconds, 3);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]

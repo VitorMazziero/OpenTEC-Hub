@@ -26,11 +26,13 @@ public enum PowerRunPhase
 {
     Idle,
     Preflight,
+    PreparingCondition,
     SettingSpeed,
     VentStabilizing,
     OpeningGas,
     SettlingTorque,
     AccumulatingToTarget,
+    PausedForMeasurement,
     HoldingForManualEnergy,
     Captured,
     StoppingRun,
@@ -155,11 +157,16 @@ public sealed class PowerGeometry
 /// </summary>
 public sealed record PowerTestSettings
 {
-    // Rotação — limites de hardware (§8): mínimo 15, máximo 1000, passo padrão 50 (mín. 5).
-    public double MinRpm { get; init; } = 15.0;
+    // Rotação — contrato congelado do Hub/CN1: 50-1000 rpm; zero desabilita o motor.
+    public double MinRpm { get; init; } = 50.0;
     public double MaxRpm { get; init; } = 1000.0;
     public double DefaultStepRpm { get; init; } = 50.0;
     public double MinStepRpm { get; init; } = 5.0;
+
+    /// <summary>Measured-speed band and confirmation count before torque settling begins.</summary>
+    public double SpeedToleranceRpm { get; init; } = 5.0;
+    public int SpeedStableSamples { get; init; } = 3;
+    public double MaxSpeedSettlingSeconds { get; init; } = 120.0;
 
     /// <summary>Torque guard as % of nominal; exceeding it interrupts the condition (§14).</summary>
     public double MaxTorquePercent { get; init; } = 90.0;
@@ -176,6 +183,13 @@ public sealed record PowerTestSettings
     public double MaxCaptureSeconds { get; init; } = 300.0;   // t_max
     public int MaxTries { get; init; } = 3;
 
+    /// <summary>Servo-node polling used during a capture and restored at every terminal path.</summary>
+    public int CaptureServoPollMs { get; init; } = 250;
+    public int RestoreServoPollMs { get; init; } = 1000;
+
+    /// <summary>Maximum age of the last valid servo frame before the run pauses.</summary>
+    public double MeasurementTimeoutSeconds { get; init; } = 5.0;
+
     /// <summary>SNR gate (§7.2): a net power below this multiple of the tare noise floor is "below noise".</summary>
     public double SnrFloorMultiple { get; init; } = 3.0;
 
@@ -183,7 +197,7 @@ public sealed record PowerTestSettings
     public bool VentStabilizationEnabled { get; init; }
     public double VentFlowToleranceLpm { get; init; } = 0.2;
     public int VentFlowStableSamples { get; init; } = 5;
-    public double VentAgitationRpm { get; init; } = 15.0;
+    public double VentAgitationRpm { get; init; } = 50.0;
     public double MaxVentStabilizationSeconds { get; init; } = 120.0;
 
     /// <summary>Hold each captured point for a manual mains-wattmeter reading (§4.8, §12.3).</summary>
@@ -215,6 +229,8 @@ public sealed class PowerCondition
     public Guid? SourceMapId { get; set; }
     public string? SourceMapName { get; set; }
     public PowerConditionStatus Status { get; set; } = PowerConditionStatus.Pending;
+    public bool HasReplicateDisagreement { get; set; }
+    public string? ReproducibilityWarning { get; set; }
 
     public PowerCondition Clone() => new()
     {
@@ -233,6 +249,8 @@ public sealed class PowerCondition
         SourceMapId = SourceMapId,
         SourceMapName = SourceMapName,
         Status = Status,
+        HasReplicateDisagreement = HasReplicateDisagreement,
+        ReproducibilityWarning = ReproducibilityWarning,
     };
 }
 
@@ -307,7 +325,9 @@ public sealed class PowerRun
 
     /// <summary>Shaft power minus the tare P_void(N); equals shaft power in relative mode (§4.2).</summary>
     public double NetPowerW { get; set; }
+    public double TorqueCi95Percent { get; set; }
     public double Ci95PowerW { get; set; }
+    public PowerPointResult? Analysis { get; set; }
     public PowerStopReason StopReason { get; set; } = PowerStopReason.Aborted;
     public int Tries { get; set; } = 1;
 
@@ -331,8 +351,16 @@ public sealed record PowerRunSummary
     public PowerGasMode GasMode { get; init; }
     public PowerRunPhase Phase { get; init; }
     public PowerStopReason StopReason { get; init; }
+    public int SampleCount { get; init; }
+    public double MeanRpmMeasured { get; init; }
+    public double MeanTorquePercent { get; init; }
+    public double MeanTorqueNm { get; init; }
+    public double MeanShaftPowerW { get; init; }
     public double? NetPowerW { get; init; }
+    public double? TorqueCi95Percent { get; init; }
     public double? Ci95PowerW { get; init; }
+    public PowerPointResult? Analysis { get; init; }
+    public int Tries { get; init; }
     public bool IsRelative { get; init; }
     public DateTimeOffset StartedUtc { get; init; }
     public DateTimeOffset? CompletedUtc { get; init; }
@@ -365,6 +393,8 @@ public sealed class PowerTestDocument
 
     public string AppVersion { get; set; } = "";
     public string ProtocolVersion { get; set; } = "OpenTEC_ESP32_v9 + servo ASDA-B2";
+    public string? HubFirmwareVersion { get; set; }
+    public int? HubProtocolVersion { get; set; }
     public string AlgorithmVersion { get; set; } = "Np_plateau_v1";
 
     /// <summary>Motor nominal torque assumed for the N·m image; needed to reinterpret the data later (§6).</summary>
@@ -397,8 +427,9 @@ public sealed record PowerDataPoint(
     double TorquePercent,
     double TorqueNm,
     double ShaftPowerW,
-    double FlowLpm,
-    bool Counted);
+    double? FlowLpm,
+    bool Counted,
+    int Attempt = 1);
 
 /// <summary>One row of the test-wide serie-global.csv, live during the whole assay (§6).</summary>
 public sealed record PowerGlobalSeriesSample(
@@ -413,14 +444,15 @@ public sealed record PowerGlobalSeriesSample(
     double TorquePercent,
     double TorqueNm,
     double ShaftPowerW,
-    double FlowLpm,
-    double TemperatureC,
-    double RunningMeanPowerW,
-    double RunningCi95PowerW,
+    double? FlowLpm,
+    double? TemperatureC,
+    double? RunningMeanPowerW,
+    double? RunningCi95PowerW,
     int SampleCount,
     int SettingsRevision,
     string EventCode,
-    string EventDetail);
+    string EventDetail,
+    int Attempt = 1);
 
 public sealed record PowerTestEventLogEntry(
     DateTimeOffset TimestampUtc,

@@ -328,6 +328,11 @@ public partial class App : Application
         // Recipes are saved as versioned JSON in the per-user recipes folder (Minhas Receitas).
         services.AddSingleton<IRecipeStore>(_ => new RecipeStore(AppPaths.RecipesDirectory));
 
+        // The phase-1 power assay uses the same ownership and cultivation gates as the other
+        // automatic workflows. The runner is telemetry-driven and contains no UI dependency.
+        services.AddSingleton<IPowerTestInterlock, PowerTestInterlock>();
+        services.AddSingleton<IPowerTestRunner, PowerTestRunner>();
+
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();
         services.AddSingleton<HistoricalViewModel>();

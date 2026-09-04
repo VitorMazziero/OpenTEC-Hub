@@ -400,13 +400,48 @@ public sealed class PowerTestStore : IPowerTestStore
                 _ = double.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out var torquePct);
                 _ = double.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var torqueNm);
                 _ = double.TryParse(parts[6], NumberStyles.Float, CultureInfo.InvariantCulture, out var powerW);
-                _ = double.TryParse(parts[7], NumberStyles.Float, CultureInfo.InvariantCulture, out var flow);
+                double? flow = double.TryParse(parts[7], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedFlow)
+                    ? parsedFlow
+                    : null;
                 var counted = parts[8] is "1" or "True" or "true";
+                var attempt = parts.Length >= 10 && int.TryParse(parts[9], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedAttempt)
+                    ? Math.Max(1, parsedAttempt)
+                    : 1;
 
-                list.Add(new PowerDataPoint(ts, relSec, phase, rpm, torquePct, torqueNm, powerW, flow, counted));
+                list.Add(new PowerDataPoint(ts, relSec, phase, rpm, torquePct, torqueNm, powerW, flow, counted, attempt));
             }
 
             return list;
+        }
+    }
+
+    public void SaveRunResult(string testFolderName, PowerRun run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (string.IsNullOrWhiteSpace(run.FolderName))
+        {
+            throw new ArgumentException("A corrida ainda não possui pasta.", nameof(run));
+        }
+
+        lock (_ioLock)
+        {
+            var runPath = Path.Combine(
+                _rootDirectory, testFolderName, PowerTestFileContracts.RunsDirectoryName, run.FolderName);
+            Directory.CreateDirectory(runPath);
+
+            var rawPath = Path.Combine(runPath, PowerTestFileContracts.RunRawDataFileName);
+            if (File.Exists(rawPath))
+            {
+                run.RawDataPath = Path.Combine(
+                        PowerTestFileContracts.RunsDirectoryName, run.FolderName, PowerTestFileContracts.RunRawDataFileName)
+                    .Replace('\\', '/');
+                run.RawDataSha256 = PowerTestFileContracts.ComputeFileSha256(rawPath);
+            }
+
+            WriteAllTextAtomic(
+                Path.Combine(runPath, PowerTestFileContracts.RunResultFileName),
+                PowerTestFileContracts.FormatRunResultHeader() + Environment.NewLine +
+                PowerTestFileContracts.FormatRunResultRow(run) + Environment.NewLine);
         }
     }
 
@@ -428,6 +463,59 @@ public sealed class PowerTestStore : IPowerTestStore
         }
     }
 
+    public void UpdateResultsSummary(string testFolderName, PowerTestDocument doc)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        lock (_ioLock)
+        {
+            var rows = new List<string> { PowerTestFileContracts.FormatResultsSummaryHeader() };
+            foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
+            {
+                var accepted = doc.Runs
+                    .Where(r => r.ConditionId == condition.ConditionId &&
+                                r.Phase == PowerRunPhase.Accepted &&
+                                r.NetPowerW is { } value && double.IsFinite(value))
+                    .Select(r => r.NetPowerW!.Value)
+                    .ToArray();
+                double? mean = accepted.Length > 0 ? accepted.Average() : null;
+                double? standardDeviation = null;
+                if (accepted.Length > 1 && mean is { } average)
+                {
+                    standardDeviation = Math.Sqrt(
+                        accepted.Sum(value => Math.Pow(value - average, 2)) / (accepted.Length - 1));
+                }
+
+                var npValues = doc.Runs
+                    .Where(r => r.ConditionId == condition.ConditionId &&
+                                r.Phase == PowerRunPhase.Accepted &&
+                                r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyPowerNumber))
+                    .Select(r => r.Analysis!.AssemblyPowerNumber)
+                    .ToArray();
+                var reValues = doc.Runs
+                    .Where(r => r.ConditionId == condition.ConditionId &&
+                                r.Phase == PowerRunPhase.Accepted &&
+                                r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyReynoldsNumber))
+                    .Select(r => r.Analysis!.AssemblyReynoldsNumber)
+                    .ToArray();
+                double? meanNp = npValues.Length > 0 ? npValues.Average() : null;
+                double? standardDeviationNp = null;
+                if (npValues.Length > 1 && meanNp is { } averageNp)
+                {
+                    standardDeviationNp = Math.Sqrt(
+                        npValues.Sum(value => Math.Pow(value - averageNp, 2)) / (npValues.Length - 1));
+                }
+                double? meanRe = reValues.Length > 0 ? reValues.Average() : null;
+
+                rows.Add(PowerTestFileContracts.FormatResultsSummaryRow(
+                    condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe));
+            }
+
+            WriteAllTextAtomic(
+                Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.ResultsSummaryFileName),
+                string.Join(Environment.NewLine, rows) + Environment.NewLine);
+        }
+    }
+
     private static void WriteAllTextAtomic(string path, string contents)
     {
         var tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
@@ -436,22 +524,12 @@ public sealed class PowerTestStore : IPowerTestStore
             File.WriteAllText(tempPath, contents, Encoding.UTF8);
             File.Move(tempPath, path, overwrite: true);
         }
-        catch
+        finally
         {
-            try
+            if (File.Exists(tempPath))
             {
-                if (File.Exists(tempPath))
-                {
-                    File.Copy(tempPath, path, overwrite: true);
-                    File.Delete(tempPath);
-                    return;
-                }
+                File.Delete(tempPath);
             }
-            catch
-            {
-                // Fall back to a direct write.
-            }
-            File.WriteAllText(path, contents, Encoding.UTF8);
         }
     }
 }

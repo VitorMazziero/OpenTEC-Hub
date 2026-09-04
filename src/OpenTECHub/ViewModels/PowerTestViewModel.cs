@@ -9,9 +9,9 @@ namespace OpenTECHub.ViewModels;
 /// Routed shell for the impeller-power acquisition workflow.
 /// </summary>
 /// <remarks>
-/// Step 5 deliberately wires only durable dependencies and live observations. The runner and
-/// editing commands arrive in later steps; keeping this shell free of provisional actuation
-/// prevents the page from creating a second path around <see cref="ICommandArbiter"/>.
+/// Step 5 deliberately wires only durable dependencies and live observations. The runner is
+/// registered headlessly in the composition root; editing and execution commands arrive in
+/// steps 6-7 so this routed shell cannot create a second path around <see cref="ICommandArbiter"/>.
 /// </remarks>
 public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 {
@@ -82,6 +82,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             CommandOwner.Automatic => "Cascata",
             CommandOwner.Recipe => "Receita",
             CommandOwner.KlaAssay => "Ensaio kLa",
+            CommandOwner.PowerAssay => "Ensaio de potência",
             var owner => owner.ToString(),
         };
 

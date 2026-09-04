@@ -14,6 +14,7 @@ using Xunit;
 namespace OpenTECHub.Tests;
 
 /// <summary>WP7's persisted-history, audit and display-unit contracts.</summary>
+[Collection("AppPaths")]
 public sealed class Wp7Tests
 {
     [Theory]

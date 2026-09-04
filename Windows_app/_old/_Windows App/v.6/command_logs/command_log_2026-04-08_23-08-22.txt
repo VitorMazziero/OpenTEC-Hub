@@ -1,0 +1,9 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: Conexão parada pelo usuário

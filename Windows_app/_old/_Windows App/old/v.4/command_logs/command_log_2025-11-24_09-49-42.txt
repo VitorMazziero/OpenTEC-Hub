@@ -1,0 +1,26 @@
+[09:49:07] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[09:49:07] Calibração de pH atualizada: slope=0.0005318771718317851, intercept=-0.6393518190199288
+[09:49:07] Controle de vazão proporcional desativado.
+[09:49:07] Cadência de leitura definida para ~1.00s.
+[09:49:21] WiFi: tentativa #1 iniciada.
+[09:49:21] WiFi: worker iniciado.
+[09:49:21] WiFi: conectando a 192.168.4.1 …
+[09:49:21] WiFi: iniciando handshake (POST /command com comTest)…
+[09:49:21] WiFi: handshake tentativa 1/3 → enviando comTest…
+[09:49:21] WiFi: handshake tentativa 1/3 → 'OK'
+[09:49:21] WiFi: conectado em 192.168.4.1
+[09:49:21] WiFi: handshake OK.
+[09:49:21] Backup/retry pausado (conectado). Será reativado automaticamente em caso de falha.
+[09:49:21] WiFi: worker finalizado.
+[09:49:22] {"Time":916.4,"Tempval":18.40,"pHval":29725.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0101,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:24] {"Time":918.3,"Tempval":18.40,"pHval":0.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0101,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:26] {"Time":920.2,"Tempval":18.40,"pHval":29749.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0129,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:28] {"Time":922.1,"Tempval":18.40,"pHval":29763.00,"Oxyval":0.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0130,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:30] {"Time":924.0,"Tempval":18.40,"pHval":29773.00,"Oxyval":0.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0122,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:32] {"Time":926.0,"Tempval":18.40,"pHval":29784.00,"Oxyval":0.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0103,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:34] {"Time":927.9,"Tempval":18.40,"pHval":29798.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0101,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:36] {"Time":929.8,"Tempval":18.40,"pHval":29809.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0105,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:38] {"Time":931.7,"Tempval":18.40,"pHval":29823.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0106,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:40] {"Time":933.6,"Tempval":18.40,"pHval":29833.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0101,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:41] {"Time":935.5,"Tempval":18.40,"pHval":29844.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0101,"FlowRate":0.0000,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[09:49:42] Desconectado.

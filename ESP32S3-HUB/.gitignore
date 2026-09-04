@@ -1,0 +1,18 @@
+# Arduino build outputs
+build/
+**/build/
+tools/.bin/
+*.bin
+*.elf
+*.map
+
+# Editor and operating-system files
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+
+# Python contract-test cache
+__pycache__/
+*.py[cod]

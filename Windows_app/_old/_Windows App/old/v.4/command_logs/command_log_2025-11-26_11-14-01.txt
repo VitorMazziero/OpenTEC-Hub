@@ -1,0 +1,298 @@
+[11:08:10] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[11:08:10] Calibração de pH atualizada: slope=0.0005318771718317851, intercept=-0.6393518190199288
+[11:08:10] Controle de vazão proporcional desativado.
+[11:08:10] Cadência de leitura definida para ~1.00s.
+[11:08:18] WiFi: tentativa #1 iniciada.
+[11:08:18] WiFi: worker iniciado.
+[11:08:18] WiFi: conectando a 192.168.4.1 …
+[11:08:18] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:18] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:18] WiFi: handshake tentativa 1/3 → 'OK'
+[11:08:18] WiFi: conectado em 192.168.4.1
+[11:08:18] WiFi: handshake OK.
+[11:08:18] Backup/retry pausado (conectado). Será reativado automaticamente em caso de falha.
+[11:08:18] WiFi: worker finalizado.
+[11:08:19] {"Time":40.0,"Tempval":23.60,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3778,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:08:21] {"Time":41.9,"Tempval":23.60,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3777,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:08:23] {"Time":43.8,"Tempval":23.60,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:08:25] {"Time":45.7,"Tempval":23.60,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:08:27] {"Time":47.6,"Tempval":23.60,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0142,"FlowRate":0.4643,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:08:30] WiFi: conexão falhou ou foi perdida.
+[11:08:30] Alarme: Conexão WiFi perdida
+[11:08:30] Desconectado.
+[11:08:30] Backup tick: Wi-Fi disponível; USB indisponível.
+[11:08:30] Backup: tentando WiFi …
+[11:08:30] WiFi: tentativa #2 iniciada.
+[11:08:30] WiFi: worker iniciado.
+[11:08:30] WiFi: conectando a 192.168.4.1 …
+[11:08:30] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:30] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:30] Backup armado (em 5.0s). Motivo: Tentativa backup em andamento
+[11:08:31] WiFi: erro na tentativa 1: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D739FA7AD0>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:31] WiFi: handshake tentativa 1/3 → None
+[11:08:31] WiFi: handshake tentativa 2/3 → enviando comTest…
+[11:08:31] WiFi: erro na tentativa 2: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A005810>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:31] WiFi: handshake tentativa 2/3 → None
+[11:08:31] WiFi: handshake tentativa 3/3 → enviando comTest…
+[11:08:31] WiFi: erro na tentativa 3: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A006910>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:31] WiFi: handshake tentativa 3/3 → None
+[11:08:31] WiFi: falha no comTest.
+[11:08:31] WiFi: worker finalizado.
+[11:08:31] Backup armado (em 5.0s). Motivo: Tentativa de WiFi terminou sem sucesso
+[11:08:35] Backup tick: Wi-Fi disponível; USB indisponível.
+[11:08:35] Backup: tentando WiFi …
+[11:08:35] WiFi: tentativa #3 iniciada.
+[11:08:35] WiFi: worker iniciado.
+[11:08:35] WiFi: conectando a 192.168.4.1 …
+[11:08:35] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:35] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:35] Backup armado (em 5.0s). Motivo: Tentativa backup em andamento
+[11:08:36] WiFi: erro na tentativa 1: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A028750>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:36] WiFi: handshake tentativa 1/3 → None
+[11:08:36] WiFi: handshake tentativa 2/3 → enviando comTest…
+[11:08:36] WiFi: erro na tentativa 2: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A029C50>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:36] WiFi: handshake tentativa 2/3 → None
+[11:08:36] WiFi: handshake tentativa 3/3 → enviando comTest…
+[11:08:36] WiFi: erro na tentativa 3: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A02B150>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:36] WiFi: handshake tentativa 3/3 → None
+[11:08:36] Backup tick: tentativa em progresso via WiFi; aguardando próxima janela.
+[11:08:36] Backup armado (em 5.0s). Motivo: Tentativa atual ainda em andamento
+[11:08:36] WiFi: falha no comTest.
+[11:08:36] WiFi: worker finalizado.
+[11:08:36] Backup armado (em 5.0s). Motivo: Tentativa de WiFi terminou sem sucesso
+[11:08:40] Backup tick: Wi-Fi disponível; USB indisponível.
+[11:08:40] Backup: tentando WiFi …
+[11:08:40] WiFi: tentativa #4 iniciada.
+[11:08:40] WiFi: worker iniciado.
+[11:08:40] WiFi: conectando a 192.168.4.1 …
+[11:08:40] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:40] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:40] Backup armado (em 5.0s). Motivo: Tentativa backup em andamento
+[11:08:41] WiFi: erro na tentativa 1: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A02B6D0>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:41] WiFi: handshake tentativa 1/3 → None
+[11:08:41] WiFi: handshake tentativa 2/3 → enviando comTest…
+[11:08:41] WiFi: erro na tentativa 2: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A029DD0>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:41] WiFi: handshake tentativa 2/3 → None
+[11:08:41] WiFi: handshake tentativa 3/3 → enviando comTest…
+[11:08:41] WiFi: erro na tentativa 3: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A028AD0>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:41] WiFi: handshake tentativa 3/3 → None
+[11:08:41] Backup tick: tentativa em progresso via WiFi; aguardando próxima janela.
+[11:08:41] Backup tick: tentativa em progresso via WiFi; aguardando próxima janela.
+[11:08:41] Backup armado (em 5.0s). Motivo: Tentativa atual ainda em andamento
+[11:08:41] Backup armado (em 5.0s). Motivo: Tentativa atual ainda em andamento
+[11:08:41] WiFi: falha no comTest.
+[11:08:41] WiFi: worker finalizado.
+[11:08:41] Backup armado (em 5.0s). Motivo: Tentativa de WiFi terminou sem sucesso
+[11:08:45] Backup tick: Wi-Fi disponível; USB indisponível.
+[11:08:45] Backup: tentando WiFi …
+[11:08:45] WiFi: tentativa #5 iniciada.
+[11:08:45] WiFi: worker iniciado.
+[11:08:45] WiFi: conectando a 192.168.4.1 …
+[11:08:45] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:45] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:45] Backup armado (em 5.0s). Motivo: Tentativa backup em andamento
+[11:08:46] WiFi: erro na tentativa 1: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D73A004FD0>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:46] WiFi: handshake tentativa 1/3 → None
+[11:08:46] WiFi: handshake tentativa 2/3 → enviando comTest…
+[11:08:46] WiFi: erro na tentativa 2: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D739FC0150>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:46] WiFi: handshake tentativa 2/3 → None
+[11:08:46] WiFi: handshake tentativa 3/3 → enviando comTest…
+[11:08:46] WiFi: erro na tentativa 3: ConnectTimeout(MaxRetryError("HTTPConnectionPool(host='192.168.4.1', port=80): Max retries exceeded with url: /command (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x000001D739FA7B10>, 'Connection to 192.168.4.1 timed out. (connect timeout=0.25)'))"))
+[11:08:46] WiFi: handshake tentativa 3/3 → None
+[11:08:46] Backup tick: tentativa em progresso via WiFi; aguardando próxima janela.
+[11:08:46] Backup tick: tentativa em progresso via WiFi; aguardando próxima janela.
+[11:08:46] Backup armado (em 5.0s). Motivo: Tentativa atual ainda em andamento
+[11:08:46] Backup armado (em 5.0s). Motivo: Tentativa atual ainda em andamento
+[11:08:46] Backup tick: tentativa em progresso via WiFi; aguardando próxima janela.
+[11:08:46] Backup armado (em 5.0s). Motivo: Tentativa atual ainda em andamento
+[11:08:46] WiFi: falha no comTest.
+[11:08:46] WiFi: worker finalizado.
+[11:08:46] Backup armado (em 5.0s). Motivo: Tentativa de WiFi terminou sem sucesso
+[11:08:50] Backup tick: Wi-Fi disponível; USB indisponível.
+[11:08:50] Backup: tentando WiFi …
+[11:08:50] WiFi: tentativa #6 iniciada.
+[11:08:50] WiFi: worker iniciado.
+[11:08:50] WiFi: conectando a 192.168.4.1 …
+[11:08:50] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:50] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:50] Backup armado (em 5.0s). Motivo: Tentativa backup em andamento
+[11:08:50] WiFi: handshake tentativa 1/3 → 'OK'
+[11:08:50] WiFi: conectado em 192.168.4.1
+[11:08:50] WiFi: handshake OK.
+[11:08:50] Backup/retry pausado (conectado). Será reativado automaticamente em caso de falha.
+[11:08:50] WiFi: worker finalizado.
+[11:08:51] Desconectado.
+Conexão parada pelo usuário.
+[11:08:53] WiFi: tentativa #7 iniciada.
+[11:08:53] WiFi: worker iniciado.
+[11:08:53] WiFi: conectando a 192.168.4.1 …
+[11:08:53] WiFi: iniciando handshake (POST /command com comTest)…
+[11:08:53] WiFi: handshake tentativa 1/3 → enviando comTest…
+[11:08:53] WiFi: handshake tentativa 1/3 → 'OK'
+[11:08:53] WiFi: conectado em 192.168.4.1
+[11:08:53] WiFi: handshake OK.
+[11:08:53] Backup/retry pausado (conectado). Será reativado automaticamente em caso de falha.
+[11:08:53] WiFi: worker finalizado.
+[11:08:55] {"Time":76.0,"Tempval":23.60,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3772,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:08:57] {"Time":77.9,"Tempval":23.60,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:08:59] {"Time":79.8,"Tempval":23.60,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:01] {"Time":81.7,"Tempval":23.60,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:03] {"Time":83.6,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3769,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:05] {"Time":85.5,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:07] {"Time":87.4,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3776,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:09] {"Time":89.3,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3767,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:11] {"Time":91.2,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:12] {"Time":93.1,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:14] {"Time":95.0,"Tempval":23.60,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3763,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:16] {"Time":96.9,"Tempval":23.50,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3780,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:18] {"Time":98.8,"Tempval":23.50,"pHval":32767.00,"Oxyval":4008.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3766,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:20] {"Time":100.7,"Tempval":23.50,"pHval":32767.00,"Oxyval":4008.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0142,"FlowRate":0.4651,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:22] {"Time":102.6,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0114,"FlowRate":0.3929,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:24] {"Time":104.5,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0138,"FlowRate":0.4547,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:26] {"Time":106.4,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0113,"FlowRate":0.3919,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:28] {"Time":108.3,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0110,"FlowRate":0.3822,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:30] {"Time":110.2,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3776,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:31] {"Time":112.1,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:33] {"Time":114.0,"Tempval":23.40,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:35] {"Time":115.9,"Tempval":23.40,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:09:37] {"Time":117.8,"Tempval":23.40,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3766,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:39] {"Time":119.7,"Tempval":23.40,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:41] {"Time":121.6,"Tempval":23.40,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3765,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:43] {"Time":123.5,"Tempval":23.40,"pHval":32767.00,"Oxyval":4011.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3763,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:45] {"Time":125.4,"Tempval":23.40,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3767,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:47] {"Time":127.3,"Tempval":23.40,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:49] {"Time":129.2,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3769,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:50] {"Time":131.1,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:52] {"Time":133.0,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:54] {"Time":134.9,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3761,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:56] {"Time":136.8,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:09:58] {"Time":138.7,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:00] {"Time":140.6,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3759,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:02] {"Time":142.5,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3762,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:04] {"Time":144.4,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:06] {"Time":146.3,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:08] {"Time":148.2,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3766,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:09] {"Time":150.1,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:11] {"Time":152.0,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3762,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:13] {"Time":153.9,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3762,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:15] {"Time":155.8,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:17] {"Time":157.7,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:19] {"Time":159.6,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3767,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:21] {"Time":161.5,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3761,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:23] {"Time":163.4,"Tempval":23.40,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:25] {"Time":165.3,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:27] {"Time":167.2,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3769,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:28] {"Time":169.1,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:30] {"Time":171.0,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:32] {"Time":172.9,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:34] {"Time":174.8,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:36] {"Time":176.7,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:38] {"Time":178.6,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:40] {"Time":180.5,"Tempval":23.50,"pHval":32767.00,"Oxyval":4013.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:42] {"Time":182.4,"Tempval":23.50,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:44] {"Time":184.3,"Tempval":23.60,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:46] {"Time":186.2,"Tempval":23.60,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3763,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:47] {"Time":188.1,"Tempval":23.60,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3764,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:49] {"Time":190.0,"Tempval":23.60,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:51] {"Time":191.9,"Tempval":23.60,"pHval":32767.00,"Oxyval":4012.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3776,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:53] {"Time":193.8,"Tempval":23.60,"pHval":32767.00,"Oxyval":4011.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:55] {"Time":195.7,"Tempval":23.60,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3777,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:57] {"Time":197.6,"Tempval":23.60,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3769,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:10:59] {"Time":199.5,"Tempval":23.60,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:01] {"Time":201.4,"Tempval":23.60,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:03] {"Time":203.3,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:04] {"Time":205.2,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:06] {"Time":207.1,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3761,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:08] {"Time":209.0,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3765,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:10] {"Time":210.9,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3756,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:12] {"Time":212.8,"Tempval":23.50,"pHval":32767.00,"Oxyval":4010.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:14] {"Time":214.7,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3765,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:16] {"Time":216.6,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3763,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:18] {"Time":218.5,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3762,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:20] {"Time":220.4,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3767,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:22] {"Time":222.3,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3770,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:24] {"Time":224.2,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3772,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:25] {"Time":226.1,"Tempval":23.50,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3784,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:27] {"Time":228.0,"Tempval":23.40,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3782,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:29] {"Time":229.9,"Tempval":23.40,"pHval":32767.00,"Oxyval":4009.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:31] {"Time":231.8,"Tempval":23.40,"pHval":32767.00,"Oxyval":4008.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:33] {"Time":233.7,"Tempval":23.40,"pHval":32767.00,"Oxyval":4008.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:35] {"Time":235.6,"Tempval":23.40,"pHval":32767.00,"Oxyval":4008.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:37] {"Time":237.5,"Tempval":23.40,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3788,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:39] {"Time":239.4,"Tempval":23.40,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3780,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:41] {"Time":241.3,"Tempval":23.40,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3772,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:43] {"Time":243.2,"Tempval":23.40,"pHval":32767.00,"Oxyval":4007.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:44] {"Time":245.1,"Tempval":23.40,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3764,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:46] {"Time":247.0,"Tempval":23.40,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3769,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:48] {"Time":248.9,"Tempval":23.40,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3779,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:50] {"Time":250.8,"Tempval":23.30,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:52] {"Time":252.7,"Tempval":23.30,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3780,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:54] {"Time":254.6,"Tempval":23.30,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:56] {"Time":256.5,"Tempval":23.30,"pHval":32767.00,"Oxyval":4006.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3768,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:11:58] {"Time":258.4,"Tempval":23.30,"pHval":32767.00,"Oxyval":4005.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3779,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:00] {"Time":260.3,"Tempval":23.30,"pHval":32767.00,"Oxyval":4005.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3779,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:02] {"Time":262.2,"Tempval":23.30,"pHval":32767.00,"Oxyval":4004.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3779,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:03] {"Time":264.1,"Tempval":23.30,"pHval":32767.00,"Oxyval":4004.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3774,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:05] {"Time":266.0,"Tempval":23.30,"pHval":32767.00,"Oxyval":4003.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3780,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:07] {"Time":267.9,"Tempval":23.30,"pHval":32767.00,"Oxyval":4003.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:09] {"Time":269.8,"Tempval":23.30,"pHval":32767.00,"Oxyval":4002.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3773,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:11] {"Time":271.7,"Tempval":23.30,"pHval":32767.00,"Oxyval":4001.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3780,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:13] {"Time":273.6,"Tempval":23.30,"pHval":32767.00,"Oxyval":4001.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3781,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:15] {"Time":275.5,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3780,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:17] {"Time":277.4,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3779,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:19] {"Time":279.3,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3792,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:21] {"Time":281.2,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3778,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:22] {"Time":283.1,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3775,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:24] {"Time":285.0,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3771,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:26] {"Time":286.9,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3764,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:28] {"Time":288.8,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0136,"FlowRate":0.4484,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:30] {"Time":290.7,"Tempval":23.30,"pHval":32767.00,"Oxyval":4000.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0117,"FlowRate":0.4011,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:32] {"Time":292.6,"Tempval":23.30,"pHval":32767.00,"Oxyval":3999.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0110,"FlowRate":0.3828,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:34] {"Time":294.5,"Tempval":23.30,"pHval":32767.00,"Oxyval":3999.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3796,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:36] {"Time":296.4,"Tempval":23.30,"pHval":32767.00,"Oxyval":3999.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:38] {"Time":298.3,"Tempval":23.30,"pHval":32767.00,"Oxyval":3999.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0125,"FlowRate":0.4226,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:40] {"Time":300.2,"Tempval":23.20,"pHval":32767.00,"Oxyval":3999.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0114,"FlowRate":0.3926,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:41] {"Time":302.1,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3811,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:43] {"Time":304.0,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3790,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:45] {"Time":305.9,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3765,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:47] {"Time":307.8,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0107,"FlowRate":0.3752,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:12:49] {"Time":309.7,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0124,"FlowRate":0.4195,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:51] {"Time":311.6,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0117,"FlowRate":0.4024,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:53] {"Time":313.5,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0110,"FlowRate":0.3831,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:55] {"Time":315.4,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3802,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:57] {"Time":317.3,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3802,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:12:58] {"Time":319.2,"Tempval":23.20,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3801,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:00] {"Time":321.1,"Tempval":23.30,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:02] {"Time":323.0,"Tempval":23.30,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3779,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:04] {"Time":324.9,"Tempval":23.30,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3782,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:06] {"Time":326.8,"Tempval":23.30,"pHval":32767.00,"Oxyval":3998.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:08] {"Time":328.7,"Tempval":23.30,"pHval":32767.00,"Oxyval":3996.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:10] {"Time":330.6,"Tempval":23.30,"pHval":32767.00,"Oxyval":3995.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3789,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:12] {"Time":332.5,"Tempval":23.30,"pHval":32767.00,"Oxyval":3994.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3788,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:14] {"Time":334.4,"Tempval":23.30,"pHval":32767.00,"Oxyval":3994.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3787,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:16] {"Time":336.3,"Tempval":23.30,"pHval":32767.00,"Oxyval":3993.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3789,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:17] {"Time":338.2,"Tempval":23.30,"pHval":32767.00,"Oxyval":3993.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3798,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:19] {"Time":340.1,"Tempval":23.30,"pHval":32767.00,"Oxyval":3992.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3794,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:21] {"Time":342.0,"Tempval":23.30,"pHval":32767.00,"Oxyval":3992.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3789,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:23] {"Time":343.9,"Tempval":23.30,"pHval":32767.00,"Oxyval":3992.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3783,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:25] {"Time":345.8,"Tempval":23.30,"pHval":32767.00,"Oxyval":3992.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3781,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:27] {"Time":347.7,"Tempval":23.30,"pHval":32767.00,"Oxyval":3991.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3781,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:29] {"Time":349.6,"Tempval":23.30,"pHval":32767.00,"Oxyval":3991.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3787,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:31] {"Time":351.5,"Tempval":23.30,"pHval":32767.00,"Oxyval":3990.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3801,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:33] {"Time":353.4,"Tempval":23.30,"pHval":32767.00,"Oxyval":3989.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:35] {"Time":355.3,"Tempval":23.30,"pHval":32767.00,"Oxyval":3987.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:36] {"Time":357.2,"Tempval":23.30,"pHval":32767.00,"Oxyval":3987.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3777,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:38] {"Time":359.1,"Tempval":23.30,"pHval":32767.00,"Oxyval":3987.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3778,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:40] {"Time":361.0,"Tempval":23.30,"pHval":32767.00,"Oxyval":3986.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3793,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:42] {"Time":362.9,"Tempval":23.30,"pHval":32767.00,"Oxyval":3985.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3793,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:44] {"Time":364.8,"Tempval":23.30,"pHval":32767.00,"Oxyval":3985.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3795,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:46] {"Time":366.7,"Tempval":23.30,"pHval":32767.00,"Oxyval":3985.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3786,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:48] {"Time":368.6,"Tempval":23.30,"pHval":32767.00,"Oxyval":3984.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3782,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:50] {"Time":370.5,"Tempval":23.30,"pHval":32767.00,"Oxyval":3983.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3806,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:13:52] {"Time":372.4,"Tempval":23.30,"pHval":32767.00,"Oxyval":3983.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3806,"FlowSetpoint":0.0000,"Valve1":1,"Valve2":0,"SensorCommOK":true}
+[11:13:54] {"Time":374.3,"Tempval":23.30,"pHval":32767.00,"Oxyval":3982.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3800,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:55] {"Time":376.2,"Tempval":23.30,"pHval":32767.00,"Oxyval":3981.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0109,"FlowRate":0.3794,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:57] {"Time":378.1,"Tempval":23.30,"pHval":32767.00,"Oxyval":3981.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3787,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:13:59] {"Time":380.0,"Tempval":23.30,"pHval":32767.00,"Oxyval":3980.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3787,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:14:01] {"Time":381.9,"Tempval":23.30,"pHval":32767.00,"Oxyval":3978.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.0108,"FlowRate":0.3791,"FlowSetpoint":0.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[11:14:01] Desconectado.

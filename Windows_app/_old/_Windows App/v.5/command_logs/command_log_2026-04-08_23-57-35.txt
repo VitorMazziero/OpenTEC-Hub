@@ -1,0 +1,15 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: Monitoramento de biomassa ativado
+[PY_EVT]: Monitoramento de biomassa desativado
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 383, in run_cascade_controls
+    def run_cascade_controls(self):
+    
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 383, in run_cascade_controls
+    def run_cascade_controls(self):
+    
+KeyboardInterrupt
+

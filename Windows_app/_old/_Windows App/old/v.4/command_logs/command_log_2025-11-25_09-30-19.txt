@@ -1,0 +1,5 @@
+[09:29:34] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[09:29:34] Calibração de pH atualizada: slope=0.0005318771718317851, intercept=-0.6393518190199288
+[09:29:34] Controle de vazão proporcional desativado.
+[09:29:34] Cadência de leitura definida para ~1.00s.
+[09:30:19] Desconectado.

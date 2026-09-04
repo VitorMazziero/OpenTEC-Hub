@@ -1,0 +1,11 @@
+[11:56:59] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[11:56:59] Calibração de pH atualizada: slope=0.0005012405704, intercept=-0.600385955239
+[11:56:59] Controle de vazão proporcional desativado.
+[11:56:59] Cadência de leitura definida para ~1.00s.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+[12:03:18] Desconectado.

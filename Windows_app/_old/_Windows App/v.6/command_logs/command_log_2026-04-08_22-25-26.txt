@@ -1,0 +1,10 @@
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_EVT]: Comando de biomassa enviado: Comando 'Branco' enviado para Biomassa.
+[PY_EVT]: Comando de biomassa enviado: Comando 'Iniciar' enviado para Biomassa.
+[PY_EVT]: Comando de biomassa enviado: Comando 'Parar' enviado para Biomassa.
+[PY_EVT]: Monitoramento de biomassa ativado
+[PY_EVT]: Monitoramento de biomassa desativado
+[PY_EVT]: Monitoramento de biomassa ativado
+[PY_EVT]: Monitoramento de biomassa desativado
+[PY_EVT]: Monitoramento de biomassa ativado
+[PY_EVT]: Monitoramento de biomassa desativado

@@ -1,0 +1,20 @@
+[17:50:34] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[17:50:34] Calibração de pH atualizada: slope=0.0005012405704, intercept=-0.600385955239
+[17:50:34] Monitoramento de Biomassa ativado.
+[17:50:34] Controle de vazão proporcional desativado.
+[17:50:34] Cadência de leitura definida para ~1.00s.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+Configurações da Cascata kLa recarregadas.
+[17:56:43] Desconectado.

@@ -1,47 +1,56 @@
-# Build output
-bin/
-obj/
-[Dd]ebug/
-[Rr]elease/
-x64/
-publish/
+# ==============================================================================
+# Monorepo Root .gitignore - Projeto TECNAL
+# ==============================================================================
+
+# .NET / Windows_app build output
+**/bin/
+**/obj/
+**/[Dd]ebug/
+**/[Rr]elease/
+**/x64/
+**/publish/
 *.user
 *.suo
-
-# IDE
 .vs/
-.idea/
 *.DotSettings.user
 
-# Installer output
+# Installer & self-contained outputs
 installer/Output/
-
-# Self-contained publish of the Wi-Fi test harness (~78 MB). Regenerate with:
-#   dotnet publish src/OpenTECHub.Harness -c Release -r win-x64 --self-contained true -o tools/wifi-test
-# tools/RunWiFiTest.cmd falls back to 'dotnet run' when it is absent.
 tools/wifi-test/
 
-# Runtime data - never commit lab data or machine-specific settings
+# Flutter / Android build output
+**/build/
+.dart_tool/
+
+# Arduino & C++ build output
+tools/.bin/
+*.bin
+*.elf
+*.map
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime data & logs
 logs/
 *.log
 preferences.local.json
 Configuracoes/
 Sessoes/
+harness-trace-*.log
 
-# OS
+# Git backups
+**/.git_backup/
+**/.git_backup/**
+
+# OS & Editor files
+.idea/
+.vscode/
 Thumbs.db
 desktop.ini
-harness-trace-*.log
-shot*.png
-
-# Throwaway probes dropped at the root while chasing a behaviour ("what does this
-# store write?", "what is this ScottPlot default?"). All real code lives under src/
-# or tests/, so a .cs file here is always scratch - and the answer belongs in a test,
-# where it keeps being checked. Root only: nothing inside the projects is hidden.
-/test_*.cs
-
-# Somewhere for that scratch to sit instead of the repository root: bench captures,
-# screenshots taken while chasing something, one-off traces. Ignored wholesale, so
-# nothing in here is a commit waiting to happen - if a capture turns out to be
-# evidence, it belongs in docs/evidence/ under a name that says what it shows.
+Desktop.ini
+*.swp
 /scratch/
+/test_*.cs

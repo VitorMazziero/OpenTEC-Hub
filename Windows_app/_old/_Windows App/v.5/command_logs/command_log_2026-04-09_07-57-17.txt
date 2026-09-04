@@ -1,0 +1,7 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.

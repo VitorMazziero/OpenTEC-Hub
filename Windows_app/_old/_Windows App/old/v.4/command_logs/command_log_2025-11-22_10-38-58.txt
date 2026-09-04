@@ -1,0 +1,24 @@
+[10:38:45] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[10:38:45] Calibração de pH atualizada: slope=0.0005318771718317851, intercept=-0.6393518190199288
+[10:38:45] Controle de vazão proporcional desativado.
+[10:38:45] Cadência de leitura definida para ~1.00s.
+[10:38:54] USB: tentativa #1 iniciada.
+[10:38:54] USB: worker iniciado.
+[10:38:54] USB: abrindo porta COM1 @ 115200,8,1,N …
+[10:38:54] USB: porta COM1 aberta, iniciando handshake…
+[10:38:56] Desconectado.
+Conexão parada pelo usuário.
+[10:38:56] USB: handshake tentativa 1/10 → None
+[10:38:56] USB: handshake tentativa 2/10 → None
+[10:38:56] USB: handshake tentativa 3/10 → None
+[10:38:56] USB: handshake tentativa 4/10 → None
+[10:38:56] USB: handshake tentativa 5/10 → None
+[10:38:56] USB: handshake tentativa 6/10 → None
+[10:38:57] USB: handshake tentativa 7/10 → None
+[10:38:57] USB: handshake tentativa 8/10 → None
+[10:38:57] USB: handshake tentativa 9/10 → None
+[10:38:57] USB: handshake tentativa 10/10 → None
+[10:38:57] USB: falha no comTest.
+[10:38:57] USB: worker finalizado.
+[10:38:57] Backup armado (em 5.0s). Motivo: Tentativa de USB terminou sem sucesso
+[10:38:58] Desconectado.

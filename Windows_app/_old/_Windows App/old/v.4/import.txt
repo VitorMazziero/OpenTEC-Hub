@@ -1,0 +1,11 @@
+#python -m venv venv
+.\venv\Scripts\activate
+pip install pyside6
+pip install matplotlib
+pip install pyserial
+pip install qdarkstyle
+pip install nuitka
+pip install scipy 
+pip install pyqtgraph
+pip install requests
+pip install torch

@@ -1,0 +1,482 @@
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_EVT]: Cascata de aeração desativada
+[PY_EVT]: Cascata de agitação ativada
+[PY_EVT]: Cascata de agitação desativada
+[PY_EVT]: Cascata de aeração ativada
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_EVT]: Controle de vazão proporcional ativado
+[PY_EVT]: Controle de vazão proporcional desativado
+[PY_EVT]: Controle de vazão proporcional ativado
+[PY_EVT]: Controle de vazão proporcional desativado
+[PY_EVT]: Controle de vazão proporcional ativado
+[PY_EVT]: Configurações salvas
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.
+[PY_INFO]: Backup desativado; delay=5.0s.
+[PY_INFO]: Backup ativado; delay=5.0s.

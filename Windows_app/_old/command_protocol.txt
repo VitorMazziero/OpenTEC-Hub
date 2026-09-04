@@ -1,0 +1,74 @@
+1. The ESP32S3 code enables Wifi, bluetooth or USB communication with the user. 
+Wifi name: ModuloTECNAL
+Wifi password: ModuloTECNAL
+IP: 192.168.4.1
+Port: 23
+BLE name: Modulo_TECNAL
+
+2. Two operating modes are configured to the ESP32S3 to operate:
+a. The bypass mode just repeats the commands that it recieves from both ends. If a command is recieved from the User, it passes to the Sensor Module. If a command is sent by the Sensor Module, it passes to the User. Its the simpler mode, used to communicate with the Original Windows App.
+b. The custom mode that has its own JSON command protocol and has the dedicated threads for recieving sensor data.
+
+3. How to distinguish between the use of the modes?
+a. The ESP32S3 identifies the Original Windows App and enable bypass. The identification is based on the following: The Original Windows App always send "i" followed by "j" on connection startup. If this is identified or the subsequent commands do not have the {} deliter it enables bypass mode.
+b. If ESP32S3 identifies the {} deliter of the custom communication protocol, it enables custom mode. The custom mode needs threads to read the sensor data. The Sensor Module works responding to the command right after it recieves it. For exemple, the read the sensor data thread needs to read all the sensors enabled by sending one letter at a time, and reading the response of the Sensor Module. The reading should be done with a non interruptive way using dataDelay variable
+
+4. [The two ESP32S3 operating modes]
+Bypass mode:
+- Connection: Original Windows App ------> ESP32S3 ------> Sensor Module
+- Command Protocol: repeat the command recieved by the Original Windows App, and repeat the command recieved by the Sensor Module
+- Example - command 100B: Original Windows App sends the command "b" via Serial, Wifi or Bluetooth -------> ESP32S3 just repeats the command "b" to the Sensor Module -------> Sensor Module sends the response "26.4" -------> ESP32S3 just repeats the answer "26.4" into Serial, Wifi and Bluetooth -------> Original Windows App
+Custom mode:
+- Connection: Custom Windows/Android App -------> ESP32S3 -------> Sensor Module
+- Command Protocol: read JSON commands recieved by a Custom Windows/Android App, read and update the corresponding variables, initiate the threads and send commands and recieves the responses from the Sensor Module.
+- Example - command 100B: Custom Windows/Android App sends the command in JSON "{"Tempset":28.1}" -------> ESP32S3 parses and update the corresponding temperature setpoint variable, sends the command "281B" to the Sensor Module and create the thread that keeps sending "b" to the Sensor Module -------> Recieves the Sensor Module response and parses it into a variable to send it back to the Custom Windows/Android App.
+
+5. [Custom Windows/Android App JSON protocol format] 
+{"dataDelay":500,"motorSetpoint":200,"tempSetpoint":28.1,"oxygenMonitor":1,"pHSetpoint":5.8,"pHError":0.17,"pHOperation":2,"pHMix":10,"pHIntensity":20,"nutriOperation":999,"nutriMix":50,"nutriOpCycle":10,"nutriMixCycle":1,"nutriIntensity:10","antifoamOperation":5,"antifoamMix":4,"antifoamIntensity:80"}
+that sends periodically the commands for temperature, motor, pH, nutrient, antifoam and pressure
+
+6. [Custom mode command protocol]
+SET VARIABLES STATES:
+- Motor control:
+If rpm == 0 -> send "0V" and "0A"
+Else        -> send "1V" and "<rpm>A" (e.g., "200A") (1 ≤ rpm ≤ 1000)
+- Temperature control:
+If t == 0 -> turn off temperature reading and send "100B" (OFF)
+Else      -> turn on temperature reading, then send command (e.g., "281B" for 28.1°C)
+- pH control:
+If pH reference == 0  -> turn off pH reading and send "0F" (OFF)
+Else        -> turn on pH reading, then send command (e.g., "700D" for referene of 7.00) (1 ≤ pH_reference ≤ 14)
+If pH reading is active, set Error, Operation (s), Mixing (s), and Intensity:
+pHError     -> Remove decimal value and add "E" (e.g., "017E" for 0.17) (0 < pHError < 2)
+pHOperation -> Convert to integer and add "G" (e.g., "2G" for 2 seconds) (1 ≤ pHOperation ≤ 999)
+pHMix       -> Convert to integer and add "H" (e.g., "10H" for 10 seconds) (1 ≤ pHMix ≤ 999)
+pHIntensity -> Convert to integer and add "F" (e.g., "20F" for intensity 20) (0 ≤ pHIntensity ≤ 99)
+- Nutrient control:
+If nutrient_intensity == 0 -> turn off nutrient operation and send "0M" (OFF)
+Else             -> send command with intensity value followed by "0M" (e.g., "550M" for intensity 55) (0 ≤ nutriIntensity ≤ 99)
+If nutrient operation is active, set Operation (s), Mixing (s), Operation Cycle (min) and Mixing Cycle (min):
+Nutrient Operation       -> Convert to integer and add "N" (e.g., "999N" for 999 seconds) (1 ≤ nutriOperation ≤ 999)
+Nutrient Mixing          -> Convert to integer and add "O" (e.g., "1O" for 1 second) (1 ≤ nutriMix ≤ 999)
+Nutrient Operation Cycle -> Convert to integer and add "P" (e.g., "500P" for 500 cycles) (1 ≤ nutriOpCycle ≤ 500)
+Nutrient Mixing Cycle    -> Convert to integer and add "Q" (e.g., "1Q" for 1 cycle) (1 ≤ nutriMixCycle ≤ 500)
+- Antifoam control:
+If antifoam_intensity == 0 -> turn off antifoam operation and send "0I" (OFF)
+Else              	   -> send command with intensity value followed by "0I" (e.g., "220I" for intensity 22) (0 ≤ antifoamIntensity ≤ 99)
+If antifoam operation is active, set Operation (s) and Mixing (s):
+Antifoam Operation -> Convert to integer and add "J" (e.g., "10J" for 10 seconds) (1 ≤ antifoamOperation ≤ 999)
+Antifoam Mixing -> Convert to integer and add "L" (e.g., "5L" for 5 seconds) (1 ≤ antifoamMix ≤ 999)
+- Pressure control:
+If pressure reference == 0  -> turn off pressure reading and send "0C" (OFF)
+Else              	    -> send command with reference value followed by "C" (e.g., "100C" for pressure reference 100) (0 ≤ pressureReference ≤ 380)
+
+7. READ SENSOR DATA:
+- Temperature monitoring:
+Sending the string "b" to the Sensor Module returns the sensor's temperature value in the format "28.8"
+- pH monitoring:
+Sending the string "d" to the Sensor Module returns the pH value in the format "8.1"
+- Oxygen monitoring:
+Sending the string "g" to the Sensor Module returns the oxygen sensor value in the format "101.1" or "95.1" or "5.0" depending on the value.
+- Pressure monitoring: 
+Sending the string "c" to the Sensor Module returns the pressure value in the format "102.2"
+- Antifoam monitoring:
+Sending the string "e" to the Sensor Module returns the sensor value in the format "1"

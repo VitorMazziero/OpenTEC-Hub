@@ -1,0 +1,26 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_EVT]: estado: CONNECTED [USB]
+[PY_EVT]: USB: conectado com sucesso
+[23:54:18] Rx: {"Tempval":37.014,"Oxyval":1499.11,"pHval":6.9766,"Pressure":761.22,"FlowRate":5.8,"Distance":40.76,"Antifoam":0.0,"BiomassAbs":0.0806,"PumpFlow":96.661,"PumpVol":174.218,"Time":1825.82,"FlowVoltage":0.961,"raw":5282,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[PY_EVT]: Cascata kLa ativada
+[23:54:20] Rx: {"Tempval":37.01,"Oxyval":1496.01,"pHval":6.9855,"Pressure":761.13,"FlowRate":5.817,"Distance":40.94,"Antifoam":0.0,"BiomassAbs":0.0815,"PumpFlow":96.948,"PumpVol":174.411,"Time":1827.82,"FlowVoltage":0.9647,"raw":5341,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[PY_EVT]: Configurações da Cascata kLa recarregadas.
+[23:54:22] Rx: {"Tempval":36.977,"Oxyval":1494.53,"pHval":6.9817,"Pressure":761.14,"FlowRate":5.735,"Distance":41.17,"Antifoam":0.0,"BiomassAbs":0.0806,"PumpFlow":95.588,"PumpVol":174.603,"Time":1829.82,"FlowVoltage":0.9562,"raw":5284,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:24] Rx: {"Tempval":36.981,"Oxyval":1492.13,"pHval":6.9758,"Pressure":761.14,"FlowRate":5.79,"Distance":41.04,"Antifoam":0.0,"BiomassAbs":0.08,"PumpFlow":96.495,"PumpVol":174.796,"Time":1831.82,"FlowVoltage":0.9596,"raw":5242,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:26] Rx: {"Tempval":36.971,"Oxyval":1491.47,"pHval":6.9779,"Pressure":761.15,"FlowRate":5.744,"Distance":41.07,"Antifoam":0.0,"BiomassAbs":0.0792,"PumpFlow":95.728,"PumpVol":174.987,"Time":1833.82,"FlowVoltage":0.9587,"raw":5190,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:28] Rx: {"Tempval":36.996,"Oxyval":1490.07,"pHval":6.9773,"Pressure":761.27,"FlowRate":5.803,"Distance":41.27,"Antifoam":0.0,"BiomassAbs":0.0809,"PumpFlow":96.718,"PumpVol":175.18,"Time":1835.82,"FlowVoltage":0.9648,"raw":5299,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:30] Rx: {"Tempval":36.985,"Oxyval":1489.41,"pHval":6.9817,"Pressure":761.18,"FlowRate":5.872,"Distance":41.46,"Antifoam":0.0,"BiomassAbs":0.0804,"PumpFlow":97.859,"PumpVol":175.376,"Time":1837.82,"FlowVoltage":0.9707,"raw":5267,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[PY_EVT]: Configurações da Cascata kLa recarregadas.
+[PY_EVT]: Monitoramento de biomassa ativado
+[23:54:32] Rx: {"Tempval":36.651,"Oxyval":1488.71,"pHval":6.9935,"Pressure":761.42,"FlowRate":5.886,"Distance":41.43,"Antifoam":0.0,"BiomassAbs":0.0791,"PumpFlow":98.102,"PumpVol":175.572,"Time":1839.83,"FlowVoltage":0.9692,"raw":5182,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[PY_EVT]: Configurações da Cascata kLa recarregadas.
+[23:54:34] Rx: {"Tempval":36.322,"Oxyval":1488.67,"pHval":7.0018,"Pressure":761.46,"FlowRate":5.919,"Distance":41.72,"Antifoam":0.0,"BiomassAbs":0.0811,"PumpFlow":98.655,"PumpVol":175.77,"Time":1841.83,"FlowVoltage":0.9726,"raw":5317,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:36] Rx: {"Tempval":35.967,"Oxyval":1488.83,"pHval":7.0026,"Pressure":761.5,"FlowRate":5.878,"Distance":42.03,"Antifoam":0.0,"BiomassAbs":0.0814,"PumpFlow":97.961,"PumpVol":175.966,"Time":1843.83,"FlowVoltage":0.9699,"raw":5333,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:38] Rx: {"Tempval":35.649,"Oxyval":1490.34,"pHval":7.0049,"Pressure":761.54,"FlowRate":5.944,"Distance":41.98,"Antifoam":0.0,"BiomassAbs":0.0812,"PumpFlow":99.065,"PumpVol":176.164,"Time":1845.83,"FlowVoltage":0.9755,"raw":5324,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:40] Rx: {"Tempval":35.371,"Oxyval":1491.9,"pHval":7.0002,"Pressure":761.54,"FlowRate":5.942,"Distance":42.09,"Antifoam":0.0,"BiomassAbs":0.0794,"PumpFlow":99.029,"PumpVol":176.362,"Time":1847.83,"FlowVoltage":0.9763,"raw":5201,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:42] Rx: {"Tempval":35.098,"Oxyval":1493.5,"pHval":7.0004,"Pressure":761.36,"FlowRate":5.927,"Distance":42.16,"Antifoam":0.0,"BiomassAbs":0.0802,"PumpFlow":98.785,"PumpVol":176.559,"Time":1849.83,"FlowVoltage":0.9725,"raw":5257,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:44] Rx: {"Tempval":34.84,"Oxyval":1495.55,"pHval":6.9983,"Pressure":761.39,"FlowRate":5.942,"Distance":42.44,"Antifoam":0.0,"BiomassAbs":0.0806,"PumpFlow":99.039,"PumpVol":176.757,"Time":1851.83,"FlowVoltage":0.9745,"raw":5283,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:46] Rx: {"Tempval":34.599,"Oxyval":1497.67,"pHval":6.9965,"Pressure":761.4,"FlowRate":5.92,"Distance":42.38,"Antifoam":0.0,"BiomassAbs":0.0796,"PumpFlow":98.67,"PumpVol":176.955,"Time":1853.84,"FlowVoltage":0.9713,"raw":5217,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[23:54:48] Rx: {"Tempval":34.346,"Oxyval":1499.62,"pHval":6.9925,"Pressure":761.43,"FlowRate":5.935,"Distance":42.6,"Antifoam":0.0,"BiomassAbs":0.0818,"PumpFlow":98.923,"PumpVol":177.153,"Time":1855.84,"FlowVoltage":0.9731,"raw":5361,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}

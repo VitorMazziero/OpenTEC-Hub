@@ -1,0 +1,181 @@
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_EVT]: Configurações salvas
+[PY_EVT]: Comando de reinicialização enviado ao ESP32
+[PY_EVT]: Todas as comunicações foram desconectadas
+[PY_EVT]: Desconectado a pedido do usuário
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_AVISO]: USB: handshake falhou
+[PY_EVT]: estado: RECONNECTING [USB]
+[PY_EVT]: iniciando ciclo de reconexão (backup)
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #2 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #3 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: estado: DISCONNECTED [USB]
+[PY_EVT]: Desconectado a pedido do usuário
+[PY_EVT]: USB: tentativa #4 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_AVISO]: USB: handshake falhou
+[PY_EVT]: estado: RECONNECTING [USB]
+[PY_EVT]: iniciando ciclo de reconexão (backup)
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #5 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #6 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #7 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #8 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #9 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #10 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #11 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: estado: DISCONNECTED [USB]
+[PY_EVT]: Desconectado a pedido do usuário
+[PY_EVT]: USB: tentativa #12 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_EVT]: estado: CONNECTED [USB]
+[PY_EVT]: USB: conectado com sucesso
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 386, in run_cascade_controls
+    self.comm_handler.read_and_parse()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\communication\connection_manager.py", line 366, in read_and_parse
+    self._log_rx(raw)
+    ^^^^^^^^^^^^
+AttributeError: 'ConnectionManager' object has no attribute '_log_rx'
+
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: estado: DISCONNECTED [USB]
+[PY_EVT]: Desconectado a pedido do usuário

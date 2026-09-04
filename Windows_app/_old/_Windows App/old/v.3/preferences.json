@@ -1,0 +1,196 @@
+{
+    "Configurations": {
+        "ip_edit": "192.168.4.1",
+        "data_delay_edit": "1000",
+        "oxy_cal_a": "0.0305473419314",
+        "oxy_cal_b": "-25.09136520919",
+        "ph_cal_slope": "0.0005318771718317851",
+        "ph_cal_intercept": "-0.6393518190199288",
+        "com_port_edit": "Nenhuma porta dispon\u00edvel",
+        "theme_combo": "Dark",
+        "baud_rate_edit": "115200",
+        "data_bits_edit": "8",
+        "stop_bits_edit": "1",
+        "parity_edit": "None"
+    },
+    "ParameterSettings": {
+        "Temperature": {
+            "line_edit": "37"
+        },
+        "Motor": {
+            "line_edit": "200",
+            "cascade_min": "200",
+            "cascade_max": "1000"
+        },
+        "Pressure": {
+            "line_edit": "3"
+        },
+        "Oxygen": {
+            "line_edit": "30"
+        },
+        "Flowmeter": {
+            "line_edit": "2",
+            "Max Flow:": "50",
+            "cascade_min": "0.5",
+            "cascade_max": "15"
+        },
+        "Distance": {
+            "line_edit": "100",
+            "Delay In\u00edcio (s):": "1",
+            "Pulso ON (s):": "1",
+            "Intervalo (s):": "5"
+        },
+        "pH": {
+            "ph_setpoint": "7",
+            "ph_error": "0.15",
+            "ph_op_time": "2",
+            "ph_disable_time": "30",
+            "ph_speed": "70"
+        },
+        "Antifoam": {
+            "antifoam_op_time": "5",
+            "antifoam_disable_time": "20",
+            "antifoam_speed": "99"
+        },
+        "Nutrient": {
+            "nutri_op_time": "999",
+            "nutri_disable_time": "1",
+            "nutri_op_cycle": "500",
+            "nutri_disable_cycle": "1",
+            "nutri_speed": "99"
+        },
+        "Agitator": {
+            "use_auto": true,
+            "percent": "80",
+            "re_enable_pot": true
+        },
+        "Biomass": {
+            "comm_on": false,
+            "low_thresh": "10000",
+            "high_thresh": "40000",
+            "opt_thresh": "25000"
+        }
+    },
+    "KlaInteractivePoints": [
+        [
+            5.0,
+            200.0,
+            26.35
+        ],
+        [
+            15.0,
+            200.0,
+            71.85
+        ],
+        [
+            5.0,
+            800.0,
+            100.58
+        ],
+        [
+            15.0,
+            800.0,
+            117.32
+        ],
+        [
+            10.0,
+            500.0,
+            83.12
+        ]
+    ],
+    "GassingOutConfig": {
+        "c_sat": "100.0",
+        "stabilization_derivative_threshold": "0.05",
+        "stabilization_samples": "5",
+        "plateau_thr": "0.77",
+        "model_path": "kLa_methods/kLa_TNC_gassing_out.pth",
+        "do_moving_average_window": "10",
+        "kla_moving_average_window": "15",
+        "derivative_window": "5"
+    },
+    "GradientAscend": {
+        "grid_res": "16",
+        "rising_grid_res": "600",
+        "step_multiplier": "120",
+        "min_step": "16",
+        "max_iter": "1000",
+        "quiver_scale": "100",
+        "quiver_color": "black",
+        "quiver_width": "0.006",
+        "interp_method": "cubic",
+        "colormap": "viridis"
+    },
+    "ControlLoops": {
+        "kLa_cascade": {
+            "pid": {
+                "C_star": 100,
+                "Kp": 0.15,
+                "Ki": 0.001,
+                "Kd": 0.75
+            },
+            "advanced": {
+                "history_pts": 20,
+                "median_filter_win": 5,
+                "min_pts_regression": 5,
+                "prediction_horizon_s": 30,
+                "outer_loop_gain": 0.1,
+                "derivative_tau_s": 40,
+                "max_integral": 100,
+                "min_integral": -100,
+                "integral_window": 20
+            }
+        },
+        "agitation_cascade": {
+            "pid": {
+                "Kp": 0.1,
+                "Ki": 0.0001,
+                "Kd": 0.75
+            },
+            "advanced": {
+                "history_pts": 20,
+                "median_filter_win": 5,
+                "min_pts_regression": 5,
+                "prediction_horizon_s": 30,
+                "outer_loop_gain": 0.1,
+                "derivative_tau_s": 40,
+                "max_integral": 15,
+                "min_integral": -15,
+                "integral_window": 180
+            }
+        },
+        "aeration_cascade": {
+            "pid": {
+                "Kp": 0.01,
+                "Ki": 0.0001,
+                "Kd": 0.075
+            },
+            "advanced": {
+                "history_pts": 20,
+                "median_filter_win": 5,
+                "min_pts_regression": 5,
+                "prediction_horizon_s": 30,
+                "outer_loop_gain": 0.1,
+                "derivative_tau_s": 40,
+                "max_integral": 20,
+                "min_integral": -20,
+                "integral_window": 180
+            }
+        }
+    },
+    "ExternalPump": {
+        "modes": {
+            "mode_1": {
+                "t_initial": "0",
+                "t_final": "60",
+                "param_A": "5"
+            },
+            "mode_4": {
+                "t_initial": "0",
+                "t_final": "60",
+                "param_coeffs": "0.023,-0.05,-0.05,0.06,-0.012"
+            }
+        },
+        "comm_on": true,
+        "manual_speed": "50"
+    }
+}

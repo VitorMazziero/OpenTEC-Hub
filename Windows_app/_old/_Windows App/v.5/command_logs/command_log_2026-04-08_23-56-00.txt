@@ -1,0 +1,2 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: Monitoramento de biomassa ativado

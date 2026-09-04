@@ -1,0 +1,89 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_EVT]: estado: CONNECTED [USB]
+[PY_EVT]: USB: conectado com sucesso
+[12:19:52] Tx: {"dataDelay":2000,"agitatorAuto":0,"agitatorReEnablePot":0,"agitatorPercent":80,"agitatorDir":1,"agitatorOn":0}
+[12:19:54] Rx: {"Time":2.1,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:19:54] Tx: {"pHCal":"4.56"}
+[12:19:56] Rx: {"Time":4.1,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:19:58] Rx: {"Time":6.1,"Tempval":23.70,"pHval":10298.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:00] Rx: {"Time":8.1,"Tempval":23.70,"pHval":10295.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:02] Rx: {"Time":10.1,"Tempval":23.70,"pHval":10302.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:04] Rx: {"Time":12.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:06] Rx: {"Time":14.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:08] Rx: {"Time":16.2,"Tempval":23.70,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:10] Rx: {"Time":18.2,"Tempval":23.70,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:12] Rx: {"Time":20.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:14] Rx: {"Time":22.2,"Tempval":23.70,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:16] Rx: {"Time":24.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:18] Rx: {"Time":26.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:20] Rx: {"Time":28.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:22] Rx: {"Time":30.2,"Tempval":23.70,"pHval":10289.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:24] Rx: {"Time":32.2,"Tempval":23.70,"pHval":10428.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:24] Tx: {"pHCal":"4.63"}
+[12:20:26] Rx: {"Time":34.2,"Tempval":23.80,"pHval":10364.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:26] Tx: {"pHCal":"4.59"}
+[12:20:28] Rx: {"Time":36.2,"Tempval":23.80,"pHval":10304.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:28] Tx: {"pHCal":"4.56"}
+[12:20:30] Rx: {"Time":38.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:32] Rx: {"Time":40.2,"Tempval":23.80,"pHval":10301.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:34] Rx: {"Time":42.2,"Tempval":23.80,"pHval":10303.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:36] Rx: {"Time":44.2,"Tempval":23.80,"pHval":10302.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:38] Rx: {"Time":46.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:40] Rx: {"Time":48.2,"Tempval":23.80,"pHval":10301.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:42] Rx: {"Time":50.3,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[ESP32_INFO]: Parametros salvos na NVS (Flash)
+[12:20:46] Rx: {"Time":54.3,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:48] Rx: {"Time":56.3,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[ESP32_INFO]: Heap livre: 232284
+[12:20:52] Rx: {"Time":60.3,"Tempval":23.80,"pHval":10301.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:54] Rx: {"Time":62.3,"Tempval":23.80,"pHval":10303.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:56] Rx: {"Time":64.5,"Tempval":23.80,"pHval":10302.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:20:58] Rx: {"Time":67.0,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[PY_AVISO]: Módulo TECNAL offline: falha de comunicação UART no ESP32
+[PY_AVISO]: Alarme: Falha no SensorModule
+[12:21:00] Rx: {"Time":68.2,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:02] Rx: {"Time":70.2,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:04] Rx: {"Time":72.5,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:06] Rx: {"Time":74.2,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:08] Rx: {"Time":76.2,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:10] Rx: {"Time":78.5,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:12] Rx: {"Time":80.2,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:14] Rx: {"Time":82.2,"Tempval":-1.00,"pHval":-1.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":false}
+[12:21:16] Rx: {"Time":84.4,"Tempval":23.30,"pHval":10463.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[PY_EVT]: Módulo TECNAL voltou online; alarme cancelado
+[12:21:16] Tx: {"pHCal":"4.64"}
+[12:21:18] Rx: {"Time":86.3,"Tempval":23.60,"pHval":10311.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:18] Tx: {"pHCal":"4.57"}
+[12:21:37] Rx: {"Time":104.4,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:37] Tx: {"pHCal":"4.56"}
+[12:21:38] Rx: {"Time":106.4,"Tempval":23.80,"pHval":10298.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:41] Rx: {"Time":108.4,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:43] Rx: {"Time":110.4,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:45] Rx: {"Time":112.4,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:47] Rx: {"Time":114.4,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:49] Rx: {"Time":116.5,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[ESP32_INFO]: Heap livre: 232276
+[ESP32_INFO]: Parametros salvos na NVS (Flash)
+[12:21:55] Rx: {"Time":122.4,"Tempval":23.80,"pHval":10298.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:57] Rx: {"Time":124.4,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:21:59] Rx: {"Time":126.5,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:01] Rx: {"Time":128.5,"Tempval":23.70,"pHval":10301.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:03] Rx: {"Time":130.5,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:05] Rx: {"Time":132.5,"Tempval":23.80,"pHval":10302.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:07] Rx: {"Time":134.5,"Tempval":23.70,"pHval":10317.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:07] Tx: {"pHCal":"4.57"}
+[12:22:09] Rx: {"Time":136.5,"Tempval":23.70,"pHval":10424.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:09] Tx: {"pHCal":"4.62"}
+[12:22:11] Rx: {"Time":138.5,"Tempval":23.70,"pHval":10364.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:11] Tx: {"pHCal":"4.59"}
+[12:22:13] Rx: {"Time":140.5,"Tempval":23.80,"pHval":10302.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:27] Tx: {"pHCal":"4.56"}
+[12:22:29] Rx: {"Time":156.6,"Tempval":23.80,"pHval":10310.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:29] Tx: {"pHCal":"4.57"}
+[12:22:31] Rx: {"Time":158.6,"Tempval":23.80,"pHval":10301.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:31] Tx: {"pHCal":"4.56"}
+[12:22:33] Rx: {"Time":160.6,"Tempval":23.80,"pHval":10298.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:35] Rx: {"Time":162.6,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:22:37] Rx: {"Time":164.6,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}

@@ -1,0 +1,15 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: Controle de vazão proporcional ativado
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_EVT]: estado: CONNECTED [USB]
+[PY_EVT]: USB: conectado com sucesso
+[PY_EVT]: Cascata kLa ativada
+[PY_EVT]: Configurações da Cascata kLa recarregadas.
+[00:07:17] Rx: {"Tempval":33.938,"Oxyval":1504.24,"pHval":6.9933,"Pressure":761.19,"FlowRate":5.936,"Distance":42.32,"Antifoam":0.0,"BiomassAbs":0.0942,"PumpFlow":98.939,"PumpVol":177.549,"Time":2603.75,"FlowVoltage":0.9735,"raw":6173,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[00:07:19] Rx: {"Tempval":33.75,"Oxyval":1505.48,"pHval":6.9932,"Pressure":761.3,"FlowRate":5.446,"Distance":42.14,"Antifoam":0.0,"BiomassAbs":0.0934,"PumpFlow":90.77,"PumpVol":177.73,"Time":2605.75,"FlowVoltage":0.9377,"raw":6121,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[00:07:21] Rx: {"Tempval":33.567,"Oxyval":1507.89,"pHval":6.987,"Pressure":761.49,"FlowRate":5.398,"Distance":42.41,"Antifoam":0.0,"BiomassAbs":0.0938,"PumpFlow":89.975,"PumpVol":177.91,"Time":2607.75,"FlowVoltage":0.9322,"raw":6149,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[00:07:23] Rx: {"Tempval":33.403,"Oxyval":1510.17,"pHval":6.9833,"Pressure":761.47,"FlowRate":4.808,"Distance":42.71,"Antifoam":0.0,"BiomassAbs":0.0933,"PumpFlow":80.131,"PumpVol":178.07,"Time":2609.75,"FlowVoltage":0.8851,"raw":6115,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[00:07:25] Rx: {"Tempval":33.248,"Oxyval":1512.9,"pHval":6.9728,"Pressure":761.41,"FlowRate":4.32,"Distance":42.88,"Antifoam":0.0,"BiomassAbs":0.0929,"PumpFlow":72.007,"PumpVol":178.214,"Time":2611.75,"FlowVoltage":0.8442,"raw":6086,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[00:07:27] Rx: {"Tempval":33.104,"Oxyval":1515.9,"pHval":6.9716,"Pressure":761.26,"FlowRate":3.921,"Distance":43.03,"Antifoam":0.0,"BiomassAbs":0.0915,"PumpFlow":65.345,"PumpVol":178.345,"Time":2613.75,"FlowVoltage":0.8148,"raw":5998,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}
+[00:07:29] Rx: {"Tempval":32.923,"Oxyval":1519.58,"pHval":6.9696,"Pressure":761.29,"FlowRate":3.686,"Distance":43.0,"Antifoam":0.0,"BiomassAbs":0.0951,"PumpFlow":61.432,"PumpVol":178.468,"Time":2615.75,"FlowVoltage":0.7972,"raw":6234,"it_ms":50,"pwm_pct":50.0,"hd_mode":false}

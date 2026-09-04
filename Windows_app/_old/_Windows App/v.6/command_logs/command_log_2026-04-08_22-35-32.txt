@@ -1,0 +1,147 @@
+[PY_INFO]: Atraso de leitura definido: 1.0 s
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_AVISO]: USB: handshake falhou
+[PY_EVT]: estado: RECONNECTING [USB]
+[PY_EVT]: iniciando ciclo de reconexão (backup)
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #2 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #3 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #4 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #5 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #6 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #7 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #8 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #9 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #10 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #11 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #12 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #13 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #14 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #15 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #16 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #17 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #18 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #19 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #20 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #21 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #22 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #23 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #24 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #25 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #26 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #27 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #28 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #29 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #30 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #31 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #32 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #33 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #34 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #35 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #36 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #37 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #38 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #39 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #40 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #41 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #42 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #43 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #44 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #45 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #46 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #47 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s
+[PY_EVT]: Backup: tentando USB
+[PY_EVT]: USB: tentativa #48 (backup)
+[PY_INFO]: Backup: próxima tentativa em 5.0s

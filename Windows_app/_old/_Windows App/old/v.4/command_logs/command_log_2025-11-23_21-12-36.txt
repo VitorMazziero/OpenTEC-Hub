@@ -1,0 +1,11 @@
+[20:47:16] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[20:47:16] Calibração de pH atualizada: slope=0.0005318771718317851, intercept=-0.6393518190199288
+[20:47:16] Controle de vazão proporcional desativado.
+[20:47:16] Cadência de leitura definida para ~1.00s.
+Traceback (most recent call last):
+  File "c:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\ui\graphs_page.py", line 161, in update_data
+    def update_data(self):
+    
+KeyboardInterrupt
+
+[21:12:36] Desconectado.

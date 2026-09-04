@@ -1,0 +1,222 @@
+{
+    "Configurations": {
+        "ip_edit": "192.168.4.1",
+        "data_delay_edit": "1000",
+        "oxy_cal_a": "0.0305473419314",
+        "oxy_cal_b": "-25.09136520919",
+        "com_port_edit": "Nenhuma porta dispon\u00edvel",
+        "baud_rate_edit": "115200",
+        "data_bits_edit": "8",
+        "stop_bits_edit": "1",
+        "parity_edit": "n",
+        "theme_combo": "Light",
+        "ph_cal_slope": "0.0005000000000",
+        "ph_cal_intercept": "-0.646700000000",
+        "backup_enabled": true,
+        "backup_delay_s": "5",
+        "log_txt_path": "C:/Users/vitor/\u00c1rea de Trabalho/sts.txt"
+    },
+    "ParameterSettings": {
+        "Temperature": {
+            "line_edit": "37"
+        },
+        "Motor": {
+            "line_edit": "100",
+            "cascade_min": "200",
+            "cascade_max": "800"
+        },
+        "Pressure": {
+            "line_edit": "3"
+        },
+        "Oxygen": {
+            "line_edit": "30"
+        },
+        "Flowmeter": {
+            "line_edit": "2.5",
+            "Max Flow:": "50",
+            "cascade_min": "1",
+            "cascade_max": "15"
+        },
+        "Distance": {
+            "line_edit": "40"
+        },
+        "pH": {
+            "ph_setpoint": "7",
+            "ph_error": "0.15",
+            "ph_op_time": "2",
+            "ph_disable_time": "30",
+            "ph_speed": "70"
+        },
+        "Nutrient": {
+            "nutri_op_time": "999",
+            "nutri_disable_time": "1",
+            "nutri_op_cycle": "500",
+            "nutri_disable_cycle": "1",
+            "nutri_speed": "99"
+        },
+        "Antifoam": {
+            "antifoam_op_time": "5",
+            "antifoam_disable_time": "20",
+            "antifoam_speed": "99"
+        },
+        "Agitator": {
+            "use_auto": false,
+            "percent": "80",
+            "re_enable_pot": true
+        },
+        "Biomass": {
+            "comm_on": false,
+            "low_thresh": "10000",
+            "high_thresh": "40000",
+            "opt_thresh": "25000"
+        }
+    },
+    "ExperimentalValues": {
+        "rpm_max": "800",
+        "rpm_mid": "500",
+        "rpm_min": "200",
+        "flow_min": "5",
+        "flow_mid": "10",
+        "flow_max": "15"
+    },
+    "GradientAscend": {
+        "entry_grid_res": "16",
+        "entry_rising_grid_res": "600",
+        "entry_step_multiplier": "120",
+        "entry_min_step": "16",
+        "entry_max_iter": "1000",
+        "entry_quiver_scale": "100",
+        "entry_quiver_color": "black",
+        "entry_quiver_width": "0.006",
+        "combo_interp_method": "cubic",
+        "combo_colormap": "viridis"
+    },
+    "PIDConfig": {
+        "C_star": 100.0,
+        "Kp": 0.01,
+        "Ki": 0.0001,
+        "Kd": 0.05
+    },
+    "pHCalibration": {
+        "slope": "1",
+        "intercept": "0"
+    },
+    "KlaInteractivePoints": [
+        [
+            2.0,
+            200.0,
+            9.6
+        ],
+        [
+            2.0,
+            500.0,
+            52.77
+        ],
+        [
+            2.0,
+            800.0,
+            125.91488373853875
+        ],
+        [
+            12.0,
+            200.0,
+            29.703672437604574
+        ],
+        [
+            12.0,
+            500.0,
+            165.27
+        ],
+        [
+            12.0,
+            800.0,
+            196.3393778960431
+        ],
+        [
+            7.0,
+            800.0,
+            173.66874674368677
+        ],
+        [
+            7.0,
+            200.0,
+            19.26
+        ],
+        [
+            7.0,
+            500.0,
+            115.37
+        ]
+    ],
+    "CascadeConfig": {
+        "history_pts": "30",
+        "median_filter_win": "5",
+        "min_pts_regression": "10",
+        "prediction_horizon_s": "30.0",
+        "outer_loop_gain": "0.1",
+        "derivative_tau_s": "40.0",
+        "max_integral": "200.0",
+        "min_integral": "-200.0",
+        "integral_window": "60"
+    },
+    "GraphConfig": {
+        "grid_res": "32",
+        "rising_grid_res": "600",
+        "interp_method": "cubic",
+        "step_multiplier": "100",
+        "min_step": "10",
+        "max_iter": "10000",
+        "quiver_scale": "400",
+        "quiver_color": "black",
+        "quiver_width": "0.0015",
+        "colormap": "inferno"
+    },
+    "GassingOutConfig": {},
+    "Filters": {
+        "spike_abs_threshold_ph": "500.0",
+        "spike_abs_threshold_oxy": "150.0",
+        "follow_tolerance_ph": "200.0",
+        "follow_tolerance_oxy": "100.0",
+        "spike_confirm_runs": "5"
+    },
+    "SimpleCascadePID": {
+        "Agit": {
+            "P": "0.1",
+            "I": "0.004",
+            "D": "0.75"
+        },
+        "Aera": {
+            "P": "0.001",
+            "I": "0.0002",
+            "D": "0.0075"
+        }
+    },
+    "pid_agitation": {
+        "Kp": "0.0100",
+        "Ki": "0.0002",
+        "Kd": "0.7500",
+        "History Pts": "20",
+        "Median Filter Win": "5",
+        "Min Pts Regression": "5",
+        "Prediction Horizon (s)": "30.0",
+        "Outer Loop Gain": "0.1",
+        "Derivative Tau (s)": "40.0",
+        "Max Integral": "20.0",
+        "Min Integral": "-20.0",
+        "Integral Window": "190"
+    },
+    "pid_aeration": {
+        "Kp": "0.00050",
+        "Ki": "0.00002",
+        "Kd": "0.00750",
+        "History Pts": "20",
+        "Median Filter Win": "5",
+        "Min Pts Regression": "5",
+        "Prediction Horizon (s)": "30.0",
+        "Outer Loop Gain": "0.1",
+        "Derivative Tau (s)": "40.0",
+        "Max Integral": "20.0",
+        "Min Integral": "-20.0",
+        "Integral Window": "190"
+    }
+}

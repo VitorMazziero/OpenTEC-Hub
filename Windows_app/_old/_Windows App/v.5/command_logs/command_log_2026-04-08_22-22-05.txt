@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\ui\parameter_settings_page.py", line 516, in on_field_changed
+    self.window().on_editing_finished()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 979, in on_editing_finished
+    self.schedule_preferences_save()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.5\main.py", line 202, in schedule_preferences_save
+    self._save_timer.start()
+    ^^^^^^^^^^^^^^^^
+AttributeError: 'MainWindow' object has no attribute '_save_timer'
+

@@ -1,0 +1,17 @@
+[15:38:34] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[15:38:34] Calibração de pH atualizada: slope=0.0005012405704, intercept=-0.600385955239
+[15:38:34] Controle de vazão proporcional desativado.
+[15:38:34] Cadência de leitura definida para ~1.00s.
+[15:38:49] WiFi: tentativa #1 iniciada.
+[15:38:49] WiFi: worker iniciado.
+[15:38:49] WiFi: conectando a 192.168.4.1 …
+[15:38:49] WiFi: iniciando handshake (POST /command com comTest)…
+[15:38:49] WiFi: handshake tentativa 1/3 → enviando comTest…
+[15:38:49] WiFi: handshake tentativa 1/3 → 'OK'
+[15:38:49] WiFi: conectado em 192.168.4.1
+[15:38:49] WiFi: handshake OK.
+[15:38:49] Backup/retry pausado (conectado). Será reativado automaticamente em caso de falha.
+[15:38:49] WiFi: worker finalizado.
+[15:38:51] {"Time":16272.3,"Tempval":30.50,"pHval":15968.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.1912,"FlowRate":2.4711,"FlowSetpoint":2.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[15:38:55] {"Time":16276.1,"Tempval":30.50,"pHval":15955.00,"Oxyval":4026.0,"Antifoam":-1,"Pressure":0.0,"FlowVoltage":0.1918,"FlowRate":2.4765,"FlowSetpoint":2.0000,"Valve1":0,"Valve2":0,"SensorCommOK":true}
+[15:38:56] Desconectado.

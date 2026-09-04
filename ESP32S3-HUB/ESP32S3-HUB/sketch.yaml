@@ -1,0 +1,10 @@
+profiles:
+  esp32s3:
+    fqbn: esp32:esp32:esp32s3
+    platforms:
+      - platform: esp32:esp32 (3.3.11)
+    libraries:
+      - Async TCP (3.4.2)
+      - ESP Async WebServer (3.7.7)
+default_profile: esp32s3
+

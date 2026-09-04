@@ -1,0 +1,40 @@
+[PY_INFO]: Atraso de leitura definido: 2.0 s
+[PY_EVT]: USB: tentativa #1 de conexão
+[PY_EVT]: estado: CONNECTING [USB]
+[PY_EVT]: estado: CONNECTED [USB]
+[PY_EVT]: USB: conectado com sucesso
+[12:27:22] Tx: {"dataDelay":2000,"agitatorAuto":0,"agitatorReEnablePot":0,"agitatorPercent":80,"agitatorDir":1,"agitatorOn":0,"oxygenMonitor":40.0}
+[12:27:23] Rx: {"Time":2.1,"Tempval":23.80,"pHval":10299.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:23] Tx: {"pHCal":"4.56"}
+[12:27:25] Rx: {"Time":4.1,"Tempval":23.70,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:27] Rx: {"Time":6.1,"Tempval":23.70,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:29] Rx: {"Time":8.1,"Tempval":23.70,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:31] Rx: {"Time":10.2,"Tempval":23.70,"pHval":10299.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:33] Rx: {"Time":12.1,"Tempval":23.70,"pHval":10301.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:35] Rx: {"Time":14.1,"Tempval":23.70,"pHval":10301.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:37] Rx: {"Time":16.1,"Tempval":23.70,"pHval":10299.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:39] Rx: {"Time":18.2,"Tempval":23.70,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:41] Rx: {"Time":20.2,"Tempval":23.70,"pHval":10301.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:43] Rx: {"Time":22.2,"Tempval":23.80,"pHval":10299.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:45] Rx: {"Time":24.2,"Tempval":23.80,"pHval":10302.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:47] Rx: {"Time":26.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:48] Tx: {"oxygenMonitor":0}
+[12:27:49] Rx: {"Time":28.2,"Tempval":23.80,"pHval":10309.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:49] Tx: {"pHCal":"4.57"}
+[12:27:57] Rx: {"Time":36.2,"Tempval":23.80,"pHval":10301.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:27:57] Tx: {"pHCal":"4.56"}
+[12:27:59] Rx: {"Time":38.2,"Tempval":23.80,"pHval":10303.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:28:01] Rx: {"Time":40.2,"Tempval":23.80,"pHval":10320.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:28:01] Tx: {"pHCal":"4.57"}
+[12:28:03] Rx: {"Time":42.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:28:03] Tx: {"pHCal":"4.56"}
+[12:28:04] Tx: {"oxygenMonitor":40.0}
+[12:28:05] Rx: {"Time":44.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":-1.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[PY_EVT]: Configurações da Cascata kLa recarregadas.
+[12:28:07] Rx: {"Time":46.2,"Tempval":23.80,"pHval":10304.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:28:09] Rx: {"Time":48.2,"Tempval":23.80,"pHval":10301.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:28:11] Rx: {"Time":50.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[12:28:13] Rx: {"Time":52.2,"Tempval":23.80,"pHval":10300.00,"Oxyval":4092.0,"Antifoam":-1,"Pressure":0.0,"SensorCommOK":true}
+[PY_EVT]: Conexão parada pelo usuário
+[PY_EVT]: estado: DISCONNECTED [USB]
+[PY_EVT]: Desconectado a pedido do usuário

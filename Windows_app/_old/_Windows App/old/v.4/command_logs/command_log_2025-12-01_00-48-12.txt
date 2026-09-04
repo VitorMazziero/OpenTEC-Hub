@@ -1,0 +1,42 @@
+[00:48:08] Calibração de O₂ atualizada: a=0.0305473419314, b=-25.09136520919
+[00:48:08] Calibração de pH atualizada: slope=0.0005012405704, intercept=-0.600385955239
+[00:48:08] Controle de vazão proporcional desativado.
+[00:48:08] Cadência de leitura definida para ~1.00s.
+Traceback (most recent call last):
+  File "c:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\main.py", line 190, in on_tab_changed
+    self.load_kla_cascade_tab()
+  File "c:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\main.py", line 263, in load_kla_cascade_tab
+    self.main_tab_widget.setCurrentIndex(self.kla_cascade_tab_index)
+  File "c:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\kLa_methods\kla_cascade_page.py", line 532, in showEvent
+    self.run_gradient_ascent()
+  File "c:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\kLa_methods\kla_cascade_page.py", line 765, in run_gradient_ascent
+    self._plot_gradient_field()
+  File "c:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\kLa_methods\kla_cascade_page.py", line 593, in _plot_gradient_field
+    ax.plot(self.Q_path_rise, self.N_path_rise, color=path_color, linestyle='-', linewidth=2, label='Path')
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\axes\_axes.py", line 1777, in plot
+    lines = [*self._get_lines(self, *args, data=data, **kwargs)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\axes\_base.py", line 297, in __call__
+    yield from self._plot_args(
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\axes\_base.py", line 546, in _plot_args
+    return [l[0] for l in result]
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\axes\_base.py", line 546, in <listcomp>
+    return [l[0] for l in result]
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\axes\_base.py", line 539, in <genexpr>
+    result = (make_artist(axes, x[:, j % ncx], y[:, j % ncy], kw,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\axes\_base.py", line 338, in _make_line
+    seg = mlines.Line2D(x, y, **kw)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\lines.py", line 390, in __init__
+    self.set_color(color)
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\lines.py", line 1081, in set_color
+    mcolors._check_color_like(color=color)
+  File "C:\Users\vitor\OneDrive\_PG_UNESP\_Automacao_Controle\TECNAL_control\_Wifi Hub\Software\_Windows App\v.4\venv\Lib\site-packages\matplotlib\colors.py", line 249, in _check_color_like
+    raise ValueError(
+ValueError: Error calling Python override of QWidget::showEvent(): 'dark red' is not a valid value for color: supported inputs are (r, g, b) and (r, g, b, a) 0-1 float tuples; '#rrggbb', '#rrggbbaa', '#rgb', '#rgba' strings; named color strings; string reprs of 0-1 floats for grayscale values; 'C0', 'C1', ... strings for colors of the color cycle; and pairs combining one of the above with an alpha value
+
+[00:48:12] Desconectado.

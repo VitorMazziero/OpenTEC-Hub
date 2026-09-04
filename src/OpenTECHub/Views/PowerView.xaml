@@ -67,6 +67,29 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="SingleLineSegmentedControlStyle" TargetType="TabControl">
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SegmentedItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" HorizontalAlignment="Left"
+                                    Padding="2" CornerRadius="{DynamicResource RadiusSmall}"
+                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                    BorderThickness="1">
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                              VerticalScrollBarVisibility="Disabled"
+                                              Focusable="False">
+                                    <StackPanel Orientation="Horizontal" IsItemsHost="True" />
+                                </ScrollViewer>
+                            </Border>
+                            <ContentPresenter ContentSource="SelectedContent" Margin="0,12,0,0" />
+                        </DockPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="8,6">
@@ -211,7 +234,7 @@
                 </Grid.ColumnDefinitions>
 
             <!-- Fluxo do operador: montagem, aquisição, condições e validação. -->
-            <TabControl Grid.Column="0" Style="{StaticResource SegmentedControlStyle}">
+            <TabControl Grid.Column="0" Style="{StaticResource SingleLineSegmentedControlStyle}">
                 <TabItem Header="Montagem" ToolTip="1. Selecione o ensaio e descreva fluido, vaso e impelidores">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
                         <StackPanel>
@@ -432,7 +455,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Validação e Eficiência de kLa" ToolTip="3. Calibre o torque, meça a tara, importe o mapa de kLa e avalie a eficiência">
+                <TabItem Header="Validação" ToolTip="3. Calibre o torque, meça a tara, importe o mapa de kLa e avalie a eficiência">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
                         <StackPanel>
 

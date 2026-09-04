@@ -32,6 +32,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _tareCancellation;
     private PowerTareCaptureController? _tareCapture;
     private long _tarePointStartedTimestamp;
+    private long _tareSweepStartedTimestamp;
     private double _tareLastValidSeconds = double.NaN;
     private int _tarePointIndex;
     private int _tarePointTotal;
@@ -2241,6 +2242,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var cancellation = _tareCancellation;
         IsTareRunning = true;
         CurrentTarePoints.Clear();
+        LivePoints.Clear();
+        _tareSweepStartedTimestamp = Stopwatch.GetTimestamp();
         var points = new List<TarePoint>();
         var rawSamples = new List<TareSample>();
         _tarePointTotal = targets.Count;
@@ -2327,6 +2330,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             _tareCapture = null;
             SafeParkAndReleaseAgitation("Tara finalizada", settings.RestoreServoPollMs);
             IsTareRunning = false;
+            IsAccumulating = false;
+            _tareSweepStartedTimestamp = 0;
             if (ReferenceEquals(_tareCancellation, cancellation))
             {
                 _tareCancellation.Dispose();
@@ -2429,6 +2434,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         ? 0.0
         : Stopwatch.GetElapsedTime(_tarePointStartedTimestamp).TotalSeconds;
 
+    private double TareSweepElapsedSeconds() => _tareSweepStartedTimestamp == 0
+        ? 0.0
+        : Stopwatch.GetElapsedTime(_tareSweepStartedTimestamp).TotalSeconds;
+
     private void RefreshCurrentTarePoints()
     {
         CurrentTarePoints.Clear();
@@ -2483,6 +2492,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.FlowSetpoint(SinglePointFlowLpm, 10.0));
             }
             IsSinglePointActive = true;
+            LivePoints.Clear();
+            _tareSweepStartedTimestamp = Stopwatch.GetTimestamp();
             ValidationMessage = $"Ponto único em curso: {SinglePointRpm:F0} rpm.";
         }
         catch (Exception ex)
@@ -2502,6 +2513,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             }
             SafeParkAndReleaseAgitation("Ponto único finalizado");
             IsSinglePointActive = false;
+            _tareSweepStartedTimestamp = 0;
             ValidationMessage = "Ponto único encerrado; eixo desocupado.";
         }
         catch (Exception ex)
@@ -2802,6 +2814,48 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             {
                 tareCapture.Add(DateTimeOffset.UtcNow, elapsed, snapshot.ServoTorquePct, snapshot.ServoRpm);
                 UpdateTareProgressMessage();
+
+                var sweepElapsed = TareSweepElapsedSeconds();
+                var torqueNm = snapshot.ServoTorquePct / 100.0 * (CurrentTest?.MotorRatedTorqueNm ?? 1.27);
+                var shaftPowerW = 2.0 * Math.PI * (snapshot.ServoRpm / 60.0) * torqueNm;
+                var point = new PowerDataPoint(
+                    DateTimeOffset.UtcNow,
+                    sweepElapsed,
+                    _tareCapture.State == TareCaptureState.Accumulating ? PowerRunPhase.AccumulatingToTarget : PowerRunPhase.SettlingTorque,
+                    snapshot.ServoRpm,
+                    snapshot.ServoTorquePct,
+                    torqueNm,
+                    shaftPowerW,
+                    ValidOptional(snapshot.FlowRate),
+                    _tareCapture.State == TareCaptureState.Accumulating,
+                    _tarePointIndex);
+                LivePoints.Add(point);
+                while (LivePoints.Count > 6000)
+                {
+                    LivePoints.RemoveAt(0);
+                }
+                IsAccumulating = _tareCapture.State == TareCaptureState.Accumulating;
+            }
+        }
+        else if (IsSinglePointActive && HasValidTareSample(snapshot))
+        {
+            var sweepElapsed = TareSweepElapsedSeconds();
+            var torqueNm = snapshot.ServoTorquePct / 100.0 * (CurrentTest?.MotorRatedTorqueNm ?? 1.27);
+            var shaftPowerW = 2.0 * Math.PI * (snapshot.ServoRpm / 60.0) * torqueNm;
+            var point = new PowerDataPoint(
+                DateTimeOffset.UtcNow,
+                sweepElapsed,
+                PowerRunPhase.SettlingTorque,
+                snapshot.ServoRpm,
+                snapshot.ServoTorquePct,
+                torqueNm,
+                shaftPowerW,
+                ValidOptional(snapshot.FlowRate),
+                true);
+            LivePoints.Add(point);
+            while (LivePoints.Count > 6000)
+            {
+                LivePoints.RemoveAt(0);
             }
         }
 

@@ -218,7 +218,8 @@ public sealed class PowerNavigationContractTests
         Assert.Contains("<TextBlock Text=\"rpm\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TextBlock Text=\"W\"", xaml, StringComparison.Ordinal);
 
-        var validationTab = ReadTabContent(xaml, "Validação e Eficiência de kLa");
+        var validationTab = ReadTabContent(xaml, "Validação");
+        Assert.Contains("SingleLineSegmentedControlStyle", xaml, StringComparison.Ordinal);
         Assert.Contains("Rastreabilidade", validationTab, StringComparison.Ordinal);
         Assert.Contains("Calibração estática", validationTab, StringComparison.Ordinal);
         Assert.Contains("Ensaio de tara no ar", validationTab, StringComparison.Ordinal);
@@ -309,6 +310,53 @@ public sealed class PowerNavigationContractTests
             Assert.Equal(0, vm.SelectedMainTabIndex);
             Assert.True(vm.IsMappingTabSelected);
             Assert.False(vm.IsModelsTabSelected);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Tare_samples_are_published_to_live_points_for_torque_chart()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PowerTareLive_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var inner = new RecordingDeviceService();
+            using var arbiter = new CommandArbiter(inner, TimeProvider.System);
+            var store = new PowerTestStore(root);
+            var doc = store.CreateTest("Ensaio Tare Live", new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
+            using var vm = new PowerTestViewModel(store, inner, arbiter);
+            vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+            vm.LoadSelectedTestCommand.Execute(null);
+
+            Assert.Empty(vm.LivePoints);
+
+            vm.SinglePointRpm = 200;
+            vm.StartSinglePointCommand.Execute(null);
+            Assert.True(vm.IsSinglePointActive);
+
+            inner.PushTelemetry(new SensorSnapshot
+            {
+                HasServoTelemetry = true,
+                HasServoSample = true,
+                ServoOnline = true,
+                ServoCommEnabled = true,
+                ServoRpm = 199.8,
+                ServoTorquePct = 1.45,
+            });
+
+            Assert.NotEmpty(vm.LivePoints);
+            var sample = vm.LivePoints.Last();
+            Assert.Equal(199.8, sample.RpmMeasured);
+            Assert.Equal(1.45, sample.TorquePercent);
+
+            vm.StopSinglePointCommand.Execute(null);
+            Assert.False(vm.IsSinglePointActive);
         }
         finally
         {

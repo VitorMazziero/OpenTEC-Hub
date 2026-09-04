@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -25,6 +26,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private readonly IPowerAnalysisEngine _analysis;
     private readonly IKlaProfileStore? _klaStore;
     private SensorSnapshot? _latestSnapshot;
+    private readonly HashSet<PowerCondition> _flowConfiguredConditions = [];
     private long _lastPreflightTick;
     private bool _disposed;
 
@@ -73,8 +75,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _analysis = analysis ?? new PowerAnalysisEngine();
         _klaStore = klaStore;
-        PowerCondition.LiquidVolumeLProvider = () => LiquidVolumeL;
-        PowerCondition.OnVvmValidationFailed = msg => ValidationMessage = msg;
         TestRootDirectory = store.RootDirectory;
 
         _device.TelemetryReceived += OnTelemetryReceived;
@@ -87,6 +87,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         RefreshOwnership();
         RefreshTests();
+        Conditions.CollectionChanged += OnConditionsCollectionChanged;
         Impellers.CollectionChanged += (_, e) =>
         {
             if (e.NewItems is not null)
@@ -107,6 +108,38 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         UpdateRunnerState();
+    }
+
+    private void OnConditionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var condition in _flowConfiguredConditions)
+            {
+                condition.ConfigureFlowConversion(null);
+            }
+            _flowConfiguredConditions.Clear();
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (PowerCondition condition in e.OldItems)
+            {
+                condition.ConfigureFlowConversion(null);
+                _flowConfiguredConditions.Remove(condition);
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (PowerCondition condition in e.NewItems)
+            {
+                condition.ConfigureFlowConversion(
+                    () => LiquidVolumeL,
+                    message => ValidationMessage = message);
+                _flowConfiguredConditions.Add(condition);
+            }
+        }
     }
 
     private void OnImpellerPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -663,7 +696,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
             ValidationMessage = AvailableKlaMaps.Count == 0
                 ? "Nenhum mapa de kLa com âncoras foi encontrado no workspace."
-                : null;
+                : "";
         }
         catch (Exception ex)
         {
@@ -2175,6 +2208,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         _disposed = true;
+        Conditions.CollectionChanged -= OnConditionsCollectionChanged;
+        foreach (var condition in _flowConfiguredConditions)
+        {
+            condition.ConfigureFlowConversion(null);
+        }
+        _flowConfiguredConditions.Clear();
         _device.TelemetryReceived -= OnTelemetryReceived;
         _arbiter.OwnershipChanged -= OnOwnershipChanged;
         if (_runner is not null) { _runner.StateChanged -= OnRunnerStateChanged; _runner.DataPointAdded -= OnDataPointAdded; }

@@ -277,8 +277,22 @@ public sealed record PowerTestSettings
 /// <summary>One planned row of the conditions table (§7.3). Gas is optional and per-row.</summary>
 public sealed class PowerCondition : INotifyPropertyChanged
 {
-    public static Func<double>? LiquidVolumeLProvider { get; set; }
-    public static Action<string>? OnVvmValidationFailed { get; set; }
+    private Func<double>? _liquidVolumeLProvider;
+    private Action<string>? _onVvmValidationFailed;
+
+    /// <summary>
+    /// Attaches the UI-specific liquid-volume context used only for editing the L/min/vvm echo.
+    /// The callbacks are deliberately instance-scoped: conditions can belong to different tests,
+    /// windows, or test fixtures at the same time without overwriting each other's conversion state.
+    /// They are runtime helpers and are not part of the persisted assay contract.
+    /// </summary>
+    public void ConfigureFlowConversion(
+        Func<double>? liquidVolumeLProvider,
+        Action<string>? onVvmValidationFailed = null)
+    {
+        _liquidVolumeLProvider = liquidVolumeLProvider;
+        _onVvmValidationFailed = onVvmValidationFailed;
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null)
@@ -315,7 +329,7 @@ public sealed class PowerCondition : INotifyPropertyChanged
                 {
                     GasMode = PowerGasMode.Gassed;
                 }
-                var vol = LiquidVolumeLProvider?.Invoke() ?? 0;
+                var vol = _liquidVolumeLProvider?.Invoke() ?? 0;
                 if (vol > 0 && value.HasValue)
                 {
                     _gasFlowVvm = Math.Round(value.Value / vol, 4);
@@ -337,9 +351,9 @@ public sealed class PowerCondition : INotifyPropertyChanged
         get => _gasFlowVvm;
         set
         {
-            if (value.HasValue && LiquidVolumeLProvider is not null && LiquidVolumeLProvider.Invoke() <= 0)
+            if (value.HasValue && _liquidVolumeLProvider is not null && _liquidVolumeLProvider.Invoke() <= 0)
             {
-                OnVvmValidationFailed?.Invoke("Volume útil não preenchido: não é possível converter vvm em L/min sem o volume do líquido.");
+                _onVvmValidationFailed?.Invoke("Volume útil não preenchido: não é possível converter vvm em L/min sem o volume do líquido.");
             }
 
             if (!Nullable.Equals(_gasFlowVvm, value))
@@ -350,7 +364,7 @@ public sealed class PowerCondition : INotifyPropertyChanged
                 {
                     GasMode = PowerGasMode.Gassed;
                 }
-                var vol = LiquidVolumeLProvider?.Invoke() ?? 0;
+                var vol = _liquidVolumeLProvider?.Invoke() ?? 0;
                 if (vol > 0 && value.HasValue)
                 {
                     _gasFlowLpm = Math.Round(value.Value * vol, 3);

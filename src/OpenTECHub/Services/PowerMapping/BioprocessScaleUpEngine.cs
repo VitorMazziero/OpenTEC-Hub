@@ -47,6 +47,10 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
                 "Sem regra de gás: um critério de escala sozinho fixa uma equação para duas incógnitas " +
                 "(N e Q_g). Defina vvm, v_s ou Q_g para tornar a solução única.");
         }
+        else if (!double.IsFinite(target.GasRuleValue))
+        {
+            refusals.Add("O valor da regra de gás precisa ser finito.");
+        }
         else if (target.GasRule != ScaleUpGasRule.FixedFlow && target.GasRuleValue <= 0)
         {
             refusals.Add("A regra de gás precisa de um valor positivo.");
@@ -56,32 +60,34 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
             refusals.Add("A vazão fixa de gás não pode ser negativa.");
         }
 
-        if (target.LiquidVolumeM3 <= 0)
+        if (!double.IsFinite(target.LiquidVolumeM3) || target.LiquidVolumeM3 <= 0)
         {
             refusals.Add("Volume útil do reator alvo não informado.");
         }
 
-        if (target.VesselDiameterM <= 0)
+        if (!double.IsFinite(target.VesselDiameterM) || target.VesselDiameterM <= 0)
         {
             refusals.Add("Diâmetro do vaso alvo (T) não informado.");
         }
 
-        if (target.ImpellerDiameterM <= 0)
+        if (!double.IsFinite(target.ImpellerDiameterM) || target.ImpellerDiameterM <= 0)
         {
             refusals.Add("Diâmetro do impelidor alvo (D) não informado.");
         }
 
-        if (reference.LiquidVolumeM3 <= 0 || reference.ImpellerDiameterM <= 0 || reference.VesselDiameterM <= 0)
+        if (!double.IsFinite(reference.LiquidVolumeM3) || reference.LiquidVolumeM3 <= 0 ||
+            !double.IsFinite(reference.ImpellerDiameterM) || reference.ImpellerDiameterM <= 0 ||
+            !double.IsFinite(reference.VesselDiameterM) || reference.VesselDiameterM <= 0)
         {
             refusals.Add("A escala de referência está incompleta (volume útil, D ou T ausentes).");
         }
 
-        if (reference.AgitationRpm <= 0)
+        if (!double.IsFinite(reference.AgitationRpm) || reference.AgitationRpm <= 0)
         {
             refusals.Add("A escala de referência precisa de um ponto de operação com N > 0.");
         }
 
-        if (reference.TurbulentPowerNumber <= 0 &&
+        if ((!double.IsFinite(reference.TurbulentPowerNumber) || reference.TurbulentPowerNumber <= 0) &&
             target.Criterion != ScaleUpCriterion.ConstantTipSpeed)
         {
             refusals.Add(
@@ -91,19 +97,31 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
 
         if (target.Criterion == ScaleUpCriterion.ConstantKla)
         {
-            if (reference.Correlation is not { } correlation || correlation.ValidPointsCount < 4 || correlation.K <= 0)
+            if (reference.Correlation is not { HasFit: true } correlation ||
+                !double.IsFinite(correlation.K) || correlation.K <= 0 ||
+                !double.IsFinite(correlation.Alpha) || !double.IsFinite(correlation.Beta))
             {
                 refusals.Add(
                     "O critério de kLa constante exige a correlação van 't Riet ajustada " +
                     "(vincule um mapa de kLa e ajuste o modelo antes).");
             }
-            else if (correlation.Alpha == 0)
+            else if (Math.Abs(correlation.Alpha) < 1e-12)
             {
                 refusals.Add("A correlação ajustada tem α = 0: P/V não é invertível para um kLa alvo.");
             }
         }
 
-        if (target.MaxRpm <= target.MinRpm)
+        if (!double.IsFinite(reference.DensityKgM3) || reference.DensityKgM3 <= 0)
+        {
+            refusals.Add("A densidade do fluido de referência precisa ser positiva e finita.");
+        }
+
+        if (!double.IsFinite(reference.GasFlowLpm) || reference.GasFlowLpm < 0)
+        {
+            refusals.Add("A vazão de gás da referência precisa ser não negativa e finita.");
+        }
+
+        if (!double.IsFinite(target.MinRpm) || !double.IsFinite(target.MaxRpm) || target.MaxRpm <= target.MinRpm)
         {
             refusals.Add("A faixa de rotação admissível do alvo é vazia (N máx ≤ N mín).");
         }
@@ -129,7 +147,7 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
         var referenceSuperficial = PowerCalc.GasSuperficialVelocity(reference.GasFlowLpm, reference.VesselDiameterM);
 
         double? referenceKla = null;
-        if (reference.Correlation is { K: > 0 } refCorrelation &&
+        if (reference.Correlation is { HasFit: true, K: > 0 } refCorrelation &&
             referenceVolumetricPower > 0 && referenceSuperficial > 0)
         {
             referenceKla = refCorrelation.K *
@@ -232,7 +250,7 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
         var isFlooded = floodingFlow > 0 && targetFlowLpm > floodingFlow;
 
         double? predictedKla = null;
-        if (reference.Correlation is { K: > 0 } fitted && volumetricPower > 0 && targetSuperficial > 0)
+        if (reference.Correlation is { HasFit: true, K: > 0 } fitted && volumetricPower > 0 && targetSuperficial > 0)
         {
             predictedKla = fitted.K *
                            Math.Pow(volumetricPower, fitted.Alpha) *
@@ -260,7 +278,7 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
                 $"(limite de Nienow {floodingFlow:F2} L/min a {targetRpm:F0} rpm).");
         }
 
-        if (double.IsNaN(reynolds) || reference.ViscosityPaS <= 0)
+        if (!double.IsFinite(reynolds) || !double.IsFinite(reference.ViscosityPaS) || reference.ViscosityPaS <= 0)
         {
             warnings.Add(
                 "Viscosidade dinâmica de referência não informada ou inválida (μ ≤ 0): o número de Reynolds não pôde ser calculado.");

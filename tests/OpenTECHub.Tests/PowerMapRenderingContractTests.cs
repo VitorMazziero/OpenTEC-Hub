@@ -140,6 +140,28 @@ public sealed class PowerMapRenderingContractTests
         Assert.Empty(PowerMapContours.Extract(undefinedField, grid, grid));
     }
 
+    [Fact]
+    public void Saddle_uses_bilinear_asymptotic_decider_instead_of_cell_average()
+    {
+        // Case 5 at level zero. The arithmetic centre is negative, but the bilinear
+        // determinant is positive: the high BL/TR regions are connected through the cell.
+        var field = new[,]
+        {
+            { 2.0, -0.1 },
+            { -30.0, 2.0 },
+        };
+        var grid = new[] { 0.0, 1.0 };
+
+        var contour = Assert.Single(PowerMapContours.Extract(
+            field, grid, grid, levelCount: 1, minValue: -1, maxValue: 1));
+
+        Assert.Equal(2, contour.Segments.Count);
+        Assert.Contains(contour.Segments, segment =>
+            Math.Abs(segment.X1) < 1e-12 && Math.Abs(segment.Y2 - 1.0) < 1e-12);
+        Assert.Contains(contour.Segments, segment =>
+            Math.Abs(segment.Y1) < 1e-12 && Math.Abs(segment.X2 - 1.0) < 1e-12);
+    }
+
 
     /// <summary>
     /// Every power plot view subscribes to the theme service and to its view model's redraw signal.

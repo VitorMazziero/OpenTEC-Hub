@@ -41,8 +41,8 @@ public sealed class PowerGassedUiTests : IDisposable
     public void PowerCondition_converts_Lpm_and_vvm_using_liquid_volume_and_notifies_changes()
     {
         var volume = 10.0;
-        PowerCondition.LiquidVolumeLProvider = () => volume;
         var condition = new PowerCondition { GasMode = PowerGasMode.Ungassed };
+        condition.ConfigureFlowConversion(() => volume);
 
         var notifiedProps = new List<string>();
         condition.PropertyChanged += (_, e) =>
@@ -76,11 +76,9 @@ public sealed class PowerGassedUiTests : IDisposable
     [Fact]
     public void PowerCondition_warns_vvm_when_liquid_volume_is_zero_or_negative()
     {
-        PowerCondition.LiquidVolumeLProvider = () => 0.0;
         string? error = null;
-        PowerCondition.OnVvmValidationFailed = msg => error = msg;
-
         var condition = new PowerCondition();
+        condition.ConfigureFlowConversion(() => 0.0, msg => error = msg);
         condition.GasFlowVvm = 0.5;
 
         Assert.Equal(0.5, condition.GasFlowVvm);
@@ -92,12 +90,12 @@ public sealed class PowerGassedUiTests : IDisposable
     [Fact]
     public void PowerCondition_resets_gas_flows_when_gas_mode_set_to_ungassed()
     {
-        PowerCondition.LiquidVolumeLProvider = () => 10.0;
         var condition = new PowerCondition
         {
             GasMode = PowerGasMode.Gassed,
-            GasFlowLpm = 8.0,
         };
+        condition.ConfigureFlowConversion(() => 10.0);
+        condition.GasFlowLpm = 8.0;
 
         Assert.Equal(8.0, condition.GasFlowLpm);
         Assert.Equal(0.8, condition.GasFlowVvm);
@@ -106,6 +104,21 @@ public sealed class PowerGassedUiTests : IDisposable
 
         Assert.Null(condition.GasFlowLpm);
         Assert.Null(condition.GasFlowVvm);
+    }
+
+    [Fact]
+    public void PowerCondition_flow_conversion_context_is_isolated_per_condition()
+    {
+        var fiveLiterCondition = new PowerCondition();
+        var twentyLiterCondition = new PowerCondition();
+        fiveLiterCondition.ConfigureFlowConversion(() => 5.0);
+        twentyLiterCondition.ConfigureFlowConversion(() => 20.0);
+
+        fiveLiterCondition.GasFlowVvm = 0.5;
+        twentyLiterCondition.GasFlowVvm = 0.5;
+
+        Assert.Equal(2.5, fiveLiterCondition.GasFlowLpm);
+        Assert.Equal(10.0, twentyLiterCondition.GasFlowLpm);
     }
 
     [Fact]

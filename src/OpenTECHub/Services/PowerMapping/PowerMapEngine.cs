@@ -252,17 +252,17 @@ public sealed class PowerMapEngine : IPowerMapEngine
         for (var i = 0; i < pairs.Count; i++)
         {
             var p = pairs[i];
-            if (p.KlaPerHour <= 0)
+            if (!double.IsFinite(p.KlaPerHour) || p.KlaPerHour <= 0)
             {
                 excludedNotes.Add($"Ponto #{i + 1} (N={p.AgitationRpm:F0}, Q={p.GasFlowLpm:F1}): kLa não-positivo ({p.KlaPerHour:F2} 1/h) recusado.");
                 continue;
             }
-            if (p.VolumetricPowerWm3 <= 0)
+            if (!double.IsFinite(p.VolumetricPowerWm3) || p.VolumetricPowerWm3 <= 0)
             {
                 excludedNotes.Add($"Ponto #{i + 1} (N={p.AgitationRpm:F0}, Q={p.GasFlowLpm:F1}): P/V não-positivo ({p.VolumetricPowerWm3:F1} W/m³) recusado.");
                 continue;
             }
-            if (p.SuperficialVelocityMs <= 0)
+            if (!double.IsFinite(p.SuperficialVelocityMs) || p.SuperficialVelocityMs <= 0)
             {
                 excludedNotes.Add($"Ponto #{i + 1} (N={p.AgitationRpm:F0}, Q={p.GasFlowLpm:F1}): velocidade superficial v_s não-positiva ({p.SuperficialVelocityMs:F5} m/s) recusada.");
                 continue;
@@ -274,12 +274,15 @@ public sealed class PowerMapEngine : IPowerMapEngine
         var n = validList.Count;
         if (n < 4)
         {
+            var reason = $"Dados insuficientes para regressão: requer ao menos 4 pontos finitos com kLa > 0, P/V > 0 e v_s > 0 (fornecidos: {n}).";
             var emptyResult = new KlaCorrelationResult
             {
                 FittedAtUtc = DateTimeOffset.UtcNow,
+                HasFit = false,
+                FailureReason = reason,
                 ValidPointsCount = n,
                 DegreesOfFreedom = Math.Max(0, n - 3),
-                ExcludedPointsNotes = excludedNotes.Count > 0 ? excludedNotes : [$"Dados insuficientes para regressão: requer ao menos 4 pontos com kLa > 0, P/V > 0 e v_s > 0 (fornecidos: {n})."],
+                ExcludedPointsNotes = [.. excludedNotes, reason],
             };
 
             updatedPairs = pairs;
@@ -321,6 +324,38 @@ public sealed class PowerMapEngine : IPowerMapEngine
             rhs2 += y * x2;
         }
 
+        // Check predictor rank after centering. Testing only det(X^T X) is numerically fragile
+        // because the intercept and the logarithms can make large terms cancel even for a clearly
+        // singular design. A van 't Riet fit needs independent variation in both P/V and v_s.
+        var x1Mean = s01 / n;
+        var x2Mean = s02 / n;
+        double centered11 = 0.0, centered12 = 0.0, centered22 = 0.0;
+        for (var i = 0; i < n; i++)
+        {
+            var dx1 = x1Arr[i] - x1Mean;
+            var dx2 = x2Arr[i] - x2Mean;
+            centered11 += dx1 * dx1;
+            centered12 += dx1 * dx2;
+            centered22 += dx2 * dx2;
+        }
+
+        var centeredDet = (centered11 * centered22) - (centered12 * centered12);
+        var centeredScale = centered11 * centered22;
+        if (!double.IsFinite(centeredDet) || centeredScale <= 0 || centeredDet <= 1e-12 * centeredScale)
+        {
+            const string reason = "A matriz de projeto X^T X é singular ou colinear, ou está numericamente mal condicionada (variação independente insuficiente em P/V e v_s).";
+            updatedPairs = pairs;
+            return new KlaCorrelationResult
+            {
+                FittedAtUtc = DateTimeOffset.UtcNow,
+                HasFit = false,
+                FailureReason = reason,
+                ValidPointsCount = n,
+                DegreesOfFreedom = n - 3,
+                ExcludedPointsNotes = [.. excludedNotes, reason],
+            };
+        }
+
         // Invert 3x3 symmetric matrix M = X^T X
         // [s00 s01 s02]
         // [s01 s11 s12]
@@ -343,14 +378,20 @@ public sealed class PowerMapEngine : IPowerMapEngine
 
         var det = (m00 * c00) + (m01 * c01) + (m02 * c02);
 
-        if (Math.Abs(det) < 1e-12)
+        var determinantScale = Math.Max(
+            1.0,
+            Math.Abs(m00 * c00) + Math.Abs(m01 * c01) + Math.Abs(m02 * c02));
+        if (!double.IsFinite(det) || Math.Abs(det) <= 1e-12 * determinantScale)
         {
+            const string reason = "A matriz de projeto X^T X é singular ou colinear, ou está numericamente mal condicionada (variação independente insuficiente em P/V e v_s).";
             var singularResult = new KlaCorrelationResult
             {
                 FittedAtUtc = DateTimeOffset.UtcNow,
+                HasFit = false,
+                FailureReason = reason,
                 ValidPointsCount = n,
                 DegreesOfFreedom = n - 3,
-                ExcludedPointsNotes = ["A matriz de projeto X^T X é singular ou colinear (variação insuficiente em P/V ou v_s)."],
+                ExcludedPointsNotes = [.. excludedNotes, reason],
             };
             updatedPairs = pairs;
             return singularResult;
@@ -369,6 +410,21 @@ public sealed class PowerMapEngine : IPowerMapEngine
         var k = Math.Exp(b0);
         var alpha = b1;
         var beta = b2;
+
+        if (!double.IsFinite(k) || k <= 0 || !double.IsFinite(alpha) || !double.IsFinite(beta))
+        {
+            const string reason = "A regressão produziu coeficientes não finitos; verifique a escala e a independência dos pontos experimentais.";
+            updatedPairs = pairs;
+            return new KlaCorrelationResult
+            {
+                FittedAtUtc = DateTimeOffset.UtcNow,
+                HasFit = false,
+                FailureReason = reason,
+                ValidPointsCount = n,
+                DegreesOfFreedom = n - 3,
+                ExcludedPointsNotes = [.. excludedNotes, reason],
+            };
+        }
 
         // Residuals and variance
         var yMean = ySum / n;
@@ -430,6 +486,7 @@ public sealed class PowerMapEngine : IPowerMapEngine
         return new KlaCorrelationResult
         {
             FittedAtUtc = DateTimeOffset.UtcNow,
+            HasFit = true,
             K = k,
             Alpha = alpha,
             Beta = beta,

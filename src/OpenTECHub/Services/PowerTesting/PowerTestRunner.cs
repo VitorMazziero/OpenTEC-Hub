@@ -917,7 +917,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     private void HandleCaptureStopped()
     {
-        if (_capture is null || _currentRun is null || _currentTest is null)
+        if (_capture is null || _currentRun is null || _currentTest is null || _currentCondition is null)
         {
             return;
         }

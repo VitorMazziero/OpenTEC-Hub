@@ -50,6 +50,7 @@ public sealed class BioprocessScaleUpTests
 
     private static KlaCorrelationResult Correlation() => new()
     {
+        HasFit = true,
         K = 0.026,
         Alpha = 0.5,
         Beta = 0.4,
@@ -88,6 +89,32 @@ public sealed class BioprocessScaleUpTests
 
         Assert.False(result.IsSolved);
         Assert.Contains(result.Refusals, r => r.Contains("van 't Riet", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Constant_kla_with_an_explicitly_failed_correlation_is_refused()
+    {
+        var failed = Correlation() with
+        {
+            HasFit = false,
+            FailureReason = "matriz singular",
+        };
+
+        var result = _engine.Solve(Reference(failed), Target(ScaleUpCriterion.ConstantKla));
+
+        Assert.False(result.IsSolved);
+        Assert.Contains(result.Refusals, r => r.Contains("van 't Riet", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void Non_finite_target_gas_rule_is_refused(double gasRuleValue)
+    {
+        var result = _engine.Solve(Reference(), Target(gasValue: gasRuleValue));
+
+        Assert.False(result.IsSolved);
+        Assert.Contains(result.Refusals, r => r.Contains("finito", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

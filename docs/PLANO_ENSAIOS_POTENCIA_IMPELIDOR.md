@@ -1142,7 +1142,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [X] 8.2 Execução automatizada obrigatória de ensaio completo gaseificado contra o simulador
         (com e sem estabilização no alívio), verificando o ciclo de válvulas e a captura de `P_G/P₀`.
   - [X] 8.3 Verificação dos contratos WPF (ausência de botão "Aplicar", binding em cultura invariante).
-  - [X] 8.4 Aceitação separada em bancada: confirmar ACK/telemetria reais, roteamento físico das
+  - [ ] 8.4 **PENDENTE EM BANCADA** — aceitação separada: confirmar ACK/telemetria reais, roteamento físico das
         válvulas, corte seguro do gás, faixa 15–1000 rpm e comportamento do pulso do fluxômetro.
         O simulador fecha o portão de software, mas não substitui esta evidência para liberação física.
 

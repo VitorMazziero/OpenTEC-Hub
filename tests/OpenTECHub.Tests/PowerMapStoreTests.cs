@@ -162,6 +162,7 @@ public sealed class PowerMapStoreTests : IDisposable
             KlaCorrelation = new KlaCorrelationResult
             {
                 FittedAtUtc = DateTimeOffset.UtcNow,
+                HasFit = true,
                 K = 0.026,
                 Alpha = 0.55,
                 Beta = 0.38,
@@ -335,6 +336,7 @@ public sealed class PowerMapStoreTests : IDisposable
 
         var klaCorr = new KlaCorrelationResult
         {
+            HasFit = true,
             K = 0.02,
             Alpha = 0.5,
             Beta = 0.3,

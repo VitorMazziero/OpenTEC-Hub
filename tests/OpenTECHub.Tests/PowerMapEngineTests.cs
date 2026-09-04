@@ -150,6 +150,7 @@ public sealed class PowerMapEngineTests
 
         var result = _engine.FitVanTRietModel(pairs, out var updatedPairs);
 
+        Assert.True(result.HasFit);
         Assert.Equal(9, result.ValidPointsCount);
         Assert.Equal(6, result.DegreesOfFreedom); // 9 - 3 = 6
         Assert.True(result.R2 > 0.999);
@@ -201,11 +202,38 @@ public sealed class PowerMapEngineTests
 
         var result = _engine.FitVanTRietModel(pairs, out _);
 
+        Assert.True(result.HasFit);
         Assert.True(result.R2 > 0.95, $"Expected R2 > 0.95, got {result.R2}");
         Assert.InRange(result.Alpha, 0.40, 0.70);
         Assert.InRange(result.Beta, 0.20, 0.50);
         Assert.True(result.K > 0);
         Assert.Empty(result.ExcludedPointsNotes);
+    }
+
+    [Fact]
+    public void PowerMapEngine_FitVanTRietModel_Accepts_A_Finite_Zero_Alpha()
+    {
+        const double trueK = 0.08;
+        const double trueBeta = 0.35;
+        var pairs = new List<KlaPowerPair>();
+        foreach (var pv in new[] { 100.0, 300.0, 900.0 })
+        {
+            foreach (var vs in new[] { 0.002, 0.006, 0.018 })
+            {
+                pairs.Add(new KlaPowerPair
+                {
+                    VolumetricPowerWm3 = pv,
+                    SuperficialVelocityMs = vs,
+                    KlaPerHour = trueK * Math.Pow(vs, trueBeta),
+                });
+            }
+        }
+
+        var result = _engine.FitVanTRietModel(pairs, out _);
+
+        Assert.True(result.HasFit);
+        Assert.InRange(Math.Abs(result.Alpha), 0, 1e-10);
+        Assert.Equal(trueBeta, result.Beta, precision: 6);
     }
 
     [Fact]
@@ -222,6 +250,8 @@ public sealed class PowerMapEngineTests
         var result = _engine.FitVanTRietModel(pairs, out _);
 
         // Only 1 valid point remains -> n < 4, regression not attempted
+        Assert.False(result.HasFit);
+        Assert.NotNull(result.FailureReason);
         Assert.Equal(1, result.ValidPointsCount);
         Assert.True(result.ExcludedPointsNotes.Count >= 3);
     }
@@ -240,10 +270,30 @@ public sealed class PowerMapEngineTests
 
         var result = _engine.FitVanTRietModel(pairs, out var updatedPairs);
 
+        Assert.False(result.HasFit);
         Assert.Equal(0, result.K);
         Assert.Equal(0, result.Alpha);
         Assert.Equal(0, result.Beta);
         Assert.Contains(result.ExcludedPointsNotes, n => n.Contains("singular ou colinear", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PowerMapEngine_FitVanTRietModel_Rejects_NonFinite_Input()
+    {
+        var pairs = new List<KlaPowerPair>
+        {
+            new() { VolumetricPowerWm3 = 100, SuperficialVelocityMs = 0.002, KlaPerHour = 10 },
+            new() { VolumetricPowerWm3 = 200, SuperficialVelocityMs = 0.004, KlaPerHour = 20 },
+            new() { VolumetricPowerWm3 = 300, SuperficialVelocityMs = 0.008, KlaPerHour = 30 },
+            new() { VolumetricPowerWm3 = double.NaN, SuperficialVelocityMs = 0.010, KlaPerHour = 40 },
+        };
+
+        var result = _engine.FitVanTRietModel(pairs, out _);
+
+        Assert.False(result.HasFit);
+        Assert.Equal(3, result.ValidPointsCount);
+        Assert.Contains(result.ExcludedPointsNotes, note => note.Contains("P/V", StringComparison.Ordinal));
+        Assert.DoesNotContain("NaN", result.ModelFormula, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

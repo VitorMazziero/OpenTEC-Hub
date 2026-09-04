@@ -284,7 +284,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     public bool HasSurface => CurrentSurfaceData is not null;
 
-    public bool HasCorrelation => CurrentCorrelation is not null && CurrentCorrelation.ValidPointsCount >= 4;
+    public bool HasCorrelation => CurrentCorrelation?.HasFit == true;
 
     public bool HasMatchedPairs => MatchedPairs.Count > 0;
 
@@ -633,13 +633,21 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         MatchedPairsCount = doc.KlaPairs.Count;
         OnPropertyChanged(nameof(HasMatchedPairs));
 
-        if (doc.KlaCorrelation is { } corr)
+        if (doc.KlaCorrelation is { HasFit: true } corr)
         {
             VanTRietKText = $"{corr.K:G4} ± {corr.StdErrorK:G3}";
             VanTRietAlphaText = $"{corr.Alpha:F3} ± {corr.StdErrorAlpha:F3}";
             VanTRietBetaText = $"{corr.Beta:F3} ± {corr.StdErrorBeta:F3}";
             VanTRietR2Text = $"{corr.R2:F4}";
             VanTRietFormulaText = $"kLa = {corr.K:F4} · (P/V)^{corr.Alpha:F3} · (v_s)^{corr.Beta:F3}  [R² = {corr.R2:F4}]";
+        }
+        else if (doc.KlaCorrelation is { } refused)
+        {
+            VanTRietKText = "—";
+            VanTRietAlphaText = "—";
+            VanTRietBetaText = "—";
+            VanTRietR2Text = "—";
+            VanTRietFormulaText = $"Ajuste recusado: {refused.FailureReason ?? "dados insuficientes ou matriz singular"}";
         }
         else
         {
@@ -723,9 +731,14 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
                 foreach (var run in doc.Runs.Where(r => r.Phase == PowerRunPhase.Accepted && r.NetPowerW.HasValue))
                 {
+                    if (run.NetPowerW is not { } netPowerW)
+                    {
+                        continue;
+                    }
+
                     var flowLpm = run.GasFlowLpm ?? 0.0;
                     var vs = PowerCalc.GasSuperficialVelocity(flowLpm, vesselD);
-                    var pv = PowerCalc.VolumetricPower(run.NetPowerW.Value, liquidV);
+                    var pv = PowerCalc.VolumetricPower(netPowerW, liquidV);
                     var isFlooded = flowLpm > PowerCalc.NienowFloodingGasFlowLpm(run.AgitationRpm, d, vesselD);
 
                     anchors.Add(new PowerMapAnchorPoint
@@ -898,9 +911,9 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             allPairs.AddRange(pairs);
         }
 
-        if (allPairs.Count < 3)
+        if (allPairs.Count < 4)
         {
-            StatusMessage = $"Casamento insuficiente: encontrados {allPairs.Count} pares (mínimo 3 para ajuste multivariado).";
+            StatusMessage = $"Casamento insuficiente: encontrados {allPairs.Count} pares (mínimo 4 para ajuste multivariado).";
             return;
         }
 
@@ -917,13 +930,13 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             MatchedPairsCount = updatedPairs.Count;
             OnPropertyChanged(nameof(HasMatchedPairs));
 
-            if (correlation.K <= 0 || correlation.Alpha == 0)
+            if (!correlation.HasFit)
             {
                 VanTRietKText = "—";
                 VanTRietAlphaText = "—";
                 VanTRietBetaText = "—";
                 VanTRietR2Text = "—";
-                var reason = correlation.ExcludedPointsNotes.FirstOrDefault() ?? "Matriz singular ou variação insuficiente em P/V ou v_s.";
+                var reason = correlation.FailureReason ?? correlation.ExcludedPointsNotes.FirstOrDefault() ?? "Matriz singular ou variação insuficiente em P/V ou v_s.";
                 VanTRietFormulaText = $"Ajuste recusado: {reason}";
                 StatusMessage = $"Ajuste van 't Riet não convergiu: {reason}";
             }

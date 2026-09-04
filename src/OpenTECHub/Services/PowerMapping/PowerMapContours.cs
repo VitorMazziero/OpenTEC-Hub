@@ -179,11 +179,14 @@ public static class PowerMapContours
                 segments.Add(new IsolineSegment(left.X, left.Y, top.X, top.Y));
                 break;
 
-            // Saddles: the cell centre decides which pair of corners the contour separates.
+            // Saddles: use the asymptotic decider for the bilinear cell. The arithmetic value at
+            // the centre is only a heuristic and can choose the wrong topology when opposite
+            // corners have strongly different magnitudes.
             case 5:
             {
-                var centre = (bottomLeft + bottomRight + topRight + topLeft) / 4.0;
-                if (centre >= level)
+                var determinant = ((bottomLeft - level) * (topRight - level)) -
+                                  ((bottomRight - level) * (topLeft - level));
+                if (determinant >= 0)
                 {
                     segments.Add(new IsolineSegment(left.X, left.Y, top.X, top.Y));
                     segments.Add(new IsolineSegment(bottom.X, bottom.Y, right.X, right.Y));
@@ -199,8 +202,9 @@ public static class PowerMapContours
 
             case 10:
             {
-                var centre = (bottomLeft + bottomRight + topRight + topLeft) / 4.0;
-                if (centre >= level)
+                var determinant = ((bottomLeft - level) * (topRight - level)) -
+                                  ((bottomRight - level) * (topLeft - level));
+                if (determinant <= 0)
                 {
                     segments.Add(new IsolineSegment(left.X, left.Y, bottom.X, bottom.Y));
                     segments.Add(new IsolineSegment(top.X, top.Y, right.X, right.Y));

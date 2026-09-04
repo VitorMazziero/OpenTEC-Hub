@@ -156,6 +156,8 @@ public static class PowerMapFileContracts
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Modelo van 't Riet: kLa = K * (P/V)^alpha * (vs)^beta");
+        sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+            $"# Ajuste_valido={result.HasFit.ToString().ToLowerInvariant()}; motivo={result.FailureReason ?? ""}"));
         sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"# K={result.K:F6}; alpha={result.Alpha:F4}; beta={result.Beta:F4}; R2={result.R2:F4}; RMSE={result.RootMeanSquareError:F4}"));
         sb.AppendLine("Agitacao_rpm,Vazao_Lpm,vs_m_s,P_liq_W,P_V_W_m3,kLa_medido_h1,IC95_h1,kLa_previsto_h1,Residuo_h1,ErroRelativo_pct");
 

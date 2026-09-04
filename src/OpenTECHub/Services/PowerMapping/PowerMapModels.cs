@@ -239,6 +239,12 @@ public sealed record KlaCorrelationResult
 {
     public DateTimeOffset FittedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
+    /// <summary>True only when the regression produced a finite, full-rank fitted model.</summary>
+    public bool HasFit { get; init; }
+
+    /// <summary>Operator-facing reason when <see cref="HasFit"/> is false.</summary>
+    public string? FailureReason { get; init; }
+
     public double K { get; init; }
 
     public double Alpha { get; init; }

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -1129,6 +1129,9 @@ public static class AppPaths
     /// <summary>Impeller power assays (ungassed Np, gassed P_G/flooding), self-contained per test.</summary>
     public static string PowerTestsDirectory => Path.Combine(DataDirectory, "Testes-Potencia");
 
+    /// <summary>Power maps, 2D surfaces, multi-impeller benchmarks and kLa-P/V correlations.</summary>
+    public static string PowerMapsDirectory => Path.Combine(DataDirectory, "Mapas-Potencia");
+
     /// <summary>Operator-authored recipes, saved as versioned JSON.</summary>
     public static string RecipesDirectory => Path.Combine(DataDirectory, "Receitas");
 
@@ -1171,6 +1174,7 @@ public static class AppPaths
         Directory.CreateDirectory(KlaMappingDirectory);
         Directory.CreateDirectory(KlaTestsDirectory);
         Directory.CreateDirectory(PowerTestsDirectory);
+        Directory.CreateDirectory(PowerMapsDirectory);
         Directory.CreateDirectory(RecipesDirectory);
         Directory.CreateDirectory(LogDirectory);
         Directory.CreateDirectory(SessionsDirectory);

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -779,6 +779,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             "Configurações de calibração, preferências e parâmetros operacionais.",
             "settings.json",
             AppPaths.ConfigDirectory),
+        new(
+            "Testes de Potência",
+            "Testes-Potencia\\",
+            "Ensaios autocontidos de curva de potência, Np, regime gaseificado e flooding.",
+            "ensaio.json, *.csv",
+            AppPaths.PowerTestsDirectory),
+        new(
+            "Mapas de Potência",
+            "Mapas-Potencia\\",
+            "Síntese de superfícies 2D (N, Qg), fronteira de flooding, benchmark de impelidores e correlações kLa.",
+            "*.json, *.csv",
+            AppPaths.PowerMapsDirectory),
         new(
             "Backups",
             "Backups\\",

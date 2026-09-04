@@ -1164,26 +1164,26 @@ ajusta a correlação clássica de transferência de massa `kLa = K · (P/V)^α 
 Cada passo é compilável e testável de forma independente. **Marque `[x]` ao concluir, com a
 data e o commit** — esta lista é o estado vivo do desenvolvimento.
 
-- [ ] **1. Domínio, Modelos de Síntese e Persistência do Mapa**
-      (`PowerMapModels`, `PowerMapFileContracts`, `IPowerMapStore`/`PowerMapStore`, `AppPaths`)
-  - [ ] 1.1 Modelo `PowerMapDocument`: `MapId`, nome, metadados de criação, lista de ensaios de
+- [x] **1. Domínio, Modelos de Síntese e Persistência do Mapa**
+      (`PowerMapModels`, `PowerMapFileContracts`, `IPowerMapStore`/`PowerMapStore`, `AppPaths`) _(2026-09-04)_
+  - [x] 1.1 Modelo `PowerMapDocument`: `MapId`, nome, metadados de criação, lista de ensaios de
         origem (`SourceTestIds`), malha interpolada calculada (`PowerMapSurfaceData`), curva
         experimental de flooding e metadados de correlação com kLa.
-  - [ ] 1.2 Modelos de acoplamento kLa:
+  - [x] 1.2 Modelos de acoplamento kLa:
         - `KlaPowerPair`: registro pareado com `N`, `Q_g`, `v_s`, `P_líq`, `P/V`, `kLa`, `IC₉₅` e resíduos.
         - `KlaCorrelationResult`: coeficientes ajustados `K`, `α`, `β`, matriz de covariância,
           desvios-padrão dos parâmetros e coeficiente de determinação `R²`.
-  - [ ] 1.3 Modelos para comparação de impelidores (`ImpellerComparisonModels`):
+  - [x] 1.3 Modelos para comparação de impelidores (`ImpellerComparisonModels`):
         - `ImpellerComparisonItem`: ensaio referenciado, dados geométricos (tipo, `D`, `D/T`),
           platô `Np ± IC₉₅`, curva `P_G/P₀(Fl_G)`, `(Fl_G)_F` experimental e teórico de Nienow,
           `P/V` específico e data.
         - `ImpellerComparisonDocument`: lista de ensaios selecionados para sobreposição e benchmarking.
-  - [ ] 1.4 Persistência e auditoria: serialização e desserialização JSON na raiz irmã
+  - [x] 1.4 Persistência e auditoria: serialização e desserialização JSON na raiz irmã
         `Mapas-Potencia/` do workspace selecionado, com validação de esquema em
         `PowerMapFileContracts.cs`, escrita atômica, integração ao backup e exposição na lista
         de pastas do workspace. Não abrir seletor de pasta do sistema.
-  - [ ] 1.5 Testes de ida-e-volta (round-trip) em `PowerMapStoreTests` com mapas de superfície,
-        comparações e pares kLa↔P/V.
+  - [x] 1.5 Testes de ida-e-volta (round-trip) em `PowerMapStoreTests` com mapas de superfície,
+        comparações e pares kLa↔P/V (7 testes aprovados).
 
 - [ ] **2. Engine Científico de Superfície 2D e Acoplamento P/V ↔ kLa** (`PowerCalc`, `PowerMapEngine`, `IPowerMapEngine`)
   - [ ] 2.1 Primitivas físicas e dimensionais em `PowerCalc`:

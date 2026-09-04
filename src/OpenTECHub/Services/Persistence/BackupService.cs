@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.IO.Compression;
 using Microsoft.Extensions.Logging;
 
@@ -30,6 +30,8 @@ public sealed class BackupService : IBackupService
     private readonly string _recipesDirectory;
     private readonly string _klaMappingDirectory;
     private readonly string _klaTestsDirectory;
+    private readonly string _powerTestsDirectory;
+    private readonly string _powerMapsDirectory;
 
     public BackupService(ISettingsService settings, ILogger<BackupService> log)
         : this(settings, log, AppPaths.DataDirectory)
@@ -56,6 +58,8 @@ public sealed class BackupService : IBackupService
                 ? Path.Combine(dataDirectory, "kla-mapping")
                 : Path.Combine(dataDirectory, "Mapas"));
         _klaTestsDirectory = Path.Combine(dataDirectory, "Testes-kLa");
+        _powerTestsDirectory = Path.Combine(dataDirectory, "Testes-Potencia");
+        _powerMapsDirectory = Path.Combine(dataDirectory, "Mapas-Potencia");
     }
 
     public async Task<BackupResult> ExportBackupAsync(string destinationZipPath)
@@ -126,6 +130,34 @@ public sealed class BackupService : IBackupService
                     {
                         var relative = Path.GetRelativePath(_klaTestsDirectory, file);
                         var target = Path.Combine(destTests, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
+                    }
+                }
+
+                // 5. Power tests directory (Testes-Potencia)
+                if (Directory.Exists(_powerTestsDirectory))
+                {
+                    var destPower = Path.Combine(tempDir, "Testes-Potencia");
+                    Directory.CreateDirectory(destPower);
+                    foreach (var file in Directory.GetFiles(_powerTestsDirectory, "*.*", SearchOption.AllDirectories))
+                    {
+                        var relative = Path.GetRelativePath(_powerTestsDirectory, file);
+                        var target = Path.Combine(destPower, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(file, target, overwrite: true);
+                    }
+                }
+
+                // 6. Power maps directory (Mapas-Potencia)
+                if (Directory.Exists(_powerMapsDirectory))
+                {
+                    var destPowerMaps = Path.Combine(tempDir, "Mapas-Potencia");
+                    Directory.CreateDirectory(destPowerMaps);
+                    foreach (var file in Directory.GetFiles(_powerMapsDirectory, "*.*", SearchOption.AllDirectories))
+                    {
+                        var relative = Path.GetRelativePath(_powerMapsDirectory, file);
+                        var target = Path.Combine(destPowerMaps, relative);
                         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                         File.Copy(file, target, overwrite: true);
                     }
@@ -236,6 +268,54 @@ public sealed class BackupService : IBackupService
                         {
                             var relative = Path.GetRelativePath(sourceTestDir, file);
                             var target = Path.Combine(targetTestDir, relative);
+                            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                            File.Copy(file, target, overwrite: false);
+                        }
+                    }
+                }
+
+                // 5. Power tests (Testes-Potencia)
+                var powerTestsSrc = Path.Combine(tempDir, "Testes-Potencia");
+                if (Directory.Exists(powerTestsSrc))
+                {
+                    Directory.CreateDirectory(_powerTestsDirectory);
+                    foreach (var sourceTestDir in Directory.GetDirectories(powerTestsSrc))
+                    {
+                        var folderName = Path.GetFileName(sourceTestDir);
+                        var targetTestDir = Path.Combine(_powerTestsDirectory, folderName);
+                        if (Directory.Exists(targetTestDir))
+                        {
+                            _log.LogWarning("Teste de potência {Folder} já existe; importação preservou a versão local", folderName);
+                            continue;
+                        }
+                        foreach (var file in Directory.GetFiles(sourceTestDir, "*.*", SearchOption.AllDirectories))
+                        {
+                            var relative = Path.GetRelativePath(sourceTestDir, file);
+                            var target = Path.Combine(targetTestDir, relative);
+                            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                            File.Copy(file, target, overwrite: false);
+                        }
+                    }
+                }
+
+                // 6. Power maps (Mapas-Potencia)
+                var powerMapsSrc = Path.Combine(tempDir, "Mapas-Potencia");
+                if (Directory.Exists(powerMapsSrc))
+                {
+                    Directory.CreateDirectory(_powerMapsDirectory);
+                    foreach (var sourceMapDir in Directory.GetDirectories(powerMapsSrc))
+                    {
+                        var folderName = Path.GetFileName(sourceMapDir);
+                        var targetMapDir = Path.Combine(_powerMapsDirectory, folderName);
+                        if (Directory.Exists(targetMapDir))
+                        {
+                            _log.LogWarning("Mapa de potência {Folder} já existe; importação preservou a versão local", folderName);
+                            continue;
+                        }
+                        foreach (var file in Directory.GetFiles(sourceMapDir, "*.*", SearchOption.AllDirectories))
+                        {
+                            var relative = Path.GetRelativePath(sourceMapDir, file);
+                            var target = Path.Combine(targetMapDir, relative);
                             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                             File.Copy(file, target, overwrite: false);
                         }

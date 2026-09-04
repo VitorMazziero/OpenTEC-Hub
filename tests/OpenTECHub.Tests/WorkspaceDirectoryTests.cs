@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -105,7 +105,7 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         var (viewModel, _, _, _) = CreateSettingsViewModel();
 
         Assert.Equal(workspace, viewModel.WorkspaceDirectory);
-        Assert.Equal(7, viewModel.WorkspaceFolders.Count);
+        Assert.Equal(9, viewModel.WorkspaceFolders.Count);
 
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Mapas" && f.RelativePath == "Mapas\\" && f.FullPath == AppPaths.KlaMappingDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Testes de kLa" && f.RelativePath == "Testes-kLa\\" && f.FullPath == AppPaths.KlaTestsDirectory);
@@ -113,6 +113,8 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Sessões" && f.RelativePath == "Sessoes\\" && f.FullPath == AppPaths.SessionsDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Logs" && f.RelativePath == "Logs\\" && f.FullPath == AppPaths.LogDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Configurações" && f.RelativePath == "Configuracoes\\" && f.FullPath == AppPaths.ConfigDirectory);
+        Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Testes de Potência" && f.RelativePath == "Testes-Potencia\\" && f.FullPath == AppPaths.PowerTestsDirectory);
+        Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Mapas de Potência" && f.RelativePath == "Mapas-Potencia\\" && f.FullPath == AppPaths.PowerMapsDirectory);
         Assert.Contains(viewModel.WorkspaceFolders, f => f.Name == "Backups" && f.RelativePath == "Backups\\" && f.FullPath == AppPaths.BackupsDirectory);
     }
 

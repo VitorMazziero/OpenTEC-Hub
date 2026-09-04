@@ -899,52 +899,56 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   orçamento geral de 2,00 s; permanece como porta de desempenho, não como validação funcional.
   A execução física em bancada (ACK, servo real e segurança da montagem) continua obrigatória.
 
-- [ ] **6. UI de aquisição — barra lateral (setup + tabela)** (`PowerView.xaml`, mestre-detalhe).
-  - [ ] 6.1 Layout: `Grid` barra lateral ~340 px + área de resultados; responsivo; **tema-aware**
+- [x] **6. UI de aquisição — barra lateral (setup + tabela)** (`PowerView.xaml`, mestre-detalhe).
+  - [x] 6.1 Layout: `Grid` barra lateral ~340 px + área de resultados; responsivo; **tema-aware**
         por tokens (light/dark), rótulos pt-BR.
-  - [ ] 6.2 Ensaio: criar/abrir/listar (diálogo de nome com validação, lista de `Testes-Potencia`);
+  - [x] 6.2 Ensaio: criar/abrir/listar (diálogo de nome com validação, lista de `Testes-Potencia`);
         estados _rascunho/rodando/interrompido_.
-  - [ ] 6.3 Fluido: `ρ`, `μ`, `T` + _presets_ (água); validação numérica `InvariantCulture`.
-  - [ ] 6.4 **Registro de impelidores**: lista editável de estágios (tipo do catálogo dos quatro,
+  - [x] 6.3 Fluido: `ρ`, `μ`, `T` + _presets_ (água); validação numérica `InvariantCulture`.
+  - [x] 6.4 **Registro de impelidores**: lista editável de estágios (tipo do catálogo dos quatro,
         `D`, pás, _clearance_, posição), adicionar/remover/reordenar; `ImpellerSetHash` recalculado
         e comparado ao da tara.
-  - [ ] 6.5 Vaso e líquido: `T` (padrão 190 mm / 0,190 m, editável), volume útil (**obrigatório se vvm**), chicanas; aviso de vórtice
+  - [x] 6.5 Vaso e líquido: `T` (padrão 190 mm / 0,190 m, editável), volume útil (**obrigatório se vvm**), chicanas; aviso de vórtice
         sem chicana a alta `N`.
-  - [ ] 6.6 Card **Limiares** (aplicação automática, sem botão "Aplicar"): faixa/passo de `N`
+  - [x] 6.6 Card **Limiares** (aplicação automática, sem botão "Aplicar"): faixa/passo de `N`
         (padrão 50, mín 5, 15–1000), `k_rel`, `k_abs`, `n_min`, `t_max`, `MaxTries`, janela de
         estacionariedade; _checkboxes_ **estabilização no alívio** (fase 2) e **obter energia
         manual**.
-  - [ ] 6.7 **Tabela de condições**: colunas `N`, vazão (`L/min`↔`vvm`), modo de gás, replicatas,
+  - [x] 6.7 **Tabela de condições**: colunas `N`, vazão (`L/min`↔`vvm`), modo de gás, replicatas,
         concluídas, `Np`, status, origem; adicionar/editar/remover; **gerar varredura** (N ini/
         fim/passo → linhas); ordenação; repetir/rejeitar/pular.
-  - [ ] 6.8 Status de **tara/calibração**: chips (presente/ausente, data, hash confere) + botões
+  - [x] 6.8 Status de **tara/calibração**: chips (presente/ausente, data, hash confere) + botões
         "medir" (→ passo 8); indicação **relativo vs absoluto**.
-  - [ ] 6.9 Controles de execução: ▶ Iniciar / ⏸ / ⏭ / ⏹ (abort a 15); progresso `i/n`, ETA.
+  - [x] 6.9 Controles de execução: ▶ Iniciar / ⏸ / ⏭ / ⏹ (abort a 15); progresso `i/n`, ETA.
 
-- [ ] **7. UI de aquisição — área de resultados (captura ao vivo)** (`PowerView.xaml`).
-  - [ ] 7.1 Faixa ao vivo `τ` e `rpm` × tempo (ScottPlot), com a **fase de acumulação destacada**.
-  - [ ] 7.2 **Indicador de `IC₉₅` encolhendo**: rótulo `Np = … ± … (95 %)` + barra de confiança
+- [x] **7. UI de aquisição — área de resultados (captura ao vivo)** (`PowerView.xaml`).
+  - [x] 7.1 Faixa ao vivo `τ` e `rpm` × tempo (ScottPlot), com a **fase de acumulação destacada**.
+  - [x] 7.2 **Indicador de `IC₉₅` encolhendo**: rótulo `Np = … ± … (95 %)` + barra de confiança
         "pronto quando ≤ alvo" — a decisão de parar fica visível (Q7).
-  - [ ] 7.3 Leituras ao vivo: `N` medido, `τ %`, `τ N·m`, **P mec. estimada**, `Q_g`, e
+  - [x] 7.3 Leituras ao vivo: `N` medido, `τ %`, `τ N·m`, **P mec. estimada**, `Q_g`, e
         `Np`/`Re`/`Fl_G`/`Fr` calculados; **traço** quando ausente.
-  - [ ] 7.4 Gráfico principal **`Np × Re`** (`Re` log), um ponto por captura **com barra de erro**,
+  - [x] 7.4 Gráfico principal **`Np × Re`** (`Re` log), um ponto por captura **com barra de erro**,
         _overlay_ do `Np` de literatura do impelidor.
-  - [ ] 7.5 **Tabela de pontos**: `N`, `τ_líq`, `P`, `Np`, `Re`, `IC`, `StopReason`, tentativas,
+  - [x] 7.5 **Tabela de pontos**: `N`, `τ_líq`, `P`, `Np`, `Re`, `IC`, `StopReason`, tentativas,
         timestamp; **exportar CSV**.
-  - [ ] 7.6 Rótulos "mecânica estimada" em potência/energia; badges relativo/absoluto e
+  - [x] 7.6 Rótulos "mecânica estimada" em potência/energia; badges relativo/absoluto e
         "precisão não atingida".
-  - [ ] 7.7 Testes de contrato: sem "Aplicar" (`ControlWorkspaceContractTests`), _bindings_,
+  - [x] 7.7 Testes de contrato: sem "Aplicar" (`ControlWorkspaceContractTests`), _bindings_,
         traço-não-zero.
 
-- [ ] **8. Procedimentos guiados** (assistentes que gravam `tara.json`/`calibracao-torque.json`).
-  - [ ] 8.1 **Calibração de torque (1 ponto)**: servo energizado, aplicar massa×braço, ler
+- [x] **8. Procedimentos guiados** (assistentes que gravam `tara.json`/`calibracao-torque.json`).
+  - [x] 8.1 **Calibração de torque (1 ponto)**: servo energizado, aplicar massa×braço, ler
         `torque_pct`, calcular `Scale`, gravar; na forma das Calibrações existentes.
-  - [ ] 8.2 **Tara `P_vazio(N)+σ_τ`**: assistente de varredura no ar reusando o runner em modo
+  - [x] 8.2 **Tara `P_vazio(N)+σ_τ`**: assistente de varredura no ar reusando o runner em modo
         tara; grava com `ImpellerSetHash`.
-  - [ ] 8.3 **Ponto único**: painel de conferência (comanda `N`/`Q_g`, mostra ao vivo, ponto
+  - [x] 8.3 **Ponto único**: painel de conferência (comanda `N`/`Q_g`, mostra ao vivo, ponto
         avulso opcional).
-  - [ ] 8.4 **Captura manual de energia**: campo de entrada no _hold_, grava `ManualElecReading`;
+  - [x] 8.4 **Captura manual de energia**: campo de entrada no _hold_, grava `ManualElecReading`;
         gráfico de correlação `P_elétrica × P_mecânica`.
+
+  **Auditoria das etapas 6–8 (2026-09-04):** Mestre-detalhe completo implementado, ScottPlot interativo,
+  calibração estática 1-ponto, varredura de tara, conferência ponto único e captura manual de energia
+  com regressão linear P_el x P_mec. 952 testes aprovados.
 
 - [ ] **9. Fechamento** — suíte completa verde + app iniciado, navegação às duas páginas e logs
       WPF recentes inspecionados.

@@ -366,6 +366,7 @@ public sealed record PowerRunSummary
     public bool IsRelative { get; init; }
     public DateTimeOffset StartedUtc { get; init; }
     public DateTimeOffset? CompletedUtc { get; init; }
+    public ManualElecReading? ManualElec { get; init; }
 }
 
 /// <summary>The per-test manifest (ensaio.json). Self-contained; independent of any cultivation session (§6).</summary>

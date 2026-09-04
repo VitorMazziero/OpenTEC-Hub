@@ -82,6 +82,79 @@ public static class PowerCalc
     /// </summary>
     public static double PowerNoiseFloorW(double sigmaTauPercent, double motorRatedTorqueNm, double rpm)
         => sigmaTauPercent / 100.0 * motorRatedTorqueNm * AngularVelocity(rpm);
+
+    /// <summary>
+    /// Computes static 1-point torque calibration (§9.1):
+    /// τ_ref = massKg · g · leverArmM
+    /// τ_measured = (torquePercent / 100) · motorRatedTorqueNm
+    /// Scale = τ_ref / τ_measured, Offset = 0
+    /// </summary>
+    public static TorqueCalibration ComputeStaticTorqueCalibration(
+        double massKg,
+        double leverArmM,
+        double torquePercent,
+        double motorRatedTorqueNm = 1.27)
+    {
+        if (massKg <= 0 || !double.IsFinite(massKg))
+            throw new ArgumentOutOfRangeException(nameof(massKg), "A massa deve ser positiva.");
+        if (leverArmM <= 0 || !double.IsFinite(leverArmM))
+            throw new ArgumentOutOfRangeException(nameof(leverArmM), "O braço de alavanca deve ser positivo.");
+        if (torquePercent <= 0 || !double.IsFinite(torquePercent))
+            throw new ArgumentOutOfRangeException(nameof(torquePercent), "O torque medido deve ser positivo.");
+        if (motorRatedTorqueNm <= 0 || !double.IsFinite(motorRatedTorqueNm))
+            throw new ArgumentOutOfRangeException(nameof(motorRatedTorqueNm), "O torque nominal do motor deve ser positivo.");
+
+        var refNm = massKg * GravityMetersPerSecondSquared * leverArmM;
+        var measuredNm = (torquePercent / 100.0) * motorRatedTorqueNm;
+        var scale = refNm / measuredNm;
+
+        return new TorqueCalibration
+        {
+            Scale = scale,
+            Offset = 0.0,
+            ReferenceNm = refNm,
+            ReferenceMassKg = massKg,
+            LeverArmM = leverArmM,
+            MotorRatedTorqueNm = motorRatedTorqueNm,
+            CalibratedUtc = DateTimeOffset.UtcNow,
+        };
+    }
+
+    /// <summary>
+    /// Fits an affine line P_elec = a * P_mech + b from pairs of (P_mech, P_elec) (§4.8, §12.3).
+    /// Returns (Slope, Intercept, R2).
+    /// </summary>
+    public static (double Slope, double Intercept, double R2)? FitElectricalCorrelation(
+        IReadOnlyList<(double MechW, double ElecW)> points)
+    {
+        if (points == null || points.Count < 2) return null;
+        var n = points.Count;
+        double sumX = 0, sumY = 0, sumX2 = 0, sumY2 = 0, sumXY = 0;
+        foreach (var (x, y) in points)
+        {
+            if (!double.IsFinite(x) || !double.IsFinite(y)) return null;
+            sumX += x;
+            sumY += y;
+            sumX2 += x * x;
+            sumY2 += y * y;
+            sumXY += x * y;
+        }
+        var denom = n * sumX2 - sumX * sumX;
+        if (Math.Abs(denom) < 1e-12) return null;
+        var slope = (n * sumXY - sumX * sumY) / denom;
+        var intercept = (sumY - slope * sumX) / n;
+
+        var yMean = sumY / n;
+        double ssTot = 0, ssRes = 0;
+        foreach (var (x, y) in points)
+        {
+            var yPred = slope * x + intercept;
+            ssTot += (y - yMean) * (y - yMean);
+            ssRes += (y - yPred) * (y - yPred);
+        }
+        var r2 = ssTot > 1e-12 ? Math.Max(0.0, 1.0 - (ssRes / ssTot)) : 1.0;
+        return (slope, intercept, r2);
+    }
 }
 
 /// <summary>

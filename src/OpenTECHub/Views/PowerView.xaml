@@ -233,6 +233,86 @@
                                 <Button Grid.Column="1" Content="Medir calibração" Padding="8,4" Command="{Binding CalibrationInfoCommand}" />
                             </Grid>
                             <CheckBox Margin="0,8,0,0" Content="Aceitar resultados relativos" IsChecked="{Binding RelativeMode}" IsEnabled="{Binding CanEditPlan}" />
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="Ponto único" Padding="4,4" Command="{Binding ToggleSinglePointPanelCommand}" />
+                                <Button Grid.Column="2" Content="Correlação P_el" Padding="4,4" Command="{Binding ToggleEnergyCorrelationCommand}" />
+                            </Grid>
+
+                            <!-- 8.1 Calibração de torque -->
+                            <Border Visibility="{Binding IsCalibrationAssistantOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Calibração estática (1 ponto)" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <TextBlock Text="Massa e braço aplicados ao servo (τ_ref = m·g·r):" Style="{StaticResource PowerLabel}" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0"><TextBlock Text="m (kg)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding CalibrationMassKg, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                        <StackPanel Grid.Column="2"><TextBlock Text="r (m)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding CalibrationLeverArmM, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                        <StackPanel Grid.Column="4"><TextBlock Text="τ lido (%)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding CalibrationMeasuredTorquePercent, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                    </Grid>
+                                    <TextBlock Margin="0,5,0,5" Style="{StaticResource CaptionTextStyle}" Text="{Binding CalibrationReferenceNm, StringFormat='{}τ_ref = {0:F4} N·m'}" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Gravar calibração" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyCalibrationCommand}" Padding="8,4" />
+                                        <Button Grid.Column="2" Content="Fechar" Command="{Binding CloseCalibrationAssistantCommand}" Padding="8,4" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 8.2 Tara no ar -->
+                            <Border Visibility="{Binding IsTareAssistantOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Assistente de tara no ar (P_vazio + στ)" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <TextBlock Text="Varre N com o vaso sem líquido para medir o atrito:" Style="{StaticResource PowerLabel}" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0"><TextBlock Text="N ini" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStartRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                        <StackPanel Grid.Column="2"><TextBlock Text="N fim" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareEndRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                        <StackPanel Grid.Column="4"><TextBlock Text="Passo" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                    </Grid>
+                                    <TextBlock Margin="0,6,0,4" Text="{Binding TareProgressMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Iniciar varredura no ar" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartTareSweepCommand}" IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}" Padding="8,4" />
+                                        <Button Grid.Column="2" Content="Fechar" Command="{Binding CloseTareAssistantCommand}" Padding="8,4" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 8.3 Ponto único -->
+                            <Border Visibility="{Binding IsSinglePointPanelOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Ponto único de conferência" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0"><TextBlock Text="N (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                        <StackPanel Grid.Column="2"><TextBlock Text="Qg (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,7,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Comandar" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartSinglePointCommand}" IsEnabled="{Binding IsSinglePointActive, Converter={StaticResource InverseBool}}" Padding="6,4" />
+                                        <Button Grid.Column="2" Content="Parar eixo" Command="{Binding StopSinglePointCommand}" IsEnabled="{Binding IsSinglePointActive}" Padding="6,4" />
+                                    </Grid>
+                                    <Button Margin="0,6,0,0" Content="Adicionar à tabela de condições" Command="{Binding AddSinglePointToTestCommand}" Padding="6,3" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 8.4 Correlação elétrica -->
+                            <Border Visibility="{Binding IsEnergyCorrelationOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Correlação P_elétrica × P_mecânica" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding EnergyCorrelationSummary}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                    <DataGrid Height="120" ItemsSource="{Binding ManualEnergyReadings}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm, StringFormat={}{0:F0}}" Width="52" />
+                                            <DataGridTextColumn Header="P_mec (W)" Binding="{Binding PowerMechanicalWAtReading, StringFormat={}{0:F1}}" Width="68" />
+                                            <DataGridTextColumn Header="P_el (W)" Binding="{Binding PowerElectricalW, StringFormat={}{0:F1}}" Width="62" />
+                                            <DataGridTextColumn Header="Aparelho" Binding="{Binding Instrument}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -325,10 +405,29 @@
                                 <Button Content="Rejeitar" Command="{Binding RejectRunCommand}" Margin="0,0,6,0" />
                                 <Button Content="Repetir" Command="{Binding RepeatRunCommand}" />
                             </StackPanel>
-                            <StackPanel Grid.Row="1" Margin="0,7,0,7" Orientation="Horizontal" Visibility="{Binding IsWaitingManualEnergy, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Condição mantida: registre a leitura elétrica." VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <Button Content="Informar wattímetro" Style="{StaticResource AccentButtonStyle}" Command="{Binding SubmitManualEnergyCommand}" />
-                            </StackPanel>
+                            <Border Grid.Row="1" Margin="0,7,0,7" Style="{StaticResource PowerCard}" Padding="10" Visibility="{Binding IsWaitingManualEnergy, Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Condição mantida (Holding): Registre a leitura do wattímetro da tomada." FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                                    </StackPanel>
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" /><ColumnDefinition Width="90" /><ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="P elétrica (W):" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Grid.Column="1" Style="{StaticResource CompactField}" Text="{Binding ManualEnergyWattsInput, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Grid.Column="3" Text="Aparelho:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Grid.Column="4" Style="{StaticResource CompactField}" Text="{Binding ManualEnergyInstrument, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Grid.Column="6" Text="Nota:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Grid.Column="7" Style="{StaticResource CompactField}" Text="{Binding ManualEnergyNote, UpdateSourceTrigger=LostFocus}" />
+                                        <Button Grid.Column="9" Content="Confirmar leitura" Style="{StaticResource AccentButtonStyle}" Command="{Binding ConfirmManualEnergyCommand}" Padding="10,4" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
                             <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="68" />

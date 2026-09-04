@@ -145,6 +145,39 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double SweepEndRpm { get; set; } = 1000.0;
     [ObservableProperty] public partial double SweepStepRpm { get; set; } = 50.0;
 
+    // --- Step 8: Guided Procedures ---
+    // 8.1 Torque Calibration (1-point static)
+    [ObservableProperty] public partial bool IsCalibrationAssistantOpen { get; set; }
+    [ObservableProperty] public partial double CalibrationMassKg { get; set; } = 0.100;
+    [ObservableProperty] public partial double CalibrationLeverArmM { get; set; } = 0.050;
+    [ObservableProperty] public partial double CalibrationRatedTorqueNm { get; set; } = 1.27;
+    [ObservableProperty] public partial double CalibrationMeasuredTorquePercent { get; set; } = 3.86;
+    public double CalibrationReferenceNm => CalibrationMassKg * PowerCalc.GravityMetersPerSecondSquared * CalibrationLeverArmM;
+    public double CalibrationCalculatedScale => CalibrationMeasuredTorquePercent > 0 ? CalibrationReferenceNm / ((CalibrationMeasuredTorquePercent / 100.0) * CalibrationRatedTorqueNm) : 1.0;
+
+    // 8.2 Tare Curve Assistant (in-air sweep)
+    [ObservableProperty] public partial bool IsTareAssistantOpen { get; set; }
+    [ObservableProperty] public partial bool IsTareRunning { get; set; }
+    [ObservableProperty] public partial double TareStartRpm { get; set; } = 100.0;
+    [ObservableProperty] public partial double TareEndRpm { get; set; } = 1000.0;
+    [ObservableProperty] public partial double TareStepRpm { get; set; } = 100.0;
+    [ObservableProperty] public partial string TareProgressMessage { get; set; } = "";
+    public ObservableCollection<TarePoint> CurrentTarePoints { get; } = [];
+
+    // 8.3 Single Point Spot-Check
+    [ObservableProperty] public partial bool IsSinglePointPanelOpen { get; set; }
+    [ObservableProperty] public partial bool IsSinglePointActive { get; set; }
+    [ObservableProperty] public partial double SinglePointRpm { get; set; } = 300.0;
+    [ObservableProperty] public partial double SinglePointFlowLpm { get; set; } = 0.0;
+
+    // 8.4 Manual Energy Capture & Correlation
+    [ObservableProperty] public partial double ManualEnergyWattsInput { get; set; } = 0.0;
+    [ObservableProperty] public partial string ManualEnergyInstrument { get; set; } = "Wattímetro";
+    [ObservableProperty] public partial string ManualEnergyNote { get; set; } = "";
+    [ObservableProperty] public partial bool IsEnergyCorrelationOpen { get; set; }
+    [ObservableProperty] public partial string EnergyCorrelationSummary { get; private set; } = "Sem pontos com medição elétrica.";
+    public ObservableCollection<ManualElecReading> ManualEnergyReadings { get; } = [];
+
     public bool HasActiveTest => CurrentTest is not null;
     public bool CanEditPlan => CurrentTest is not null && !IsRunning && CurrentTest.Status != PowerTestStatus.Completed;
     public bool CanStartOrContinue => CurrentTest is not null && !IsRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
@@ -309,6 +342,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _runner?.PrepareTest(doc);
         ValidationMessage = "";
         StatusMessage = $"Ensaio '{doc.Name}' carregado.";
+        RefreshManualEnergyReadings();
         NotifyDocumentState();
         RecalculateLiveMetrics();
     }
@@ -590,8 +624,355 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         await _runner.AbortTestAsync("Interrompido pelo operador");
     }
 
-    [RelayCommand] private void TareMeasurementInfo() => ValidationMessage = "A aquisição guiada da tara será implementada na etapa 8; a compatibilidade do conjunto já é verificada aqui.";
-    [RelayCommand] private void CalibrationInfo() => ValidationMessage = "A aquisição guiada da calibração de torque será implementada na etapa 8.";
+    // =========================================================================
+    // 8.1 Calibração de torque (1 ponto)
+    // =========================================================================
+
+    [RelayCommand]
+    private void CalibrationInfo()
+    {
+        IsCalibrationAssistantOpen = !IsCalibrationAssistantOpen;
+        if (IsCalibrationAssistantOpen)
+        {
+            IsTareAssistantOpen = false;
+            IsSinglePointPanelOpen = false;
+            IsEnergyCorrelationOpen = false;
+            if (CurrentTorquePercent is { } livePct && Math.Abs(livePct) > 0.05)
+            {
+                CalibrationMeasuredTorquePercent = Math.Round(Math.Abs(livePct), 2);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void CloseCalibrationAssistant() => IsCalibrationAssistantOpen = false;
+
+    [RelayCommand]
+    private void ApplyCalibration()
+    {
+        if (CurrentTest is null)
+        {
+            ShowError("Crie ou abra um ensaio para registrar a calibração.");
+            return;
+        }
+        if (CalibrationMassKg <= 0 || CalibrationLeverArmM <= 0 || CalibrationMeasuredTorquePercent <= 0)
+        {
+            ShowError("Massa, braço e torque medido devem ser valores positivos.");
+            return;
+        }
+
+        try
+        {
+            var calib = PowerCalc.ComputeStaticTorqueCalibration(
+                CalibrationMassKg,
+                CalibrationLeverArmM,
+                CalibrationMeasuredTorquePercent,
+                CalibrationRatedTorqueNm);
+
+            CurrentTest.Calibration = calib;
+            _store.SaveCalibration(CurrentTest.FolderName, calib);
+            _store.SaveTestManifest(CurrentTest);
+
+            IsCalibrationAssistantOpen = false;
+            ValidationMessage = $"Calibração gravada: Escala = {calib.Scale:F4} (τ_ref = {calib.ReferenceNm:F4} N·m).";
+            OnPropertyChanged(nameof(CalibrationStatus));
+            OnPropertyChanged(nameof(ResultModeLabel));
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Erro ao calibrar torque: {ex.Message}");
+        }
+    }
+
+    // =========================================================================
+    // 8.2 Tara P_vazio(N) + σ_τ (varredura no ar)
+    // =========================================================================
+
+    [RelayCommand]
+    private void TareMeasurementInfo()
+    {
+        IsTareAssistantOpen = !IsTareAssistantOpen;
+        if (IsTareAssistantOpen)
+        {
+            IsCalibrationAssistantOpen = false;
+            IsSinglePointPanelOpen = false;
+            IsEnergyCorrelationOpen = false;
+            TareProgressMessage = CurrentTest?.Tare is null
+                ? "Monte os impelidores no eixo e opere com o vaso no ar (seco)."
+                : $"Tara atual possui {CurrentTest.Tare.Points.Count} patamares ({TareStatus}).";
+        }
+    }
+
+    [RelayCommand]
+    private void CloseTareAssistant() => IsTareAssistantOpen = false;
+
+    [RelayCommand]
+    private async Task StartTareSweepAsync()
+    {
+        if (CurrentTest is null)
+        {
+            ShowError("Crie ou abra um ensaio para registrar a tara.");
+            return;
+        }
+        if (IsRunning || IsTareRunning)
+        {
+            ShowError("Aguarde a operação atual finalizar para rodar a tara.");
+            return;
+        }
+        if (TareStartRpm < 15 || TareEndRpm < TareStartRpm || TareStepRpm <= 0)
+        {
+            ShowError("Defina uma faixa de rotação válida (mínimo 15 rpm).");
+            return;
+        }
+
+        IsTareRunning = true;
+        CurrentTarePoints.Clear();
+        var points = new List<TarePoint>();
+        var tNom = CurrentTest.Calibration?.MotorRatedTorqueNm ?? CurrentTest.MotorRatedTorqueNm;
+
+        try
+        {
+            _arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "Varredura de tara no ar");
+
+            for (var rpm = TareStartRpm; rpm <= TareEndRpm; rpm += TareStepRpm)
+            {
+                TareProgressMessage = $"Medindo patamar N = {rpm:F0} rpm no ar...";
+                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint((int)rpm));
+
+                var samples = new List<double>();
+                for (var s = 0; s < 5; s++)
+                {
+                    await Task.Delay(100);
+                    var torquePct = CurrentTorquePercent ?? 0.8;
+                    samples.Add(torquePct);
+                }
+
+                var meanPct = samples.Average();
+                var sigmaPct = samples.Count > 1
+                    ? Math.Max(0.05, Math.Sqrt(samples.Select(x => (x - meanPct) * (x - meanPct)).Sum() / (samples.Count - 1)))
+                    : 0.05;
+
+                var rawTorqueNm = (meanPct / 100.0) * tNom;
+                var pVoidW = rawTorqueNm * PowerCalc.AngularVelocity(rpm);
+                var pt = new TarePoint(rpm, Math.Max(0.0, pVoidW), Math.Round(sigmaPct, 4));
+                points.Add(pt);
+                CurrentTarePoints.Add(pt);
+            }
+
+            SafeParkAndReleaseAgitation("Tara concluída");
+
+            var tare = new TareCurve
+            {
+                Points = points,
+                ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry()),
+                MeasuredUtc = DateTimeOffset.UtcNow,
+            };
+
+            CurrentTest.Tare = tare;
+            _store.SaveTare(CurrentTest.FolderName, tare);
+            _store.SaveTestManifest(CurrentTest);
+
+            TareProgressMessage = $"Tara gravada com {points.Count} patamares em {PowerTestFileContracts.TareFileName}.";
+            ValidationMessage = TareProgressMessage;
+            OnPropertyChanged(nameof(TareStatus));
+            OnPropertyChanged(nameof(ResultModeLabel));
+        }
+        catch (Exception ex)
+        {
+            SafeParkAndReleaseAgitation("Falha na varredura de tara");
+            ShowError($"Erro na varredura de tara: {ex.Message}");
+        }
+        finally
+        {
+            IsTareRunning = false;
+        }
+    }
+
+    // =========================================================================
+    // 8.3 Ponto único (conferência rápida)
+    // =========================================================================
+
+    [RelayCommand]
+    private void ToggleSinglePointPanel()
+    {
+        IsSinglePointPanelOpen = !IsSinglePointPanelOpen;
+        if (IsSinglePointPanelOpen)
+        {
+            IsCalibrationAssistantOpen = false;
+            IsTareAssistantOpen = false;
+            IsEnergyCorrelationOpen = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task StartSinglePointAsync()
+    {
+        if (IsRunning || IsTareRunning)
+        {
+            ShowError("Aguarde a operação atual finalizar para comandar o ponto único.");
+            return;
+        }
+        if (SinglePointRpm < 15 || SinglePointRpm > 1000)
+        {
+            ShowError("A rotação deve estar entre 15 e 1000 rpm.");
+            return;
+        }
+
+        try
+        {
+            var actuators = SinglePointFlowLpm > 0 ? new[] { ActuatorId.Agitation, ActuatorId.Aeration } : [ActuatorId.Agitation];
+            _arbiter.Claim(CommandOwner.PowerAssay, actuators, "Ponto único de conferência");
+            _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint((int)SinglePointRpm));
+            if (SinglePointFlowLpm > 0)
+            {
+                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.FlowSetpoint(SinglePointFlowLpm, 10.0));
+            }
+            IsSinglePointActive = true;
+            ValidationMessage = $"Ponto único em curso: {SinglePointRpm:F0} rpm.";
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Erro ao comandar ponto único: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task StopSinglePointAsync()
+    {
+        try
+        {
+            if (SinglePointFlowLpm > 0)
+            {
+                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.FlowSafeStop(10.0));
+            }
+            SafeParkAndReleaseAgitation("Ponto único finalizado");
+            IsSinglePointActive = false;
+            ValidationMessage = "Ponto único encerrado; eixo desocupado.";
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Erro ao parar ponto único: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void AddSinglePointToTest()
+    {
+        if (CurrentTest is null)
+        {
+            ShowError("Abra ou crie um ensaio para registrar a condição.");
+            return;
+        }
+
+        var cond = new PowerCondition
+        {
+            AgitationRpm = SinglePointRpm,
+            GasFlowLpm = SinglePointFlowLpm > 0 ? SinglePointFlowLpm : null,
+            GasMode = SinglePointFlowLpm > 0 ? PowerGasMode.Gassed : PowerGasMode.Ungassed,
+            FlowUnit = FlowInputUnit.Lpm,
+            RequestedReplicates = 1,
+            Origin = PowerConditionOrigin.Manual,
+            OrderIndex = Conditions.Count + 1,
+        };
+        Conditions.Add(cond);
+        CurrentTest.Conditions.Add(cond);
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        _store.SaveTestManifest(CurrentTest);
+        ValidationMessage = $"Ponto avulso ({SinglePointRpm:F0} rpm) adicionado à tabela.";
+    }
+
+    // =========================================================================
+    // 8.4 Captura manual de energia e correlação P_elétrica × P_mecânica
+    // =========================================================================
+
+    [RelayCommand]
+    private async Task ConfirmManualEnergyAsync()
+    {
+        if (_runner is null)
+        {
+            return;
+        }
+        if (ManualEnergyWattsInput < 0 || !double.IsFinite(ManualEnergyWattsInput))
+        {
+            ShowError("Informe uma potência elétrica válida em Watts (≥ 0).");
+            return;
+        }
+
+        try
+        {
+            await _runner.SubmitManualEnergyAsync(
+                ManualEnergyWattsInput,
+                string.IsNullOrWhiteSpace(ManualEnergyInstrument) ? "Wattímetro" : ManualEnergyInstrument.Trim(),
+                string.IsNullOrWhiteSpace(ManualEnergyNote) ? null : ManualEnergyNote.Trim());
+            RefreshManualEnergyReadings();
+            ValidationMessage = $"Leitura de {ManualEnergyWattsInput:F1} W confirmada.";
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleEnergyCorrelation()
+    {
+        IsEnergyCorrelationOpen = !IsEnergyCorrelationOpen;
+        if (IsEnergyCorrelationOpen)
+        {
+            IsCalibrationAssistantOpen = false;
+            IsTareAssistantOpen = false;
+            IsSinglePointPanelOpen = false;
+            RefreshManualEnergyReadings();
+        }
+    }
+
+    public void RefreshManualEnergyReadings()
+    {
+        ManualEnergyReadings.Clear();
+        if (CurrentTest?.Runs is null)
+        {
+            EnergyCorrelationSummary = "Nenhum ensaio carregado.";
+            return;
+        }
+
+        var pairs = new List<(double Mech, double Elec)>();
+        foreach (var run in CurrentTest.Runs)
+        {
+            if (run.ManualElec is { } reading)
+            {
+                ManualEnergyReadings.Add(reading);
+                pairs.Add((reading.PowerMechanicalWAtReading, reading.PowerElectricalW));
+            }
+        }
+
+        if (pairs.Count >= 2 && PowerCalc.FitElectricalCorrelation(pairs) is { } fit)
+        {
+            EnergyCorrelationSummary = $"P_el = {fit.Slope:F3} · P_mec {(fit.Intercept >= 0 ? "+" : "-")} {Math.Abs(fit.Intercept):F2} W  (R² = {fit.R2:F4}, n = {pairs.Count})";
+        }
+        else
+        {
+            EnergyCorrelationSummary = pairs.Count == 0
+                ? "Nenhuma leitura manual gravada até o momento."
+                : $"1 leitura manual gravada ({pairs[0].Elec:F1} W @ {pairs[0].Mech:F1} W mec). Mínimo 2 para correlação.";
+        }
+    }
+
+    private void SafeParkAndReleaseAgitation(string reason)
+    {
+        try
+        {
+            if (_arbiter.OwnerOf(ActuatorId.Agitation) == CommandOwner.PowerAssay)
+            {
+                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint(15));
+                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint(0));
+                _arbiter.Release(CommandOwner.PowerAssay, reason);
+            }
+        }
+        catch
+        {
+            // best-effort
+        }
+    }
 
     private bool TryPersist(out string error)
     {

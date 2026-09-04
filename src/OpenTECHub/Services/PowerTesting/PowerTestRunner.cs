@@ -971,6 +971,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             IsRelative = run.IsRelative,
             StartedUtc = run.StartedUtc,
             CompletedUtc = run.CompletedUtc,
+            ManualElec = run.ManualElec,
         });
     }
 

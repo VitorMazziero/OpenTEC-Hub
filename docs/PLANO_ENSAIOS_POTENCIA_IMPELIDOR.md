@@ -784,27 +784,131 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
       `c9c893a`: geometria de conjunto misto, tabela com modo de gás por linha, tara com `σ_τ`,
       calibração de um ponto, resumo de corrida com `IC`/`StopReason`; 15 testes de ida-e-volta;
       suíte completa 864 verdes / 1 ignorado)_
-- [ ] **2. Engine de análise** — `PowerAnalysisEngine` (puro): `P_eixo`, `P_líq` com tara,
-      `Np`/`Re` por estágio, portão de SNR do `σ_τ`, ajuste de platô ponderado pelo `IC`,
-      correlação afim de energia. Testes cobrindo a matemática e a cultura pt-BR.
-- [ ] **3. Simulador** — modelo de torque respondendo a `N`/`Q_g` (`τ ∝ ρ·Np·N²·D⁵`),
-      assentamento de 1ª ordem e ruído calibrado pelos números reais (sessão `2026-09-03_1340`).
-- [ ] **4. Runner + parada adaptativa** — `PowerTestRunner`: máquina de estados (§12), as duas
-      portas, `n_min`/`t_max`/`MaxTries`, replicatas independentes, parada segura a 15 rpm,
-      recusa com cascata ativa. Caminho não-gaseificado. Exercitado contra o simulador.
-- [ ] **5. Nav + as duas páginas** — itens `power` e `power-map` após `kla-mapping`; `PowerView`
-      e o esqueleto de `PowerMapView` roteados; view-models registrados em `App.xaml.cs`.
-- [ ] **6. UI de setup + tabela** — fluido, lista de impelidores (registro pré-carregado),
-      vaso/volume, limiares; tabela de condições (só `N`, gás fechado na fase 1).
-- [ ] **7. UI de captura ao vivo** — faixa `τ`/`rpm` + indicador de `IC₉₅`; gráfico `Np×Re` com
-      _overlay_ de literatura; tabela de pontos exportável (CSV).
-- [ ] **8. Procedimentos guiados** — tara `P_vazio(N)+σ_τ` e calibração de torque (1 ponto);
-      ponto único; captura manual de energia.
-- [ ] **9. Fechamento** — suíte completa verde + app iniciado e logs WPF recentes inspecionados.
+
+- [ ] **2. Engine de análise** — `PowerAnalysisEngine`, **puro** (sem UI, sem hardware), o
+      lugar único de toda a matemática do §4. Reprocessável na revisão.
+  - [ ] 2.1 Grandezas base: `rpm→rev/s`, `ω = 2π·N_rps`, `P_eixo = τ·ω`; torque calibrado
+        `τ = Scale·(torque_pct/100·T_nom)` (`Offset` reservado, fase 1 só escala).
+  - [ ] 2.2 Tara: interpolação de `P_vazio(N)` e `σ_τ(N)` na curva; `P_líq = P_medida − P_vazio`.
+  - [ ] 2.3 `Np`/`Re` **por estágio** com o `D` de cada; rateio de potência (partes iguais como
+        hipótese explícita) e o `Np` do conjunto em paralelo (§4.3).
+  - [ ] 2.4 Portão de SNR: marca "abaixo do ruído" quando `P_líq ≤ k·σ_τ(N)·ω` (§7.2).
+  - [ ] 2.5 Estatística de janela **incremental**: média, desvio, `SE = σ/√n`, `IC₉₅`;
+        propagação do `IC` para `Np` pelo fator `ρN³D⁵`.
+  - [ ] 2.6 Ajuste de platô: seleção `Re > corte` (editável), média **ponderada pelo `IC`**,
+        incerteza do platô; pontos "não convergiu" excluíveis.
+  - [ ] 2.7 Correlação afim de energia: mínimos quadrados `P_elétrica ≈ a·P_mec + b` dos pares
+        manuais, com `a`, `b` e o consumo de vazio (§4.8).
+  - [ ] 2.8 _(fase 2, deixar o gancho)_ `Fl_G`, `Fr`, `P_G/P₀` com `P₀` interpolado; detecção
+        de _flooding_.
+  - [ ] 2.9 Testes: cada fórmula, unidades, cultura pt-BR, tara, SNR, IC, platô, ajuste afim.
+
+- [ ] **3. Simulador** — estende o modelo de servo para o runner ser exercitado sem bancada.
+  - [ ] 3.1 Torque em regime `τ = ρ·Np(tipo)·N²·D⁵/(...)` + tara por estágio.
+  - [ ] 3.2 Assentamento de 1ª ordem ao mudar `N`/`Q_g` (constante de tempo configurável).
+  - [ ] 3.3 Ruído `σ_τ(N)` **calibrado pelos números reais** (0,06 % repouso → ~0,6 % a 300 rpm,
+        sessão `2026-09-03_1340`).
+  - [ ] 3.4 Acopla ao caminho existente: telemetria (`ServoRpm`/`ServoTorqueNm`/`ServoPowerW`) e
+        comando (`motorSetpoint`; `FlowSetpoint` na fase 2).
+  - [ ] 3.5 _(fase 2)_ joelho de `P_G/P₀` numa `Fl_G` de corte.
+
+- [ ] **4. Runner + parada adaptativa — O ALGORITMO DO TESTE AUTOMÁTICO** (`PowerTestRunner`,
+      molde `KlaTestRunner`). É o coração; cada subitem é testável contra o simulador.
+  - [ ] 4.1 Esqueleto da máquina de estados (§12): `PowerRunPhase`, transições, `StateChanged`,
+        `PhaseElapsedSeconds`, `IsRunning`/`IsInReview`.
+  - [ ] 4.2 Pré-voo e **recusa de iniciar**: servo online+roteado, hub conectado, **cascata/
+        cultivo NÃO ativos** (§14), tara/calibração presentes ou modo relativo assumido.
+  - [ ] 4.3 Propriedade: `CommandOwner.PowerAssay` no árbitro; _claim_ da agitação (e do gás na
+        fase 2); _release_ no fim, no abort e em `OwnershipRevoked`.
+  - [ ] 4.4 `SettingSpeed`: comanda `motorSetpoint` (referência), espera **`ServoRpm` medido**
+        entrar na banda-alvo por N leituras; nunca comanda 0 (piso 15 rpm).
+  - [ ] 4.5 **Porta 1 — estacionariedade**: buffer móvel de `τ`, ajuste linear, `|inclinação|`
+        abaixo da tolerância por N confirmações; **amostras do transiente não contam**.
+  - [ ] 4.6 **Porta 2 — precisão**: acumulador incremental (média/σ/SE/`IC₉₅`); **para quando
+        `IC₉₅ ≤ max(k_rel·|P̄|, piso σ_τ)`**; respeita `n_min = 60` e `t_max = 5 min`.
+  - [ ] 4.7 **Recaptura no lugar**: ao estourar `t_max` ou reprovar, reinicia as duas portas até
+        `MaxTries = 3`; grava `Tries` e `StopReason` (`Target`/`Tmax`/`NotConverged`).
+  - [ ] 4.8 Amostragem: baixa `servoPollMs` durante a captura e devolve depois; `dt` **medido**,
+        não assumido.
+  - [ ] 4.9 Captura do ponto: grava `PowerRun` (média, `IC`, `N` medido, `StopReason`), a raw
+        data da corrida e a `serie-global` alinhada.
+  - [ ] 4.10 Condição **"Ambas"**: sequência gás-fechado→gás-aberto, dois pontos à mesma `N`
+        (fase 1 só faz o `P₀`; o `P_G` acende na fase 2).
+  - [ ] 4.11 **Replicatas independentes** (Q5): cada uma reaproxima e roda até o alvo; agrega as
+        médias; discordância maior que os `IC` sinaliza efeito sistemático de partida.
+  - [ ] 4.12 Segurança: guarda `τ`máx/`N`máx (interrompe→revisão, não força); **medida ausente**
+        descarta a média corrente e pausa; abort **rampa a 15 rpm** e fecha o gás.
+  - [ ] 4.13 `HoldingForManualEnergy` (se ligado): segura a condição, aguarda a entrada do
+        wattímetro e grava `ManualElecReading` amarrado ao ponto (§12.3).
+  - [ ] 4.14 _(fase 2)_ `OpeningGas` + `VentStabilizing` (§13).
+  - [ ] 4.15 Testes: cada porta, o `IC`-stop, `n_min`/`t_max`, "não convergiu", abort a 15,
+        medida ausente, recusa por cascata, "Ambas", replicatas.
+
+- [ ] **5. Navegação + as duas páginas** (esqueleto roteado).
+  - [ ] 5.1 `NavigationItem("power", "Potência", "Impeller", "Automação", …)` e
+        `NavigationItem("power-map", "Mapa de Potência", "Search", …)` após `kla-mapping` no
+        `ShellViewModel`.
+  - [ ] 5.2 Roteamento no `MainWindow.xaml` (`PowerView` e `PowerMapView` via o conversor de
+        visibilidade por `Id`).
+  - [ ] 5.3 `PowerTestViewModel` e `PowerMapViewModel` registrados em `App.xaml.cs`, com
+        `IPowerTestStore`, telemetria e árbitro injetados; descarte junto dos assinantes.
+  - [ ] 5.4 Atalho de teclado na sequência; `LastPage` persiste a página.
+  - [ ] 5.5 `PowerMapView` como **placeholder** rotulado "fase 3".
+
+- [ ] **6. UI de aquisição — barra lateral (setup + tabela)** (`PowerView.xaml`, mestre-detalhe).
+  - [ ] 6.1 Layout: `Grid` barra lateral ~340 px + área de resultados; responsivo; **tema-aware**
+        por tokens (light/dark), rótulos pt-BR.
+  - [ ] 6.2 Ensaio: criar/abrir/listar (diálogo de nome com validação, lista de `Testes-Potencia`);
+        estados _rascunho/rodando/interrompido_.
+  - [ ] 6.3 Fluido: `ρ`, `μ`, `T` + _presets_ (água); validação numérica `InvariantCulture`.
+  - [ ] 6.4 **Registro de impelidores**: lista editável de estágios (tipo do catálogo dos quatro,
+        `D`, pás, _clearance_, posição), adicionar/remover/reordenar; `ImpellerSetHash` recalculado
+        e comparado ao da tara.
+  - [ ] 6.5 Vaso e líquido: `T`, volume útil (**obrigatório se vvm**), chicanas; aviso de vórtice
+        sem chicana a alta `N`.
+  - [ ] 6.6 Card **Limiares** (aplicação automática, sem botão "Aplicar"): faixa/passo de `N`
+        (padrão 50, mín 5, 15–1000), `k_rel`, `k_abs`, `n_min`, `t_max`, `MaxTries`, janela de
+        estacionariedade; _checkboxes_ **estabilização no alívio** (fase 2) e **obter energia
+        manual**.
+  - [ ] 6.7 **Tabela de condições**: colunas `N`, vazão (`L/min`↔`vvm`), modo de gás, replicatas,
+        concluídas, `Np`, status, origem; adicionar/editar/remover; **gerar varredura** (N ini/
+        fim/passo → linhas); ordenação; repetir/rejeitar/pular.
+  - [ ] 6.8 Status de **tara/calibração**: chips (presente/ausente, data, hash confere) + botões
+        "medir" (→ passo 8); indicação **relativo vs absoluto**.
+  - [ ] 6.9 Controles de execução: ▶ Iniciar / ⏸ / ⏭ / ⏹ (abort a 15); progresso `i/n`, ETA.
+
+- [ ] **7. UI de aquisição — área de resultados (captura ao vivo)** (`PowerView.xaml`).
+  - [ ] 7.1 Faixa ao vivo `τ` e `rpm` × tempo (ScottPlot), com a **fase de acumulação destacada**.
+  - [ ] 7.2 **Indicador de `IC₉₅` encolhendo**: rótulo `Np = … ± … (95 %)` + barra de confiança
+        "pronto quando ≤ alvo" — a decisão de parar fica visível (Q7).
+  - [ ] 7.3 Leituras ao vivo: `N` medido, `τ %`, `τ N·m`, **P mec. estimada**, `Q_g`, e
+        `Np`/`Re`/`Fl_G`/`Fr` calculados; **traço** quando ausente.
+  - [ ] 7.4 Gráfico principal **`Np × Re`** (`Re` log), um ponto por captura **com barra de erro**,
+        _overlay_ do `Np` de literatura do impelidor.
+  - [ ] 7.5 **Tabela de pontos**: `N`, `τ_líq`, `P`, `Np`, `Re`, `IC`, `StopReason`, tentativas,
+        timestamp; **exportar CSV**.
+  - [ ] 7.6 Rótulos "mecânica estimada" em potência/energia; badges relativo/absoluto e
+        "precisão não atingida".
+  - [ ] 7.7 Testes de contrato: sem "Aplicar" (`ControlWorkspaceContractTests`), _bindings_,
+        traço-não-zero.
+
+- [ ] **8. Procedimentos guiados** (assistentes que gravam `tara.json`/`calibracao-torque.json`).
+  - [ ] 8.1 **Calibração de torque (1 ponto)**: servo energizado, aplicar massa×braço, ler
+        `torque_pct`, calcular `Scale`, gravar; na forma das Calibrações existentes.
+  - [ ] 8.2 **Tara `P_vazio(N)+σ_τ`**: assistente de varredura no ar reusando o runner em modo
+        tara; grava com `ImpellerSetHash`.
+  - [ ] 8.3 **Ponto único**: painel de conferência (comanda `N`/`Q_g`, mostra ao vivo, ponto
+        avulso opcional).
+  - [ ] 8.4 **Captura manual de energia**: campo de entrada no _hold_, grava `ManualElecReading`;
+        gráfico de correlação `P_elétrica × P_mecânica`.
+
+- [ ] **9. Fechamento** — suíte completa verde + app iniciado, navegação às duas páginas e logs
+      WPF recentes inspecionados.
 
 **Portão da Fase 1:** uma varredura não-gaseificada roda ponta a ponta contra o simulador, para
-cada condição pela confiança, e entrega `Np(Re)` com `IC`, tara e calibração aplicadas. Fases 2
-e 3 ganham suas próprias listas quando começarem.
+cada condição **pela confiança** (as duas portas), e entrega `Np(Re)` com `IC`, tara e calibração
+aplicadas, exibido na página e exportável. Fases 2 e 3 ganham suas próprias listas quando
+começarem.
 
 ---
 

@@ -372,6 +372,157 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.True(vm.ShowFloodingChart);
     }
 
+    [Fact]
+    public void PowerTestViewModel_step7_manual_flooding_adjustment_and_reset_automatic()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            LiquidVolumeM3 = 0.010,
+            Impellers = [new Impeller { DiameterM = 0.06, BladeCount = 6 }]
+        };
+        var doc = _store.CreateTest("Step7-Flooding-Review", new FluidProperties { DensityKgM3 = 1000.0, ViscosityPaS = 0.001 }, geometry, new PowerTestSettings());
+
+        var flowRates = new[] { 2.0, 4.0, 8.0, 12.0 };
+        var ratios = new[] { 0.90, 0.80, 0.70, 0.60 };
+        for (var i = 0; i < flowRates.Length; i++)
+        {
+            doc.Runs.Add(new PowerRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-10 + i),
+                AgitationRpm = 400.0,
+                MeanRpmMeasured = 400.0,
+                NetPowerW = 20.0 * ratios[i],
+                GassedPowerW = 20.0 * ratios[i],
+                ReferenceP0W = 20.0,
+                GasMode = PowerGasMode.Gassed,
+                GasFlowLpm = flowRates[i],
+                GasFlowNumber = 0.005 * (i + 1),
+                FroudeNumber = 0.18,
+                PowerRatio = ratios[i],
+                PowerRatioCi95 = 0.02,
+                Phase = PowerRunPhase.Accepted,
+            });
+        }
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        // Automatic detection found the minimum ratio (i=3, ratio=0.60)
+        Assert.NotNull(vm.FloodingResult);
+        Assert.Equal(FloodingDetectionMethod.Automatic, vm.FloodingResult.Method);
+
+        // Select row 1 (ratio = 0.80) to manually adjust flooding
+        var targetRow = vm.Results.First(r => r.IsGassed && Math.Abs(r.Ratio - 0.80) < 1e-3);
+        vm.SelectedResultRow = targetRow;
+        Assert.True(vm.CanSetManualFlooding);
+        Assert.True(vm.CanToggleRowAcceptance);
+
+        vm.SetSelectedAsFloodingPointCommand.Execute(null);
+
+        Assert.Equal(FloodingDetectionMethod.ManualAdjusted, vm.FloodingResult.Method);
+        Assert.Equal(targetRow.AerationNumber, vm.FloodingResult.ExperimentalFlG, 4);
+        Assert.Contains("Método: Manual", vm.FloodingDeviationText);
+
+        // Verify persisted manifest
+        var loadedDoc = _store.LoadTest(doc.FolderName);
+        Assert.NotNull(loadedDoc?.Flooding);
+        Assert.Equal(FloodingDetectionMethod.ManualAdjusted, loadedDoc.Flooding.Method);
+
+        // Reset to automatic
+        vm.ResetAutomaticFloodingCommand.Execute(null);
+        Assert.Equal(FloodingDetectionMethod.Automatic, vm.FloodingResult.Method);
+
+        // Toggle row acceptance (accepted -> rejected)
+        vm.SelectedResultRow = targetRow;
+        vm.ToggleAcceptSelectedRowCommand.Execute(null);
+        var updatedRow = vm.Results.First(r => r.RunId == targetRow.RunId);
+        Assert.Equal("Rejeitado", updatedRow.Status);
+
+        // Toggle back (rejected -> accepted)
+        vm.SelectedResultRow = updatedRow;
+        vm.ToggleAcceptSelectedRowCommand.Execute(null);
+        var restoredRow = vm.Results.First(r => r.RunId == targetRow.RunId);
+        Assert.Equal("Aceito", restoredRow.Status);
+    }
+
+    [Fact]
+    public void PowerTestViewModel_step7_reprocessing_recalculates_adimensionals_and_nienow_without_altering_raw_measurements()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            LiquidVolumeM3 = 0.010,
+            Impellers = [new Impeller { DiameterM = 0.06, BladeCount = 6 }]
+        };
+        var doc = _store.CreateTest("Step7-Reprocess-Test", new FluidProperties { DensityKgM3 = 1000.0, ViscosityPaS = 0.001 }, geometry, new PowerTestSettings());
+
+        // Add 1 ungassed run + 3 gassed runs
+        var p0Run = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+            AgitationRpm = 300.0,
+            MeanRpmMeasured = 300.0,
+            NetPowerW = 10.0,
+            MeanShaftPowerW = 10.0,
+            GasMode = PowerGasMode.Ungassed,
+            Phase = PowerRunPhase.Accepted,
+            Analysis = new PowerPointResult { AssemblyReynoldsNumber = 18000.0, AssemblyPowerNumber = 5.0 },
+        };
+        doc.Runs.Add(p0Run);
+
+        for (var i = 1; i <= 3; i++)
+        {
+            doc.Runs.Add(new PowerRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-10 + i),
+                AgitationRpm = 300.0,
+                MeanRpmMeasured = 300.0,
+                NetPowerW = 10.0 * (1.0 - i * 0.1),
+                MeanShaftPowerW = 10.0 * (1.0 - i * 0.1),
+                GasMode = PowerGasMode.Gassed,
+                GasFlowLpm = i * 2.0,
+                Phase = PowerRunPhase.Accepted,
+            });
+        }
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        var initialP0Row = vm.Results.First(r => !r.IsGassed);
+        var initialRe = initialP0Row.ReynoldsNumber;
+        var initialTheoNienow = vm.FloodingResult?.TheoreticalFlGNienow ?? 0.0;
+
+        // Change fluid density to 1200 kg/m3 -> Re and Np should change reactively
+        vm.DensityKgM3 = 1200.0;
+
+        var reprocessedP0Row = vm.Results.First(r => !r.IsGassed);
+        Assert.True(reprocessedP0Row.ReynoldsNumber > initialRe); // Re is proportional to density
+
+        // Change vessel diameter T from 190 mm to 250 mm -> Theoretical Nienow boundary changes
+        vm.VesselDiameterMm = 250.0;
+
+        Assert.NotNull(vm.FloodingResult);
+        Assert.NotEqual(initialTheoNienow, vm.FloodingResult.TheoreticalFlGNienow);
+
+        // Verify raw measurements (NetPowerW, MeanRpmMeasured) remained unaltered in document
+        var reloaded = _store.LoadTest(doc.FolderName);
+        Assert.NotNull(reloaded);
+        Assert.Equal(10.0, reloaded.Runs[0].NetPowerW);
+        Assert.Equal(300.0, reloaded.Runs[0].MeanRpmMeasured);
+    }
+
     private sealed class TestDeviceService : IDeviceService
     {
         public ConnectionState State => ConnectionState.Connected;

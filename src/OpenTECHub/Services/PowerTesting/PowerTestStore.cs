@@ -566,13 +566,24 @@ public sealed class PowerTestStore : IPowerTestStore
         try
         {
             File.WriteAllText(tempPath, contents, Encoding.UTF8);
-            File.Move(tempPath, path, overwrite: true);
+            for (var attempt = 1; attempt <= 5; attempt++)
+            {
+                try
+                {
+                    File.Move(tempPath, path, overwrite: true);
+                    return;
+                }
+                catch (Exception) when (attempt < 5)
+                {
+                    Thread.Sleep(20);
+                }
+            }
         }
         finally
         {
             if (File.Exists(tempPath))
             {
-                File.Delete(tempPath);
+                try { File.Delete(tempPath); } catch { }
             }
         }
     }

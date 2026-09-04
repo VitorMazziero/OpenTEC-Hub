@@ -1124,14 +1124,16 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
 
   **Auditoria da etapa 6 (2026-09-04):** Visualização gráfica expandida com suporte a abas `[Np × Re]` e `[PG/P₀ × Fl_G (Flooding)]`. Gráfico gaseificado renderizado com curva experimental azul com barras de incerteza IC95, eixo secundário à direita exibindo número de Froude Fr (verde pontilhado), overlay da correlação teórica de Nienow (âmbar tracejado) e marcador de diamante preenchido no ponto de flooding com anotação explícita de coordenada. Card explicativo da transição de flooding exibe coordenadas e desvio percentual em relação a Nienow com badge de ponto identificado. Tabela DataGrid atualizada com colunas completas de gás (Qg, FlG, Fr, PG, P0, PG/P0 ± IC95) e exportação de CSV sincronizada. 982 testes aprovados.
 
-- [ ] **7. Revisão Científica e Ajuste Interativo de Flooding**
-  - [ ] 7.1 Revisão de pontos gaseificados: aceitação, rejeição ou repetição de replicatas com gás.
-  - [ ] 7.2 Ajuste do marcador de flooding na revisão (§16):
+- [X] **7. Revisão Científica e Ajuste Interativo de Flooding**
+  - [X] 7.1 Revisão de pontos gaseificados: aceitação, rejeição ou repetição de replicatas com gás.
+  - [X] 7.2 Ajuste do marcador de flooding na revisão (§16):
         - Operador pode aceitar a detecção automática do mínimo ou clicar/selecionar outro ponto
           experimental na curva para ser o flooding oficial do ensaio.
         - Registro do status no documento: `FloodingMethod = Automatic | ManualAdjusted`.
-  - [ ] 7.3 Reprocessamento científico: alteração de volume, densidade, viscosidade ou diâmetros `D` e `T`
+  - [X] 7.3 Reprocessamento científico: alteração de volume, densidade, viscosidade ou diâmetros `D` e `T`
         recalcula instantaneamente `Fl_G`, `Fr`, a curva de Nienow e a razão `P_G/P₀` sem alterar os dados brutos.
+
+  **Auditoria da etapa 7 (2026-09-04):** Revisão científica e ajuste interativo de flooding totalmente implementados. Botões de ação adicionados sobre a tabela de resultados: "Definir Flooding", "Flooding Auto" e "Alternar Aceite". Suporte a clique interativo no gráfico de flooding do ScottPlot para selecionar diretamente o ponto experimental mais próximo. Seleção de ponto manual grava FloodingAnalysisResult com FloodingDetectionMethod.ManualAdjusted, recalcula o desvio teórico e persiste no manifesto e resumo CSV. Reprocessamento científico reativo: edição de densidade, viscosidade, diâmetro do vaso T, volume de trabalho ou diâmetro do impelidor D recalcula em tempo real Re, Np, Fl_G, Fr, P_G/P₀ e a correlação de Nienow sem modificar as medições brutas originais. Mecanismo atômico de escrita do store enriquecido com retentativa contra bloqueios transitórios de I/O do Windows. Suíte completa com 984 testes aprovados.
 
 - [ ] **8. Verificação Integrada e Fechamento da Fase 2**
   - [ ] 8.1 Suíte de testes automatizados verde (domínio, store, engine, runner e viewmodels).

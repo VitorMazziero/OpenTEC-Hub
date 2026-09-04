@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
@@ -30,6 +31,7 @@ public partial class PowerView : UserControl
         LiveChartHost.Child = _livePlot;
         NpChartHost.Child = _npPlot;
         PgChartHost.Child = _pgPlot;
+        _pgPlot.MouseDown += OnPgPlotMouseDown;
         _redrawTimer.Tick += (_, _) => RedrawPlots();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -295,6 +297,43 @@ public partial class PowerView : UserControl
         plot.Axes.Right.Label.FontSize = 10;
         plot.Axes.Right.TickLabelStyle.IsVisible = true;
         plot.Axes.Right.FrameLineStyle.Width = 1;
+    }
+
+    private void OnPgPlotMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel is not { } vm || !vm.ShowFloodingChart || vm.Results.Count == 0)
+        {
+            return;
+        }
+
+        var pos = e.GetPosition(_pgPlot);
+        var coords = _pgPlot.Plot.GetCoordinates((float)pos.X, (float)pos.Y);
+
+        PowerResultRow? closestRow = null;
+        var minDistanceSq = double.PositiveInfinity;
+
+        foreach (var row in vm.Results)
+        {
+            if (!row.IsGassed || !double.IsFinite(row.AerationNumber) || !double.IsFinite(row.Ratio))
+            {
+                continue;
+            }
+
+            var dx = coords.X - row.AerationNumber;
+            var dy = coords.Y - row.Ratio;
+            var distSq = dx * dx + dy * dy;
+
+            if (distSq < minDistanceSq)
+            {
+                minDistanceSq = distSq;
+                closestRow = row;
+            }
+        }
+
+        if (closestRow is not null && minDistanceSq < 0.25)
+        {
+            vm.SelectedResultRow = closestRow;
+        }
     }
 
     private void ExportCsv_Click(object sender, RoutedEventArgs e)

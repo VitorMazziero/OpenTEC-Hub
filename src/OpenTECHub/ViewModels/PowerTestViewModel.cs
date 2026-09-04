@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -69,12 +70,32 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         RefreshOwnership();
         RefreshTests();
+        Impellers.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems is not null)
+            {
+                foreach (Impeller imp in e.NewItems) imp.PropertyChanged += OnImpellerPropertyChanged;
+            }
+            if (e.OldItems is not null)
+            {
+                foreach (Impeller imp in e.OldItems) imp.PropertyChanged -= OnImpellerPropertyChanged;
+            }
+            NotifyGeometryState();
+            ReprocessIfActive();
+        };
+
         if (_device.Latest is { } latest)
         {
             OnTelemetryReceived(latest);
         }
 
         UpdateRunnerState();
+    }
+
+    private void OnImpellerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        NotifyGeometryState();
+        ReprocessIfActive();
     }
 
     public string TestRootDirectory { get; }
@@ -188,12 +209,24 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial PowerGasMode SweepGasMode { get; set; } = PowerGasMode.Gassed;
     [ObservableProperty] public partial FlowInputUnit SweepFlowUnit { get; set; } = FlowInputUnit.Lpm;
 
+    private bool _isLoadingTest;
+
     [ObservableProperty] public partial bool ShowFloodingChart { get; set; }
     [ObservableProperty] public partial FloodingAnalysisResult? FloodingResult { get; private set; }
     [ObservableProperty] public partial bool HasFloodingPoint { get; private set; }
     [ObservableProperty] public partial string FloodingSummary { get; private set; } = "";
     [ObservableProperty] public partial string FloodingCoordinates { get; private set; } = "";
     [ObservableProperty] public partial string FloodingDeviationText { get; private set; } = "";
+
+    [ObservableProperty] public partial PowerResultRow? SelectedResultRow { get; set; }
+    public bool CanSetManualFlooding => SelectedResultRow is not null && SelectedResultRow.IsGassed;
+    public bool CanToggleRowAcceptance => SelectedResultRow is not null;
+
+    partial void OnSelectedResultRowChanged(PowerResultRow? value)
+    {
+        OnPropertyChanged(nameof(CanSetManualFlooding));
+        OnPropertyChanged(nameof(CanToggleRowAcceptance));
+    }
 
     public bool IsSweepTypeNVariable => SelectedSweepType is PowerSweepType.VariableNConstantQg or PowerSweepType.MatrixNByQg;
     public bool IsSweepTypeQgVariable => SelectedSweepType is PowerSweepType.VariableQgConstantN or PowerSweepType.MatrixNByQg;
@@ -206,6 +239,28 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsSweepTypeQgVariable));
         OnPropertyChanged(nameof(IsSweepTypeNConstant));
         OnPropertyChanged(nameof(IsSweepTypeQgConstant));
+    }
+
+    partial void OnDensityKgM3Changed(double value)
+    {
+        RecalculateLiveMetrics();
+        ReprocessIfActive();
+    }
+
+    partial void OnViscosityPaSChanged(double value)
+    {
+        RecalculateLiveMetrics();
+        ReprocessIfActive();
+    }
+
+    partial void OnTemperatureCChanged(double value)
+    {
+        ReprocessIfActive();
+    }
+
+    partial void OnVesselDiameterMmChanged(double value)
+    {
+        ReprocessIfActive();
     }
 
     partial void OnLiquidVolumeLChanged(double value)
@@ -225,6 +280,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             }
         }
         RecalculateLiveMetrics();
+        ReprocessIfActive();
     }
 
     // --- Step 8: Guided Procedures ---
@@ -385,38 +441,43 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void LoadDocument(PowerTestDocument doc)
     {
-        CurrentTest = doc;
-        DensityKgM3 = doc.Fluid.DensityKgM3;
-        ViscosityPaS = doc.Fluid.ViscosityPaS;
-        TemperatureC = doc.Fluid.TemperatureC;
-        VesselDiameterMm = doc.Geometry.VesselDiameterM * 1000.0;
-        LiquidVolumeL = doc.Geometry.LiquidVolumeM3 * 1000.0;
-        IsBaffled = doc.Geometry.Baffled;
-        RelativeMode = doc.RelativeMode;
-        MinRpm = doc.Settings.MinRpm;
-        MaxRpm = doc.Settings.MaxRpm;
-        StepRpm = doc.Settings.DefaultStepRpm;
-        RelativeCiPercent = doc.Settings.RelativeCiFraction * 100.0;
-        CiFloorSigmaMultiple = doc.Settings.CiFloorSigmaMultiple;
-        MinimumSamples = doc.Settings.MinSamples;
-        MaxCaptureSeconds = doc.Settings.MaxCaptureSeconds;
-        MaxTries = doc.Settings.MaxTries;
-        StationarityWindowSeconds = doc.Settings.StationarityWindowSeconds;
-        StationaritySlopeTolerance = doc.Settings.StationaritySlopeTolerancePercentPerSecond;
-        StationarityRequiredSamples = doc.Settings.StationarityRequiredSamples;
-        VentStabilizationEnabled = doc.Settings.VentStabilizationEnabled;
-        SelectedVentValve = doc.Settings.SelectedVentValve;
-        VentFlowToleranceLpm = doc.Settings.VentFlowToleranceLpm;
-        VentFlowStableSamples = doc.Settings.VentFlowStableSamples;
-        VentAgitationRpm = doc.Settings.VentAgitationRpm;
-        MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
-        ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
-
-        Impellers.Clear();
-        foreach (var impeller in doc.Geometry.Impellers.OrderBy(i => i.StageIndex))
+        _isLoadingTest = true;
+        try
         {
-            Impellers.Add(impeller.Clone());
-        }
+            CurrentTest = doc;
+            DensityKgM3 = doc.Fluid.DensityKgM3;
+            ViscosityPaS = doc.Fluid.ViscosityPaS;
+            TemperatureC = doc.Fluid.TemperatureC;
+            VesselDiameterMm = doc.Geometry.VesselDiameterM * 1000.0;
+            LiquidVolumeL = doc.Geometry.LiquidVolumeM3 * 1000.0;
+            IsBaffled = doc.Geometry.Baffled;
+            RelativeMode = doc.RelativeMode;
+            MinRpm = doc.Settings.MinRpm;
+            MaxRpm = doc.Settings.MaxRpm;
+            StepRpm = doc.Settings.DefaultStepRpm;
+            RelativeCiPercent = doc.Settings.RelativeCiFraction * 100.0;
+            CiFloorSigmaMultiple = doc.Settings.CiFloorSigmaMultiple;
+            MinimumSamples = doc.Settings.MinSamples;
+            MaxCaptureSeconds = doc.Settings.MaxCaptureSeconds;
+            MaxTries = doc.Settings.MaxTries;
+            StationarityWindowSeconds = doc.Settings.StationarityWindowSeconds;
+            StationaritySlopeTolerance = doc.Settings.StationaritySlopeTolerancePercentPerSecond;
+            StationarityRequiredSamples = doc.Settings.StationarityRequiredSamples;
+            VentStabilizationEnabled = doc.Settings.VentStabilizationEnabled;
+            SelectedVentValve = doc.Settings.SelectedVentValve;
+            VentFlowToleranceLpm = doc.Settings.VentFlowToleranceLpm;
+            VentFlowStableSamples = doc.Settings.VentFlowStableSamples;
+            VentAgitationRpm = doc.Settings.VentAgitationRpm;
+            MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
+            ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
+
+            Impellers.Clear();
+            foreach (var impeller in doc.Geometry.Impellers.OrderBy(i => i.StageIndex))
+            {
+                var cloned = impeller.Clone();
+                cloned.PropertyChanged += OnImpellerPropertyChanged;
+                Impellers.Add(cloned);
+            }
 
         Conditions.Clear();
         foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
@@ -434,6 +495,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         RefreshManualEnergyReadings();
         NotifyDocumentState();
         RecalculateLiveMetrics();
+        }
+        finally
+        {
+            _isLoadingTest = false;
+        }
     }
 
     [RelayCommand]
@@ -821,6 +887,256 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         await _runner.AbortTestAsync("Interrompido pelo operador");
+    }
+
+    // =========================================================================
+    // Step 7: Revisão Científica e Ajuste Interativo de Flooding (§16)
+    // =========================================================================
+
+    [RelayCommand]
+    private void SetSelectedAsFloodingPoint()
+    {
+        if (CurrentTest is null || SelectedResultRow is null)
+        {
+            return;
+        }
+
+        var run = CurrentTest.Runs.FirstOrDefault(r => r.RunId == SelectedResultRow.RunId);
+        if (run is null || run.GasMode == PowerGasMode.Ungassed)
+        {
+            ShowError("Selecione um ponto experimental gaseificado na tabela para definir como transição de flooding.");
+            return;
+        }
+
+        var refImpeller = CurrentTest.Geometry.Impellers.OrderByDescending(i => i.DiameterM).FirstOrDefault()
+                          ?? new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 };
+        var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
+        var fr = run.FroudeNumber ?? PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
+        var nienowFlG = PowerCalc.NienowFloodingAerationNumber(refImpeller.DiameterM, CurrentTest.Geometry.VesselDiameterM, fr);
+        var expFlG = run.GasFlowNumber ?? (run.GasFlowLpm.HasValue && rpm > 0 ? PowerCalc.AerationNumber(run.GasFlowLpm.Value, rpm, refImpeller.DiameterM) : 0.0);
+        var relDev = nienowFlG > 0 ? (expFlG - nienowFlG) / nienowFlG * 100.0 : 0.0;
+
+        var adjusted = new FloodingAnalysisResult
+        {
+            ExperimentalFlG = expFlG,
+            ExperimentalRpm = rpm,
+            ExperimentalFlowLpm = run.GasFlowLpm ?? 0.0,
+            TheoreticalFlGNienow = nienowFlG,
+            RelativeDeviationPercent = relDev,
+            ReferenceStageIndex = refImpeller.StageIndex,
+            ReferenceImpellerType = refImpeller.Type,
+            Method = FloodingDetectionMethod.ManualAdjusted,
+            DeterminedUtc = DateTimeOffset.UtcNow,
+            Notes = $"Transição ajustada manualmente pelo operador no ponto PG/P0 = {run.PowerRatio:F3} ({rpm:F0} rpm, {run.GasFlowLpm:F2} L/min)",
+        };
+
+        CurrentTest.Flooding = adjusted;
+        _store.SaveFlooding(CurrentTest.FolderName, adjusted);
+        _store.SaveTestManifest(CurrentTest);
+        RebuildResults();
+        StatusMessage = $"Ponto de flooding ajustado manualmente para Fl_G = {adjusted.ExperimentalFlG:G4}.";
+    }
+
+    [RelayCommand]
+    private void ResetAutomaticFlooding()
+    {
+        if (CurrentTest is null) return;
+        var auto = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
+        CurrentTest.Flooding = auto;
+        if (auto is not null)
+        {
+            _store.SaveFlooding(CurrentTest.FolderName, auto);
+        }
+        _store.SaveTestManifest(CurrentTest);
+        RebuildResults();
+        StatusMessage = auto is not null
+            ? $"Flooding automático detectado em Fl_G = {auto.ExperimentalFlG:G4}."
+            : "Flooding automático restaurado (insuficientes pontos para detecção automática).";
+    }
+
+    [RelayCommand]
+    private void ToggleAcceptSelectedRow()
+    {
+        if (CurrentTest is null || SelectedResultRow is null) return;
+        var run = CurrentTest.Runs.FirstOrDefault(r => r.RunId == SelectedResultRow.RunId);
+        if (run is null) return;
+
+        var newPhase = run.Phase == PowerRunPhase.Accepted ? PowerRunPhase.Rejected : PowerRunPhase.Accepted;
+        var updatedRun = run with { Phase = newPhase };
+        var idx = CurrentTest.Runs.IndexOf(run);
+        CurrentTest.Runs[idx] = updatedRun;
+
+        var cond = CurrentTest.Conditions.FirstOrDefault(c => c.ConditionId == run.ConditionId);
+        if (cond is not null)
+        {
+            cond.AcceptedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == cond.ConditionId && r.Phase == PowerRunPhase.Accepted);
+            cond.RejectedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == cond.ConditionId && r.Phase == PowerRunPhase.Rejected);
+            _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+        }
+
+        if (CurrentTest.Flooding?.Method != FloodingDetectionMethod.ManualAdjusted)
+        {
+            CurrentTest.Flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
+            if (CurrentTest.Flooding is not null)
+            {
+                _store.SaveFlooding(CurrentTest.FolderName, CurrentTest.Flooding);
+            }
+        }
+
+        _store.UpdateResultsSummary(CurrentTest.FolderName, CurrentTest);
+        _store.SaveTestManifest(CurrentTest);
+        RebuildResults();
+        StatusMessage = $"Ponto {(newPhase == PowerRunPhase.Accepted ? "aceito" : "rejeitado")}: {run.AgitationRpm:F0} rpm (Qg = {run.GasFlowLpm:F2} L/min).";
+    }
+
+    private void ReprocessIfActive()
+    {
+        if (_isLoadingTest || CurrentTest is null) return;
+        if (!FinitePositive(DensityKgM3) || !FinitePositive(ViscosityPaS) || !FinitePositive(VesselDiameterMm) || LiquidVolumeL <= 0)
+        {
+            return;
+        }
+
+        ReprocessScientificData();
+    }
+
+    /// <summary>
+    /// Reprocesses all dimensionless groups (Re, Np, Fl_G, Fr, P_G/P0) and Nienow correlation (§16)
+    /// without modifying raw data.
+    /// </summary>
+    public void ReprocessScientificData()
+    {
+        if (CurrentTest is null) return;
+
+        CurrentTest.Fluid = new FluidProperties
+        {
+            DensityKgM3 = DensityKgM3,
+            ViscosityPaS = ViscosityPaS,
+            TemperatureC = TemperatureC,
+            PresetName = CurrentTest.Fluid?.PresetName ?? "Água / personalizado",
+        };
+        CurrentTest.Geometry = BuildGeometry();
+
+        var geometry = CurrentTest.Geometry;
+        var fluid = CurrentTest.Fluid;
+        var refImpeller = geometry.Impellers.OrderByDescending(i => i.DiameterM).FirstOrDefault()
+                          ?? new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 };
+
+        for (var i = 0; i < CurrentTest.Runs.Count; i++)
+        {
+            var run = CurrentTest.Runs[i];
+            var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
+            var pNet = run.NetPowerW ?? run.MeanShaftPowerW;
+
+            double re = 0.0;
+            double np = 0.0;
+            double? npCi = null;
+            if (rpm > 0 && refImpeller.DiameterM > 0 && fluid.DensityKgM3 > 0 && fluid.ViscosityPaS > 0)
+            {
+                re = PowerCalc.ReynoldsNumber(fluid.DensityKgM3, rpm, refImpeller.DiameterM, fluid.ViscosityPaS);
+                np = PowerCalc.PowerNumber(pNet, fluid.DensityKgM3, rpm, refImpeller.DiameterM);
+                if (run.Ci95PowerW is { } ciW && ciW > 0)
+                {
+                    npCi = ciW / (fluid.DensityKgM3 * Math.Pow(rpm / 60.0, 3) * Math.Pow(refImpeller.DiameterM, 5));
+                }
+            }
+
+            double? flg = null;
+            double? fr = null;
+            double? vvm = null;
+            if (run.GasMode != PowerGasMode.Ungassed && run.GasFlowLpm is { } flowLpm)
+            {
+                if (rpm > 0 && refImpeller.DiameterM > 0)
+                {
+                    flg = PowerCalc.AerationNumber(flowLpm, rpm, refImpeller.DiameterM);
+                    fr = PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
+                }
+                if (geometry.LiquidVolumeM3 > 0)
+                {
+                    vvm = flowLpm / (geometry.LiquidVolumeM3 * 1000.0);
+                }
+            }
+
+            var newAnalysis = run.Analysis is not null
+                ? run.Analysis with
+                {
+                    AssemblyReynoldsNumber = re,
+                    AssemblyPowerNumber = np,
+                    AssemblyPowerNumberCi95 = npCi ?? run.Analysis.AssemblyPowerNumberCi95,
+                }
+                : new PowerPointResult
+                {
+                    AssemblyReynoldsNumber = re,
+                    AssemblyPowerNumber = np,
+                    AssemblyPowerNumberCi95 = npCi ?? 0.0,
+                };
+
+            CurrentTest.Runs[i] = run with
+            {
+                GasFlowVvm = vvm ?? run.GasFlowVvm,
+                GasFlowNumber = flg ?? run.GasFlowNumber,
+                FroudeNumber = fr ?? run.FroudeNumber,
+                Analysis = newAnalysis,
+            };
+        }
+
+        for (var i = 0; i < CurrentTest.Runs.Count; i++)
+        {
+            var run = CurrentTest.Runs[i];
+            if (run.GasMode == PowerGasMode.Ungassed) continue;
+
+            var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
+            var (p0, p0Ci, provenance) = _analysis.ResolveReferenceP0(rpm, CurrentTest);
+
+            double? ratio = null;
+            double? ratioCi = null;
+            if (p0 is { } p0Val && p0Val > 0 && run.NetPowerW is { } pgVal)
+            {
+                var (r, ci) = PowerCalc.PropagatePowerRatioUncertainty(pgVal, run.Ci95PowerW ?? 0.0, p0Val, p0Ci ?? 0.0);
+                ratio = r;
+                ratioCi = ci;
+            }
+
+            CurrentTest.Runs[i] = run with
+            {
+                ReferenceP0W = p0,
+                ReferenceP0Ci95W = p0Ci,
+                P0Provenance = provenance,
+                PowerRatio = ratio,
+                PowerRatioCi95 = ratioCi,
+            };
+        }
+
+        if (CurrentTest.Flooding is { } currentFlood)
+        {
+            var nienowFr = PowerCalc.FroudeNumber(currentFlood.ExperimentalRpm, refImpeller.DiameterM);
+            var theoNienow = PowerCalc.NienowFloodingAerationNumber(refImpeller.DiameterM, geometry.VesselDiameterM, nienowFr);
+            var expFlg = refImpeller.DiameterM > 0 && currentFlood.ExperimentalRpm > 0
+                ? PowerCalc.AerationNumber(currentFlood.ExperimentalFlowLpm, currentFlood.ExperimentalRpm, refImpeller.DiameterM)
+                : currentFlood.ExperimentalFlG;
+            var relDev = theoNienow > 0 ? (expFlg - theoNienow) / theoNienow * 100.0 : 0.0;
+
+            CurrentTest.Flooding = currentFlood with
+            {
+                ExperimentalFlG = expFlg,
+                TheoreticalFlGNienow = theoNienow,
+                RelativeDeviationPercent = relDev,
+            };
+            _store.SaveFlooding(CurrentTest.FolderName, CurrentTest.Flooding);
+        }
+        else if (CurrentTest.Runs.Count >= 3)
+        {
+            var autoFlood = _analysis.DetectFlooding(CurrentTest.Runs, geometry);
+            if (autoFlood is not null)
+            {
+                CurrentTest.Flooding = autoFlood;
+                _store.SaveFlooding(CurrentTest.FolderName, autoFlood);
+            }
+        }
+
+        _store.UpdateResultsSummary(CurrentTest.FolderName, CurrentTest);
+        _store.SaveTestManifest(CurrentTest);
+        RebuildResults();
     }
 
     // =========================================================================

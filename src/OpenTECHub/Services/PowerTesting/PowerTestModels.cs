@@ -129,19 +129,62 @@ public sealed record FluidProperties
 /// One impeller on the shaft. A test carries a <see cref="PowerGeometry.Impellers"/> list because
 /// mixed configurations (different diameters per stage) are the normal case here (§4.3, §8).
 /// </summary>
-public sealed class Impeller
+public sealed class Impeller : INotifyPropertyChanged
 {
-    public ImpellerType Type { get; set; } = ImpellerType.RushtonFlatBlade;
-    public string Label { get; set; } = "";
-    public double DiameterM { get; set; }
-    public int BladeCount { get; set; }
-    public double ClearanceM { get; set; }
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private ImpellerType _type = ImpellerType.RushtonFlatBlade;
+    public ImpellerType Type
+    {
+        get => _type;
+        set { if (_type != value) { _type = value; OnPropertyChanged(); } }
+    }
+
+    private string _label = "";
+    public string Label
+    {
+        get => _label;
+        set { if (_label != value) { _label = value; OnPropertyChanged(); } }
+    }
+
+    private double _diameterM;
+    public double DiameterM
+    {
+        get => _diameterM;
+        set { if (!double.Equals(_diameterM, value)) { _diameterM = value; OnPropertyChanged(); } }
+    }
+
+    private int _bladeCount;
+    public int BladeCount
+    {
+        get => _bladeCount;
+        set { if (_bladeCount != value) { _bladeCount = value; OnPropertyChanged(); } }
+    }
+
+    private double _clearanceM;
+    public double ClearanceM
+    {
+        get => _clearanceM;
+        set { if (!double.Equals(_clearanceM, value)) { _clearanceM = value; OnPropertyChanged(); } }
+    }
 
     /// <summary>Position on the shaft, 0 = bottom.</summary>
-    public int StageIndex { get; set; }
+    private int _stageIndex;
+    public int StageIndex
+    {
+        get => _stageIndex;
+        set { if (_stageIndex != value) { _stageIndex = value; OnPropertyChanged(); } }
+    }
 
     /// <summary>Reference power number for the literature overlay (§15). Editable; not a measurement.</summary>
-    public double? LiteratureNp { get; set; }
+    private double? _literatureNp;
+    public double? LiteratureNp
+    {
+        get => _literatureNp;
+        set { if (!Nullable.Equals(_literatureNp, value)) { _literatureNp = value; OnPropertyChanged(); } }
+    }
 
     public Impeller Clone() => new()
     {

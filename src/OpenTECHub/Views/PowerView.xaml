@@ -548,7 +548,12 @@
                                     <TextBlock Text="Pontos capturados" FontSize="15" FontWeight="SemiBold" />
                                     <Border Margin="8,0,0,0" Padding="7,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4"><TextBlock Text="{Binding PrecisionBadge}" FontSize="10" /></Border>
                                 </StackPanel>
-                                <Button Grid.Column="1" Content="Exportar CSV" Click="ExportCsv_Click" Padding="10,4" IsEnabled="{Binding HasActiveTest}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="Definir Flooding" Command="{Binding SetSelectedAsFloodingPointCommand}" Margin="0,0,6,0" Padding="8,3" IsEnabled="{Binding CanSetManualFlooding}" ToolTip="Define o ponto experimental gaseificado selecionado como ponto oficial de flooding" />
+                                    <Button Content="Flooding Auto" Command="{Binding ResetAutomaticFloodingCommand}" Margin="0,0,6,0" Padding="8,3" IsEnabled="{Binding HasActiveTest}" ToolTip="Restaura a detecção matemática automática do ponto de flooding" />
+                                    <Button Content="Alternar Aceite" Command="{Binding ToggleAcceptSelectedRowCommand}" Margin="0,0,6,0" Padding="8,3" IsEnabled="{Binding CanToggleRowAcceptance}" ToolTip="Alterna o status do ponto selecionado entre Aceito e Rejeitado" />
+                                    <Button Content="Exportar CSV" Click="ExportCsv_Click" Padding="10,4" IsEnabled="{Binding HasActiveTest}" />
+                                </StackPanel>
                             </Grid>
                             <StackPanel Grid.Row="1" Margin="0,7,0,7" Orientation="Horizontal" Visibility="{Binding IsInReview, Converter={StaticResource BoolToVis}}">
                                 <Button Content="Aceitar" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptRunCommand}" Margin="0,0,6,0" />
@@ -578,7 +583,7 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
+                            <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResultRow, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="62" />
                                     <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="82" />

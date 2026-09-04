@@ -300,6 +300,7 @@ public partial class App : Application
         services.AddSingleton<IPowerMapStore>(_ => new PowerMapStore(AppPaths.PowerMapsDirectory));
         services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();
         services.AddSingleton<IPowerMapEngine, PowerMapEngine>();
+        services.AddSingleton<IKlaPowerIntegrationService, KlaPowerIntegrationService>();
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal

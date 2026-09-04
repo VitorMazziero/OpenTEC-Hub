@@ -1214,23 +1214,23 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
         literatura rotulados como referência (`α ≈ 0,4–0,7`, `β ≈ 0,2–0,5`), cálculo da fronteira
         de flooding, pontos fora do fecho convexo, zeros e tratamento de singularidades/colinearidade (7 testes aprovados).
 
-- [ ] **3. Importador Bidirecional entre Mapeamento kLa e Ensaio de Potência** (`PowerMapImportHelper`, `KlaPowerIntegrationService`)
-  - [ ] 3.1 Direção kLa → Potência (`ImportConditionsFromKlaMap`):
+- [x] **3. Importador Bidirecional entre Mapeamento kLa e Ensaio de Potência** (`PowerMapImportHelper`, `KlaPowerIntegrationService`) _(2026-09-04)_
+  - [x] 3.1 Direção kLa → Potência (`ImportConditionsFromKlaMap`):
         - Seleção de `KlaExperimentDocument` existente.
         - Extração das âncoras `(N, Q_g)`, deduplicação e ordenação canônica (`N` asc, `Q` asc).
         - Geração de linhas de `PowerCondition` com `Origin = PowerConditionOrigin.Map`,
           vinculando `SourceMapId` e `SourceMapName`.
         - Permite ensaiar potência exatamente nos mesmos pontos operacionais onde o kLa foi medido.
-  - [ ] 3.2 Direção Potência → kLa (`ExportPowerResultsToKlaMap`):
+  - [x] 3.2 Direção Potência → kLa (`ExportPowerResultsToKlaMap`):
         - Localização de condições correspondentes entre o ensaio de potência e o mapa kLa.
         - Associação de `P_líq` e `P/V` [W/m³] medidos às âncoras do mapa kLa, gerando uma nova
           revisão/snapshot enriquecida; o documento kLa de origem nunca é sobrescrito.
-  - [ ] 3.3 Garantia de integridade e proveniência:
+  - [x] 3.3 Garantia de integridade e proveniência:
         - Associação baseada em fingerprints SHA-256 e GUIDs de documentos, sem estado mutável
           compartilhado entre subsistemas.
-  - [ ] 3.4 Testes unitários do importador (`PowerMapImportHelperTests`): importação de mapas 3² (9 âncoras),
+  - [x] 3.4 Testes unitários do importador (`PowerMapImportHelperTests`): importação de mapas 3² (9 âncoras),
         deduplicação e casamento por ID quando disponível ou por tolerâncias explícitas em rpm/L·min⁻¹,
-        rejeição de pares ambíguos e validação de proveniência.
+        rejeição de pares ambíguos e validação de proveniência (5 testes aprovados).
 
 - [ ] **4. ViewModel e Lógica da Página "Mapa de Potência"** (`PowerMapViewModel`)
   - [ ] 4.1 Gerenciamento de mapas de síntese: criar, abrir, renomear e persistir mapas de potência.

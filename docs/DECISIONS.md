@@ -896,6 +896,61 @@ telemetria chega, para poupar um reinício de dois segundos.
 
 ---
 
+### D-032 · A página de Potência não exporta PNG; o dado sai em CSV
+
+**Decisão.** As páginas de potência não oferecem exportação de imagem. `PowerNavigationContractTests`
+proíbe a própria palavra "PNG" na `PowerView` e no seu code-behind, e o teste falha se ela voltar.
+O que sai do aplicativo é dado: `resumo-resultados.csv` por ensaio, o CSV unificado de comparação de
+impelidores e a folha de dimensionamento (CSV, ou PDF pela impressora do sistema).
+
+**Por quê.** Um PNG de um gráfico é uma captura do que o app desenhou naquele instante — sem as
+âncoras, sem o `IC₉₅`, sem a proveniência do ponto, sem dizer se o `Np` era absoluto ou relativo.
+Publicado num artigo, ele não é reprodutível nem auditável: ninguém consegue refazer o ajuste a
+partir dele. O CSV carrega os números que geraram a figura, e a figura de publicação é montada na
+ferramenta de análise do autor a partir desses números. Um botão "Exportar PNG" ao lado do "Exportar
+CSV" convida justamente ao caminho que não se quer.
+
+**Consequências.**
+
+- **O gráfico na tela é instrumento de leitura, não entregável.** Ele existe para o operador decidir
+  durante o ensaio; a figura final não nasce aqui.
+- **A captura de tela do sistema continua disponível** para quem quiser uma imagem informal. O que o
+  app não faz é oferecer isso como se fosse um formato de exportação de resultado.
+- **Se um dia for necessário**, a decisão a rever é esta, e o teste de contrato é o lugar onde a
+  reversão precisa ser declarada — não um botão acrescentado em silêncio.
+
+**Registrado porque** uma auditoria listou "a exportação PNG não foi restaurada" como pendência.
+Não é pendência: é esta decisão.
+
+---
+
+### D-033 · O shell constrói só a página que abre; as demais vão para a fila ociosa
+
+**Decisão.** Cada destino do shell é hospedado por um `DeferredPageHost`, que guarda a página como
+`DataTemplate` e a materializa (a) na hora, se for a página selecionada, ou (b) em
+`DispatcherPriority.ApplicationIdle`, depois que a janela já está de pé. Navegar para uma página
+ainda não construída a materializa na hora.
+
+**Por quê.** O shell declarava as onze páginas como irmãs e alternava `Visibility`. Elemento
+`Collapsed` continua sendo construído, medido e recebe `Loaded` — medido: `Loaded` disparou em
+`PowerView` e `PowerMapView` com `IsVisible=false` abrindo no painel. Ou seja, toda inicialização
+pagava por todas as páginas, inclusive a leitura de workspace em disco e os timers de redesenho
+delas. O primeiro frame levava 2375–2502 ms **independentemente** da página de destino, que o app
+já conhecia antes de renderizar.
+
+**Consequências.**
+
+- **Primeiro frame de 968–1280 ms** nas onze rotas, dentro do orçamento de 2000 ms que nunca havia
+  sido cumprido, e agora variando por página — sinal de que só se constrói o necessário.
+- **Só as views são adiadas.** Todo ViewModel de página é singleton recebido no construtor do
+  `ShellViewModel`, então assinatura de telemetria e estado acumulado não dependem de a view existir.
+  Adiar a view de uma página não faz o app perder dado dela.
+- **Um id de navegação sem host renderiza página em branco** e nada mais acusaria isso — o build
+  compila e o smoke abre só um destino. `Every_shell_destination_is_hosted_by_a_deferred_page`
+  compara os ids do `ShellViewModel` com os hosts do `MainWindow.xaml`.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

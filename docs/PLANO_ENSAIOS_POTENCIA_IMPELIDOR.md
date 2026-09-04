@@ -1145,6 +1145,9 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [ ] 8.4 **PENDENTE EM BANCADA** — aceitação separada: confirmar ACK/telemetria reais, roteamento físico das
         válvulas, corte seguro do gás, faixa 15–1000 rpm e comportamento do pulso do fluxômetro.
         O simulador fecha o portão de software, mas não substitui esta evidência para liberação física.
+        **Roteiro executável:** [ACEITACAO_BANCADA_POTENCIA.md](ACEITACAO_BANCADA_POTENCIA.md) —
+        blocos P-1 a P-7 em ordem de dependência, com critério de aceite por linha e ordem de
+        prioridade se faltar tempo de bancada.
 
   **Auditoria da etapa 8 e Fechamento do Portão da Fase 2 (2026-09-04):** Verificação integrada completa executada com sucesso. Teste ponta a ponta `End_to_end_gassed_assay_with_simulator_both_with_and_without_relief_stabilization` validou o ciclo físico do simulador: estabilização no alívio com válvula 2 e rotação baixa de segurança (15 rpm), verificação de vazão estabilizada, comutação de gás para o reator (válvula 1) e aceleração para 300 rpm, captura dos patamares com e sem aeração sob os dois portões de confiança, cálculo de P_G/P₀ e adimensionais Fl_G/Fr, persistência dos arquivos CSV (`resumo-resultados.csv`) e parada segura (recuo a 15 rpm e corte de fluxo a 0 L/min com válvulas fechadas). Contratos WPF verificados e executável iniciado sem falhas de DI/XAML. Suíte automatizada com 985 testes aprovados. Portão da Fase 2 fechado.
 

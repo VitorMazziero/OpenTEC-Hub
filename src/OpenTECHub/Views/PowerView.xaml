@@ -179,7 +179,45 @@
                                 <StackPanel Grid.Column="2"><TextBlock Text="Confirmações" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationarityRequiredSamples, UpdateSourceTrigger=LostFocus}" /></StackPanel>
                             </Grid>
                             <CheckBox Margin="0,8,0,0" Content="Leitura manual de energia após cada ponto" IsChecked="{Binding ManualEnergyCaptureEnabled}" />
-                            <CheckBox Margin="0,5,0,0" Content="Estabilização no alívio (Fase 2)" IsChecked="{Binding VentStabilizationEnabled}" IsEnabled="False" ToolTip="A montagem gaseificada entra na etapa 11" />
+                            <CheckBox Margin="0,5,0,0" Content="Estabilização no alívio" IsChecked="{Binding VentStabilizationEnabled}" IsEnabled="{Binding CanEditPlan}" ToolTip="Estabiliza a vazão direcionada ao alívio antes de alimentar o reator" />
+                            <Border Visibility="{Binding VentStabilizationEnabled, Converter={StaticResource BoolToVis}}"
+                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{DynamicResource RadiusSmall}"
+                                    Padding="8"
+                                    Margin="0,6,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Válvula de alívio:" Style="{StaticResource PowerLabel}" />
+                                    <ComboBox Margin="0,0,0,6" ItemsSource="{Binding VentValves}"
+                                              SelectedValue="{Binding SelectedVentValve}"
+                                              SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Tol. (L/min)" Style="{StaticResource PowerLabel}" />
+                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowToleranceLpm, UpdateSourceTrigger=LostFocus}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Amostras" Style="{StaticResource PowerLabel}" />
+                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStableSamples, UpdateSourceTrigger=LostFocus}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock Text="N alívio" Style="{StaticResource PowerLabel}" />
+                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding VentAgitationRpm, UpdateSourceTrigger=LostFocus}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="6">
+                                            <TextBlock Text="t máx. (s)" Style="{StaticResource PowerLabel}" />
+                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding MaxVentStabilizationSeconds, UpdateSourceTrigger=LostFocus}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -208,14 +246,46 @@
                                 <Button Content="↓" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionDownCommand}" IsEnabled="{Binding CanEditPlan}" />
                                 <Button Content="Pular/repor" Padding="8,4" Command="{Binding ToggleSkipConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
                             </WrapPanel>
-                            <TextBlock Margin="0,9,0,3" Text="Gerar varredura (15–1000 rpm; passo ≥ 5)" Style="{StaticResource PowerLabel}" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStartRpm, UpdateSourceTrigger=LostFocus}" ToolTip="Inicial" />
-                                <TextBox Grid.Column="2" Style="{StaticResource CompactField}" Text="{Binding SweepEndRpm, UpdateSourceTrigger=LostFocus}" ToolTip="Final" />
-                                <TextBox Grid.Column="4" Style="{StaticResource CompactField}" Text="{Binding SweepStepRpm, UpdateSourceTrigger=LostFocus}" ToolTip="Passo" />
-                                <Button Grid.Column="6" Content="Gerar" Padding="8,3" Command="{Binding GenerateSweepCommand}" />
+                            <TextBlock Margin="0,9,0,3" Text="Gerador de varreduras" Style="{StaticResource PowerLabel}" />
+                            <Grid Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="110" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox ItemsSource="{Binding SweepTypes}" SelectedValue="{Binding SelectedSweepType}"
+                                          SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
+                                <ComboBox Grid.Column="2" ItemsSource="{Binding GasModes}" SelectedValue="{Binding SweepGasMode}"
+                                          SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
                             </Grid>
+
+                            <!-- Parametros N quando N for variavel -->
+                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeNVariable, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="N ini (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStartRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="N fim (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepEndRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Passo (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+
+                            <!-- Parametro N quando N for constante -->
+                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeNConstant, Converter={StaticResource BoolToVis}}">
+                                <StackPanel><TextBlock Text="N fixo (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepConstantRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+
+                            <!-- Parametros Qg quando Qg for variavel -->
+                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeQgVariable, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="Qg ini (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStartQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Qg fim (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepEndQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Passo (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStepQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+
+                            <!-- Parametro Qg quando Qg for constante -->
+                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeQgConstant, Converter={StaticResource BoolToVis}}">
+                                <StackPanel><TextBlock Text="Qg fixo (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepConstantQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+
+                            <Button Margin="0,4,0,0" Content="Gerar varredura" Padding="8,4" Command="{Binding GenerateSweepCommand}" HorizontalAlignment="Stretch" />
                         </StackPanel>
                     </Border>
 
@@ -325,17 +395,59 @@
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.1*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0"><TextBlock Text="N medida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentRpmText, StringFormat={}{0} rpm}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorquePercentText, StringFormat={}{0} %}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorqueNmText, StringFormat={}{0} N·m}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="3"><TextBlock Text="Potência mec. estimada" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerWText, StringFormat={}{0} W}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="4"><TextBlock Text="Qg" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentFlowText, StringFormat={}{0} L/min}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="5"><TextBlock Text="Np" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentNpText}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="6"><TextBlock Text="Re" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentReText}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="7"><TextBlock Text="FlG / Fr" Style="{StaticResource PowerLabel}" /><TextBlock Style="{StaticResource PowerMetric}"><Run Text="{Binding CurrentFlGText, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding CurrentFrText, Mode=OneWay}" /></TextBlock></StackPanel>
+                            <StackPanel Grid.Column="1"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorqueNmText, StringFormat={}{0} N·m}" Style="{StaticResource PowerMetric}" /><TextBlock Text="{Binding CurrentTorquePercentText, StringFormat={}({0} %)}" Style="{StaticResource CaptionTextStyle}" /></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="P líquida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerWText, StringFormat={}{0} W}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="Qg medida" Style="{StaticResource PowerLabel}" />
+                                <TextBlock Text="{Binding CurrentFlowText, StringFormat={}{0} L/min}" Style="{StaticResource PowerMetric}" />
+                                <TextBlock Text="{Binding CurrentFlowVvmText, StringFormat={}{0} vvm}" Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4"><TextBlock Text="Np" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentNpText}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="5"><TextBlock Text="Re" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentReText}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="6"><TextBlock Text="FlG / Fr" Style="{StaticResource PowerLabel}" /><TextBlock Style="{StaticResource PowerMetric}"><Run Text="{Binding CurrentFlGText, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding CurrentFrText, Mode=OneWay}" /></TextBlock></StackPanel>
+                            <StackPanel Grid.Column="7"><TextBlock Text="PG / P₀ inst." Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerRatioText}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="8" VerticalAlignment="Center" Margin="5,0,0,0">
+                                <TextBlock Text="Malha de gás" Style="{StaticResource PowerLabel}" />
+                                <Border Padding="8,4" CornerRadius="4">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Reator Aberto">
+                                                    <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Alívio Estabilizando">
+                                                    <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateWarningBrush}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding GasLoopStatusBadge}" FontWeight="SemiBold" HorizontalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Reator Aberto">
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Alívio Estabilizando">
+                                                        <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </StackPanel>
                         </Grid>
                     </Border>
 

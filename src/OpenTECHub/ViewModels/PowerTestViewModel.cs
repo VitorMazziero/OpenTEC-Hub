@@ -19,10 +19,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private readonly ICommandArbiter _arbiter;
     private readonly IPowerTestRunner? _runner;
     private readonly IDialogService? _dialogs;
+    private readonly IPowerAnalysisEngine _analysis;
+    private SensorSnapshot? _latestSnapshot;
     private bool _disposed;
 
     public PowerTestViewModel(IPowerTestStore store, IDeviceService device, ICommandArbiter arbiter)
-        : this(store, device, arbiter, null, null)
+        : this(store, device, arbiter, null, null, null)
     {
     }
 
@@ -32,6 +34,17 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         ICommandArbiter arbiter,
         IPowerTestRunner? runner,
         IDialogService? dialogs)
+        : this(store, device, arbiter, runner, dialogs, null)
+    {
+    }
+
+    public PowerTestViewModel(
+        IPowerTestStore store,
+        IDeviceService device,
+        ICommandArbiter arbiter,
+        IPowerTestRunner? runner,
+        IDialogService? dialogs,
+        IPowerAnalysisEngine? analysis)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(device);
@@ -41,6 +54,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _arbiter = arbiter;
         _runner = runner;
         _dialogs = dialogs;
+        _analysis = analysis ?? new PowerAnalysisEngine();
+        PowerCondition.LiquidVolumeLProvider = () => LiquidVolumeL;
+        PowerCondition.OnVvmValidationFailed = msg => ValidationMessage = msg;
         TestRootDirectory = store.RootDirectory;
 
         _device.TelemetryReceived += OnTelemetryReceived;
@@ -73,15 +89,25 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     ];
     public IReadOnlyList<EnumChoice<PowerGasMode>> GasModes { get; } =
     [
-        new(PowerGasMode.Ungassed, "Sem gás (P0)"),
-        new(PowerGasMode.Gassed, "Com gás (Fase 2)"),
-        new(PowerGasMode.Both, "P0 + Pg"),
-        new(PowerGasMode.SinglePoint, "Ponto único"),
+        new(PowerGasMode.Ungassed, "Não-gaseificada"),
+        new(PowerGasMode.Gassed, "Gaseificada"),
+        new(PowerGasMode.Both, "Ambas"),
     ];
     public IReadOnlyList<EnumChoice<FlowInputUnit>> FlowUnits { get; } =
     [
         new(FlowInputUnit.Lpm, "L/min"),
         new(FlowInputUnit.Vvm, "vvm"),
+    ];
+    public IReadOnlyList<EnumChoice<PowerVentValve>> VentValves { get; } =
+    [
+        new(PowerVentValve.Valve2, "Válvula 2 (Alívio)"),
+        new(PowerVentValve.Valve1, "Válvula 1 (Alívio)"),
+    ];
+    public IReadOnlyList<EnumChoice<PowerSweepType>> SweepTypes { get; } =
+    [
+        new(PowerSweepType.VariableNConstantQg, "N variável (Qg constante)"),
+        new(PowerSweepType.VariableQgConstantN, "Qg variável (N constante — Flooding)"),
+        new(PowerSweepType.MatrixNByQg, "Matriz 2D (N × Qg)"),
     ];
 
     public ObservableCollection<PowerTestSummary> Tests { get; } = [];
@@ -104,6 +130,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double? CurrentRe { get; private set; }
     [ObservableProperty] public partial double? CurrentFlG { get; private set; }
     [ObservableProperty] public partial double? CurrentFr { get; private set; }
+    [ObservableProperty] public partial double? CurrentFlowVvm { get; private set; }
+    [ObservableProperty] public partial double? CurrentPowerRatio { get; private set; }
+    [ObservableProperty] public partial string GasLoopStatusBadge { get; private set; } = "Fechado";
     [ObservableProperty] public partial string AgitationOwnerLabel { get; private set; } = "Manual";
     [ObservableProperty] public partial string StatusMessage { get; private set; } = "Crie ou abra um ensaio de potência.";
     [ObservableProperty] public partial string ValidationMessage { get; private set; } = "";
@@ -140,10 +169,56 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double StationaritySlopeTolerance { get; set; } = 0.5;
     [ObservableProperty] public partial int StationarityRequiredSamples { get; set; } = 5;
     [ObservableProperty] public partial bool VentStabilizationEnabled { get; set; }
+    [ObservableProperty] public partial PowerVentValve SelectedVentValve { get; set; } = PowerVentValve.Valve2;
+    [ObservableProperty] public partial double VentFlowToleranceLpm { get; set; } = 0.2;
+    [ObservableProperty] public partial int VentFlowStableSamples { get; set; } = 5;
+    [ObservableProperty] public partial double VentAgitationRpm { get; set; } = 15.0;
+    [ObservableProperty] public partial double MaxVentStabilizationSeconds { get; set; } = 120.0;
     [ObservableProperty] public partial bool ManualEnergyCaptureEnabled { get; set; }
+
+    [ObservableProperty] public partial PowerSweepType SelectedSweepType { get; set; } = PowerSweepType.VariableNConstantQg;
     [ObservableProperty] public partial double SweepStartRpm { get; set; } = 50.0;
     [ObservableProperty] public partial double SweepEndRpm { get; set; } = 1000.0;
     [ObservableProperty] public partial double SweepStepRpm { get; set; } = 50.0;
+    [ObservableProperty] public partial double SweepConstantRpm { get; set; } = 300.0;
+    [ObservableProperty] public partial double SweepStartQgLpm { get; set; } = 2.0;
+    [ObservableProperty] public partial double SweepEndQgLpm { get; set; } = 20.0;
+    [ObservableProperty] public partial double SweepStepQgLpm { get; set; } = 2.0;
+    [ObservableProperty] public partial double SweepConstantQgLpm { get; set; } = 0.0;
+    [ObservableProperty] public partial PowerGasMode SweepGasMode { get; set; } = PowerGasMode.Gassed;
+    [ObservableProperty] public partial FlowInputUnit SweepFlowUnit { get; set; } = FlowInputUnit.Lpm;
+
+    public bool IsSweepTypeNVariable => SelectedSweepType is PowerSweepType.VariableNConstantQg or PowerSweepType.MatrixNByQg;
+    public bool IsSweepTypeQgVariable => SelectedSweepType is PowerSweepType.VariableQgConstantN or PowerSweepType.MatrixNByQg;
+    public bool IsSweepTypeNConstant => SelectedSweepType == PowerSweepType.VariableQgConstantN;
+    public bool IsSweepTypeQgConstant => SelectedSweepType == PowerSweepType.VariableNConstantQg;
+
+    partial void OnSelectedSweepTypeChanged(PowerSweepType value)
+    {
+        OnPropertyChanged(nameof(IsSweepTypeNVariable));
+        OnPropertyChanged(nameof(IsSweepTypeQgVariable));
+        OnPropertyChanged(nameof(IsSweepTypeNConstant));
+        OnPropertyChanged(nameof(IsSweepTypeQgConstant));
+    }
+
+    partial void OnLiquidVolumeLChanged(double value)
+    {
+        if (value > 0)
+        {
+            foreach (var cond in Conditions)
+            {
+                if (cond.FlowUnit == FlowInputUnit.Vvm && cond.GasFlowVvm.HasValue)
+                {
+                    cond.GasFlowLpm = Math.Round(cond.GasFlowVvm.Value * value, 3);
+                }
+                else if (cond.GasFlowLpm.HasValue)
+                {
+                    cond.GasFlowVvm = Math.Round(cond.GasFlowLpm.Value / value, 4);
+                }
+            }
+        }
+        RecalculateLiveMetrics();
+    }
 
     // --- Step 8: Guided Procedures ---
     // 8.1 Torque Calibration (1-point static)
@@ -245,6 +320,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public string CurrentReText => Format(CurrentRe, "G5");
     public string CurrentFlGText => Format(CurrentFlG, "G4");
     public string CurrentFrText => Format(CurrentFr, "G4");
+    public string CurrentFlowVvmText => Format(CurrentFlowVvm, "F2");
+    public string CurrentPowerRatioText => Format(CurrentPowerRatio, "F3");
 
     [RelayCommand]
     private void RefreshTests()
@@ -321,6 +398,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         StationaritySlopeTolerance = doc.Settings.StationaritySlopeTolerancePercentPerSecond;
         StationarityRequiredSamples = doc.Settings.StationarityRequiredSamples;
         VentStabilizationEnabled = doc.Settings.VentStabilizationEnabled;
+        SelectedVentValve = doc.Settings.SelectedVentValve;
+        VentFlowToleranceLpm = doc.Settings.VentFlowToleranceLpm;
+        VentFlowStableSamples = doc.Settings.VentFlowStableSamples;
+        VentAgitationRpm = doc.Settings.VentAgitationRpm;
+        MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
         ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
 
         Impellers.Clear();
@@ -444,21 +526,131 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!double.IsFinite(SweepStartRpm) || !double.IsFinite(SweepEndRpm) || !double.IsFinite(SweepStepRpm) || SweepStartRpm < 15 || SweepEndRpm > 1000 || SweepEndRpm < SweepStartRpm || SweepStepRpm < 5)
+        switch (SelectedSweepType)
         {
-            ValidationMessage = "Varredura inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
-            return;
-        }
-        if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
-        {
-            return;
-        }
+            case PowerSweepType.VariableNConstantQg:
+            {
+                if (!double.IsFinite(SweepStartRpm) || !double.IsFinite(SweepEndRpm) || !double.IsFinite(SweepStepRpm) ||
+                    SweepStartRpm < 15 || SweepEndRpm > 1000 || SweepEndRpm < SweepStartRpm || SweepStepRpm < 5)
+                {
+                    ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
+                    return;
+                }
+                if (!double.IsFinite(SweepConstantQgLpm) || SweepConstantQgLpm < 0)
+                {
+                    ValidationMessage = "Vazão Qg fixa inválida: deve ser maior ou igual a zero.";
+                    return;
+                }
 
-        Conditions.Clear();
-        var index = 0;
-        for (var rpm = SweepStartRpm; rpm <= SweepEndRpm + 1e-9; rpm += SweepStepRpm)
-        {
-            Conditions.Add(new PowerCondition { AgitationRpm = rpm, OrderIndex = index++, Origin = PowerConditionOrigin.Manual });
+                if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
+                {
+                    return;
+                }
+
+                Conditions.Clear();
+                var index = 0;
+                var mode = SweepConstantQgLpm > 0 ? SweepGasMode : PowerGasMode.Ungassed;
+                if (mode == PowerGasMode.Ungassed && SweepConstantQgLpm > 0)
+                {
+                    mode = PowerGasMode.Gassed;
+                }
+
+                for (var rpm = SweepStartRpm; rpm <= SweepEndRpm + 1e-9; rpm += SweepStepRpm)
+                {
+                    var cond = new PowerCondition
+                    {
+                        AgitationRpm = rpm,
+                        GasFlowLpm = SweepConstantQgLpm > 0 ? SweepConstantQgLpm : null,
+                        GasFlowVvm = SweepConstantQgLpm > 0 && LiquidVolumeL > 0 ? Math.Round(SweepConstantQgLpm / LiquidVolumeL, 4) : null,
+                        GasMode = mode,
+                        FlowUnit = FlowInputUnit.Lpm,
+                        OrderIndex = index++,
+                        Origin = PowerConditionOrigin.Manual,
+                    };
+                    Conditions.Add(cond);
+                }
+                break;
+            }
+
+            case PowerSweepType.VariableQgConstantN:
+            {
+                if (!double.IsFinite(SweepConstantRpm) || SweepConstantRpm < 15 || SweepConstantRpm > 1000)
+                {
+                    ValidationMessage = "Rotação N fixa inválida: use 15–1000 rpm.";
+                    return;
+                }
+                if (!double.IsFinite(SweepStartQgLpm) || !double.IsFinite(SweepEndQgLpm) || !double.IsFinite(SweepStepQgLpm) ||
+                    SweepStartQgLpm < 0 || SweepEndQgLpm < SweepStartQgLpm || SweepStepQgLpm <= 0)
+                {
+                    ValidationMessage = "Varredura Qg inválida: use Qg ≥ 0 e passo positivo.";
+                    return;
+                }
+
+                if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
+                {
+                    return;
+                }
+
+                Conditions.Clear();
+                var index = 0;
+                for (var qg = SweepStartQgLpm; qg <= SweepEndQgLpm + 1e-9; qg += SweepStepQgLpm)
+                {
+                    var cond = new PowerCondition
+                    {
+                        AgitationRpm = SweepConstantRpm,
+                        GasFlowLpm = qg > 0 ? qg : null,
+                        GasFlowVvm = qg > 0 && LiquidVolumeL > 0 ? Math.Round(qg / LiquidVolumeL, 4) : null,
+                        GasMode = qg > 0 ? SweepGasMode : PowerGasMode.Ungassed,
+                        FlowUnit = FlowInputUnit.Lpm,
+                        OrderIndex = index++,
+                        Origin = PowerConditionOrigin.Manual,
+                    };
+                    Conditions.Add(cond);
+                }
+                break;
+            }
+
+            case PowerSweepType.MatrixNByQg:
+            {
+                if (!double.IsFinite(SweepStartRpm) || !double.IsFinite(SweepEndRpm) || !double.IsFinite(SweepStepRpm) ||
+                    SweepStartRpm < 15 || SweepEndRpm > 1000 || SweepEndRpm < SweepStartRpm || SweepStepRpm < 5)
+                {
+                    ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
+                    return;
+                }
+                if (!double.IsFinite(SweepStartQgLpm) || !double.IsFinite(SweepEndQgLpm) || !double.IsFinite(SweepStepQgLpm) ||
+                    SweepStartQgLpm < 0 || SweepEndQgLpm < SweepStartQgLpm || SweepStepQgLpm <= 0)
+                {
+                    ValidationMessage = "Varredura Qg inválida: use Qg ≥ 0 e passo positivo.";
+                    return;
+                }
+
+                if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
+                {
+                    return;
+                }
+
+                Conditions.Clear();
+                var index = 0;
+                for (var rpm = SweepStartRpm; rpm <= SweepEndRpm + 1e-9; rpm += SweepStepRpm)
+                {
+                    for (var qg = SweepStartQgLpm; qg <= SweepEndQgLpm + 1e-9; qg += SweepStepQgLpm)
+                    {
+                        var cond = new PowerCondition
+                        {
+                            AgitationRpm = rpm,
+                            GasFlowLpm = qg > 0 ? qg : null,
+                            GasFlowVvm = qg > 0 && LiquidVolumeL > 0 ? Math.Round(qg / LiquidVolumeL, 4) : null,
+                            GasMode = qg > 0 ? SweepGasMode : PowerGasMode.Ungassed,
+                            FlowUnit = FlowInputUnit.Lpm,
+                            OrderIndex = index++,
+                            Origin = PowerConditionOrigin.Manual,
+                        };
+                        Conditions.Add(cond);
+                    }
+                }
+                break;
+            }
         }
 
         SelectedCondition = Conditions.FirstOrDefault();
@@ -1007,6 +1199,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             StationaritySlopeTolerancePercentPerSecond = StationaritySlopeTolerance,
             StationarityRequiredSamples = StationarityRequiredSamples,
             VentStabilizationEnabled = VentStabilizationEnabled,
+            SelectedVentValve = SelectedVentValve,
+            VentFlowToleranceLpm = VentFlowToleranceLpm,
+            VentFlowStableSamples = VentFlowStableSamples,
+            VentAgitationRpm = VentAgitationRpm,
+            MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
             ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
         };
         CurrentTest.RelativeMode = RelativeMode;
@@ -1051,6 +1248,26 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return "Revise os limites de estacionariedade e parada adaptativa.";
         }
 
+        if (VentStabilizationEnabled)
+        {
+            if (VentFlowToleranceLpm <= 0 || !double.IsFinite(VentFlowToleranceLpm))
+            {
+                return "Tolerância de vazão no alívio deve ser positiva.";
+            }
+            if (VentFlowStableSamples < 1)
+            {
+                return "Amostras estáveis no alívio deve ser ao menos 1.";
+            }
+            if (VentAgitationRpm < 0 || VentAgitationRpm > MaxRpm || !double.IsFinite(VentAgitationRpm))
+            {
+                return $"Rotação no alívio deve estar entre 0 e {MaxRpm:F0} rpm.";
+            }
+            if (MaxVentStabilizationSeconds <= 0 || !double.IsFinite(MaxVentStabilizationSeconds))
+            {
+                return "Tempo limite de alívio deve ser positivo.";
+            }
+        }
+
         if (Conditions.Count == 0)
         {
             return "Inclua ao menos uma condição.";
@@ -1089,6 +1306,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void OnTelemetryReceived(SensorSnapshot snapshot) => RunOnUi(() =>
     {
+        _latestSnapshot = snapshot;
         HasServoSample = snapshot.HasServoSample;
         CurrentRpm = snapshot.HasServoSample && double.IsFinite(snapshot.ServoRpm) ? snapshot.ServoRpm : null;
         CurrentTorquePercent = snapshot.HasServoSample && double.IsFinite(snapshot.ServoTorquePct) ? snapshot.ServoTorquePct : null;
@@ -1100,7 +1318,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     {
         if (!HasServoSample || CurrentRpm is not { } rpm || CurrentTorquePercent is not { } torquePct)
         {
-            CurrentTorqueNm = CurrentPowerW = CurrentNp = CurrentRe = CurrentFlG = CurrentFr = null;
+            CurrentTorqueNm = CurrentPowerW = CurrentNp = CurrentRe = CurrentFlG = CurrentFr = CurrentFlowVvm = CurrentPowerRatio = null;
+            UpdateGasLoopStatus();
             NotifyLiveText();
             return;
         }
@@ -1109,7 +1328,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var torqueNm = doc?.Calibration is { } cal ? cal.Scale * (torquePct / 100.0 * cal.MotorRatedTorqueNm) + cal.Offset : torquePct / 100.0 * tNom;
         CurrentTorqueNm = torqueNm;
         CurrentPowerW = PowerCalc.ShaftPower(torqueNm, rpm);
-        CurrentNp = CurrentRe = CurrentFlG = CurrentFr = null;
+        CurrentNp = CurrentRe = CurrentFlG = CurrentFr = CurrentFlowVvm = CurrentPowerRatio = null;
         var reference = Impellers.OrderByDescending(i => i.DiameterM).FirstOrDefault();
         if (doc is not null && reference is not null && reference.DiameterM > 0 && rpm > 0 && doc.Fluid.DensityKgM3 > 0 && doc.Fluid.ViscosityPaS > 0)
         {
@@ -1120,9 +1339,46 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             if (CurrentFlowLpm is { } flow)
             {
                 CurrentFlG = PowerCalc.AerationNumber(flow, rpm, reference.DiameterM);
+                CurrentFlowVvm = LiquidVolumeL > 0 ? Math.Round(flow / LiquidVolumeL, 3) : null;
+                if (flow > 0.05)
+                {
+                    var (p0, _, _) = _analysis.ResolveReferenceP0(rpm, doc);
+                    if (p0 is { } p0W && p0W > 0)
+                    {
+                        CurrentPowerRatio = Math.Round(netPower / p0W, 4);
+                    }
+                }
             }
         }
+        UpdateGasLoopStatus();
         NotifyLiveText();
+    }
+
+    private void UpdateGasLoopStatus()
+    {
+        if (_runner?.Phase == PowerRunPhase.VentStabilizing)
+        {
+            GasLoopStatusBadge = "Alívio Estabilizando";
+        }
+        else if (_runner is not null && _runner.IsRunning &&
+                 (_runner.Phase is PowerRunPhase.PreparingCondition or PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.HoldingForManualEnergy) &&
+                 _runner.CurrentRun?.GasMode == PowerGasMode.Gassed)
+        {
+            GasLoopStatusBadge = "Reator Aberto";
+        }
+        else if (_latestSnapshot is { } s && (s.FlowValve1 == 1 || s.FlowValve2 == 1))
+        {
+            GasLoopStatusBadge = "Reator Aberto";
+        }
+        else if (_latestSnapshot is { } s2 && s2.FlowValveMain == 1)
+        {
+            GasLoopStatusBadge = "Alívio Estabilizando";
+        }
+        else
+        {
+            GasLoopStatusBadge = "Fechado";
+        }
+        OnPropertyChanged(nameof(GasLoopStatusBadge));
     }
 
     private void OnRunnerStateChanged() => RunOnUi(UpdateRunnerState);
@@ -1159,6 +1415,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         RefreshConditionRows();
+        UpdateGasLoopStatus();
         NotifyDocumentState();
     }
 
@@ -1228,7 +1485,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(LiveSummary)); OnPropertyChanged(nameof(CurrentRpmText)); OnPropertyChanged(nameof(CurrentTorquePercentText));
         OnPropertyChanged(nameof(CurrentTorqueNmText)); OnPropertyChanged(nameof(CurrentPowerWText)); OnPropertyChanged(nameof(CurrentFlowText));
+        OnPropertyChanged(nameof(CurrentFlowVvmText));
         OnPropertyChanged(nameof(CurrentNpText)); OnPropertyChanged(nameof(CurrentReText)); OnPropertyChanged(nameof(CurrentFlGText)); OnPropertyChanged(nameof(CurrentFrText));
+        OnPropertyChanged(nameof(CurrentPowerRatioText)); OnPropertyChanged(nameof(GasLoopStatusBadge));
     }
 
     private void NotifyGeometryState()
@@ -1371,3 +1630,10 @@ public sealed record PowerResultRow
 }
 
 public sealed record EnumChoice<T>(T Value, string Label) where T : struct, Enum;
+
+public enum PowerSweepType
+{
+    VariableNConstantQg,
+    VariableQgConstantN,
+    MatrixNByQg,
+}

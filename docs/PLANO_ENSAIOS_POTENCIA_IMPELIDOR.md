@@ -1086,23 +1086,25 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   desacelerando a 15 rpm com corte de gás via FlowSafeStop e verificação de ACK, intertravamento e proteção contra
   desconexão do fluxômetro, e 23/23 testes de runner aprovados.
 
-- [ ] **5. UI da Barra Lateral e Tabela de Condições Gaseificadas** (`PowerView.xaml`, `PowerTestViewModel.cs`)
-  - [ ] 5.1 Edição e exibição de vazão de gás na tabela de condições:
+- [x] **5. UI da Barra Lateral e Tabela de Condições Gaseificadas** (`PowerView.xaml`, `PowerTestViewModel.cs`)
+  - [x] 5.1 Edição e exibição de vazão de gás na tabela de condições:
         - Suporte a unidades L/min e vvm com conversão em tempo real baseada no volume do líquido.
         - Validação impedindo entrada em vvm se o volume útil não estiver preenchido.
         - Seleção do modo de gás por linha (`Não-gaseificada`, `Gaseificada`, `Ambas`).
-  - [ ] 5.2 Gerador avançado de varreduras na barra lateral:
+  - [x] 5.2 Gerador avançado de varreduras na barra lateral:
         - Varredura de `N` a `Q_g` constante;
         - Varredura de `Q_g` a `N` constante (varredura clássica para mapear transição de flooding);
         - Matriz bidimensional `N × Q_g`.
-  - [ ] 5.3 Painel de Estabilização no Alívio no card Limiares:
+  - [x] 5.3 Painel de Estabilização no Alívio no card Limiares:
         - Checkbox "Estabilização no alívio";
         - Seletor da válvula de alívio (`valve_1` / `valve_2`);
         - Campos numéricos com validação automática para tolerância (L/min), contagem de amostras,
           rpm durante alívio e tempo limite (s).
-  - [ ] 5.4 Indicadores de gás ao vivo:
+  - [x] 5.4 Indicadores de gás ao vivo:
         - Exibição de vazão medida `Q_g` (L/min e vvm), `Fl_G`, `Fr` e razão `P_G/P₀` instantânea.
         - Badge de status da malha de gás (Fechado, Alívio Estabilizando, Reator Aberto).
+
+  **Auditoria da etapa 5 (2026-09-04):** UI da barra lateral e tabela de condições totalmente estendidas para ensaios gaseificados. PowerCondition implementa INotifyPropertyChanged com conversão bidirecional reativa L/min <-> vvm e validação de volume útil. Gerador de varreduras suporta N com Qg constante, Qg com N constante (transição de flooding) e matriz 2D N x Qg. Card de limiares com parâmetros de alívio reativos (sem botão "Aplicar"). Barra superior com Qg (L/min e vvm), Fl_G, Fr, PG/P0 instantâneo e badge reativo de malha de gás ("Fechado", "Alívio Estabilizando", "Reator Aberto"). 8 novos testes unitários adicionados e suíte de 981 testes aprovada.
 
 - [ ] **6. Visualização Gráfica e Curva de Flooding** (`PowerView.xaml`, `PowerTestViewModel.cs`)
   - [ ] 6.1 Alternância de abas/gráficos no painel principal:

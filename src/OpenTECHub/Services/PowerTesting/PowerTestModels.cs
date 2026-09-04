@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace OpenTECHub.Services.PowerTesting;
 
@@ -230,27 +232,163 @@ public sealed record PowerTestSettings
 }
 
 /// <summary>One planned row of the conditions table (§7.3). Gas is optional and per-row.</summary>
-public sealed class PowerCondition
+public sealed class PowerCondition : INotifyPropertyChanged
 {
+    public static Func<double>? LiquidVolumeLProvider { get; set; }
+    public static Action<string>? OnVvmValidationFailed { get; set; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
     public Guid ConditionId { get; set; } = Guid.NewGuid();
-    public int OrderIndex { get; set; }
-    public double AgitationRpm { get; set; }
 
+    private int _orderIndex;
+    public int OrderIndex
+    {
+        get => _orderIndex;
+        set { if (_orderIndex != value) { _orderIndex = value; OnPropertyChanged(); } }
+    }
+
+    private double _agitationRpm;
+    public double AgitationRpm
+    {
+        get => _agitationRpm;
+        set { if (!double.Equals(_agitationRpm, value)) { _agitationRpm = value; OnPropertyChanged(); } }
+    }
+
+    private double? _gasFlowLpm;
     /// <summary>Stored primary gas flow, always L/min (§11). Null for ungassed rows.</summary>
-    public double? GasFlowLpm { get; set; }
+    public double? GasFlowLpm
+    {
+        get => _gasFlowLpm;
+        set
+        {
+            if (!Nullable.Equals(_gasFlowLpm, value))
+            {
+                _gasFlowLpm = value;
+                OnPropertyChanged();
+                if (value.HasValue && GasMode == PowerGasMode.Ungassed)
+                {
+                    GasMode = PowerGasMode.Gassed;
+                }
+                var vol = LiquidVolumeLProvider?.Invoke() ?? 0;
+                if (vol > 0 && value.HasValue)
+                {
+                    _gasFlowVvm = Math.Round(value.Value / vol, 4);
+                    OnPropertyChanged(nameof(GasFlowVvm));
+                }
+                else if (!value.HasValue)
+                {
+                    _gasFlowVvm = null;
+                    OnPropertyChanged(nameof(GasFlowVvm));
+                }
+            }
+        }
+    }
 
+    private double? _gasFlowVvm;
     /// <summary>Convenience echo when the row was entered in vvm; L/min stays authoritative.</summary>
-    public double? GasFlowVvm { get; set; }
-    public FlowInputUnit FlowUnit { get; set; } = FlowInputUnit.Lpm;
-    public PowerGasMode GasMode { get; set; } = PowerGasMode.Ungassed;
-    public int RequestedReplicates { get; set; } = 1;
-    public int CompletedReplicates { get; set; }
-    public int AcceptedReplicates { get; set; }
-    public int RejectedReplicates { get; set; }
+    public double? GasFlowVvm
+    {
+        get => _gasFlowVvm;
+        set
+        {
+            if (value.HasValue && LiquidVolumeLProvider is not null && LiquidVolumeLProvider.Invoke() <= 0)
+            {
+                OnVvmValidationFailed?.Invoke("Volume útil não preenchido: não é possível converter vvm em L/min sem o volume do líquido.");
+            }
+
+            if (!Nullable.Equals(_gasFlowVvm, value))
+            {
+                _gasFlowVvm = value;
+                OnPropertyChanged();
+                if (value.HasValue && GasMode == PowerGasMode.Ungassed)
+                {
+                    GasMode = PowerGasMode.Gassed;
+                }
+                var vol = LiquidVolumeLProvider?.Invoke() ?? 0;
+                if (vol > 0 && value.HasValue)
+                {
+                    _gasFlowLpm = Math.Round(value.Value * vol, 3);
+                    OnPropertyChanged(nameof(GasFlowLpm));
+                }
+                else if (!value.HasValue)
+                {
+                    _gasFlowLpm = null;
+                    OnPropertyChanged(nameof(GasFlowLpm));
+                }
+            }
+        }
+    }
+
+    private FlowInputUnit _flowUnit = FlowInputUnit.Lpm;
+    public FlowInputUnit FlowUnit
+    {
+        get => _flowUnit;
+        set { if (_flowUnit != value) { _flowUnit = value; OnPropertyChanged(); } }
+    }
+
+    private PowerGasMode _gasMode = PowerGasMode.Ungassed;
+    public PowerGasMode GasMode
+    {
+        get => _gasMode;
+        set
+        {
+            if (_gasMode != value)
+            {
+                _gasMode = value;
+                OnPropertyChanged();
+                if (value == PowerGasMode.Ungassed)
+                {
+                    _gasFlowLpm = null;
+                    _gasFlowVvm = null;
+                    OnPropertyChanged(nameof(GasFlowLpm));
+                    OnPropertyChanged(nameof(GasFlowVvm));
+                }
+            }
+        }
+    }
+
+    private int _requestedReplicates = 1;
+    public int RequestedReplicates
+    {
+        get => _requestedReplicates;
+        set { if (_requestedReplicates != value) { _requestedReplicates = value; OnPropertyChanged(); } }
+    }
+
+    private int _completedReplicates;
+    public int CompletedReplicates
+    {
+        get => _completedReplicates;
+        set { if (_completedReplicates != value) { _completedReplicates = value; OnPropertyChanged(); } }
+    }
+
+    private int _acceptedReplicates;
+    public int AcceptedReplicates
+    {
+        get => _acceptedReplicates;
+        set { if (_acceptedReplicates != value) { _acceptedReplicates = value; OnPropertyChanged(); } }
+    }
+
+    private int _rejectedReplicates;
+    public int RejectedReplicates
+    {
+        get => _rejectedReplicates;
+        set { if (_rejectedReplicates != value) { _rejectedReplicates = value; OnPropertyChanged(); } }
+    }
+
     public PowerConditionOrigin Origin { get; set; } = PowerConditionOrigin.Manual;
     public Guid? SourceMapId { get; set; }
     public string? SourceMapName { get; set; }
-    public PowerConditionStatus Status { get; set; } = PowerConditionStatus.Pending;
+
+    private PowerConditionStatus _status = PowerConditionStatus.Pending;
+    public PowerConditionStatus Status
+    {
+        get => _status;
+        set { if (_status != value) { _status = value; OnPropertyChanged(); } }
+    }
+
     public bool HasReplicateDisagreement { get; set; }
     public string? ReproducibilityWarning { get; set; }
 

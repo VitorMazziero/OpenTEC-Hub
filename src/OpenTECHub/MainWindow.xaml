@@ -916,6 +916,20 @@
                                                        Converter={StaticResource EqualsToVis},
                                                        ConverterParameter=kla-mapping}" />
 
+            <!-- Impeller-power acquisition. Step 5 fixes the route; steps 6-7 fill it. -->
+            <views:PowerView DataContext="{Binding PowerTest}"
+                             Visibility="{Binding DataContext.SelectedNavigationId,
+                                                  RelativeSource={RelativeSource AncestorType=Window},
+                                                  Converter={StaticResource EqualsToVis},
+                                                  ConverterParameter=power}" />
+
+            <!-- Phase-3 synthesis destination, intentionally born as a routed placeholder. -->
+            <views:PowerMapView DataContext="{Binding PowerMap}"
+                                Visibility="{Binding DataContext.SelectedNavigationId,
+                                                     RelativeSource={RelativeSource AncestorType=Window},
+                                                     Converter={StaticResource EqualsToVis},
+                                                     ConverterParameter=power-map}" />
+
             <!-- Receitas: graphical recipe editor and execution engine (WP4). -->
             <views:ReceitasView DataContext="{Binding Receitas}"
                                 Visibility="{Binding DataContext.SelectedNavigationId,

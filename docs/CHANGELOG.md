@@ -15,6 +15,10 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   `2026-09-03_1340`. Geometria, `Np`, tara e constantes de tempo são substituíveis nos testes;
   `FlowSetpoint` já produz o transiente gaseificado simples da Fase 1, sem antecipar o joelho de
   flooding reservado à Fase 2.
+- **Duas rotas para os ensaios de potência.** `Potência` abre o esqueleto mestre-detalhe de
+  aquisição, já ligado ao armazenamento, à telemetria do servo e ao árbitro; `Mapa de Potência`
+  nasce como destino estável e placeholder explícito da Fase 3. Ambas ficam após Mapeamento kLa
+  em Automação, participam dos atalhos e da paleta e são restauradas por `LastPage`.
 - **Saúde estatística compartilhada dos sensores.** Temperatura, pH, oxigênio, vazão,
   biomassa e distância acumulam as 30 leituras aceitas mais recentes e exibem o desvio
   padrão residual após remover a tendência linear. Assim uma rampa legítima do processo não é

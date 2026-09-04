@@ -265,7 +265,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 device, setpoints.TemperatureCelsius, setpoints.TemperatureEnabled),
 
             new SubsystemViewModel(Motor,
-                new SubsystemSpec(50, 1000, IsInteger: true,
+                new SubsystemSpec(15, 1000, IsInteger: true,
                     value => CommandBuilders.MotorSetpoint((int)value),
                     () => CommandBuilders.MotorSetpoint(0),
                     // There is a measured signal now, so this is no longer a statement

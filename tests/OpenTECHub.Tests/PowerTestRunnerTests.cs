@@ -164,8 +164,8 @@ public sealed class PowerTestRunnerTests
         await h.Runner.StartTestAsync(doc);
         h.DriveUntil(PowerRunPhase.PreparingNextRun);
 
-        h.Push(50, 0.5);
-        h.Push(50, 0.5);
+        h.Push(15, 0.5);
+        h.Push(15, 0.5);
         Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
         h.DriveUntil(PowerRunPhase.Completed);
 
@@ -175,7 +175,7 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(PowerRunPhase.Accepted, h.Runner.CurrentRun!.CurrentPhase);
         var motorCommands = h.Device.Sent.Where(json => json.Contains("motorSetpoint", StringComparison.Ordinal)).ToArray();
         Assert.Equal(
-            ["{\"motorSetpoint\":300}", "{\"motorSetpoint\":50}", "{\"motorSetpoint\":300}", "{\"motorSetpoint\":50}"],
+            ["{\"motorSetpoint\":300}", "{\"motorSetpoint\":15}", "{\"motorSetpoint\":300}", "{\"motorSetpoint\":15}"],
             motorCommands);
         Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
     }
@@ -209,7 +209,7 @@ public sealed class PowerTestRunnerTests
 
         Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
         Assert.Equal(PowerRunPhase.Rejected, h.Runner.CurrentRun!.CurrentPhase);
-        Assert.Contains("{\"motorSetpoint\":50}", h.Device.Sent);
+        Assert.Contains("{\"motorSetpoint\":15}", h.Device.Sent);
 
         var rejectedRunId = h.Runner.CurrentRun.RunId;
         await h.Runner.RepeatRunAsync();
@@ -247,7 +247,7 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(PowerRunPhase.Faulted, h.Runner.Phase);
         Assert.Equal(PowerTestStatus.Interrupted, doc.Status);
         Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
-        Assert.Contains("{\"motorSetpoint\":50}", h.Device.Sent);
+        Assert.Contains("{\"motorSetpoint\":15}", h.Device.Sent);
         Assert.Contains("{\"servoPollMs\":1000}", h.Device.Sent);
         Assert.DoesNotContain(h.Device.Sent, json => json.Contains("\"motorSetpoint\":0", StringComparison.Ordinal));
     }
@@ -354,7 +354,7 @@ public sealed class PowerTestRunnerTests
 
     private static PowerTestSettings FastSettings() => new()
     {
-        MinRpm = 50,
+        MinRpm = 15,
         MaxRpm = 1000,
         SpeedToleranceRpm = 3,
         SpeedStableSamples = 2,
@@ -463,7 +463,7 @@ public sealed class PowerTestRunnerTests
         {
             for (var i = 0; i < 500 && Runner.Phase != phase; i++)
             {
-                var rpm = Runner.Phase == PowerRunPhase.PreparingNextRun ? 50 : 300;
+                var rpm = Runner.Phase == PowerRunPhase.PreparingNextRun ? 15 : 300;
                 Push(rpm, 2.0);
             }
             Assert.Equal(phase, Runner.Phase);

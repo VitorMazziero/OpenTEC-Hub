@@ -979,7 +979,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         if (!double.IsFinite(settings.VentFlowToleranceLpm) || settings.VentFlowToleranceLpm <= 0 ||
             settings.VentFlowStableSamples is < 1 or > 100 ||
             !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0 ||
-            !double.IsFinite(settings.VentAgitationRpm) || settings.VentAgitationRpm is < 50 or > 1000)
+            !double.IsFinite(settings.VentAgitationRpm) || settings.VentAgitationRpm is < 15 or > 1000)
         {
             throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilização no alívio são inválidos.");
         }

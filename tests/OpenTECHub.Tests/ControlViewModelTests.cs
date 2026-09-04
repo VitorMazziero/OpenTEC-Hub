@@ -300,7 +300,7 @@ public sealed class ControlViewModelTests
                     value => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, value),
                     () => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 0.0),
                     Settings.Current.Setpoints.TemperatureCelsius),
-                Create("motor", "Agitação", "rpm", 0, 50, 1000, true,
+                Create("motor", "Agitação", "rpm", 0, 15, 1000, true,
                     value => CommandBuilders.MotorSetpoint((int)value),
                     () => CommandBuilders.MotorSetpoint(0),
                     Settings.Current.Setpoints.MotorRpm),

@@ -24,7 +24,7 @@ public class WireFormatTests
 
     [Theory]
     [InlineData(0, 0)]        // stop passes through unclamped
-    [InlineData(10, 50)]      // below the valid band
+    [InlineData(10, 15)]      // below the valid band
     [InlineData(5000, 1000)]  // above the valid band
     [InlineData(300, 300)]
     public void Motor_setpoint_clamps_to_the_valid_band(int requested, int expected)

@@ -330,7 +330,7 @@ public class SetpointValidationTests
 
         var vm = new SubsystemViewModel(
             variable,
-            new SubsystemSpec(50, 1000, IsInteger: true,
+            new SubsystemSpec(15, 1000, IsInteger: true,
                 value => CommandBuilders.MotorSetpoint((int)value),
                 () => CommandBuilders.MotorSetpoint(0)),
             device,
@@ -357,7 +357,7 @@ public class SetpointValidationTests
 
         var vm = new SubsystemViewModel(
             variable,
-            new SubsystemSpec(50, 1000, IsInteger: true,
+            new SubsystemSpec(15, 1000, IsInteger: true,
                 value => CommandBuilders.MotorSetpoint((int)value),
                 () => CommandBuilders.MotorSetpoint(0)),
             device,

@@ -259,6 +259,15 @@ public sealed class RecipeDomainTests
         Assert.False(RecipeValidator.Validate(recipe).IsValid);
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(14, false)]
+    [InlineData(15, true)]
+    [InlineData(1000, true)]
+    [InlineData(1001, false)]
+    public void Agitation_range_matches_the_15_to_1000_rpm_wire_contract(double rpm, bool accepted)
+        => Assert.Equal(accepted, DeviceRanges.Accepts(SetpointVariable.Agitation, rpm));
+
     [Fact]
     public void Monitor_refuses_an_actuation_variable()
     {

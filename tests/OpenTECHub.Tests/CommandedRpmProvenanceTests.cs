@@ -27,7 +27,7 @@ namespace OpenTECHub.Tests;
 /// </remarks>
 public class CommandedRpmProvenanceTests
 {
-    /// <summary>The agitation subsystem's real shape: 50-1000 rpm, integer, 0 disables.</summary>
+    /// <summary>The agitation subsystem's real shape: 15-1000 rpm, integer, 0 disables.</summary>
     private static (SubsystemViewModel Vm, ProcessVariableViewModel Variable) Motor(
         double initial = 300.0)
     {
@@ -39,7 +39,7 @@ public class CommandedRpmProvenanceTests
 
         var vm = new SubsystemViewModel(
             variable,
-            new SubsystemSpec(50, 1000, IsInteger: true,
+            new SubsystemSpec(15, 1000, IsInteger: true,
                 value => CommandBuilders.MotorSetpoint((int)value),
                 () => CommandBuilders.MotorSetpoint(0),
                 HasHealth: false),

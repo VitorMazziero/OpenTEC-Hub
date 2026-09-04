@@ -158,8 +158,8 @@ public sealed class PowerGeometry
 /// </summary>
 public sealed record PowerTestSettings
 {
-    // Rotação — contrato congelado do Hub/CN1: 50-1000 rpm; zero desabilita o motor.
-    public double MinRpm { get; init; } = 50.0;
+    // Rotação — contrato atual do Hub/CN1: 15-1000 rpm; zero desabilita o motor.
+    public double MinRpm { get; init; } = 15.0;
     public double MaxRpm { get; init; } = 1000.0;
     public double DefaultStepRpm { get; init; } = 50.0;
     public double MinStepRpm { get; init; } = 5.0;
@@ -198,7 +198,7 @@ public sealed record PowerTestSettings
     public bool VentStabilizationEnabled { get; init; }
     public double VentFlowToleranceLpm { get; init; } = 0.2;
     public int VentFlowStableSamples { get; init; } = 5;
-    public double VentAgitationRpm { get; init; } = 50.0;
+    public double VentAgitationRpm { get; init; } = 15.0;
     public double MaxVentStabilizationSeconds { get; init; } = 120.0;
 
     /// <summary>Hold each captured point for a manual mains-wattmeter reading (§4.8, §12.3).</summary>

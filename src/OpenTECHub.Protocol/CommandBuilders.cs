@@ -100,7 +100,7 @@ public static class CommandBuilders
             .Set(CommandKeys.PressureReference, 0.0);
 
     /// <summary>
-    /// Agitation reference in rpm. Valid range is 50-1000; <c>0</c> <b>disables</b> the motor.
+    /// Agitation reference in rpm. Valid range is 15-1000; <c>0</c> <b>disables</b> the motor.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -119,7 +119,7 @@ public static class CommandBuilders
     {
         if (rpm != 0)
         {
-            rpm = Math.Clamp(rpm, 50, 1000);
+            rpm = Math.Clamp(rpm, 15, 1000);
         }
 
         return OpenTECCommand.Create().Set(CommandKeys.MotorSetpoint, rpm);

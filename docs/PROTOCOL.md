@@ -332,7 +332,7 @@ is **preferred** — it reduces round trips on the shared UART.
 | Subsystem | Keys | Range / encoding |
 |---|---|---|
 | Temperature | `tempSetpoint` | degC; `0` = disabled |
-| Motor | `motorSetpoint` | **int** rpm, 50-1000; `0` = off |
+| Motor | `motorSetpoint` | **int** rpm, 15-1000; `0` = off |
 | Oxygen monitor | `oxygenMonitor` | % setpoint; `0` = disabled |
 | Pressure | `pressureReference` | 1-380; `0` = disabled |
 | Flowmeter v05 via Hub v7 | `flowSetpoint` | L/min, clamped to `maxFlow` |

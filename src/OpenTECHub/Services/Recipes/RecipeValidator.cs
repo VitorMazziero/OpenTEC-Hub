@@ -15,7 +15,7 @@ public static class DeviceRanges
     public static (double Min, double Max) For(SetpointVariable variable) => variable switch
     {
         SetpointVariable.Temperature => (15, 60),
-        SetpointVariable.Agitation => (50, 1000),
+        SetpointVariable.Agitation => (15, 1000),
         SetpointVariable.Oxygen => (0, 100),
         SetpointVariable.Flow => (0, 25),
         SetpointVariable.Pressure => (1, 380),

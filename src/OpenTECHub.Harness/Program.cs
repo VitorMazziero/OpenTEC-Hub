@@ -125,7 +125,7 @@ static void PrintUsage()
           --probe           send no-op commands to verify the write path
 
         While connected:
-          t <degC>    temperature setpoint       m <rpm>   motor setpoint (0, 50-1000)
+          t <degC>    temperature setpoint       m <rpm>   motor setpoint (0, 15-1000)
           f <L/min>   flow setpoint              o <pct>   oxygen monitor setpoint
           p <kPa>     pressure reference         x         flow safe-stop
           d           diagnostics                q         quit

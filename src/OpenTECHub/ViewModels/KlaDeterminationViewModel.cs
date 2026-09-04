@@ -1405,9 +1405,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             error = "Revise tolerância de vazão, confirmações e tempo máximo da estabilização no alívio.";
             return false;
         }
-        if (!double.IsFinite(SettingVentAgitationRpm) || SettingVentAgitationRpm is < 50 or > 1000)
+        if (!double.IsFinite(SettingVentAgitationRpm) || SettingVentAgitationRpm is < 15 or > 1000)
         {
-            error = "A rotação durante o alívio deve ficar entre 50 e 1000 rpm.";
+            error = "A rotação durante o alívio deve ficar entre 15 e 1000 rpm.";
             return false;
         }
         if (UseVentStabilization && SelectedVentValve == SelectedN2Valve)

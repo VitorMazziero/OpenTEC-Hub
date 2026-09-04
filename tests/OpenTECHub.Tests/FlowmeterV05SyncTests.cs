@@ -231,7 +231,7 @@ public sealed class FlowmeterV05SyncTests
             [
                 Create("temperature", "Temperatura", "°C", 1, 15, 60, false,
                     value => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, value), 30),
-                Create("motor", "Agitação", "rpm", 0, 50, 1000, true,
+                Create("motor", "Agitação", "rpm", 0, 15, 1000, true,
                     value => CommandBuilders.MotorSetpoint((int)value), 300),
                 Create("oxygen", "Oxigênio", "%", 1, 0, 100, false,
                     value => OpenTECCommand.Create().Set(CommandKeys.OxygenMonitor, value), 30),

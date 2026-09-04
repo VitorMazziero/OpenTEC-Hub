@@ -1119,9 +1119,9 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     private static void ValidateSettings(PowerTestSettings settings)
     {
-        if (settings.MinRpm < 50 || settings.MaxRpm > 1000 || settings.MinRpm > settings.MaxRpm)
+        if (settings.MinRpm < 15 || settings.MaxRpm > 1000 || settings.MinRpm > settings.MaxRpm)
         {
-            throw new InvalidOperationException("A faixa de rotação deve respeitar o contrato de 50 a 1000 rpm.");
+            throw new InvalidOperationException("A faixa de rotação deve respeitar o contrato de 15 a 1000 rpm.");
         }
         if (settings.SpeedToleranceRpm <= 0 || settings.SpeedStableSamples < 1 ||
             settings.MaxSpeedSettlingSeconds <= 0 || settings.StationarityWindowSeconds <= 0 ||

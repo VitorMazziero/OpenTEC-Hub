@@ -444,7 +444,7 @@ duas** — é o que torna a sequência "prototipar no app, mudar para o hub" bar
 ```text
 e[k]  = referencia - ServoRpm[k]
 du[k] = Kp*(e[k] - e[k-1]) + Ki*e[k]*dt
-u[k]  = clamp(u[k-1] + du[k], 50, 1000)
+u[k]  = clamp(u[k-1] + du[k], 15, 1000)
 ```
 
 **A sintonia começa quase toda no integral.** Os dados do Gate A dizem que o erro

@@ -1301,8 +1301,11 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
         - Exportação em CSV unificado com a tabela, as séries `Np×Re` e `P_G/P₀×Fl_G` e os avisos de
           incompatibilidade (6 testes aprovados em `ImpellerComparisonTests`).
 
-- [ ] **7. Ferramenta de Escalonamento e Síntese de Bioprocesso** (`BioprocessScaleUpEngine`, `ScaleUpCalculatorView.xaml`)
-  - [ ] 7.1 Calculadora de scale-up dirigida por modelo:
+- [x] **7. Ferramenta de Escalonamento e Síntese de Bioprocesso** (`BioprocessScaleUpEngine`, `ScaleUpCalculatorView.xaml`) _(2026-09-04)_
+      Terceira aba da página "Mapa de Potência", alimentada pela escala calibrada do mapa ativo
+      (geometria, fluido, `Np` de platô refeito a partir dos ensaios de origem, âncora de operação
+      escolhida pelo operador e o domínio de `P/V` e `v_s` que a correlação realmente cobre).
+  - [x] 7.1 Calculadora de scale-up dirigida por modelo:
         - Entrada do volume e geometria do reator alvo `V_alvo` (ex.: 2 L → 20 L → 200 L), faixa
           admissível de rotação e uma regra independente para a variável de gás (`vvm`, `v_s` ou
           `Q_g` fixo), além do critério de escala:
@@ -1317,7 +1320,11 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
           ou escala; resultado calculado não é validação de processo na nova escala.
         - Avaliação automática da proximidade com a fronteira de flooding na nova geometria (alerta
           de risco de afogamento em escala piloto/industrial).
-  - [ ] 7.2 Exportação de sumário técnico: geração de folha de dimensionamento de bioprocesso em CSV/PDF.
+  - [x] 7.2 Exportação de sumário técnico: folha de dimensionamento em CSV (tabela referência × alvo,
+        adimensionais, margem de flooding e os avisos) e em PDF pela impressora do sistema
+        ("Microsoft Print to PDF"), via `FlowDocument` — sem acrescentar dependência de PDF ao app
+        por um documento gerado uma vez por projeto. Recusas são exportadas como recusas, nunca como
+        números (14 testes aprovados em `BioprocessScaleUpTests`).
 
 - [ ] **8. Verificação Integrada e Fechamento da Fase 3**
   - [ ] 8.1 Suíte de testes automatizados completa verde (domínio, store, engines, importadores e viewmodels).

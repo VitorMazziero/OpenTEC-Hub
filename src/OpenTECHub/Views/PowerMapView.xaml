@@ -404,6 +404,35 @@
             <TabItem Header="Comparação de impelidores">
                 <views:PowerImpellerComparisonView DataContext="{Binding Comparison}" Margin="0,7,0,0" />
             </TabItem>
+
+            <TabItem Header="Escalonamento">
+                <Grid Margin="0,7,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Margin="0,0,0,7" Padding="10,7" Style="{StaticResource MapCard}">
+                        <StackPanel>
+                            <TextBlock Text="Ponto de operação de referência" Style="{StaticResource MapLabel}" />
+                            <ComboBox ItemsSource="{Binding ReferenceAnchors}" SelectedItem="{Binding SelectedReferenceAnchor}"
+                                      ToolTip="Condição medida da qual o escalonamento parte">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock>
+                                            <Run Text="{Binding AgitationRpm, StringFormat={}{0:F0} rpm, Mode=OneWay}" />
+                                            <Run Text="·" />
+                                            <Run Text="{Binding GasFlowLpm, StringFormat={}{0:F2} L/min, Mode=OneWay}" />
+                                            <Run Text="·" />
+                                            <Run Text="{Binding VolumetricPowerWm3, StringFormat={}P/V {0:F0} W/m³, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                    <views:ScaleUpCalculatorView Grid.Row="1" DataContext="{Binding ScaleUp}" />
+                </Grid>
+            </TabItem>
             </TabControl>
         </Grid>
     </Grid>

@@ -1,0 +1,207 @@
+<UserControl x:Class="OpenTECHub.Views.ScaleUpCalculatorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
+             xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:BioprocessScaleUpViewModel}"
+             d:DesignHeight="700" d:DesignWidth="1100">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="ScaleCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style x:Key="ScaleLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
+        <Style x:Key="ScaleField" TargetType="TextBox">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="360" MinWidth="330" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" MinWidth="380" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Entradas: escala de referência, alvo, critério e regra de gás (§18.3 passo 7.1) -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Style="{StaticResource ScaleCard}" Margin="0,0,0,7">
+                    <StackPanel>
+                        <TextBlock Text="Escala de referência (calibrada)" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding ReferenceSummary}" TextWrapping="Wrap"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource ScaleCard}" Margin="0,0,0,7">
+                    <StackPanel>
+                        <TextBlock Text="Reator alvo" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Volume útil (L)" Style="{StaticResource ScaleLabel}" />
+                                <TextBox Style="{StaticResource ScaleField}"
+                                         Text="{Binding TargetVolumeL, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="T do vaso (mm)" Style="{StaticResource ScaleLabel}" />
+                                <TextBox Style="{StaticResource ScaleField}"
+                                         Text="{Binding TargetVesselDiameterMm, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Margin="0,7,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="D do impelidor (mm)" Style="{StaticResource ScaleLabel}" />
+                                <TextBox Style="{StaticResource ScaleField}"
+                                         Text="{Binding TargetImpellerDiameterMm, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="N mín / máx (rpm)" Style="{StaticResource ScaleLabel}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="5" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Style="{StaticResource ScaleField}"
+                                             Text="{Binding TargetMinRpm, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource ScaleField}"
+                                             Text="{Binding TargetMaxRpm, UpdateSourceTrigger=LostFocus}" />
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource ScaleCard}" Margin="0,0,0,7">
+                    <StackPanel>
+                        <TextBlock Text="Critério de escala" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding AvailableCriteria}" SelectedValue="{Binding SelectedCriterion}"
+                                  SelectedValuePath="Criterion" DisplayMemberPath="DisplayText" />
+                        <TextBlock Margin="0,6,0,0" Text="{Binding CriterionExplanation}" TextWrapping="Wrap"
+                                   Style="{StaticResource CaptionTextStyle}" />
+
+                        <TextBlock Margin="0,12,0,0" Text="Regra de gás (independente do critério)"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Margin="0,3,0,6" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                   Text="Um critério sozinho fixa uma equação para duas incógnitas (N e Q_g). Sem esta regra o cálculo é recusado, não adivinhado." />
+                        <ComboBox ItemsSource="{Binding AvailableGasRules}" SelectedValue="{Binding SelectedGasRule}"
+                                  SelectedValuePath="Rule" DisplayMemberPath="DisplayText" />
+                        <Grid Margin="0,7,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Style="{StaticResource ScaleField}"
+                                     Text="{Binding GasRuleValue, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="Center"
+                                       Text="{Binding GasRuleUnit}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Button Content="Calcular dimensionamento" Padding="10,7" Margin="0,0,0,7"
+                        Style="{StaticResource AccentButtonStyle}" Command="{Binding CalculateCommand}" />
+                <Button Content="Exportar folha de dimensionamento (CSV)" Padding="10,6"
+                        Click="ExportSheet_Click" IsEnabled="{Binding HasResult}" />
+                <Button Margin="0,6,0,0" Content="Imprimir / salvar em PDF" Padding="10,6"
+                        Click="PrintSheet_Click" IsEnabled="{Binding HasResult}"
+                        ToolTip="Usa a impressora do sistema; escolha &quot;Microsoft Print to PDF&quot; para gerar o PDF" />
+                <TextBlock Margin="0,8,0,0" Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                           Style="{StaticResource CaptionTextStyle}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Resultado: recusas, avisos e a folha de dimensionamento -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Recusa explícita: melhor do que uma solução escondida (§18.3 passo 7.1) -->
+                <Border Margin="0,0,0,7" Padding="12" CornerRadius="{DynamicResource RadiusMedium}"
+                        Background="{DynamicResource StateAlarmBrush}"
+                        Visibility="{Binding HasRefusals, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Cálculo recusado" FontWeight="Bold" FontSize="14"
+                                   Foreground="{DynamicResource StateAlarmTextBrush}" />
+                        <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Refusals}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}">
+                                        <Run Text="•" />
+                                        <Run Text="{Binding Mode=OneWay}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,0,0,7" Padding="12" CornerRadius="{DynamicResource RadiusMedium}"
+                        Background="{DynamicResource StateWarningBrush}"
+                        Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Avisos — o resultado é dimensionamento, não validação de processo"
+                                   FontWeight="Bold" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource StateWarningTextBrush}" />
+                        <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Warnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource StateWarningTextBrush}">
+                                        <Run Text="•" />
+                                        <Run Text="{Binding Mode=OneWay}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource ScaleCard}"
+                        Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Folha de dimensionamento" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,7" />
+                        <DataGrid ItemsSource="{Binding SheetRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" MaxHeight="520">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Grandeza" Binding="{Binding Quantity}" Width="*" />
+                                <DataGridTextColumn Header="Referência" Binding="{Binding Reference}" Width="Auto" />
+                                <DataGridTextColumn Header="Alvo" Binding="{Binding Target}" Width="Auto" />
+                                <DataGridTextColumn Header="Unidade" Binding="{Binding Unit}" Width="Auto" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

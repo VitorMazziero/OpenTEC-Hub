@@ -395,4 +395,87 @@ public sealed class PowerMapViewModelTests : IDisposable
         _testStore.SaveTestManifest(doc);
         return doc;
     }
+
+    [Fact]
+    public async Task An_empty_layer_says_which_data_is_missing_rather_than_blaming_collinearity()
+    {
+        // An ungassed-only assay: two rotations at Qg = 0. P/V is fine, P_G/P0 has nothing.
+        var doc = _testStore.CreateTest(
+            "Somente_sem_gas",
+            new FluidProperties { DensityKgM3 = 998, ViscosityPaS = 0.001 },
+            new PowerGeometry
+            {
+                Impellers = [new Impeller { StageIndex = 0, DiameterM = 0.060 }],
+                VesselDiameterM = 0.190,
+                LiquidVolumeM3 = 0.010,
+            },
+            new PowerTestSettings());
+
+        foreach (var (rpm, power) in new[] { (300.0, 2.0), (400.0, 5.0), (500.0, 9.0) })
+        {
+            doc.Runs.Add(new PowerRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                AgitationRpm = rpm,
+                MeanRpmMeasured = rpm,
+                GasMode = PowerGasMode.Ungassed,
+                Phase = PowerRunPhase.Accepted,
+                NetPowerW = power,
+                StartedUtc = DateTimeOffset.UtcNow,
+            });
+        }
+
+        _testStore.SaveTestManifest(doc);
+
+        using var vm = new PowerMapViewModel(_testStore, _mapStore, _engine, _klaStore, _integrationService);
+        await vm.RefreshOnEnterCommand.ExecuteAsync(null);
+
+        vm.NewMapName = "Mapa sem gás";
+        vm.AvailablePowerTests.Single(t => t.Summary.TestId == doc.TestId).IsSelected = true;
+        vm.CreateMap();
+        vm.AvailablePowerTests.Single(t => t.Summary.TestId == doc.TestId).IsSelected = true;
+        vm.GridResolution = 50;
+
+        await vm.ReconstructSurfaceAsync();
+
+        // All anchors sit on Qg = 0, so no layer is drawable - and the message must name that,
+        // not send the operator looking for gassed points that were never planned.
+        vm.SelectedLayer = PowerMapLayer.PowerRatio;
+        Assert.False(vm.TryBuildLayerField(out _, out _, out _));
+        Assert.Contains("gaseificado", vm.DescribeUndrawableLayer(), StringComparison.OrdinalIgnoreCase);
+
+        vm.SelectedLayer = PowerMapLayer.VolumetricPower;
+        Assert.Contains("colineares", vm.DescribeUndrawableLayer(), StringComparison.OrdinalIgnoreCase);
+
+        // And the reconstruction itself explains why nothing was interpolated.
+        Assert.Contains("colineares", vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Contrast_narrows_the_colour_range_and_a_manual_range_overrides_it()
+    {
+        using var vm = new PowerMapViewModel(_testStore, _mapStore, _engine, _klaStore, _integrationService);
+
+        // Full contrast keeps the data range untouched.
+        vm.AutoScale = true;
+        vm.ContrastPercent = 100;
+        Assert.Equal((0.0, 100.0), vm.ResolveDisplayRange(0, 100));
+
+        // Half contrast squeezes the range around its midpoint, saturating the extremes.
+        vm.ContrastPercent = 50;
+        var (min, max) = vm.ResolveDisplayRange(0, 100);
+        Assert.Equal(25.0, min, 9);
+        Assert.Equal(75.0, max, 9);
+
+        // A manual range wins outright.
+        vm.AutoScale = false;
+        vm.ManualScaleMin = 10;
+        vm.ManualScaleMax = 20;
+        Assert.Equal((10.0, 20.0), vm.ResolveDisplayRange(0, 100));
+
+        // An inverted or incomplete manual range falls back to the data instead of drawing nothing.
+        vm.ManualScaleMin = 30;
+        vm.ManualScaleMax = 20;
+        Assert.Equal((25.0, 75.0), vm.ResolveDisplayRange(0, 100));
+    }
 }

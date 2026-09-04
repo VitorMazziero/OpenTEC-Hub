@@ -1215,6 +1215,45 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Why the selected layer has nothing to draw. "No cells" has more than one cause, and telling
+    /// the operator the wrong one sends them to fix the wrong thing.
+    /// </summary>
+    public string DescribeUndrawableLayer()
+    {
+        var surface = CurrentSurfaceData;
+        if (surface is null)
+        {
+            return "Selecione os ensaios de origem e reconstrua a superfície";
+        }
+
+        if (SelectedLayer == PowerMapLayer.PowerRatio &&
+            surface.AnchorPoints.All(a => a.PowerRatio is null))
+        {
+            return "Nenhum ponto gaseificado com razão P_G/P₀ nos ensaios selecionados." + Environment.NewLine +
+                   "Inclua condições com gás — e a referência sem gás na mesma rotação — para esta camada.";
+        }
+
+        if (SelectedLayer == PowerMapLayer.VolumetricPower &&
+            (CurrentDocument?.Geometry.LiquidVolumeM3 ?? 0) <= 0 &&
+            surface.AnchorPoints.All(a => a.VolumetricPowerWm3 <= 0))
+        {
+            return "Sem volume útil declarado, não há P/V." + Environment.NewLine +
+                   "Informe o volume de trabalho no ensaio de origem.";
+        }
+
+        var distinctFlows = surface.AnchorPoints.Select(a => Math.Round(a.GasFlowLpm, 3)).Distinct().Count();
+        var distinctRpms = surface.AnchorPoints.Select(a => Math.Round(a.AgitationRpm, 1)).Distinct().Count();
+
+        if (distinctFlows < 2 || distinctRpms < 2)
+        {
+            return "As âncoras são colineares no plano (N, Qg): uma superfície 2D precisa" + Environment.NewLine +
+                   "de ao menos duas rotações e duas vazões de gás distintas.";
+        }
+
+        return "A malha não produziu células definidas para esta camada.";
+    }
+
+    /// <summary>
     /// Colour range actually used by the heatmap: the automatic range is the data range narrowed
     /// by the contrast control; the manual range wins when the operator sets one.
     /// </summary>

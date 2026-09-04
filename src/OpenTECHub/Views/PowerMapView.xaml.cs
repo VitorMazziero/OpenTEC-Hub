@@ -203,7 +203,7 @@ public partial class PowerMapView : UserControl
         }
         else
         {
-            AddCentredNote(plot, "Malha sem células definidas — âncoras colineares no plano (N, Qg)");
+            AddCentredNote(plot, viewModel.DescribeUndrawableLayer());
         }
 
         if (viewModel.ShowAnchors && surface.AnchorPoints.Count > 0)

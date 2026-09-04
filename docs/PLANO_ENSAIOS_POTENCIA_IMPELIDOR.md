@@ -1326,14 +1326,23 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
         por um documento gerado uma vez por projeto. Recusas são exportadas como recusas, nunca como
         números (14 testes aprovados em `BioprocessScaleUpTests`).
 
-- [ ] **8. Verificação Integrada e Fechamento da Fase 3**
-  - [ ] 8.1 Suíte de testes automatizados completa verde (domínio, store, engines, importadores e viewmodels).
-  - [ ] 8.2 Validação de ponta a ponta: importação de mapa kLa → execução simulada da varredura de
-        potência → exportação de `P/V` para o mapa kLa → ajuste da correlação van't Riet.
-  - [ ] 8.3 Verificação de contratos WPF, renderização ScottPlot sem vazamento de memória e primeiro
-        frame livre de exceções.
+- [x] **8. Verificação Integrada e Fechamento da Fase 3** _(2026-09-04)_
+  - [x] 8.1 Suíte de testes automatizados completa verde: **1037 aprovados, 0 falhas** (domínio,
+        store, engines, importadores, viewmodels, comparação, escalonamento e contratos de UI).
+  - [x] 8.2 Validação de ponta a ponta (`PowerPhase3EndToEndTests`): mapa kLa 2×2 persistido →
+        importação das condições (`Origin = Map`, proveniência preservada) → varredura executada
+        pelo **runner real contra o simulador**, com referências não gaseificadas e razão `P_G/P₀`
+        em todos os pontos gaseificados → motor estacionado em 15 rpm e gás cortado ao final →
+        superfície reconstruída com o domínio ajustado às âncoras → inspeção por camada, inclusive
+        fora do domínio → ajuste van't Riet → exportação do mapa kLa **enriquecido como nova
+        revisão**, com o original intacto → escalonamento recusado sem regra de gás e resolvido com
+        ela → benchmarking de impelidor → ida-e-volta de salvar/reabrir o mapa.
+  - [x] 8.3 Contratos WPF verificados (`PowerNavigationContractTests`); renderização ScottPlot sem
+        vazamento — cada view de gráfico solta as assinaturas de tema e de redesenho no `Unloaded`, e
+        `Attach()` faz `Detach()` antes de reassinar (`PowerMapRenderingContractTests`); primeiro
+        frame livre de exceções com `--nav power-map` (log limpo, saída 0).
 
-**Portão da Fase 3:** a página "Mapa de Potência" opera de ponta a ponta gerando superfícies
+**Portão da Fase 3 — ATINGIDO (2026-09-04).** A página "Mapa de Potência" opera de ponta a ponta gerando superfícies
 2D interpoladas em camadas para P_líq, P/V e P_G/P₀ no espaço (N, Q_g); sobrepõe a fronteira
 experimental e teórica de flooding dividindo as regiões de dispersão e afogamento; realiza a
 comparação multi-ensaio de impelidores (Np × Re e P_G/P₀ × Fl_G); importa bidirecionalmente condições

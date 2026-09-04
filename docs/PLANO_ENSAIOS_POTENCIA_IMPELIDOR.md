@@ -1349,6 +1349,28 @@ comparação multi-ensaio de impelidores (Np × Re e P_G/P₀ × Fl_G); importa 
 e resultados com o Mapeamento kLa; e ajusta a correlação multivariável kLa = K·(P/V)^α·(vs)^β
 com exibição de gráficos de paridade e folha de escalonamento de bioprocesso.
 
+**Auditoria de uso (2026-09-04) — o operador conduzindo os ensaios.** Percorrendo as duas páginas
+no lugar de quem opera, foram encontrados e corrigidos:
+
+| O que quebrava para o operador | Correção |
+|---|---|
+| O importador kLa → Potência existia, estava no DI e tinha teste, mas **nenhum caminho na UI o alcançava** — a tabela de condições já tinha a coluna "Origem: Mapa" que nada era capaz de produzir | Seletor de mapa de kLa, número de réplicas e botão de importar no card **Condições**, com a opção de gerar uma referência **P₀ sem gás por rotação** (sem P₀ na mesma rotação, `P_G/P₀` não tem por que dividir, §4.5) |
+| O runner sabia dizer por que o ensaio não podia começar, mas isso só chegava como **caixa de erro depois** de apertar Iniciar | Faixa de **preflight ao vivo** no cabeçalho — verde quando pronto, âmbar com o motivo do próprio runner —, atualizada por telemetria, troca de posse e estado do documento, com limite de 2 checagens por segundo |
+| A página de mapa só lia o workspace **uma vez**: um ensaio concluído depois da primeira visita nunca aparecia | Releitura a cada entrada, preservando o mapa aberto, os ensaios marcados e o mapa de kLa vinculado — e sem marcar a malha como desatualizada, porque reler não é editar |
+| Uma reconstrução em curso podia **pousar num mapa já trocado ou excluído**, deixando superfície na tela sem documento por trás | Trocar ou excluir o mapa aborta o cálculo; o resultado só é aplicado se ainda pertencer ao mapa que o originou |
+| Camada vazia sempre culpava **âncoras colineares**, mandando o operador procurar o problema errado | A nota nomeia a causa real: sem pontos gaseificados, sem volume útil declarado, ou de fato colinear |
+| A superfície cobria sempre 15–1000 rpm por união com os padrões, então uma varredura de 200–600 rpm virava uma ilha num gráfico quase vazio | Domínio ajustado às âncoras (`AutoFitDomain`), com os limites do `settings` como recuo |
+| A camada `P/V` ficava nula quando a geometria do mapa não trazia volume útil, embora as âncoras tivessem `P/V` | O engine recupera o volume com que as âncoras foram reduzidas |
+| Salvar o mapa **perdia a seleção** do seletor | Seleção restaurada após reconstruir a lista |
+| Tabs de comparação e escalonamento só são materializadas pelo WPF ao serem abertas — uma chave de recurso ausente ali estouraria para o operador, não no build nem no smoke de inicialização | Teste que confere estaticamente toda chave `StaticResource`/`DynamicResource` das quatro views de potência |
+
+Modos exercitados de ponta a ponta: varredura não gaseificada, gaseificada com e sem estabilização
+no alívio, ponto único, captura manual de energia, pausar/retomar, pular, parar e revisar,
+aceitar/rejeitar/repetir, tara e calibração assistidas, importação do mapa de kLa, as quatro camadas
+da superfície, inspeção dentro e fora do domínio, ajuste van't Riet, exportação enriquecida,
+benchmarking multi-ensaio e os três critérios de escalonamento contra as quatro regras de gás.
+
+
 ---
 
 ## 19. Armadilhas — o que não fazer

@@ -1459,11 +1459,12 @@ Per panel:
 | `Mostrar setpoint` | checkbox | Dashed green overlay |
 | `Mostrar limites` | checkbox | Thin red HH/H/L/LL |
 | `Eixo Y` | `ComboBox` | `Automático` · `Fixo` (+ min/max entries) |
-| `⤓` | menu | `Exportar PNG…` · `Exportar CSV…` · `Copiar imagem` |
+| `⤓` | ação | `Exportar CSV…` dos dados visíveis |
 | `✕` | button | Collapse — the other panel takes the full width |
 
 Shared toolbar: `Janela ▾` (`5 min` · `30 min` · `2 h` · `12 h` · `Tudo`) ·
-`⏸ Pausar` · `Cursor` toggle · `Sincronizar eixo X` · `Exportar tudo…`.
+ícones de pausar, cursor, limpar/restaurar dados e marcar evento · `Nova Etapa` ·
+exportação dos dados visíveis em CSV. A exportação PNG não faz parte desta barra.
 
 The cursor is a vertical rule with a readout box giving each visible series' value at that
 instant — the thing an operator actually wants when comparing two variables.

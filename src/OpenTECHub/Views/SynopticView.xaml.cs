@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
 using System.Linq;
@@ -8,7 +8,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using ScottPlot;
@@ -374,35 +373,6 @@ public partial class SynopticView : UserControl
         var coordinates = plot.Plot.GetCoordinates((float)point.X, (float)point.Y);
         viewModel.UpdateCursor(coordinates.X);
         Redraw();
-    }
-
-    private void ExportPng_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new SaveFileDialog
-        {
-            Title = "Exportar gráficos como PNG",
-            FileName = $"graficos_{DateTimeOffset.Now:yyyy-MM-dd_HH-mm-ss}.png",
-            Filter = "Imagem PNG (*.png)|*.png",
-            DefaultExt = ".png",
-            AddExtension = true,
-            OverwritePrompt = true,
-        };
-
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
-        {
-            return;
-        }
-
-        ChartArea.UpdateLayout();
-        var width = Math.Max(1, (int)Math.Ceiling(ChartArea.ActualWidth));
-        var height = Math.Max(1, (int)Math.Ceiling(ChartArea.ActualHeight));
-        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(ChartArea);
-
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var stream = File.Create(dialog.FileName);
-        encoder.Save(stream);
     }
 
     private void ExportCsv_Click(object sender, RoutedEventArgs e)

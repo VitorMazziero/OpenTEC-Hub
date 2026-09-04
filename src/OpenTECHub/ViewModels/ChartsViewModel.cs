@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -172,9 +172,11 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PauseLabel))]
+    [NotifyPropertyChangedFor(nameof(PauseIconKey))]
     public partial bool IsPaused { get; set; }
 
     public string PauseLabel => IsPaused ? "Continuar" : "Pausar";
+    public string PauseIconKey => IsPaused ? "Play" : "Pause";
 
     [ObservableProperty]
     public partial string SampleCountText { get; set; } = "—";

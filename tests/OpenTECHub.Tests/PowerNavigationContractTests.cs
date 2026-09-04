@@ -13,6 +13,17 @@ public sealed class PowerNavigationContractTests
     private static string ReadProjectFile(string relativePath)
         => File.ReadAllText(Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", relativePath));
 
+    private static string ReadTabContent(string xaml, string header)
+    {
+        var startToken = $"<TabItem Header=\"{header}\"";
+        var start = xaml.IndexOf(startToken, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"A aba '{header}' não foi encontrada.");
+
+        var end = xaml.IndexOf("</TabItem>", start, StringComparison.Ordinal);
+        Assert.True(end > start, $"A aba '{header}' não possui fechamento.");
+        return xaml[start..end];
+    }
+
     [Fact]
     public void Both_power_destinations_follow_kla_mapping_in_the_automation_group()
     {
@@ -93,23 +104,31 @@ public sealed class PowerNavigationContractTests
     }
 
     [Fact]
-    public void Power_map_page_delivers_the_phase_3_surface_instead_of_a_placeholder()
+    public void Power_map_page_delivers_the_synthesis_surface_instead_of_a_placeholder()
     {
         var xaml = ReadProjectFile(Path.Combine("Views", "PowerMapView.xaml"));
         var codeBehind = ReadProjectFile(Path.Combine("Views", "PowerMapView.xaml.cs"));
         var viewModel = ReadProjectFile(Path.Combine("ViewModels", "PowerMapViewModel.cs"));
 
-        Assert.Contains("PhaseLabel", xaml, StringComparison.Ordinal);
-        Assert.Contains("\"FASE 3\"", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("FASE 3", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PhaseLabel", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("public string PhaseLabel", viewModel, StringComparison.Ordinal);
 
-        // The phase 3 gate: the page is the real synthesis surface, not a stand-in.
+        // The page is the real synthesis surface, not a stand-in.
         Assert.DoesNotContain("placeholder", xaml, StringComparison.OrdinalIgnoreCase);
 
-        // Sidebar contract (§18.3 step 5.1).
-        Assert.Contains("Ensaios de origem", xaml, StringComparison.Ordinal);
-        Assert.Contains("Malha de interpolação", xaml, StringComparison.Ordinal);
-        Assert.Contains("Correlação kLa", xaml, StringComparison.Ordinal);
-        Assert.Contains("Inspeção sob o cursor", xaml, StringComparison.Ordinal);
+        // Sidebar follows the operator's synthesis sequence and each tab owns related cards.
+        var mapTab = ReadTabContent(xaml, "Mapa");
+        Assert.Contains("Mapa de síntese", mapTab, StringComparison.Ordinal);
+        Assert.Contains("Ensaios de origem", mapTab, StringComparison.Ordinal);
+
+        var modelTab = ReadTabContent(xaml, "Modelo");
+        Assert.Contains("Malha de interpolação", modelTab, StringComparison.Ordinal);
+        Assert.Contains("Correlação kLa", modelTab, StringComparison.Ordinal);
+
+        var displayTab = ReadTabContent(xaml, "Exibição");
+        Assert.Contains("Visualização", displayTab, StringComparison.Ordinal);
+        Assert.Contains("Inspeção sob o cursor", displayTab, StringComparison.Ordinal);
 
         // Plot hosts for the surface and both validation panels (§18.3 steps 5.2 and 5.3).
         Assert.Contains("SurfacePlotHost", xaml, StringComparison.Ordinal);
@@ -173,9 +192,40 @@ public sealed class PowerNavigationContractTests
         var xaml = ReadProjectFile(Path.Combine("Views", "PowerView.xaml"));
         var codeBehind = ReadProjectFile(Path.Combine("Views", "PowerView.xaml.cs"));
 
-        Assert.Contains("Fluido e vaso", xaml, StringComparison.Ordinal);
-        Assert.Contains("Impelidores", xaml, StringComparison.Ordinal);
-        Assert.Contains("Condições", xaml, StringComparison.Ordinal);
+        var assemblyTab = ReadTabContent(xaml, "Montagem");
+        Assert.Contains("Ensaio", assemblyTab, StringComparison.Ordinal);
+        Assert.Contains("Fluido e vaso", assemblyTab, StringComparison.Ordinal);
+        Assert.Contains("Impelidores", assemblyTab, StringComparison.Ordinal);
+
+        var acquisitionTab = ReadTabContent(xaml, "Aquisição");
+        Assert.Contains("Captura automática", acquisitionTab, StringComparison.Ordinal);
+        Assert.Contains("Condições do ensaio", acquisitionTab, StringComparison.Ordinal);
+        Assert.Contains("GenerateConditionsPlanCommand", acquisitionTab, StringComparison.Ordinal);
+        Assert.Contains("ClearAllConditionsCommand", acquisitionTab, StringComparison.Ordinal);
+        Assert.Contains("MinFlowLpm", acquisitionTab, StringComparison.Ordinal);
+        Assert.Contains("MaxFlowLpm", acquisitionTab, StringComparison.Ordinal);
+
+        var mapXaml = ReadProjectFile(Path.Combine("Views", "PowerMapView.xaml"));
+        Assert.True(
+            mapXaml.IndexOf("NewMapName", StringComparison.Ordinal) < mapXaml.IndexOf("CreateMapCommand", StringComparison.Ordinal),
+            "O nome do novo mapa deve aparecer antes do botão Novo mapa.");
+
+        Assert.DoesNotContain("CurrentRpmText, StringFormat={}{0} rpm", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CurrentPowerWText, StringFormat={}{0} W", xaml, StringComparison.Ordinal);
+        Assert.Contains("<TextBlock Text=\"rpm\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<TextBlock Text=\"W\"", xaml, StringComparison.Ordinal);
+
+        var validationTab = ReadTabContent(xaml, "Validação e Eficiência de kLa");
+        Assert.Contains("Rastreabilidade", validationTab, StringComparison.Ordinal);
+        Assert.Contains("Calibração estática", validationTab, StringComparison.Ordinal);
+        Assert.Contains("Ensaio de tara no ar", validationTab, StringComparison.Ordinal);
+        Assert.Contains("CurrentTarePoints", validationTab, StringComparison.Ordinal);
+        Assert.Contains("PVoidCi95W", validationTab, StringComparison.Ordinal);
+        Assert.Contains("CancelTareSweepCommand", validationTab, StringComparison.Ordinal);
+        Assert.Contains("Mapa de kLa e Eficiência", validationTab, StringComparison.Ordinal);
+        Assert.Contains("ImportConditionsFromKlaMapCommand", validationTab, StringComparison.Ordinal);
+        Assert.Contains("KlaEfficiencyItems", validationTab, StringComparison.Ordinal);
+
         Assert.Contains("LiveChartHost", xaml, StringComparison.Ordinal);
         Assert.Contains("NpChartHost", xaml, StringComparison.Ordinal);
         Assert.Contains("Exportar CSV", xaml, StringComparison.Ordinal);

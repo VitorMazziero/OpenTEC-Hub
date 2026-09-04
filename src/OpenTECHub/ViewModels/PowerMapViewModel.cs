@@ -114,8 +114,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     public string MapRootDirectory { get; }
 
-    public string PhaseLabel => "FASE 3";
-
     public event Action? VisualizationChanged;
 
     // Collections

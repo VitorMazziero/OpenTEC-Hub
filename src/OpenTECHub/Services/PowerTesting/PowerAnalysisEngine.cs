@@ -35,6 +35,10 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
             ? TareInterpolator.InterpolatePowerW(tareForVoid, rpm)
             : 0.0;
         var netPowerW = shaftPowerW - voidPowerW;
+        var tarePowerCi95W = input.Tare is { } tareForUncertainty
+            ? TareInterpolator.InterpolatePowerCi95W(tareForUncertainty, rpm)
+            : 0.0;
+        var netPowerCi95W = Math.Sqrt(powerCi95W * powerCi95W + tarePowerCi95W * tarePowerCi95W);
 
         // Absolute results need BOTH a calibration and a tare (§9); otherwise the point is relative.
         var isRelative = calibration is null || input.Tare is null;
@@ -63,7 +67,7 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
         {
             // Equal-split hypothesis: total net power shared across the stages (§4.3).
             var perStageW = netPowerW / count;
-            var perStageCi95W = powerCi95W / count;
+            var perStageCi95W = netPowerCi95W / count;
 
             foreach (var impeller in geometry.Impellers.OrderBy(i => i.StageIndex))
             {
@@ -77,7 +81,7 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
 
         var assemblyNp = referenceDiameterM > 0 ? PowerCalc.PowerNumber(netPowerW, rho, rpm, referenceDiameterM) : double.NaN;
         var assemblyRe = referenceDiameterM > 0 ? PowerCalc.ReynoldsNumber(rho, rpm, referenceDiameterM, mu) : double.NaN;
-        var assemblyNpCi95 = referenceDiameterM > 0 ? Math.Abs(PowerCalc.PowerNumber(powerCi95W, rho, rpm, referenceDiameterM)) : double.NaN;
+        var assemblyNpCi95 = referenceDiameterM > 0 ? Math.Abs(PowerCalc.PowerNumber(netPowerCi95W, rho, rpm, referenceDiameterM)) : double.NaN;
 
         // Gassed and flooding evaluations (§4.5, §11, §16)
         double? gasFlowLpm = input.GasFlowLpm;
@@ -106,7 +110,7 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
         if (refP0 is { } p0Val && p0Val > 0 && gassedPowerW.HasValue)
         {
             var (r, rCi) = PowerCalc.PropagatePowerRatioUncertainty(
-                gassedPowerW.Value, powerCi95W, p0Val, refP0Ci ?? 0.0);
+                gassedPowerW.Value, netPowerCi95W, p0Val, refP0Ci ?? 0.0);
             powerRatio = r;
             powerRatioCi = rCi;
         }
@@ -118,7 +122,7 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
             ShaftPowerW = shaftPowerW,
             VoidPowerW = voidPowerW,
             NetPowerW = netPowerW,
-            NetPowerCi95W = powerCi95W,
+            NetPowerCi95W = netPowerCi95W,
             BelowNoiseFloor = belowNoiseFloor,
             IsRelative = isRelative,
             Stages = stages,

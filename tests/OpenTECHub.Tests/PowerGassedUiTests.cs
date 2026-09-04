@@ -132,9 +132,9 @@ public sealed class PowerGassedUiTests : IDisposable
         vm.LoadSelectedTestCommand.Execute(null);
 
         vm.SelectedSweepType = PowerSweepType.VariableNConstantQg;
-        vm.SweepStartRpm = 100;
-        vm.SweepEndRpm = 300;
-        vm.SweepStepRpm = 100;
+        vm.MinRpm = 100;
+        vm.MaxRpm = 300;
+        vm.StepRpm = 100;
         vm.SweepConstantQgLpm = 4.0;
         vm.SweepGasMode = PowerGasMode.Gassed;
         vm.GenerateSweepCommand.Execute(null);
@@ -146,6 +146,10 @@ public sealed class PowerGassedUiTests : IDisposable
             Assert.Equal(PowerGasMode.Gassed, c.GasMode);
         });
         Assert.Equal([100.0, 200.0, 300.0], vm.Conditions.Select(c => c.AgitationRpm).ToArray());
+
+        var reloaded = _store.LoadTest(doc.FolderName);
+        Assert.NotNull(reloaded);
+        Assert.Equal([100.0, 200.0, 300.0], reloaded.Conditions.Select(c => c.AgitationRpm).ToArray());
     }
 
     [Fact]
@@ -186,9 +190,9 @@ public sealed class PowerGassedUiTests : IDisposable
         vm.LoadSelectedTestCommand.Execute(null);
 
         vm.SelectedSweepType = PowerSweepType.MatrixNByQg;
-        vm.SweepStartRpm = 200;
-        vm.SweepEndRpm = 300;
-        vm.SweepStepRpm = 100; // 200, 300 -> 2 speeds
+        vm.MinRpm = 200;
+        vm.MaxRpm = 300;
+        vm.StepRpm = 100; // 200, 300 -> 2 speeds
         vm.SweepStartQgLpm = 5.0;
         vm.SweepEndQgLpm = 10.0;
         vm.SweepStepQgLpm = 5.0; // 5, 10 -> 2 flows

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,8 +12,8 @@ using Xunit;
 namespace OpenTECHub.Tests;
 
 /// <summary>
-/// The operator's path from a finished kLa map to a power condition table (§18.3 step 3.1).
-/// The service existed and was tested, but nothing on the acquisition page could reach it.
+/// Verifies the kLa map linking pipeline (preserving conditions and computing the control region)
+/// and the manual condition plan generation (N x Qg) without spontaneous regeneration.
 /// </summary>
 public sealed class PowerKlaImportUiTests : IDisposable
 {
@@ -49,12 +50,7 @@ public sealed class PowerKlaImportUiTests : IDisposable
     private PowerTestViewModel BuildViewModel()
         => new(_testStore, _arbiter, _arbiter, null, null, null, _klaStore);
 
-    /// <summary>
-    /// Opens an empty assay the way the page does after "Novo": the store creates it, the picker
-    /// selects it, and the plan becomes editable. (CreateTest itself needs the dialog service to
-    /// prompt for the folder name, which a headless test has no use for.)
-    /// </summary>
-    private static void OpenEmptyAssay(PowerTestViewModel viewModel, PowerTestStore store, string name)
+    private static void OpenEmptyAssay(PowerTestViewModel viewModel, PowerTestStore store, string name, List<PowerCondition>? initialConditions = null)
     {
         store.CreateTest(
             name,
@@ -66,7 +62,7 @@ public sealed class PowerKlaImportUiTests : IDisposable
                 LiquidVolumeM3 = 0.010,
             },
             new PowerTestSettings(),
-            []);
+            initialConditions ?? []);
 
         viewModel.RefreshTestsCommand.Execute(null);
         viewModel.SelectedTest = viewModel.Tests.First(t => t.Name == name);
@@ -84,10 +80,12 @@ public sealed class PowerKlaImportUiTests : IDisposable
                 Domain = new KlaDomain(0, 15, 15, 1000),
                 Anchors =
                 [
-                    new KlaAnchor(5.0, 500.0, 48.0),
                     new KlaAnchor(2.0, 300.0, 18.0),
+                    new KlaAnchor(3.5, 300.0, 22.0),
                     new KlaAnchor(5.0, 300.0, 26.0),
                     new KlaAnchor(2.0, 500.0, 34.0),
+                    new KlaAnchor(3.5, 500.0, 41.0),
+                    new KlaAnchor(5.0, 500.0, 48.0),
                 ],
             },
         };
@@ -106,8 +104,8 @@ public sealed class PowerKlaImportUiTests : IDisposable
 
         var option = Assert.Single(viewModel.AvailableKlaMaps);
         Assert.Equal("Mapa A", option.Name);
-        Assert.Equal(4, option.AnchorCount);
-        Assert.Contains("4 âncoras", option.DisplayText, StringComparison.Ordinal);
+        Assert.Equal(6, option.AnchorCount);
+        Assert.Contains("6 âncoras", option.DisplayText, StringComparison.Ordinal);
 
         // No assay open yet, so the plan cannot be edited and the import stays unavailable.
         Assert.False(viewModel.CanImportFromKlaMap);
@@ -123,57 +121,89 @@ public sealed class PowerKlaImportUiTests : IDisposable
     }
 
     [Fact]
-    public async Task Import_lands_on_the_map_coordinates_and_adds_the_p0_references()
+    public async Task Linking_kla_map_preserves_existing_conditions_and_computes_control_region()
     {
         await PersistMapAsync("Mapa 2x2");
         var viewModel = BuildViewModel();
 
         await viewModel.RefreshKlaMapsCommand.ExecuteAsync(null);
-        OpenEmptyAssay(viewModel, _testStore, "ensaio");
+        var existing = new List<PowerCondition>
+        {
+            new() { OrderIndex = 0, AgitationRpm = 400.0, GasFlowLpm = 3.0, GasMode = PowerGasMode.Gassed },
+            new() { OrderIndex = 1, AgitationRpm = 600.0, GasFlowLpm = 8.0, GasMode = PowerGasMode.Gassed },
+        };
+        OpenEmptyAssay(viewModel, _testStore, "ensaio", existing);
+
         viewModel.SelectedKlaMapForImport = viewModel.AvailableKlaMaps[0];
-        viewModel.ImportUngassedReferences = true;
 
         await viewModel.ImportConditionsFromKlaMapCommand.ExecuteAsync(null);
 
-        // Two ungassed references (300 and 500 rpm) plus the four gassed map points.
-        Assert.Equal(6, viewModel.Conditions.Count);
+        // Condition table is NOT replaced or overwritten!
+        Assert.Equal(2, viewModel.Conditions.Count);
+        Assert.Equal(400.0, viewModel.Conditions[0].AgitationRpm);
+        Assert.Equal(600.0, viewModel.Conditions[1].AgitationRpm);
 
-        var ungassed = viewModel.Conditions.Where(c => c.GasMode == PowerGasMode.Ungassed).ToList();
-        Assert.Equal(2, ungassed.Count);
-        Assert.Equal([300.0, 500.0], ungassed.Select(c => c.AgitationRpm).OrderBy(r => r));
+        // LinkedMap is set
+        Assert.True(viewModel.HasLinkedKlaMap);
+        Assert.Equal("Mapa 2x2", viewModel.LinkedKlaMapName);
 
-        var gassed = viewModel.Conditions.Where(c => c.GasMode == PowerGasMode.Gassed).ToList();
-        Assert.Equal(4, gassed.Count);
+        // Control region intersection (kLa: 300-500 rpm, 2-5 L/min; Power: 400-600 rpm, 3-8 L/min)
+        // Intersection should be N 400-500 rpm, Qg 3.0-5.0 L/min
+        Assert.Contains("Intersecção", viewModel.ControlRegionSummary);
+        Assert.Contains("400", viewModel.ControlRegionSummary);
+        Assert.Contains("500", viewModel.ControlRegionSummary);
 
-        // Canonical order and provenance are what let the two datasets be paired later.
-        Assert.All(viewModel.Conditions, c => Assert.Equal(PowerConditionOrigin.Map, c.Origin));
-        Assert.All(viewModel.Conditions, c => Assert.Equal("Mapa 2x2", c.SourceMapName));
-        Assert.Equal(
-            Enumerable.Range(0, viewModel.Conditions.Count),
-            viewModel.Conditions.Select(c => c.OrderIndex));
+        // Comparison items generated
+        Assert.Equal(2, viewModel.KlaEfficiencyItems.Count);
+        var item1 = viewModel.KlaEfficiencyItems[0];
+        Assert.True(item1.IsInControlRegion);
+        Assert.NotNull(item1.KlaInterpolatedPerHour);
 
-        Assert.Contains("referência", viewModel.ValidationMessage ?? "", StringComparison.OrdinalIgnoreCase);
+        var item2 = viewModel.KlaEfficiencyItems[1];
+        Assert.False(item2.IsInControlRegion); // 600 rpm is outside [300, 500]
+
+        // Persisted manifest verification
+        var saved = _testStore.LoadTest("ensaio");
+        Assert.NotNull(saved);
+        Assert.Equal(2, saved.Conditions.Count);
+        Assert.NotNull(saved.LinkedMap);
+        Assert.Equal("Mapa 2x2", saved.LinkedMap!.MapName);
 
         viewModel.Dispose();
     }
 
     [Fact]
-    public async Task Import_without_references_keeps_only_the_measured_points()
+    public void Generate_conditions_plan_creates_grid_and_clear_removes_all()
     {
-        await PersistMapAsync("Mapa sem P0");
         var viewModel = BuildViewModel();
-
-        await viewModel.RefreshKlaMapsCommand.ExecuteAsync(null);
         OpenEmptyAssay(viewModel, _testStore, "ensaio");
-        viewModel.SelectedKlaMapForImport = viewModel.AvailableKlaMaps[0];
-        viewModel.ImportUngassedReferences = false;
-        viewModel.ImportReplicates = 3;
 
-        await viewModel.ImportConditionsFromKlaMapCommand.ExecuteAsync(null);
+        viewModel.MinRpm = 100;
+        viewModel.MaxRpm = 200;
+        viewModel.StepRpm = 100; // 100, 200 (2 levels)
 
-        Assert.Equal(4, viewModel.Conditions.Count);
-        Assert.All(viewModel.Conditions, c => Assert.Equal(PowerGasMode.Gassed, c.GasMode));
-        Assert.All(viewModel.Conditions, c => Assert.Equal(3, c.RequestedReplicates));
+        viewModel.MinFlowLpm = 0;
+        viewModel.MaxFlowLpm = 1;
+        viewModel.StepFlowLpm = 0.5; // 0, 0.5, 1.0 (3 levels)
+
+        // Verifies typing did not generate conditions
+        Assert.Empty(viewModel.Conditions);
+
+        // Execute Generate
+        viewModel.GenerateConditionsPlanCommand.Execute(null);
+
+        // 2 x 3 = 6 points
+        Assert.Equal(6, viewModel.Conditions.Count);
+        Assert.Equal(2, viewModel.Conditions.Count(c => c.GasMode == PowerGasMode.Ungassed));
+        Assert.Equal(4, viewModel.Conditions.Count(c => c.GasMode == PowerGasMode.Gassed));
+
+        // Execute Clear
+        viewModel.ClearAllConditionsCommand.Execute(null);
+        Assert.Empty(viewModel.Conditions);
+
+        var saved = _testStore.LoadTest("ensaio");
+        Assert.NotNull(saved);
+        Assert.Empty(saved.Conditions);
 
         viewModel.Dispose();
     }
@@ -214,11 +244,11 @@ public sealed class PowerKlaImportUiTests : IDisposable
     }
 
     [Fact]
-    public void Without_a_kla_store_the_page_explains_itself_rather_than_failing()
+    public async Task Without_a_kla_store_the_page_explains_itself_rather_than_failing()
     {
         var viewModel = new PowerTestViewModel(_testStore, _arbiter, _arbiter);
 
-        viewModel.RefreshKlaMapsCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        await viewModel.RefreshKlaMapsCommand.ExecuteAsync(null);
 
         Assert.Empty(viewModel.AvailableKlaMaps);
         Assert.Contains("indisponível", viewModel.ValidationMessage ?? "", StringComparison.OrdinalIgnoreCase);

@@ -26,7 +26,17 @@ public sealed record CaptureResult(
     double TorqueCi95Percent,
     double MeanRpm,
     double ElapsedSeconds,
-    PowerStopReason StopReason);
+    PowerStopReason StopReason)
+{
+    /// <summary>Sample standard deviation of the counted torque observations.</summary>
+    public double TorqueStandardDeviationPercent { get; init; }
+
+    /// <summary>Sample standard deviation of the counted speed observations.</summary>
+    public double RpmStandardDeviation { get; init; }
+
+    /// <summary>95% confidence half-width on the measured-speed mean.</summary>
+    public double RpmCi95 { get; init; }
+}
 
 /// <summary>
 /// The heart of the automatic test (§12.1): the two-gate, confidence-driven capture of ONE
@@ -144,7 +154,12 @@ public sealed class PowerCaptureController
             _torqueStats.ConfidenceHalfWidth95,
             _rpmStats.Count > 0 ? _rpmStats.Mean : 0.0,
             _hasStart ? _lastSampleSeconds - _startSeconds : 0.0,
-            reason);
+            reason)
+        {
+            TorqueStandardDeviationPercent = _torqueStats.StandardDeviation,
+            RpmStandardDeviation = _rpmStats.StandardDeviation,
+            RpmCi95 = _rpmStats.ConfidenceHalfWidth95,
+        };
     }
 
     // ---- Porta 1: stationarity -----------------------------------------------------------

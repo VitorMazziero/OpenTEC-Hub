@@ -18,6 +18,11 @@ public interface IPowerTestStore
         IReadOnlyList<PowerCondition>? initialConditions = null,
         PowerMapReference? linkedMap = null);
 
+    PowerTestDocument RenameTest(string folderName, string newName);
+
+    /// <summary>Moves an assay to the store's internal recovery folder instead of erasing it.</summary>
+    bool DeleteTest(string folderName);
+
     void SaveTestManifest(PowerTestDocument doc);
 
     IReadOnlyList<PowerCondition> LoadConditionsTable(string testFolderName);

@@ -1,0 +1,170 @@
+﻿{
+  "schemaVersion": 1,
+  "testId": "980d59b1-64a5-4ae8-a40c-15d479e85de5",
+  "name": "Teste_tara",
+  "folderName": "Teste_tara",
+  "status": "Interrupted",
+  "createdUtc": "2026-09-04T16:27:43.0996705+00:00",
+  "startedUtc": "2026-09-04T16:27:57.8180327+00:00",
+  "lastModifiedUtc": "2026-09-04T16:41:55.6714526+00:00",
+  "fluid": {
+    "densityKgM3": 997,
+    "viscosityPaS": 0.00089,
+    "temperatureC": 25,
+    "presetName": "\u00C1gua / personalizado"
+  },
+  "geometry": {
+    "impellers": [
+      {
+        "type": "RushtonFlatBlade",
+        "label": "Rushton (p\u00E1s planas)",
+        "diameterM": 0.065,
+        "bladeCount": 6,
+        "clearanceM": 0.065,
+        "stageIndex": 0,
+        "literatureNp": 5
+      }
+    ],
+    "vesselDiameterM": 0.19,
+    "liquidVolumeM3": 0.01,
+    "baffled": true
+  },
+  "settings": {
+    "minRpm": 15,
+    "maxRpm": 1000,
+    "defaultStepRpm": 50,
+    "minStepRpm": 5,
+    "speedToleranceRpm": 5,
+    "speedStableSamples": 3,
+    "maxSpeedSettlingSeconds": 120,
+    "maxTorquePercent": 90,
+    "stationarityWindowSeconds": 20,
+    "stationaritySlopeTolerancePercentPerSecond": 0.5,
+    "stationarityRequiredSamples": 5,
+    "relativeCiFraction": 0.02,
+    "ciFloorSigmaMultiple": 1,
+    "minSamples": 60,
+    "maxCaptureSeconds": 300,
+    "maxTries": 3,
+    "captureServoPollMs": 250,
+    "restoreServoPollMs": 1000,
+    "measurementTimeoutSeconds": 5,
+    "snrFloorMultiple": 3,
+    "ventStabilizationEnabled": false,
+    "selectedVentValve": "Valve2",
+    "ventFlowToleranceLpm": 0.2,
+    "ventFlowStableSamples": 5,
+    "ventAgitationRpm": 15,
+    "maxVentStabilizationSeconds": 120,
+    "manualEnergyCaptureEnabled": false,
+    "autoAcceptRuns": false
+  },
+  "settingsRevision": 4,
+  "tare": {
+    "points": [
+      {
+        "rpm": 100,
+        "pVoidW": 2.5135882821371927,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 200,
+        "pVoidW": 5.027176564274385,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 300,
+        "pVoidW": 7.540764846411579,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 400,
+        "pVoidW": 10.05435312854877,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 500,
+        "pVoidW": 12.833929588689903,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 600,
+        "pVoidW": 15.54434912255001,
+        "sigmaTauPercent": 0.4025
+      },
+      {
+        "rpm": 700,
+        "pVoidW": 18.80536418487826,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 800,
+        "pVoidW": 21.640798162400216,
+        "sigmaTauPercent": 0.313
+      },
+      {
+        "rpm": 900,
+        "pVoidW": 25.016188141270163,
+        "sigmaTauPercent": 0.05
+      },
+      {
+        "rpm": 1000,
+        "pVoidW": 27.370183516605,
+        "sigmaTauPercent": 0.4382
+      }
+    ],
+    "impellerSetHash": "abcc0a2b8942caa1ec5244ac8c9dbce85cea7efab5b054d8c021324ec18e250b",
+    "measuredUtc": "2026-09-04T16:29:22.8964946+00:00"
+  },
+  "relativeMode": true,
+  "appVersion": "0.0.0.0",
+  "protocolVersion": "OpenTEC_ESP32_v9 \u002B servo ASDA-B2",
+  "hubFirmwareVersion": "9.1.0-dev",
+  "hubProtocolVersion": 9,
+  "algorithmVersion": "Np_plateau_v1",
+  "motorRatedTorqueNm": 1.27,
+  "conditions": [
+    {
+      "conditionId": "8992e5ae-0c78-477d-bfd5-b74452d74a63",
+      "orderIndex": 0,
+      "agitationRpm": 300,
+      "flowUnit": "Lpm",
+      "gasMode": "Ungassed",
+      "requestedReplicates": 1,
+      "completedReplicates": 1,
+      "acceptedReplicates": 0,
+      "rejectedReplicates": 1,
+      "origin": "Manual",
+      "status": "Skipped",
+      "hasReplicateDisagreement": false
+    }
+  ],
+  "runs": [
+    {
+      "runId": "18b4a829-0220-4a94-ac2d-912abda82eeb",
+      "conditionId": "8992e5ae-0c78-477d-bfd5-b74452d74a63",
+      "replicateNumber": 1,
+      "folderName": "N0300_Seco_Rep01",
+      "agitationRpm": 300,
+      "gasMode": "Ungassed",
+      "phase": "Rejected",
+      "stopReason": "Aborted",
+      "sampleCount": 0,
+      "meanRpmMeasured": 0,
+      "meanTorquePercent": 0,
+      "meanTorqueNm": 0,
+      "meanShaftPowerW": 0,
+      "netPowerW": 0,
+      "torqueCi95Percent": 0,
+      "ci95PowerW": 0,
+      "tries": 1,
+      "isRelative": true,
+      "startedUtc": "2026-09-04T16:27:57.8311843+00:00",
+      "completedUtc": "2026-09-04T16:29:04.2314188+00:00",
+      "p0Provenance": "None",
+      "usedVentStabilization": false
+    }
+  ],
+  "interruptionReason": "Execu\u00E7\u00E3o anterior encerrada sem fechamento registrado.",
+  "fileHashes": {}
+}

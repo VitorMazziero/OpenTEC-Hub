@@ -392,6 +392,10 @@ public static class TareInterpolator
     public static double InterpolateSigmaTauPercent(TareCurve tare, double rpm)
         => Interpolate(tare, rpm, static p => p.SigmaTauPercent);
 
+    /// <summary>95% confidence half-width of P_void(N) [W], for propagation into net power.</summary>
+    public static double InterpolatePowerCi95W(TareCurve tare, double rpm)
+        => Interpolate(tare, rpm, static p => p.PVoidCi95W);
+
     private static double Interpolate(TareCurve tare, double rpm, Func<TarePoint, double> selector)
     {
         var points = tare.Points;

@@ -66,6 +66,30 @@ public sealed class PowerTestRunnerTests
     }
 
     [Fact]
+    public async Task Preflight_refuses_a_tare_made_with_a_different_torque_calibration()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings());
+        h.Push(0, 0);
+        doc.RelativeMode = false;
+        doc.Calibration = new TorqueCalibration { Scale = 1.1, MotorRatedTorqueNm = 1.27 };
+        doc.Tare = new TareCurve
+        {
+            ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(doc.Geometry),
+            CalibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
+                new TorqueCalibration { Scale = 1.0, MotorRatedTorqueNm = 1.27 },
+                doc.MotorRatedTorqueNm),
+            Points = { new TarePoint(300, 0.5, 0.05) },
+        };
+
+        Assert.False(h.Runner.CanStart(doc, out var reason));
+        Assert.Contains("calibração de torque mudou", reason, StringComparison.OrdinalIgnoreCase);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
+        Assert.Contains("refaça a tara", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(h.Device.Sent);
+    }
+
+    [Fact]
     public async Task Setting_speed_uses_measured_rpm_and_never_commands_zero()
     {
         using var h = new Harness();

@@ -206,6 +206,27 @@ public sealed class PowerTestRunner : IPowerTestRunner
         RaiseStateChanged();
     }
 
+    public void ClearTest()
+    {
+        if (IsRunning)
+        {
+            throw new InvalidOperationException("Interrompa o ensaio antes de fechá-lo.");
+        }
+
+        _currentTest = null;
+        _currentRun = null;
+        _currentCondition = null;
+        _capture = null;
+        _runPoints.Clear();
+        _globalSamples.Clear();
+        _phase = PowerRunPhase.Idle;
+        _phaseStartMonotonic = 0;
+        _testStartMonotonic = 0;
+        _runStartMonotonic = 0;
+        _statusMessage = "Nenhum ensaio de potência carregado.";
+        RaiseStateChanged();
+    }
+
     public Task StartTestAsync(PowerTestDocument doc, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -1516,6 +1537,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
             if (!string.Equals(tare.ImpellerSetHash, geometryHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("A tara pertence a outro conjunto de impelidores.");
+            }
+        }
+        if (doc.Tare is { CalibrationHash.Length: > 0 } calibratedTare)
+        {
+            var calibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
+                doc.Calibration,
+                doc.MotorRatedTorqueNm);
+            if (!string.Equals(calibratedTare.CalibrationHash, calibrationHash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("A calibração de torque mudou após a tara; refaça a tara no ar.");
             }
         }
         if (doc.Conditions.Count == 0)

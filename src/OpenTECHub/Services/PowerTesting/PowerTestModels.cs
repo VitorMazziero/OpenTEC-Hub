@@ -229,6 +229,11 @@ public sealed record PowerTestSettings
     public double DefaultStepRpm { get; init; } = 50.0;
     public double MinStepRpm { get; init; } = 5.0;
 
+    // Vazão de ar (Qg) — faixa padrão 0 (sem aeração) a 20 L/min, passo 0.5 L/min.
+    public double MinFlowLpm { get; init; } = 0.0;
+    public double MaxFlowLpm { get; init; } = 20.0;
+    public double DefaultStepFlowLpm { get; init; } = 0.5;
+
     /// <summary>Measured-speed band and confirmation count before torque settling begins.</summary>
     public double SpeedToleranceRpm { get; init; } = 5.0;
     public int SpeedStableSamples { get; init; } = 3;
@@ -487,15 +492,50 @@ public sealed record TorqueCalibration
 }
 
 /// <summary>One rung of the tare curve: void power and the torque noise floor at that rpm (§4.2, §9.2).</summary>
-public sealed record TarePoint(double Rpm, double PVoidW, double SigmaTauPercent);
+public sealed record TarePoint(double Rpm, double PVoidW, double SigmaTauPercent)
+{
+    public int SampleCount { get; init; }
+    public double MeanRpmMeasured { get; init; }
+    public double RpmStandardDeviation { get; init; }
+    public double RpmCi95 { get; init; }
+    public double MeanTorquePercent { get; init; }
+    public double TorqueCi95Percent { get; init; }
+    public double PVoidCi95W { get; init; }
+    public double ElapsedSeconds { get; init; }
+    public int Attempts { get; init; }
+    public PowerStopReason StopReason { get; init; }
+}
 
 public sealed record TareCurve
 {
+    public int SchemaVersion { get; init; } = 1;
     public List<TarePoint> Points { get; init; } = [];
-
-    /// <summary>Identifies the impeller set the tare belongs to; a mismatch warns before reuse (§9.2).</summary>
+    public List<TareSample> Samples { get; init; } = [];
+    public PowerTestSettings? AcquisitionSettings { get; init; }
     public string ImpellerSetHash { get; init; } = "";
+    public string? CalibrationHash { get; init; }
     public DateTimeOffset MeasuredUtc { get; init; } = DateTimeOffset.UtcNow;
+}
+
+public enum TareCapturePhase
+{
+    StabilizingSpeed,
+    StabilizingTorque,
+    Accumulating,
+}
+
+public sealed record TareSample(
+    DateTimeOffset TimestampUtc,
+    double ElapsedSeconds,
+    double TargetRpm,
+    double RpmMeasured,
+    double TorquePercent,
+    TareCapturePhase Phase,
+    bool Counted,
+    int Attempt = 1)
+{
+    public double MeasuredRpm => RpmMeasured;
+    public double MeasuredTorquePercent => TorquePercent;
 }
 
 /// <summary>An operator-entered mains-wattmeter reading paired to a captured point (§4.8, §12.3).</summary>
@@ -517,6 +557,21 @@ public sealed record PowerMapReference
     public string MapName { get; init; } = "";
     public string? MapFingerprint { get; init; }
     public DateTimeOffset LinkedAtUtc { get; init; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Item de comparação e eficiência de transferência de oxigênio entre o ensaio de potência e o mapa de kLa interpolado.
+/// </summary>
+public sealed record KlaEfficiencyComparisonItem
+{
+    public double AgitationRpm { get; init; }
+    public double GasFlowLpm { get; init; }
+    public double? KlaInterpolatedPerHour { get; init; }
+    public double? NetPowerW { get; init; }
+    public double? VolumetricPowerWm3 { get; init; }
+    public double? SpecificEfficiency { get; init; }
+    public bool IsInControlRegion { get; init; }
+    public string RegionLabel => IsInControlRegion ? "Intersecção" : "Extrapolação";
 }
 
 /// <summary>Summary of flooding analysis (Nienow comparison and transition point, §4.5, §16).</summary>

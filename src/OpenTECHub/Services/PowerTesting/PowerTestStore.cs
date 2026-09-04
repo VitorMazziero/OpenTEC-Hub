@@ -15,6 +15,7 @@ namespace OpenTECHub.Services.PowerTesting;
 /// </summary>
 public sealed class PowerTestStore : IPowerTestStore
 {
+    internal const string TrashDirectoryName = ".Lixeira";
     private readonly string _rootDirectory;
     private readonly object _ioLock = new();
 
@@ -26,8 +27,21 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public string RootDirectory => _rootDirectory;
 
-    public bool ValidateTestName(string name, out string? error) =>
-        PowerTestFileContracts.ValidateTestName(name, out error);
+    public bool ValidateTestName(string name, out string? error)
+    {
+        if (!PowerTestFileContracts.ValidateTestName(name, out error))
+        {
+            return false;
+        }
+
+        if (string.Equals(name.Trim(), TrashDirectoryName, StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Esse nome é reservado para a lixeira interna dos ensaios.";
+            return false;
+        }
+
+        return true;
+    }
 
     public bool TestExists(string name)
     {
@@ -52,6 +66,10 @@ public sealed class PowerTestStore : IPowerTestStore
             foreach (var dir in Directory.GetDirectories(_rootDirectory))
             {
                 var folderName = Path.GetFileName(dir);
+                if (string.Equals(folderName, TrashDirectoryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
                 var manifestPath = Path.Combine(dir, PowerTestFileContracts.TestManifestFileName);
 
                 if (File.Exists(manifestPath))
@@ -231,6 +249,90 @@ public sealed class PowerTestStore : IPowerTestStore
                 PowerTestFileContracts.FormatResultsSummaryHeader() + Environment.NewLine, Encoding.UTF8);
 
             return doc;
+        }
+    }
+
+    public PowerTestDocument RenameTest(string folderName, string newName)
+    {
+        if (!ValidateTestName(newName, out var error))
+        {
+            throw new ArgumentException(error ?? "Nome de ensaio inválido.", nameof(newName));
+        }
+
+        var trimmedName = newName.Trim();
+        lock (_ioLock)
+        {
+            var sourcePath = ResolveImmediateTestFolder(folderName);
+            if (!Directory.Exists(sourcePath))
+            {
+                throw new DirectoryNotFoundException($"O ensaio '{folderName}' não foi encontrado.");
+            }
+
+            var destinationPath = ResolveImmediateTestFolder(trimmedName);
+            if (!string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(destinationPath))
+            {
+                throw new InvalidOperationException($"Já existe um ensaio com o nome '{trimmedName}'.");
+            }
+
+            var manifestPath = Path.Combine(sourcePath, PowerTestFileContracts.TestManifestFileName);
+            var doc = File.Exists(manifestPath)
+                ? PowerTestFileContracts.DeserializeTestDocument(File.ReadAllText(manifestPath))
+                : null;
+            if (doc is null)
+            {
+                throw new InvalidOperationException("O manifesto do ensaio não pôde ser lido.");
+            }
+
+            if (!string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.Move(sourcePath, destinationPath);
+            }
+
+            try
+            {
+                doc.Name = trimmedName;
+                doc.FolderName = trimmedName;
+                doc.LastModifiedUtc = DateTimeOffset.UtcNow;
+                WriteAllTextAtomic(
+                    Path.Combine(destinationPath, PowerTestFileContracts.TestManifestFileName),
+                    PowerTestFileContracts.SerializeTestDocument(doc));
+                return doc;
+            }
+            catch
+            {
+                if (!string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase) &&
+                    Directory.Exists(destinationPath) && !Directory.Exists(sourcePath))
+                {
+                    Directory.Move(destinationPath, sourcePath);
+                }
+                throw;
+            }
+        }
+    }
+
+    public bool DeleteTest(string folderName)
+    {
+        lock (_ioLock)
+        {
+            var sourcePath = ResolveImmediateTestFolder(folderName);
+            if (!Directory.Exists(sourcePath))
+            {
+                return false;
+            }
+
+            var trashRoot = Path.GetFullPath(Path.Combine(_rootDirectory, TrashDirectoryName));
+            Directory.CreateDirectory(trashRoot);
+            var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd_HHmmssfff", CultureInfo.InvariantCulture);
+            var destinationName = $"{Path.GetFileName(sourcePath)}_{timestamp}_{Guid.NewGuid():N}";
+            var destinationPath = Path.GetFullPath(Path.Combine(trashRoot, destinationName));
+            if (!string.Equals(Path.GetDirectoryName(destinationPath), trashRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Destino inválido para a lixeira interna.");
+            }
+
+            Directory.Move(sourcePath, destinationPath);
+            return true;
         }
     }
 
@@ -586,5 +688,24 @@ public sealed class PowerTestStore : IPowerTestStore
                 try { File.Delete(tempPath); } catch { }
             }
         }
+    }
+
+    private string ResolveImmediateTestFolder(string folderName)
+    {
+        if (string.IsNullOrWhiteSpace(folderName) ||
+            !string.Equals(Path.GetFileName(folderName), folderName, StringComparison.Ordinal) ||
+            string.Equals(folderName, TrashDirectoryName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Pasta de ensaio inválida.", nameof(folderName));
+        }
+
+        var root = Path.GetFullPath(_rootDirectory);
+        var candidate = Path.GetFullPath(Path.Combine(root, folderName));
+        if (!string.Equals(Path.GetDirectoryName(candidate), root, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("A pasta precisa estar diretamente na raiz de ensaios.", nameof(folderName));
+        }
+
+        return candidate;
     }
 }

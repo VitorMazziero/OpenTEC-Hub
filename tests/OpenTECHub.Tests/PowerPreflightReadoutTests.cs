@@ -146,6 +146,41 @@ public sealed class PowerPreflightReadoutTests : IDisposable
         viewModel.Dispose();
     }
 
+    [Fact]
+    public void Idle_runner_does_not_undo_a_draft_table_edit_and_the_cell_is_saved_immediately()
+    {
+        var runner = new StubRunner();
+        var viewModel = OpenAssay(runner);
+
+        Assert.True(viewModel.CanEditPlan);
+        viewModel.Conditions[0].AgitationRpm = 425;
+        runner.RaiseStateChanged();
+
+        Assert.Equal(425, Assert.Single(viewModel.Conditions).AgitationRpm);
+        Assert.Equal(425, Assert.Single(_store.LoadTest("preflight")!.Conditions).AgitationRpm);
+
+        viewModel.Dispose();
+    }
+
+    [Fact]
+    public void Interrupted_assay_is_explicitly_editable_and_add_condition_is_persisted()
+    {
+        var runner = new StubRunner();
+        var viewModel = OpenAssay(runner);
+        viewModel.CurrentTest!.Status = PowerTestStatus.Interrupted;
+        _store.SaveTestManifest(viewModel.CurrentTest);
+        runner.RaiseStateChanged();
+
+        Assert.True(viewModel.CanEditPlan);
+        Assert.Contains("edição liberada", viewModel.TestStatusLabel, StringComparison.OrdinalIgnoreCase);
+
+        viewModel.AddConditionCommand.Execute(null);
+
+        Assert.Equal(2, viewModel.Conditions.Count);
+        Assert.Equal(2, _store.LoadTest("preflight")!.Conditions.Count);
+        viewModel.Dispose();
+    }
+
     private PowerTestViewModel OpenAssay(StubRunner runner)
     {
         _store.CreateTest(
@@ -187,7 +222,7 @@ public sealed class PowerPreflightReadoutTests : IDisposable
 
         public void RaiseStateChanged() => StateChanged?.Invoke();
 
-        public PowerTestDocument? CurrentTest => null;
+        public PowerTestDocument? CurrentTest { get; private set; }
         public PowerRun? CurrentRun => null;
         public PowerCondition? CurrentCondition => null;
         public PowerRunPhase Phase => PowerRunPhase.Idle;
@@ -210,7 +245,8 @@ public sealed class PowerPreflightReadoutTests : IDisposable
         public event Action<PowerDataPoint>? DataPointAdded;
         public event Action<string>? Logged;
 
-        public void PrepareTest(PowerTestDocument doc) { }
+        public void PrepareTest(PowerTestDocument doc) => CurrentTest = doc;
+        public void ClearTest() => CurrentTest = null;
         public Task StartTestAsync(PowerTestDocument doc, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task StartRunAsync(PowerCondition condition, int replicateNumber, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task PauseAsync() => Task.CompletedTask;

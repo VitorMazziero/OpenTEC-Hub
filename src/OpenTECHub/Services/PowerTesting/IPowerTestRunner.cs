@@ -30,6 +30,7 @@ public interface IPowerTestRunner : IDisposable
 
     bool CanStart(PowerTestDocument doc, out string? reason);
     void PrepareTest(PowerTestDocument doc);
+    void ClearTest();
     Task StartTestAsync(PowerTestDocument doc, CancellationToken cancellationToken = default);
     Task StartRunAsync(PowerCondition condition, int replicateNumber, CancellationToken cancellationToken = default);
     Task PauseAsync();

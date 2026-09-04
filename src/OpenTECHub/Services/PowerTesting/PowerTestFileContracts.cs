@@ -331,6 +331,23 @@ public static class PowerTestFileContracts
         return ComputeStringSha256(string.Join(";", parts));
     }
 
+    /// <summary>
+    /// Hashes only the calibration terms that affect torque conversion. Acquisition time and the
+    /// reference fixture do not invalidate a tare when scale, offset and rated torque are equal.
+    /// </summary>
+    public static string ComputeTorqueCalibrationHash(TorqueCalibration? calibration, double motorRatedTorqueNm)
+    {
+        var identity = calibration is { } value
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "calibrated|{0:G17}|{1:G17}|{2:G17}",
+                value.Scale,
+                value.Offset,
+                value.MotorRatedTorqueNm)
+            : string.Format(CultureInfo.InvariantCulture, "nominal|{0:G17}", motorRatedTorqueNm);
+        return ComputeStringSha256(identity);
+    }
+
     private static string EscapeCsv(string text)
     {
         if (string.IsNullOrEmpty(text))

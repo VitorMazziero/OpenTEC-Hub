@@ -127,17 +127,69 @@ public sealed class PowerTestStoreTests : IDisposable
     }
 
     [Fact]
+    public void RenameTest_moves_the_complete_folder_and_updates_the_manifest()
+    {
+        var created = CreateSampleTest("Nome Antigo");
+        var oldFolder = Path.Combine(_store.RootDirectory, created.FolderName);
+        var marker = Path.Combine(oldFolder, "arquivo-do-operador.txt");
+        File.WriteAllText(marker, "preservar");
+
+        var renamed = _store.RenameTest(created.FolderName, "Nome Novo");
+
+        Assert.False(Directory.Exists(oldFolder));
+        var newFolder = Path.Combine(_store.RootDirectory, "Nome Novo");
+        Assert.True(Directory.Exists(newFolder));
+        Assert.Equal("preservar", File.ReadAllText(Path.Combine(newFolder, "arquivo-do-operador.txt")));
+        Assert.Equal("Nome Novo", renamed.Name);
+        Assert.Equal("Nome Novo", renamed.FolderName);
+        Assert.Equal("Nome Novo", Assert.Single(_store.ListTests()).Name);
+    }
+
+    [Fact]
+    public void DeleteTest_moves_the_folder_to_internal_trash_and_hides_it_from_the_list()
+    {
+        var created = CreateSampleTest("Descartar");
+        var source = Path.Combine(_store.RootDirectory, created.FolderName);
+
+        Assert.True(_store.DeleteTest(created.FolderName));
+
+        Assert.False(Directory.Exists(source));
+        Assert.Empty(_store.ListTests());
+        var trash = Path.Combine(_store.RootDirectory, PowerTestStore.TrashDirectoryName);
+        var recoveredFolder = Assert.Single(Directory.GetDirectories(trash));
+        Assert.True(File.Exists(Path.Combine(recoveredFolder, PowerTestFileContracts.TestManifestFileName)));
+    }
+
+    [Fact]
     public void SaveTare_And_Calibration_Round_Trip_And_Attach_On_Load()
     {
         var created = CreateSampleTest("Tara e Calibração");
 
         var tare = new TareCurve
         {
+            SchemaVersion = 2,
             ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(created.Geometry),
+            CalibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(null, created.MotorRatedTorqueNm),
             Points =
             {
-                new TarePoint(300, 0.61, 0.62),
+                new TarePoint(300, 0.61, 0.62)
+                {
+                    SampleCount = 120,
+                    MeanRpmMeasured = 299.8,
+                    RpmStandardDeviation = 0.4,
+                    RpmCi95 = 0.08,
+                    MeanTorquePercent = 1.53,
+                    TorqueCi95Percent = 0.04,
+                    PVoidCi95W = 0.02,
+                    ElapsedSeconds = 52.5,
+                    Attempts = 1,
+                },
                 new TarePoint(600, 1.51, 0.41),
+            },
+            AcquisitionSettings = new PowerTestSettings { MinSamples = 120 },
+            Samples =
+            {
+                new TareSample(DateTimeOffset.UnixEpoch, 1.25, 300, 299.8, 1.53, TareCapturePhase.Accumulating, true, 1),
             },
         };
         _store.SaveTare(created.FolderName, tare);
@@ -149,12 +201,42 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.NotNull(loadedTare);
         Assert.Equal(2, loadedTare!.Points.Count);
         Assert.Equal(0.62, loadedTare.Points[0].SigmaTauPercent, 4);
+        Assert.Equal(120, loadedTare.Points[0].SampleCount);
+        Assert.Equal(0.04, loadedTare.Points[0].TorqueCi95Percent, 4);
+        Assert.Single(loadedTare.Samples);
+        Assert.True(loadedTare.Samples[0].Counted);
+        Assert.Equal(120, loadedTare.AcquisitionSettings!.MinSamples);
         Assert.Equal(tare.ImpellerSetHash, loadedTare.ImpellerSetHash);
+        Assert.Equal(tare.CalibrationHash, loadedTare.CalibrationHash);
 
         var loadedDoc = _store.LoadTest(created.FolderName);
         Assert.NotNull(loadedDoc!.Tare);
         Assert.NotNull(loadedDoc.Calibration);
         Assert.Equal(1.02, loadedDoc.Calibration!.Scale, 4);
+    }
+
+    [Fact]
+    public void Legacy_tare_json_without_statistical_fields_remains_readable()
+    {
+        const string legacyJson = """
+            {
+              "points": [
+                { "rpm": 300, "pVoidW": 0.61, "sigmaTauPercent": 0.62 }
+              ],
+              "impellerSetHash": "legacy",
+              "measuredUtc": "2026-01-01T00:00:00+00:00"
+            }
+            """;
+
+        var tare = PowerTestFileContracts.DeserializeTare(legacyJson);
+
+        Assert.NotNull(tare);
+        Assert.Equal(1, tare!.SchemaVersion);
+        Assert.Single(tare.Points);
+        Assert.Equal(0.61, tare.Points[0].PVoidW, 4);
+        Assert.Equal(0, tare.Points[0].SampleCount);
+        Assert.Empty(tare.Samples);
+        Assert.Null(tare.AcquisitionSettings);
     }
 
     [Fact]

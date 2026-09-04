@@ -67,13 +67,18 @@ public sealed class PowerAnalysisEngineTests
     {
         var tare = new TareCurve
         {
-            Points = { new TarePoint(300, 0.6, 0.62), new TarePoint(600, 1.5, 0.41) },
+            Points =
+            {
+                new TarePoint(300, 0.6, 0.62) { PVoidCi95W = 0.10 },
+                new TarePoint(600, 1.5, 0.41) { PVoidCi95W = 0.20 },
+            },
         };
 
         Assert.Equal(1.05, TareInterpolator.InterpolatePowerW(tare, 450), 6); // midpoint
         Assert.Equal(0.6, TareInterpolator.InterpolatePowerW(tare, 100), 6);  // clamp low
         Assert.Equal(1.5, TareInterpolator.InterpolatePowerW(tare, 900), 6);  // clamp high
         Assert.Equal(0.515, TareInterpolator.InterpolateSigmaTauPercent(tare, 450), 6);
+        Assert.Equal(0.15, TareInterpolator.InterpolatePowerCi95W(tare, 450), 6);
     }
 
     // ---- AnalyzePoint ---------------------------------------------------------------------
@@ -160,6 +165,29 @@ public sealed class PowerAnalysisEngineTests
         Assert.Equal(0.07980, result.NetPowerCi95W, 4);
         // CI on Np propagates linearly through the same ρN³D⁵ factor.
         Assert.Equal(PowerCalc.PowerNumber(result.NetPowerCi95W, 998, 300, 0.06), result.Stages[0].PowerNumberCi95, 4);
+    }
+
+    [Fact]
+    public void AnalyzePoint_Combines_Measurement_And_Tare_Confidence_Intervals()
+    {
+        var input = SinglePointInput(torquePercent: 2.0, torqueCi95: 0.2, rpm: 300) with
+        {
+            Calibration = new TorqueCalibration { Scale = 1.0, MotorRatedTorqueNm = 1.27 },
+            Tare = new TareCurve
+            {
+                Points = { new TarePoint(300, 0.5, 0.05) { PVoidCi95W = 0.06 } },
+            },
+        };
+
+        var result = _engine.AnalyzePoint(input);
+        var measurementCiW = PowerCalc.ShaftPower(0.2 / 100.0 * 1.27, 300);
+        var expectedCombinedCiW = System.Math.Sqrt(measurementCiW * measurementCiW + 0.06 * 0.06);
+
+        Assert.Equal(expectedCombinedCiW, result.NetPowerCi95W, 6);
+        Assert.Equal(
+            PowerCalc.PowerNumber(expectedCombinedCiW, 998, 300, 0.06),
+            result.AssemblyPowerNumberCi95,
+            6);
     }
 
     [Fact]

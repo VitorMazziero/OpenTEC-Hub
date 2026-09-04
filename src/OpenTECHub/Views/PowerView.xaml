@@ -12,6 +12,7 @@
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:InverseBoolConverter x:Key="InverseBool" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <Style x:Key="PowerCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
@@ -105,8 +106,11 @@
                 <ColumnDefinition Width="*" MinWidth="430" />
             </Grid.ColumnDefinitions>
 
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
-                <StackPanel>
+            <!-- Fluxo do operador: montagem, aquisição, condições e validação. -->
+            <TabControl Grid.Column="0" Style="{StaticResource SegmentedControlStyle}">
+                <TabItem Header="Montagem" ToolTip="1. Selecione o ensaio e descreva fluido, vaso e impelidores">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
+                        <StackPanel>
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
                             <TextBlock Text="Ensaio" FontSize="15" FontWeight="SemiBold" />
@@ -115,10 +119,17 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
-                                           ToolTip="Situação do ensaio aberto: Rascunho = planejado, ainda sem nenhum ponto capturado" />
+                                           ToolTip="Rascunhos e ensaios interrompidos podem ter sua tabela editada enquanto estão parados" />
                                 <Button Grid.Column="1" Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="10,4"
                                         ToolTip="Carrega o ensaio escolhido acima: fluido, geometria, tabela de condições e pontos já medidos" />
                             </Grid>
+                            <WrapPanel Margin="0,5,0,0" HorizontalAlignment="Right">
+                                <Button Content="Renomear" Command="{Binding RenameTestCommand}"
+                                        IsEnabled="{Binding CanManageTest}" Padding="8,4" ToolTip="Renomeia o ensaio aberto e sua pasta" />
+                                <Button Content="Excluir" Margin="5,0,0,0" Command="{Binding DeleteTestCommand}"
+                                        IsEnabled="{Binding CanManageTest}" Padding="8,4" Style="{StaticResource DangerButtonStyle}"
+                                        ToolTip="Move o ensaio aberto para a lixeira interna" />
+                            </WrapPanel>
                             <TextBlock Margin="0,6,0,0" Text="{Binding TestRootDirectory}" Style="{StaticResource CaptionTextStyle}"
                                        TextTrimming="CharacterEllipsis" ToolTip="{Binding TestRootDirectory}" />
                         </StackPanel>
@@ -182,15 +193,46 @@
                         </StackPanel>
                     </Border>
 
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Aquisição" ToolTip="2. Configure parâmetros de captura automática e gerencie a tabela de condições">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
+                        <StackPanel>
+
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7" IsEnabled="{Binding CanEditPlan}">
                         <StackPanel>
                             <TextBlock Text="Captura automática" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                       Text="Define as faixas de rotação e vazão para a geração da grade de condições e os critérios estatísticos de parada." />
+                            <!-- Faixa de Agitação (N) -->
                             <Grid Margin="0,7,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="N mín." Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MinRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="N máx." Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Text="Passo" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel><TextBlock Text="N mín. (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MinRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="N máx. (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Passo N (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
                             </Grid>
+                            <!-- Faixa de Vazão de Ar (Qg) -->
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Qg mín. (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MinFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Qg máx. (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Passo Qg (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StepFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <!-- Botões de Ação da Tabela -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="7" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Content="Gerar tabela" Padding="8,4" Command="{Binding GenerateConditionsPlanCommand}" IsEnabled="{Binding CanEditPlan}"
+                                        ToolTip="Gera a grade N × Qg com os parâmetros definidos acima" />
+                                <Button Grid.Column="2" Content="Remover todos os pontos" Padding="8,4" Command="{Binding ClearAllConditionsCommand}" IsEnabled="{Binding CanEditPlan}"
+                                        ToolTip="Limpa todos os pontos da tabela de condições" />
+                            </Grid>
+                            <!-- Critérios Estatísticos e Janelas de Parada -->
                             <Grid Margin="0,7,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <StackPanel><TextBlock Text="IC rel. (%)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding RelativeCiPercent, UpdateSourceTrigger=LostFocus}" /></StackPanel>
@@ -251,10 +293,13 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Card de Condições de Ensaio -->
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Condições" FontSize="15" FontWeight="SemiBold" />
-                            <DataGrid Margin="0,7,0,5" Height="190" ItemsSource="{Binding Conditions}" SelectedItem="{Binding SelectedCondition}"
+                            <TextBlock Text="Condições do ensaio" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                       Text="Sequência de pontos planejados para o ensaio. Edite as células ou use os botões abaixo; as alterações são salvas automaticamente." />
+                            <DataGrid Margin="0,7,0,5" Height="220" ItemsSource="{Binding Conditions}" SelectedItem="{Binding SelectedCondition}"
                                       AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" IsEnabled="{Binding CanEditPlan}" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="28" IsReadOnly="True" />
@@ -270,107 +315,39 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             <WrapPanel>
-                                <Button Content="+" Width="34" Margin="0,0,4,0" Command="{Binding AddConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
-                                <Button Content="−" Width="34" Margin="0,0,4,0" Command="{Binding RemoveConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
-                                <Button Content="↑" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionUpCommand}" IsEnabled="{Binding CanEditPlan}" />
-                                <Button Content="↓" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionDownCommand}" IsEnabled="{Binding CanEditPlan}" />
-                                <Button Content="Pular/repor" Padding="8,4" Command="{Binding ToggleSkipConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
+                                <Button Content="+" Width="34" Margin="0,0,4,0" Command="{Binding AddConditionCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Adicionar ponto" />
+                                <Button Content="−" Width="34" Margin="0,0,4,0" Command="{Binding RemoveConditionCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Remover ponto selecionado" />
+                                <Button Content="↑" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionUpCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Mover para cima" />
+                                <Button Content="↓" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionDownCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Mover para baixo" />
+                                <Button Content="Pular/repor" Padding="8,4" Command="{Binding ToggleSkipConditionCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Alternar pular/repor condição selecionada" />
                             </WrapPanel>
-                            <!-- Importar do mapa de kLa: ensaiar potencia nos mesmos pontos onde o kLa foi medido -->
-                            <TextBlock Margin="0,9,0,3" Text="Importar do mapa de kLa" Style="{StaticResource PowerLabel}" />
-                            <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="6" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox ItemsSource="{Binding AvailableKlaMaps}" SelectedItem="{Binding SelectedKlaMapForImport}"
-                                          DisplayMemberPath="DisplayText" Height="26" IsEnabled="{Binding CanEditPlan}"
-                                          ToolTip="Mapas de kLa salvos no workspace" />
-                                <Button Grid.Column="2" Content="↻" Width="30" Height="26"
-                                        Command="{Binding RefreshKlaMapsCommand}"
-                                        ToolTip="Recarregar a lista de mapas de kLa" />
-                            </Grid>
-                            <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="6" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <CheckBox VerticalAlignment="Center" Content="Incluir referências P₀ (sem gás)"
-                                          IsChecked="{Binding ImportUngassedReferences}" IsEnabled="{Binding CanEditPlan}"
-                                          ToolTip="Adiciona uma condição sem gás por rotação; sem P₀ na mesma rotação não há como calcular P_G/P₀" />
-                                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                    <TextBlock Text="Rep." VerticalAlignment="Center" Margin="0,0,4,0"
-                                               Style="{StaticResource PowerLabel}" />
-                                    <TextBox Width="42" Style="{StaticResource CompactField}"
-                                             Text="{Binding ImportReplicates, UpdateSourceTrigger=LostFocus}"
-                                             IsEnabled="{Binding CanEditPlan}" />
-                                </StackPanel>
-                            </Grid>
-                            <Button Content="Importar condições do mapa" Padding="8,4" HorizontalAlignment="Stretch"
-                                    Command="{Binding ImportConditionsFromKlaMapCommand}"
-                                    IsEnabled="{Binding CanImportFromKlaMap}" />
-
-                            <TextBlock Margin="0,9,0,3" Text="Gerador de varreduras" Style="{StaticResource PowerLabel}" />
-                            <Grid Margin="0,0,0,5">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="6" />
-                                    <ColumnDefinition Width="110" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox ItemsSource="{Binding SweepTypes}" SelectedValue="{Binding SelectedSweepType}"
-                                          SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
-                                <ComboBox Grid.Column="2" ItemsSource="{Binding GasModes}" SelectedValue="{Binding SweepGasMode}"
-                                          SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
-                            </Grid>
-
-                            <!-- Parametros N quando N for variavel -->
-                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeNVariable, Converter={StaticResource BoolToVis}}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0"><TextBlock Text="N ini (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStartRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="N fim (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepEndRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Text="Passo (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-
-                            <!-- Parametro N quando N for constante -->
-                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeNConstant, Converter={StaticResource BoolToVis}}">
-                                <StackPanel><TextBlock Text="N fixo (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepConstantRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-
-                            <!-- Parametros Qg quando Qg for variavel -->
-                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeQgVariable, Converter={StaticResource BoolToVis}}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0"><TextBlock Text="Qg ini (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStartQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Qg fim (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepEndQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Text="Passo (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStepQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-
-                            <!-- Parametro Qg quando Qg for constante -->
-                            <Grid Margin="0,0,0,4" Visibility="{Binding IsSweepTypeQgConstant, Converter={StaticResource BoolToVis}}">
-                                <StackPanel><TextBlock Text="Qg fixo (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SweepConstantQgLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-
-                            <Button Margin="0,4,0,0" Content="Gerar varredura" Padding="8,4" Command="{Binding GenerateSweepCommand}" HorizontalAlignment="Stretch" />
                         </StackPanel>
                     </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Validação e Eficiência de kLa" ToolTip="3. Calibre o torque, meça a tara, importe o mapa de kLa e avalie a eficiência">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
+                        <StackPanel>
 
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
                             <TextBlock Text="Rastreabilidade" FontSize="15" FontWeight="SemiBold" />
                             <Grid Margin="0,7,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding TareStatus}" VerticalAlignment="Center"
-                                           ToolTip="TARA: quanto de potência o conjunto consome girando SECO (sem líquido). É o atrito de selo e mancal, que o app subtrai da potência de eixo para sobrar só o que o impelidor entregou ao fluido. Também mede o ruído de torque por rotação." />
-                                <Button Grid.Column="1" Content="Medir tara" Padding="8,4" Command="{Binding TareMeasurementInfoCommand}"
-                                        ToolTip="Assistente de tara: gira o eixo seco na faixa do ensaio e grava P_vazio(N)" />
-                            </Grid>
-                            <Grid Margin="0,6,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding CalibrationStatus}" VerticalAlignment="Center"
                                            ToolTip="CALIBRAÇÃO: converte o torque em % que o servo reporta para N·m reais, com massa e braço conhecidos. Sem ela o Np carrega o erro do torque de placa e é RELATIVO, não absoluto." />
                                 <Button Grid.Column="1" Content="Medir calibração" Padding="8,4" Command="{Binding CalibrationInfoCommand}"
-                                        ToolTip="Assistente de calibração estática de torque: aplica um torque conhecido e ajusta escala e offset" />
+                                        ToolTip="Primeiro passo: aplique um torque conhecido para ajustar escala e offset" />
+                            </Grid>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TareStatus}" VerticalAlignment="Center"
+                                           ToolTip="TARA: mede no ar o atrito de selo e mancal, o desvio do torque e o IC95 em cada rotação. O app subtrai P_vazio da potência de eixo." />
+                                <Button Grid.Column="1" Content="Medir tara" Padding="8,4" Command="{Binding TareMeasurementInfoCommand}"
+                                        ToolTip="Segundo passo: ensaio estatístico no ar com estabilização, média, desvio e IC95" />
                             </Grid>
                             <CheckBox Margin="0,8,0,0" Content="Aceitar resultados relativos" IsChecked="{Binding RelativeMode}" IsEnabled="{Binding CanEditPlan}" />
 
@@ -403,8 +380,8 @@
                             <!-- 8.2 Tara no ar -->
                             <Border Visibility="{Binding IsTareAssistantOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,8,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Assistente de tara no ar (P_vazio + στ)" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                    <TextBlock Text="Varre N com o vaso sem líquido para medir o atrito:" Style="{StaticResource PowerLabel}" />
+                                    <TextBlock Text="Ensaio de tara no ar (P_vazio + στ)" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <TextBlock Text="Após calibrar o torque e com o vaso seco, cada rotação passa por estabilização e coleta até atingir o IC95. As leituras brutas e os desvios ficam registrados na tara." Style="{StaticResource PowerLabel}" TextWrapping="Wrap" />
                                     <Grid Margin="0,4,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0"><TextBlock Text="N ini" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStartRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
@@ -412,10 +389,22 @@
                                         <StackPanel Grid.Column="4"><TextBlock Text="Passo" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
                                     </Grid>
                                     <TextBlock Margin="0,6,0,4" Text="{Binding TareProgressMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    <DataGrid Height="155" Margin="0,3,0,4" ItemsSource="{Binding CurrentTarePoints}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="N alvo" Binding="{Binding Rpm, StringFormat={}{0:F0}}" Width="52" />
+                                            <DataGridTextColumn Header="N média" Binding="{Binding MeanRpmMeasured, StringFormat={}{0:F1}}" Width="58" />
+                                            <DataGridTextColumn Header="P vazio" Binding="{Binding PVoidW, StringFormat={}{0:F3}}" Width="58" />
+                                            <DataGridTextColumn Header="±IC95 W" Binding="{Binding PVoidCi95W, StringFormat={}{0:F3}}" Width="58" />
+                                            <DataGridTextColumn Header="στ %" Binding="{Binding SigmaTauPercent, StringFormat={}{0:F4}}" Width="52" />
+                                            <DataGridTextColumn Header="n" Binding="{Binding SampleCount}" Width="38" />
+                                            <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="42" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
                                     <Grid Margin="0,4,0,0">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Content="Iniciar varredura no ar" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartTareSweepCommand}" IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}" Padding="8,4" />
-                                        <Button Grid.Column="2" Content="Fechar" Command="{Binding CloseTareAssistantCommand}" Padding="8,4" />
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Iniciar ensaio no ar" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartTareSweepCommand}" IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}" Padding="8,4" />
+                                        <Button Grid.Column="2" Content="Cancelar" Command="{Binding CancelTareSweepCommand}" IsEnabled="{Binding IsTareRunning}" Padding="8,4" />
+                                        <Button Grid.Column="4" Content="Fechar" Command="{Binding CloseTareAssistantCommand}" IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}" Padding="8,4" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -456,9 +445,61 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Margin="3,0,3,10" Text="{Binding ValidationMessage}" Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" />
-                </StackPanel>
-            </ScrollViewer>
+                    <!-- Importação de mapa de kLa e Avaliação de Eficiência -->
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Mapa de kLa e Eficiência" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                       Text="Vincule um mapa de kLa ao ensaio de potência (a tabela de condições é preservada). A eficiência kLa/(P/V) é calculada na região de controle (intersecção das condições)." />
+                            <Grid Margin="0,7,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox ItemsSource="{Binding AvailableKlaMaps}" SelectedItem="{Binding SelectedKlaMapForImport}"
+                                          DisplayMemberPath="DisplayText" Height="26" IsEnabled="{Binding CanEditPlan}"
+                                          ToolTip="Mapas de kLa salvos no workspace" />
+                                <Button Grid.Column="2" Content="↻" Width="30" Height="26"
+                                        Command="{Binding RefreshKlaMapsCommand}"
+                                        ToolTip="Recarregar a lista de mapas de kLa" />
+                            </Grid>
+                            <Button Content="Vincular mapa de kLa" Padding="8,4" HorizontalAlignment="Stretch"
+                                    Command="{Binding ImportConditionsFromKlaMapCommand}"
+                                    IsEnabled="{Binding CanImportFromKlaMap}" />
+
+                            <Border Margin="0,7,0,0" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8,6"
+                                    Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ControlRegionSummary}" FontWeight="SemiBold" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
+                                               Visibility="{Binding AverageKlaEfficiency, Converter={StaticResource NullToVis}}"
+                                               Text="{Binding AverageKlaEfficiency, StringFormat='{}Eficiência média na região de controle: {0:F2} h⁻¹ / (kW/m³)'}" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Margin="0,7,0,3" Text="Comparação com kLa interpolado na superfície contínua:" Style="{StaticResource PowerLabel}"
+                                       Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}" />
+                            <DataGrid Margin="0,2,0,4" Height="150" ItemsSource="{Binding KlaEfficiencyItems}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                                      Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}" HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="52" />
+                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm, StringFormat={}{0:F1}}" Width="62" />
+                                    <DataGridTextColumn Header="kLa (h⁻¹)" Binding="{Binding KlaInterpolatedPerHour, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="58" />
+                                    <DataGridTextColumn Header="P líq (W)" Binding="{Binding NetPowerW, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="58" />
+                                    <DataGridTextColumn Header="P/V (W/m³)" Binding="{Binding VolumetricPowerWm3, StringFormat={}{0:F1}, TargetNullValue='—'}" Width="64" />
+                                    <DataGridTextColumn Header="η (h⁻¹/kW/m³)" Binding="{Binding SpecificEfficiency, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="82" />
+                                    <DataGridTextColumn Header="Região" Binding="{Binding RegionLabel}" Width="75" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
 
             <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
@@ -469,13 +510,13 @@
                                 <ColumnDefinition Width="1.2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="1.1*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"><TextBlock Text="N medida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentRpmText, StringFormat={}{0} rpm}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorqueNmText, StringFormat={}{0} N·m}" Style="{StaticResource PowerMetric}" /><TextBlock Text="{Binding CurrentTorquePercentText, StringFormat={}({0} %)}" Style="{StaticResource CaptionTextStyle}" /></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="P líquida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerWText, StringFormat={}{0} W}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Grid.Column="3">
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="N medida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentRpmText}" Style="{StaticResource PowerMetric}" /><TextBlock Text="rpm" Style="{StaticResource CaptionTextStyle}" /></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,10,0"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorqueNmText}" Style="{StaticResource PowerMetric}" /><TextBlock Style="{StaticResource CaptionTextStyle}"><Run Text="N·m · " /><Run Text="{Binding CurrentTorquePercentText, Mode=OneWay}" /><Run Text=" %" /></TextBlock></StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,10,0"><TextBlock Text="P líquida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerWText}" Style="{StaticResource PowerMetric}" /><TextBlock Text="W" Style="{StaticResource CaptionTextStyle}" /></StackPanel>
+                            <StackPanel Grid.Column="3" Margin="0,0,10,0">
                                 <TextBlock Text="Qg medida" Style="{StaticResource PowerLabel}" />
-                                <TextBlock Text="{Binding CurrentFlowText, StringFormat={}{0} L/min}" Style="{StaticResource PowerMetric}" />
-                                <TextBlock Text="{Binding CurrentFlowVvmText, StringFormat={}{0} vvm}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Text="{Binding CurrentFlowText}" Style="{StaticResource PowerMetric}" />
+                                <TextBlock Style="{StaticResource CaptionTextStyle}"><Run Text="L/min · " /><Run Text="{Binding CurrentFlowVvmText, Mode=OneWay}" /><Run Text=" vvm" /></TextBlock>
                             </StackPanel>
                             <StackPanel Grid.Column="4"><TextBlock Text="Np" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentNpText}" Style="{StaticResource PowerMetric}" /></StackPanel>
                             <StackPanel Grid.Column="5"><TextBlock Text="Re" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentReText}" Style="{StaticResource PowerMetric}" /></StackPanel>

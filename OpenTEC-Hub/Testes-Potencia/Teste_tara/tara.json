@@ -1,0 +1,56 @@
+﻿{
+  "points": [
+    {
+      "rpm": 100,
+      "pVoidW": 2.5135882821371927,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 200,
+      "pVoidW": 5.027176564274385,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 300,
+      "pVoidW": 7.540764846411579,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 400,
+      "pVoidW": 10.05435312854877,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 500,
+      "pVoidW": 12.833929588689903,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 600,
+      "pVoidW": 15.54434912255001,
+      "sigmaTauPercent": 0.4025
+    },
+    {
+      "rpm": 700,
+      "pVoidW": 18.80536418487826,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 800,
+      "pVoidW": 21.640798162400216,
+      "sigmaTauPercent": 0.313
+    },
+    {
+      "rpm": 900,
+      "pVoidW": 25.016188141270163,
+      "sigmaTauPercent": 0.05
+    },
+    {
+      "rpm": 1000,
+      "pVoidW": 27.370183516605,
+      "sigmaTauPercent": 0.4382
+    }
+  ],
+  "impellerSetHash": "abcc0a2b8942caa1ec5244ac8c9dbce85cea7efab5b054d8c021324ec18e250b",
+  "measuredUtc": "2026-09-04T16:29:22.8964946+00:00"
+}

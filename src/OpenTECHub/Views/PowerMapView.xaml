@@ -64,12 +64,7 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Mapa de Potência" FontSize="17" FontWeight="Bold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <Border Margin="10,0,0,0" Padding="8,2" Background="{DynamicResource AccentSubtleBrush}"
-                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4">
-                            <TextBlock Text="{Binding PhaseLabel}" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource AccentBrush}" />
-                        </Border>
-                        <Border Margin="7,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
+                        <Border Margin="10,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
                             <TextBlock Text="{Binding GridResolutionLabel}" FontSize="11" FontWeight="Bold"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                         </Border>
@@ -84,6 +79,10 @@
                                TextWrapping="Wrap" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Novo mapa" VerticalAlignment="Center" Margin="3,0,5,0" Style="{StaticResource MapLabel}" />
+                    <TextBox Width="180" Margin="0,0,5,0" VerticalAlignment="Center" Style="{StaticResource CompactField}"
+                             Text="{Binding NewMapName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome do mapa que será criado" />
                     <Button Content="Novo mapa" Margin="3,0" Command="{Binding CreateMapCommand}" />
                     <Button Content="Salvar" Margin="3,0" Command="{Binding SaveMapCommand}"
                             IsEnabled="{Binding HasMap}" />
@@ -102,10 +101,12 @@
                 <ColumnDefinition Width="*" MinWidth="430" />
             </Grid.ColumnDefinitions>
 
-            <!-- Barra lateral de configuração e filtros (§18.3 passo 5.1) -->
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                          Padding="0,0,3,0">
-                <StackPanel>
+            <!-- Barra lateral organizada na sequência de síntese: fontes, modelo e leitura. -->
+            <TabControl Grid.Column="0" Style="{StaticResource SegmentedControlStyle}">
+                <TabItem Header="Mapa" ToolTip="1. Identifique o mapa e selecione os ensaios de origem">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,3,0">
+                        <StackPanel>
                     <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
                         <StackPanel>
                             <TextBlock Text="Mapa de síntese" Style="{StaticResource SectionTitle}" />
@@ -115,8 +116,6 @@
                             <TextBlock Margin="0,8,0,0" Text="Nome" Style="{StaticResource MapLabel}" />
                             <TextBox Style="{StaticResource CompactField}" Text="{Binding MapName, UpdateSourceTrigger=LostFocus}"
                                      IsEnabled="{Binding HasMap}" />
-                            <TextBlock Margin="0,7,0,0" Text="Novo mapa" Style="{StaticResource MapLabel}" />
-                            <TextBox Style="{StaticResource CompactField}" Text="{Binding NewMapName, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Margin="0,7,0,0" Text="Observações" Style="{StaticResource MapLabel}" />
                             <TextBox Height="52" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                                      Text="{Binding Notes, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding HasMap}" />
@@ -150,6 +149,15 @@
                                     Command="{Binding ReloadPowerTestsCommand}" />
                         </StackPanel>
                     </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Modelo" ToolTip="2. Configure a reconstrução e ajuste a correlação kLa">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,3,0">
+                        <StackPanel>
 
                     <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
                         <StackPanel>
@@ -242,6 +250,15 @@
                                     ToolTip="Gera uma revisão enriquecida do mapa kLa; o documento de origem nunca é sobrescrito" />
                         </StackPanel>
                     </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Exibição" ToolTip="3. Escolha a camada e inspecione a superfície reconstruída">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,3,0">
+                        <StackPanel>
 
                     <!-- Controles de visualização: aplicam-se imediatamente, sem botão de confirmação -->
                     <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
@@ -337,8 +354,10 @@
                             </Border>
                         </StackPanel>
                     </Border>
-                </StackPanel>
-            </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
 
             <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
 

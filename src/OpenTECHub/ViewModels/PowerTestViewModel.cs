@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -27,7 +29,15 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private readonly IKlaProfileStore? _klaStore;
     private SensorSnapshot? _latestSnapshot;
     private readonly HashSet<PowerCondition> _flowConfiguredConditions = [];
+    private CancellationTokenSource? _tareCancellation;
+    private PowerTareCaptureController? _tareCapture;
+    private long _tarePointStartedTimestamp;
+    private double _tareLastValidSeconds = double.NaN;
+    private int _tarePointIndex;
+    private int _tarePointTotal;
+    private string? _tareFailureMessage;
     private long _lastPreflightTick;
+    private bool _suppressConditionPersistence;
     private bool _disposed;
 
     public PowerTestViewModel(IPowerTestStore store, IDeviceService device, ICommandArbiter arbiter)
@@ -122,6 +132,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             foreach (var condition in _flowConfiguredConditions)
             {
+                condition.PropertyChanged -= OnConditionPropertyChanged;
                 condition.ConfigureFlowConversion(null);
             }
             _flowConfiguredConditions.Clear();
@@ -131,6 +142,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             foreach (PowerCondition condition in e.OldItems)
             {
+                condition.PropertyChanged -= OnConditionPropertyChanged;
                 condition.ConfigureFlowConversion(null);
                 _flowConfiguredConditions.Remove(condition);
             }
@@ -140,12 +152,23 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             foreach (PowerCondition condition in e.NewItems)
             {
+                condition.PropertyChanged += OnConditionPropertyChanged;
                 condition.ConfigureFlowConversion(
                     () => LiquidVolumeL,
                     message => ValidationMessage = message);
                 _flowConfiguredConditions.Add(condition);
             }
         }
+    }
+
+    private void OnConditionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isLoadingTest || _suppressConditionPersistence || !CanEditPlan)
+        {
+            return;
+        }
+
+        PersistConditionPlan("Tabela de condições atualizada automaticamente.", showMessage: false);
     }
 
     private bool _applyingImpellerDefaults;
@@ -264,6 +287,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double MinRpm { get; set; } = 15.0;
     [ObservableProperty] public partial double MaxRpm { get; set; } = 1000.0;
     [ObservableProperty] public partial double StepRpm { get; set; } = 50.0;
+    [ObservableProperty] public partial double MinFlowLpm { get; set; } = 0.0;
+    [ObservableProperty] public partial double MaxFlowLpm { get; set; } = 20.0;
+    [ObservableProperty] public partial double StepFlowLpm { get; set; } = 0.5;
     [ObservableProperty] public partial double RelativeCiPercent { get; set; } = 2.0;
     [ObservableProperty] public partial double CiFloorSigmaMultiple { get; set; } = 1.0;
     [ObservableProperty] public partial int MinimumSamples { get; set; } = 60;
@@ -281,17 +307,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial bool ManualEnergyCaptureEnabled { get; set; }
 
     [ObservableProperty] public partial PowerSweepType SelectedSweepType { get; set; } = PowerSweepType.VariableNConstantQg;
-    [ObservableProperty] public partial double SweepStartRpm { get; set; } = 50.0;
-    [ObservableProperty] public partial double SweepEndRpm { get; set; } = 1000.0;
-    [ObservableProperty] public partial double SweepStepRpm { get; set; } = 50.0;
     [ObservableProperty] public partial double SweepConstantRpm { get; set; } = 300.0;
     [ObservableProperty] public partial double SweepStartQgLpm { get; set; } = 2.0;
     [ObservableProperty] public partial double SweepEndQgLpm { get; set; } = 20.0;
     [ObservableProperty] public partial double SweepStepQgLpm { get; set; } = 2.0;
     [ObservableProperty] public partial double SweepConstantQgLpm { get; set; } = 0.0;
     [ObservableProperty] public partial PowerGasMode SweepGasMode { get; set; } = PowerGasMode.Gassed;
-    [ObservableProperty] public partial FlowInputUnit SweepFlowUnit { get; set; } = FlowInputUnit.Lpm;
 
+    [ObservableProperty] public partial string ControlRegionSummary { get; set; } = "Nenhum mapa de kLa vinculado.";
+    [ObservableProperty] public partial bool HasLinkedKlaMap { get; set; }
+    [ObservableProperty] public partial string LinkedKlaMapName { get; set; } = "";
+    [ObservableProperty] public partial double? AverageKlaEfficiency { get; set; }
+    public ObservableCollection<KlaEfficiencyComparisonItem> KlaEfficiencyItems { get; } = [];
+
+    private KlaExperimentDocument? _linkedKlaDocument;
+    private KlaSurface? _linkedKlaSurface;
     private bool _isLoadingTest;
 
     [ObservableProperty] public partial bool ShowFloodingChart { get; set; }
@@ -315,6 +345,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public bool IsSweepTypeQgVariable => SelectedSweepType is PowerSweepType.VariableQgConstantN or PowerSweepType.MatrixNByQg;
     public bool IsSweepTypeNConstant => SelectedSweepType == PowerSweepType.VariableQgConstantN;
     public bool IsSweepTypeQgConstant => SelectedSweepType == PowerSweepType.VariableNConstantQg;
+    public string SweepExplanation => SelectedSweepType switch
+    {
+        PowerSweepType.VariableNConstantQg =>
+            "Cria uma linha para cada rotação entre N mín. e N máx., usando o passo do plano e a mesma vazão Qg.",
+        PowerSweepType.VariableQgConstantN =>
+            "Cria uma linha para cada vazão entre Qg mín. e Qg máx., mantendo a rotação N fixa.",
+        PowerSweepType.MatrixNByQg =>
+            "Cria todas as combinações entre a faixa de rotação do plano e a faixa de vazão Qg.",
+        _ => "Cria automaticamente as linhas da tabela de condições.",
+    };
 
     partial void OnSelectedSweepTypeChanged(PowerSweepType value)
     {
@@ -322,6 +362,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsSweepTypeQgVariable));
         OnPropertyChanged(nameof(IsSweepTypeNConstant));
         OnPropertyChanged(nameof(IsSweepTypeQgConstant));
+        OnPropertyChanged(nameof(SweepExplanation));
     }
 
     partial void OnDensityKgM3Changed(double value)
@@ -400,8 +441,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public ObservableCollection<ManualElecReading> ManualEnergyReadings { get; } = [];
 
     public bool HasActiveTest => CurrentTest is not null;
-    public bool CanEditPlan => CurrentTest is not null && !IsRunning && CurrentTest.Status != PowerTestStatus.Completed;
-    public bool CanStartOrContinue => CurrentTest is not null && !IsRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
+    public bool CanEditPlan => CurrentTest is not null && !IsRunning && !IsTareRunning && CurrentTest.Status != PowerTestStatus.Completed;
+    public bool CanStartOrContinue => CurrentTest is not null && !IsRunning && !IsTareRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
+    public bool CanManageTest => CurrentTest is not null && !IsRunning && !IsTareRunning;
+
+    partial void OnIsTareRunningChanged(bool value) => NotifyDocumentState();
 
     /// <summary>True when the runner's preflight passes right now (§12, §14).</summary>
     [ObservableProperty]
@@ -419,7 +463,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     {
         PowerTestStatus.Draft => "Rascunho",
         PowerTestStatus.Running => "Em execução",
-        PowerTestStatus.Interrupted => "Interrompido",
+        PowerTestStatus.Interrupted => "Interrompido · edição liberada",
         PowerTestStatus.Completed => "Concluído",
         _ => "Nenhum ensaio",
     };
@@ -434,9 +478,18 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             }
 
             var currentHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry());
-            return string.Equals(CurrentTest.Tare.ImpellerSetHash, currentHash, StringComparison.OrdinalIgnoreCase)
+            if (!string.Equals(CurrentTest.Tare.ImpellerSetHash, currentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Tara de outro conjunto";
+            }
+
+            var calibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
+                CurrentTest.Calibration,
+                CurrentTest.MotorRatedTorqueNm);
+            return CurrentTest.Tare.CalibrationHash.Length == 0 ||
+                   string.Equals(CurrentTest.Tare.CalibrationHash, calibrationHash, StringComparison.OrdinalIgnoreCase)
                 ? "Tara compatível"
-                : "Tara de outro conjunto";
+                : "Tara anterior à calibração atual";
         }
     }
     public string ResultModeLabel => RelativeMode || CurrentTest?.Calibration is null || CurrentTest?.Tare is null ? "RELATIVO" : "ABSOLUTO";
@@ -494,7 +547,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CreateTest()
     {
-        if (IsRunning || _dialogs is null || !_dialogs.PromptInput("Novo ensaio de potência", "Nome da nova pasta de ensaio:", out var name))
+        if (IsRunning || IsTareRunning || _dialogs is null || !_dialogs.PromptInput("Novo ensaio de potência", "Nome da nova pasta de ensaio:", out var name))
         {
             return;
         }
@@ -506,12 +559,19 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         impeller.DiameterM = 0.065;
         impeller.ClearanceM = 0.065;
         impeller.StageIndex = 0;
+        var settings = new PowerTestSettings();
+        var initialConditions = BuildRotationConditions(
+            settings.MinRpm,
+            settings.MaxRpm,
+            settings.DefaultStepRpm,
+            gasFlowLpm: null,
+            gasMode: PowerGasMode.Ungassed);
         var doc = _store.CreateTest(
             name.Trim(),
             new FluidProperties { DensityKgM3 = 997.0, ViscosityPaS = 0.00089, TemperatureC = 25, PresetName = "Água 25 °C" },
             new PowerGeometry { VesselDiameterM = 0.190, LiquidVolumeM3 = 0.010, Baffled = true, Impellers = [impeller] },
-            new PowerTestSettings(),
-            [new PowerCondition { AgitationRpm = 300, OrderIndex = 0 }]);
+            settings,
+            initialConditions);
         LoadDocument(doc);
         RefreshTests();
         SelectedTest = Tests.FirstOrDefault(t => t.FolderName == doc.FolderName);
@@ -520,7 +580,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void LoadSelectedTest()
     {
-        if (SelectedTest is null || IsRunning)
+        if (SelectedTest is null || IsRunning || IsTareRunning)
         {
             return;
         }
@@ -536,6 +596,88 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         ValidationMessage =
             $"Ensaio '{doc.Name}' aberto: {doc.Conditions.Count} condição(ões), {accepted} ponto(s) aceito(s).";
         StatusMessage = ValidationMessage;
+    }
+
+    [RelayCommand]
+    private void RenameTest()
+    {
+        if (!CanManageTest || CurrentTest is null || _dialogs is null ||
+            !_dialogs.PromptInput(
+                "Renomear ensaio de potência",
+                "Novo nome do ensaio e de sua pasta:",
+                out var newName,
+                CurrentTest.Name))
+        {
+            return;
+        }
+
+        try
+        {
+            var renamed = _store.RenameTest(CurrentTest.FolderName, newName);
+            LoadDocument(renamed);
+            RefreshTests();
+            SelectedTest = Tests.FirstOrDefault(test => test.FolderName == renamed.FolderName);
+            ValidationMessage = $"Ensaio renomeado para '{renamed.Name}'.";
+            StatusMessage = ValidationMessage;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível renomear o ensaio: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteTest()
+    {
+        if (!CanManageTest || CurrentTest is null || _dialogs is null)
+        {
+            return;
+        }
+
+        var doc = CurrentTest;
+        if (!_dialogs.Confirm(
+                "Excluir ensaio de potência",
+                $"Remover o ensaio '{doc.Name}' da lista? Os arquivos serão movidos para a lixeira interna e poderão ser recuperados manualmente.",
+                "Mover para lixeira",
+                "Cancelar",
+                isDanger: true))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_store.DeleteTest(doc.FolderName))
+            {
+                ShowError("O ensaio selecionado não foi encontrado.");
+                return;
+            }
+
+            CurrentTest = null;
+            SelectedTest = null;
+            _runner?.ClearTest();
+            _suppressConditionPersistence = true;
+            try
+            {
+                Conditions.Clear();
+            }
+            finally
+            {
+                _suppressConditionPersistence = false;
+            }
+            Impellers.Clear();
+            CurrentTarePoints.Clear();
+            LivePoints.Clear();
+            Results.Clear();
+            RefreshTests();
+            ValidationMessage = $"Ensaio '{doc.Name}' movido para a lixeira interna.";
+            StatusMessage = ValidationMessage;
+            NotifyDocumentState();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível excluir o ensaio: {ex.Message}");
+        }
     }
 
     private void LoadDocument(PowerTestDocument doc)
@@ -554,6 +696,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             MinRpm = doc.Settings.MinRpm;
             MaxRpm = doc.Settings.MaxRpm;
             StepRpm = doc.Settings.DefaultStepRpm;
+            MinFlowLpm = doc.Settings.MinFlowLpm;
+            MaxFlowLpm = doc.Settings.MaxFlowLpm;
+            StepFlowLpm = doc.Settings.DefaultStepFlowLpm;
             RelativeCiPercent = doc.Settings.RelativeCiFraction * 100.0;
             CiFloorSigmaMultiple = doc.Settings.CiFloorSigmaMultiple;
             MinimumSamples = doc.Settings.MinSamples;
@@ -569,6 +714,15 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             VentAgitationRpm = doc.Settings.VentAgitationRpm;
             MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
             ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
+
+            CurrentTarePoints.Clear();
+            if (doc.Tare is { } tare)
+            {
+                foreach (var point in tare.Points.OrderBy(point => point.Rpm))
+                {
+                    CurrentTarePoints.Add(point);
+                }
+            }
 
             Impellers.Clear();
             foreach (var impeller in doc.Geometry.Impellers.OrderBy(i => i.StageIndex))
@@ -594,6 +748,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         RefreshManualEnergyReadings();
         NotifyDocumentState();
         RecalculateLiveMetrics();
+        _linkedKlaDocument = null;
+        _linkedKlaSurface = null;
+        UpdateKlaEfficiencyComparison();
         }
         finally
         {
@@ -638,7 +795,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SaveSetup()
     {
-        if (CurrentTest is null || IsRunning)
+        if (CurrentTest is null || IsRunning || IsTareRunning)
         {
             return;
         }
@@ -697,6 +854,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var condition = new PowerCondition { AgitationRpm = rpm, OrderIndex = Conditions.Count };
         Conditions.Add(condition);
         SelectedCondition = condition;
+        PersistConditionPlan("Condição adicionada e salva.");
         NotifyDocumentState();
     }
 
@@ -711,11 +869,31 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         Conditions.Remove(SelectedCondition);
         NormalizeConditionOrder();
         SelectedCondition = Conditions.FirstOrDefault();
+        PersistConditionPlan("Condição removida e tabela salva.");
         NotifyDocumentState();
     }
 
-    [RelayCommand] private void MoveConditionUp() => MoveItem(Conditions, SelectedCondition, -1, NormalizeConditionOrder);
-    [RelayCommand] private void MoveConditionDown() => MoveItem(Conditions, SelectedCondition, 1, NormalizeConditionOrder);
+    [RelayCommand] private void MoveConditionUp() => MoveSelectedCondition(-1);
+    [RelayCommand] private void MoveConditionDown() => MoveSelectedCondition(1);
+
+    private void MoveSelectedCondition(int delta)
+    {
+        if (!CanEditPlan || SelectedCondition is null)
+        {
+            return;
+        }
+
+        _suppressConditionPersistence = true;
+        try
+        {
+            MoveItem(Conditions, SelectedCondition, delta, NormalizeConditionOrder);
+        }
+        finally
+        {
+            _suppressConditionPersistence = false;
+        }
+        PersistConditionPlan("Ordem das condições atualizada e salva.");
+    }
 
     /// <summary>
     /// kLa maps available to seed the condition table (§18.3 step 3.1). Empty when the workspace has
@@ -773,16 +951,122 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanImportFromKlaMap));
     }
 
+    partial void OnSelectedKlaMapForImportChanged(KlaMapOptionViewModel? value)
+    {
+        OnPropertyChanged(nameof(CanImportFromKlaMap));
+    }
+
     /// <summary>
-    /// Fills the condition table with the operating points a kLa map was measured at, so the power
-    /// assay lands on exactly the same (N, Qg) coordinates and the two datasets can be paired later.
+    /// Gera a matriz N × Qg na tabela de condições a partir das faixas da Captura Automática.
+    /// Qg = 0 gera condições sem aeração; Qg > 0 gera condições com aeração.
+    /// </summary>
+    [RelayCommand]
+    public void GenerateConditionsPlan()
+    {
+        if (!CanEditPlan)
+        {
+            ValidationMessage = "A tabela de condições só pode ser editada com o ensaio aberto e parado.";
+            return;
+        }
+
+        if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
+            MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || (MinRpm < MaxRpm && StepRpm <= 0))
+        {
+            ValidationMessage = "Faixa de rotação inválida: use 15 a 1000 rpm e passo positivo.";
+            return;
+        }
+
+        if (!double.IsFinite(MinFlowLpm) || !double.IsFinite(MaxFlowLpm) || !double.IsFinite(StepFlowLpm) ||
+            MinFlowLpm < 0 || MaxFlowLpm < MinFlowLpm || (MinFlowLpm < MaxFlowLpm && StepFlowLpm <= 0))
+        {
+            ValidationMessage = "Faixa de vazão inválida: use Qg ≥ 0 L/min, Qg máx ≥ Qg mín e passo positivo.";
+            return;
+        }
+
+        if (Conditions.Count > 0 && _dialogs?.Confirm(
+                "Substituir tabela",
+                $"A geração de condições substituirá as {Conditions.Count} linha(s) atuais da tabela. Deseja continuar?",
+                "Substituir",
+                "Cancelar") == false)
+        {
+            return;
+        }
+
+        Conditions.Clear();
+
+        var rpmRange = BuildInclusiveRange(MinRpm, MaxRpm, Math.Max(1.0, StepRpm));
+        var flowRange = BuildInclusiveRange(MinFlowLpm, MaxFlowLpm, Math.Max(0.01, StepFlowLpm));
+
+        var index = 0;
+        foreach (var rpm in rpmRange)
+        {
+            foreach (var qg in flowRange)
+            {
+                var isGassed = qg > 0.0001;
+                var condition = new PowerCondition
+                {
+                    ConditionId = Guid.NewGuid(),
+                    OrderIndex = index++,
+                    AgitationRpm = Math.Round(rpm, 1),
+                    GasFlowLpm = isGassed ? Math.Round(qg, 2) : null,
+                    GasMode = isGassed ? PowerGasMode.Gassed : PowerGasMode.Ungassed,
+                    FlowUnit = FlowInputUnit.Lpm,
+                    RequestedReplicates = 1,
+                    Origin = PowerConditionOrigin.Manual,
+                    Status = PowerConditionStatus.Pending,
+                };
+                Conditions.Add(condition);
+            }
+        }
+
+        SelectedCondition = Conditions.FirstOrDefault();
+        PersistConditionPlan($"{Conditions.Count} condição(ões) gerada(s) com sucesso.");
+        UpdateKlaEfficiencyComparison();
+    }
+
+    /// <summary>
+    /// Remove todas as linhas da tabela de condições.
+    /// </summary>
+    [RelayCommand]
+    public void ClearAllConditions()
+    {
+        if (!CanEditPlan)
+        {
+            ValidationMessage = "A tabela de condições só pode ser editada com o ensaio aberto e parado.";
+            return;
+        }
+
+        if (Conditions.Count == 0)
+        {
+            return;
+        }
+
+        if (_dialogs?.Confirm(
+                "Remover todos os pontos",
+                $"Deseja remover todas as {Conditions.Count} condição(ões) da tabela?",
+                "Remover todos",
+                "Cancelar",
+                isDanger: true) == false)
+        {
+            return;
+        }
+
+        Conditions.Clear();
+        SelectedCondition = null;
+        PersistConditionPlan("Todas as condições foram removidas da tabela.");
+        UpdateKlaEfficiencyComparison();
+    }
+
+    /// <summary>
+    /// Importa e vincula um mapa de kLa ao ensaio de potência SEM substituir a tabela de condições.
+    /// Reconstrói a superfície contínua e calcula a comparação/eficiência na região de controle.
     /// </summary>
     [RelayCommand]
     private async Task ImportConditionsFromKlaMapAsync()
     {
         if (!CanEditPlan)
         {
-            ValidationMessage = "A tabela de condições só pode ser editada com o ensaio parado.";
+            ValidationMessage = "O ensaio precisa estar aberto e parado para vincular um mapa de kLa.";
             return;
         }
 
@@ -803,68 +1087,210 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            var replicates = Math.Clamp(ImportReplicates, 1, 10);
-            var (_, mapName, imported) = PowerMapImportHelper.ImportConditionsFromKlaMap(klaDocument, replicates);
+            var mapName = klaDocument.Snapshot.Name;
+            var mapId = klaDocument.Snapshot.Id;
 
-            if (imported.Count == 0)
+            CurrentTest!.LinkedMap = new PowerMapReference
             {
-                ValidationMessage = $"O mapa '{mapName}' não tem âncoras para importar.";
-                return;
+                MapId = mapId,
+                MapName = mapName,
+                MapFingerprint = klaDocument.Snapshot.ScientificFingerprint(),
+                LinkedAtUtc = DateTimeOffset.UtcNow,
+            };
+            _store.SaveTestManifest(CurrentTest);
+
+            _linkedKlaDocument = klaDocument;
+            try
+            {
+                var engine = new KlaMappingEngine();
+                _linkedKlaSurface = engine.Reconstruct(klaDocument.Snapshot);
+            }
+            catch
+            {
+                _linkedKlaSurface = null;
             }
 
-            if (Conditions.Count > 0 && _dialogs?.Confirm(
-                    "Substituir tabela",
-                    $"A importação de '{mapName}' substituirá as {Conditions.Count} condição(ões) atuais. Continuar?",
-                    "Substituir",
-                    "Cancelar") == false)
-            {
-                return;
-            }
+            UpdateKlaEfficiencyComparison();
 
-            Conditions.Clear();
-
-            var order = 0;
-            if (ImportUngassedReferences)
-            {
-                foreach (var rpm in imported
-                             .Where(c => (c.GasFlowLpm ?? 0) > 0)
-                             .Select(c => c.AgitationRpm)
-                             .Distinct()
-                             .OrderBy(rpm => rpm))
-                {
-                    Conditions.Add(new PowerCondition
-                    {
-                        OrderIndex = order++,
-                        AgitationRpm = rpm,
-                        GasMode = PowerGasMode.Ungassed,
-                        RequestedReplicates = replicates,
-                        Origin = PowerConditionOrigin.Map,
-                        SourceMapId = SelectedKlaMapForImport.Id,
-                        SourceMapName = mapName,
-                        Status = PowerConditionStatus.Pending,
-                    });
-                }
-            }
-
-            foreach (var condition in imported)
-            {
-                condition.OrderIndex = order++;
-                Conditions.Add(condition);
-            }
-
-            NormalizeConditionOrder();
-            SelectedCondition = Conditions.FirstOrDefault();
-
-            var referenceCount = Conditions.Count - imported.Count;
-            ValidationMessage = referenceCount > 0
-                ? $"Importadas {imported.Count} condição(ões) de '{mapName}', mais {referenceCount} referência(s) " +
-                  "não gaseificada(s) para o cálculo de P_G/P₀. Salve o setup para gravar o plano."
-                : $"Importadas {imported.Count} condição(ões) de '{mapName}'. Salve o setup para gravar o plano.";
+            ValidationMessage = $"Mapa '{mapName}' vinculado com sucesso. {ControlRegionSummary}";
+            StatusMessage = ValidationMessage;
+            OnPropertyChanged(nameof(CanImportFromKlaMap));
         }
         catch (Exception ex)
         {
-            ValidationMessage = $"Falha ao importar do mapa de kLa: {ex.Message}";
+            ValidationMessage = $"Falha ao importar mapa de kLa: {ex.Message}";
         }
+    }
+
+    public void UpdateKlaEfficiencyComparison()
+    {
+        if (CurrentTest?.LinkedMap is null)
+        {
+            HasLinkedKlaMap = false;
+            LinkedKlaMapName = "";
+            ControlRegionSummary = "Nenhum mapa de kLa vinculado.";
+            AverageKlaEfficiency = null;
+            KlaEfficiencyItems.Clear();
+            return;
+        }
+
+        HasLinkedKlaMap = true;
+        LinkedKlaMapName = CurrentTest.LinkedMap.MapName;
+
+        if (_linkedKlaDocument is null && _klaStore is not null)
+        {
+            try
+            {
+                var experiments = _klaStore.LoadExperimentsAsync().GetAwaiter().GetResult();
+                _linkedKlaDocument = experiments.FirstOrDefault(e => e.Snapshot.Id == CurrentTest.LinkedMap.MapId);
+                if (_linkedKlaDocument is not null)
+                {
+                    try
+                    {
+                        var engine = new KlaMappingEngine();
+                        _linkedKlaSurface = engine.Reconstruct(_linkedKlaDocument.Snapshot);
+                    }
+                    catch
+                    {
+                        _linkedKlaSurface = null;
+                    }
+                }
+            }
+            catch
+            {
+                // Best effort
+            }
+        }
+
+        if (_linkedKlaDocument is null)
+        {
+            ControlRegionSummary = $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado, mas arquivo não encontrado.";
+            return;
+        }
+
+        // kLa domain
+        var anchors = _linkedKlaDocument.Snapshot.Anchors;
+        var klaDomain = _linkedKlaDocument.Snapshot.Domain;
+
+        double klaMinRpm = anchors.Length > 0 ? anchors.Min(a => a.AgitationRpm) : klaDomain.AgitationMinimumRpm;
+        double klaMaxRpm = anchors.Length > 0 ? anchors.Max(a => a.AgitationRpm) : klaDomain.AgitationMaximumRpm;
+        double klaMinQg = anchors.Length > 0 ? anchors.Min(a => a.AirflowLpm) : klaDomain.AirflowMinimumLpm;
+        double klaMaxQg = anchors.Length > 0 ? anchors.Max(a => a.AirflowLpm) : klaDomain.AirflowMaximumLpm;
+
+        // Power domain
+        var conditionsWithGas = Conditions.ToList();
+        var acceptedRuns = CurrentTest?.Runs.Where(r => r.Phase == PowerRunPhase.Accepted).ToList() ?? [];
+        if (conditionsWithGas.Count == 0 && acceptedRuns.Count == 0)
+        {
+            ControlRegionSummary = $"Mapa '{LinkedKlaMapName}' vinculado. Adicione condições para avaliar a região de controle.";
+            KlaEfficiencyItems.Clear();
+            AverageKlaEfficiency = null;
+            return;
+        }
+
+        double pwrMinRpm = conditionsWithGas.Count > 0 ? conditionsWithGas.Min(c => c.AgitationRpm) : acceptedRuns.Min(r => r.AgitationRpm);
+        double pwrMaxRpm = conditionsWithGas.Count > 0 ? conditionsWithGas.Max(c => c.AgitationRpm) : acceptedRuns.Max(r => r.AgitationRpm);
+        double pwrMinQg = conditionsWithGas.Count > 0 ? conditionsWithGas.Min(c => c.GasFlowLpm ?? 0.0) : acceptedRuns.Min(r => r.GasFlowLpm ?? 0.0);
+        double pwrMaxQg = conditionsWithGas.Count > 0 ? conditionsWithGas.Max(c => c.GasFlowLpm ?? 0.0) : acceptedRuns.Max(r => r.GasFlowLpm ?? 0.0);
+
+        // Control region: intersection of conditions
+        double ctrlMinRpm = Math.Max(klaMinRpm, pwrMinRpm);
+        double ctrlMaxRpm = Math.Min(klaMaxRpm, pwrMaxRpm);
+        double ctrlMinQg = Math.Max(klaMinQg, pwrMinQg);
+        double ctrlMaxQg = Math.Min(klaMaxQg, pwrMaxQg);
+
+        bool hasIntersection = ctrlMinRpm <= ctrlMaxRpm && ctrlMinQg <= ctrlMaxQg;
+        ControlRegionSummary = hasIntersection
+            ? $"Intersecção: N {ctrlMinRpm:F0}–{ctrlMaxRpm:F0} rpm · Qg {ctrlMinQg:F1}–{ctrlMaxQg:F1} L/min"
+            : "Sem intersecção entre as faixas operacionais dos dois testes.";
+
+        KlaEfficiencyItems.Clear();
+
+        // Evaluate distinct points from Conditions (or from accepted runs)
+        var pointsToEvaluate = conditionsWithGas
+            .Select(c => (N: c.AgitationRpm, Qg: c.GasFlowLpm ?? 0.0))
+            .Distinct()
+            .OrderBy(p => p.N)
+            .ThenBy(p => p.Qg)
+            .ToList();
+
+        if (pointsToEvaluate.Count == 0)
+        {
+            pointsToEvaluate = acceptedRuns
+                .Select(r => (N: r.AgitationRpm, Qg: r.GasFlowLpm ?? 0.0))
+                .Distinct()
+                .OrderBy(p => p.N)
+                .ThenBy(p => p.Qg)
+                .ToList();
+        }
+
+        var vesselVolM3 = LiquidVolumeL > 0 ? LiquidVolumeL / 1000.0 : 0.010;
+
+        foreach (var pt in pointsToEvaluate)
+        {
+            bool inControl = hasIntersection &&
+                pt.N >= ctrlMinRpm - 0.5 && pt.N <= ctrlMaxRpm + 0.5 &&
+                pt.Qg >= ctrlMinQg - 0.02 && pt.Qg <= ctrlMaxQg + 0.02;
+
+            double? klaInterp = null;
+            if (_linkedKlaSurface is not null && klaDomain.AirflowMaximumLpm > klaDomain.AirflowMinimumLpm && klaDomain.AgitationMaximumRpm > klaDomain.AgitationMinimumRpm)
+            {
+                var normQ = klaDomain.NormalizeAirflow(pt.Qg);
+                var normN = klaDomain.NormalizeAgitation(pt.N);
+                var surfaceVal = _linkedKlaSurface.EvaluateNormalized(normQ, normN);
+                if (double.IsFinite(surfaceVal.Value) && surfaceVal.Value >= 0)
+                {
+                    klaInterp = surfaceVal.Value;
+                }
+            }
+
+            if (!klaInterp.HasValue && anchors.Length > 0)
+            {
+                var exactAnchor = anchors.FirstOrDefault(a =>
+                    Math.Abs(a.AgitationRpm - pt.N) <= 1.0 &&
+                    Math.Abs(a.AirflowLpm - pt.Qg) <= 0.05);
+                if (exactAnchor is not null)
+                {
+                    klaInterp = exactAnchor.KlaPerHour;
+                }
+            }
+
+            // Find matching accepted run in acceptedRuns
+            var matchingRun = acceptedRuns.FirstOrDefault(r =>
+                Math.Abs(r.AgitationRpm - pt.N) <= 1.0 &&
+                Math.Abs((r.GasFlowLpm ?? 0.0) - pt.Qg) <= 0.05);
+
+            double? netPowerW = matchingRun is not null
+                ? (matchingRun.NetPowerW ?? matchingRun.GassedPowerW)
+                : null;
+            if (netPowerW.HasValue && !double.IsFinite(netPowerW.Value))
+            {
+                netPowerW = null;
+            }
+
+            double? pvWm3 = (netPowerW.HasValue && vesselVolM3 > 0) ? (netPowerW.Value / vesselVolM3) : null;
+            double? efficiency = (klaInterp.HasValue && pvWm3.HasValue && pvWm3.Value > 0)
+                ? (klaInterp.Value / (pvWm3.Value / 1000.0)) // h⁻¹ / (kW/m³)
+                : null;
+
+            KlaEfficiencyItems.Add(new KlaEfficiencyComparisonItem
+            {
+                AgitationRpm = pt.N,
+                GasFlowLpm = pt.Qg,
+                KlaInterpolatedPerHour = klaInterp.HasValue ? Math.Round(klaInterp.Value, 2) : null,
+                NetPowerW = netPowerW.HasValue ? Math.Round(netPowerW.Value, 2) : null,
+                VolumetricPowerWm3 = pvWm3.HasValue ? Math.Round(pvWm3.Value, 1) : null,
+                SpecificEfficiency = efficiency.HasValue ? Math.Round(efficiency.Value, 2) : null,
+                IsInControlRegion = inControl,
+            });
+        }
+
+        var controlEfficiencies = KlaEfficiencyItems
+            .Where(i => i.IsInControlRegion && i.SpecificEfficiency.HasValue)
+            .Select(i => i.SpecificEfficiency!.Value)
+            .ToList();
+
+        AverageKlaEfficiency = controlEfficiencies.Count > 0 ? Math.Round(controlEfficiencies.Average(), 2) : null;
     }
 
     [RelayCommand]
@@ -879,8 +1305,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             case PowerSweepType.VariableNConstantQg:
             {
-                if (!double.IsFinite(SweepStartRpm) || !double.IsFinite(SweepEndRpm) || !double.IsFinite(SweepStepRpm) ||
-                    SweepStartRpm < 15 || SweepEndRpm > 1000 || SweepEndRpm < SweepStartRpm || SweepStepRpm < 5)
+                if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
+                    MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || StepRpm < 5)
                 {
                     ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
                     return;
@@ -898,19 +1324,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
                 Conditions.Clear();
                 var index = 0;
-                var mode = SweepConstantQgLpm > 0 ? SweepGasMode : PowerGasMode.Ungassed;
-                if (mode == PowerGasMode.Ungassed && SweepConstantQgLpm > 0)
-                {
-                    mode = PowerGasMode.Gassed;
-                }
+                var hasGas = SweepConstantQgLpm > 0 && SweepGasMode != PowerGasMode.Ungassed;
+                var mode = hasGas ? SweepGasMode : PowerGasMode.Ungassed;
 
-                for (var rpm = SweepStartRpm; rpm <= SweepEndRpm + 1e-9; rpm += SweepStepRpm)
+                foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
                 {
                     var cond = new PowerCondition
                     {
                         FlowUnit = FlowInputUnit.Lpm,
                         AgitationRpm = rpm,
-                        GasFlowLpm = SweepConstantQgLpm > 0 ? SweepConstantQgLpm : null,
+                        GasFlowLpm = hasGas ? SweepConstantQgLpm : null,
                         GasMode = mode,
                         OrderIndex = index++,
                         Origin = PowerConditionOrigin.Manual,
@@ -941,14 +1364,15 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
                 Conditions.Clear();
                 var index = 0;
-                for (var qg = SweepStartQgLpm; qg <= SweepEndQgLpm + 1e-9; qg += SweepStepQgLpm)
+                foreach (var qg in BuildInclusiveRange(SweepStartQgLpm, SweepEndQgLpm, SweepStepQgLpm))
                 {
+                    var hasGas = qg > 0 && SweepGasMode != PowerGasMode.Ungassed;
                     var cond = new PowerCondition
                     {
                         FlowUnit = FlowInputUnit.Lpm,
                         AgitationRpm = SweepConstantRpm,
-                        GasFlowLpm = qg > 0 ? qg : null,
-                        GasMode = qg > 0 ? SweepGasMode : PowerGasMode.Ungassed,
+                        GasFlowLpm = hasGas ? qg : null,
+                        GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
                         OrderIndex = index++,
                         Origin = PowerConditionOrigin.Manual,
                     };
@@ -959,8 +1383,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
             case PowerSweepType.MatrixNByQg:
             {
-                if (!double.IsFinite(SweepStartRpm) || !double.IsFinite(SweepEndRpm) || !double.IsFinite(SweepStepRpm) ||
-                    SweepStartRpm < 15 || SweepEndRpm > 1000 || SweepEndRpm < SweepStartRpm || SweepStepRpm < 5)
+                if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
+                    MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || StepRpm < 5)
                 {
                     ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
                     return;
@@ -979,16 +1403,17 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
                 Conditions.Clear();
                 var index = 0;
-                for (var rpm = SweepStartRpm; rpm <= SweepEndRpm + 1e-9; rpm += SweepStepRpm)
+                foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
                 {
-                    for (var qg = SweepStartQgLpm; qg <= SweepEndQgLpm + 1e-9; qg += SweepStepQgLpm)
+                    foreach (var qg in BuildInclusiveRange(SweepStartQgLpm, SweepEndQgLpm, SweepStepQgLpm))
                     {
+                        var hasGas = qg > 0 && SweepGasMode != PowerGasMode.Ungassed;
                         var cond = new PowerCondition
                         {
                             FlowUnit = FlowInputUnit.Lpm,
                             AgitationRpm = rpm,
-                            GasFlowLpm = qg > 0 ? qg : null,
-                            GasMode = qg > 0 ? SweepGasMode : PowerGasMode.Ungassed,
+                            GasFlowLpm = hasGas ? qg : null,
+                            GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
                             OrderIndex = index++,
                             Origin = PowerConditionOrigin.Manual,
                         };
@@ -1000,14 +1425,211 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         SelectedCondition = Conditions.FirstOrDefault();
-        ValidationMessage = $"{Conditions.Count} condições geradas.";
-        NotifyDocumentState();
+        if (CurrentTest is not null)
+        {
+            CurrentTest.LinkedMap = null;
+        }
+        PersistConditionPlan($"{Conditions.Count} condição(ões) gerada(s) e exibida(s) na tabela acima.");
+    }
+
+    private void RegenerateAutomaticPlanFromControls()
+    {
+        if (_isLoadingTest || _suppressConditionPersistence || !CanEditPlan ||
+            Conditions.Any(condition => condition.Origin == PowerConditionOrigin.Map) ||
+            Conditions.Any(condition => condition.CompletedReplicates > 0 || condition.AcceptedReplicates > 0))
+        {
+            return;
+        }
+
+        List<PowerCondition> rows;
+        switch (SelectedSweepType)
+        {
+            case PowerSweepType.VariableNConstantQg:
+                if (!IsValidRotationRange(MinRpm, MaxRpm, StepRpm) ||
+                    !double.IsFinite(SweepConstantQgLpm) || SweepConstantQgLpm < 0)
+                {
+                    ValidationMessage = "Plano automático incompleto: revise a faixa N e a vazão Qg fixa.";
+                    return;
+                }
+                var hasConstantGas = SweepConstantQgLpm > 0 && SweepGasMode != PowerGasMode.Ungassed;
+                rows = BuildRotationConditions(
+                    MinRpm,
+                    MaxRpm,
+                    StepRpm,
+                    hasConstantGas ? SweepConstantQgLpm : null,
+                    hasConstantGas ? SweepGasMode : PowerGasMode.Ungassed);
+                break;
+
+            case PowerSweepType.VariableQgConstantN:
+                if (!IsValidConstantRpm(SweepConstantRpm) || !IsValidFlowRange())
+                {
+                    ValidationMessage = "Plano automático incompleto: revise N fixa e a faixa Qg.";
+                    return;
+                }
+                rows = BuildFlowConditions(SweepConstantRpm);
+                break;
+
+            case PowerSweepType.MatrixNByQg:
+                if (!IsValidRotationRange(MinRpm, MaxRpm, StepRpm) || !IsValidFlowRange())
+                {
+                    ValidationMessage = "Plano automático incompleto: revise as faixas N e Qg.";
+                    return;
+                }
+                rows = [];
+                foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
+                {
+                    rows.AddRange(BuildFlowConditions(rpm));
+                }
+                for (var index = 0; index < rows.Count; index++)
+                {
+                    rows[index].OrderIndex = index;
+                }
+                break;
+
+            default:
+                return;
+        }
+
+        ReplaceConditionRows(rows);
+        if (CurrentTest is not null)
+        {
+            CurrentTest.LinkedMap = null;
+        }
+        PersistConditionPlan(
+            $"Tabela atualizada automaticamente pelos parâmetros de captura: {rows.Count} condição(ões).",
+            showMessage: true);
+    }
+
+    private static bool IsValidRotationRange(double minRpm, double maxRpm, double stepRpm) =>
+        double.IsFinite(minRpm) && double.IsFinite(maxRpm) && double.IsFinite(stepRpm) &&
+        minRpm >= 15 && maxRpm <= 1000 && maxRpm >= minRpm && stepRpm >= 5;
+
+    private static List<PowerCondition> BuildRotationConditions(
+        double minRpm,
+        double maxRpm,
+        double stepRpm,
+        double? gasFlowLpm,
+        PowerGasMode gasMode)
+    {
+        var rows = new List<PowerCondition>();
+        foreach (var rpm in BuildInclusiveRange(minRpm, maxRpm, stepRpm))
+        {
+            rows.Add(new PowerCondition
+            {
+                AgitationRpm = rpm,
+                GasFlowLpm = gasFlowLpm,
+                GasMode = gasMode,
+                FlowUnit = FlowInputUnit.Lpm,
+                OrderIndex = rows.Count,
+                Origin = PowerConditionOrigin.Manual,
+            });
+        }
+
+        return rows;
+    }
+
+    private bool IsValidFlowRange() =>
+        double.IsFinite(SweepStartQgLpm) && double.IsFinite(SweepEndQgLpm) &&
+        double.IsFinite(SweepStepQgLpm) && SweepStartQgLpm >= 0 &&
+        SweepEndQgLpm >= SweepStartQgLpm && SweepStepQgLpm > 0;
+
+    private static bool IsValidConstantRpm(double rpm) =>
+        double.IsFinite(rpm) && rpm is >= 15 and <= 1000;
+
+    private List<PowerCondition> BuildFlowConditions(double rpm)
+    {
+        var rows = new List<PowerCondition>();
+        foreach (var qg in BuildInclusiveRange(SweepStartQgLpm, SweepEndQgLpm, SweepStepQgLpm))
+        {
+            var hasGas = qg > 0 && SweepGasMode != PowerGasMode.Ungassed;
+            rows.Add(new PowerCondition
+            {
+                AgitationRpm = rpm,
+                GasFlowLpm = hasGas ? qg : null,
+                GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
+                FlowUnit = FlowInputUnit.Lpm,
+                OrderIndex = rows.Count,
+                Origin = PowerConditionOrigin.Manual,
+            });
+        }
+        return rows;
+    }
+
+    private static IReadOnlyList<double> BuildInclusiveRange(double start, double end, double step)
+    {
+        var values = new List<double>();
+        for (var value = start; value <= end + 1e-9; value += step)
+        {
+            values.Add(value);
+        }
+
+        if (values.Count == 0 || Math.Abs(values[^1] - end) > 1e-9)
+        {
+            values.Add(end);
+        }
+        return values;
+    }
+
+    private void ReplaceConditionRows(IEnumerable<PowerCondition> rows)
+    {
+        _suppressConditionPersistence = true;
+        try
+        {
+            Conditions.Clear();
+            foreach (var row in rows)
+            {
+                Conditions.Add(row);
+            }
+            NormalizeConditionOrder();
+            SelectedCondition = Conditions.FirstOrDefault();
+        }
+        finally
+        {
+            _suppressConditionPersistence = false;
+        }
+    }
+
+    private void PersistConditionPlan(string successMessage, bool showMessage = true)
+    {
+        if (CurrentTest is null)
+        {
+            return;
+        }
+
+        try
+        {
+            NormalizeConditionOrder();
+            var settings = BuildEditedSettings();
+            if (CurrentTest.Settings != settings)
+            {
+                CurrentTest.SettingsRevision++;
+                CurrentTest.Settings = settings;
+            }
+            CurrentTest.Conditions = Conditions.Select(condition => condition.Clone()).ToList();
+            CurrentTest.LastModifiedUtc = DateTimeOffset.UtcNow;
+            _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+            _store.SaveTestManifest(CurrentTest);
+            if (showMessage)
+            {
+                ValidationMessage = successMessage;
+                StatusMessage = successMessage;
+            }
+            _lastPreflightTick = 0;
+            RefreshPreflight();
+            UpdateKlaEfficiencyComparison();
+            NotifyDocumentState();
+        }
+        catch (Exception ex)
+        {
+            ValidationMessage = $"Não foi possível salvar a tabela de condições: {ex.Message}";
+            StatusMessage = ValidationMessage;
+        }
     }
 
     [RelayCommand]
     private void ToggleSkipCondition()
     {
-        if (CurrentTest is null || SelectedCondition is null || IsRunning)
+        if (CurrentTest is null || SelectedCondition is null || IsRunning || IsTareRunning)
         {
             return;
         }
@@ -1020,7 +1642,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task StartOrContinueAsync()
     {
-        if (_runner is null || CurrentTest is null)
+        if (_runner is null || CurrentTest is null || IsTareRunning)
         {
             return;
         }
@@ -1528,52 +2150,100 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             ShowError("Aguarde a operação atual finalizar para rodar a tara.");
             return;
         }
-        if (TareStartRpm < 15 || TareEndRpm < TareStartRpm || TareStepRpm <= 0)
+        var settings = BuildEditedSettings();
+        if (!double.IsFinite(settings.MinRpm) || !double.IsFinite(settings.MaxRpm) ||
+            settings.MinRpm < 15 || settings.MaxRpm > 1000 || settings.MinRpm > settings.MaxRpm ||
+            settings.MinSamples < 2 || !double.IsFinite(settings.MaxCaptureSeconds) || settings.MaxCaptureSeconds <= 0 ||
+            settings.MaxTries < 1 || !double.IsFinite(settings.StationarityWindowSeconds) ||
+            settings.StationarityWindowSeconds <= 0 ||
+            !double.IsFinite(settings.StationaritySlopeTolerancePercentPerSecond) ||
+            settings.StationaritySlopeTolerancePercentPerSecond < 0 ||
+            settings.StationarityRequiredSamples < 1 ||
+            !double.IsFinite(settings.RelativeCiFraction) || settings.RelativeCiFraction < 0 ||
+            !double.IsFinite(settings.CiFloorSigmaMultiple) || settings.CiFloorSigmaMultiple < 0 ||
+            settings.CaptureServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs ||
+            settings.RestoreServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs)
         {
-            ShowError("Defina uma faixa de rotação válida (mínimo 15 rpm).");
+            ShowError("Revise os limites de estacionariedade, amostragem e IC95 antes de iniciar a tara.");
             return;
         }
 
+        if (!double.IsFinite(TareStartRpm) || !double.IsFinite(TareEndRpm) || !double.IsFinite(TareStepRpm) ||
+            TareStartRpm < settings.MinRpm || TareEndRpm > settings.MaxRpm ||
+            TareEndRpm < TareStartRpm || TareStepRpm < settings.MinStepRpm)
+        {
+            ShowError($"Defina a tara entre {settings.MinRpm:F0} e {settings.MaxRpm:F0} rpm, com passo mínimo de {settings.MinStepRpm:F0} rpm.");
+            return;
+        }
+
+        var targets = BuildTareTargets(TareStartRpm, TareEndRpm, TareStepRpm);
+        if (targets.Count == 0)
+        {
+            ShowError("A faixa informada não produziu nenhum patamar de tara.");
+            return;
+        }
+
+        _tareCancellation?.Dispose();
+        _tareCancellation = new CancellationTokenSource();
+        var cancellation = _tareCancellation;
         IsTareRunning = true;
         CurrentTarePoints.Clear();
         var points = new List<TarePoint>();
-        var tNom = CurrentTest.Calibration?.MotorRatedTorqueNm ?? CurrentTest.MotorRatedTorqueNm;
+        var rawSamples = new List<TareSample>();
+        _tarePointTotal = targets.Count;
+        _tareFailureMessage = null;
 
         try
         {
             _arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "Varredura de tara no ar");
-
-            for (var rpm = TareStartRpm; rpm <= TareEndRpm; rpm += TareStepRpm)
+            if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay)
             {
-                TareProgressMessage = $"Medindo patamar N = {rpm:F0} rpm no ar...";
-                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint((int)rpm));
-
-                var samples = new List<double>();
-                for (var s = 0; s < 5; s++)
-                {
-                    await Task.Delay(100);
-                    var torquePct = CurrentTorquePercent ?? 0.8;
-                    samples.Add(torquePct);
-                }
-
-                var meanPct = samples.Average();
-                var sigmaPct = samples.Count > 1
-                    ? Math.Max(0.05, Math.Sqrt(samples.Select(x => (x - meanPct) * (x - meanPct)).Sum() / (samples.Count - 1)))
-                    : 0.05;
-
-                var rawTorqueNm = (meanPct / 100.0) * tNom;
-                var pVoidW = rawTorqueNm * PowerCalc.AngularVelocity(rpm);
-                var pt = new TarePoint(rpm, Math.Max(0.0, pVoidW), Math.Round(sigmaPct, 4));
-                points.Add(pt);
-                CurrentTarePoints.Add(pt);
+                throw new InvalidOperationException("Não foi possível obter o controle da agitação para medir a tara.");
             }
 
-            SafeParkAndReleaseAgitation("Tara concluída");
+            EnsureTareDispatch(
+                CommandBuilders.ServoPollInterval(settings.CaptureServoPollMs),
+                "configurar a aquisição rápida do servo");
+
+            for (var index = 0; index < targets.Count; index++)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                var rpm = targets[index];
+                _tarePointIndex = index + 1;
+                EnsureTareDispatch(
+                    CommandBuilders.MotorSetpoint((int)rpm),
+                    $"comandar o patamar de {rpm:F0} rpm");
+
+                _tarePointStartedTimestamp = Stopwatch.GetTimestamp();
+                _tareLastValidSeconds = double.NaN;
+                _tareCapture = new PowerTareCaptureController(settings, rpm);
+                UpdateTareProgressMessage();
+
+                await WaitForTarePointAsync(_tareCapture, settings, cancellation.Token);
+                if (_tareCapture.State != TareCaptureState.Converged)
+                {
+                    throw new InvalidOperationException(
+                        _tareCapture.State == TareCaptureState.SpeedTimedOut
+                            ? $"A rotação não estabilizou em {rpm:F0} rpm."
+                            : $"O patamar de {rpm:F0} rpm não atingiu o IC95 após {settings.MaxTries} tentativa(s).");
+                }
+
+                var point = _tareCapture.CreatePoint(CurrentTest);
+                points.Add(point);
+                rawSamples.AddRange(_tareCapture.Samples);
+                CurrentTarePoints.Add(point);
+            }
 
             var tare = new TareCurve
             {
+                SchemaVersion = 2,
                 Points = points,
+                Samples = rawSamples,
+                AcquisitionSettings = settings,
                 ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry()),
+                CalibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
+                    CurrentTest.Calibration,
+                    CurrentTest.MotorRatedTorqueNm),
                 MeasuredUtc = DateTimeOffset.UtcNow,
             };
 
@@ -1581,19 +2251,142 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             _store.SaveTare(CurrentTest.FolderName, tare);
             _store.SaveTestManifest(CurrentTest);
 
-            TareProgressMessage = $"Tara gravada com {points.Count} patamares em {PowerTestFileContracts.TareFileName}.";
+            TareProgressMessage =
+                $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}.";
             ValidationMessage = TareProgressMessage;
             OnPropertyChanged(nameof(TareStatus));
             OnPropertyChanged(nameof(ResultModeLabel));
         }
+        catch (OperationCanceledException)
+        {
+            RefreshCurrentTarePoints();
+            TareProgressMessage = _tareFailureMessage ?? "Tara cancelada. A curva válida anterior foi mantida.";
+            ValidationMessage = TareProgressMessage;
+        }
         catch (Exception ex)
         {
-            SafeParkAndReleaseAgitation("Falha na varredura de tara");
-            ShowError($"Erro na varredura de tara: {ex.Message}");
+            RefreshCurrentTarePoints();
+            TareProgressMessage = $"Tara não gravada: {ex.Message} A curva válida anterior foi mantida.";
+            ShowError(TareProgressMessage);
         }
         finally
         {
+            _tareCapture = null;
+            SafeParkAndReleaseAgitation("Tara finalizada", settings.RestoreServoPollMs);
             IsTareRunning = false;
+            if (ReferenceEquals(_tareCancellation, cancellation))
+            {
+                _tareCancellation.Dispose();
+                _tareCancellation = null;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void CancelTareSweep()
+    {
+        if (!IsTareRunning)
+        {
+            return;
+        }
+
+        TareProgressMessage = "Cancelando a tara e parando o eixo com segurança...";
+        _tareCancellation?.Cancel();
+    }
+
+    private async Task WaitForTarePointAsync(
+        PowerTareCaptureController capture,
+        PowerTestSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var monitorIntervalMs = Math.Clamp(settings.CaptureServoPollMs, 100, 1000);
+        while (!capture.IsDone)
+        {
+            await Task.Delay(monitorIntervalMs, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay)
+            {
+                throw new InvalidOperationException("O controle da agitação foi transferido durante a tara.");
+            }
+
+            var elapsed = TarePointElapsedSeconds();
+            capture.AdvanceTime(elapsed);
+            if ((double.IsNaN(_tareLastValidSeconds) && elapsed >= settings.MeasurementTimeoutSeconds) ||
+                (!double.IsNaN(_tareLastValidSeconds) && elapsed - _tareLastValidSeconds >= settings.MeasurementTimeoutSeconds))
+            {
+                throw new InvalidOperationException(
+                    $"A telemetria válida do servo ficou ausente por {settings.MeasurementTimeoutSeconds:F0} s.");
+            }
+
+            UpdateTareProgressMessage();
+        }
+    }
+
+    private void UpdateTareProgressMessage()
+    {
+        if (_tareCapture is not { } capture)
+        {
+            return;
+        }
+
+        var prefix = $"Patamar {_tarePointIndex}/{_tarePointTotal} · {capture.TargetRpm:F0} rpm";
+        TareProgressMessage = capture.State switch
+        {
+            TareCaptureState.StabilizingSpeed =>
+                $"{prefix}: estabilizando a rotação medida...",
+            TareCaptureState.StabilizingTorque =>
+                $"{prefix}: torque em estabilização · tentativa {capture.Attempt}/{capture.MaxAttempts}.",
+            TareCaptureState.Accumulating =>
+                $"{prefix}: n={capture.SampleCount} · IC95 ±{capture.CurrentTorqueCi95Percent:F4}% " +
+                $"(alvo ≤ {capture.CurrentTargetTorqueCi95Percent:F4}%) · tentativa {capture.Attempt}/{capture.MaxAttempts}.",
+            TareCaptureState.Converged =>
+                $"{prefix}: precisão atingida com {capture.SampleCount} amostras.",
+            TareCaptureState.SpeedTimedOut =>
+                $"{prefix}: a rotação não estabilizou no tempo limite.",
+            _ => $"{prefix}: o IC95 não convergiu no tempo limite.",
+        };
+    }
+
+    private static List<double> BuildTareTargets(double startRpm, double endRpm, double stepRpm)
+    {
+        var targets = new List<double>();
+        for (var rpm = startRpm; rpm <= endRpm + 1e-9; rpm += stepRpm)
+        {
+            var commandRpm = Math.Round(rpm, MidpointRounding.AwayFromZero);
+            if (targets.Count == 0 || !double.Equals(targets[^1], commandRpm))
+            {
+                targets.Add(commandRpm);
+            }
+        }
+        return targets;
+    }
+
+    private void EnsureTareDispatch(OpenTECCommand command, string action)
+    {
+        var result = _arbiter.Dispatch(CommandOwner.PowerAssay, command);
+        if (!result.Accepted)
+        {
+            throw new InvalidOperationException(
+                $"Comando recusado ao tentar {action}: {string.Join(", ", result.Refused)}.");
+        }
+    }
+
+    private double TarePointElapsedSeconds() => _tarePointStartedTimestamp == 0
+        ? 0.0
+        : Stopwatch.GetElapsedTime(_tarePointStartedTimestamp).TotalSeconds;
+
+    private void RefreshCurrentTarePoints()
+    {
+        CurrentTarePoints.Clear();
+        if (CurrentTest?.Tare is not { } tare)
+        {
+            return;
+        }
+
+        foreach (var point in tare.Points.OrderBy(point => point.Rpm))
+        {
+            CurrentTarePoints.Add(point);
         }
     }
 
@@ -1766,7 +2559,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void SafeParkAndReleaseAgitation(string reason)
+    private void SafeParkAndReleaseAgitation(string reason, int? restoreServoPollMs = null)
     {
         try
         {
@@ -1774,6 +2567,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             {
                 _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint(15));
                 _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint(0));
+                if (restoreServoPollMs is { } pollMs)
+                {
+                    _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.ServoPollInterval(pollMs));
+                }
                 _arbiter.Release(CommandOwner.PowerAssay, reason);
             }
         }
@@ -1782,6 +2579,31 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             // best-effort
         }
     }
+
+    private PowerTestSettings BuildEditedSettings() => (CurrentTest?.Settings ?? new PowerTestSettings()) with
+    {
+        MinRpm = MinRpm,
+        MaxRpm = MaxRpm,
+        DefaultStepRpm = StepRpm,
+        MinFlowLpm = MinFlowLpm,
+        MaxFlowLpm = MaxFlowLpm,
+        DefaultStepFlowLpm = StepFlowLpm,
+        RelativeCiFraction = RelativeCiPercent / 100.0,
+        CiFloorSigmaMultiple = CiFloorSigmaMultiple,
+        MinSamples = MinimumSamples,
+        MaxCaptureSeconds = MaxCaptureSeconds,
+        MaxTries = MaxTries,
+        StationarityWindowSeconds = StationarityWindowSeconds,
+        StationaritySlopeTolerancePercentPerSecond = StationaritySlopeTolerance,
+        StationarityRequiredSamples = StationarityRequiredSamples,
+        VentStabilizationEnabled = VentStabilizationEnabled,
+        SelectedVentValve = SelectedVentValve,
+        VentFlowToleranceLpm = VentFlowToleranceLpm,
+        VentFlowStableSamples = VentFlowStableSamples,
+        VentAgitationRpm = VentAgitationRpm,
+        MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
+        ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
+    };
 
     private bool TryPersist(out string error)
     {
@@ -1807,22 +2629,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         CurrentTest.Fluid = new FluidProperties { DensityKgM3 = DensityKgM3, ViscosityPaS = ViscosityPaS, TemperatureC = TemperatureC, PresetName = "Água / personalizado" };
         CurrentTest.Geometry = BuildGeometry();
-        CurrentTest.Settings = CurrentTest.Settings with
-        {
-            MinRpm = MinRpm, MaxRpm = MaxRpm, DefaultStepRpm = StepRpm,
-            RelativeCiFraction = RelativeCiPercent / 100.0, CiFloorSigmaMultiple = CiFloorSigmaMultiple,
-            MinSamples = MinimumSamples, MaxCaptureSeconds = MaxCaptureSeconds, MaxTries = MaxTries,
-            StationarityWindowSeconds = StationarityWindowSeconds,
-            StationaritySlopeTolerancePercentPerSecond = StationaritySlopeTolerance,
-            StationarityRequiredSamples = StationarityRequiredSamples,
-            VentStabilizationEnabled = VentStabilizationEnabled,
-            SelectedVentValve = SelectedVentValve,
-            VentFlowToleranceLpm = VentFlowToleranceLpm,
-            VentFlowStableSamples = VentFlowStableSamples,
-            VentAgitationRpm = VentAgitationRpm,
-            MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
-            ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
-        };
+        CurrentTest.Settings = BuildEditedSettings();
         CurrentTest.RelativeMode = RelativeMode;
         CurrentTest.Conditions = Conditions.Select(c => c.Clone()).ToList();
         CurrentTest.SettingsRevision++;
@@ -1927,10 +2734,36 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         HasServoSample = snapshot.HasServoSample;
         CurrentRpm = snapshot.HasServoSample && double.IsFinite(snapshot.ServoRpm) ? snapshot.ServoRpm : null;
         CurrentTorquePercent = snapshot.HasServoSample && double.IsFinite(snapshot.ServoTorquePct) ? snapshot.ServoTorquePct : null;
+
+        if (IsTareRunning && _tareCapture is { } tareCapture && HasValidTareSample(snapshot))
+        {
+            var elapsed = TarePointElapsedSeconds();
+            _tareLastValidSeconds = elapsed;
+            if (Math.Abs(snapshot.ServoTorquePct) > tareCapture.MaxAllowedTorquePercent ||
+                snapshot.ServoRpm > tareCapture.MaxAllowedRpm)
+            {
+                _tareFailureMessage = "Tara interrompida: limite de torque ou rotação excedido. A curva válida anterior foi mantida.";
+                _tareCancellation?.Cancel();
+            }
+            else
+            {
+                tareCapture.Add(DateTimeOffset.UtcNow, elapsed, snapshot.ServoTorquePct, snapshot.ServoRpm);
+                UpdateTareProgressMessage();
+            }
+        }
+
         CurrentFlowLpm = ValidOptional(snapshot.FlowRate);
         RecalculateLiveMetrics();
         RefreshPreflight();
     });
+
+    private static bool HasValidTareSample(SensorSnapshot snapshot) =>
+        snapshot.HasServoTelemetry &&
+        snapshot.HasServoSample &&
+        snapshot.ServoOnline &&
+        snapshot.ServoCommEnabled == true &&
+        double.IsFinite(snapshot.ServoRpm) &&
+        double.IsFinite(snapshot.ServoTorquePct);
 
     /// <summary>
     /// Live readiness read-out. The runner already answers "can this start, and if not why", but
@@ -2077,7 +2910,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             RebuildResults();
         }
 
-        RefreshConditionRows();
+        // Idle telemetry updates the readouts, but must never replace cells being edited in the plan.
+        // During a run the runner is authoritative for counters and condition status.
+        if (_runner.Phase != PowerRunPhase.Idle)
+        {
+            RefreshConditionRows();
+        }
         UpdateGasLoopStatus();
         NotifyDocumentState();
     }
@@ -2140,6 +2978,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             FloodingSummary = "Flooding não identificado (necessário varredura com ≥ 3 patamares de gás).";
         }
 
+        UpdateKlaEfficiencyComparison();
         OnPropertyChanged(nameof(ResultsCsvPath));
     }
 
@@ -2204,7 +3043,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void NotifyDocumentState()
     {
-        OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue));
+        OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest));
         OnPropertyChanged(nameof(CanPause)); OnPropertyChanged(nameof(CanStop)); OnPropertyChanged(nameof(CanSkipCurrent));
         OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel)); OnPropertyChanged(nameof(CalibrationStatus));
         OnPropertyChanged(nameof(TareStatus)); OnPropertyChanged(nameof(ResultModeLabel)); OnPropertyChanged(nameof(ImpellerSetHash));
@@ -2296,9 +3135,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         _disposed = true;
+        _tareCancellation?.Cancel();
+        _tareCancellation?.Dispose();
+        _tareCancellation = null;
         Conditions.CollectionChanged -= OnConditionsCollectionChanged;
         foreach (var condition in _flowConfiguredConditions)
         {
+            condition.PropertyChanged -= OnConditionPropertyChanged;
             condition.ConfigureFlowConversion(null);
         }
         _flowConfiguredConditions.Clear();

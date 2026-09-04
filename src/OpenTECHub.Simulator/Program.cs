@@ -29,6 +29,8 @@ var dataDelay = ReadOption("--data-delay", 2000);
 var randomSeed = ReadOption("--seed", 20260819);
 var deadTimeSeconds = ReadDoubleOption("--dead-time", 25.0);
 var quantisation = ReadDoubleOption("--quantisation", 0.0);
+var servoSpeedTau = ReadDoubleOption("--servo-speed-tau", 1.5);
+var servoTorqueTau = ReadDoubleOption("--servo-torque-tau", 8.0);
 var profileName = ReadStringOption("--profile", "default");
 var klaProfilePath = ReadStringOption("--kla-profile", null);
 
@@ -53,6 +55,11 @@ else
 
 // Cultivation profile
 var profile = CultivationProfile.FromName(profileName ?? "default");
+var servoPowerModel = ServoPowerModelOptions.Default with
+{
+    SpeedTimeConstantSeconds = servoSpeedTau,
+    TorqueTimeConstantSeconds = servoTorqueTau,
+};
 
 // Headless Mode
 if (mode == "headless")
@@ -69,7 +76,8 @@ if (mode == "headless")
         profile: profile,
         probeDeadTime: TimeSpan.FromSeconds(deadTimeSeconds),
         oxygenQuantisation: quantisation,
-        randomSeed: randomSeed)
+        randomSeed: randomSeed,
+        servoPowerModel: servoPowerModel)
     {
         Scenario = args.Contains("--no-module") ? Scenario.NoModule : Scenario.Normal,
     };
@@ -90,7 +98,8 @@ var model = new DeviceModel(
     profile: profile,
     probeDeadTime: TimeSpan.FromSeconds(deadTimeSeconds),
     oxygenQuantisation: quantisation,
-    randomSeed: randomSeed)
+    randomSeed: randomSeed,
+    servoPowerModel: servoPowerModel)
 {
     DataDelayMs = dataDelay,
     Scenario = args.Contains("--no-module") ? Scenario.NoModule : Scenario.Normal,
@@ -123,6 +132,7 @@ Console.WriteLine($"  kLa source : {klaSource.Description}");
 Console.WriteLine($"  profile    : {profile.Name} ({profile.Phases.Count} phases)");
 Console.WriteLine($"  deadTime   : {deadTimeSeconds:F1} s");
 Console.WriteLine($"  quantis.   : {(quantisation > 0 ? $"{quantisation:F2}%" : "none")}");
+Console.WriteLine($"  servo tau  : speed {servoSpeedTau:F1} s; torque {servoTorqueTau:F1} s");
 Console.WriteLine($"  dataDelay  : {dataDelay.ToString(CultureInfo.InvariantCulture)} ms");
 Console.WriteLine();
 
@@ -332,6 +342,8 @@ static void PrintUsage()
           --profile <name>      cultivation profile (default, batch-ecoli, fed-batch, step-test)
           --dead-time <sec>     oxygen probe dead time in seconds (default 25)
           --quantisation <pct>  oxygen sensor quantisation step (default 0)
+          --servo-speed-tau <s> servo speed first-order time constant (default 1.5)
+          --servo-torque-tau <s> servo torque first-order time constant (default 8)
           --data-delay <ms>     telemetry period (default 2000)
           --seed <int>          random number generator seed
           --duration <time>     (headless only) simulation length (e.g. 8h, 30m, 3600s)

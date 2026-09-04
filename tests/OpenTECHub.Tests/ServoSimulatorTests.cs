@@ -37,6 +37,14 @@ public class ServoSimulatorTests
         return parser.Readings;
     }
 
+    private static void Settle(DeviceModel model, double seconds = 60.0)
+    {
+        for (var elapsed = 0.0; elapsed < seconds; elapsed += 0.5)
+        {
+            model.Tick(0.5);
+        }
+    }
+
     // ── 1. A Hub from before the servo contract ──────────────────────────────
 
     [Fact]
@@ -104,7 +112,7 @@ public class ServoSimulatorTests
     public void A_turning_motor_reports_ten_values_that_agree_with_each_other()
     {
         var (model, _) = Build(rpm: 600);
-        model.Tick(1.0);
+        Settle(model);
 
         var r = Decode(model);
 
@@ -112,8 +120,8 @@ public class ServoSimulatorTests
         Assert.Equal(2, r.ServoState); // SON
         Assert.InRange(r.ServoRpm, 599.0, 601.0);
 
-        // Torque rises with speed: the bench measured 1.36 % at 100 rpm and 2.46 % at 1000.
-        Assert.InRange(r.ServoTorquePct, 1.5, 2.2);
+        // The power-assay model adds the liquid load to the dry-running tare.
+        Assert.InRange(r.ServoTorquePct, 10.0, 13.5);
 
         var expectedNm = r.ServoTorquePct / 100.0 * 1.27;
         Assert.Equal(expectedNm, r.ServoTorqueNm, precision: 3);

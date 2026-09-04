@@ -32,4 +32,7 @@ public enum CommandOwner
 
     /// <summary>The kLa determination test runner owns agitation and airflow/valves. Phase 2.</summary>
     KlaAssay,
+
+    /// <summary>The impeller power-assay runner owns agitation (and airflow/valves when gassed). Phase 3.</summary>
+    PowerAssay,
 }

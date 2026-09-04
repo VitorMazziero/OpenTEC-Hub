@@ -11,6 +11,7 @@ using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
 using OpenTECHub.Services.KlaTesting;
+using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.Recipes;
@@ -250,6 +251,8 @@ public partial class App : Application
         services.AddSingleton<IKlaTestStore>(_ => new KlaTestStore(AppPaths.KlaTestsDirectory));
         services.AddSingleton<IKlaAnalysisEngine, KlaAnalysisEngine>();
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
+        services.AddSingleton<IPowerTestStore>(_ => new PowerTestStore(AppPaths.PowerTestsDirectory));
+        services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal

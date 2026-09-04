@@ -234,6 +234,15 @@ This model travels through the existing `motorSetpoint`/`FlowSetpoint` command p
 `ServoRpm`/`ServoTorqueNm`/`ServoPowerW` telemetry path. A power-assay runner therefore exercises
 the same parser and connection surface it will use at the bench.
 
+The simulator remains a platform-neutral `net10.0` executable and therefore does not reference
+the WPF project's `Services/PowerTesting` domain types. The integration test is the drift guard:
+it maps the same geometry/tare into both sides and runs `DeviceModel -> WireCodec ->
+TelemetryParser -> CommandArbiter -> PowerTestRunner -> PowerTestStore`. For mixed stages, the
+simulator's configured per-stage `Np` is latent truth, while the analysis engine can only observe
+total shaft torque and deliberately reports the plan's equal-power-split estimate; only identical
+stages recover each configured per-stage `Np` exactly. Do not treat a mixed-stage per-stage result
+as simulator oracle validation.
+
 **Deliberately simplified for now.** The rigorous model — the bicubic kLa surface from
 the manuscript and a realistic OUR trajectory — remains a **Phase 2 deliverable**, because
 that is when it becomes load-bearing. The oxygen probe already carries a 25 s dead time,

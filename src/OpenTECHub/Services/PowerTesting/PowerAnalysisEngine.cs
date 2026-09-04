@@ -79,6 +79,38 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
         var assemblyRe = referenceDiameterM > 0 ? PowerCalc.ReynoldsNumber(rho, rpm, referenceDiameterM, mu) : double.NaN;
         var assemblyNpCi95 = referenceDiameterM > 0 ? Math.Abs(PowerCalc.PowerNumber(powerCi95W, rho, rpm, referenceDiameterM)) : double.NaN;
 
+        // Gassed and flooding evaluations (§4.5, §11, §16)
+        double? gasFlowLpm = input.GasFlowLpm;
+        double? gasFlowVvm = input.GasFlowVvm;
+        if (gasFlowLpm is { } flow && flow >= 0)
+        {
+            if (gasFlowVvm is null && geometry.LiquidVolumeM3 > 0)
+            {
+                gasFlowVvm = PowerCalc.LpmToVvm(flow, geometry.LiquidVolumeM3);
+            }
+        }
+        double? gasFlowNumber = (referenceDiameterM > 0 && gasFlowLpm.HasValue && gasFlowLpm.Value >= 0 && rpm > 0)
+            ? PowerCalc.AerationNumber(gasFlowLpm.Value, rpm, referenceDiameterM)
+            : null;
+        double? froudeNumber = (referenceDiameterM > 0 && rpm > 0)
+            ? PowerCalc.FroudeNumber(rpm, referenceDiameterM)
+            : null;
+        double? gassedPowerW = gasFlowLpm.HasValue ? netPowerW : null;
+
+        double? refP0 = input.ReferenceP0W;
+        double? refP0Ci = input.ReferenceP0Ci95W;
+        var p0Prov = input.P0Provenance;
+        double? powerRatio = null;
+        double? powerRatioCi = null;
+
+        if (refP0 is { } p0Val && p0Val > 0 && gassedPowerW.HasValue)
+        {
+            var (r, rCi) = PowerCalc.PropagatePowerRatioUncertainty(
+                gassedPowerW.Value, powerCi95W, p0Val, refP0Ci ?? 0.0);
+            powerRatio = r;
+            powerRatioCi = rCi;
+        }
+
         return new PowerPointResult
         {
             MeanRpm = rpm,
@@ -94,6 +126,16 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
             AssemblyReynoldsNumber = assemblyRe,
             AssemblyPowerNumberCi95 = assemblyNpCi95,
             ReferenceDiameterM = referenceDiameterM,
+            GasFlowLpm = gasFlowLpm,
+            GasFlowVvm = gasFlowVvm,
+            GasFlowNumber = gasFlowNumber,
+            FroudeNumber = froudeNumber,
+            GassedPowerW = gassedPowerW,
+            ReferenceP0W = refP0,
+            ReferenceP0Ci95W = refP0Ci,
+            P0Provenance = p0Prov,
+            PowerRatio = powerRatio,
+            PowerRatioCi95 = powerRatioCi,
         };
     }
 
@@ -193,5 +235,149 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
             RSquared = rSquared,
             PointCount = points.Count,
         };
+    }
+
+    public (double? P0W, double? Ci95P0W, P0Provenance Provenance) ResolveReferenceP0(
+        double rpm,
+        PowerTestDocument doc,
+        PlateauFitResult? plateauFit = null)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        if (rpm <= 0)
+        {
+            return (null, null, P0Provenance.None);
+        }
+
+        // 1st: Reconstruct from fitted plateau (§4.5)
+        var fit = plateauFit;
+        if (fit is null || !fit.HasFit)
+        {
+            var ungassedPoints = doc.Runs
+                .Where(r => r.Phase == PowerRunPhase.Accepted &&
+                            r.GasMode == PowerGasMode.Ungassed &&
+                            r.Analysis is not null)
+                .Select(r => (
+                    r.Analysis!.AssemblyReynoldsNumber,
+                    r.Analysis.AssemblyPowerNumber,
+                    r.Analysis.AssemblyPowerNumberCi95))
+                .ToList();
+            fit = FitPlateau(ungassedPoints, reCutoff: 10_000);
+        }
+
+        if (fit.HasFit && doc.Geometry.Impellers.Count > 0)
+        {
+            var nRps = PowerCalc.RevPerSecond(rpm);
+            var rho = doc.Fluid.DensityKgM3;
+            var dRef = doc.Geometry.Impellers.Max(i => i.DiameterM);
+            if (dRef > 0)
+            {
+                var factor = rho * Math.Pow(nRps, 3) * Math.Pow(dRef, 5);
+                var p0 = fit.PowerNumber * factor;
+                var p0Ci = fit.PowerNumberCi95 * factor;
+                return (p0, p0Ci, P0Provenance.PlateauFit);
+            }
+        }
+
+        // 2nd: Fallback to measured ungassed point in same test at same N (±1 rpm)
+        var match = doc.Runs.FirstOrDefault(r =>
+            r.Phase == PowerRunPhase.Accepted &&
+            r.GasMode == PowerGasMode.Ungassed &&
+            r.NetPowerW is { } np && np > 0 &&
+            Math.Abs(r.AgitationRpm - rpm) <= 1.0);
+
+        if (match is not null)
+        {
+            return (match.NetPowerW, match.Ci95PowerW, P0Provenance.MeasuredUngassed);
+        }
+
+        // 3rd: Missing -> null
+        return (null, null, P0Provenance.None);
+    }
+
+    public FloodingAnalysisResult? DetectFlooding(
+        IReadOnlyList<PowerRunSummary> runs,
+        PowerGeometry geometry,
+        int referenceStageIndex = 0)
+    {
+        ArgumentNullException.ThrowIfNull(runs);
+        ArgumentNullException.ThrowIfNull(geometry);
+
+        var validPoints = runs
+            .Where(r => r.Phase == PowerRunPhase.Accepted &&
+                        r.GasMode != PowerGasMode.Ungassed &&
+                        r.PowerRatio is { } ratio && double.IsFinite(ratio) &&
+                        r.GasFlowNumber is { } flg && double.IsFinite(flg))
+            .OrderBy(r => r.GasFlowNumber!.Value)
+            .ToList();
+
+        if (validPoints.Count < 3)
+        {
+            return null;
+        }
+
+        // Find minimum of PowerRatio x Fl_G
+        var minRun = validPoints[0];
+        for (var i = 1; i < validPoints.Count; i++)
+        {
+            if (validPoints[i].PowerRatio!.Value < minRun.PowerRatio!.Value)
+            {
+                minRun = validPoints[i];
+            }
+        }
+
+        var refImpeller = geometry.Impellers.FirstOrDefault(i => i.StageIndex == referenceStageIndex)
+            ?? geometry.Impellers.FirstOrDefault()
+            ?? new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 };
+
+        var rpm = minRun.MeanRpmMeasured > 0 ? minRun.MeanRpmMeasured : minRun.AgitationRpm;
+        var fr = minRun.FroudeNumber ?? PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
+        var nienowFlG = PowerCalc.NienowFloodingAerationNumber(refImpeller.DiameterM, geometry.VesselDiameterM, fr);
+        var relDev = nienowFlG > 0 ? (minRun.GasFlowNumber!.Value - nienowFlG) / nienowFlG * 100.0 : 0.0;
+
+        return new FloodingAnalysisResult
+        {
+            ExperimentalFlG = minRun.GasFlowNumber!.Value,
+            ExperimentalRpm = rpm,
+            ExperimentalFlowLpm = minRun.GasFlowLpm ?? 0.0,
+            TheoreticalFlGNienow = nienowFlG,
+            RelativeDeviationPercent = relDev,
+            ReferenceStageIndex = refImpeller.StageIndex,
+            ReferenceImpellerType = refImpeller.Type,
+            Method = FloodingDetectionMethod.Automatic,
+            DeterminedUtc = DateTimeOffset.UtcNow,
+            Notes = $"Transição experimental identificada no mínimo PG/P0 = {minRun.PowerRatio!.Value:F3}",
+        };
+    }
+
+    public IReadOnlyList<(double Rpm, double FlowLpm, double FlG, double Fr)> GenerateNienowBoundary(
+        PowerGeometry geometry,
+        double minRpm,
+        double maxRpm,
+        int stepCount = 20,
+        int referenceStageIndex = 0)
+    {
+        ArgumentNullException.ThrowIfNull(geometry);
+        if (minRpm <= 0 || maxRpm <= minRpm || stepCount < 2)
+        {
+            return [];
+        }
+
+        var refImpeller = geometry.Impellers.FirstOrDefault(i => i.StageIndex == referenceStageIndex)
+            ?? geometry.Impellers.FirstOrDefault()
+            ?? new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 };
+
+        var list = new List<(double Rpm, double FlowLpm, double FlG, double Fr)>();
+        var step = (maxRpm - minRpm) / (stepCount - 1);
+
+        for (var i = 0; i < stepCount; i++)
+        {
+            var rpm = minRpm + i * step;
+            var fr = PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
+            var flG = PowerCalc.NienowFloodingAerationNumber(refImpeller.DiameterM, geometry.VesselDiameterM, fr);
+            var flowLpm = PowerCalc.NienowFloodingGasFlowLpm(rpm, refImpeller.DiameterM, geometry.VesselDiameterM);
+            list.Add((rpm, flowLpm, flG, fr));
+        }
+
+        return list;
     }
 }

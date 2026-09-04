@@ -19,4 +19,33 @@ public interface IPowerAnalysisEngine
 
     /// <summary>Fits the affine mechanical→electrical correlation P_elec ≈ a·P_mec + b (§4.8).</summary>
     EnergyCorrelationResult FitEnergyCorrelation(IEnumerable<(double MechanicalW, double ElectricalW)> pairs);
+
+    /// <summary>
+    /// Resolves baseline P₀(N) using the 3-step hierarchy (§4.5):
+    /// 1. Fitted plateau reconstruction across stages
+    /// 2. Fallback to measured ungassed point at same rpm (±1 rpm)
+    /// 3. null / None
+    /// </summary>
+    (double? P0W, double? Ci95P0W, P0Provenance Provenance) ResolveReferenceP0(
+        double rpm,
+        PowerTestDocument doc,
+        PlateauFitResult? plateauFit = null);
+
+    /// <summary>
+    /// Automatically detects the flooding transition point from a series of gassed runs (§4.5, §16).
+    /// </summary>
+    FloodingAnalysisResult? DetectFlooding(
+        IReadOnlyList<PowerRunSummary> runs,
+        PowerGeometry geometry,
+        int referenceStageIndex = 0);
+
+    /// <summary>
+    /// Generates theoretical Nienow flooding boundary points over an rpm range (§4.5).
+    /// </summary>
+    IReadOnlyList<(double Rpm, double FlowLpm, double FlG, double Fr)> GenerateNienowBoundary(
+        PowerGeometry geometry,
+        double minRpm,
+        double maxRpm,
+        int stepCount = 20,
+        int referenceStageIndex = 0);
 }

@@ -379,6 +379,200 @@ public sealed class PowerAnalysisEngineTests
         }
     }
 
+    // ---- Gassed and Flooding Scientific Primitives (Phase 2) -----------------
+
+    [Fact]
+    public void Flow_Conversions_Lpm_And_Vvm_Are_Bidirectional()
+    {
+        // 5 L liquid volume = 0.005 m3. 1.0 vvm = 5.0 L/min.
+        var volM3 = 0.005;
+        var lpm = PowerCalc.VvmToLpm(1.5, volM3);
+        Assert.Equal(7.5, lpm, 4);
+
+        var vvm = PowerCalc.LpmToVvm(lpm, volM3);
+        Assert.Equal(1.5, vvm, 4);
+
+        // Zero or invalid volume returns NaN
+        Assert.True(double.IsNaN(PowerCalc.VvmToLpm(1.0, 0.0)));
+        Assert.True(double.IsNaN(PowerCalc.LpmToVvm(5.0, -1.0)));
+    }
+
+    [Theory]
+    [InlineData(0.33, 0.190, 300)]
+    [InlineData(0.40, 0.190, 450)]
+    public void Nienow_Flooding_Correlation_And_Inverses_Round_Trip(double dOverT, double vesselDiameterM, double rpm)
+    {
+        var d = dOverT * vesselDiameterM;
+        var fr = PowerCalc.FroudeNumber(rpm, d);
+        var expectedFlG = 30.0 * System.Math.Pow(dOverT, 3.5) * fr;
+
+        var computedFlG = PowerCalc.NienowFloodingAerationNumber(d, vesselDiameterM, fr);
+        Assert.Equal(expectedFlG, computedFlG, 6);
+
+        // Compute flooding flow for this rpm
+        var qFloodingLpm = PowerCalc.NienowFloodingGasFlowLpm(rpm, d, vesselDiameterM);
+        Assert.True(qFloodingLpm > 0);
+
+        // Inverse calculation: from qFloodingLpm, get back rpm
+        var reconstructedRpm = PowerCalc.NienowFloodingRpm(qFloodingLpm, d, vesselDiameterM);
+        Assert.Equal(rpm, reconstructedRpm, 3);
+    }
+
+    [Fact]
+    public void PropagatePowerRatioUncertainty_Computes_Exact_Values()
+    {
+        // PG = 10 W, CI = 1.0 W; P0 = 20 W, CI = 2.0 W
+        // Ratio R = 10 / 20 = 0.5
+        // Term1 = 1.0 / 20 = 0.05
+        // Term2 = (10 * 2.0) / (20 * 20) = 20 / 400 = 0.05
+        // CIRatio = sqrt(0.05^2 + 0.05^2) = sqrt(0.005) = 0.0707106
+        var (ratio, ciRatio) = PowerCalc.PropagatePowerRatioUncertainty(10.0, 1.0, 20.0, 2.0);
+        Assert.NotNull(ratio);
+        Assert.NotNull(ciRatio);
+        Assert.Equal(0.5, ratio!.Value, 5);
+        Assert.Equal(System.Math.Sqrt(0.005), ciRatio!.Value, 5);
+
+        // Case PG = 0: R = 0, Term2 = 0 -> CIRatio = CI(PG) / P0
+        var (zeroRatio, zeroCi) = PowerCalc.PropagatePowerRatioUncertainty(0.0, 0.8, 20.0, 1.0);
+        Assert.Equal(0.0, zeroRatio!.Value, 5);
+        Assert.Equal(0.8 / 20.0, zeroCi!.Value, 5);
+
+        // Invalid P0 <= 0 returns null
+        var (nullRatio, nullCi) = PowerCalc.PropagatePowerRatioUncertainty(10.0, 1.0, 0.0, 1.0);
+        Assert.Null(nullRatio);
+        Assert.Null(nullCi);
+    }
+
+    [Fact]
+    public void ResolveReferenceP0_Follows_Three_Step_Hierarchy()
+    {
+        var doc = new PowerTestDocument
+        {
+            Fluid = new FluidProperties { DensityKgM3 = 1000.0 },
+            Geometry = new PowerGeometry
+            {
+                Impellers = { new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 } }
+            },
+            Runs =
+            {
+                new PowerRunSummary
+                {
+                    AgitationRpm = 300,
+                    GasMode = PowerGasMode.Ungassed,
+                    Phase = PowerRunPhase.Accepted,
+                    NetPowerW = 0.60,
+                    Ci95PowerW = 0.02,
+                }
+            }
+        };
+
+        // Case 1: Fitted plateau provided
+        var plateau = new PlateauFitResult { HasFit = true, PowerNumber = 5.0, PowerNumberCi95 = 0.1 };
+        var (p0_plat, ci_plat, prov_plat) = _engine.ResolveReferenceP0(300, doc, plateau);
+        Assert.Equal(P0Provenance.PlateauFit, prov_plat);
+        Assert.NotNull(p0_plat);
+        Assert.True(p0_plat > 0);
+
+        // Case 2: No plateau fit -> fall back to measured ungassed at 300 rpm
+        var (p0_meas, ci_meas, prov_meas) = _engine.ResolveReferenceP0(300, doc, plateauFit: null);
+        Assert.Equal(P0Provenance.MeasuredUngassed, prov_meas);
+        Assert.Equal(0.60, p0_meas!.Value, 4);
+        Assert.Equal(0.02, ci_meas!.Value, 4);
+
+        // Case 3: Different rpm (e.g. 800 rpm) with no plateau and no run -> null / None
+        var (p0_none, ci_none, prov_none) = _engine.ResolveReferenceP0(800, doc, plateauFit: null);
+        Assert.Equal(P0Provenance.None, prov_none);
+        Assert.Null(p0_none);
+        Assert.Null(ci_none);
+    }
+
+    [Fact]
+    public void DetectFlooding_Identifies_Minimum_In_Gassed_Sweep()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            Impellers = { new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06, StageIndex = 0 } }
+        };
+
+        // Sweep of increasing gas flow at constant 400 rpm
+        // Power ratio drops to minimum at FlG = 0.03 (point 2) then rises (flooding transition)
+        var runs = new List<PowerRunSummary>
+        {
+            new() { AgitationRpm = 400, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, GasFlowNumber = 0.01, PowerRatio = 0.85, GasFlowLpm = 1.5 },
+            new() { AgitationRpm = 400, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, GasFlowNumber = 0.02, PowerRatio = 0.70, GasFlowLpm = 3.0 },
+            new() { AgitationRpm = 400, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, GasFlowNumber = 0.03, PowerRatio = 0.55, GasFlowLpm = 4.5 },
+            new() { AgitationRpm = 400, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, GasFlowNumber = 0.04, PowerRatio = 0.65, GasFlowLpm = 6.0 },
+            new() { AgitationRpm = 400, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, GasFlowNumber = 0.05, PowerRatio = 0.75, GasFlowLpm = 7.5 },
+        };
+
+        var result = _engine.DetectFlooding(runs, geometry, referenceStageIndex: 0);
+
+        Assert.NotNull(result);
+        Assert.Equal(0.03, result!.ExperimentalFlG, 4);
+        Assert.Equal(400.0, result.ExperimentalRpm, 1);
+        Assert.Equal(4.5, result.ExperimentalFlowLpm, 1);
+        Assert.Equal(FloodingDetectionMethod.Automatic, result.Method);
+        Assert.True(result.TheoreticalFlGNienow > 0);
+        Assert.True(System.Math.Abs(result.RelativeDeviationPercent) < 100);
+    }
+
+    [Fact]
+    public void GenerateNienowBoundary_Returns_Expected_Grid()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            Impellers = { new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 } }
+        };
+
+        var boundary = _engine.GenerateNienowBoundary(geometry, minRpm: 100, maxRpm: 600, stepCount: 6);
+        Assert.Equal(6, boundary.Count);
+        Assert.Equal(100.0, boundary[0].Rpm, 1);
+        Assert.Equal(600.0, boundary[^1].Rpm, 1);
+
+        // Monotonically increasing Froude and flow
+        for (var i = 1; i < boundary.Count; i++)
+        {
+            Assert.True(boundary[i].Fr > boundary[i - 1].Fr);
+            Assert.True(boundary[i].FlowLpm > boundary[i - 1].FlowLpm);
+        }
+    }
+
+    [Fact]
+    public void AnalyzePoint_Handles_Gas_Inputs_And_Special_Cases()
+    {
+        var input = SinglePointInput(torquePercent: 1.5, torqueCi95: 0.1, rpm: 300) with
+        {
+            GasFlowLpm = 5.0,
+            ReferenceP0W = 0.50,
+            ReferenceP0Ci95W = 0.02,
+            P0Provenance = P0Provenance.PlateauFit,
+        };
+
+        var result = _engine.AnalyzePoint(input);
+
+        Assert.Equal(5.0, result.GasFlowLpm);
+        Assert.NotNull(result.GasFlowNumber);
+        Assert.NotNull(result.FroudeNumber);
+        Assert.NotNull(result.PowerRatio);
+        Assert.NotNull(result.PowerRatioCi95);
+        Assert.Equal(P0Provenance.PlateauFit, result.P0Provenance);
+
+        // Special case: PG / P0 > 1 (incipient cavities / pre-flooding) is preserved as valid data
+        var highPowerInput = input with
+        {
+            ReferenceP0W = 0.10, // PG ~ 0.6W > P0 0.1W -> Ratio ~ 6.0
+        };
+        var highResult = _engine.AnalyzePoint(highPowerInput);
+        Assert.True(highResult.PowerRatio > 1.0);
+
+        // Special case: Qg = 0 -> FlG = 0
+        var zeroGasInput = input with { GasFlowLpm = 0.0 };
+        var zeroResult = _engine.AnalyzePoint(zeroGasInput);
+        Assert.Equal(0.0, zeroResult.GasFlowNumber);
+    }
+
     private static PowerPointInput SinglePointInput(double torquePercent, double torqueCi95, double rpm) => new()
     {
         MeanTorquePercent = torquePercent,

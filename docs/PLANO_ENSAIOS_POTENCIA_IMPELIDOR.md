@@ -992,8 +992,8 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   **Auditoria da etapa 1 (2026-09-04):** Modelos de domínio estendidos com grandezas de aeração e flooding,
   contratos de arquivo atualizados, eventos de gás instrumentados e testes de round-trip integrados no store (21/21 aprovados).
 
-- [ ] **2. Engine Científico de Gaseificação e Flooding** (`PowerCalc`, `PowerAnalysisModels`, `IPowerAnalysisEngine`, `PowerAnalysisEngine`)
-  - [ ] 2.1 Primitivas em `PowerCalc`:
+- [x] **2. Engine Científico de Gaseificação e Flooding** (`PowerCalc`, `PowerAnalysisModels`, `IPowerAnalysisEngine`, `PowerAnalysisEngine`)
+  - [x] 2.1 Primitivas em `PowerCalc`:
         - Conversão bidirecional L/min ↔ vvm a partir do volume útil do líquido (`LiquidVolumeM3 > 0`).
         - Equação de Nienow para flooding: `(Fl_G)_F = 30 · (D/T)³·⁵ · Fr_F` (com `g = 9,80665 m/s²`,
           `T = VesselDiameterM`, padrão 0,190 m), sempre ligada ao impelidor/estágio de referência
@@ -1004,25 +1004,29 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         - Propagação de incerteza da razão `R = P_G / P₀`, exigindo `P₀ > 0`:
           `SE_R = √((SE_PG/P₀)² + (P_G·SE_P0/P₀²)²)`, com `IC₉₅(R) = ±1,96 · SE_R`;
           esta forma continua definida quando `P_G = 0`.
-  - [ ] 2.2 Hierarquia de resolução do denominador `P₀(N)` (§4.5):
+  - [x] 2.2 Hierarquia de resolução do denominador `P₀(N)` (§4.5):
         - 1º: Curva não-gaseificada ajustada da configuração. Em eixo multiestágio, reconstruir
           a potência total pela soma `P₀ = Σ(Np_i · ρ · N_rps³ · D_i⁵)` segundo a hipótese de
           rateio registrada; nunca aplicar um único `D⁵` ao eixo inteiro;
         - 2º: Fallback para ponto não-gaseificado medido na mesma `N` (±1 rpm) do mesmo ensaio;
         - 3º: Sem nenhum dos dois, razão permanece `null` (em branco, nunca inventada).
-  - [ ] 2.3 Algoritmo de detecção automática de flooding (§4.5, §16):
+  - [x] 2.3 Algoritmo de detecção automática de flooding (§4.5, §16):
         - Identificação do ponto de mínimo ou cotovelo/joelho de `P_G/P₀ × Fl_G` em varreduras de
           vazão a rotação constante (ou de rotação a vazão constante).
         - Filtro de ruído baseado no `IC₉₅` da razão para evitar falsos mínimos por flutuações locais.
-  - [ ] 2.4 Geração do _overlay_ de Nienow: conjunto de pontos da **fronteira teórica**
+  - [x] 2.4 Geração do _overlay_ de Nienow: conjunto de pontos da **fronteira teórica**
         `(Fl_G,F, Fr_F)` e sua projeção para `(N, Q_g,F)` sobre o intervalo experimental.
         A correlação não prevê `P_G/P₀`; no gráfico da razão ela aparece como marcador/faixa
         vertical de transição, não como uma curva fictícia de queda de potência.
-  - [ ] 2.5 Tratamento de casos especiais: `P_G/P₀ > 1` próximo ao flooding ou sob cavidades
+  - [x] 2.5 Tratamento de casos especiais: `P_G/P₀ > 1` próximo ao flooding ou sob cavidades
         incipientes (não disparar erro, registrar como dado físico); `Q_g = 0` resultando em `Fl_G = 0`.
-  - [ ] 2.6 Testes unitários do engine (`PowerAnalysisEngineTests`): Nienow com geometrias de
+  - [x] 2.6 Testes unitários do engine (`PowerAnalysisEngineTests`): Nienow com geometrias de
         literatura (`D/T = 0,33` e `0,40`, `T = 0,190 m`), interpolação de `P₀` por platô e por ponto medido,
         propagação de incerteza da razão, detecção de flooding com séries sintéticas com e sem ruído.
+
+  **Auditoria da etapa 2 (2026-09-04):** Engine científico completo para aeração e flooding, incluindo conversão L/min <-> vvm,
+  correlações direta e inversas de Nienow com round-trip numérico exato, propagação de incerteza de PG/P0, resolução hierárquica
+  de P0, detector automático de flooding e gerador de fronteira teórica (32/32 testes aprovados no engine).
 
 - [ ] **3. Extensão do Simulador para Gás, Válvulas e Flooding**
       (`OpenTECHub.Simulator/DeviceModel`, `ServoPowerModelOptions`, `Program`)

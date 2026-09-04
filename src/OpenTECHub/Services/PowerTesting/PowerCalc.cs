@@ -76,6 +76,105 @@ public static class PowerCalc
         return n * n * diameterM / GravityMetersPerSecondSquared;
     }
 
+    /// <summary>Converts gas flow from vvm to L/min using the liquid working volume (§11).</summary>
+    public static double VvmToLpm(double vvm, double liquidVolumeM3)
+    {
+        if (liquidVolumeM3 <= 0 || !double.IsFinite(liquidVolumeM3) || !double.IsFinite(vvm))
+        {
+            return double.NaN;
+        }
+        return vvm * liquidVolumeM3 * 1000.0;
+    }
+
+    /// <summary>Converts gas flow from L/min to vvm using the liquid working volume (§11).</summary>
+    public static double LpmToVvm(double lpm, double liquidVolumeM3)
+    {
+        if (liquidVolumeM3 <= 0 || !double.IsFinite(liquidVolumeM3) || !double.IsFinite(lpm))
+        {
+            return double.NaN;
+        }
+        return lpm / (liquidVolumeM3 * 1000.0);
+    }
+
+    /// <summary>
+    /// Nienow correlation for the flooding aeration number:
+    /// (Fl_G)_F = 30 · (D/T)³·⁵ · Fr_F (§4.5, §16).
+    /// </summary>
+    public static double NienowFloodingAerationNumber(double diameterM, double vesselDiameterM, double froudeNumber)
+    {
+        if (diameterM <= 0 || vesselDiameterM <= 0 || froudeNumber < 0 ||
+            !double.IsFinite(diameterM) || !double.IsFinite(vesselDiameterM) || !double.IsFinite(froudeNumber))
+        {
+            return double.NaN;
+        }
+        return 30.0 * Math.Pow(diameterM / vesselDiameterM, 3.5) * froudeNumber;
+    }
+
+    /// <summary>
+    /// Inverses Nienow to find the flooding rotation N_F [rpm] for a given gas flow [L/min] (§4.5):
+    /// N_F = [ (Q_g · g) / (30 · (D/T)³·⁵ · D⁴) ]^(1/3) [rev/s] · 60 [rpm].
+    /// </summary>
+    public static double NienowFloodingRpm(double gasFlowLpm, double diameterM, double vesselDiameterM)
+    {
+        if (gasFlowLpm <= 0 || diameterM <= 0 || vesselDiameterM <= 0 ||
+            !double.IsFinite(gasFlowLpm) || !double.IsFinite(diameterM) || !double.IsFinite(vesselDiameterM))
+        {
+            return 0.0;
+        }
+
+        var qM3S = gasFlowLpm / 60000.0;
+        var geomFactor = 30.0 * Math.Pow(diameterM / vesselDiameterM, 3.5) * (Math.Pow(diameterM, 4) / GravityMetersPerSecondSquared);
+        if (geomFactor <= 0)
+        {
+            return double.NaN;
+        }
+
+        var nRps = Math.Cbrt(qM3S / geomFactor);
+        return nRps * 60.0;
+    }
+
+    /// <summary>
+    /// Inverses Nienow to find the flooding gas flow Q_g,F [L/min] for a given rotation N [rpm] (§4.5).
+    /// </summary>
+    public static double NienowFloodingGasFlowLpm(double rpm, double diameterM, double vesselDiameterM)
+    {
+        if (rpm <= 0 || diameterM <= 0 || vesselDiameterM <= 0 ||
+            !double.IsFinite(rpm) || !double.IsFinite(diameterM) || !double.IsFinite(vesselDiameterM))
+        {
+            return 0.0;
+        }
+
+        var fr = FroudeNumber(rpm, diameterM);
+        var flGF = NienowFloodingAerationNumber(diameterM, vesselDiameterM, fr);
+        var nRps = RevPerSecond(rpm);
+        var qM3S = flGF * nRps * Math.Pow(diameterM, 3);
+        return qM3S * 60000.0;
+    }
+
+    /// <summary>
+    /// Propagates uncertainty for the power ratio R = P_G / P₀ (§4.5):
+    /// SE_R = √((SE_PG/P₀)² + (P_G·SE_P0/P₀²)²), IC₉₅(R) = ±1.96·SE_R.
+    /// Continues defined when P_G = 0. Requires P₀ > 0.
+    /// </summary>
+    public static (double? Ratio, double? RatioCi95) PropagatePowerRatioUncertainty(
+        double powerGassedW,
+        double powerGassedCi95W,
+        double referenceP0W,
+        double referenceP0Ci95W)
+    {
+        if (referenceP0W <= 0 || !double.IsFinite(referenceP0W) || !double.IsFinite(powerGassedW))
+        {
+            return (null, null);
+        }
+
+        var ratio = powerGassedW / referenceP0W;
+        var term1 = powerGassedCi95W / referenceP0W;
+        var term2 = (powerGassedW * referenceP0Ci95W) / (referenceP0W * referenceP0W);
+        var ci95Ratio = Math.Sqrt(term1 * term1 + term2 * term2);
+
+        return (ratio, ci95Ratio);
+    }
+
     /// <summary>
     /// The power noise floor at a rotation, from the tare's torque scatter σ_τ (in % of nominal):
     /// σ_power = (σ_τ/100)·T_nom·ω [W]. A net power below k·this is "below the noise" (§7.2).

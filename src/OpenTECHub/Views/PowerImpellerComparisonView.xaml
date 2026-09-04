@@ -1,0 +1,142 @@
+<UserControl x:Class="OpenTECHub.Views.PowerImpellerComparisonView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
+             xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:PowerImpellerComparisonViewModel}"
+             d:DesignHeight="700" d:DesignWidth="1100">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="ComparisonCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+            <Setter Property="Padding" Value="10" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="200" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Seletor multi-ensaio (§18.3 passo 6.1) -->
+        <Border Style="{StaticResource ComparisonCard}" Margin="0,0,0,7">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Ensaios a comparar" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                    <ListBox ItemsSource="{Binding AvailableTests}" MaxHeight="96"
+                             BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="1"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Margin="4,2" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          Content="{Binding DisplayText}" ToolTip="{Binding DisplayText}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock Margin="0,6,0,0" Text="{Binding StatusMessage}"
+                               Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top" Width="180">
+                    <Button Content="Recarregar ensaios" Padding="8,4" Command="{Binding ReloadTestsCommand}" />
+                    <Button Margin="0,6,0,0" Content="Comparar" Padding="8,4"
+                            Style="{StaticResource AccentButtonStyle}" Command="{Binding BuildComparisonCommand}" />
+                    <TextBox Margin="0,8,0,0" Height="28" Padding="5,2" VerticalContentAlignment="Center"
+                             Text="{Binding ComparisonName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome da comparação salva" />
+                    <Button Margin="0,6,0,0" Content="Salvar comparação" Padding="8,4"
+                            Command="{Binding SaveComparisonCommand}" IsEnabled="{Binding HasComparison}" />
+                    <Button Margin="0,6,0,0" Content="Exportar CSV" Padding="8,4"
+                            Click="ExportComparisonCsv_Click" IsEnabled="{Binding HasComparison}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Comparações não equivalentes continuam possíveis, mas rotuladas (§18.3 passo 6.1) -->
+        <Border Grid.Row="1" Margin="0,0,0,7" Padding="10,7" CornerRadius="{DynamicResource RadiusSmall}"
+                Background="{DynamicResource StateWarningBrush}"
+                Visibility="{Binding HasCompatibilityWarnings, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <TextBlock Text="{Binding CompatibilitySummary}" FontWeight="SemiBold" TextWrapping="Wrap"
+                           Foreground="{DynamicResource StateWarningTextBrush}" />
+                <ItemsControl Margin="0,5,0,0" ItemsSource="{Binding CompatibilityNotes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Margin="0,2,0,0" TextWrapping="Wrap" FontSize="11"
+                                       Foreground="{DynamicResource StateWarningTextBrush}">
+                                <Run Text="•" />
+                                <Run Text="{Binding Mode=OneWay}" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Visualização comparativa multi-série (§18.3 passo 6.2) -->
+        <Border Grid.Row="2" Style="{StaticResource ComparisonCard}" Padding="6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="6" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="6" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Margin="4,2,0,5" Text="Np × Re (log) com bandas IC₉₅" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Grid.Column="2" Margin="4,2,0,5" Text="P_G/P₀ × Fl_G" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Grid.Column="4" Margin="4,2,0,5" Text="P/V × Qg" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <Border x:Name="NpRePlotHost" Grid.Row="1" />
+                <Border x:Name="PowerRatioPlotHost" Grid.Row="1" Grid.Column="2" />
+                <Border x:Name="SpecificPowerPlotHost" Grid.Row="1" Grid.Column="4" />
+            </Grid>
+        </Border>
+
+        <!-- Tabela comparativa de benchmarking (§18.3 passo 6.3) -->
+        <Border Grid.Row="3" Margin="0,7,0,0" Style="{StaticResource ComparisonCard}" Padding="6"
+                Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
+            <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+                      MaxHeight="190" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                      CanUserAddRows="False" CanUserDeleteRows="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Ensaio" Binding="{Binding TestName}" Width="*" />
+                    <DataGridTextColumn Header="Tipo" Binding="{Binding ImpellerTypeLabel}" Width="Auto" />
+                    <DataGridTextColumn Header="D (mm)" Binding="{Binding DiameterMm}" Width="Auto" />
+                    <DataGridTextColumn Header="D/T" Binding="{Binding DiameterRatio}" Width="Auto" />
+                    <DataGridTextColumn Header="Np platô ± IC₉₅" Binding="{Binding PlateauNp}" Width="Auto" />
+                    <DataGridTextColumn Header="(Fl_G)_F exp." Binding="{Binding ExperimentalFlG}" Width="Auto" />
+                    <DataGridTextColumn Header="(Fl_G)_F Nienow" Binding="{Binding NienowFlG}" Width="Auto" />
+                    <DataGridTextColumn Header="P_vazio (W)" Binding="{Binding ParasiticPower}" Width="Auto" />
+                    <DataGridTextColumn Header="P/V médio (W/m³)" Binding="{Binding SpecificPower}" Width="Auto" />
+                    <DataGridTextColumn Header="Efic. rel. dispersão" Binding="{Binding DispersionEfficiency}" Width="Auto" />
+                    <DataGridTextColumn Header="Data" Binding="{Binding TestDate}" Width="Auto" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>

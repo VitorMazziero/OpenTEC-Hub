@@ -1277,22 +1277,29 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
         `StyleLegend` e assinatura de `IThemeService`), sem botão "Aplicar"; app iniciado com
         `--nav power-map` renderiza o primeiro frame sem exceções.
 
-- [ ] **6. Módulo e UI de Comparação de Impelidores** (`PowerImpellerComparisonViewModel`, `PowerImpellerComparisonView.xaml`)
-  - [ ] 6.1 Seletor multi-ensaio:
-        - Lista de ensaios concluídos com seleção múltipla por checkboxes.
-        - Verificação automática de compatibilidade de fluido, vaso, chicanas, volume útil e montagem;
-          comparações não equivalentes permanecem possíveis, mas são rotuladas e nunca agregadas
-          como se viessem da mesma configuração.
-  - [ ] 6.2 Visualização comparativa multi-série em gráficos ScottPlot:
-        - Curva `Np × Re` (log): sobreposição de múltiplos impelidores com suas respectivas bandas
-          de incerteza `IC₉₅` e linhas de platô turbulento ajustado.
-        - Curva `P_G/P₀ × Fl_G`: comparação da capacidade de dispersão de gás e queda de potência
-          entre geometrias (ex.: Rushton vs Smith côncavo).
-        - Demanda específica `P/V × Q_g`: consumo energético comparado em rotações de processo.
-  - [ ] 6.3 Tabela comparativa de benchmarking:
-        - Colunas: Impelidor/Montagem, Tipo, `D` [m], `D/T`, Platô `Np` (com ±`IC₉₅`), `(Fl_G)_F` experimental,
-          `(Fl_G)_F` Nienow, `P_vazio` (atrito parasita) e eficiência relativa de dispersão.
-        - Exportação da tabela de benchmarking e dados brutos em CSV unificado.
+- [x] **6. Módulo e UI de Comparação de Impelidores** (`PowerImpellerComparisonViewModel`, `PowerImpellerComparisonView.xaml`) _(2026-09-04)_
+      Hospedado como aba da página "Mapa de Potência" — a §10 congela o shell em **dois** destinos de
+      potência, e a síntese é onde a comparação pertence.
+  - [x] 6.1 Seletor multi-ensaio:
+        - Lista de ensaios com pontos aceitos e seleção múltipla por checkboxes; rascunhos sem ponto
+          aceito não aparecem, porque não há o que plotar.
+        - Verificação automática de compatibilidade (`ImpellerComparisonBuilder.CheckCompatibility`) de
+          vaso, volume útil, densidade, viscosidade, chicanas, número de impelidores e modo
+          relativo/absoluto; comparações não equivalentes permanecem possíveis, mas cada diferença é
+          nomeada num aviso e as séries nunca são agregadas.
+  - [x] 6.2 Visualização comparativa multi-série em gráficos ScottPlot:
+        - Curva `Np × Re` (log₁₀ aplicado aos dados, com rótulos formatados de volta) com bandas
+          `IC₉₅` por ponto e a linha de platô turbulento traçada só sobre a faixa de Re em que foi
+          ajustada (`Re ≥ 10⁴`).
+        - Curva `P_G/P₀ × Fl_G` com marcador vertical do joelho experimental de flooding por ensaio.
+        - Demanda específica `P/V × Q_g` por vazão medida.
+  - [x] 6.3 Tabela comparativa de benchmarking:
+        - Colunas: Ensaio, Tipo, `D` [mm], `D/T`, Platô `Np` (com ±`IC₉₅`), `(Fl_G)_F` experimental,
+          `(Fl_G)_F` Nienow, `P_vazio` (atrito parasita), `P/V` médio e eficiência relativa de
+          dispersão (definida como `(Fl_G)_F,exp / (Fl_G)_F,Nienow`: acima de 1 dispersa melhor que
+          a referência de Rushton).
+        - Exportação em CSV unificado com a tabela, as séries `Np×Re` e `P_G/P₀×Fl_G` e os avisos de
+          incompatibilidade (6 testes aprovados em `ImpellerComparisonTests`).
 
 - [ ] **7. Ferramenta de Escalonamento e Síntese de Bioprocesso** (`BioprocessScaleUpEngine`, `ScaleUpCalculatorView.xaml`)
   - [ ] 7.1 Calculadora de scale-up dirigida por modelo:

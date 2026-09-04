@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             xmlns:views="clr-namespace:OpenTECHub.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:PowerMapViewModel}"
              d:DesignHeight="900" d:DesignWidth="1500">
@@ -341,8 +342,11 @@
 
             <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
 
-            <!-- Área de síntese: superfície principal e validação kLa <-> P/V -->
-            <Grid Grid.Column="2">
+            <!-- Área de síntese: superfície, validação kLa <-> P/V e comparação de impelidores.
+                 As três vivem nesta página porque a §10 mantém apenas dois destinos de potência. -->
+            <TabControl Grid.Column="2" Padding="0,7,0,0" Background="Transparent" BorderThickness="0">
+            <TabItem Header="Superfície (N, Qg)">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" MinHeight="240" />
                     <RowDefinition Height="Auto" />
@@ -395,6 +399,12 @@
                     </Grid>
                 </Border>
             </Grid>
+            </TabItem>
+
+            <TabItem Header="Comparação de impelidores">
+                <views:PowerImpellerComparisonView DataContext="{Binding Comparison}" Margin="0,7,0,0" />
+            </TabItem>
+            </TabControl>
         </Grid>
     </Grid>
 </UserControl>

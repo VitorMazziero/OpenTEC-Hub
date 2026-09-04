@@ -86,7 +86,8 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         IKlaProfileStore klaStore,
         IKlaPowerIntegrationService? integrationService = null,
         IDialogService? dialogs = null,
-        IEventJournal? journal = null)
+        IEventJournal? journal = null,
+        IPowerAnalysisEngine? analysisEngine = null)
     {
         _testStore = testStore ?? throw new ArgumentNullException(nameof(testStore));
         _mapStore = mapStore ?? throw new ArgumentNullException(nameof(mapStore));
@@ -98,7 +99,17 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
         TestRootDirectory = _testStore.RootDirectory;
         MapRootDirectory = _mapStore.RootDirectory;
+
+        // The impeller benchmarking lives on this page (§10 keeps the shell at two power
+        // destinations), so the map owns it rather than the shell routing a third one.
+        Comparison = new PowerImpellerComparisonViewModel(
+            _testStore,
+            _mapStore,
+            analysisEngine ?? new PowerAnalysisEngine());
     }
+
+    /// <summary>Multi-assay impeller benchmarking shown alongside the surface (§18.3 step 6).</summary>
+    public PowerImpellerComparisonViewModel Comparison { get; }
 
     public string TestRootDirectory { get; }
 
@@ -350,6 +361,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
         ReloadMaps();
         ReloadPowerTests();
+        Comparison.ReloadTests();
         await ReloadKlaMapsAsync();
 
         if (AvailableMaps.Count > 0)

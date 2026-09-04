@@ -950,8 +950,12 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   calibração estática 1-ponto, varredura de tara, conferência ponto único e captura manual de energia
   com regressão linear P_el x P_mec. 952 testes aprovados.
 
-- [ ] **9. Fechamento** — suíte completa verde + app iniciado, navegação às duas páginas e logs
+- [x] **9. Fechamento** — suíte completa verde + app iniciado, navegação às duas páginas e logs
       WPF recentes inspecionados.
+
+  **Auditoria de fechamento da Fase 1 (2026-09-04):** Suíte completa de 952 testes aprovados (1 ignorado).
+  Inicialização do OpenTECHub e navegação real via CLI às duas páginas (`--nav power` e `--nav power-map`)
+  validadas sem nenhum erro de XAML, binding ou DI nos logs. Portão da Fase 1 integralmente atendido.
 
 **Portão da Fase 1:** uma varredura não-gaseificada roda ponta a ponta contra o simulador, para
 cada condição **pela confiança** (as duas portas), e entrega `Np(Re)` com `IC`, tara e calibração

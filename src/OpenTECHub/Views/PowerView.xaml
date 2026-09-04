@@ -114,8 +114,10 @@
                                       DisplayMemberPath="Name" ToolTip="Ensaios autocontidos em Testes-Potencia" />
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock VerticalAlignment="Center" Text="{Binding TestStatusLabel}" FontWeight="SemiBold" />
-                                <Button Grid.Column="1" Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="10,4" />
+                                <TextBlock VerticalAlignment="Center" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
+                                           ToolTip="Situação do ensaio aberto: Rascunho = planejado, ainda sem nenhum ponto capturado" />
+                                <Button Grid.Column="1" Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="10,4"
+                                        ToolTip="Carrega o ensaio escolhido acima: fluido, geometria, tabela de condições e pontos já medidos" />
                             </Grid>
                             <TextBlock Margin="0,6,0,0" Text="{Binding TestRootDirectory}" Style="{StaticResource CaptionTextStyle}"
                                        TextTrimming="CharacterEllipsis" ToolTip="{Binding TestRootDirectory}" />
@@ -127,7 +129,8 @@
                             <TextBlock Text="Fluido e vaso" FontSize="15" FontWeight="SemiBold" />
                             <WrapPanel Margin="0,7,0,6">
                                 <Button Content="Água 20 °C" Padding="8,3" Margin="0,0,5,0" Command="{Binding ApplyWaterPresetCommand}" CommandParameter="20" />
-                                <Button Content="Água 25 °C" Padding="8,3" Command="{Binding ApplyWaterPresetCommand}" CommandParameter="25" />
+                                <Button Content="Água 25 °C" Padding="8,3" Margin="0,0,5,0" Command="{Binding ApplyWaterPresetCommand}" CommandParameter="25" />
+                                <Button Content="Água 30 °C" Padding="8,3" Command="{Binding ApplyWaterPresetCommand}" CommandParameter="30" />
                             </WrapPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -166,6 +169,8 @@
                                     <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus}" Width="62" />
                                     <DataGridTextColumn Header="Pás" Binding="{Binding BladeCount, UpdateSourceTrigger=LostFocus}" Width="42" />
                                     <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus}" Width="70" />
+                                    <DataGridTextColumn Header="Nome" Binding="{Binding Label, UpdateSourceTrigger=LostFocus}" Width="130" />
+                                    <DataGridTextColumn Header="Np lit." Binding="{Binding LiteratureNp, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="58" />
                                 </DataGrid.Columns>
                             </DataGrid>
                             <WrapPanel>
@@ -355,13 +360,17 @@
                             <TextBlock Text="Rastreabilidade" FontSize="15" FontWeight="SemiBold" />
                             <Grid Margin="0,7,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding TareStatus}" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Content="Medir tara" Padding="8,4" Command="{Binding TareMeasurementInfoCommand}" />
+                                <TextBlock Text="{Binding TareStatus}" VerticalAlignment="Center"
+                                           ToolTip="TARA: quanto de potência o conjunto consome girando SECO (sem líquido). É o atrito de selo e mancal, que o app subtrai da potência de eixo para sobrar só o que o impelidor entregou ao fluido. Também mede o ruído de torque por rotação." />
+                                <Button Grid.Column="1" Content="Medir tara" Padding="8,4" Command="{Binding TareMeasurementInfoCommand}"
+                                        ToolTip="Assistente de tara: gira o eixo seco na faixa do ensaio e grava P_vazio(N)" />
                             </Grid>
                             <Grid Margin="0,6,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding CalibrationStatus}" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Content="Medir calibração" Padding="8,4" Command="{Binding CalibrationInfoCommand}" />
+                                <TextBlock Text="{Binding CalibrationStatus}" VerticalAlignment="Center"
+                                           ToolTip="CALIBRAÇÃO: converte o torque em % que o servo reporta para N·m reais, com massa e braço conhecidos. Sem ela o Np carrega o erro do torque de placa e é RELATIVO, não absoluto." />
+                                <Button Grid.Column="1" Content="Medir calibração" Padding="8,4" Command="{Binding CalibrationInfoCommand}"
+                                        ToolTip="Assistente de calibração estática de torque: aplica um torque conhecido e ajusta escala e offset" />
                             </Grid>
                             <CheckBox Margin="0,8,0,0" Content="Aceitar resultados relativos" IsChecked="{Binding RelativeMode}" IsEnabled="{Binding CanEditPlan}" />
 

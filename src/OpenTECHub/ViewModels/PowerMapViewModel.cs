@@ -79,7 +79,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     private int _reconstructionGeneration;
     private bool _suppressStale;
     private readonly IPowerAnalysisEngine _analysisEngine;
-    private double _turbulentPowerNumber;
 
     public PowerMapViewModel(
         IPowerTestStore testStore,
@@ -106,17 +105,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         // destinations), so the map owns it rather than the shell routing a third one.
         _analysisEngine = analysisEngine ?? new PowerAnalysisEngine();
         Comparison = new PowerImpellerComparisonViewModel(_testStore, _mapStore, _analysisEngine);
-        ScaleUp = new BioprocessScaleUpViewModel(new BioprocessScaleUpEngine());
     }
 
     /// <summary>Multi-assay impeller benchmarking shown alongside the surface (§18.3 step 6).</summary>
     public PowerImpellerComparisonViewModel Comparison { get; }
-
-    /// <summary>Bioprocess scale-up driven by this map's calibrated model (§18.3 step 7).</summary>
-    public BioprocessScaleUpViewModel ScaleUp { get; }
-
-    /// <summary>Anchors offered as the operating point the scale-up departs from.</summary>
-    public ObservableCollection<PowerMapAnchorPoint> ReferenceAnchors { get; } = [];
 
     public string TestRootDirectory { get; }
 
@@ -177,9 +169,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial PowerMapFloodingBoundary? CurrentFloodingBoundary { get; set; }
 
-    /// <summary>Operating point the scale-up calculator treats as the calibrated reference.</summary>
-    [ObservableProperty]
-    public partial PowerMapAnchorPoint? SelectedReferenceAnchor { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCorrelation))]
@@ -332,8 +321,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     partial void OnManualScaleMinChanged(double? value) => VisualizationChanged?.Invoke();
     partial void OnManualScaleMaxChanged(double? value) => VisualizationChanged?.Invoke();
     partial void OnContrastPercentChanged(double value) => VisualizationChanged?.Invoke();
-
-    partial void OnSelectedReferenceAnchorChanged(PowerMapAnchorPoint? value) => RefreshScaleUpReference();
 
     partial void OnGradientToleranceChanged(double value) => MarkSurfaceStale();
 
@@ -658,9 +645,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             VanTRietFormulaText = "kLa = K · (P/V)^α · (v_s)^β";
         }
 
-        _turbulentPowerNumber = ResolveTurbulentPowerNumber(doc);
-        RefreshReferenceAnchors();
-
         StatusMessage = $"Mapa '{doc.Name}' carregado.";
         VisualizationChanged?.Invoke();
     }
@@ -694,7 +678,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             var anchors = new List<PowerMapAnchorPoint>();
             var sourceTestIds = new List<Guid>();
             var sourceTestNames = new List<string>();
-            var plateauPoints = new List<(double ReynoldsNumber, double PowerNumber, double PowerNumberCi95)>();
             PowerGeometry? refGeometry = null;
             FluidProperties? refFluid = null;
 
@@ -712,22 +695,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                 var liquidV = doc.Geometry.LiquidVolumeM3 > 0 ? doc.Geometry.LiquidVolumeM3 : 0.010;
                 var impeller = doc.Geometry.Impellers.Count > 0 ? doc.Geometry.Impellers[0] : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
                 var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
-
-                // The turbulent plateau is what lets the scale-up turn a P/V back into a rotation.
-                foreach (var ungassed in doc.Runs.Where(r =>
-                             r.Phase == PowerRunPhase.Accepted &&
-                             r.GasMode == PowerGasMode.Ungassed &&
-                             r.Analysis is not null))
-                {
-                    var analysis = ungassed.Analysis!;
-                    if (double.IsFinite(analysis.AssemblyPowerNumber) && double.IsFinite(analysis.AssemblyReynoldsNumber))
-                    {
-                        plateauPoints.Add((
-                            analysis.AssemblyReynoldsNumber,
-                            analysis.AssemblyPowerNumber,
-                            analysis.AssemblyPowerNumberCi95));
-                    }
-                }
 
                 foreach (var run in doc.Runs.Where(r => r.Phase == PowerRunPhase.Accepted && r.NetPowerW.HasValue))
                 {
@@ -820,10 +787,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             CurrentSurfaceData = surfaceData;
             CurrentFloodingBoundary = flooding;
             IsSurfaceStale = false;
-
-            var plateau = _analysisEngine.FitPlateau(plateauPoints, ImpellerComparisonBuilder.TurbulentReynoldsCutoff);
-            _turbulentPowerNumber = plateau.HasFit ? plateau.PowerNumber : 0.0;
-            RefreshReferenceAnchors();
 
             ProgressPercent = 100;
             ProgressText = "Concluído";
@@ -963,7 +926,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                 _mapStore.SaveMap(CurrentDocument);
             }
 
-            RefreshScaleUpReference();
             VisualizationChanged?.Invoke();
         }
         catch (Exception ex)
@@ -1004,133 +966,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         {
             StatusMessage = $"Falha na exportação: {result.Message}";
         }
-    }
-
-    /// <summary>
-    /// Republishes the calibrated scale to the scale-up calculator: this map's geometry and fluid,
-    /// the turbulent Np measured on the source assays, the chosen anchor as the operating point,
-    /// and the P/V and v_s window the correlation was actually fitted over.
-    /// </summary>
-    public void RefreshScaleUpReference()
-    {
-        var geometry = CurrentDocument?.Geometry ?? new PowerGeometry();
-        var fluid = CurrentDocument?.Fluid ?? new FluidProperties();
-        var anchor = SelectedReferenceAnchor;
-
-        var impeller = geometry.Impellers.Count > 0
-            ? geometry.Impellers[0]
-            : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
-
-        // The calibrated domain is the span the fitted pairs cover; without pairs, the anchors.
-        double? minPv = null, maxPv = null, minVs = null, maxVs = null;
-        if (MatchedPairs.Count > 0)
-        {
-            minPv = MatchedPairs.Min(p => p.VolumetricPowerWm3);
-            maxPv = MatchedPairs.Max(p => p.VolumetricPowerWm3);
-            minVs = MatchedPairs.Min(p => p.SuperficialVelocityMs);
-            maxVs = MatchedPairs.Max(p => p.SuperficialVelocityMs);
-        }
-        else if (CurrentSurfaceData is { AnchorPoints.Count: > 0 } surface)
-        {
-            minPv = surface.AnchorPoints.Min(a => a.VolumetricPowerWm3);
-            maxPv = surface.AnchorPoints.Max(a => a.VolumetricPowerWm3);
-            minVs = surface.AnchorPoints.Min(a => a.GasSuperficialVelocityMs);
-            maxVs = surface.AnchorPoints.Max(a => a.GasSuperficialVelocityMs);
-        }
-
-        var reference = new ScaleUpReference
-        {
-            LiquidVolumeM3 = geometry.LiquidVolumeM3,
-            VesselDiameterM = geometry.VesselDiameterM,
-            ImpellerDiameterM = impeller.DiameterM,
-            DensityKgM3 = fluid.DensityKgM3,
-            ViscosityPaS = fluid.ViscosityPaS,
-            TurbulentPowerNumber = _turbulentPowerNumber,
-            AgitationRpm = anchor?.AgitationRpm ?? 0.0,
-            GasFlowLpm = anchor?.GasFlowLpm ?? 0.0,
-            Correlation = CurrentCorrelation,
-            CalibratedMinVolumetricPower = minPv,
-            CalibratedMaxVolumetricPower = maxPv,
-            CalibratedMinSuperficialVelocity = minVs,
-            CalibratedMaxSuperficialVelocity = maxVs,
-        };
-
-        var summary = anchor is null
-            ? "Selecione um ponto de operação de referência."
-            : $"{CurrentDocument?.Name ?? "mapa"} — {anchor.AgitationRpm:F0} rpm, {anchor.GasFlowLpm:F2} L/min, " +
-              $"P/V {anchor.VolumetricPowerWm3:F0} W/m³, V = {geometry.LiquidVolumeM3 * 1000:F2} L, " +
-              $"D = {impeller.DiameterM * 1000:F0} mm" +
-              (_turbulentPowerNumber > 0 ? $", Np platô {_turbulentPowerNumber:F2}" : ", Np platô não ajustado");
-
-        ScaleUp.SetReference(reference, summary);
-    }
-
-    /// <summary>Refits the turbulent plateau from the assays a persisted map was built from.</summary>
-    private double ResolveTurbulentPowerNumber(PowerMapDocument document)
-    {
-        var points = new List<(double ReynoldsNumber, double PowerNumber, double PowerNumberCi95)>();
-        var summaries = _testStore.ListTests();
-
-        foreach (var testId in document.SourceTestIds)
-        {
-            var summary = summaries.FirstOrDefault(t => t.TestId == testId);
-            if (summary is null)
-            {
-                continue;
-            }
-
-            var doc = _testStore.LoadTest(summary.FolderName);
-            if (doc is null)
-            {
-                continue;
-            }
-
-            foreach (var run in doc.Runs.Where(r =>
-                         r.Phase == PowerRunPhase.Accepted &&
-                         r.GasMode == PowerGasMode.Ungassed &&
-                         r.Analysis is not null))
-            {
-                var analysis = run.Analysis!;
-                if (double.IsFinite(analysis.AssemblyPowerNumber) && double.IsFinite(analysis.AssemblyReynoldsNumber))
-                {
-                    points.Add((analysis.AssemblyReynoldsNumber, analysis.AssemblyPowerNumber, analysis.AssemblyPowerNumberCi95));
-                }
-            }
-        }
-
-        var plateau = _analysisEngine.FitPlateau(points, ImpellerComparisonBuilder.TurbulentReynoldsCutoff);
-        return plateau.HasFit ? plateau.PowerNumber : 0.0;
-    }
-
-    /// <summary>Refills the anchor picker, keeping the current pick when it survives.</summary>
-    private void RefreshReferenceAnchors()
-    {
-        var previous = SelectedReferenceAnchor;
-        ReferenceAnchors.Clear();
-
-        var anchors = CurrentSurfaceData?.AnchorPoints ?? [];
-        foreach (var anchor in anchors.OrderBy(a => a.AgitationRpm).ThenBy(a => a.GasFlowLpm))
-        {
-            ReferenceAnchors.Add(anchor);
-        }
-
-        SelectedReferenceAnchor =
-            ReferenceAnchors.FirstOrDefault(a => previous is not null && a.RunId == previous.RunId)
-            ?? MedianByVolumetricPower(ReferenceAnchors);
-
-        RefreshScaleUpReference();
-    }
-
-    /// <summary>The typical operating point, rather than an extreme of the sweep.</summary>
-    private static PowerMapAnchorPoint? MedianByVolumetricPower(IReadOnlyList<PowerMapAnchorPoint> anchors)
-    {
-        if (anchors.Count == 0)
-        {
-            return null;
-        }
-
-        var ordered = anchors.OrderBy(a => a.VolumetricPowerWm3).ToList();
-        return ordered[ordered.Count / 2];
     }
 
     /// <summary>

@@ -23,14 +23,12 @@ public sealed class PowerViewResourceContractTests
         "PowerView.xaml",
         "PowerMapView.xaml",
         "PowerImpellerComparisonView.xaml",
-        "ScaleUpCalculatorView.xaml",
     ];
 
     [Theory]
     [InlineData("PowerView.xaml")]
     [InlineData("PowerMapView.xaml")]
     [InlineData("PowerImpellerComparisonView.xaml")]
-    [InlineData("ScaleUpCalculatorView.xaml")]
     public void Every_referenced_resource_key_is_defined(string viewFileName)
     {
         var viewPath = Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", viewFileName);
@@ -60,14 +58,17 @@ public sealed class PowerViewResourceContractTests
     }
 
     [Fact]
-    public void The_map_page_hosts_the_benchmarking_and_scale_up_tabs()
+    public void The_map_page_hosts_the_benchmarking_tab_and_no_scale_up()
     {
         var xaml = File.ReadAllText(Path.Combine(
             TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", "PowerMapView.xaml"));
 
-        // §10 freezes the shell at two power destinations, so steps 6 and 7 live here as tabs.
+        // §10 freezes the shell at two power destinations, so step 6 lives here as a tab.
         Assert.Contains("<views:PowerImpellerComparisonView DataContext=\"{Binding Comparison}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<views:ScaleUpCalculatorView Grid.Row=\"1\" DataContext=\"{Binding ScaleUp}\"", xaml, StringComparison.Ordinal);
+
+        // The scale-up calculator was withdrawn from this window at the owner's request.
+        Assert.DoesNotContain("ScaleUpCalculatorView", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Escalonamento", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

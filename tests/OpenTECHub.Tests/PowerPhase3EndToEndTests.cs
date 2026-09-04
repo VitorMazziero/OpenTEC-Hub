@@ -18,7 +18,7 @@ namespace OpenTECHub.Tests;
 /// <summary>
 /// Phase 3 gate (§18.3 step 8.2): kLa map imported as power conditions, the sweep executed against
 /// the simulator through the real runner, the surface synthesised, P/V exported back into an
-/// enriched kLa map, the van 't Riet correlation fitted, and the scale-up driven from it.
+/// enriched kLa map, and the van 't Riet correlation fitted.
 /// </summary>
 public sealed class PowerPhase3EndToEndTests : IDisposable
 {
@@ -209,30 +209,7 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         var original = afterExport.Single(e => e.Snapshot.Id == klaDocument.Snapshot.Id);
         Assert.Equal(klaDocument.Snapshot.Anchors.Length, original.Snapshot.Anchors.Length);
 
-        // ---- 8. Scale-up runs off the correlation this pipeline produced -------------------
-        mapViewModel.RefreshScaleUpReference();
-        var scaleUp = mapViewModel.ScaleUp;
-        Assert.True(scaleUp.HasReference);
-
-        // Without the gas rule the calculation is refused, even with everything else in place.
-        scaleUp.SelectedCriterion = ScaleUpCriterion.ConstantKla;
-        scaleUp.SelectedGasRule = ScaleUpGasRule.None;
-        scaleUp.Calculate();
-        Assert.True(scaleUp.HasRefusals);
-
-        scaleUp.SelectedGasRule = ScaleUpGasRule.ConstantVvm;
-        scaleUp.GasRuleValue = 0.4;
-        scaleUp.TargetVolumeL = 20;
-        scaleUp.TargetVesselDiameterMm = 300;
-        scaleUp.TargetImpellerDiameterMm = 100;
-        scaleUp.Calculate();
-
-        Assert.True(scaleUp.HasResult, string.Join(" | ", scaleUp.Refusals));
-        Assert.NotEmpty(scaleUp.SheetRows);
-        Assert.True(scaleUp.Result!.TargetAgitationRpm > 0);
-        Assert.Equal(8.0, scaleUp.Result.TargetGasFlowLpm, 6); // 0.4 vvm on 20 L
-
-        // ---- 9. Impeller benchmarking reads the same finished assay -----------------------
+        // ---- 8. Impeller benchmarking reads the same finished assay -----------------------
         var comparison = mapViewModel.Comparison;
         comparison.ReloadTests();
         Assert.Single(comparison.AvailableTests);
@@ -244,7 +221,7 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         Assert.True(comparison.IsCompatible, "a single assay compares against itself as equivalent");
         Assert.Contains("benchmark;e2e-fase3", comparison.BuildCsvContent(), StringComparison.Ordinal);
 
-        // ---- 10. The map survives a save/reload round trip --------------------------------
+        // ---- 9. The map survives a save/reload round trip --------------------------------
         mapViewModel.SaveMap();
         var reopened = new PowerMapViewModel(_testStore, _mapStore, new PowerMapEngine(), _klaStore, _integration);
         await reopened.InitializeAsync();
@@ -255,7 +232,6 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         Assert.Equal(surface.AnchorPoints.Count, reopened.CurrentSurfaceData!.AnchorPoints.Count);
         Assert.NotNull(reopened.CurrentCorrelation);
         Assert.Equal(correlation.K, reopened.CurrentCorrelation!.K, 9);
-        Assert.NotEmpty(reopened.ReferenceAnchors);
 
         mapViewModel.Dispose();
         reopened.Dispose();

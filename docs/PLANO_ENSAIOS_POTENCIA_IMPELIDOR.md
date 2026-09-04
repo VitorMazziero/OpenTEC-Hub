@@ -1306,30 +1306,15 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
         - Exportação em CSV unificado com a tabela, as séries `Np×Re` e `P_G/P₀×Fl_G` e os avisos de
           incompatibilidade (6 testes aprovados em `ImpellerComparisonTests`).
 
-- [x] **7. Ferramenta de Escalonamento e Síntese de Bioprocesso** (`BioprocessScaleUpEngine`, `ScaleUpCalculatorView.xaml`) _(2026-09-04)_
-      Terceira aba da página "Mapa de Potência", alimentada pela escala calibrada do mapa ativo
-      (geometria, fluido, `Np` de platô refeito a partir dos ensaios de origem, âncora de operação
-      escolhida pelo operador e o domínio de `P/V` e `v_s` que a correlação realmente cobre).
-  - [x] 7.1 Calculadora de scale-up dirigida por modelo:
-        - Entrada do volume e geometria do reator alvo `V_alvo` (ex.: 2 L → 20 L → 200 L), faixa
-          admissível de rotação e uma regra independente para a variável de gás (`vvm`, `v_s` ou
-          `Q_g` fixo), além do critério de escala:
-          1. `P/V` constante (mesma densidade de potência volumétrica);
-          2. `kLa` constante (mesma capacidade volumétrica de oxigenação baseada no modelo calibrado);
-          3. Velocidade periférica de pá constante (`π·N_rps·D`) para culturas sensíveis a cisalhamento.
-        - Estimativa de grandezas operacionais na nova escala: `N_alvo`, `Q_g,alvo`, torque esperado,
-          potência mecânica de eixo e números adimensionais `Re`, `Fr`, `Fl_G`.
-        - Verificação de identificabilidade: um único critério não determina simultaneamente `N` e `Q_g`;
-          se faltar a regra de gás ou a geometria, recusar o cálculo em vez de escolher uma solução oculta.
-        - Aviso ou recusa quando a solução extrapola o domínio calibrado de `P/V`, `v_s`, geometria
-          ou escala; resultado calculado não é validação de processo na nova escala.
-        - Avaliação automática da proximidade com a fronteira de flooding na nova geometria (alerta
-          de risco de afogamento em escala piloto/industrial).
-  - [x] 7.2 Exportação de sumário técnico: folha de dimensionamento em CSV (tabela referência × alvo,
-        adimensionais, margem de flooding e os avisos) e em PDF pela impressora do sistema
-        ("Microsoft Print to PDF"), via `FlowDocument` — sem acrescentar dependência de PDF ao app
-        por um documento gerado uma vez por projeto. Recusas são exportadas como recusas, nunca como
-        números (14 testes aprovados em `BioprocessScaleUpTests`).
+- [~] **7. Ferramenta de Escalonamento e Síntese de Bioprocesso** — **RETIRADA (2026-09-04)**
+      Implementada e testada (14 testes), e **removida da janela "Mapa de Potência" a pedido do
+      dono do projeto**. Saíram `BioprocessScaleUpEngine`, `BioprocessScaleUpModels`,
+      `BioprocessScaleUpViewModel`, `ScaleUpCalculatorView` e a aba "Escalonamento", junto com o
+      seletor de ponto de operação de referência e o reajuste do platô `Np` que só a alimentava.
+      Continua no repositório apenas a primitiva `PowerCalc.ScaleUpRequiredVolumetricPower` e o
+      `IPowerMapEngine.EstimateSpecificPowerForKla` que a expõe: são entregáveis do **passo 2.1**
+      (engine), puros e cobertos por `PowerMapEngineTests`, e não faziam parte da janela.
+      Para reverter, o histórico até `2a6ebe4` traz a ferramenta completa.
 
 - [x] **8. Verificação Integrada e Fechamento da Fase 3** _(2026-09-04)_
   - [x] 8.1 Suíte de testes automatizados completa verde: **1037 aprovados, 0 falhas** (domínio,
@@ -1352,7 +1337,8 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
 experimental e teórica de flooding dividindo as regiões de dispersão e afogamento; realiza a
 comparação multi-ensaio de impelidores (Np × Re e P_G/P₀ × Fl_G); importa bidirecionalmente condições
 e resultados com o Mapeamento kLa; e ajusta a correlação multivariável kLa = K·(P/V)^α·(vs)^β
-com exibição de gráficos de paridade e folha de escalonamento de bioprocesso.
+com exibição de gráficos de paridade. A folha de escalonamento de bioprocesso foi retirada
+do escopo da janela (passo 7).
 
 **Auditoria de uso (2026-09-04) — o operador conduzindo os ensaios.** Percorrendo as duas páginas
 no lugar de quem opera, foram encontrados e corrigidos:

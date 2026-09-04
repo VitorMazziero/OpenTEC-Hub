@@ -142,8 +142,35 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    private bool _applyingImpellerDefaults;
+
     private void OnImpellerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Choosing a type has to bring that impeller's identity with it. Without this the row kept
+        // the previous blade count and the previous literature Np, so the reference overlay on the
+        // Np(Re) chart silently described a different impeller than the one selected (§15).
+        // The measured geometry - diameter and clearance - is the operator's, and is left alone.
+        if (!_applyingImpellerDefaults &&
+            e.PropertyName == nameof(Impeller.Type) &&
+            sender is Impeller impeller)
+        {
+            _applyingImpellerDefaults = true;
+            try
+            {
+                var reference = PowerImpellerCatalog.Create(impeller.Type);
+                impeller.Label = reference.Label;
+                impeller.LiteratureNp = reference.LiteratureNp;
+                if (reference.BladeCount > 0)
+                {
+                    impeller.BladeCount = reference.BladeCount;
+                }
+            }
+            finally
+            {
+                _applyingImpellerDefaults = false;
+            }
+        }
+
         NotifyGeometryState();
         ReprocessIfActive();
     }
@@ -496,6 +523,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (doc is null) { ShowError("O ensaio selecionado não pôde ser aberto."); return; }
         LoadDocument(doc);
         RefreshTests();
+
+        // Pressing Abrir on the assay already open used to change nothing on screen, which reads
+        // as a dead button. Say what was loaded either way.
+        var accepted = doc.Runs.Count(r => r.Phase == PowerRunPhase.Accepted);
+        ValidationMessage =
+            $"Ensaio '{doc.Name}' aberto: {doc.Conditions.Count} condição(ões), {accepted} ponto(s) aceito(s).";
+        StatusMessage = ValidationMessage;
     }
 
     private void LoadDocument(PowerTestDocument doc)
@@ -561,12 +595,38 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Working volume the bench runs at; a preset fills it, and the operator may change it.</summary>
+    public const double DefaultLiquidVolumeL = 4.0;
+
     [RelayCommand]
     private void ApplyWaterPreset(string? preset)
     {
-        if (preset == "20") { DensityKgM3 = 998.2; ViscosityPaS = 0.001002; TemperatureC = 20; }
-        else { DensityKgM3 = 997.0; ViscosityPaS = 0.00089; TemperatureC = 25; }
-        ValidationMessage = "Propriedades de água preenchidas; confirme a temperatura medida.";
+        // Água pura, valores tabelados (ρ em kg/m³, μ em Pa·s).
+        switch (preset)
+        {
+            case "20":
+                DensityKgM3 = 998.2;
+                ViscosityPaS = 0.001002;
+                TemperatureC = 20;
+                break;
+
+            case "30":
+                DensityKgM3 = 995.65;
+                ViscosityPaS = 0.000797;
+                TemperatureC = 30;
+                break;
+
+            default:
+                DensityKgM3 = 997.0;
+                ViscosityPaS = 0.00089;
+                TemperatureC = 25;
+                break;
+        }
+
+        LiquidVolumeL = DefaultLiquidVolumeL;
+        ValidationMessage =
+            $"Água a {TemperatureC:F0} °C e volume de {DefaultLiquidVolumeL:F0} L preenchidos; " +
+            "confirme a temperatura e o volume medidos.";
     }
 
     [RelayCommand]
@@ -594,6 +654,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         var item = PowerImpellerCatalog.Create(ImpellerType.RushtonFlatBlade);
         item.DiameterM = Impellers.LastOrDefault()?.DiameterM ?? 0.065;
+
         item.ClearanceM = Impellers.Count == 0 ? 0.065 : Impellers.Max(i => i.ClearanceM) + item.DiameterM;
         item.StageIndex = Impellers.Count;
         Impellers.Add(item);

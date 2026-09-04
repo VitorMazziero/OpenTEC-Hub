@@ -134,7 +134,8 @@ public sealed class Impeller
 public sealed class PowerGeometry
 {
     public List<Impeller> Impellers { get; set; } = [];
-    public double VesselDiameterM { get; set; }
+    /// <summary>Vessel / tank inner diameter T [m] (§8, §16). Defaults to 0.190 m (190 mm), editable.</summary>
+    public double VesselDiameterM { get; set; } = 0.190;
 
     /// <summary>Working liquid volume. Required when a condition's flow is given in vvm (§11).</summary>
     public double LiquidVolumeM3 { get; set; }

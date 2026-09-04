@@ -411,7 +411,7 @@ pular/encerrar. A coluna de vazão aceita `L/min` ou `vvm` (alterna a exibição
 - **Rotação (limites de hardware):** mínimo **15 rpm**, máximo **1000 rpm**; a varredura usa
   **passo padrão de 50 rpm** (passo mínimo 5 rpm). Zero é proibido (desabilita o motor, §2.6),
   então o piso da varredura e do abort é 15 rpm, não 0.
-- **Vaso e líquido:** `T` (diâmetro do tanque), **volume útil** e chicanas sim/não. O volume
+- **Vaso e líquido:** `T` (diâmetro interno do tanque, padrão **190 mm / 0,190 m**, editável), **volume útil** e chicanas sim/não. O volume
   é **obrigatório** quando a vazão for dada em `vvm` (§11). `D⁵` e o regime dependem da
   geometria; sem chicana a alta `N` há vórtice e o `Np` deixa de ser limpo — a interface avisa.
 - **Fluido:** `ρ`, `μ` na temperatura do ensaio, com _presets_. **Foco da fase 1 é água / platô
@@ -867,7 +867,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [ ] 6.4 **Registro de impelidores**: lista editável de estágios (tipo do catálogo dos quatro,
         `D`, pás, _clearance_, posição), adicionar/remover/reordenar; `ImpellerSetHash` recalculado
         e comparado ao da tara.
-  - [ ] 6.5 Vaso e líquido: `T`, volume útil (**obrigatório se vvm**), chicanas; aviso de vórtice
+  - [ ] 6.5 Vaso e líquido: `T` (padrão 190 mm / 0,190 m, editável), volume útil (**obrigatório se vvm**), chicanas; aviso de vórtice
         sem chicana a alta `N`.
   - [ ] 6.6 Card **Limiares** (aplicação automática, sem botão "Aplicar"): faixa/passo de `N`
         (padrão 50, mín 5, 15–1000), `k_rel`, `k_abs`, `n_min`, `t_max`, `MaxTries`, janela de
@@ -910,8 +910,160 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
 
 **Portão da Fase 1:** uma varredura não-gaseificada roda ponta a ponta contra o simulador, para
 cada condição **pela confiança** (as duas portas), e entrega `Np(Re)` com `IC`, tara e calibração
-aplicadas, exibido na página e exportável. Fases 2 e 3 ganham suas próprias listas quando
-começarem.
+aplicadas, exibido na página e exportável.
+
+### 18.2 Fase 2 — ordem de implementação e progresso
+
+A Fase 2 acende o gás: varredura gaseificada, cálculo das grandezas adimensionais de aeração
+e Froude, interpolação de `P₀` para a formação da razão `P_G/P₀`, detecção automática do ponto de
+_flooding_ com _overlay_ da correlação teórica de Nienow, e a estabilização opcional no alívio contra o
+pulso inicial de vazão.
+
+Cada passo é compilável e testável de forma independente antes de avançar. **Marque `[x]` ao
+concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvimento.
+
+- [ ] **1. Domínio + Contratos de Gás e Flooding** (`PowerTestModels`, `PowerTestFileContracts`, `IPowerTestStore`/`PowerTestStore`)
+  - [ ] 1.1 Modelos de dados de ponto gaseificado: campos para `Q_g` (L/min e vvm), `Fl_G`, `Fr`, `P_G`
+        líquido, `P₀` de referência (valor, incerteza, proveniência: platô vs medido), razão
+        `P_G/P₀` e sua incerteza propagada `IC₉₅(P_G/P₀)`.
+  - [ ] 1.2 Estrutura `FloodingAnalysisResult`: `(Fl_G)_F` experimental, `N_F`, `Q_g,F`, `(Fl_G)_F,Nienow`
+        teórico, desvio percentual, indicador de método (automático vs ajuste manual na revisão).
+  - [ ] 1.3 Configuração de alívio nos documentos: campo `SelectedVentValve` (`Valve1` ou `Valve2`)
+        para garantir que a válvula de alívio não conflite com outras linhas de processo.
+  - [ ] 1.4 Diâmetro do tanque `T`: `PowerGeometry.VesselDiameterM` padrão **0,190 m (190 mm)**,
+        editável por ensaio.
+  - [ ] 1.5 Persistência e auditoria: serialização em `tabela-condicoes.json`, `ensaio.json` e
+        resumo de corrida `PowerRunSummary` (gravando se usou alívio, `P_G`, `P₀` e razão); registro
+        de eventos de gás (`GasOpened`, `VentOpened`, `VentStabilized`, `FloodingDetected`) na
+        `serie-global.csv`.
+  - [ ] 1.6 Testes de ida-e-volta (round-trip) em `PowerTestStoreTests` com condições gaseificadas,
+        alívio e pontos de flooding.
+
+- [ ] **2. Engine Científico de Gaseificação e Flooding** (`PowerCalc`, `PowerAnalysisModels`, `IPowerAnalysisEngine`, `PowerAnalysisEngine`)
+  - [ ] 2.1 Primitivas em `PowerCalc`:
+        - Conversão bidirecional L/min ↔ vvm a partir do volume útil do líquido (`LiquidVolumeM3 > 0`).
+        - Equação de Nienow para flooding: `(Fl_G)_F = 30 · (D/T)³·⁵ · Fr_F` (com `g = 9,80665 m/s²`,
+          `T = VesselDiameterM`, padrão 0,190 m).
+        - Inversa de Nienow: cálculo da rotação de flooding `N_F` para uma vazão `Q_g` dada, e da
+          vazão de flooding `Q_g,F` para uma rotação `N` dada.
+        - Propagação de incerteza da razão `R = P_G / P₀`:
+          `SE_R = R · √((SE_PG / P_G)² + (SE_P0 / P₀)²)`, com `IC₉₅(R) = ±1,96 · SE_R`.
+  - [ ] 2.2 Hierarquia de resolução do denominador `P₀(N)` (§4.5):
+        - 1º: Curva ajustada do platô `Np` (`P₀ = Np_plateau · ρ · N³ · D⁵`);
+        - 2º: Fallback para ponto não-gaseificado medido na mesma `N` (±1 rpm) do mesmo ensaio;
+        - 3º: Sem nenhum dos dois, razão permanece `null` (em branco, nunca inventada).
+  - [ ] 2.3 Algoritmo de detecção automática de flooding (§4.5, §16):
+        - Identificação do ponto de mínimo ou cotovelo/joelho de `P_G/P₀ × Fl_G` em varreduras de
+          vazão a rotação constante (ou de rotação a vazão constante).
+        - Filtro de ruído baseado no `IC₉₅` da razão para evitar falsos mínimos por flutuações locais.
+  - [ ] 2.4 Geração da curva de overlay de Nienow: conjunto de pontos teóricos `(Fl_G, Fr, P_G/P₀ previsto)`
+        para exibição gráfica comparativa sobre o intervalo experimental.
+  - [ ] 2.5 Tratamento de casos especiais: `P_G/P₀ > 1` próximo ao flooding ou sob cavidades
+        incipientes (não disparar erro, registrar como dado físico); `Q_g = 0` resultando em `Fl_G = 0`.
+  - [ ] 2.6 Testes unitários do engine (`PowerAnalysisEngineTests`): Nienow com geometrias de
+        literatura (`D/T = 0,33` e `0,40`, `T = 0,190 m`), interpolação de `P₀` por platô e por ponto medido,
+        propagação de incerteza da razão, detecção de flooding com séries sintéticas com e sem ruído.
+
+- [ ] **3. Extensão do Simulador para Gás, Válvulas e Flooding** (`SimulatorPowerSource`, `SimulatorDeviceService`)
+  - [ ] 3.1 Dinâmica de redução de potência aerada: torque simulado decresce com `Fl_G` conforme
+        curva característica com joelho em `(Fl_G)_F`, simulando Rushton e cavidades de gás.
+  - [ ] 3.2 Dinâmica do medidor/controlador de vazão:
+        - Simulação de overshoot/pulso inicial na abertura da válvula de gás (transiente de 2–5 s).
+        - Resposta a setpoints de vazão com decaimento de primeira ordem para o valor comandado.
+        - Loopback e confirmação de ACK para `FlowCommandId`, `FlowCommandAck` e `FlowCommandPending`.
+  - [ ] 3.3 Simulação da válvula de alívio:
+        - Com alívio aberto, o gás é purgado externamente (vazão ao reator permanece 0, torque não cai).
+        - Ao comutar do alívio para o reator, o reator recebe o fluxo já assentado, eliminando o pulso.
+  - [ ] 3.4 Testes do simulador validando a entrega de telemetria coerente sob aeração.
+
+- [ ] **4. Protocolo de Gases, Alívio e Máquina de Estados no Runner** (`PowerTestRunner`)
+  - [ ] 4.1 Árbitro e propriedade de comando:
+        - Reivindicar `CommandOwner.PowerAssay` sobre a agitação E a malha de gases quando a
+          condição for `Gassed` ou `Both`.
+        - Liberação garantida da malha de gás no encerramento, interrupção, aborto ou revogação.
+  - [ ] 4.2 Entrega confiável de gás e intertravamento (§11, molde §10 do kLa):
+        - Regra de ouro: nunca abrir duas fontes de gás em paralelo ("fechar → confirmar ACK →
+          abrir novo estado → confirmar ACK").
+        - Verificação de setpoint dentro da tolerância, `FlowCommandAck == FlowCommandId` e
+          `FlowCommandPending == false`.
+  - [ ] 4.3 Fase `VentStabilizing` (estabilização no alívio, §13):
+        - Se `VentStabilizationEnabled` estiver ligado:
+          1. Reduz agitação para `VentAgitationRpm` (padrão 15 rpm);
+          2. Abre válvula de alívio selecionada (`SelectedVentValve`) e comanda `FlowSetpoint`;
+          3. Aguarda `|Q_medida - Q_alvo| ≤ VentFlowToleranceLpm` por `VentFlowStableSamples`
+             leituras consecutivas;
+          4. Monitora timeout de guarda `MaxVentStabilizationSeconds` (falha segura com aborto);
+          5. Assentada a vazão, fecha o alívio e abre a válvula do reator mantendo o setpoint.
+        - Se desligado: abre diretamente a válvula do reator com dwell de amortecimento.
+  - [ ] 4.4 Sequenciamento da condição "Ambas" (`Both`, §12.2):
+        - Subfase 1: mede ponto não-gaseificado (gás fechado, agitação na meta, Porta 1 + Porta 2 → `P₀`);
+        - Subfase 2: abre e estabiliza gás na vazão programada (com ou sem alívio), aguarda
+          regime (Porta 1 + Porta 2 → `P_G`);
+        - Associa ambos os pontos sob a mesma condição com rotação medida real de cada patamar.
+  - [ ] 4.5 Segurança e parada de emergência (§14):
+        - Aborto durante ensaio gaseificado: desacelera agitação para 15 rpm (nunca 0) E zera o
+          fluxômetro (`FlowSetpoint = 0`) fechando todas as válvulas com confirmação de ACK.
+        - Perda de comunicação do fluxômetro ou queda de `ServoOnline`: congela captura, descarta
+          a janela corrente e notifica o operador.
+  - [ ] 4.6 Ponto Único (`SinglePoint`) com gás: permite comutar gás manualmente para inspeção ao
+        vivo de `Fl_G` e razão.
+  - [ ] 4.7 Testes unitários do runner para fluxos de gás: estabilização no alívio com sucesso e com
+        timeout, sequência de condição "Ambas", aborto com corte de gás e perda de conectividade.
+
+- [ ] **5. UI da Barra Lateral e Tabela de Condições Gaseificadas** (`PowerView.xaml`, `PowerViewModel.cs`)
+  - [ ] 5.1 Edição e exibição de vazão de gás na tabela de condições:
+        - Suporte a unidades L/min e vvm com conversão em tempo real baseada no volume do líquido.
+        - Validação impedindo entrada em vvm se o volume útil não estiver preenchido.
+        - Seleção do modo de gás por linha (`Não-gaseificada`, `Gaseificada`, `Ambas`).
+  - [ ] 5.2 Gerador avançado de varreduras na barra lateral:
+        - Varredura de `N` a `Q_g` constante;
+        - Varredura de `Q_g` a `N` constante (varredura clássica para mapear transição de flooding);
+        - Matriz bidimensional `N × Q_g`.
+  - [ ] 5.3 Painel de Estabilização no Alívio no card Limiares:
+        - Checkbox "Estabilização no alívio";
+        - Seletor da válvula de alívio (`valve_1` / `valve_2`);
+        - Campos numéricos com validação automática para tolerância (L/min), contagem de amostras,
+          rpm durante alívio e tempo limite (s).
+  - [ ] 5.4 Indicadores de gás ao vivo:
+        - Exibição de vazão medida `Q_g` (L/min e vvm), `Fl_G`, `Fr` e razão `P_G/P₀` instantânea.
+        - Badge de status da malha de gás (Fechado, Alívio Estabilizando, Reator Aberto).
+
+- [ ] **6. Visualização Gráfica e Curva de Flooding** (`PowerView.xaml`, `PowerViewModel.cs`)
+  - [ ] 6.1 Alternância de abas/gráficos no painel principal:
+        - Gráfico 1: `Np × Re` (não-gaseificado, mantido da Fase 1);
+        - Gráfico 2: `P_G/P₀ × Fl_G` (gaseificado), com número de Froude `Fr` mapeado em cor ou
+          exibido em eixo secundário.
+  - [ ] 6.2 Overlay da Correlação de Nienow no gráfico `P_G/P₀ × Fl_G`:
+        - Linha teórica de fronteira calculada a partir de `D/T` do tanque e `Fr` do ponto.
+        - Legenda clara distinguindo curva experimental de referência de Nienow.
+  - [ ] 6.3 Marcador e destaque do ponto de Flooding:
+        - Ponto de mínimo/joelho assinalado visualmente com ícone e rótulo de coordenada
+          `((Fl_G)_F, (P_G/P₀)_F)`.
+        - Card explicativo com `(Fl_G)_F` medido vs Nienow e desvio percentual.
+  - [ ] 6.4 Tabela de resultados científicos e exportação:
+        - Inclusão das colunas de gás: `Q_g` medido, `Fl_G`, `Fr`, `P_G` líq, `P₀` ref, `P_G/P₀ ± IC₉₅`.
+        - Exportação CSV atualizada contendo todas as variáveis experimentais e adimensionais.
+
+- [ ] **7. Revisão Científica e Ajuste Interativo de Flooding**
+  - [ ] 7.1 Revisão de pontos gaseificados: aceitação, rejeição ou repetição de replicatas com gás.
+  - [ ] 7.2 Ajuste do marcador de flooding na revisão (§16):
+        - Operador pode aceitar a detecção automática do mínimo ou clicar/selecionar outro ponto
+          experimental na curva para ser o flooding oficial do ensaio.
+        - Registro do status no documento: `FloodingMethod = Automatic | ManualAdjusted`.
+  - [ ] 7.3 Reprocessamento científico: alteração de volume, densidade, viscosidade ou diâmetros `D` e `T`
+        recalcula instantaneamente `Fl_G`, `Fr`, a curva de Nienow e a razão `P_G/P₀` sem alterar os dados brutos.
+
+- [ ] **8. Verificação Integrada e Fechamento da Fase 2**
+  - [ ] 8.1 Suíte de testes automatizados verde (domínio, store, engine, runner e viewmodels).
+  - [ ] 8.2 Execução de ensaio completo gaseificado contra o simulador (com e sem estabilização no
+        alívio), verificando o ciclo de válvulas e a captura de `P_G/P₀`.
+  - [ ] 8.3 Verificação dos contratos WPF (ausência de botão "Aplicar", binding em cultura invariante).
+
+**Portão da Fase 2:** uma varredura gaseificada (ou condição "Ambas") executa ponta a ponta
+contra o hardware ou simulador, comanda o fluxômetro com intertravamento e confirmação por ACK,
+estabiliza opcionalmente no alívio, captura P_G e P₀ sob as duas portas de confiança, plota a curva
+P_G/P₀ × Fl_G com o overlay de Nienow, detecta o ponto de flooding (confirmável na revisão) e
+exporta a tabela completa em CSV. A fase 3 ganha sua própria lista quando começar.
 
 ---
 
@@ -975,6 +1127,7 @@ kLa na fase 3; associação a impelidor **solta, com sugestão**.
 8. **Registro pré-carregado com quatro tipos:** Rushton (pás planas), hélice marinha, orelha de
    elefante e Smith (pás côncavas) (§8).
 9. **`MaxTries = 3`.**
+10. **Diâmetro do tanque padrão:** `T = 190 mm` (`0,190 m`), pré-preenchido e editável (§8).
 
 Nada fica em aberto para a fase 1. O que permanece adiado por fase: gaseificado + _flooding_
 (fase 2) e mapa + comparação + import kLa + `P/V` (fase 3).

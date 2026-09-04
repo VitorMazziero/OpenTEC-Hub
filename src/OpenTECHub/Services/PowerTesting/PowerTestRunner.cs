@@ -88,6 +88,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
                              _phase is not (PowerRunPhase.Idle or PowerRunPhase.Completed or
                                  PowerRunPhase.Faulted or PowerRunPhase.Accepted or PowerRunPhase.Rejected);
     public bool IsInReview => _phase == PowerRunPhase.Reviewing;
+    public bool IsPausedByOperator => _phase == PowerRunPhase.PausedByOperator;
     public bool IsPausedForMeasurement => _phase == PowerRunPhase.PausedForMeasurement;
     public double CurrentRpm => _currentRpm;
     public double CurrentTorquePercent => _currentTorquePercent;
@@ -272,6 +273,73 @@ public sealed class PowerTestRunner : IPowerTestRunner
         SetPhase(PowerRunPhase.SettingSpeed, "Medida restabelecida; reaproximando a rotação antes de recapturar.");
         DispatchMotorOrFault(_commandedRpm, "retomar a rotação");
         LogEvent("MeasurementResumed", "Telemetria válida restabelecida; as duas portas foram reiniciadas.");
+        return Task.CompletedTask;
+    }
+
+    public Task PauseAsync()
+    {
+        if (_currentRun is null || _currentTest is null ||
+            _phase is not (PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or
+                PowerRunPhase.AccumulatingToTarget))
+        {
+            throw new InvalidOperationException("Nenhuma captura ativa pode ser pausada.");
+        }
+
+        _capture?.Reset();
+        _speedStableCount = 0;
+        SetPhase(PowerRunPhase.PausedByOperator,
+            "Captura pausada pelo operador; a condição permanece na rotação comandada.");
+        PersistCurrentRun();
+        LogEvent("OperatorPaused", "A janela parcial foi descartada; a retomada repetirá as duas portas.");
+        return Task.CompletedTask;
+    }
+
+    public Task ResumeAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_phase != PowerRunPhase.PausedByOperator || _currentTest is null ||
+            _currentRun is null || _currentCondition is null)
+        {
+            throw new InvalidOperationException("A captura não está pausada pelo operador.");
+        }
+        if (_device.Latest is not { } latest || !HasValidServoMeasurement(latest) ||
+            GetMonotonicSeconds() - _lastValidServoMonotonic > _currentTest.Settings.MeasurementTimeoutSeconds)
+        {
+            throw new InvalidOperationException("A medida do servo não está válida para retomar.");
+        }
+        if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay)
+        {
+            throw new InvalidOperationException("O ensaio perdeu a posse da agitação.");
+        }
+
+        _capture?.Reset();
+        _speedStableCount = 0;
+        SetPhase(PowerRunPhase.SettingSpeed,
+            "Captura retomada; reaproximando a rotação e reiniciando as duas portas.");
+        DispatchMotorOrFault(_commandedRpm, "retomar a rotação");
+        LogEvent("OperatorResumed", "Captura retomada com a janela estatística zerada.");
+        return Task.CompletedTask;
+    }
+
+    public Task SkipCurrentConditionAsync(string reason = "Condição pulada pelo operador")
+    {
+        if (_currentRun is null || _currentCondition is null || _currentTest is null || !IsRunning)
+        {
+            throw new InvalidOperationException("Nenhuma condição ativa pode ser pulada.");
+        }
+
+        var detail = string.IsNullOrWhiteSpace(reason) ? "Condição pulada pelo operador" : reason.Trim();
+        _currentRun.StopReason = PowerStopReason.Aborted;
+        _currentRun.CurrentPhase = PowerRunPhase.Rejected;
+        _currentRun.CompletedUtc = _time.GetUtcNow();
+        _currentCondition.CompletedReplicates++;
+        _currentCondition.RejectedReplicates++;
+        _currentCondition.Status = PowerConditionStatus.Skipped;
+        UpsertCurrentRunSummary(PowerRunPhase.Rejected);
+        SafeParkAndRelease(detail);
+        PersistCurrentRun();
+        SetPhase(PowerRunPhase.Rejected, detail);
+        LogEvent("ConditionSkipped", detail);
         return Task.CompletedTask;
     }
 
@@ -526,6 +594,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
         if (_phase == PowerRunPhase.PausedForMeasurement)
         {
             _statusMessage = "Medida restabelecida. Confirme a retomada para reiniciar a captura.";
+            RaiseStateChanged();
+            return;
+        }
+
+        if (_phase == PowerRunPhase.PausedByOperator)
+        {
+            if (_currentRun is not null)
+            {
+                AppendSample(snapshot, now, counted: false);
+            }
             RaiseStateChanged();
             return;
         }
@@ -1057,6 +1135,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         PowerRunPhase.SettingSpeed or
         PowerRunPhase.SettlingTorque or
         PowerRunPhase.AccumulatingToTarget or
+        PowerRunPhase.PausedByOperator or
         PowerRunPhase.HoldingForManualEnergy;
 
     private static double? OptionalReading(double value) =>

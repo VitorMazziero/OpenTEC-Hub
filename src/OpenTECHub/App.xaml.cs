@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -69,7 +69,12 @@ public partial class App : Application
         theme.Apply(settings.Current.Theme);
 
         var shell = _services.GetRequiredService<ShellViewModel>();
-        if (playback is not null)
+        var navOption = ParseNavigationStartupOption(e.Args);
+        if (!string.IsNullOrWhiteSpace(navOption))
+        {
+            shell.SelectedNavigationId = navOption;
+        }
+        else if (playback is not null)
         {
             shell.SelectedNavigationId = "kla-determination";
         }
@@ -77,6 +82,16 @@ public partial class App : Application
         if (playback is not null)
         {
             window.Title = $"OpenTEC-Hub — SIMULAÇÃO kLa: {playback.DisplayName}";
+        }
+
+        var exitAfterMs = ParseExitAfterMsStartupOption(e.Args);
+        if (exitAfterMs > 0)
+        {
+            window.ContentRendered += async (_, _) =>
+            {
+                await Task.Delay(exitAfterMs);
+                Current.Shutdown();
+            };
         }
 
         window.ContentRendered += OnShellRendered;
@@ -207,6 +222,35 @@ public partial class App : Application
             .CreateLogger();
 
         Log.Information("=== OpenTEC-Hub starting ===");
+    }
+
+    private static string? ParseNavigationStartupOption(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count; i++)
+        {
+            if ((args[i].Equals("--nav", StringComparison.OrdinalIgnoreCase) ||
+                 args[i].Equals("--page", StringComparison.OrdinalIgnoreCase)) &&
+                i + 1 < args.Count)
+            {
+                return args[++i];
+            }
+        }
+        return null;
+    }
+
+    private static int ParseExitAfterMsStartupOption(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (args[i].Equals("--exit-after-ms", StringComparison.OrdinalIgnoreCase) &&
+                i + 1 < args.Count &&
+                int.TryParse(args[++i], System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                return Math.Max(0, parsed);
+            }
+        }
+        return 0;
     }
 
     private static KlaPlaybackOptions? ParseKlaPlaybackOptions(IReadOnlyList<string> args)

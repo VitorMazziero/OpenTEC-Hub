@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.PowerTesting;
@@ -113,5 +114,65 @@ public sealed class PowerNavigationContractTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    [Fact]
+    public void Acquisition_view_exposes_setup_live_results_and_no_apply_or_png_path()
+    {
+        var xaml = ReadProjectFile(Path.Combine("Views", "PowerView.xaml"));
+        var codeBehind = ReadProjectFile(Path.Combine("Views", "PowerView.xaml.cs"));
+
+        Assert.Contains("Fluido e vaso", xaml, StringComparison.Ordinal);
+        Assert.Contains("Impelidores", xaml, StringComparison.Ordinal);
+        Assert.Contains("Condições", xaml, StringComparison.Ordinal);
+        Assert.Contains("LiveChartHost", xaml, StringComparison.Ordinal);
+        Assert.Contains("NpChartHost", xaml, StringComparison.Ordinal);
+        Assert.Contains("Exportar CSV", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Aplicar", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PNG", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PNG", codeBehind, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Ui_numeric_parser_accepts_invariant_and_pt_br_decimal_without_thousands_ambiguity()
+    {
+        var prior = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("pt-BR");
+            Assert.True(PowerTestViewModel.TryParseUiDouble("1.25", out var invariant));
+            Assert.True(PowerTestViewModel.TryParseUiDouble("1,25", out var local));
+            Assert.Equal(1.25, invariant, 12);
+            Assert.Equal(1.25, local, 12);
+            Assert.False(PowerTestViewModel.TryParseUiDouble("NaN", out _));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = prior;
+        }
+    }
+
+    [Fact]
+    public void Missing_result_values_render_as_dash_and_net_torque_comes_from_net_power()
+    {
+        var missing = PowerResultRow.From(new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            MeanRpmMeasured = 0,
+            StartedUtc = DateTimeOffset.UtcNow,
+        });
+        Assert.Equal("—", missing.Np);
+        Assert.Equal("—", missing.Re);
+        Assert.Equal("—", missing.NetTorque);
+
+        var net = PowerResultRow.From(new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            MeanRpmMeasured = 60,
+            MeanTorqueNm = 9,
+            NetPowerW = 2 * Math.PI,
+            StartedUtc = DateTimeOffset.UtcNow,
+        });
+        Assert.Equal(1.0, double.Parse(net.NetTorque, CultureInfo.CurrentCulture), 5);
     }
 }

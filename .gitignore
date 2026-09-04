@@ -1,4 +1,4 @@
-﻿# Build output
+# Build output
 bin/
 obj/
 [Dd]ebug/
@@ -25,6 +25,8 @@ tools/wifi-test/
 logs/
 *.log
 preferences.local.json
+Configuracoes/
+Sessoes/
 
 # OS
 Thumbs.db

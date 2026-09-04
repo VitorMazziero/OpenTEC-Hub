@@ -11,6 +11,7 @@ public interface IPowerTestRunner : IDisposable
     PowerRunPhase Phase { get; }
     bool IsRunning { get; }
     bool IsInReview { get; }
+    bool IsPausedByOperator { get; }
     bool IsPausedForMeasurement { get; }
     double PhaseElapsedSeconds { get; }
     double TotalElapsedSeconds { get; }
@@ -31,6 +32,9 @@ public interface IPowerTestRunner : IDisposable
     void PrepareTest(PowerTestDocument doc);
     Task StartTestAsync(PowerTestDocument doc, CancellationToken cancellationToken = default);
     Task StartRunAsync(PowerCondition condition, int replicateNumber, CancellationToken cancellationToken = default);
+    Task PauseAsync();
+    Task ResumeAsync(CancellationToken cancellationToken = default);
+    Task SkipCurrentConditionAsync(string reason = "Condição pulada pelo operador");
     Task ResumeAfterMeasurementAsync(CancellationToken cancellationToken = default);
     Task SubmitManualEnergyAsync(
         double electricalPowerW,

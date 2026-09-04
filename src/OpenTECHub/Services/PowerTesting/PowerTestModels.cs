@@ -32,6 +32,7 @@ public enum PowerRunPhase
     OpeningGas,
     SettlingTorque,
     AccumulatingToTarget,
+    PausedByOperator,
     PausedForMeasurement,
     HoldingForManualEnergy,
     Captured,

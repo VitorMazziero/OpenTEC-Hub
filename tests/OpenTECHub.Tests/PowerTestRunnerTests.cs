@@ -114,6 +114,53 @@ public sealed class PowerTestRunnerTests
     }
 
     [Fact]
+    public async Task Operator_pause_discards_partial_window_and_resume_restarts_both_gates()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings());
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+        h.Push(300, 2.0);
+        h.Push(300, 2.2);
+        Assert.True(h.Runner.CurrentTorqueCi95Percent > 0);
+
+        await h.Runner.PauseAsync();
+
+        Assert.True(h.Runner.IsPausedByOperator);
+        Assert.Equal(0, h.Runner.CurrentTorqueCi95Percent);
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        h.Push(300, 4.0);
+        Assert.Equal(PowerRunPhase.PausedByOperator, h.Runner.Phase);
+        Assert.False(h.Runner.CurrentRunPoints[^1].Counted);
+
+        await h.Runner.ResumeAsync();
+
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+        Assert.Contains(h.Device.Sent, json => json == "{\"motorSetpoint\":300}");
+    }
+
+    [Fact]
+    public async Task Skip_current_condition_parks_motor_and_persists_a_skipped_rejected_run()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings());
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+
+        await h.Runner.SkipCurrentConditionAsync();
+
+        Assert.Equal(PowerRunPhase.Rejected, h.Runner.Phase);
+        Assert.Equal(PowerConditionStatus.Skipped, doc.Conditions[0].Status);
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.Contains(h.Device.Sent, json => json == "{\"motorSetpoint\":15}");
+        Assert.Contains(doc.Runs, run => run.Phase == PowerRunPhase.Rejected && run.StopReason == PowerStopReason.Aborted);
+        var reloaded = h.Store.LoadTest(doc.FolderName);
+        Assert.NotNull(reloaded);
+        Assert.Equal(PowerConditionStatus.Skipped, reloaded.Conditions[0].Status);
+    }
+
+    [Fact]
     public async Task Timeout_recaptures_in_place_then_marks_not_converged()
     {
         using var h = new Harness();

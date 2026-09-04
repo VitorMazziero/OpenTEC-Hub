@@ -3,108 +3,354 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             xmlns:power="clr-namespace:OpenTECHub.Services.PowerTesting"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:PowerTestViewModel}"
-             d:DesignHeight="800" d:DesignWidth="1400">
+             d:DesignHeight="900" d:DesignWidth="1500">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+        <Style x:Key="PowerCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style x:Key="PowerLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
+        <Style x:Key="PowerMetric" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="CompactField" TargetType="TextBox">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="8,6">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Text="Potência" FontSize="{DynamicResource FontSizeTitle}"
-                           FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
-                           Text="Aquisição de potência mecânica do conjunto de impelidores" />
-            </StackPanel>
-            <Border Grid.Column="1" Padding="10,5"
-                    Background="{DynamicResource AccentSubtleBrush}"
-                    BorderBrush="{DynamicResource AccentBorderBrush}"
-                    BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
-                <TextBlock Text="{Binding PageStage}" FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}" />
-            </Border>
-        </Grid>
+        <Border Grid.Row="0" Margin="0,0,0,7" Style="{StaticResource PowerCard}" Padding="10,7">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Potência" FontSize="17" FontWeight="Bold" />
+                        <Border Margin="10,0,0,0" Padding="8,2" Background="{DynamicResource AccentSubtleBrush}"
+                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4">
+                            <TextBlock Text="{Binding PhaseLabel}" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                        </Border>
+                        <Border Margin="7,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
+                            <TextBlock Text="{Binding ResultModeLabel}" FontSize="11" FontWeight="Bold" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Novo" Margin="3,0" Command="{Binding CreateTestCommand}" />
+                    <Button Content="Salvar setup" Margin="3,0" Command="{Binding SaveSetupCommand}" IsEnabled="{Binding CanEditPlan}" />
+                    <Button Content="▶ Iniciar/continuar" Margin="3,0" Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding StartOrContinueCommand}" IsEnabled="{Binding CanStartOrContinue}" />
+                    <Button Content="{Binding PauseButtonLabel}" Margin="3,0" Command="{Binding PauseResumeCommand}" IsEnabled="{Binding CanPause}" />
+                    <Button Content="Pular" Margin="3,0" Command="{Binding SkipCurrentCommand}" IsEnabled="{Binding CanSkipCurrent}" />
+                    <Button Content="Parar e revisar" Margin="3,0" Command="{Binding StopAndReviewCommand}" IsEnabled="{Binding CanStop}" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
-        <!-- Step 5 fixes the master-detail route. Step 6 fills the acquisition controls and
-             step 7 fills the result surface without changing this page boundary. -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="340" />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="340" MinWidth="320" MaxWidth="390" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" MinWidth="430" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Padding="16"
-                    Background="{DynamicResource SurfaceCardBrush}"
-                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
                 <StackPanel>
-                    <TextBlock Text="Aquisição" FontSize="16" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                    <TextBlock Margin="0,6,0,16" TextWrapping="Wrap"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Estrutura reservada para o ensaio, fluido, geometria, tara, calibração e tabela de condições." />
-
-                    <TextBlock Text="DEPENDÊNCIAS CONECTADAS" FontSize="11" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <TextBlock Margin="0,6,0,0" Text="Armazenamento autocontido" />
-                    <TextBlock Margin="0,4,0,0" Text="Telemetria do servo" />
-                    <TextBlock Margin="0,4,0,0" Text="Árbitro de comandos" />
-
-                    <Border Margin="0,18,0,0" Padding="10"
-                            Background="{DynamicResource SurfaceSunkenBrush}"
-                            CornerRadius="{DynamicResource RadiusSmall}">
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Controle da agitação" Style="{StaticResource CaptionTextStyle}" />
-                            <TextBlock Margin="0,3,0,0" Text="{Binding AgitationOwnerLabel}"
-                                       FontWeight="SemiBold" />
+                            <TextBlock Text="Ensaio" FontSize="15" FontWeight="SemiBold" />
+                            <ComboBox Margin="0,8,0,5" ItemsSource="{Binding Tests}" SelectedItem="{Binding SelectedTest}"
+                                      DisplayMemberPath="Name" ToolTip="Ensaios autocontidos em Testes-Potencia" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="{Binding TestStatusLabel}" FontWeight="SemiBold" />
+                                <Button Grid.Column="1" Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="10,4" />
+                            </Grid>
+                            <TextBlock Margin="0,6,0,0" Text="{Binding TestRootDirectory}" Style="{StaticResource CaptionTextStyle}"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding TestRootDirectory}" />
                         </StackPanel>
                     </Border>
+
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7" IsEnabled="{Binding CanEditPlan}">
+                        <StackPanel>
+                            <TextBlock Text="Fluido e vaso" FontSize="15" FontWeight="SemiBold" />
+                            <WrapPanel Margin="0,7,0,6">
+                                <Button Content="Água 20 °C" Padding="8,3" Margin="0,0,5,0" Command="{Binding ApplyWaterPresetCommand}" CommandParameter="20" />
+                                <Button Content="Água 25 °C" Padding="8,3" Command="{Binding ApplyWaterPresetCommand}" CommandParameter="25" />
+                            </WrapPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="ρ (kg/m³)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding DensityKgM3, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="μ (Pa·s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding ViscosityPaS, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Temperatura (°C)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TemperatureC, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="T vaso (mm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding VesselDiameterMm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Volume de trabalho (L)" Style="{StaticResource PowerLabel}" /><TextBox Width="145" HorizontalAlignment="Left" Style="{StaticResource CompactField}" Text="{Binding LiquidVolumeL, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <CheckBox Grid.Column="1" Content="Com chicanas" IsChecked="{Binding IsBaffled}" VerticalAlignment="Bottom" Margin="8,0,0,5" />
+                            </Grid>
+                            <TextBlock Margin="0,7,0,0" Text="{Binding VortexWarning}" Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" FontSize="11" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Impelidores" FontSize="15" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="1" Text="{Binding ImpellerSetHash, StringFormat=hash {0}}" Style="{StaticResource CaptionTextStyle}" />
+                            </Grid>
+                            <DataGrid Margin="0,7,0,5" Height="150" ItemsSource="{Binding Impellers}" SelectedItem="{Binding SelectedImpeller}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" IsEnabled="{Binding CanEditPlan}"
+                                      HeadersVisibility="Column" HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding StageIndex}" Width="28" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Tipo" Width="120">
+                                        <DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding DataContext.ImpellerTypes, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Type, UpdateSourceTrigger=PropertyChanged}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus}" Width="62" />
+                                    <DataGridTextColumn Header="Pás" Binding="{Binding BladeCount, UpdateSourceTrigger=LostFocus}" Width="42" />
+                                    <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus}" Width="70" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <WrapPanel>
+                                <Button Content="+" Width="34" Margin="0,0,5,0" Command="{Binding AddImpellerCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Adicionar estágio" />
+                                <Button Content="−" Width="34" Margin="0,0,5,0" Command="{Binding RemoveImpellerCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Remover estágio" />
+                                <Button Content="↑" Width="34" Margin="0,0,5,0" Command="{Binding MoveImpellerUpCommand}" IsEnabled="{Binding CanEditPlan}" />
+                                <Button Content="↓" Width="34" Command="{Binding MoveImpellerDownCommand}" IsEnabled="{Binding CanEditPlan}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7" IsEnabled="{Binding CanEditPlan}">
+                        <StackPanel>
+                            <TextBlock Text="Captura automática" FontSize="15" FontWeight="SemiBold" />
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="N mín." Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MinRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="N máx." Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Passo" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="IC rel. (%)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding RelativeCiPercent, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Piso στ (×)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding CiFloorSigmaMultiple, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="n mín." Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MinimumSamples, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="t máx. (s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxCaptureSeconds, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Tentativas" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxTries, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Janela (s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationarityWindowSeconds, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Deriva (%/s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationaritySlopeTolerance, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Confirmações" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationarityRequiredSamples, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <CheckBox Margin="0,8,0,0" Content="Leitura manual de energia após cada ponto" IsChecked="{Binding ManualEnergyCaptureEnabled}" />
+                            <CheckBox Margin="0,5,0,0" Content="Estabilização no alívio (Fase 2)" IsChecked="{Binding VentStabilizationEnabled}" IsEnabled="False" ToolTip="A montagem gaseificada entra na etapa 11" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Condições" FontSize="15" FontWeight="SemiBold" />
+                            <DataGrid Margin="0,7,0,5" Height="190" ItemsSource="{Binding Conditions}" SelectedItem="{Binding SelectedCondition}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" IsEnabled="{Binding CanEditPlan}" HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="28" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="N rpm" Binding="{Binding AgitationRpm, UpdateSourceTrigger=LostFocus}" Width="62" />
+                                    <DataGridTextColumn Header="L/min" Binding="{Binding GasFlowLpm, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="58" />
+                                    <DataGridTextColumn Header="vvm" Binding="{Binding GasFlowVvm, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="52" />
+                                    <DataGridTemplateColumn Header="Un." Width="58"><DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding DataContext.FlowUnits, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding FlowUnit}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="Modo" Width="112"><DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding DataContext.GasModes, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding GasMode}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Rep." Binding="{Binding RequestedReplicates}" Width="42" />
+                                    <DataGridTextColumn Header="Feitas" Binding="{Binding CompletedReplicates}" Width="48" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Status" Width="76"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Pendente" /><Style.Triggers><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.InProgress}"><Setter Property="Text" Value="Em curso" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Completed}"><Setter Property="Text" Value="Concluída" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Skipped}"><Setter Property="Text" Value="Pulada" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="Origem" Width="64"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Manual" /><Style.Triggers><DataTrigger Binding="{Binding Origin}" Value="{x:Static power:PowerConditionOrigin.Map}"><Setter Property="Text" Value="Mapa" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <WrapPanel>
+                                <Button Content="+" Width="34" Margin="0,0,4,0" Command="{Binding AddConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
+                                <Button Content="−" Width="34" Margin="0,0,4,0" Command="{Binding RemoveConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
+                                <Button Content="↑" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionUpCommand}" IsEnabled="{Binding CanEditPlan}" />
+                                <Button Content="↓" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionDownCommand}" IsEnabled="{Binding CanEditPlan}" />
+                                <Button Content="Pular/repor" Padding="8,4" Command="{Binding ToggleSkipConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
+                            </WrapPanel>
+                            <TextBlock Margin="0,9,0,3" Text="Gerar varredura (15–1000 rpm; passo ≥ 5)" Style="{StaticResource PowerLabel}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding SweepStartRpm, UpdateSourceTrigger=LostFocus}" ToolTip="Inicial" />
+                                <TextBox Grid.Column="2" Style="{StaticResource CompactField}" Text="{Binding SweepEndRpm, UpdateSourceTrigger=LostFocus}" ToolTip="Final" />
+                                <TextBox Grid.Column="4" Style="{StaticResource CompactField}" Text="{Binding SweepStepRpm, UpdateSourceTrigger=LostFocus}" ToolTip="Passo" />
+                                <Button Grid.Column="6" Content="Gerar" Padding="8,3" Command="{Binding GenerateSweepCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Rastreabilidade" FontSize="15" FontWeight="SemiBold" />
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TareStatus}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Medir tara" Padding="8,4" Command="{Binding TareMeasurementInfoCommand}" />
+                            </Grid>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding CalibrationStatus}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Medir calibração" Padding="8,4" Command="{Binding CalibrationInfoCommand}" />
+                            </Grid>
+                            <CheckBox Margin="0,8,0,0" Content="Aceitar resultados relativos" IsChecked="{Binding RelativeMode}" IsEnabled="{Binding CanEditPlan}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Margin="3,0,3,10" Text="{Binding ValidationMessage}" Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" />
                 </StackPanel>
-            </Border>
+            </ScrollViewer>
 
-            <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0"><TextBlock Text="N medida" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentRpmText, StringFormat={}{0} rpm}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="1"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorquePercentText, StringFormat={}{0} %}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="Torque" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentTorqueNmText, StringFormat={}{0} N·m}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="3"><TextBlock Text="Potência mec. estimada" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerWText, StringFormat={}{0} W}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="4"><TextBlock Text="Qg" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentFlowText, StringFormat={}{0} L/min}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="5"><TextBlock Text="Np" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentNpText}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="6"><TextBlock Text="Re" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentReText}" Style="{StaticResource PowerMetric}" /></StackPanel>
+                            <StackPanel Grid.Column="7"><TextBlock Text="FlG / Fr" Style="{StaticResource PowerLabel}" /><TextBlock Style="{StaticResource PowerMetric}"><Run Text="{Binding CurrentFlGText, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding CurrentFrText, Mode=OneWay}" /></TextBlock></StackPanel>
+                        </Grid>
+                    </Border>
 
-                <Border Padding="16"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
-                    <StackPanel>
-                        <TextBlock Text="Caminho ao vivo" FontSize="16" FontWeight="SemiBold" />
-                        <TextBlock Margin="0,6,0,0" Text="{Binding LiveSummary}"
-                                   FontFamily="{DynamicResource FontMono}" />
-                        <TextBlock Margin="0,4,0,0" Style="{StaticResource CaptionTextStyle}"
-                                   Text="Leitura observacional; este esqueleto ainda não envia comandos." />
-                    </StackPanel>
-                </Border>
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Precisão adaptativa" FontWeight="SemiBold" />
+                                <ProgressBar Margin="0,7,0,3" Height="12" Minimum="0" Maximum="100" Value="{Binding CiProgressPercent, Mode=OneWay}" />
+                                <TextBlock Text="{Binding CiLabel}" Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Progresso da sequência" FontWeight="SemiBold" />
+                                <ProgressBar Margin="0,7,0,3" Height="12" Minimum="0" Maximum="100" Value="{Binding SequenceProgressPercent, Mode=OneWay}" />
+                                <StackPanel Orientation="Horizontal"><TextBlock Text="{Binding SequenceProgressLabel}" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text=" · " Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding EtaLabel}" Style="{StaticResource CaptionTextStyle}" /></StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
 
-                <Border Grid.Row="2" Padding="16"
-                        Background="{DynamicResource SurfaceCardBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="Resultados do ensaio" FontSize="18" FontWeight="SemiBold"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Margin="0,8,0,0" MaxWidth="520" TextAlignment="Center"
-                                   TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                   Text="As curvas Np(Re), o intervalo de confiança e a tabela de pontos entram nas etapas 6 e 7." />
-                    </StackPanel>
-                </Border>
-            </Grid>
+                    <Grid Height="390" Margin="0,0,0,7">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource PowerCard}" Padding="6">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <DockPanel Margin="5,2,5,4">
+                                    <TextBlock Text="Torque e rotação vs. tempo" FontWeight="SemiBold" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Border Width="14" Height="3" Background="{DynamicResource AccentBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="Torque" Style="{StaticResource CaptionTextStyle}" />
+                                        <Border Width="14" Height="3" Background="{DynamicResource StateOkBrush}" Margin="10,0,4,0" VerticalAlignment="Center" /><TextBlock Text="rpm" Style="{StaticResource CaptionTextStyle}" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <Border x:Name="LiveChartHost" Grid.Row="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers><DataTrigger Binding="{Binding IsAccumulating}" Value="True"><Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" /></DataTrigger></Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <Border Grid.Column="2" Style="{StaticResource PowerCard}" Padding="6">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <DockPanel Margin="5,2,5,4">
+                                    <TextBlock Text="Np vs. Re · escala log10" FontWeight="SemiBold" />
+                                    <TextBlock HorizontalAlignment="Right" Text="● capturado  ┄ literatura" Style="{StaticResource CaptionTextStyle}" />
+                                </DockPanel>
+                                <Border x:Name="NpChartHost" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Border Style="{StaticResource PowerCard}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Pontos capturados" FontSize="15" FontWeight="SemiBold" />
+                                    <Border Margin="8,0,0,0" Padding="7,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4"><TextBlock Text="{Binding PrecisionBadge}" FontSize="10" /></Border>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Exportar CSV" Click="ExportCsv_Click" Padding="10,4" IsEnabled="{Binding HasActiveTest}" />
+                            </Grid>
+                            <StackPanel Grid.Row="1" Margin="0,7,0,7" Orientation="Horizontal" Visibility="{Binding IsInReview, Converter={StaticResource BoolToVis}}">
+                                <Button Content="Aceitar" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptRunCommand}" Margin="0,0,6,0" />
+                                <Button Content="Rejeitar" Command="{Binding RejectRunCommand}" Margin="0,0,6,0" />
+                                <Button Content="Repetir" Command="{Binding RepeatRunCommand}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Margin="0,7,0,7" Orientation="Horizontal" Visibility="{Binding IsWaitingManualEnergy, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Condição mantida: registre a leitura elétrica." VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <Button Content="Informar wattímetro" Style="{StaticResource AccentButtonStyle}" Command="{Binding SubmitManualEnergyCommand}" />
+                            </StackPanel>
+                            <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="68" />
+                                    <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="88" />
+                                    <DataGridTextColumn Header="P líqu. (W)" Binding="{Binding Power}" Width="80" />
+                                    <DataGridTextColumn Header="Np" Binding="{Binding Np}" Width="70" />
+                                    <DataGridTextColumn Header="Re" Binding="{Binding Re}" Width="82" />
+                                    <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" Width="74" />
+                                    <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" Width="88" />
+                                    <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="52" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="78" />
+                                    <DataGridTextColumn Header="Data/hora" Binding="{Binding Timestamp}" Width="140" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="3" HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="Concluir ensaio" Command="{Binding CompleteTestCommand}" Margin="0,0,6,0" IsEnabled="{Binding HasActiveTest}" />
+                                <Button Content="Interromper" Command="{Binding AbortTestCommand}" IsEnabled="{Binding HasActiveTest}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

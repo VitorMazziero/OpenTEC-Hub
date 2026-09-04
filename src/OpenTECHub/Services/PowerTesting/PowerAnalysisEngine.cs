@@ -44,7 +44,12 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
         if (input.Tare is { } tareForNoise)
         {
             var sigmaTauPercent = TareInterpolator.InterpolateSigmaTauPercent(tareForNoise, rpm);
-            var noiseFloorW = input.SnrFloorMultiple * PowerCalc.PowerNoiseFloorW(sigmaTauPercent, tNom, rpm);
+            // σ_τ is the scatter of the *reported* torque %. The calibration scales the physical
+            // torque — and hence its scatter — by |Scale|, exactly as it scaled netPowerW above.
+            // The watt-floor must carry the same factor, or a Scale≠1 calibration mis-scales the
+            // gate and can flag a real point as noise (or pass a noisy one) by that factor.
+            var calibrationScale = Math.Abs(calibration?.Scale ?? 1.0);
+            var noiseFloorW = input.SnrFloorMultiple * calibrationScale * PowerCalc.PowerNoiseFloorW(sigmaTauPercent, tNom, rpm);
             belowNoiseFloor = Math.Abs(netPowerW) <= noiseFloorW;
         }
 

@@ -231,6 +231,136 @@ public sealed class PowerAnalysisEngineTests
         Assert.False(_engine.FitEnergyCorrelation(new[] { (1.0, 12.0), (1.0, 15.0) }).HasFit); // no x spread
     }
 
+    [Fact]
+    public void FitEnergyCorrelation_Recovers_Line_From_Four_Noisy_Pairs()
+    {
+        // P_elec ≈ 2·P_mec + 10 with a little scatter; the spec asks for ≥4 pairs (§17, §20).
+        var pairs = new[] { (1.0, 12.1), (2.0, 13.9), (3.0, 16.1), (4.0, 17.9) };
+
+        var fit = _engine.FitEnergyCorrelation(pairs);
+
+        Assert.True(fit.HasFit);
+        Assert.Equal(4, fit.PointCount);
+        Assert.InRange(fit.Slope, 1.9, 2.1);
+        Assert.InRange(fit.InterceptW, 9.8, 10.3);
+        Assert.True(fit.RSquared > 0.99);
+    }
+
+    // ---- Numerical robustness (audit) -----------------------------------------------------
+
+    [Fact]
+    public void AnalyzePoint_SnrFloor_Scales_With_Calibration_Scale()
+    {
+        // σ_τ 0.62 % at 300 rpm, P_void 0. At 1.5 % torque the Scale=1 net (~0.598 W) sits
+        // between the unscaled floor (~0.742 W) and, at Scale=3, the correctly-scaled floor
+        // (~2.23 W) — so the net (~1.795 W) must read BELOW noise. Before the fix the floor was
+        // left unscaled (~0.742 W) and the point wrongly read above noise.
+        var tare = new TareCurve { Points = { new TarePoint(300, 0.0, 0.62) } };
+        var input = SinglePointInput(torquePercent: 1.5, torqueCi95: 0.1, rpm: 300) with
+        {
+            Calibration = new TorqueCalibration { Scale = 3.0, Offset = 0, MotorRatedTorqueNm = 1.27 },
+            Tare = tare,
+            SnrFloorMultiple = 3.0,
+        };
+
+        var result = _engine.AnalyzePoint(input);
+
+        Assert.True(result.BelowNoiseFloor);
+        // Net power itself carries the Scale, confirming the two are compared in the same units.
+        Assert.Equal(3.0 * (1.5 / 100.0 * 1.27) * PowerCalc.AngularVelocity(300), result.NetPowerW, 4);
+    }
+
+    [Fact]
+    public void AnalyzePoint_Handles_Empty_Impeller_List_Without_Throwing()
+    {
+        var input = new PowerPointInput
+        {
+            MeanTorquePercent = 2.0,
+            TorquePercentCi95 = 0.1,
+            MeanRpm = 300,
+            Fluid = new FluidProperties(),
+            Geometry = new PowerGeometry(), // no impellers
+        };
+
+        var result = _engine.AnalyzePoint(input);
+
+        Assert.Empty(result.Stages);
+        Assert.Equal(0.0, result.ReferenceDiameterM, 6);
+        Assert.True(double.IsNaN(result.AssemblyPowerNumber));
+        Assert.True(double.IsFinite(result.ShaftPowerW)); // the shaft power is still well-defined
+    }
+
+    [Theory]
+    [InlineData(15.0)]
+    [InlineData(1000.0)]
+    public void AnalyzePoint_Is_Finite_At_Hardware_Rpm_Extremes(double rpm)
+    {
+        var result = _engine.AnalyzePoint(SinglePointInput(torquePercent: 5.0, torqueCi95: 0.2, rpm: rpm));
+
+        var stage = Assert.Single(result.Stages);
+        Assert.True(double.IsFinite(stage.PowerNumber));
+        Assert.True(double.IsFinite(stage.ReynoldsNumber));
+        Assert.True(stage.ReynoldsNumber > 0);
+        Assert.True(double.IsFinite(result.NetPowerW));
+    }
+
+    [Fact]
+    public void AnalyzePoint_Accepts_Negative_Braking_Torque_As_Data()
+    {
+        // Negative torque is legitimate (braking); it must not be rejected or clamped (§19).
+        var result = _engine.AnalyzePoint(SinglePointInput(torquePercent: -2.0, torqueCi95: 0.2, rpm: 300));
+
+        Assert.True(result.NetPowerW < 0);
+        Assert.True(result.Stages[0].PowerNumber < 0);
+        Assert.True(double.IsFinite(result.Stages[0].PowerNumber));
+        Assert.True(result.Stages[0].PowerNumberCi95 >= 0); // the CI half-width stays non-negative
+    }
+
+    [Fact]
+    public void RunningStatistics_Constant_Input_Has_Zero_Spread_Not_NaN()
+    {
+        var stats = new RunningStatistics();
+        for (var i = 0; i < 200; i++)
+        {
+            stats.Add(1.5);
+        }
+
+        Assert.Equal(0.0, stats.Variance, 12);
+        Assert.Equal(0.0, stats.StandardDeviation, 12);
+        Assert.False(double.IsNaN(stats.ConfidenceHalfWidth95));
+        Assert.Equal(0.0, stats.ConfidenceHalfWidth95, 12);
+    }
+
+    [Fact]
+    public void FitPlateau_Single_Point_Returns_Its_Own_Ci()
+    {
+        var fit = _engine.FitPlateau(new (double, double, double)[] { (20_000, 5.0, 0.2) }, reCutoff: 10_000);
+
+        Assert.True(fit.HasFit);
+        Assert.Equal(1, fit.PointsUsed);
+        Assert.Equal(5.0, fit.PowerNumber, 6);
+        Assert.Equal(0.2, fit.PowerNumberCi95, 6);
+    }
+
+    [Fact]
+    public void FitPlateau_Falls_Back_To_Plain_Mean_When_A_Ci_Is_NonPositive()
+    {
+        // One point carries no CI (0) → the inverse-variance path is abandoned for a plain mean,
+        // avoiding an infinite weight.
+        var points = new (double, double, double)[]
+        {
+            (20_000, 5.0, 0.2),
+            (30_000, 5.2, 0.0),
+        };
+
+        var fit = _engine.FitPlateau(points, reCutoff: 10_000);
+
+        Assert.True(fit.HasFit);
+        Assert.Equal(2, fit.PointsUsed);
+        Assert.Equal(5.1, fit.PowerNumber, 6); // unweighted average, not dominated by the 0-CI point
+        Assert.True(double.IsFinite(fit.PowerNumberCi95));
+    }
+
     // ---- Culture --------------------------------------------------------------------------
 
     [Fact]

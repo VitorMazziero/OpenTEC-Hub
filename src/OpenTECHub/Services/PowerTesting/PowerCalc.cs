@@ -100,8 +100,12 @@ public sealed class RunningStatistics
     public int Count { get; private set; }
     public double Mean => Count > 0 ? _mean : 0.0;
 
-    /// <summary>Sample variance (n−1). Zero for fewer than two samples.</summary>
-    public double Variance => Count > 1 ? _m2 / (Count - 1) : 0.0;
+    /// <summary>
+    /// Sample variance (n−1). Zero for fewer than two samples. Clamped at zero: near-constant
+    /// input can leave <c>_m2</c> a tiny negative through float cancellation, and an unclamped
+    /// √(negative) would make the standard error — and the adaptive-stop CI — NaN.
+    /// </summary>
+    public double Variance => Count > 1 ? Math.Max(0.0, _m2 / (Count - 1)) : 0.0;
     public double StandardDeviation => Math.Sqrt(Variance);
 
     /// <summary>Standard error of the mean σ/√n. Zero for fewer than two samples.</summary>

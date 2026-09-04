@@ -772,6 +772,40 @@ potência exatamente nos pontos de um mapa de kLa interpolado e cruzar qualquer 
 qualquer ponto do outro, e a **comparação de impelidores** (Q2) sobrepõe curvas de ensaios
 diferentes.
 
+### 18.1 Fase 1 — ordem de implementação e progresso
+
+Cada passo é compilável e testável sozinho; a ordem não é arbitrária (o domínio antes do
+engine, o engine e o simulador antes do runner, o runner antes da UI). **Marque `[x]` ao
+concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvimento.
+
+- [x] **1. Domínio + armazenamento** — `Services/PowerTesting/` (`PowerTestModels`,
+      `PowerTestFileContracts`, `IPowerTestStore`/`PowerTestStore`) autocontido sob
+      `Testes-Potencia/`; `AppPaths.PowerTestsDirectory`; registro na DI. _(2026-09-04, commit
+      `c9c893a`: geometria de conjunto misto, tabela com modo de gás por linha, tara com `σ_τ`,
+      calibração de um ponto, resumo de corrida com `IC`/`StopReason`; 15 testes de ida-e-volta;
+      suíte completa 864 verdes / 1 ignorado)_
+- [ ] **2. Engine de análise** — `PowerAnalysisEngine` (puro): `P_eixo`, `P_líq` com tara,
+      `Np`/`Re` por estágio, portão de SNR do `σ_τ`, ajuste de platô ponderado pelo `IC`,
+      correlação afim de energia. Testes cobrindo a matemática e a cultura pt-BR.
+- [ ] **3. Simulador** — modelo de torque respondendo a `N`/`Q_g` (`τ ∝ ρ·Np·N²·D⁵`),
+      assentamento de 1ª ordem e ruído calibrado pelos números reais (sessão `2026-09-03_1340`).
+- [ ] **4. Runner + parada adaptativa** — `PowerTestRunner`: máquina de estados (§12), as duas
+      portas, `n_min`/`t_max`/`MaxTries`, replicatas independentes, parada segura a 15 rpm,
+      recusa com cascata ativa. Caminho não-gaseificado. Exercitado contra o simulador.
+- [ ] **5. Nav + as duas páginas** — itens `power` e `power-map` após `kla-mapping`; `PowerView`
+      e o esqueleto de `PowerMapView` roteados; view-models registrados em `App.xaml.cs`.
+- [ ] **6. UI de setup + tabela** — fluido, lista de impelidores (registro pré-carregado),
+      vaso/volume, limiares; tabela de condições (só `N`, gás fechado na fase 1).
+- [ ] **7. UI de captura ao vivo** — faixa `τ`/`rpm` + indicador de `IC₉₅`; gráfico `Np×Re` com
+      _overlay_ de literatura; tabela de pontos exportável (CSV).
+- [ ] **8. Procedimentos guiados** — tara `P_vazio(N)+σ_τ` e calibração de torque (1 ponto);
+      ponto único; captura manual de energia.
+- [ ] **9. Fechamento** — suíte completa verde + app iniciado e logs WPF recentes inspecionados.
+
+**Portão da Fase 1:** uma varredura não-gaseificada roda ponta a ponta contra o simulador, para
+cada condição pela confiança, e entrega `Np(Re)` com `IC`, tara e calibração aplicadas. Fases 2
+e 3 ganham suas próprias listas quando começarem.
+
 ---
 
 ## 19. Armadilhas — o que não fazer

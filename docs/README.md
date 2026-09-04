@@ -19,6 +19,7 @@ Index of the project documentation. The repository entry point is
 | [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) | Auditoria dos firmwares dos dispositivos externos contra o app e plano de padronização (presença, ACK, Controle e Painel) |
 | [PLANO_IMPLEMENTACAO_TESTES_KLA.md](PLANO_IMPLEMENTACAO_TESTES_KLA.md) | Plano detalhado da página Determinar kLa, armazenamento em `Testes-kLa` e importação bidirecional com Mapas |
 | [SIMULACAO_TESTES_KLA.md](SIMULACAO_TESTES_KLA.md) | Como iniciar o modo offline de Testes-kLa com reprodução de arquivo experimental e ACKs simulados |
+| [PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md](PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md) | Plano detalhado das páginas Potência/Mapa de Potência: ensaios de potência de impelidor (Np, P_G/flooding), tara+calibração, parada adaptativa por confiança. §18.1 é o progresso vivo da Fase 1 |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ## Reading paths

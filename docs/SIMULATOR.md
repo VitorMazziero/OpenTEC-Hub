@@ -137,6 +137,8 @@ other half.
 | `--scenario <name>` | Start in a named scenario (see below) |
 | `--port <n>` | HTTP port (default 8080) |
 | `--data-delay <ms>` | Initial telemetry period (default 2000) |
+| `--servo-speed-tau <s>` | Servo speed first-order time constant (default 1.5 s; zero is instantaneous) |
+| `--servo-torque-tau <s>` | Impeller torque first-order time constant (default 8 s; zero is instantaneous) |
 | `--no-module` | Start with the sensor module offline, as the bare board does |
 | `--quiet` | Suppress the per-frame console echo |
 
@@ -211,6 +213,26 @@ setpoint changes visibly take effect.
 | Dissolved oxygen | `dC/dt = kLa(N,Q)·(C* − C) − OUR`, then a first-order probe with dead time |
 | pH | Drifts with metabolism; dosing acts only outside `pHError` and is scaled by `pHIntensity` plus the `pHOperation`/`pHMix` duty cycle |
 | Biomass | Logistic growth |
+| Servo speed | First-order approach from measured rpm to `motorSetpoint` |
+| Servo torque | Per-stage `rho*Np*N^3*D^5`, converted to torque, plus per-stage dry tare and measured noise |
+
+### Impeller-power assay model
+
+The normal simulator now carries two illustrative 60 mm Rushton stages in water. Each stage has
+its own diameter, toy steady-state `Np` and share of the dry-running tare. The liquid contribution
+is computed independently for every stage and summed at the shaft; the wire still publishes only
+the servo's total measured torque, exactly like the real drive.
+
+`ServoPowerModelOptions` lets runner tests replace density, rated torque, stage geometry, `Np`,
+tare and the speed/torque time constants. The default torque noise curve is grounded in bench
+session `2026-09-03_1340`: standard deviation 0.06 % at rest, 0.62 % near 300 rpm and 0.41 % near
+600 rpm. A fixed, smooth phase-1 gas-load reduction makes a `FlowSetpoint` change produce another
+settling transient. The `P_G/P_0` flooding knee is deliberately not claimed here; it remains the
+phase-2 extension in `PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md`.
+
+This model travels through the existing `motorSetpoint`/`FlowSetpoint` command path and
+`ServoRpm`/`ServoTorqueNm`/`ServoPowerW` telemetry path. A power-assay runner therefore exercises
+the same parser and connection surface it will use at the bench.
 
 **Deliberately simplified for now.** The rigorous model — the bicubic kLa surface from
 the manuscript and a realistic OUR trajectory — remains a **Phase 2 deliverable**, because

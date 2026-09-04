@@ -88,6 +88,7 @@ public sealed class DeviceModel
     private readonly ISimulatorClock _clock;
     private readonly Random _random;
     private readonly DateTimeOffset _bootedAt;
+    private readonly ServoPowerModelOptions _servoPowerModel;
 
     /// <summary>Delayed DO samples, so the reported value lags the true one.</summary>
     private readonly Queue<(DateTimeOffset At, double Value)> _oxygenDelayLine = new();
@@ -112,12 +113,15 @@ public sealed class DeviceModel
         CultivationProfile? profile = null,
         TimeSpan? probeDeadTime = null,
         double oxygenQuantisation = 0.0,
-        int randomSeed = 20260819)
+        int randomSeed = 20260819,
+        ServoPowerModelOptions? servoPowerModel = null)
     {
         _clock = clock ?? new WallClock();
         _bootedAt = _clock.Now;
         _lastTick = _clock.Now;
         _random = new Random(randomSeed);
+        _servoPowerModel = servoPowerModel ?? ServoPowerModelOptions.Default;
+        ValidateServoPowerModel(_servoPowerModel);
 
         KlaSource = klaSource ?? new PowerLawKla();
         Profile = profile ?? CultivationProfile.Default;
@@ -154,6 +158,7 @@ public sealed class DeviceModel
 
     public double TemperatureSetpoint { get; set; }
 
+    /// <summary>Commanded CN1 speed reference. <see cref="ServoRpm"/> is the measured response.</summary>
     public int MotorRpm { get; set; }
 
     public double OxygenSetpoint { get; set; }
@@ -212,18 +217,13 @@ public sealed class DeviceModel
     // ASDA-B2 servo drive node
     // ------------------------------------------------------------------
 
-    /// <summary>Nameplate torque of the ECMA-C20604ES, in N·m.</summary>
-    /// <remarks>
-    /// The drive reports a fraction of rated torque, never N·m, so every derived torque and
-    /// watt scales linearly with this number. It is here rather than inlined so the
-    /// simulator's arithmetic is visibly the same as the node's.
-    /// </remarks>
-    private const double MotorRatedTorqueNm = 1.27;
-
     private const double TwoPiOverSixty = 0.10471975511965977;
 
     private double _servoEnergyJoules;
     private bool _servoWasPresent = true;
+    private double _servoRpm;
+    private double _servoTorquePercent;
+    private double _servoTorqueNoisePercent;
 
     /// <summary>Servo routing on the Hub. The only routing flag that is born <c>true</c>.</summary>
     /// <remarks>
@@ -246,26 +246,24 @@ public sealed class DeviceModel
 
     /// <summary>Measured shaft speed, in rpm.</summary>
     /// <remarks>
-    /// Tracks the commanded reference, because Hub firmware 9.1.0-dev inverts the CN1's
-    /// affine calibration before emitting. What is left is the residual of that fit - the
-    /// bench measured under half an rpm across the range - so the app is exercised against a
-    /// measurement that is close to the setpoint but never identical to it.
+    /// Approaches the commanded reference with configurable first-order dynamics. The small
+    /// residual is the scatter left by the Hub 9.1.0-dev inverse CN1 calibration.
     /// </remarks>
     public double ServoRpm => Scenario == Scenario.ServoAlarm
         ? 0.0
-        : MotorRpm <= 0 ? 0.0 : MotorRpm + _servoResidualRpm;
+        : _servoRpm <= 0.01 ? 0.0 : Math.Max(0.0, _servoRpm + _servoResidualRpm);
 
     /// <summary>
-    /// Torque as a percentage of rated, rising with speed.
+    /// Torque as a percentage of rated, including stage tare, liquid load and measured noise.
     /// </summary>
     /// <remarks>
-    /// Fitted to the bench sweep: 1.36 % at 100 rpm climbing monotonically to 2.46 % at
-    /// 1000 rpm, which is viscous friction and windage growing with rotation. At rest it
-    /// falls to nearly zero, as it did on the bench with <c>ZSPD</c> asserted.
+    /// The liquid component follows <c>P = rho·Np·N^3·D^5</c> per stage. Dividing by angular
+    /// speed gives the stage torque; dry-running tare is added per stage. The reported sample
+    /// then receives zero-mean noise interpolated from the 2026-09-03 bench curve.
     /// </remarks>
-    public double ServoTorquePct => ServoRpm <= 0.0 ? 0.0 : 1.25 + (ServoRpm * 0.00122);
+    public double ServoTorquePct => _servoTorquePercent + _servoTorqueNoisePercent;
 
-    public double ServoTorqueNm => ServoTorquePct / 100.0 * MotorRatedTorqueNm;
+    public double ServoTorqueNm => ServoTorquePct / 100.0 * _servoPowerModel.MotorRatedTorqueNm;
 
     /// <summary>Estimated mechanical shaft power, <c>T·ω</c>. Not electrical draw.</summary>
     public double ServoPowerW => ServoTorqueNm * ServoRpm * TwoPiOverSixty;
@@ -464,7 +462,24 @@ public sealed class DeviceModel
             _servoWasPresent = true;
         }
 
-        // A small residual so the measurement is never exactly the setpoint. The CN1
+        var speedTarget = Scenario == Scenario.ServoAlarm ? 0.0 : Math.Max(0.0, MotorRpm);
+        _servoRpm = FirstOrderStep(_servoRpm, speedTarget, dt, _servoPowerModel.SpeedTimeConstantSeconds);
+        if (speedTarget == 0.0 && _servoRpm < 0.01)
+        {
+            _servoRpm = 0.0;
+        }
+
+        var torqueTargetPercent = CalculateSteadyServoTorquePercent(_servoRpm, _flow);
+        _servoTorquePercent = FirstOrderStep(
+            _servoTorquePercent,
+            torqueTargetPercent,
+            dt,
+            _servoPowerModel.TorqueTimeConstantSeconds);
+
+        var sigmaTorquePercent = InterpolateTorqueNoiseSigma(_servoRpm);
+        _servoTorqueNoisePercent = NextStandardNormal() * sigmaTorquePercent;
+
+        // A small residual so the measurement is never exactly the speed state. The CN1
         // correction in Hub 9.1.0-dev removes the systematic part; what is left is the
         // scatter of the fit, which the bench put under half an rpm.
         _servoResidualRpm = (_random.NextDouble() - 0.5) * 0.9;
@@ -475,6 +490,116 @@ public sealed class DeviceModel
         _servoEnergyJoules += ServoPowerW * dt;
 
         DrainServoQueue(dt);
+    }
+
+    private double CalculateSteadyServoTorquePercent(double rpm, double flowLpm)
+    {
+        if (rpm <= 0.0)
+        {
+            return 0.0;
+        }
+
+        var revolutionsPerSecond = rpm / 60.0;
+        var angularSpeed = rpm * TwoPiOverSixty;
+        var gasFraction = _servoPowerModel.ReferenceGasFlowLpm <= 0.0
+            ? 0.0
+            : Math.Clamp(flowLpm / _servoPowerModel.ReferenceGasFlowLpm, 0.0, 1.0);
+        var gasPowerRatio = 1.0 - gasFraction * (1.0 - _servoPowerModel.GassedLiquidPowerRatio);
+
+        var torqueNm = 0.0;
+        foreach (var stage in _servoPowerModel.Impellers)
+        {
+            var liquidPowerW = _servoPowerModel.LiquidDensityKgM3
+                               * stage.PowerNumber
+                               * Math.Pow(revolutionsPerSecond, 3.0)
+                               * Math.Pow(stage.DiameterM, 5.0)
+                               * gasPowerRatio;
+            var tarePercent = stage.TareTorquePercentAtZero
+                              + stage.TareTorquePercentPerRpm * rpm;
+
+            torqueNm += liquidPowerW / angularSpeed;
+            torqueNm += tarePercent / 100.0 * _servoPowerModel.MotorRatedTorqueNm;
+        }
+
+        return torqueNm / _servoPowerModel.MotorRatedTorqueNm * 100.0;
+    }
+
+    private double InterpolateTorqueNoiseSigma(double rpm)
+    {
+        var curve = _servoPowerModel.TorqueNoiseCurve;
+        if (curve.Count == 0)
+        {
+            return 0.0;
+        }
+
+        var speed = Math.Abs(rpm);
+        if (speed <= curve[0].Rpm)
+        {
+            return curve[0].SigmaTorquePercent;
+        }
+
+        for (var i = 1; i < curve.Count; i++)
+        {
+            if (speed <= curve[i].Rpm)
+            {
+                var lower = curve[i - 1];
+                var upper = curve[i];
+                var fraction = (speed - lower.Rpm) / (upper.Rpm - lower.Rpm);
+                return lower.SigmaTorquePercent
+                       + fraction * (upper.SigmaTorquePercent - lower.SigmaTorquePercent);
+            }
+        }
+
+        return curve[^1].SigmaTorquePercent;
+    }
+
+    private double NextStandardNormal()
+    {
+        // Box-Muller transform. Keep u1 away from zero so log remains finite.
+        var u1 = Math.Max(_random.NextDouble(), double.Epsilon);
+        var u2 = _random.NextDouble();
+        return Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+    }
+
+    private static double FirstOrderStep(double current, double target, double dt, double tauSeconds)
+    {
+        if (tauSeconds <= 0.0)
+        {
+            return target;
+        }
+
+        var alpha = 1.0 - Math.Exp(-dt / tauSeconds);
+        return current + (target - current) * alpha;
+    }
+
+    private static void ValidateServoPowerModel(ServoPowerModelOptions options)
+    {
+        if (options.LiquidDensityKgM3 <= 0.0 || options.MotorRatedTorqueNm <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Density and rated torque must be positive.");
+        }
+
+        if (options.SpeedTimeConstantSeconds < 0.0 || options.TorqueTimeConstantSeconds < 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Servo time constants cannot be negative.");
+        }
+
+        if (options.Impellers.Count == 0 || options.Impellers.Any(
+                stage => stage.DiameterM <= 0.0 || stage.PowerNumber < 0.0))
+        {
+            throw new ArgumentException("At least one impeller with positive diameter and non-negative Np is required.", nameof(options));
+        }
+
+        if (options.TorqueNoiseCurve.Any(point => point.Rpm < 0.0 || point.SigmaTorquePercent < 0.0)
+            || options.TorqueNoiseCurve.Zip(options.TorqueNoiseCurve.Skip(1), (a, b) => a.Rpm < b.Rpm).Any(inOrder => !inOrder))
+        {
+            throw new ArgumentException("Torque-noise points must be non-negative and strictly increasing in rpm.", nameof(options));
+        }
+
+        if (options.GassedLiquidPowerRatio is < 0.0 or > 1.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The gassed liquid-power ratio must be between zero and one.");
+        }
     }
 
     /// <summary>

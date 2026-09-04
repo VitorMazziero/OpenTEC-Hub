@@ -1,0 +1,46 @@
+<UserControl x:Class="OpenTECHub.Views.PowerMapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:PowerMapViewModel}"
+             d:DesignHeight="800" d:DesignWidth="1400">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,12">
+            <TextBlock Text="Mapa de Potência" FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
+                       Text="Síntese dos ensaios de potência e acoplamento com o mapa de kLa" />
+        </StackPanel>
+
+        <!-- Intentionally a placeholder: the destination is stable now, the scientific
+             surface is a phase-3 deliverable. -->
+        <Border Grid.Row="1" Padding="32"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640">
+                <Border Padding="12,6" HorizontalAlignment="Center"
+                        Background="{DynamicResource AccentSubtleBrush}"
+                        BorderBrush="{DynamicResource AccentBorderBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
+                    <TextBlock Text="{Binding PhaseLabel}" FontWeight="Bold"
+                               Foreground="{DynamicResource AccentBrush}" />
+                </Border>
+                <TextBlock Margin="0,18,0,0" Text="Superfície (N, Qg)" FontSize="22"
+                           FontWeight="SemiBold" TextAlignment="Center" />
+                <TextBlock Margin="0,10,0,0" Text="{Binding StatusMessage}"
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

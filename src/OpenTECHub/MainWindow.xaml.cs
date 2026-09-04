@@ -308,6 +308,7 @@ public partial class MainWindow : Window
             Key.D6 or Key.NumPad6 => 5,
             Key.D7 or Key.NumPad7 => 6,
             Key.D8 or Key.NumPad8 => 7,
+            Key.D9 or Key.NumPad9 => 8,
             _ => -1,
         };
         return zeroBasedIndex >= 0;

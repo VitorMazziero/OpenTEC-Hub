@@ -348,6 +348,8 @@ public partial class App : Application
         services.AddSingleton<CalibrationViewModel>();
         services.AddSingleton<KlaDeterminationViewModel>();
         services.AddSingleton<KlaMappingViewModel>();
+        services.AddSingleton<PowerTestViewModel>();
+        services.AddSingleton<PowerMapViewModel>();
         services.AddSingleton<ReceitasViewModel>();
         services.AddSingleton<ShellViewModel>();
     }

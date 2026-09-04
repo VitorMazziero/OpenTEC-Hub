@@ -147,6 +147,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         CalibrationViewModel calibration,
         KlaDeterminationViewModel klaDetermination,
         KlaMappingViewModel klaMapping,
+        PowerTestViewModel powerTest,
+        PowerMapViewModel powerMap,
         IKlaProfileStore klaProfileStore,
         IDialogService dialogs,
         ICascadeService cascade,
@@ -180,6 +182,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Calibration = calibration;
         KlaDetermination = klaDetermination;
         KlaMapping = klaMapping;
+        PowerTest = powerTest;
+        PowerMap = powerMap;
         Receitas = receitas;
         _recipeEngine = recipeEngine;
         _recipeEngine.StateChanged += OnRecipeStateChanged;
@@ -332,6 +336,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("recipes", "Receitas", "NodeGraph", "Automação", "#64B5F6"),
             new NavigationItem("kla-determination", "Determinar kLa", "Airflow", "Automação", "#64B5F6"),
             new NavigationItem("kla-mapping", "Mapeamento kLa", "Search", "Automação", "#64B5F6"),
+            new NavigationItem("power", "Potência", "Impeller", "Automação", "#64B5F6"),
+            new NavigationItem("power-map", "Mapa de Potência", "Search", "Automação", "#64B5F6"),
 
             new NavigationItem("history", "Históricos", "Export", "Dados", "#FFB74D"),
             new NavigationItem("events", "Eventos", "EventLog", "Dados", "#FFB74D"),
@@ -342,7 +348,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _commandPaletteCatalog =
         [
             .. NavigationItems.Select((item, index) =>
-                new CommandPaletteEntry($"nav:{item.Id}", item.Label, $"Ctrl+{index + 1}")),
+                new CommandPaletteEntry(
+                    $"nav:{item.Id}",
+                    item.Label,
+                    index < 9 ? $"Ctrl+{index + 1}" : "")),
             new("rail", "Alternar barra de variáveis", "Ctrl+R"),
             new("reconnect", "Reconectar ao equipamento", "F5"),
             new("charts-pause", "Pausar / continuar gráficos", "Espaço"),
@@ -440,6 +449,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Operator-created kLa experiments, paper path search and publication.</summary>
     public KlaMappingViewModel KlaMapping { get; }
+
+    /// <summary>Impeller-power acquisition workspace.</summary>
+    public PowerTestViewModel PowerTest { get; }
+
+    /// <summary>Phase-3 power-map synthesis destination.</summary>
+    public PowerMapViewModel PowerMap { get; }
 
     /// <summary>The graphical recipe editor and its execution engine (WP4).</summary>
     public ReceitasViewModel Receitas { get; }
@@ -1579,6 +1594,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         CascadeDetail.Dispose();
         Our.Dispose();
         Calibration.Dispose();
+        PowerTest.Dispose();
         PHControl.Dispose();
         Connection.Dispose();
     }

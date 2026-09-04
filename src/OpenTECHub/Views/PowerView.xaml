@@ -1,0 +1,110 @@
+<UserControl x:Class="OpenTECHub.Views.PowerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:PowerTestViewModel}"
+             d:DesignHeight="800" d:DesignWidth="1400">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Potência" FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
+                           Text="Aquisição de potência mecânica do conjunto de impelidores" />
+            </StackPanel>
+            <Border Grid.Column="1" Padding="10,5"
+                    Background="{DynamicResource AccentSubtleBrush}"
+                    BorderBrush="{DynamicResource AccentBorderBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
+                <TextBlock Text="{Binding PageStage}" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+            </Border>
+        </Grid>
+
+        <!-- Step 5 fixes the master-detail route. Step 6 fills the acquisition controls and
+             step 7 fills the result surface without changing this page boundary. -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Padding="16"
+                    Background="{DynamicResource SurfaceCardBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+                <StackPanel>
+                    <TextBlock Text="Aquisição" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Margin="0,6,0,16" TextWrapping="Wrap"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Estrutura reservada para o ensaio, fluido, geometria, tara, calibração e tabela de condições." />
+
+                    <TextBlock Text="DEPENDÊNCIAS CONECTADAS" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Margin="0,6,0,0" Text="Armazenamento autocontido" />
+                    <TextBlock Margin="0,4,0,0" Text="Telemetria do servo" />
+                    <TextBlock Margin="0,4,0,0" Text="Árbitro de comandos" />
+
+                    <Border Margin="0,18,0,0" Padding="10"
+                            Background="{DynamicResource SurfaceSunkenBrush}"
+                            CornerRadius="{DynamicResource RadiusSmall}">
+                        <StackPanel>
+                            <TextBlock Text="Controle da agitação" Style="{StaticResource CaptionTextStyle}" />
+                            <TextBlock Margin="0,3,0,0" Text="{Binding AgitationOwnerLabel}"
+                                       FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Padding="16"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+                    <StackPanel>
+                        <TextBlock Text="Caminho ao vivo" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Margin="0,6,0,0" Text="{Binding LiveSummary}"
+                                   FontFamily="{DynamicResource FontMono}" />
+                        <TextBlock Margin="0,4,0,0" Style="{StaticResource CaptionTextStyle}"
+                                   Text="Leitura observacional; este esqueleto ainda não envia comandos." />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Padding="16"
+                        Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="Resultados do ensaio" FontSize="18" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Margin="0,8,0,0" MaxWidth="520" TextAlignment="Center"
+                                   TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                   Text="As curvas Np(Re), o intervalo de confiança e a tabela de pontos entram nas etapas 6 e 7." />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

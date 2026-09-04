@@ -260,7 +260,12 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
                 $"(limite de Nienow {floodingFlow:F2} L/min a {targetRpm:F0} rpm).");
         }
 
-        if (reynolds < 10_000)
+        if (double.IsNaN(reynolds) || reference.ViscosityPaS <= 0)
+        {
+            warnings.Add(
+                "Viscosidade dinâmica de referência não informada ou inválida (μ ≤ 0): o número de Reynolds não pôde ser calculado.");
+        }
+        else if (reynolds < 10_000)
         {
             warnings.Add(
                 $"Re = {reynolds:N0} abaixo de 10⁴: fora do regime turbulento em que Np foi medido como platô, " +
@@ -418,9 +423,13 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
             $"geometria;diametro do vaso T;{reference.VesselDiameterM:F4};{target.VesselDiameterM:F4};m");
         builder.AppendLine(invariant,
             $"geometria;diametro do impelidor D;{reference.ImpellerDiameterM:F4};{target.ImpellerDiameterM:F4};m");
-        builder.AppendLine(invariant,
-            $"geometria;razao D/T;{reference.ImpellerDiameterM / reference.VesselDiameterM:F4};" +
-            $"{target.ImpellerDiameterM / target.VesselDiameterM:F4};-");
+        var refDt = reference.VesselDiameterM > 0
+            ? (reference.ImpellerDiameterM / reference.VesselDiameterM).ToString("F4", invariant)
+            : "-";
+        var targetDt = target.VesselDiameterM > 0
+            ? (target.ImpellerDiameterM / target.VesselDiameterM).ToString("F4", invariant)
+            : "-";
+        builder.AppendLine(invariant, $"geometria;razao D/T;{refDt};{targetDt};-");
 
         if (!result.IsSolved)
         {
@@ -450,9 +459,18 @@ public sealed class BioprocessScaleUpEngine : IBioprocessScaleUpEngine
             $"{result.VolumetricPowerWm3:F2};W/m3");
         builder.AppendLine(invariant, $"potencia;torque esperado;;{result.TorqueNm:F5};N.m");
         builder.AppendLine(invariant, $"cisalhamento;velocidade periferica;;{result.TipSpeedMs:F4};m/s");
-        builder.AppendLine(invariant, $"adimensional;Reynolds;;{result.ReynoldsNumber:F0};-");
-        builder.AppendLine(invariant, $"adimensional;Froude;;{result.FroudeNumber:F5};-");
-        builder.AppendLine(invariant, $"adimensional;numero de aeracao FlG;;{result.GasFlowNumber:F6};-");
+        var reynoldsStr = double.IsFinite(result.ReynoldsNumber)
+            ? result.ReynoldsNumber.ToString("F0", invariant)
+            : "-";
+        builder.AppendLine(invariant, $"adimensional;Reynolds;;{reynoldsStr};-");
+        var froudeStr = double.IsFinite(result.FroudeNumber)
+            ? result.FroudeNumber.ToString("F5", invariant)
+            : "-";
+        builder.AppendLine(invariant, $"adimensional;Froude;;{froudeStr};-");
+        var flGStr = double.IsFinite(result.GasFlowNumber)
+            ? result.GasFlowNumber.ToString("F6", invariant)
+            : "-";
+        builder.AppendLine(invariant, $"adimensional;numero de aeracao FlG;;{flGStr};-");
         builder.AppendLine(invariant,
             $"transferencia;kLa;{Format(result.ReferenceKlaPerHour)};{Format(result.PredictedKlaPerHour)};1/h");
         builder.AppendLine(invariant,

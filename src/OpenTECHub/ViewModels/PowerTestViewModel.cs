@@ -808,11 +808,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 {
                     var cond = new PowerCondition
                     {
+                        FlowUnit = FlowInputUnit.Lpm,
                         AgitationRpm = rpm,
                         GasFlowLpm = SweepConstantQgLpm > 0 ? SweepConstantQgLpm : null,
-                        GasFlowVvm = SweepConstantQgLpm > 0 && LiquidVolumeL > 0 ? Math.Round(SweepConstantQgLpm / LiquidVolumeL, 4) : null,
                         GasMode = mode,
-                        FlowUnit = FlowInputUnit.Lpm,
                         OrderIndex = index++,
                         Origin = PowerConditionOrigin.Manual,
                     };
@@ -846,11 +845,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 {
                     var cond = new PowerCondition
                     {
+                        FlowUnit = FlowInputUnit.Lpm,
                         AgitationRpm = SweepConstantRpm,
                         GasFlowLpm = qg > 0 ? qg : null,
-                        GasFlowVvm = qg > 0 && LiquidVolumeL > 0 ? Math.Round(qg / LiquidVolumeL, 4) : null,
                         GasMode = qg > 0 ? SweepGasMode : PowerGasMode.Ungassed,
-                        FlowUnit = FlowInputUnit.Lpm,
                         OrderIndex = index++,
                         Origin = PowerConditionOrigin.Manual,
                     };
@@ -887,11 +885,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                     {
                         var cond = new PowerCondition
                         {
+                            FlowUnit = FlowInputUnit.Lpm,
                             AgitationRpm = rpm,
                             GasFlowLpm = qg > 0 ? qg : null,
-                            GasFlowVvm = qg > 0 && LiquidVolumeL > 0 ? Math.Round(qg / LiquidVolumeL, 4) : null,
                             GasMode = qg > 0 ? SweepGasMode : PowerGasMode.Ungassed,
-                            FlowUnit = FlowInputUnit.Lpm,
                             OrderIndex = index++,
                             Origin = PowerConditionOrigin.Manual,
                         };

@@ -273,4 +273,52 @@ public sealed class BioprocessScaleUpTests
         var csv = viewModel.BuildSummaryCsv();
         Assert.Contains("operacao;rotacao N", csv, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Summary_csv_with_zero_vessel_diameter_does_not_produce_infinity()
+    {
+        var reference = Reference();
+        var incompleteTarget = Target() with { VesselDiameterM = 0 };
+        var result = _engine.Solve(reference, incompleteTarget);
+
+        var csv = BioprocessScaleUpEngine.BuildSummaryCsv(reference, incompleteTarget, result);
+
+        Assert.DoesNotContain("Infinity", csv, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("NaN", csv, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("geometria;razao D/T;", csv, StringComparison.Ordinal);
+        Assert.Contains("secao;recusa", csv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Solve_warns_when_viscosity_is_missing_or_unphysical()
+    {
+        var zeroViscosityRef = Reference() with { ViscosityPaS = 0.0 };
+        var target = Target();
+
+        var result = _engine.Solve(zeroViscosityRef, target);
+
+        Assert.True(result.IsSolved);
+        Assert.Contains(result.Warnings, w => w.Contains("Viscosidade dinâmica", StringComparison.Ordinal));
+        Assert.True(double.IsNaN(result.ReynoldsNumber));
+
+        var csv = BioprocessScaleUpEngine.BuildSummaryCsv(zeroViscosityRef, target, result);
+        Assert.Contains("adimensional;Reynolds;;-;-", csv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ViewModel_safely_formats_non_finite_reynolds_and_dimensionless_numbers()
+    {
+        var viewModel = new BioprocessScaleUpViewModel(_engine);
+        var zeroViscosityRef = Reference(Correlation()) with { ViscosityPaS = 0.0 };
+        viewModel.SetReference(zeroViscosityRef, "bancada sem viscosidade");
+        viewModel.SelectedGasRule = ScaleUpGasRule.ConstantVvm;
+        viewModel.GasRuleValue = 0.5;
+
+        viewModel.Calculate();
+
+        Assert.True(viewModel.HasResult);
+        var reynoldsRow = viewModel.SheetRows.FirstOrDefault(r => r.Quantity == "Reynolds");
+        Assert.NotNull(reynoldsRow);
+        Assert.Equal("—", reynoldsRow.Target);
+    }
 }

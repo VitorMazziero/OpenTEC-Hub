@@ -356,7 +356,7 @@ public sealed class PowerCondition : INotifyPropertyChanged
                     _gasFlowLpm = Math.Round(value.Value * vol, 3);
                     OnPropertyChanged(nameof(GasFlowLpm));
                 }
-                else if (!value.HasValue)
+                else if (!value.HasValue && FlowUnit == FlowInputUnit.Vvm)
                 {
                     _gasFlowLpm = null;
                     OnPropertyChanged(nameof(GasFlowLpm));
@@ -440,9 +440,9 @@ public sealed class PowerCondition : INotifyPropertyChanged
         ConditionId = ConditionId,
         OrderIndex = OrderIndex,
         AgitationRpm = AgitationRpm,
+        FlowUnit = FlowUnit,
         GasFlowLpm = GasFlowLpm,
         GasFlowVvm = GasFlowVvm,
-        FlowUnit = FlowUnit,
         GasMode = GasMode,
         RequestedReplicates = RequestedReplicates,
         CompletedReplicates = CompletedReplicates,

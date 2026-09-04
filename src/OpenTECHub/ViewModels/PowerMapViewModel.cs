@@ -916,11 +916,26 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
             MatchedPairsCount = updatedPairs.Count;
             OnPropertyChanged(nameof(HasMatchedPairs));
-            VanTRietKText = $"{correlation.K:G4} ± {correlation.StdErrorK:G3}";
-            VanTRietAlphaText = $"{correlation.Alpha:F3} ± {correlation.StdErrorAlpha:F3}";
-            VanTRietBetaText = $"{correlation.Beta:F3} ± {correlation.StdErrorBeta:F3}";
-            VanTRietR2Text = $"{correlation.R2:F4}";
-            VanTRietFormulaText = $"kLa = {correlation.K:F4} · (P/V)^{correlation.Alpha:F3} · (v_s)^{correlation.Beta:F3}  [R² = {correlation.R2:F4}]";
+
+            if (correlation.K <= 0 || correlation.Alpha == 0)
+            {
+                VanTRietKText = "—";
+                VanTRietAlphaText = "—";
+                VanTRietBetaText = "—";
+                VanTRietR2Text = "—";
+                var reason = correlation.ExcludedPointsNotes.FirstOrDefault() ?? "Matriz singular ou variação insuficiente em P/V ou v_s.";
+                VanTRietFormulaText = $"Ajuste recusado: {reason}";
+                StatusMessage = $"Ajuste van 't Riet não convergiu: {reason}";
+            }
+            else
+            {
+                VanTRietKText = $"{correlation.K:G4} ± {correlation.StdErrorK:G3}";
+                VanTRietAlphaText = $"{correlation.Alpha:F3} ± {correlation.StdErrorAlpha:F3}";
+                VanTRietBetaText = $"{correlation.Beta:F3} ± {correlation.StdErrorBeta:F3}";
+                VanTRietR2Text = $"{correlation.R2:F4}";
+                VanTRietFormulaText = $"kLa = {correlation.K:F4} · (P/V)^{correlation.Alpha:F3} · (v_s)^{correlation.Beta:F3}  [R² = {correlation.R2:F4}]";
+                StatusMessage = $"Ajuste van 't Riet concluído: R² = {correlation.R2:F4} ({updatedPairs.Count} pontos).";
+            }
 
             if (CurrentDocument != null)
             {
@@ -936,7 +951,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             }
 
             RefreshScaleUpReference();
-            StatusMessage = $"Ajuste van 't Riet concluído: R² = {correlation.R2:F4} ({updatedPairs.Count} pontos).";
             VisualizationChanged?.Invoke();
         }
         catch (Exception ex)

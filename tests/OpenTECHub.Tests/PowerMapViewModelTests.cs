@@ -478,4 +478,71 @@ public sealed class PowerMapViewModelTests : IDisposable
         vm.ManualScaleMax = 20;
         Assert.Equal((25.0, 75.0), vm.ResolveDisplayRange(0, 100));
     }
+
+    [Fact]
+    public async Task FitVanTRietModel_When_Points_Are_Collinear_Displays_Clear_Refusal_In_UI()
+    {
+        // 4 matched conditions with identical RPM and Qg -> collinear in P/V and vs
+        var testDoc = _testStore.CreateTest(
+            "Ensaio_Colinear",
+            new FluidProperties { DensityKgM3 = 1000, ViscosityPaS = 0.001 },
+            new PowerGeometry
+            {
+                Impellers = [new Impeller { StageIndex = 0, DiameterM = 0.060 }],
+                VesselDiameterM = 0.190,
+                LiquidVolumeM3 = 0.010,
+            },
+            new PowerTestSettings());
+
+        for (var i = 0; i < 4; i++)
+        {
+            testDoc.Runs.Add(new PowerRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                AgitationRpm = 300,
+                GasFlowLpm = 5.0,
+                MeanRpmMeasured = 300,
+                GasMode = PowerGasMode.Gassed,
+                Phase = PowerRunPhase.Accepted,
+                NetPowerW = 5.0,
+                GasFlowVvm = 0.5,
+                GasFlowNumber = 0.02,
+                FroudeNumber = 0.15,
+                GassedPowerW = 5.0,
+                PowerRatio = 0.8,
+            });
+        }
+        _testStore.SaveTestManifest(testDoc);
+
+        var klaDoc = new KlaExperimentDocument
+        {
+            Snapshot = new KlaExperimentSnapshot
+            {
+                Id = Guid.NewGuid(),
+                Name = "Kla_Colinear",
+                Domain = new KlaDomain(0, 15, 15, 1000),
+                Anchors =
+                [
+                    new KlaAnchor(5.0, 300.0, 20.0),
+                    new KlaAnchor(5.0, 300.0, 22.0),
+                    new KlaAnchor(5.0, 300.0, 21.0),
+                    new KlaAnchor(5.0, 300.0, 23.0),
+                ],
+            },
+        };
+        await _klaStore.SaveExperimentAsync(klaDoc);
+
+        using var vm = new PowerMapViewModel(_testStore, _mapStore, _engine, _klaStore, _integrationService);
+        await vm.InitializeAsync();
+
+        vm.AvailablePowerTests.Single(t => t.Summary.TestId == testDoc.TestId).IsSelected = true;
+        vm.SelectedKlaMapOption = vm.AvailableKlaMaps.Single(m => m.Id == klaDoc.Snapshot.Id);
+
+        await vm.LinkKlaMapAndFitAsync();
+
+        Assert.Contains("não convergiu", vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Ajuste recusado", vm.VanTRietFormulaText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("—", vm.VanTRietKText);
+        Assert.Equal("—", vm.VanTRietR2Text);
+    }
 }

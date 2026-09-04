@@ -227,6 +227,26 @@ public sealed class PowerMapEngineTests
     }
 
     [Fact]
+    public void PowerMapEngine_FitVanTRietModel_Singular_Matrix_Is_Handled_Safely()
+    {
+        // 4 points with identical P/V and vs -> det(X^T X) == 0
+        var pairs = new List<KlaPowerPair>
+        {
+            new() { VolumetricPowerWm3 = 200, SuperficialVelocityMs = 0.005, KlaPerHour = 30 },
+            new() { VolumetricPowerWm3 = 200, SuperficialVelocityMs = 0.005, KlaPerHour = 32 },
+            new() { VolumetricPowerWm3 = 200, SuperficialVelocityMs = 0.005, KlaPerHour = 31 },
+            new() { VolumetricPowerWm3 = 200, SuperficialVelocityMs = 0.005, KlaPerHour = 33 },
+        };
+
+        var result = _engine.FitVanTRietModel(pairs, out var updatedPairs);
+
+        Assert.Equal(0, result.K);
+        Assert.Equal(0, result.Alpha);
+        Assert.Equal(0, result.Beta);
+        Assert.Contains(result.ExcludedPointsNotes, n => n.Contains("singular ou colinear", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void PowerMapEngine_ComputeFloodingBoundary_Calculates_Nienow_Curve_And_Preserves_Experimental()
     {
         var geom = new PowerGeometry

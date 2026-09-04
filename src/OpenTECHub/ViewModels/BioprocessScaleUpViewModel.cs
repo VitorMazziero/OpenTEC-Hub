@@ -259,19 +259,19 @@ public sealed partial class BioprocessScaleUpViewModel : ObservableObject
         SheetRows.Add(new ScaleUpSheetRow(
             "Reynolds",
             "—",
-            result.ReynoldsNumber.ToString("N0", culture),
+            double.IsFinite(result.ReynoldsNumber) ? result.ReynoldsNumber.ToString("N0", culture) : "—",
             "–"));
 
         SheetRows.Add(new ScaleUpSheetRow(
             "Froude",
             "—",
-            result.FroudeNumber.ToString("F4", culture),
+            double.IsFinite(result.FroudeNumber) ? result.FroudeNumber.ToString("F4", culture) : "—",
             "–"));
 
         SheetRows.Add(new ScaleUpSheetRow(
             "Número de aeração Fl_G",
             "—",
-            result.GasFlowNumber.ToString("F5", culture),
+            double.IsFinite(result.GasFlowNumber) ? result.GasFlowNumber.ToString("F5", culture) : "—",
             "–"));
 
         SheetRows.Add(new ScaleUpSheetRow(

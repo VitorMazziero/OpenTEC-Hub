@@ -33,9 +33,38 @@ public sealed class PowerNavigationContractTests
         var xaml = ReadProjectFile("MainWindow.xaml");
 
         Assert.Contains("<views:PowerView DataContext=\"{Binding PowerTest}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ConverterParameter=power}", xaml, StringComparison.Ordinal);
         Assert.Contains("<views:PowerMapView DataContext=\"{Binding PowerMap}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ConverterParameter=power-map}", xaml, StringComparison.Ordinal);
+
+        // Pages are routed by DeferredPageHost, which builds only the page being opened —
+        // see that control for why every launch used to build all eleven.
+        Assert.Contains("PageId=\"power\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PageId=\"power-map\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectedPageId=\"{Binding SelectedNavigationId}\"", xaml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A navigation id with no host renders a blank page, and nothing else would catch it:
+    /// the build is happy and the smoke run only opens one destination.
+    /// </summary>
+    [Fact]
+    public void Every_shell_destination_is_hosted_by_a_deferred_page()
+    {
+        var xaml = ReadProjectFile("MainWindow.xaml");
+        var shell = ReadProjectFile(Path.Combine("ViewModels", "ShellViewModel.cs"));
+
+        var ids = System.Text.RegularExpressions.Regex
+            .Matches(shell, "new NavigationItem\\(\"([a-z0-9-]+)\"")
+            .Select(match => match.Groups[1].Value)
+            .Distinct()
+            .ToList();
+
+        Assert.NotEmpty(ids);
+
+        var missing = ids
+            .Where(id => !xaml.Contains($"PageId=\"{id}\"", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(missing.Count == 0, $"ids de navegação sem página hospedada: {string.Join(", ", missing)}");
     }
 
     [Fact]

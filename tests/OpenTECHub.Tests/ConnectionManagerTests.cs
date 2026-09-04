@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -19,6 +19,15 @@ public class ConnectionManagerTests
         TelemetrySilenceTimeout = TimeSpan.FromMilliseconds(400),
         BackupEnabled = backupEnabled,
         BackupDelay = TimeSpan.FromMilliseconds(50),
+
+        // The retry loop re-probes the serial ports after this many failures on the same one,
+        // and that probe is a real Windows port enumeration - hundreds of ms when the machine is
+        // idle, far worse when the whole suite is running in parallel. With the default of 3 and a
+        // 50 ms backoff, a test that deliberately fails connects spends its time inside the OS
+        // probe instead of inside ConnectAsync, which is how
+        // Connect_aborts_the_connect_attempt_in_flight came to fail ~30% of full-suite runs while
+        // passing in isolation. No test covers the re-probe path, so it is kept out of the way here.
+        FailuresBeforeReprobe = int.MaxValue,
     };
 
     /// <summary>Polls until <paramref name="condition"/> holds, or gives up.</summary>

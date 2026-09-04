@@ -1,4 +1,4 @@
-﻿<Window x:Class="OpenTECHub.MainWindow"
+<Window x:Class="OpenTECHub.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:OpenTECHub.Converters"
@@ -855,87 +855,124 @@
         <Grid>
 
             <!-- Painel -->
-            <Grid Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
-                                       ConverterParameter=dashboard}"
-                  Margin="16,4,16,16">
-                <views:SynopticView />
-            </Grid>
+            <ctl:DeferredPageHost PageId="dashboard"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <Grid Margin="16,4,16,16">
+                            <views:SynopticView />
+                        </Grid>
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
             <!-- Controle -->
-            <views:ControlView DataContext="{Binding Control}"
-                               Visibility="{Binding DataContext.SelectedNavigationId,
-                                                    RelativeSource={RelativeSource AncestorType=Window},
-                                                    Converter={StaticResource EqualsToVis},
-                                                    ConverterParameter=control}" />
+            <ctl:DeferredPageHost PageId="control"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:ControlView DataContext="{Binding Control}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Históricos: file inventory and contract preview. The dual graph remains
-                 its own dedicated page and receives a selected session on request. -->
-            <views:HistoricalView DataContext="{Binding Historical}"
-                                  Visibility="{Binding DataContext.SelectedNavigationId,
-                                                       RelativeSource={RelativeSource AncestorType=Window},
-                                                       Converter={StaticResource EqualsToVis},
-                                                       ConverterParameter=history}" />
+            <!-- Históricos: inventário de arquivos e prévia de contrato. O gráfico duplo
+     permanece numa página própria e recebe a sessão escolhida sob demanda. -->
+            <ctl:DeferredPageHost PageId="history"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:HistoricalView DataContext="{Binding Historical}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Eventos: app-known audit trail, useful over both USB and Wi-Fi. -->
-            <views:EventsView DataContext="{Binding Events}"
-                              Visibility="{Binding DataContext.SelectedNavigationId,
-                                                   RelativeSource={RelativeSource AncestorType=Window},
-                                                   Converter={StaticResource EqualsToVis},
-                                                   ConverterParameter=events}" />
+            <!-- Eventos: trilha de auditoria conhecida pelo app, útil em USB e Wi-Fi. -->
+            <ctl:DeferredPageHost PageId="events"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:EventsView DataContext="{Binding Events}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Calibrações: pH/O2 are app-side; the flow curve is sent to hardware. -->
-            <views:CalibrationView DataContext="{Binding Calibration}"
-                                   Visibility="{Binding DataContext.SelectedNavigationId,
-                                                        RelativeSource={RelativeSource AncestorType=Window},
-                                                        Converter={StaticResource EqualsToVis},
-                                                        ConverterParameter=calibrations}" />
+            <!-- Calibrações: pH/O2 são do app; a curva de vazão vai para o hardware. -->
+            <ctl:DeferredPageHost PageId="calibrations"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:CalibrationView DataContext="{Binding Calibration}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
             <!-- Configurações -->
-            <Grid Margin="16"
-                  Visibility="{Binding SelectedNavigationId, Converter={StaticResource EqualsToVis},
-                                       ConverterParameter=settings}">
-                <Border CornerRadius="{StaticResource RadiusMedium}"
-                        Background="{DynamicResource SurfaceBaseBrush}"
-                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                        BorderThickness="1">
-                    <views:SettingsView DataContext="{Binding Settings}" />
-                </Border>
-            </Grid>
+            <ctl:DeferredPageHost PageId="settings"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <Grid Margin="16">
+                            <Border CornerRadius="{StaticResource RadiusMedium}"
+                                    Background="{DynamicResource SurfaceBaseBrush}"
+                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                    BorderThickness="1">
+                                <views:SettingsView DataContext="{Binding Settings}" />
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Gassing-out kLa experimental testing and regression -->
-            <views:KlaDeterminationView DataContext="{Binding KlaDetermination}"
-                                        Visibility="{Binding DataContext.SelectedNavigationId,
-                                                             RelativeSource={RelativeSource AncestorType=Window},
-                                                             Converter={StaticResource EqualsToVis},
-                                                             ConverterParameter=kla-determination}" />
+            <!-- Ensaio e regressão de kLa por gassing-out -->
+            <ctl:DeferredPageHost PageId="kla-determination"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:KlaDeterminationView DataContext="{Binding KlaDetermination}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- D-008: experimental map reconstruction and immutable path publication. -->
-            <views:KlaMappingView DataContext="{Binding KlaMapping}"
-                                  Visibility="{Binding DataContext.SelectedNavigationId,
-                                                       RelativeSource={RelativeSource AncestorType=Window},
-                                                       Converter={StaticResource EqualsToVis},
-                                                       ConverterParameter=kla-mapping}" />
+            <!-- D-008: reconstrução experimental do mapa e publicação imutável da trajetória. -->
+            <ctl:DeferredPageHost PageId="kla-mapping"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:KlaMappingView DataContext="{Binding KlaMapping}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Impeller-power acquisition. Step 5 fixes the route; steps 6-7 fill it. -->
-            <views:PowerView DataContext="{Binding PowerTest}"
-                             Visibility="{Binding DataContext.SelectedNavigationId,
-                                                  RelativeSource={RelativeSource AncestorType=Window},
-                                                  Converter={StaticResource EqualsToVis},
-                                                  ConverterParameter=power}" />
+            <!-- Aquisição de potência de impelidor. -->
+            <ctl:DeferredPageHost PageId="power"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:PowerView DataContext="{Binding PowerTest}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Phase-3 synthesis destination, intentionally born as a routed placeholder. -->
-            <views:PowerMapView DataContext="{Binding PowerMap}"
-                                Visibility="{Binding DataContext.SelectedNavigationId,
-                                                     RelativeSource={RelativeSource AncestorType=Window},
-                                                     Converter={StaticResource EqualsToVis},
-                                                     ConverterParameter=power-map}" />
+            <!-- Síntese da fase 3: superfície (N, Qg), comparação e escalonamento. -->
+            <ctl:DeferredPageHost PageId="power-map"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:PowerMapView DataContext="{Binding PowerMap}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
 
-            <!-- Receitas: graphical recipe editor and execution engine (WP4). -->
-            <views:ReceitasView DataContext="{Binding Receitas}"
-                                Visibility="{Binding DataContext.SelectedNavigationId,
-                                                     RelativeSource={RelativeSource AncestorType=Window},
-                                                     Converter={StaticResource EqualsToVis},
-                                                     ConverterParameter=recipes}" />
+            <!-- Receitas: editor gráfico e motor de execução (WP4). -->
+            <ctl:DeferredPageHost PageId="recipes"
+                                  SelectedPageId="{Binding SelectedNavigationId}">
+                <ctl:DeferredPageHost.PageTemplate>
+                    <DataTemplate>
+                        <views:ReceitasView DataContext="{Binding Receitas}" />
+                    </DataTemplate>
+                </ctl:DeferredPageHost.PageTemplate>
+            </ctl:DeferredPageHost>
         </Grid>
 
         <!-- Ctrl+K command palette. It stays a Popup so it overlays every destination

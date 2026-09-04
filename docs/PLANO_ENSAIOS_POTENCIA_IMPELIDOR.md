@@ -785,23 +785,26 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
       calibração de um ponto, resumo de corrida com `IC`/`StopReason`; 15 testes de ida-e-volta;
       suíte completa 864 verdes / 1 ignorado)_
 
-- [ ] **2. Engine de análise** — `PowerAnalysisEngine`, **puro** (sem UI, sem hardware), o
-      lugar único de toda a matemática do §4. Reprocessável na revisão.
-  - [ ] 2.1 Grandezas base: `rpm→rev/s`, `ω = 2π·N_rps`, `P_eixo = τ·ω`; torque calibrado
+- [x] **2. Engine de análise** — `PowerAnalysisEngine`, **puro** (sem UI, sem hardware), o
+      lugar único de toda a matemática do §4. Reprocessável na revisão. _(2026-09-04, branch
+      `feature/ensaios-potencia-engine`: `PowerCalc` (primitivas) + `RunningStatistics` (Welford)
+      + `TareInterpolator` + `PowerAnalysisEngine`/`IPowerAnalysisEngine`; 15 testes; reproduz o
+      número de bancada 1,4 %/92,7 rpm → 0,1726 W)_
+  - [x] 2.1 Grandezas base: `rpm→rev/s`, `ω = 2π·N_rps`, `P_eixo = τ·ω`; torque calibrado
         `τ = Scale·(torque_pct/100·T_nom)` (`Offset` reservado, fase 1 só escala).
-  - [ ] 2.2 Tara: interpolação de `P_vazio(N)` e `σ_τ(N)` na curva; `P_líq = P_medida − P_vazio`.
-  - [ ] 2.3 `Np`/`Re` **por estágio** com o `D` de cada; rateio de potência (partes iguais como
+  - [x] 2.2 Tara: interpolação de `P_vazio(N)` e `σ_τ(N)` na curva; `P_líq = P_medida − P_vazio`.
+  - [x] 2.3 `Np`/`Re` **por estágio** com o `D` de cada; rateio de potência (partes iguais como
         hipótese explícita) e o `Np` do conjunto em paralelo (§4.3).
-  - [ ] 2.4 Portão de SNR: marca "abaixo do ruído" quando `P_líq ≤ k·σ_τ(N)·ω` (§7.2).
-  - [ ] 2.5 Estatística de janela **incremental**: média, desvio, `SE = σ/√n`, `IC₉₅`;
+  - [x] 2.4 Portão de SNR: marca "abaixo do ruído" quando `P_líq ≤ k·σ_τ(N)·ω` (§7.2).
+  - [x] 2.5 Estatística de janela **incremental**: média, desvio, `SE = σ/√n`, `IC₉₅`;
         propagação do `IC` para `Np` pelo fator `ρN³D⁵`.
-  - [ ] 2.6 Ajuste de platô: seleção `Re > corte` (editável), média **ponderada pelo `IC`**,
+  - [x] 2.6 Ajuste de platô: seleção `Re > corte` (editável), média **ponderada pelo `IC`**,
         incerteza do platô; pontos "não convergiu" excluíveis.
-  - [ ] 2.7 Correlação afim de energia: mínimos quadrados `P_elétrica ≈ a·P_mec + b` dos pares
+  - [x] 2.7 Correlação afim de energia: mínimos quadrados `P_elétrica ≈ a·P_mec + b` dos pares
         manuais, com `a`, `b` e o consumo de vazio (§4.8).
-  - [ ] 2.8 _(fase 2, deixar o gancho)_ `Fl_G`, `Fr`, `P_G/P₀` com `P₀` interpolado; detecção
-        de _flooding_.
-  - [ ] 2.9 Testes: cada fórmula, unidades, cultura pt-BR, tara, SNR, IC, platô, ajuste afim.
+  - [~] 2.8 _(fase 2)_ `P_G/P₀` com `P₀` interpolado e detecção de _flooding_ — pendente; as
+        **primitivas `Fl_G` e `Fr` já estão em `PowerCalc`**, prontas para a fase 2.
+  - [x] 2.9 Testes: cada fórmula, unidades, cultura pt-BR, tara, SNR, IC, platô, ajuste afim.
 
 - [ ] **3. Simulador** — estende o modelo de servo para o runner ser exercitado sem bancada.
   - [ ] 3.1 Torque em regime `τ = ρ·Np(tipo)·N²·D⁵/(...)` + tara por estágio.

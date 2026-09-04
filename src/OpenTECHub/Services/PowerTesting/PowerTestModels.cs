@@ -176,6 +176,9 @@ public sealed record PowerTestSettings
     public double MaxCaptureSeconds { get; init; } = 300.0;   // t_max
     public int MaxTries { get; init; } = 3;
 
+    /// <summary>SNR gate (§7.2): a net power below this multiple of the tare noise floor is "below noise".</summary>
+    public double SnrFloorMultiple { get; init; } = 3.0;
+
     // Estabilização no alívio (§13), montagem opcional.
     public bool VentStabilizationEnabled { get; init; }
     public double VentFlowToleranceLpm { get; init; } = 0.2;

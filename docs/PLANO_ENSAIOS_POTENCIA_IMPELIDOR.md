@@ -312,9 +312,13 @@ bancada, honesta sobre o que mede: `b` é do conjunto, não do impelidor, e não
 
 ## 5. Identidade e estrutura do workspace
 
-À imagem de `Testes-kLa` (plano de kLa §§4–5):
+À imagem de `Testes-kLa` e `Mapas` (plano de kLa §§4–5):
 
-- pasta raiz `Testes-Potencia/`, irmã de `Testes-kLa/`, sob o mesmo `AppPaths`;
+- pasta raiz `Testes-Potencia/`, irmã de `Testes-kLa/`, sob o mesmo `AppPaths`, para as
+  corridas e resultados das Fases 1–2;
+- a Fase 3 cria uma segunda raiz `Mapas-Potencia/`, irmã de `Mapas/`, somente para documentos
+  de síntese que referenciam um ou mais ensaios por ID e _fingerprint_; ela não duplica os
+  dados brutos nem grava mapas dentro de uma corrida;
 - um ensaio é uma subpasta nomeada pelo usuário (sem seletor de pasta do SO), com regra de
   nome única e sanitizada como a do kLa;
 - o ensaio é **independente**, com associação **opcional** a: um registro de impelidor
@@ -927,7 +931,8 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         líquido, `P₀` de referência (valor, incerteza, proveniência: platô vs medido), razão
         `P_G/P₀` e sua incerteza propagada `IC₉₅(P_G/P₀)`.
   - [ ] 1.2 Estrutura `FloodingAnalysisResult`: `(Fl_G)_F` experimental, `N_F`, `Q_g,F`, `(Fl_G)_F,Nienow`
-        teórico, desvio percentual, indicador de método (automático vs ajuste manual na revisão).
+        teórico, desvio percentual, estágio/impelidor de referência e indicador de método
+        (automático vs ajuste manual na revisão).
   - [ ] 1.3 Configuração de alívio nos documentos: campo `SelectedVentValve` (`Valve1` ou `Valve2`)
         para garantir que a válvula de alívio não conflite com outras linhas de processo.
   - [ ] 1.4 Diâmetro do tanque `T`: `PowerGeometry.VesselDiameterM` padrão **0,190 m (190 mm)**,
@@ -943,28 +948,36 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [ ] 2.1 Primitivas em `PowerCalc`:
         - Conversão bidirecional L/min ↔ vvm a partir do volume útil do líquido (`LiquidVolumeM3 > 0`).
         - Equação de Nienow para flooding: `(Fl_G)_F = 30 · (D/T)³·⁵ · Fr_F` (com `g = 9,80665 m/s²`,
-          `T = VesselDiameterM`, padrão 0,190 m).
+          `T = VesselDiameterM`, padrão 0,190 m), sempre ligada ao impelidor/estágio de referência
+          e rotulada como correlação teórica dentro de sua faixa de aplicabilidade — nunca como
+          substituta da transição experimental.
         - Inversa de Nienow: cálculo da rotação de flooding `N_F` para uma vazão `Q_g` dada, e da
           vazão de flooding `Q_g,F` para uma rotação `N` dada.
-        - Propagação de incerteza da razão `R = P_G / P₀`:
-          `SE_R = R · √((SE_PG / P_G)² + (SE_P0 / P₀)²)`, com `IC₉₅(R) = ±1,96 · SE_R`.
+        - Propagação de incerteza da razão `R = P_G / P₀`, exigindo `P₀ > 0`:
+          `SE_R = √((SE_PG/P₀)² + (P_G·SE_P0/P₀²)²)`, com `IC₉₅(R) = ±1,96 · SE_R`;
+          esta forma continua definida quando `P_G = 0`.
   - [ ] 2.2 Hierarquia de resolução do denominador `P₀(N)` (§4.5):
-        - 1º: Curva ajustada do platô `Np` (`P₀ = Np_plateau · ρ · N³ · D⁵`);
+        - 1º: Curva não-gaseificada ajustada da configuração. Em eixo multiestágio, reconstruir
+          a potência total pela soma `P₀ = Σ(Np_i · ρ · N_rps³ · D_i⁵)` segundo a hipótese de
+          rateio registrada; nunca aplicar um único `D⁵` ao eixo inteiro;
         - 2º: Fallback para ponto não-gaseificado medido na mesma `N` (±1 rpm) do mesmo ensaio;
         - 3º: Sem nenhum dos dois, razão permanece `null` (em branco, nunca inventada).
   - [ ] 2.3 Algoritmo de detecção automática de flooding (§4.5, §16):
         - Identificação do ponto de mínimo ou cotovelo/joelho de `P_G/P₀ × Fl_G` em varreduras de
           vazão a rotação constante (ou de rotação a vazão constante).
         - Filtro de ruído baseado no `IC₉₅` da razão para evitar falsos mínimos por flutuações locais.
-  - [ ] 2.4 Geração da curva de overlay de Nienow: conjunto de pontos teóricos `(Fl_G, Fr, P_G/P₀ previsto)`
-        para exibição gráfica comparativa sobre o intervalo experimental.
+  - [ ] 2.4 Geração do _overlay_ de Nienow: conjunto de pontos da **fronteira teórica**
+        `(Fl_G,F, Fr_F)` e sua projeção para `(N, Q_g,F)` sobre o intervalo experimental.
+        A correlação não prevê `P_G/P₀`; no gráfico da razão ela aparece como marcador/faixa
+        vertical de transição, não como uma curva fictícia de queda de potência.
   - [ ] 2.5 Tratamento de casos especiais: `P_G/P₀ > 1` próximo ao flooding ou sob cavidades
         incipientes (não disparar erro, registrar como dado físico); `Q_g = 0` resultando em `Fl_G = 0`.
   - [ ] 2.6 Testes unitários do engine (`PowerAnalysisEngineTests`): Nienow com geometrias de
         literatura (`D/T = 0,33` e `0,40`, `T = 0,190 m`), interpolação de `P₀` por platô e por ponto medido,
         propagação de incerteza da razão, detecção de flooding com séries sintéticas com e sem ruído.
 
-- [ ] **3. Extensão do Simulador para Gás, Válvulas e Flooding** (`SimulatorPowerSource`, `SimulatorDeviceService`)
+- [ ] **3. Extensão do Simulador para Gás, Válvulas e Flooding**
+      (`OpenTECHub.Simulator/DeviceModel`, `ServoPowerModelOptions`, `Program`)
   - [ ] 3.1 Dinâmica de redução de potência aerada: torque simulado decresce com `Fl_G` conforme
         curva característica com joelho em `(Fl_G)_F`, simulando Rushton e cavidades de gás.
   - [ ] 3.2 Dinâmica do medidor/controlador de vazão:
@@ -1010,7 +1023,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [ ] 4.7 Testes unitários do runner para fluxos de gás: estabilização no alívio com sucesso e com
         timeout, sequência de condição "Ambas", aborto com corte de gás e perda de conectividade.
 
-- [ ] **5. UI da Barra Lateral e Tabela de Condições Gaseificadas** (`PowerView.xaml`, `PowerViewModel.cs`)
+- [ ] **5. UI da Barra Lateral e Tabela de Condições Gaseificadas** (`PowerView.xaml`, `PowerTestViewModel.cs`)
   - [ ] 5.1 Edição e exibição de vazão de gás na tabela de condições:
         - Suporte a unidades L/min e vvm com conversão em tempo real baseada no volume do líquido.
         - Validação impedindo entrada em vvm se o volume útil não estiver preenchido.
@@ -1028,7 +1041,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         - Exibição de vazão medida `Q_g` (L/min e vvm), `Fl_G`, `Fr` e razão `P_G/P₀` instantânea.
         - Badge de status da malha de gás (Fechado, Alívio Estabilizando, Reator Aberto).
 
-- [ ] **6. Visualização Gráfica e Curva de Flooding** (`PowerView.xaml`, `PowerViewModel.cs`)
+- [ ] **6. Visualização Gráfica e Curva de Flooding** (`PowerView.xaml`, `PowerTestViewModel.cs`)
   - [ ] 6.1 Alternância de abas/gráficos no painel principal:
         - Gráfico 1: `Np × Re` (não-gaseificado, mantido da Fase 1);
         - Gráfico 2: `P_G/P₀ × Fl_G` (gaseificado), com número de Froude `Fr` mapeado em cor ou
@@ -1055,15 +1068,182 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
 
 - [ ] **8. Verificação Integrada e Fechamento da Fase 2**
   - [ ] 8.1 Suíte de testes automatizados verde (domínio, store, engine, runner e viewmodels).
-  - [ ] 8.2 Execução de ensaio completo gaseificado contra o simulador (com e sem estabilização no
-        alívio), verificando o ciclo de válvulas e a captura de `P_G/P₀`.
+  - [ ] 8.2 Execução automatizada obrigatória de ensaio completo gaseificado contra o simulador
+        (com e sem estabilização no alívio), verificando o ciclo de válvulas e a captura de `P_G/P₀`.
   - [ ] 8.3 Verificação dos contratos WPF (ausência de botão "Aplicar", binding em cultura invariante).
+  - [ ] 8.4 Aceitação separada em bancada: confirmar ACK/telemetria reais, roteamento físico das
+        válvulas, corte seguro do gás, faixa 15–1000 rpm e comportamento do pulso do fluxômetro.
+        O simulador fecha o portão de software, mas não substitui esta evidência para liberação física.
 
 **Portão da Fase 2:** uma varredura gaseificada (ou condição "Ambas") executa ponta a ponta
-contra o hardware ou simulador, comanda o fluxômetro com intertravamento e confirmação por ACK,
+obrigatoriamente contra o simulador, comanda o fluxômetro com intertravamento e confirmação por ACK,
 estabiliza opcionalmente no alívio, captura P_G e P₀ sob as duas portas de confiança, plota a curva
 P_G/P₀ × Fl_G com o overlay de Nienow, detecta o ponto de flooding (confirmável na revisão) e
-exporta a tabela completa em CSV. A fase 3 ganha sua própria lista quando começar.
+exporta a tabela completa em CSV. A aprovação para uso na bancada continua condicionada ao portão
+de hardware 8.4, que não pode ser inferido dos testes simulados.
+
+### 18.3 Fase 3 — ordem de implementação e progresso
+
+A Fase 3 fecha o ciclo científico e integra a bancada de potência com o Mapeamento kLa e o
+escalonamento de bioprocessos: ativa a página "Mapa de Potência" com superfícies 2D interpoladas
+em camadas sobre o plano `(N, Q_g)`, demarca a fronteira contínua de _flooding_, viabiliza a comparação
+multi-ensaio de impelidores, estabelece o import bidirecional de condições/dados com o kLa e
+ajusta a correlação clássica de transferência de massa `kLa = K · (P/V)^α · (v_s)^β`.
+
+Cada passo é compilável e testável de forma independente. **Marque `[x]` ao concluir, com a
+data e o commit** — esta lista é o estado vivo do desenvolvimento.
+
+- [ ] **1. Domínio, Modelos de Síntese e Persistência do Mapa**
+      (`PowerMapModels`, `PowerMapFileContracts`, `IPowerMapStore`/`PowerMapStore`, `AppPaths`)
+  - [ ] 1.1 Modelo `PowerMapDocument`: `MapId`, nome, metadados de criação, lista de ensaios de
+        origem (`SourceTestIds`), malha interpolada calculada (`PowerMapSurfaceData`), curva
+        experimental de flooding e metadados de correlação com kLa.
+  - [ ] 1.2 Modelos de acoplamento kLa:
+        - `KlaPowerPair`: registro pareado com `N`, `Q_g`, `v_s`, `P_líq`, `P/V`, `kLa`, `IC₉₅` e resíduos.
+        - `KlaCorrelationResult`: coeficientes ajustados `K`, `α`, `β`, matriz de covariância,
+          desvios-padrão dos parâmetros e coeficiente de determinação `R²`.
+  - [ ] 1.3 Modelos para comparação de impelidores (`ImpellerComparisonModels`):
+        - `ImpellerComparisonItem`: ensaio referenciado, dados geométricos (tipo, `D`, `D/T`),
+          platô `Np ± IC₉₅`, curva `P_G/P₀(Fl_G)`, `(Fl_G)_F` experimental e teórico de Nienow,
+          `P/V` específico e data.
+        - `ImpellerComparisonDocument`: lista de ensaios selecionados para sobreposição e benchmarking.
+  - [ ] 1.4 Persistência e auditoria: serialização e desserialização JSON na raiz irmã
+        `Mapas-Potencia/` do workspace selecionado, com validação de esquema em
+        `PowerMapFileContracts.cs`, escrita atômica, integração ao backup e exposição na lista
+        de pastas do workspace. Não abrir seletor de pasta do sistema.
+  - [ ] 1.5 Testes de ida-e-volta (round-trip) em `PowerMapStoreTests` com mapas de superfície,
+        comparações e pares kLa↔P/V.
+
+- [ ] **2. Engine Científico de Superfície 2D e Acoplamento P/V ↔ kLa** (`PowerCalc`, `PowerMapEngine`, `IPowerMapEngine`)
+  - [ ] 2.1 Primitivas físicas e dimensionais em `PowerCalc`:
+        - Velocidade superficial do gás: `v_s = (Q_g / 60000) / (π/4 · T²)` [m/s], com `T` padrão 0,190 m.
+        - Potência específica: `P/V = P_líq / V_útil` [W/m³], exigindo volume útil em m³.
+        - Estimador inverso de scale-up: cálculo de `P/V` necessário para um kLa alvo a dado `v_s`:
+          `P/V = (kLa / (K · v_s^β))^(1/α)`.
+  - [ ] 2.2 Reconstrução de superfícies 2D em camadas (`PowerMapEngine`):
+        - Interpolação C¹ contínua bidimensional via `CloughTocher2D` (reuso do módulo do kLa)
+          sobre malha regular `N × Q_g` (padrão 150×150; faixa configurável 50×50 a 300×300),
+          exigindo ao menos três âncoras não colineares e mantendo `null` fora do fecho convexo,
+          sem extrapolação silenciosa.
+        - Camada 1: Potência líquida de eixo `P_líq(N, Q_g)` [W] e potência volumétrica `P/V(N, Q_g)` [W/m³].
+        - Camada 2: Razão de aeração `P_G/P₀(N, Q_g)` [–].
+        - Camada 3: Fronteira contínua de flooding projetada sobre o plano operacional `(N, Q_g)`,
+          compondo a curva experimental ajustada e a linha teórica de Nienow:
+          `Q_g,F(N) = 30 · (D/T)³·⁵ · (N_rps³ D⁴ / g) · 60000` [L/min], com o
+          estágio/impelidor de referência explícito.
+  - [ ] 2.3 Regressão multivariada do modelo van't Riet `kLa = K · (P/V)^α · (v_s)^β`:
+        - Ajuste multilinear por mínimos quadrados ordinários (OLS multivariável) em escala logarítmica:
+          `ln(kLa) = ln(K) + α·ln(P/V) + β·ln(v_s)`.
+        - Cálculo de desvios-padrão dos parâmetros (`σ_K`, `σ_α`, `σ_β`), resíduos individuais e `R²`.
+        - Persistir as unidades que definem `K`; aceitar somente `kLa > 0`, `P/V > 0`, `v_s > 0`,
+          quantidade de pontos com graus de liberdade residuais e matriz de projeto de posto completo.
+          Pontos recusados e o motivo permanecem no relatório, nunca somem silenciosamente.
+  - [ ] 2.4 Testes unitários do engine (`PowerMapEngineTests`): interpolação sobre malhas regulares,
+        regressão com conjunto sintético de coeficientes conhecidos e, separadamente, dados de
+        literatura rotulados como referência (`α ≈ 0,4–0,7`, `β ≈ 0,2–0,5`), cálculo da fronteira
+        de flooding, pontos fora do fecho convexo, zeros e tratamento de singularidades/colinearidade.
+
+- [ ] **3. Importador Bidirecional entre Mapeamento kLa e Ensaio de Potência** (`PowerMapImportHelper`, `KlaPowerIntegrationService`)
+  - [ ] 3.1 Direção kLa → Potência (`ImportConditionsFromKlaMap`):
+        - Seleção de `KlaExperimentDocument` existente.
+        - Extração das âncoras `(N, Q_g)`, deduplicação e ordenação canônica (`N` asc, `Q` asc).
+        - Geração de linhas de `PowerCondition` com `Origin = PowerConditionOrigin.Map`,
+          vinculando `SourceMapId` e `SourceMapName`.
+        - Permite ensaiar potência exatamente nos mesmos pontos operacionais onde o kLa foi medido.
+  - [ ] 3.2 Direção Potência → kLa (`ExportPowerResultsToKlaMap`):
+        - Localização de condições correspondentes entre o ensaio de potência e o mapa kLa.
+        - Associação de `P_líq` e `P/V` [W/m³] medidos às âncoras do mapa kLa, gerando uma nova
+          revisão/snapshot enriquecida; o documento kLa de origem nunca é sobrescrito.
+  - [ ] 3.3 Garantia de integridade e proveniência:
+        - Associação baseada em fingerprints SHA-256 e GUIDs de documentos, sem estado mutável
+          compartilhado entre subsistemas.
+  - [ ] 3.4 Testes unitários do importador (`PowerMapImportHelperTests`): importação de mapas 3² (9 âncoras),
+        deduplicação e casamento por ID quando disponível ou por tolerâncias explícitas em rpm/L·min⁻¹,
+        rejeição de pares ambíguos e validação de proveniência.
+
+- [ ] **4. ViewModel e Lógica da Página "Mapa de Potência"** (`PowerMapViewModel`)
+  - [ ] 4.1 Gerenciamento de mapas de síntese: criar, abrir, renomear e persistir mapas de potência.
+  - [ ] 4.2 Reconstrução assíncrona da malha 2D:
+        - Processamento em thread separada (`Task.Run`) com `CancellationToken` e reporte de progresso.
+        - Notificação reativa de conclusão para atualização dos elementos visuais, descartando
+          resultados obsoletos se dados, filtros ou resolução mudarem durante o cálculo.
+  - [ ] 4.3 Controle de camadas e mapa de cores:
+        - Alternância entre as camadas: `Potência Específica (P/V)`, `Potência de Eixo (P_líq)`,
+          `Razão de Aeração (P_G/P₀)` e `Fronteira de Flooding`.
+        - Seleção de colormaps (Viridis, Magma, Turbo) com ajuste de contraste e escala (automática/manual).
+  - [ ] 4.4 Ferramenta de inspeção interativa de coordenadas:
+        - Leitura dinâmica sob o cursor do mouse: `N` (rpm), `Q_g` (L/min e vvm), valor da grandeza
+          interpolada, `v_s` (m/s) e classificação hidrodinâmica (Zona Dispersa vs Zona Afogada).
+  - [ ] 4.5 Acoplamento kLa: comando para vincular mapa kLa, disparar o ajuste multivariado e
+        exibir os parâmetros do modelo `K`, `α`, `β` e `R²`.
+
+- [ ] **5. Interface de Usuário da Página "Mapa de Potência"** (`PowerMapView.xaml`, mestre-detalhe)
+  - [ ] 5.1 Barra lateral de configuração e filtros (~340 px):
+     - Seleção do ensaio de potência ativo ou combinação de ensaios da mesma montagem.
+     - Seleção do Mapa de kLa vinculado para a correlação `P/V`.
+     - Controles de resolução da malha (padrão 150×150; faixa 50×50 a 300×300) e tolerâncias de interpolação.
+     - Card de Parâmetros de Escalonamento: exibição destacada de `K`, `α`, `β` e `R²` da correlação kLa.
+     - Controles de visualização: seletor de camada, toggle de isolinhas, toggle da curva de flooding.
+  - [ ] 5.2 Painel gráfico principal de síntese (ScottPlot):
+     - Renderização de Heatmap 2D com interpolação contínua e barra de cores lateral (`ColorBar`).
+     - Dispersão dos pontos experimentais sobrepostos como marcadores identificáveis.
+     - Traçado destacado da Fronteira de Flooding (experimental + teórica de Nienow), demarcando
+       as regiões de afogamento e dispersão.
+     - Curvas de contorno suaves (isolinhas de `P/V` ou de `P_G/P₀` constante).
+  - [ ] 5.3 Painel secundário de validação kLa ↔ P/V:
+     - Gráfico de paridade `kLa_medido × kLa_previsto` com faixa de tolerância de ±15% e linha 1:1.
+     - Gráfico de dispersão `kLa × P/V` parametrizado por vazão de gás / velocidade superficial.
+  - [ ] 5.4 Conformidade visual: suporte a temas claro/escuro via tokens e conformidade com
+        `ControlWorkspaceContractTests` (aplicação automática sem botão "Aplicar").
+
+- [ ] **6. Módulo e UI de Comparação de Impelidores** (`PowerImpellerComparisonViewModel`, `PowerImpellerComparisonView.xaml`)
+  - [ ] 6.1 Seletor multi-ensaio:
+        - Lista de ensaios concluídos com seleção múltipla por checkboxes.
+        - Verificação automática de compatibilidade de fluido, vaso, chicanas, volume útil e montagem;
+          comparações não equivalentes permanecem possíveis, mas são rotuladas e nunca agregadas
+          como se viessem da mesma configuração.
+  - [ ] 6.2 Visualização comparativa multi-série em gráficos ScottPlot:
+        - Curva `Np × Re` (log): sobreposição de múltiplos impelidores com suas respectivas bandas
+          de incerteza `IC₉₅` e linhas de platô turbulento ajustado.
+        - Curva `P_G/P₀ × Fl_G`: comparação da capacidade de dispersão de gás e queda de potência
+          entre geometrias (ex.: Rushton vs Smith côncavo).
+        - Demanda específica `P/V × Q_g`: consumo energético comparado em rotações de processo.
+  - [ ] 6.3 Tabela comparativa de benchmarking:
+        - Colunas: Impelidor/Montagem, Tipo, `D` [m], `D/T`, Platô `Np` (com ±`IC₉₅`), `(Fl_G)_F` experimental,
+          `(Fl_G)_F` Nienow, `P_vazio` (atrito parasita) e eficiência relativa de dispersão.
+        - Exportação da tabela de benchmarking e dados brutos em CSV unificado.
+
+- [ ] **7. Ferramenta de Escalonamento e Síntese de Bioprocesso** (`BioprocessScaleUpEngine`, `ScaleUpCalculatorView.xaml`)
+  - [ ] 7.1 Calculadora de scale-up dirigida por modelo:
+        - Entrada do volume e geometria do reator alvo `V_alvo` (ex.: 2 L → 20 L → 200 L), faixa
+          admissível de rotação e uma regra independente para a variável de gás (`vvm`, `v_s` ou
+          `Q_g` fixo), além do critério de escala:
+          1. `P/V` constante (mesma densidade de potência volumétrica);
+          2. `kLa` constante (mesma capacidade volumétrica de oxigenação baseada no modelo calibrado);
+          3. Velocidade periférica de pá constante (`π·N_rps·D`) para culturas sensíveis a cisalhamento.
+        - Estimativa de grandezas operacionais na nova escala: `N_alvo`, `Q_g,alvo`, torque esperado,
+          potência mecânica de eixo e números adimensionais `Re`, `Fr`, `Fl_G`.
+        - Verificação de identificabilidade: um único critério não determina simultaneamente `N` e `Q_g`;
+          se faltar a regra de gás ou a geometria, recusar o cálculo em vez de escolher uma solução oculta.
+        - Aviso ou recusa quando a solução extrapola o domínio calibrado de `P/V`, `v_s`, geometria
+          ou escala; resultado calculado não é validação de processo na nova escala.
+        - Avaliação automática da proximidade com a fronteira de flooding na nova geometria (alerta
+          de risco de afogamento em escala piloto/industrial).
+  - [ ] 7.2 Exportação de sumário técnico: geração de folha de dimensionamento de bioprocesso em CSV/PDF.
+
+- [ ] **8. Verificação Integrada e Fechamento da Fase 3**
+  - [ ] 8.1 Suíte de testes automatizados completa verde (domínio, store, engines, importadores e viewmodels).
+  - [ ] 8.2 Validação de ponta a ponta: importação de mapa kLa → execução simulada da varredura de
+        potência → exportação de `P/V` para o mapa kLa → ajuste da correlação van't Riet.
+  - [ ] 8.3 Verificação de contratos WPF, renderização ScottPlot sem vazamento de memória e primeiro
+        frame livre de exceções.
+
+**Portão da Fase 3:** a página "Mapa de Potência" opera de ponta a ponta gerando superfícies
+2D interpoladas em camadas para P_líq, P/V e P_G/P₀ no espaço (N, Q_g); sobrepõe a fronteira
+experimental e teórica de flooding dividindo as regiões de dispersão e afogamento; realiza a
+comparação multi-ensaio de impelidores (Np × Re e P_G/P₀ × Fl_G); importa bidirecionalmente condições
+e resultados com o Mapeamento kLa; e ajusta a correlação multivariável kLa = K·(P/V)^α·(vs)^β
+com exibição de gráficos de paridade e folha de escalonamento de bioprocesso.
 
 ---
 

@@ -156,6 +156,13 @@ public sealed class IconTests
     [InlineData("Export")]
     [InlineData("Fullscreen")]
     [InlineData("Refresh")]
+    [InlineData("Pause")]
+    [InlineData("Play")]
+    [InlineData("Cursor")]
+    [InlineData("Broom")]
+    [InlineData("Eye")]
+    [InlineData("Flag")]
+    [InlineData("Csv")]
     public void Documented_icon_exists(string name)
     {
         var icons = LoadIcons();

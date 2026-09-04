@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="OpenTECHub.Views.SynopticView"
+<UserControl x:Class="OpenTECHub.Views.SynopticView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
@@ -342,32 +342,52 @@
                               ItemsSource="{Binding Charts.Windows}"
                               SelectedItem="{Binding Charts.SelectedWindow, Mode=TwoWay}" />
 
-                    <Button Content="{Binding Charts.PauseLabel}" Margin="0,0,6,0"
-                            Command="{Binding Charts.TogglePauseCommand}" />
+                    <Button Margin="0,0,6,0" Padding="8,4"
+                            Command="{Binding Charts.TogglePauseCommand}"
+                            AutomationProperties.Name="{Binding Charts.PauseLabel}"
+                            ToolTip="{Binding Charts.PauseLabel}">
+                        <ctl:Icon Key="{Binding Charts.PauseIconKey}" Size="16" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Button>
 
-                    <Button Content="{Binding Charts.CursorLabel}" Margin="0,0,10,0"
-                            Command="{Binding Charts.ToggleCursorCommand}" />
+                    <Button Margin="0,0,6,0" Padding="8,4"
+                            Command="{Binding Charts.ToggleCursorCommand}"
+                            AutomationProperties.Name="{Binding Charts.CursorLabel}"
+                            ToolTip="{Binding Charts.CursorLabel}">
+                        <ctl:Icon Key="Cursor" Size="16" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Button>
 
-                    <Button Content="Limpar dados" Margin="0,0,6,0"
+                    <Button Margin="0,0,6,0" Padding="8,4"
                             Command="{Binding Charts.ClearDataCommand}"
-                            ToolTip="Limpa os dados exibidos nos gráficos (apenas visualização; a sessão salva não é apagada)." />
-                    <Button Content="Mostrar dados" Margin="0,0,10,0"
+                            AutomationProperties.Name="Limpar dados exibidos"
+                            ToolTip="Limpar dados exibidos nos gráficos (apenas visualização; a sessão salva não é apagada).">
+                        <ctl:Icon Key="Broom" Size="16" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Button>
+
+                    <Button Margin="0,0,10,0" Padding="8,4"
                             Command="{Binding Charts.ShowAllDataCommand}"
-                            ToolTip="Mostra novamente todos os dados da sessão nos gráficos." />
+                            AutomationProperties.Name="Mostrar todos os dados"
+                            ToolTip="Mostrar novamente todos os dados da sessão nos gráficos.">
+                        <ctl:Icon Key="Eye" Size="16" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Button>
 
                     <Button Content="Nova Etapa" Margin="0,0,6,0"
                             Style="{StaticResource AccentButtonStyle}"
                             Command="{Binding Charts.NewSessionCommand}"
                             ToolTip="Inicia um novo arquivo de sessão para nova condição de processo e zera a contagem relativa." />
 
-                    <Button Content="Marcar Evento" Margin="0,0,10,0"
+                    <Button Margin="0,0,6,0" Padding="8,4"
                             Command="{Binding Charts.AnnotateEventCommand}"
-                            ToolTip="Adiciona uma anotação textual no registro de eventos do processo." />
+                            AutomationProperties.Name="Marcar evento"
+                            ToolTip="Marcar Evento (adiciona uma anotação textual no registro de eventos do processo).">
+                        <ctl:Icon Key="Flag" Size="16" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Button>
 
-                    <Button Content="Exportar PNG" Margin="0,0,6,0"
-                            Click="ExportPng_Click" />
-                    <Button Content="Exportar CSV" Margin="0,0,6,0"
-                            Click="ExportCsv_Click" />
+                    <Button Margin="0,0,6,0" Padding="8,4"
+                            Click="ExportCsv_Click"
+                            AutomationProperties.Name="Exportar dados visíveis como CSV"
+                            ToolTip="Exportar dados visíveis como CSV">
+                        <ctl:Icon Key="Csv" Size="16" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Button>
 
                     <Button Content="Voltar ao tempo real" Margin="6,0,0,0"
                             Visibility="{Binding Charts.IsSessionLoaded, Converter={StaticResource BoolToVis}}"

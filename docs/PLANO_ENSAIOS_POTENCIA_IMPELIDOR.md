@@ -328,8 +328,8 @@ bancada, honesta sobre o que mede: `b` é do conjunto, não do impelidor, e não
 **Escopo de diretórios nas etapas 1–5.** Aquisição e revisão usam uma única raiz:
 `<workspace selecionado>/Testes-Potencia/<nome do ensaio>/`. As duas páginas roteadas apontam
 para essa mesma raiz; a página `Mapa de Potência` é somente um destino de Fase 3 e não cria uma
-pasta vazia hoje. Uma eventual raiz separada `Mapas-Potencia/` só será decidida e criada na
-Fase 3, caso os mapas ganhem artefatos próprios que não pertençam a um ensaio autocontido.
+pasta vazia hoje. A raiz separada `Mapas-Potencia/` já está definida, mas só será criada na
+Fase 3, quando passará a receber os documentos de síntese que não pertencem a uma corrida.
 
 ---
 

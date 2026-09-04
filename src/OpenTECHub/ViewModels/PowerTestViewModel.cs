@@ -74,6 +74,19 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         IDialogService? dialogs,
         IPowerAnalysisEngine? analysis,
         IKlaProfileStore? klaStore)
+        : this(store, device, arbiter, runner, dialogs, analysis, klaStore, null)
+    {
+    }
+
+    public PowerTestViewModel(
+        IPowerTestStore store,
+        IDeviceService device,
+        ICommandArbiter arbiter,
+        IPowerTestRunner? runner,
+        IDialogService? dialogs,
+        IPowerAnalysisEngine? analysis,
+        IKlaProfileStore? klaStore,
+        PowerMapViewModel? mapViewModel)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(device);
@@ -85,6 +98,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _analysis = analysis ?? new PowerAnalysisEngine();
         _klaStore = klaStore;
+        MapViewModel = mapViewModel;
         TestRootDirectory = store.RootDirectory;
 
         _device.TelemetryReceived += OnTelemetryReceived;
@@ -242,6 +256,45 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public ObservableCollection<PowerCondition> Conditions { get; } = [];
     public ObservableCollection<PowerDataPoint> LivePoints { get; } = [];
     public ObservableCollection<PowerResultRow> Results { get; } = [];
+
+    public PowerMapViewModel? MapViewModel { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMappingTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsModelsTabSelected))]
+    private int _selectedMainTabIndex;
+
+    public bool IsMappingTabSelected
+    {
+        get => SelectedMainTabIndex == 0;
+        set
+        {
+            if (value && SelectedMainTabIndex != 0)
+            {
+                SelectedMainTabIndex = 0;
+            }
+        }
+    }
+
+    public bool IsModelsTabSelected
+    {
+        get => SelectedMainTabIndex == 1;
+        set
+        {
+            if (value && SelectedMainTabIndex != 1)
+            {
+                SelectedMainTabIndex = 1;
+            }
+        }
+    }
+
+    partial void OnSelectedMainTabIndexChanged(int value)
+    {
+        if (value == 1 && MapViewModel is { } mapVm)
+        {
+            _ = mapVm.RefreshOnEnterCommand.ExecuteAsync(null);
+        }
+    }
 
     [ObservableProperty] public partial PowerTestSummary? SelectedTest { get; set; }
     [ObservableProperty] public partial PowerTestDocument? CurrentTest { get; private set; }

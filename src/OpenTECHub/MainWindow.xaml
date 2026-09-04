@@ -954,16 +954,6 @@
                 </ctl:DeferredPageHost.PageTemplate>
             </ctl:DeferredPageHost>
 
-            <!-- Síntese da fase 3: superfície (N, Qg), comparação e escalonamento. -->
-            <ctl:DeferredPageHost PageId="power-map"
-                                  SelectedPageId="{Binding SelectedNavigationId}">
-                <ctl:DeferredPageHost.PageTemplate>
-                    <DataTemplate>
-                        <views:PowerMapView DataContext="{Binding PowerMap}" />
-                    </DataTemplate>
-                </ctl:DeferredPageHost.PageTemplate>
-            </ctl:DeferredPageHost>
-
             <!-- Receitas: editor gráfico e motor de execução (WP4). -->
             <ctl:DeferredPageHost PageId="recipes"
                                   SelectedPageId="{Binding SelectedNavigationId}">

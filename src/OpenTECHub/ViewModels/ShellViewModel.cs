@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -337,7 +337,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             new NavigationItem("kla-determination", "Determinar kLa", "Airflow", "Automação", "#64B5F6"),
             new NavigationItem("kla-mapping", "Mapeamento kLa", "Search", "Automação", "#64B5F6"),
             new NavigationItem("power", "Potência", "Impeller", "Automação", "#64B5F6"),
-            new NavigationItem("power-map", "Mapa de Potência", "Search", "Automação", "#64B5F6"),
 
             new NavigationItem("history", "Históricos", "Export", "Dados", "#FFB74D"),
             new NavigationItem("events", "Eventos", "EventLog", "Dados", "#FFB74D"),

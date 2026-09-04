@@ -2,6 +2,8 @@ using System.IO;
 using System.Globalization;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.PowerMapping;
 using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -25,32 +27,33 @@ public sealed class PowerNavigationContractTests
     }
 
     [Fact]
-    public void Both_power_destinations_follow_kla_mapping_in_the_automation_group()
+    public void Power_destination_follows_kla_mapping_in_the_automation_group()
     {
         var shell = ReadProjectFile(Path.Combine("ViewModels", "ShellViewModel.cs"));
         var kla = shell.IndexOf("new NavigationItem(\"kla-mapping\"", StringComparison.Ordinal);
         var power = shell.IndexOf("new NavigationItem(\"power\"", StringComparison.Ordinal);
-        var map = shell.IndexOf("new NavigationItem(\"power-map\"", StringComparison.Ordinal);
         var history = shell.IndexOf("new NavigationItem(\"history\"", StringComparison.Ordinal);
 
-        Assert.True(kla >= 0 && kla < power && power < map && map < history);
+        Assert.True(kla >= 0 && kla < power && power < history);
         Assert.Contains("\"Potência\", \"Impeller\", \"Automação\", \"#64B5F6\"", shell, StringComparison.Ordinal);
-        Assert.Contains("\"Mapa de Potência\", \"Search\", \"Automação\", \"#64B5F6\"", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("new NavigationItem(\"power-map\"", shell, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Shell_routes_both_views_to_their_own_view_models()
+    public void Shell_routes_power_view_and_embeds_map_view()
     {
         var xaml = ReadProjectFile("MainWindow.xaml");
+        var powerXaml = ReadProjectFile(Path.Combine("Views", "PowerView.xaml"));
 
         Assert.Contains("<views:PowerView DataContext=\"{Binding PowerTest}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<views:PowerMapView DataContext=\"{Binding PowerMap}\"", xaml, StringComparison.Ordinal);
-
-        // Pages are routed by DeferredPageHost, which builds only the page being opened —
-        // see that control for why every launch used to build all eleven.
         Assert.Contains("PageId=\"power\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("PageId=\"power-map\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("PageId=\"power-map\"", xaml, StringComparison.Ordinal);
         Assert.Contains("SelectedPageId=\"{Binding SelectedNavigationId}\"", xaml, StringComparison.Ordinal);
+
+        // PowerView embeds PowerMapView bound to MapViewModel
+        Assert.Contains("<views:PowerMapView DataContext=\"{Binding MapViewModel}\"", powerXaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Mapeamento de Potência\"", powerXaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Modelos e Ajustes\"", powerXaml, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -275,5 +278,44 @@ public sealed class PowerNavigationContractTests
             StartedUtc = DateTimeOffset.UtcNow,
         });
         Assert.Equal(1.0, double.Parse(net.NetTorque, CultureInfo.CurrentCulture), 5);
+    }
+
+    [Fact]
+    public void Power_view_model_switches_main_tabs_and_exposes_map_view_model()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PowerNavTabs_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var inner = new RecordingDeviceService();
+            using var arbiter = new CommandArbiter(inner, TimeProvider.System);
+            var store = new PowerTestStore(root);
+            var mapStore = new PowerMapStore(root);
+            var engine = new PowerMapEngine();
+            var klaStore = new KlaProfileStore(root);
+            using var mapVm = new PowerMapViewModel(store, mapStore, engine, klaStore);
+            using var vm = new PowerTestViewModel(store, inner, arbiter, null, null, null, klaStore, mapVm);
+
+            Assert.Same(mapVm, vm.MapViewModel);
+            Assert.Equal(0, vm.SelectedMainTabIndex);
+            Assert.True(vm.IsMappingTabSelected);
+            Assert.False(vm.IsModelsTabSelected);
+
+            vm.IsModelsTabSelected = true;
+            Assert.Equal(1, vm.SelectedMainTabIndex);
+            Assert.False(vm.IsMappingTabSelected);
+            Assert.True(vm.IsModelsTabSelected);
+
+            vm.IsMappingTabSelected = true;
+            Assert.Equal(0, vm.SelectedMainTabIndex);
+            Assert.True(vm.IsMappingTabSelected);
+            Assert.False(vm.IsModelsTabSelected);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 }

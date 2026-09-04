@@ -6,6 +6,7 @@
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
              xmlns:power="clr-namespace:OpenTECHub.Services.PowerTesting"
+             xmlns:views="clr-namespace:OpenTECHub.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:PowerTestViewModel}"
              d:DesignHeight="900" d:DesignWidth="1500">
@@ -35,6 +36,37 @@
             <Setter Property="Padding" Value="5,2" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
+        <Style x:Key="PowerTabRadioButton" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="{DynamicResource FontUi}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocusVisualStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Pill" Padding="12,4" CornerRadius="{DynamicResource RadiusSmall}" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsChecked" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="8,6">
@@ -50,44 +82,98 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Potência" FontSize="17" FontWeight="Bold" />
-                        <Border Margin="10,0,0,0" Padding="8,2" Background="{DynamicResource AccentSubtleBrush}"
-                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4">
-                            <TextBlock Text="{Binding PhaseLabel}" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                    <!-- Linha superior: Título, Seletor de abas e Badges contextuais -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Potência" FontSize="17" FontWeight="Bold" VerticalAlignment="Center" />
+
+                        <!-- Seletor de abas: Mapeamento de Potência | Modelos e Ajustes -->
+                        <Border Margin="14,0,10,0" Padding="2"
+                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusSmall}"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Content="Mapeamento de Potência"
+                                             GroupName="PowerTopTabs"
+                                             IsChecked="{Binding IsMappingTabSelected, Mode=TwoWay}"
+                                             Style="{StaticResource PowerTabRadioButton}"
+                                             ToolTip="Ensaio e aquisição: montagem, telemetria ao vivo, tabela de condições e validação de kLa" />
+                                <RadioButton Content="Modelos e Ajustes"
+                                             GroupName="PowerTopTabs"
+                                             IsChecked="{Binding IsModelsTabSelected, Mode=TwoWay}"
+                                             Style="{StaticResource PowerTabRadioButton}"
+                                             ToolTip="Superfície de potência interpolada, correlações kLa, gráficos 2D/3D e comparação de impelidores" />
+                            </StackPanel>
                         </Border>
-                        <Border Margin="7,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
-                            <TextBlock Text="{Binding ResultModeLabel}" FontSize="11" FontWeight="Bold" />
-                        </Border>
+
+                        <!-- Badges contextuais de Mapeamento de Potência -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                    Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}">
+                            <Border Margin="6,0,0,0" Padding="8,2" Background="{DynamicResource AccentSubtleBrush}"
+                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4">
+                                <TextBlock Text="{Binding PhaseLabel}" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                            </Border>
+                            <Border Margin="7,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
+                                <TextBlock Text="{Binding ResultModeLabel}" FontSize="11" FontWeight="Bold" />
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Badges contextuais de Modelos e Ajustes -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                    Visibility="{Binding IsModelsTabSelected, Converter={StaticResource BoolToVis}}">
+                            <Border Margin="6,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
+                                <TextBlock Text="{Binding MapViewModel.GridResolutionLabel}" FontSize="11" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Border>
+                            <Border Margin="7,0,0,0" Padding="8,2" CornerRadius="4"
+                                    Background="{DynamicResource StateWarningBrush}"
+                                    Visibility="{Binding MapViewModel.IsSurfaceStale, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Malha desatualizada — reconstrua" FontSize="11" FontWeight="Bold"
+                                           Foreground="{DynamicResource StateWarningTextBrush}" />
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
-                    <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-                    <!-- Preflight ao vivo: o operador le o que falta antes de apertar Iniciar -->
-                    <Border Margin="0,5,0,0" Padding="8,3" CornerRadius="4" HorizontalAlignment="Left">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="{DynamicResource StateWarningBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsReadyToStart}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource StateOkBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="{Binding PreflightMessage}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+
+                    <!-- Linha de status para Mapeamento de Potência -->
+                    <StackPanel Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                        <!-- Preflight ao vivo: o operador le o que falta antes de apertar Iniciar -->
+                        <Border Margin="0,5,0,0" Padding="8,3" CornerRadius="4" HorizontalAlignment="Left">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{DynamicResource StateWarningBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsReadyToStart}" Value="True">
-                                            <Setter Property="Foreground" Value="{DynamicResource StateOkTextBrush}" />
+                                            <Setter Property="Background" Value="{DynamicResource StateOkBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
+                            </Border.Style>
+                            <TextBlock Text="{Binding PreflightMessage}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsReadyToStart}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource StateOkTextBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Linha de status para Modelos e Ajustes -->
+                    <StackPanel Visibility="{Binding IsModelsTabSelected, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Margin="0,4,0,0" Text="{Binding MapViewModel.StatusMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+
+                <!-- Ações contextuais de Mapeamento de Potência -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}">
                     <Button Content="Novo" Margin="3,0" Command="{Binding CreateTestCommand}" />
                     <Button Content="Salvar setup" Margin="3,0" Command="{Binding SaveSetupCommand}" IsEnabled="{Binding CanEditPlan}" />
                     <Button Content="▶ Iniciar/continuar" Margin="3,0" Style="{StaticResource AccentButtonStyle}"
@@ -96,15 +182,33 @@
                     <Button Content="Pular" Margin="3,0" Command="{Binding SkipCurrentCommand}" IsEnabled="{Binding CanSkipCurrent}" />
                     <Button Content="Parar e revisar" Margin="3,0" Command="{Binding StopAndReviewCommand}" IsEnabled="{Binding CanStop}" />
                 </StackPanel>
+
+                <!-- Ações contextuais de Modelos e Ajustes -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding IsModelsTabSelected, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Novo mapa" VerticalAlignment="Center" Margin="3,0,5,0" Style="{StaticResource PowerLabel}" />
+                    <TextBox Width="180" Margin="0,0,5,0" VerticalAlignment="Center" Style="{StaticResource CompactField}"
+                             Text="{Binding MapViewModel.NewMapName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome do mapa que será criado" />
+                    <Button Content="Novo mapa" Margin="3,0" Command="{Binding MapViewModel.CreateMapCommand}" />
+                    <Button Content="Salvar" Margin="3,0" Command="{Binding MapViewModel.SaveMapCommand}"
+                            IsEnabled="{Binding MapViewModel.HasMap}" />
+                    <Button Content="↻ Reconstruir superfície" Margin="3,0" Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding MapViewModel.ReconstructSurfaceCommand}" IsEnabled="{Binding MapViewModel.HasMap}" />
+                    <Button Content="Excluir" Margin="3,0" Style="{StaticResource DangerButtonStyle}"
+                            Command="{Binding MapViewModel.DeleteMapCommand}" IsEnabled="{Binding MapViewModel.HasMap}" />
+                </StackPanel>
             </Grid>
         </Border>
 
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="340" MinWidth="320" MaxWidth="390" />
-                <ColumnDefinition Width="8" />
-                <ColumnDefinition Width="*" MinWidth="430" />
-            </Grid.ColumnDefinitions>
+            <!-- Conteúdo da Aba 1: Mapeamento de Potência (ensaio, montagem, aquisição, gráficos ao vivo, tabela) -->
+            <Grid Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="340" MinWidth="320" MaxWidth="390" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" MinWidth="430" />
+                </Grid.ColumnDefinitions>
 
             <!-- Fluxo do operador: montagem, aquisição, condições e validação. -->
             <TabControl Grid.Column="0" Style="{StaticResource SegmentedControlStyle}">
@@ -722,6 +826,12 @@
                     </Border>
                 </StackPanel>
             </ScrollViewer>
+            </Grid>
+
+            <!-- Conteúdo da Aba 2: Modelos e Ajustes (conteúdo de PowerMapView sem cabeçalho duplicado) -->
+            <Grid Visibility="{Binding IsModelsTabSelected, Converter={StaticResource BoolToVis}}">
+                <views:PowerMapView DataContext="{Binding MapViewModel}" ShowHeader="False" />
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

@@ -47,14 +47,25 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="8,6">
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="Margin" Value="0" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ShowHeader, RelativeSource={RelativeSource AncestorType=views:PowerMapView}}" Value="True">
+                        <Setter Property="Margin" Value="8,6" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Cabeçalho: identidade da página, estado e as ações que mudam o documento -->
-        <Border Grid.Row="0" Margin="0,0,0,7" Style="{StaticResource MapCard}" Padding="10,7">
+        <Border Grid.Row="0" Margin="0,0,0,7" Style="{StaticResource MapCard}" Padding="10,7"
+                Visibility="{Binding ShowHeader, RelativeSource={RelativeSource AncestorType=views:PowerMapView}, Converter={StaticResource BoolToVis}}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

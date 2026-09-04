@@ -32,6 +32,19 @@ public partial class PowerMapView : UserControl
     private ScottPlot.Panels.ColorBar? _surfaceColorBar;
     private PowerMapViewModel? _subscribed;
 
+    public static readonly DependencyProperty ShowHeaderProperty =
+        DependencyProperty.Register(
+            nameof(ShowHeader),
+            typeof(bool),
+            typeof(PowerMapView),
+            new PropertyMetadata(true));
+
+    public bool ShowHeader
+    {
+        get => (bool)GetValue(ShowHeaderProperty);
+        set => SetValue(ShowHeaderProperty, value);
+    }
+
     public PowerMapView()
     {
         InitializeComponent();
@@ -43,6 +56,7 @@ public partial class PowerMapView : UserControl
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
         DataContextChanged += (_, _) => Attach();
     }
 
@@ -59,6 +73,15 @@ public partial class PowerMapView : UserControl
         }
 
         Redraw();
+    }
+
+    private async void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible && ViewModel is { } viewModel)
+        {
+            await viewModel.RefreshOnEnterCommand.ExecuteAsync(null);
+            Redraw();
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)

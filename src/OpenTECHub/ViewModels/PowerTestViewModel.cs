@@ -540,7 +540,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             var calibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
                 CurrentTest.Calibration,
                 CurrentTest.MotorRatedTorqueNm);
-            return CurrentTest.Tare.CalibrationHash.Length == 0 ||
+            return string.IsNullOrEmpty(CurrentTest.Tare.CalibrationHash) ||
                    string.Equals(CurrentTest.Tare.CalibrationHash, calibrationHash, StringComparison.OrdinalIgnoreCase)
                 ? "Tara compatível"
                 : "Tara anterior à calibração atual";

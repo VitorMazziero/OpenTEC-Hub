@@ -299,6 +299,7 @@ public partial class App : Application
         services.AddSingleton<IPowerTestStore>(_ => new PowerTestStore(AppPaths.PowerTestsDirectory));
         services.AddSingleton<IPowerMapStore>(_ => new PowerMapStore(AppPaths.PowerMapsDirectory));
         services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();
+        services.AddSingleton<IPowerMapEngine, PowerMapEngine>();
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal

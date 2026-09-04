@@ -1185,13 +1185,13 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
   - [x] 1.5 Testes de ida-e-volta (round-trip) em `PowerMapStoreTests` com mapas de superfície,
         comparações e pares kLa↔P/V (7 testes aprovados).
 
-- [ ] **2. Engine Científico de Superfície 2D e Acoplamento P/V ↔ kLa** (`PowerCalc`, `PowerMapEngine`, `IPowerMapEngine`)
-  - [ ] 2.1 Primitivas físicas e dimensionais em `PowerCalc`:
+- [x] **2. Engine Científico de Superfície 2D e Acoplamento P/V ↔ kLa** (`PowerCalc`, `PowerMapEngine`, `IPowerMapEngine`) _(2026-09-04)_
+  - [x] 2.1 Primitivas físicas e dimensionais em `PowerCalc`:
         - Velocidade superficial do gás: `v_s = (Q_g / 60000) / (π/4 · T²)` [m/s], com `T` padrão 0,190 m.
         - Potência específica: `P/V = P_líq / V_útil` [W/m³], exigindo volume útil em m³.
         - Estimador inverso de scale-up: cálculo de `P/V` necessário para um kLa alvo a dado `v_s`:
           `P/V = (kLa / (K · v_s^β))^(1/α)`.
-  - [ ] 2.2 Reconstrução de superfícies 2D em camadas (`PowerMapEngine`):
+  - [x] 2.2 Reconstrução de superfícies 2D em camadas (`PowerMapEngine`):
         - Interpolação C¹ contínua bidimensional via `CloughTocher2D` (reuso do módulo do kLa)
           sobre malha regular `N × Q_g` (padrão 150×150; faixa configurável 50×50 a 300×300),
           exigindo ao menos três âncoras não colineares e mantendo `null` fora do fecho convexo,
@@ -1202,17 +1202,17 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
           compondo a curva experimental ajustada e a linha teórica de Nienow:
           `Q_g,F(N) = 30 · (D/T)³·⁵ · (N_rps³ D⁴ / g) · 60000` [L/min], com o
           estágio/impelidor de referência explícito.
-  - [ ] 2.3 Regressão multivariada do modelo van't Riet `kLa = K · (P/V)^α · (v_s)^β`:
+  - [x] 2.3 Regressão multivariada do modelo van't Riet `kLa = K · (P/V)^α · (v_s)^β`:
         - Ajuste multilinear por mínimos quadrados ordinários (OLS multivariável) em escala logarítmica:
           `ln(kLa) = ln(K) + α·ln(P/V) + β·ln(v_s)`.
         - Cálculo de desvios-padrão dos parâmetros (`σ_K`, `σ_α`, `σ_β`), resíduos individuais e `R²`.
         - Persistir as unidades que definem `K`; aceitar somente `kLa > 0`, `P/V > 0`, `v_s > 0`,
           quantidade de pontos com graus de liberdade residuais e matriz de projeto de posto completo.
           Pontos recusados e o motivo permanecem no relatório, nunca somem silenciosamente.
-  - [ ] 2.4 Testes unitários do engine (`PowerMapEngineTests`): interpolação sobre malhas regulares,
+  - [x] 2.4 Testes unitários do engine (`PowerMapEngineTests`): interpolação sobre malhas regulares,
         regressão com conjunto sintético de coeficientes conhecidos e, separadamente, dados de
         literatura rotulados como referência (`α ≈ 0,4–0,7`, `β ≈ 0,2–0,5`), cálculo da fronteira
-        de flooding, pontos fora do fecho convexo, zeros e tratamento de singularidades/colinearidade.
+        de flooding, pontos fora do fecho convexo, zeros e tratamento de singularidades/colinearidade (7 testes aprovados).
 
 - [ ] **3. Importador Bidirecional entre Mapeamento kLa e Ensaio de Potência** (`PowerMapImportHelper`, `KlaPowerIntegrationService`)
   - [ ] 3.1 Direção kLa → Potência (`ImportConditionsFromKlaMap`):

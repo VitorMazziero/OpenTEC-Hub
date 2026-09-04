@@ -152,6 +152,62 @@ public static class PowerCalc
     }
 
     /// <summary>
+    /// Superficial gas velocity v_s = (Q_g / 60000) / (π/4 · T²) [m/s] (§18.3 step 2.1).
+    /// </summary>
+    public static double GasSuperficialVelocity(double gasFlowLpm, double vesselDiameterM)
+    {
+        if (vesselDiameterM <= 0 || !double.IsFinite(vesselDiameterM) || gasFlowLpm < 0 || !double.IsFinite(gasFlowLpm))
+        {
+            return 0.0;
+        }
+
+        var qM3S = gasFlowLpm / 60000.0;
+        var areaM2 = (Math.PI / 4.0) * vesselDiameterM * vesselDiameterM;
+        return areaM2 > 0 ? qM3S / areaM2 : 0.0;
+    }
+
+    /// <summary>
+    /// Volumetric specific power P/V = P_net / V_liquid [W/m³] (§18.3 step 2.1).
+    /// </summary>
+    public static double VolumetricPower(double powerW, double liquidVolumeM3)
+    {
+        if (liquidVolumeM3 <= 0 || !double.IsFinite(liquidVolumeM3) || !double.IsFinite(powerW))
+        {
+            return double.NaN;
+        }
+
+        return powerW / liquidVolumeM3;
+    }
+
+    /// <summary>
+    /// Inverse scale-up estimator: calculates required P/V [W/m³] for a target kLa given superficial gas velocity v_s:
+    /// P/V = (kLa / (K · v_s^β))^(1/α) (§18.3 step 2.1).
+    /// </summary>
+    public static double ScaleUpRequiredVolumetricPower(double targetKla, double superficialVelocityMs, double k, double alpha, double beta)
+    {
+        if (targetKla <= 0 || superficialVelocityMs <= 0 || k <= 0 || alpha == 0 ||
+            !double.IsFinite(targetKla) || !double.IsFinite(superficialVelocityMs) ||
+            !double.IsFinite(k) || !double.IsFinite(alpha) || !double.IsFinite(beta))
+        {
+            return double.NaN;
+        }
+
+        var denom = k * Math.Pow(superficialVelocityMs, beta);
+        if (denom <= 0)
+        {
+            return double.NaN;
+        }
+
+        var ratio = targetKla / denom;
+        if (ratio <= 0)
+        {
+            return double.NaN;
+        }
+
+        return Math.Pow(ratio, 1.0 / alpha);
+    }
+
+    /// <summary>
     /// Propagates uncertainty for the power ratio R = P_G / P₀ (§4.5):
     /// SE_R = √((SE_PG/P₀)² + (P_G·SE_P0/P₀²)²), IC₉₅(R) = ±1.96·SE_R.
     /// Continues defined when P_G = 0. Requires P₀ > 0.

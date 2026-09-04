@@ -1,0 +1,4 @@
+﻿TimestampUtc,RelativeSeconds,Phase,DORaw,DOFiltered,FlowMeasured,FlowSetpoint,AgitationSetpoint,Valve1,Valve2,VFlow
+2026-09-03T11:42:01.1666416+00:00,0.000,ClosingAllGas,4.00,4.00,0.00,0.00,450,0,0,1
+2026-09-03T11:42:01.1666416+00:00,0.000,OpeningVent,4.00,4.00,3.00,3.00,450,0,1,0
+2026-09-03T11:42:01.1666416+00:00,0.000,StoppingRun,4.00,4.00,0.00,0.00,450,0,0,1

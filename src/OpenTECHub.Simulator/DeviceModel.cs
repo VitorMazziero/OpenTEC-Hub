@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Simulator;
+namespace OpenTECHub.Simulator;
 
 /// <summary>Fault-injection modes, switchable while running.</summary>
 public enum Scenario
@@ -366,6 +366,14 @@ public sealed class DeviceModel
 
     public int FlowCommandDeliveries { get; private set; }
 
+    public bool FlowCommandPending { get; set; }
+
+    public int SelectedVentValve { get; set; } = 2;
+
+    private double _flowAckTimer;
+    private double _previousFlowSetpoint;
+    private double _flowPulseTimer;
+
     /// <summary>True while the ESP32 can reach the sensor module over its internal UART.</summary>
     public bool SensorModuleOnline => Scenario != Scenario.NoModule;
 
@@ -376,8 +384,9 @@ public sealed class DeviceModel
     public void NoteFlowCommand()
     {
         FlowCommandId++;
-        FlowCommandAck = FlowCommandId;
         FlowCommandDeliveries++;
+        FlowCommandPending = true;
+        _flowAckTimer = 0.15;
     }
 
     /// <summary>Advances the process by the given simulated time step or the elapsed clock time.</summary>
@@ -469,7 +478,8 @@ public sealed class DeviceModel
             _servoRpm = 0.0;
         }
 
-        var torqueTargetPercent = CalculateSteadyServoTorquePercent(_servoRpm, _flow);
+        var reactorFlow = ReadReactorFlow();
+        var torqueTargetPercent = CalculateSteadyServoTorquePercent(_servoRpm, reactorFlow);
         _servoTorquePercent = FirstOrderStep(
             _servoTorquePercent,
             torqueTargetPercent,
@@ -492,6 +502,45 @@ public sealed class DeviceModel
         DrainServoQueue(dt);
     }
 
+    public bool IsReliefPurging()
+    {
+        if (SelectedVentValve == 2 && Valve2 == 1 && Valve1 == 0)
+        {
+            return true;
+        }
+        if (SelectedVentValve == 1 && Valve1 == 1 && Valve2 == 0)
+        {
+            return true;
+        }
+        if (VentValveOpen && Valve1 == 0 && Valve2 == 0 && FlowSetpoint <= 0)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    public bool IsReactorValveClosed()
+    {
+        if (SelectedVentValve == 2 && Valve1 == 0 && Valve2 == 1)
+        {
+            return true;
+        }
+        if (SelectedVentValve == 1 && Valve2 == 0 && Valve1 == 1)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    public double ReadReactorFlow()
+    {
+        if (IsReliefPurging() || IsReactorValveClosed())
+        {
+            return 0.0;
+        }
+        return _flow;
+    }
+
     private double CalculateSteadyServoTorquePercent(double rpm, double flowLpm)
     {
         if (rpm <= 0.0)
@@ -501,14 +550,51 @@ public sealed class DeviceModel
 
         var revolutionsPerSecond = rpm / 60.0;
         var angularSpeed = rpm * TwoPiOverSixty;
-        var gasFraction = _servoPowerModel.ReferenceGasFlowLpm <= 0.0
-            ? 0.0
-            : Math.Clamp(flowLpm / _servoPowerModel.ReferenceGasFlowLpm, 0.0, 1.0);
-        var gasPowerRatio = 1.0 - gasFraction * (1.0 - _servoPowerModel.GassedLiquidPowerRatio);
 
         var torqueNm = 0.0;
         foreach (var stage in _servoPowerModel.Impellers)
         {
+            double gasPowerRatio;
+            if (flowLpm <= 0.0)
+            {
+                gasPowerRatio = 1.0;
+            }
+            else if (_servoPowerModel.SimulateFloodingKnee)
+            {
+                var d = stage.DiameterM;
+                var fr = (revolutionsPerSecond * revolutionsPerSecond * d) / 9.80665;
+                var flGF = 30.0 * Math.Pow(d / _servoPowerModel.VesselDiameterM, 3.5) * fr;
+                var qM3S = flowLpm / 60000.0;
+                var flG = qM3S / (revolutionsPerSecond * Math.Pow(d, 3));
+
+                if (flGF > 0 && double.IsFinite(flGF) && flG >= 0)
+                {
+                    var x = flG / flGF;
+                    if (x <= 1.0)
+                    {
+                        gasPowerRatio = 1.0 - (1.0 - _servoPowerModel.GassedLiquidPowerRatio) * (1.0 - Math.Exp(-2.5 * x)) / (1.0 - Math.Exp(-2.5));
+                    }
+                    else
+                    {
+                        gasPowerRatio = _servoPowerModel.GassedLiquidPowerRatio + 0.12 * (1.0 - Math.Exp(-1.8 * (x - 1.0)));
+                    }
+                }
+                else
+                {
+                    var gasFraction = _servoPowerModel.ReferenceGasFlowLpm <= 0.0
+                        ? 0.0
+                        : Math.Clamp(flowLpm / _servoPowerModel.ReferenceGasFlowLpm, 0.0, 1.0);
+                    gasPowerRatio = 1.0 - gasFraction * (1.0 - _servoPowerModel.GassedLiquidPowerRatio);
+                }
+            }
+            else
+            {
+                var gasFraction = _servoPowerModel.ReferenceGasFlowLpm <= 0.0
+                    ? 0.0
+                    : Math.Clamp(flowLpm / _servoPowerModel.ReferenceGasFlowLpm, 0.0, 1.0);
+                gasPowerRatio = 1.0 - gasFraction * (1.0 - _servoPowerModel.GassedLiquidPowerRatio);
+            }
+
             var liquidPowerW = _servoPowerModel.LiquidDensityKgM3
                                * stage.PowerNumber
                                * Math.Pow(revolutionsPerSecond, 3.0)
@@ -645,14 +731,37 @@ public sealed class DeviceModel
 
     private void StepFlowAndPressure(double dt)
     {
-        const double flowTau = 6.0;
+        const double flowTau = 3.0;
 
-        // `flowmeterComm` is the Hub's own loop-enabled preference; it never gates what the v05
-        // is told to do, so the gas follows the setpoint alone (PROTOCOL §3.1).
+        if (_flowAckTimer > 0)
+        {
+            _flowAckTimer -= dt;
+            if (_flowAckTimer <= 0)
+            {
+                FlowCommandAck = FlowCommandId;
+                FlowCommandPending = false;
+            }
+        }
+
+        if (FlowSetpoint > 0 && _previousFlowSetpoint <= 0)
+        {
+            _flowPulseTimer = _servoPowerModel.VentFlowPulseDurationSeconds;
+            _previousFlowSetpoint = FlowSetpoint;
+        }
+        else if (FlowSetpoint <= 0)
+        {
+            _flowPulseTimer = 0.0;
+            _previousFlowSetpoint = 0.0;
+        }
+
+        if (_flowPulseTimer > 0)
+        {
+            _flowPulseTimer = Math.Max(0.0, _flowPulseTimer - dt);
+        }
+
         var target = Math.Clamp(FlowSetpoint, 0.0, MaxFlow);
         _flow += (target - _flow) * (dt / flowTau);
 
-        // Back-pressure builds against the vessel restriction, relieved by the vent.
         var restriction = VentValveOpen ? 0.35 : 1.6;
         var targetPressure = _flow * restriction * 2.0;
         _pressure += (targetPressure - _pressure) * (dt / 8.0);
@@ -744,7 +853,16 @@ public sealed class DeviceModel
 
     public double ReadPH() => Perturb(_ph + (_calibrationDrift * 0.05), 0.01);
 
-    public double ReadFlow() => Math.Max(0.0, Perturb(_flow, 0.02));
+    public double ReadFlow()
+    {
+        var overshoot = 0.0;
+        if (_flowPulseTimer > 0 && _servoPowerModel.VentFlowPulseDurationSeconds > 0 && FlowSetpoint > 0)
+        {
+            var fraction = _flowPulseTimer / _servoPowerModel.VentFlowPulseDurationSeconds;
+            overshoot = fraction * (FlowSetpoint + _servoPowerModel.VentFlowPulseMagnitude);
+        }
+        return Math.Max(0.0, Perturb(_flow + overshoot, 0.02));
+    }
 
     public double ReadPressure() => Math.Max(0.0, Perturb(_pressure, 0.1));
 

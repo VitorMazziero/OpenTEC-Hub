@@ -66,6 +66,7 @@ public static class WireCodec
             AppendInt(buffer, "FlowCommandId", model.FlowCommandId);
             AppendInt(buffer, "FlowCommandAck", model.FlowCommandAck);
             AppendInt(buffer, "FlowCommandDeliveries", model.FlowCommandDeliveries);
+            AppendBool(buffer, "FlowCommandPending", model.FlowCommandPending);
             AppendBool(buffer, "FlowmeterOnline", true);
             AppendBool(buffer, "FlowControlEnabled", model.FlowmeterEnabled);
         }
@@ -390,12 +391,12 @@ public static class WireCodec
             model.VentValveOpen = vent != 0;
         }
 
-        if (TryDouble(root, CommandKeys.Valve1, out var valve1))
+        if (TryDouble(root, CommandKeys.Valve1, out var valve1) || TryDouble(root, "Valve1", out valve1))
         {
             model.Valve1 = (int)valve1;
         }
 
-        if (TryDouble(root, CommandKeys.Valve2, out var valve2))
+        if (TryDouble(root, CommandKeys.Valve2, out var valve2) || TryDouble(root, "Valve2", out valve2))
         {
             model.Valve2 = (int)valve2;
         }

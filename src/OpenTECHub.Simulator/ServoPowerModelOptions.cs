@@ -43,6 +43,14 @@ public sealed record ServoPowerModelOptions
 
     public double GassedLiquidPowerRatio { get; init; } = 0.82;
 
+    public double VesselDiameterM { get; init; } = 0.190;
+
+    public bool SimulateFloodingKnee { get; init; } = true;
+
+    public double VentFlowPulseMagnitude { get; init; } = 2.0;
+
+    public double VentFlowPulseDurationSeconds { get; init; } = 3.5;
+
     public IReadOnlyList<ServoImpellerStage> Impellers { get; init; } =
     [
         // Two small Rushton stages. Their combined tare preserves the measured empty-shaft

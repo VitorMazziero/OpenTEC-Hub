@@ -1028,18 +1028,23 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   correlações direta e inversas de Nienow com round-trip numérico exato, propagação de incerteza de PG/P0, resolução hierárquica
   de P0, detector automático de flooding e gerador de fronteira teórica (32/32 testes aprovados no engine).
 
-- [ ] **3. Extensão do Simulador para Gás, Válvulas e Flooding**
+- [x] **3. Extensão do Simulador para Gás, Válvulas e Flooding**
       (`OpenTECHub.Simulator/DeviceModel`, `ServoPowerModelOptions`, `Program`)
-  - [ ] 3.1 Dinâmica de redução de potência aerada: torque simulado decresce com `Fl_G` conforme
+  - [x] 3.1 Dinâmica de redução de potência aerada: torque simulado decresce com `Fl_G` conforme
         curva característica com joelho em `(Fl_G)_F`, simulando Rushton e cavidades de gás.
-  - [ ] 3.2 Dinâmica do medidor/controlador de vazão:
+  - [x] 3.2 Dinâmica do medidor/controlador de vazão:
         - Simulação de overshoot/pulso inicial na abertura da válvula de gás (transiente de 2–5 s).
         - Resposta a setpoints de vazão com decaimento de primeira ordem para o valor comandado.
         - Loopback e confirmação de ACK para `FlowCommandId`, `FlowCommandAck` e `FlowCommandPending`.
-  - [ ] 3.3 Simulação da válvula de alívio:
+  - [x] 3.3 Simulação da válvula de alívio:
         - Com alívio aberto, o gás é purgado externamente (vazão ao reator permanece 0, torque não cai).
         - Ao comutar do alívio para o reator, o reator recebe o fluxo já assentado, eliminando o pulso.
-  - [ ] 3.4 Testes do simulador validando a entrega de telemetria coerente sob aeração.
+  - [x] 3.4 Testes do simulador validando a entrega de telemetria coerente sob aeração.
+
+  **Auditoria da etapa 3 (2026-09-04):** Extensão do DeviceModel com dinâmica de redução de torque aerado sob Rushton
+  e cavidades de gás com joelho em (Fl_G)_F (Nienow), transient overshoot pulse de 2 a 5s na partida de vazão, roteamento
+  de gás para alívio versus reator, loopback e ACK com FlowCommandPending em 150ms no WireCodec/telemetria, e suíte de 12
+  testes de simulação de potência e aeração aprovados.
 
 - [ ] **4. Protocolo de Gases, Alívio e Máquina de Estados no Runner** (`PowerTestRunner`)
   - [ ] 4.1 Árbitro e propriedade de comando:

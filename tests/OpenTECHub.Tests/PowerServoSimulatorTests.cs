@@ -160,6 +160,158 @@ public sealed class PowerServoSimulatorTests
             precision: 1);
     }
 
+    // ---- Gas, relief valve and flooding dynamics (Phase 2 Step 3) --------
+
+    [Fact]
+    public void Relief_valve_purges_gas_externally_without_dropping_reactor_torque()
+    {
+        var options = ServoPowerModelOptions.Default with
+        {
+            SpeedTimeConstantSeconds = 0.0,
+            TorqueTimeConstantSeconds = 0.0,
+            TorqueNoiseCurve = NoNoise,
+        };
+        var model = new DeviceModel(
+            clock: new AcceleratedClock(), randomSeed: 10, servoPowerModel: options)
+        {
+            MotorRpm = 600,
+            SelectedVentValve = 2, // Valve2 is relief
+        };
+
+        Advance(model, 10.0);
+        var ungassedTorque = model.ServoTorquePct;
+
+        // Open relief valve (Valve2=1) and close reactor (Valve1=0), command 5 L/min
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":5.0,\"Valve1\":0,\"Valve2\":1}", out _);
+        Advance(model, 10.0);
+
+        // Gas is flowing through flowmeter
+        Assert.True(model.ReadFlow() > 4.5);
+        // Gas does not enter reactor
+        Assert.Equal(0.0, model.ReadReactorFlow());
+        // Torque in the vessel did NOT drop
+        Assert.Equal(ungassedTorque, model.ServoTorquePct, precision: 4);
+    }
+
+    [Fact]
+    public void Switching_from_relief_to_reactor_delivers_flow_and_reduces_power()
+    {
+        var options = ServoPowerModelOptions.Default with
+        {
+            SpeedTimeConstantSeconds = 0.0,
+            TorqueTimeConstantSeconds = 0.0,
+            TorqueNoiseCurve = NoNoise,
+            GassedLiquidPowerRatio = 0.75,
+        };
+        var model = new DeviceModel(
+            clock: new AcceleratedClock(), randomSeed: 11, servoPowerModel: options)
+        {
+            MotorRpm = 600,
+            SelectedVentValve = 2,
+        };
+
+        // 1. Settle in relief
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":5.0,\"Valve1\":0,\"Valve2\":1}", out _);
+        Advance(model, 10.0);
+        var ungassedTorque = model.ServoTorquePct;
+
+        // 2. Switchover: close relief (Valve2=0), open reactor (Valve1=1)
+        WireCodec.ApplyCommand(model, "{\"Valve1\":1,\"Valve2\":0}", out _);
+        Advance(model, 10.0);
+
+        // Gas enters reactor
+        Assert.True(model.ReadReactorFlow() > 4.5);
+        // Liquid torque dropped
+        Assert.True(model.ServoTorquePct < ungassedTorque);
+    }
+
+    [Fact]
+    public void Direct_flow_startup_exhibits_initial_overshoot_pulse()
+    {
+        var options = ServoPowerModelOptions.Default with
+        {
+            SpeedTimeConstantSeconds = 0.0,
+            TorqueTimeConstantSeconds = 0.0,
+            TorqueNoiseCurve = NoNoise,
+            VentFlowPulseMagnitude = 3.0,
+            VentFlowPulseDurationSeconds = 4.0,
+        };
+        var model = new DeviceModel(
+            clock: new AcceleratedClock(), randomSeed: 12, servoPowerModel: options);
+
+        // Command gas flow directly
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":4.0}", out _);
+        model.Tick(0.1);
+
+        // Immediate read shows pulse overshoot
+        var immediateFlow = model.ReadFlow();
+        Assert.True(immediateFlow > 5.0, $"Expected overshoot > 5.0, got {immediateFlow}");
+
+        // After pulse duration expires, settles back to setpoint
+        Advance(model, 15.0);
+        Assert.InRange(model.ReadFlow(), 3.9, 4.1);
+    }
+
+    [Fact]
+    public void FlowCommand_loopback_and_pending_ack_confirmation()
+    {
+        var model = new DeviceModel(clock: new AcceleratedClock(), randomSeed: 13);
+
+        var initialId = model.FlowCommandId;
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":2.5}", out _);
+
+        // Immediately pending
+        Assert.Equal(initialId + 1, model.FlowCommandId);
+        Assert.True(model.FlowCommandPending);
+
+        // Advance 0.3s past ACK delay (0.15s)
+        model.Tick(0.3);
+
+        Assert.False(model.FlowCommandPending);
+        Assert.Equal(model.FlowCommandId, model.FlowCommandAck);
+
+        // Verify decoded telemetry carries pending=false and matching ack
+        var readings = Decode(model);
+        Assert.False(readings.FlowCommandPending);
+        Assert.Equal(model.FlowCommandId, readings.FlowCommandAck);
+    }
+
+    [Fact]
+    public void Aerated_power_curve_simulates_flooding_minimum()
+    {
+        var options = ServoPowerModelOptions.Default with
+        {
+            SpeedTimeConstantSeconds = 0.0,
+            TorqueTimeConstantSeconds = 0.0,
+            TorqueNoiseCurve = NoNoise,
+            SimulateFloodingKnee = true,
+            GassedLiquidPowerRatio = 0.60,
+            VesselDiameterM = 0.190,
+            Impellers = [new("Rushton", 0.060, 5.0, 0.5, 0.001)],
+        };
+        var model = new DeviceModel(
+            clock: new AcceleratedClock(), randomSeed: 14, servoPowerModel: options)
+        {
+            MotorRpm = 300,
+        };
+
+        // Ungassed torque
+        Advance(model, 10.0);
+        var ungassedTorque = model.ServoTorquePct;
+
+        // Moderate aeration (below flooding): torque drops
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":1.0,\"Valve1\":1,\"Valve2\":0}", out _);
+        Advance(model, 10.0);
+        var moderateTorque = model.ServoTorquePct;
+        Assert.True(moderateTorque < ungassedTorque);
+
+        // Flooding aeration: torque reaches lowest level
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":3.0}", out _);
+        Advance(model, 10.0);
+        var nearFloodingTorque = model.ServoTorquePct;
+        Assert.True(nearFloodingTorque < moderateTorque);
+    }
+
     private static SensorReadings Decode(DeviceModel model)
     {
         var parser = new TelemetryParser();

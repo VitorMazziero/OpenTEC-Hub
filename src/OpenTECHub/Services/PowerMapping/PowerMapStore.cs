@@ -163,12 +163,18 @@ public sealed class PowerMapStore : IPowerMapStore
             {
                 var folderName = Path.GetFileName(dir);
                 var manifest = Path.Combine(dir, PowerMapFileContracts.MapManifestFileName);
-                if (!File.Exists(manifest)) continue;
+                if (!File.Exists(manifest))
+                {
+                    continue;
+                }
 
                 try
                 {
                     var doc = PowerMapFileContracts.DeserializeMapDocument(File.ReadAllText(manifest));
-                    if (doc is null) continue;
+                    if (doc is null)
+                    {
+                        continue;
+                    }
 
                     if (string.Equals(folderName, trimmed, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(doc.Name, trimmed, StringComparison.OrdinalIgnoreCase) ||
@@ -354,12 +360,18 @@ public sealed class PowerMapStore : IPowerMapStore
             foreach (var dir in Directory.GetDirectories(_rootDirectory))
             {
                 var compFile = Path.Combine(dir, PowerMapFileContracts.ImpellerComparisonFileName);
-                if (!File.Exists(compFile)) continue;
+                if (!File.Exists(compFile))
+                {
+                    continue;
+                }
 
                 try
                 {
                     var doc = PowerMapFileContracts.DeserializeComparisonDocument(File.ReadAllText(compFile));
-                    if (doc is null) continue;
+                    if (doc is null)
+                    {
+                        continue;
+                    }
 
                     if (string.Equals(Path.GetFileName(dir), trimmed, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(doc.Name, trimmed, StringComparison.OrdinalIgnoreCase) ||

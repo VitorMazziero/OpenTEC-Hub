@@ -92,11 +92,17 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             if (e.NewItems is not null)
             {
-                foreach (Impeller imp in e.NewItems) imp.PropertyChanged += OnImpellerPropertyChanged;
+                foreach (Impeller imp in e.NewItems)
+                {
+                    imp.PropertyChanged += OnImpellerPropertyChanged;
+                }
             }
             if (e.OldItems is not null)
             {
-                foreach (Impeller imp in e.OldItems) imp.PropertyChanged -= OnImpellerPropertyChanged;
+                foreach (Impeller imp in e.OldItems)
+                {
+                    imp.PropertyChanged -= OnImpellerPropertyChanged;
+                }
             }
             NotifyGeometryState();
             ReprocessIfActive();
@@ -1207,7 +1213,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ResetAutomaticFlooding()
     {
-        if (CurrentTest is null) return;
+        if (CurrentTest is null)
+        {
+            return;
+        }
+
         var auto = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
         CurrentTest.Flooding = auto;
         if (auto is not null)
@@ -1224,9 +1234,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleAcceptSelectedRow()
     {
-        if (CurrentTest is null || SelectedResultRow is null) return;
+        if (CurrentTest is null || SelectedResultRow is null)
+        {
+            return;
+        }
+
         var run = CurrentTest.Runs.FirstOrDefault(r => r.RunId == SelectedResultRow.RunId);
-        if (run is null) return;
+        if (run is null)
+        {
+            return;
+        }
 
         var newPhase = run.Phase == PowerRunPhase.Accepted ? PowerRunPhase.Rejected : PowerRunPhase.Accepted;
         var updatedRun = run with { Phase = newPhase };
@@ -1258,7 +1275,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void ReprocessIfActive()
     {
-        if (_isLoadingTest || CurrentTest is null) return;
+        if (_isLoadingTest || CurrentTest is null)
+        {
+            return;
+        }
+
         if (!FinitePositive(DensityKgM3) || !FinitePositive(ViscosityPaS) || !FinitePositive(VesselDiameterMm) || LiquidVolumeL <= 0)
         {
             return;
@@ -1273,7 +1294,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     /// </summary>
     public void ReprocessScientificData()
     {
-        if (CurrentTest is null) return;
+        if (CurrentTest is null)
+        {
+            return;
+        }
 
         CurrentTest.Fluid = new FluidProperties
         {
@@ -1350,7 +1374,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         for (var i = 0; i < CurrentTest.Runs.Count; i++)
         {
             var run = CurrentTest.Runs[i];
-            if (run.GasMode == PowerGasMode.Ungassed) continue;
+            if (run.GasMode == PowerGasMode.Ungassed)
+            {
+                continue;
+            }
 
             var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
             var (p0, p0Ci, provenance) = _analysis.ResolveReferenceP0(rpm, CurrentTest);

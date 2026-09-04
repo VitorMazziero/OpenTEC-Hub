@@ -251,13 +251,24 @@ public static class PowerCalc
         double motorRatedTorqueNm = 1.27)
     {
         if (massKg <= 0 || !double.IsFinite(massKg))
+        {
             throw new ArgumentOutOfRangeException(nameof(massKg), "A massa deve ser positiva.");
+        }
+
         if (leverArmM <= 0 || !double.IsFinite(leverArmM))
+        {
             throw new ArgumentOutOfRangeException(nameof(leverArmM), "O braço de alavanca deve ser positivo.");
+        }
+
         if (torquePercent <= 0 || !double.IsFinite(torquePercent))
+        {
             throw new ArgumentOutOfRangeException(nameof(torquePercent), "O torque medido deve ser positivo.");
+        }
+
         if (motorRatedTorqueNm <= 0 || !double.IsFinite(motorRatedTorqueNm))
+        {
             throw new ArgumentOutOfRangeException(nameof(motorRatedTorqueNm), "O torque nominal do motor deve ser positivo.");
+        }
 
         var refNm = massKg * GravityMetersPerSecondSquared * leverArmM;
         var measuredNm = (torquePercent / 100.0) * motorRatedTorqueNm;
@@ -282,12 +293,20 @@ public static class PowerCalc
     public static (double Slope, double Intercept, double R2)? FitElectricalCorrelation(
         IReadOnlyList<(double MechW, double ElecW)> points)
     {
-        if (points == null || points.Count < 2) return null;
+        if (points == null || points.Count < 2)
+        {
+            return null;
+        }
+
         var n = points.Count;
         double sumX = 0, sumY = 0, sumX2 = 0, sumY2 = 0, sumXY = 0;
         foreach (var (x, y) in points)
         {
-            if (!double.IsFinite(x) || !double.IsFinite(y)) return null;
+            if (!double.IsFinite(x) || !double.IsFinite(y))
+            {
+                return null;
+            }
+
             sumX += x;
             sumY += y;
             sumX2 += x * x;
@@ -295,7 +314,11 @@ public static class PowerCalc
             sumXY += x * y;
         }
         var denom = n * sumX2 - sumX * sumX;
-        if (Math.Abs(denom) < 1e-12) return null;
+        if (Math.Abs(denom) < 1e-12)
+        {
+            return null;
+        }
+
         var slope = (n * sumXY - sumX * sumY) / denom;
         var intercept = (sumY - slope * sumX) / n;
 

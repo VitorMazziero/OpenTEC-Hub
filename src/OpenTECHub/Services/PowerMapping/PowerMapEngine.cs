@@ -46,8 +46,15 @@ public sealed class PowerMapEngine : IPowerMapEngine
             flowMax = validAnchors.Max(a => a.GasFlowLpm);
         }
 
-        if (rpmMax <= rpmMin) rpmMax = rpmMin + 100.0;
-        if (flowMax <= flowMin) flowMax = flowMin + 5.0;
+        if (rpmMax <= rpmMin)
+        {
+            rpmMax = rpmMin + 100.0;
+        }
+
+        if (flowMax <= flowMin)
+        {
+            flowMax = flowMin + 5.0;
+        }
 
         var rpmGrid = new double[resN];
         for (var i = 0; i < resN; i++)
@@ -69,8 +76,15 @@ public sealed class PowerMapEngine : IPowerMapEngine
         // Prepare points for CloughTocher2D (needs at least 3 non-collinear points in normalized [0,1] domain)
         var spanRpm = rpmMax - rpmMin;
         var spanFlow = flowMax - flowMin;
-        if (spanRpm <= 0) spanRpm = 1.0;
-        if (spanFlow <= 0) spanFlow = 1.0;
+        if (spanRpm <= 0)
+        {
+            spanRpm = 1.0;
+        }
+
+        if (spanFlow <= 0)
+        {
+            spanFlow = 1.0;
+        }
 
         double NormQ(double q) => (q - flowMin) / spanFlow;
         double NormN(double n) => (n - rpmMin) / spanRpm;

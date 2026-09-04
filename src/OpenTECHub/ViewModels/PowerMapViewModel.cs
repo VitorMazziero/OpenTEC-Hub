@@ -367,7 +367,11 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public async Task InitializeAsync()
     {
-        if (_initialized) return;
+        if (_initialized)
+        {
+            return;
+        }
+
         _initialized = true;
 
         ReloadMaps();
@@ -527,7 +531,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void SaveMap()
     {
-        if (CurrentDocument == null) return;
+        if (CurrentDocument == null)
+        {
+            return;
+        }
 
         var selectedTestIds = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary.TestId).ToList();
         var selectedTestNames = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary.Name).ToList();
@@ -553,7 +560,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void DeleteMap()
     {
-        if (CurrentDocument == null) return;
+        if (CurrentDocument == null)
+        {
+            return;
+        }
 
         if (_dialogs != null && !_dialogs.Confirm(
             "Excluir Mapa de Potência",
@@ -580,7 +590,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     public void LoadMap(string folderName)
     {
         var doc = _mapStore.LoadMap(folderName);
-        if (doc == null) return;
+        if (doc == null)
+        {
+            return;
+        }
 
         // A grid still being built belongs to the map we are leaving; it must not land on this one.
         CancelReconstruction();
@@ -684,7 +697,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             foreach (var testSummary in selectedTestSummaries)
             {
                 var doc = _testStore.LoadTest(testSummary.FolderName);
-                if (doc == null) continue;
+                if (doc == null)
+                {
+                    continue;
+                }
 
                 sourceTestIds.Add(doc.TestId);
                 sourceTestNames.Add(doc.Name);
@@ -845,7 +861,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         foreach (var sourceTest in AvailablePowerTests.Where(t => t.IsSelected))
         {
             var doc = _testStore.LoadTest(sourceTest.Summary.FolderName);
-            if (doc != null) testDocs.Add(doc);
+            if (doc != null)
+            {
+                testDocs.Add(doc);
+            }
         }
 
         if (testDocs.Count == 0 && CurrentDocument != null)
@@ -856,7 +875,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                 if (summary != null)
                 {
                     var doc = _testStore.LoadTest(summary.FolderName);
-                    if (doc != null) testDocs.Add(doc);
+                    if (doc != null)
+                    {
+                        testDocs.Add(doc);
+                    }
                 }
             }
         }
@@ -1020,8 +1042,15 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                     if (double.IsFinite(ratio))
                     {
                         anyFinite = true;
-                        if (ratio < min) min = ratio;
-                        if (ratio > max) max = ratio;
+                        if (ratio < min)
+                        {
+                            min = ratio;
+                        }
+
+                        if (ratio > max)
+                        {
+                            max = ratio;
+                        }
                     }
                 }
             }
@@ -1049,8 +1078,15 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                     {
                         values[i, j] = cell.Value;
                         anyFinite = true;
-                        if (cell.Value < min) min = cell.Value;
-                        if (cell.Value > max) max = cell.Value;
+                        if (cell.Value < min)
+                        {
+                            min = cell.Value;
+                        }
+
+                        if (cell.Value > max)
+                        {
+                            max = cell.Value;
+                        }
                     }
                     else
                     {

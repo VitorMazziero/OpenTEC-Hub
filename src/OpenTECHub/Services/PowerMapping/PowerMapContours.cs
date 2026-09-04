@@ -67,8 +67,15 @@ public static class PowerMapContours
                         continue;
                     }
 
-                    if (value < min) min = value;
-                    if (value > max) max = value;
+                    if (value < min)
+                    {
+                        min = value;
+                    }
+
+                    if (value > max)
+                    {
+                        max = value;
+                    }
                 }
             }
         }
@@ -136,10 +143,25 @@ public static class PowerMapContours
         double y1)
     {
         var caseIndex = 0;
-        if (bottomLeft >= level) caseIndex |= 1;
-        if (bottomRight >= level) caseIndex |= 2;
-        if (topRight >= level) caseIndex |= 4;
-        if (topLeft >= level) caseIndex |= 8;
+        if (bottomLeft >= level)
+        {
+            caseIndex |= 1;
+        }
+
+        if (bottomRight >= level)
+        {
+            caseIndex |= 2;
+        }
+
+        if (topRight >= level)
+        {
+            caseIndex |= 4;
+        }
+
+        if (topLeft >= level)
+        {
+            caseIndex |= 8;
+        }
 
         if (caseIndex is 0 or 15)
         {

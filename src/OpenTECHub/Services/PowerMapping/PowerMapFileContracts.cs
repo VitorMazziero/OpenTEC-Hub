@@ -146,7 +146,17 @@ public static class PowerMapFileContracts
             }
             catch
             {
-                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                try
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        File.Delete(tempPath);
+                    }
+                }
+                catch
+                {
+                }
+
                 throw;
             }
         }

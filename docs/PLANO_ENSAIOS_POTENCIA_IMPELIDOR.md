@@ -803,12 +803,14 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         de _flooding_.
   - [ ] 2.9 Testes: cada fórmula, unidades, cultura pt-BR, tara, SNR, IC, platô, ajuste afim.
 
-- [ ] **3. Simulador** — estende o modelo de servo para o runner ser exercitado sem bancada.
-  - [ ] 3.1 Torque em regime `τ = ρ·Np(tipo)·N²·D⁵/(...)` + tara por estágio.
-  - [ ] 3.2 Assentamento de 1ª ordem ao mudar `N`/`Q_g` (constante de tempo configurável).
-  - [ ] 3.3 Ruído `σ_τ(N)` **calibrado pelos números reais** (0,06 % repouso → ~0,6 % a 300 rpm,
+- [x] **3. Simulador** — estende o modelo de servo para o runner ser exercitado sem bancada.
+      _(Fase 1 concluída em 2026-09-03, commit `ab4ca6d`; 26 testes de servo verdes. O joelho
+      de flooding permanece corretamente adiado para 3.5/Fase 2.)_
+  - [x] 3.1 Torque em regime `τ = ρ·Np(tipo)·N²·D⁵/(2π)` + tara por estágio.
+  - [x] 3.2 Assentamento de 1ª ordem ao mudar `N`/`Q_g` (constante de tempo configurável).
+  - [x] 3.3 Ruído `σ_τ(N)` **calibrado pelos números reais** (0,06 % repouso → ~0,6 % a 300 rpm,
         sessão `2026-09-03_1340`).
-  - [ ] 3.4 Acopla ao caminho existente: telemetria (`ServoRpm`/`ServoTorqueNm`/`ServoPowerW`) e
+  - [x] 3.4 Acopla ao caminho existente: telemetria (`ServoRpm`/`ServoTorqueNm`/`ServoPowerW`) e
         comando (`motorSetpoint`; `FlowSetpoint` na fase 2).
   - [ ] 3.5 _(fase 2)_ joelho de `P_G/P₀` numa `Fl_G` de corte.
 

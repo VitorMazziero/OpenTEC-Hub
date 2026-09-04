@@ -9,6 +9,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Modelo de potência no simulador do servo.** O caminho real de `motorSetpoint` até
+  `ServoRpm`/`ServoTorqueNm`/`ServoPowerW` agora responde com assentamento de primeira ordem,
+  soma `rho*Np*N^3*D^5` e tara por estágio e injeta a curva de ruído medida na sessão
+  `2026-09-03_1340`. Geometria, `Np`, tara e constantes de tempo são substituíveis nos testes;
+  `FlowSetpoint` já produz o transiente gaseificado simples da Fase 1, sem antecipar o joelho de
+  flooding reservado à Fase 2.
 - **Saúde estatística compartilhada dos sensores.** Temperatura, pH, oxigênio, vazão,
   biomassa e distância acumulam as 30 leituras aceitas mais recentes e exibem o desvio
   padrão residual após remover a tendência linear. Assim uma rampa legítima do processo não é

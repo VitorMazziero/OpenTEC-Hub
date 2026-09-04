@@ -78,7 +78,7 @@ são úteis; com elas, entrega número físico.
    ±0,5 rpm, mas o princípio permanece: fórmula nenhuma usa o comando.
 6. **`motorSetpoint = 0` é proibido durante a varredura.** Zero **desabilita** o motor e
    trava o teclado do módulo (`PROTOCOLO_HUB_v9` §5). A varredura começa e termina no mínimo
-   aceito pelo contrato do Hub/CN1 (50 rpm), e abortar rampa até lá, nunca até zero.
+   operacional real aceito pelo conjunto Hub/CN1 (15 rpm), e abortar rampa até lá, nunca até zero.
 7. **Espelhar `KlaTesting`.** Novo subsistema `Services/PowerTesting/` com runner, store,
    contratos de arquivo e engine de análise na mesma forma; novo `CommandOwner.PowerAssay`
    no árbitro de comando.
@@ -420,11 +420,9 @@ pular/encerrar. A coluna de vazão aceita `L/min` ou `vvm` (alterna a exibição
   Configurações mistas (diâmetros diferentes entre estágios) são o caso normal desta bancada, e
   cada `Np` usa o `D` do seu estágio (§4.3). O conjunto é reutilizável e compartilhado com o
   Mapeamento kLa, não duplicado.
-- **Rotação (contrato Hub/CN1):** mínimo **50 rpm**, máximo **1000 rpm**; a varredura usa
-  **passo padrão de 50 rpm** (passo mínimo 5 rpm). Zero é proibido (desabilita o motor, §2.6),
-  então o piso da varredura e do abort é 50 rpm, não 0. O valor anterior de 15 rpm neste plano
-  foi corrigido porque o contrato congelado de `motorSetpoint` aceita somente 50–1000 rpm
-  (além de 0 = desabilitar); o app não deve depender de um comando que o protocolo satura.
+- **Rotação (contrato Hub/CN1):** mínimo operacional **15 rpm**, máximo **1000 rpm**; a
+  varredura usa **passo padrão de 50 rpm** (passo mínimo 5 rpm). Zero é reservado à
+  desabilitação do motor (§2.6), então o piso da varredura e do abort é 15 rpm, nunca 0.
 - **Vaso e líquido:** `T` (diâmetro interno do tanque, padrão **190 mm / 0,190 m**, editável), **volume útil** e chicanas sim/não. O volume
   é **obrigatório** quando a vazão for dada em `vvm` (§11). `D⁵` e o regime dependem da
   geometria; sem chicana a alta `N` há vórtice e o `Np` deixa de ser limpo — a interface avisa.
@@ -655,7 +653,7 @@ wattímetro externo (W da rede, Módulo + Motor). Ao confirmar:
 Regras:
 
 - é **espera indefinida com segurança ativa**: o _hold_ respeita os limites de `N`máx/`τ`máx e
-  a parada segura; abortar durante o _hold_ rampa a 50 rpm; na Fase 2, quando o runner também
+  a parada segura; abortar durante o _hold_ rampa a 15 rpm; na Fase 2, quando o runner também
   possuir a malha de gás, fecha o gás como qualquer fase;
 - o wattímetro **não** é lido pelo Hub; é instrumento externo, e o valor é entrada humana.
   Campo numérico com unidade explícita (W), opcionalmente a identificação do instrumento;
@@ -671,7 +669,7 @@ condição, aplica o mesmo `SettlingTorque`, e mostra **ao vivo** `τ`, `P_líq`
 pedir. Serve para conferir um impelidor novo, achar uma faixa antes de montar a varredura, ou
 observar o efeito de uma mudança física na hora. Usa a mesma tara e calibração do ensaio
 aberto; sem elas, os números saem rotulados como _relativos_. Respeita as mesmas guardas de
-segurança (§14) — inclusive o mínimo de 50 rpm.
+segurança (§14) — inclusive o mínimo de 15 rpm.
 
 ---
 
@@ -702,8 +700,8 @@ com um dwell maior antes de `SettlingTorque`.
   e é incompatível com um cultivo em andamento. Se a cascata de O₂ estiver engatada, ou houver
   dosagem/controle de processo ativo, o botão de iniciar fica bloqueado com o motivo explícito;
   o operador desengata primeiro, conscientemente. Não há "forçar".
-- **Nunca comandar 0 rpm.** Saturação inferior 50 rpm (mínimo aceito pelo contrato Hub/CN1);
-  abortar rampa até 50, nunca desabilita o motor. Na Fase 1, o pré-voo recusa um `P₀` se a
+- **Nunca comandar 0 rpm.** Saturação inferior 15 rpm (mínimo operacional do conjunto Hub/CN1);
+  abortar rampa até 15, nunca desabilita o motor. Na Fase 1, o pré-voo recusa um `P₀` se a
   telemetria mostrar vazão, setpoint ou rota de gás ativos; o fechamento automático entra na
   Fase 2, quando o runner passa a possuir os atuadores de gás.
 - **Guardas de limite:** `N` máx e `τ` máx (% do nominal) configuráveis; ultrapassar
@@ -765,7 +763,7 @@ com um dwell maior antes de `SettlingTorque`.
   interpolado da curva ajustada gerando a razão; estabilização no alívio; **parada adaptativa**
   (Porta 1 estacionariedade, Porta 2 `IC₉₅ ≤ max(relativo, piso do σ_τ)`, `n_min`/`t_max`, `IC`
   propagado a `Np`, replicatas independentes até o alvo); máquina de estados (**recaptura no
-  lugar até `MaxTries` e o ponto "não convergiu"**, abort a 50 rpm, medida ausente, _hold_ de
+  lugar até `MaxTries` e o ponto "não convergiu"**, abort a 15 rpm, medida ausente, _hold_ de
   energia manual pausando
   sem avançar); **recusa de iniciar com cascata/cultivo ativos**; ponto único; o ajuste afim da
   correlação elétrica (≥4 pares); e a reabertura de ensaios independentes (arquivos próprios em
@@ -847,7 +845,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [x] 4.3 Propriedade: `CommandOwner.PowerAssay` no árbitro; _claim_ da agitação (e do gás na
         fase 2); _release_ no fim, no abort e em `OwnershipRevoked`.
   - [x] 4.4 `SettingSpeed`: comanda `motorSetpoint` (referência), espera **`ServoRpm` medido**
-        entrar na banda-alvo por N leituras; nunca comanda 0 (piso 50 rpm).
+        entrar na banda-alvo por N leituras; nunca comanda 0 (piso 15 rpm).
   - [x] 4.5 **Porta 1 — estacionariedade**: buffer móvel de `τ`, ajuste linear, `|inclinação|`
         abaixo da tolerância por N confirmações; **amostras do transiente não contam**.
   - [x] 4.6 **Porta 2 — precisão**: acumulador incremental (média/σ/SE/`IC₉₅`); **para quando
@@ -864,12 +862,12 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [x] 4.11 **Replicatas independentes** (Q5): cada uma reaproxima e roda até o alvo; agrega as
         médias; discordância maior que os `IC` sinaliza efeito sistemático de partida.
   - [x] 4.12 Segurança: guarda `τ`máx/`N`máx (interrompe→revisão, não força); **medida ausente**
-        descarta a média corrente e pausa; abort **rampa a 50 rpm**. Fechamento comandado de gás
+        descarta a média corrente e pausa; abort **rampa a 15 rpm**. Fechamento comandado de gás
         permanece na Fase 2; a Fase 1 recusa `P₀` com gás observado ativo.
   - [x] 4.13 `HoldingForManualEnergy` (se ligado): segura a condição, aguarda a entrada do
         wattímetro e grava `ManualElecReading` amarrado ao ponto (§12.3).
   - [ ] 4.14 _(fase 2)_ `OpeningGas` + `VentStabilizing` (§13).
-  - [x] 4.15 Testes: cada porta, o `IC`-stop, `n_min`/`t_max`, "não convergiu", abort a 50,
+  - [x] 4.15 Testes: cada porta, o `IC`-stop, `n_min`/`t_max`, "não convergiu", abort a 15,
         medida ausente, recusa por cascata, "Ambas", replicatas.
 
 - [x] **5. Navegação + as duas páginas** (esqueleto roteado). _(2026-09-03, commit
@@ -892,11 +890,12 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [x] 5.5 `PowerMapView` como **placeholder** rotulado "fase 3".
   - [x] 5.6 Aquisição e placeholder expõem a mesma raiz do `IPowerTestStore` em
         `<workspace>/Testes-Potencia`; `Mapas-Potencia` fica explicitamente adiada à Fase 3 e
-        somente será criada se houver artefatos próprios de mapa.
+        será criada nessa fase para seus documentos de síntese, sem duplicar corridas.
 
-  **Auditoria integrada das etapas 1–5 (2026-09-03):** 925 testes aprovados / 1 ignorado;
+  **Auditoria integrada das etapas 1–5 (2026-09-04):** 938 testes aprovados / 1 ignorado;
   inicialização real com `--workspace` criou `Testes-Potencia` e não registrou erro XAML,
-  _binding_ ou fatal. O primeiro frame em Debug ficou entre 2,10–2,30 s, ligeiramente acima do
+  _binding_ ou fatal. A pasta `Mapas-Potencia` não é criada antes da Fase 3. O primeiro frame
+  em Debug ficou em 2,108 s, ligeiramente acima do
   orçamento geral de 2,00 s; permanece como porta de desempenho, não como validação funcional.
   A execução física em bancada (ACK, servo real e segurança da montagem) continua obrigatória.
 
@@ -912,7 +911,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [ ] 6.5 Vaso e líquido: `T` (padrão 190 mm / 0,190 m, editável), volume útil (**obrigatório se vvm**), chicanas; aviso de vórtice
         sem chicana a alta `N`.
   - [ ] 6.6 Card **Limiares** (aplicação automática, sem botão "Aplicar"): faixa/passo de `N`
-        (padrão 50, mín 5, 50–1000), `k_rel`, `k_abs`, `n_min`, `t_max`, `MaxTries`, janela de
+        (padrão 50, mín 5, 15–1000), `k_rel`, `k_abs`, `n_min`, `t_max`, `MaxTries`, janela de
         estacionariedade; _checkboxes_ **estabilização no alívio** (fase 2) e **obter energia
         manual**.
   - [ ] 6.7 **Tabela de condições**: colunas `N`, vazão (`L/min`↔`vvm`), modo de gás, replicatas,
@@ -920,7 +919,7 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         fim/passo → linhas); ordenação; repetir/rejeitar/pular.
   - [ ] 6.8 Status de **tara/calibração**: chips (presente/ausente, data, hash confere) + botões
         "medir" (→ passo 8); indicação **relativo vs absoluto**.
-  - [ ] 6.9 Controles de execução: ▶ Iniciar / ⏸ / ⏭ / ⏹ (abort a 50); progresso `i/n`, ETA.
+  - [ ] 6.9 Controles de execução: ▶ Iniciar / ⏸ / ⏭ / ⏹ (abort a 15); progresso `i/n`, ETA.
 
 - [ ] **7. UI de aquisição — área de resultados (captura ao vivo)** (`PowerView.xaml`).
   - [ ] 7.1 Faixa ao vivo `τ` e `rpm` × tempo (ScottPlot), com a **fase de acumulação destacada**.
@@ -1336,7 +1335,8 @@ kLa na fase 3; associação a impelidor **solta, com sugestão**.
 3. **Só o platô** — foco em água, número de potência no platô turbulento; **sem** varredura de
    viscosidade (glicerol) na fase 1. O eixo `Re` continua exposto, mas o `Np(Re)` fora do
    turbulento fica para depois.
-4. **Rotação:** mínimo do **contrato Hub/CN1 50 rpm**, máximo **1000 rpm**; **passo padrão 50 rpm**
+4. **Rotação:** mínimo operacional do **conjunto Hub/CN1 15 rpm**, máximo **1000 rpm**;
+   **passo padrão 50 rpm**
    (passo mínimo 5 rpm). `τ`máx configurável como guarda.
 5. **Tara não obrigatória** — permite rodar em modo **relativo**, rotulado como tal; a tara
    promove o resultado a absoluto quando existir (§9.2).

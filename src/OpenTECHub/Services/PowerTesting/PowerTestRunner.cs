@@ -115,6 +115,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
     {
         ArgumentNullException.ThrowIfNull(doc);
 
+        try
+        {
+            ValidateDocument(doc);
+        }
+        catch (InvalidOperationException ex)
+        {
+            reason = ex.Message;
+            return false;
+        }
+
         if (_device.State != ConnectionState.Connected)
         {
             reason = "Conecte o Hub antes de iniciar o ensaio de potência.";
@@ -145,16 +155,6 @@ public sealed class PowerTestRunner : IPowerTestRunner
         if (owner is not (CommandOwner.Manual or CommandOwner.PowerAssay))
         {
             reason = $"A agitação pertence a {owner}; libere-a antes de iniciar.";
-            return false;
-        }
-
-        try
-        {
-            ValidateDocument(doc);
-        }
-        catch (InvalidOperationException ex)
-        {
-            reason = ex.Message;
             return false;
         }
 
@@ -1084,8 +1084,13 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             throw new InvalidOperationException("O ensaio precisa estar salvo antes de iniciar.");
         }
-        if (doc.Geometry.Impellers.Count == 0 ||
-            doc.Geometry.Impellers.Any(impeller => !double.IsFinite(impeller.DiameterM) || impeller.DiameterM <= 0))
+        if (doc.Geometry is null || doc.Fluid is null || doc.Settings is null || doc.Conditions is null)
+        {
+            throw new InvalidOperationException("O documento do ensaio está incompleto ou corrompido.");
+        }
+        if (doc.Geometry.Impellers is null || doc.Geometry.Impellers.Count == 0 ||
+            doc.Geometry.Impellers.Any(impeller => impeller is null ||
+                !double.IsFinite(impeller.DiameterM) || impeller.DiameterM <= 0))
         {
             throw new InvalidOperationException("Cadastre ao menos um impelidor com diâmetro positivo.");
         }
@@ -1113,22 +1118,43 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
         foreach (var condition in doc.Conditions)
         {
+            if (condition is null)
+            {
+                throw new InvalidOperationException("A tabela contém uma condição inválida.");
+            }
             ValidateCondition(condition, doc.Settings);
         }
     }
 
     private static void ValidateSettings(PowerTestSettings settings)
     {
-        if (settings.MinRpm < 15 || settings.MaxRpm > 1000 || settings.MinRpm > settings.MaxRpm)
+        if (!double.IsFinite(settings.MinRpm) || !double.IsFinite(settings.MaxRpm) ||
+            settings.MinRpm < 15 || settings.MaxRpm > 1000 || settings.MinRpm > settings.MaxRpm)
         {
             throw new InvalidOperationException("A faixa de rotação deve respeitar o contrato de 15 a 1000 rpm.");
         }
-        if (settings.SpeedToleranceRpm <= 0 || settings.SpeedStableSamples < 1 ||
-            settings.MaxSpeedSettlingSeconds <= 0 || settings.StationarityWindowSeconds <= 0 ||
+        if (!double.IsFinite(settings.DefaultStepRpm) || settings.DefaultStepRpm <= 0 ||
+            !double.IsFinite(settings.MinStepRpm) || settings.MinStepRpm <= 0 ||
+            settings.DefaultStepRpm < settings.MinStepRpm ||
+            !double.IsFinite(settings.SpeedToleranceRpm) || settings.SpeedToleranceRpm <= 0 ||
+            settings.SpeedStableSamples < 1 ||
+            !double.IsFinite(settings.MaxSpeedSettlingSeconds) || settings.MaxSpeedSettlingSeconds <= 0 ||
+            !double.IsFinite(settings.StationarityWindowSeconds) || settings.StationarityWindowSeconds <= 0 ||
+            !double.IsFinite(settings.StationaritySlopeTolerancePercentPerSecond) ||
+            settings.StationaritySlopeTolerancePercentPerSecond < 0 ||
             settings.StationarityRequiredSamples < 1 || settings.MinSamples < 2 ||
-            settings.MaxCaptureSeconds <= 0 || settings.MaxTries < 1 ||
-            settings.MeasurementTimeoutSeconds <= 0 || settings.RelativeCiFraction < 0 ||
-            settings.CiFloorSigmaMultiple < 0 || settings.MaxTorquePercent <= 0 ||
+            !double.IsFinite(settings.MaxCaptureSeconds) || settings.MaxCaptureSeconds <= 0 ||
+            settings.MaxTries < 1 ||
+            !double.IsFinite(settings.MeasurementTimeoutSeconds) || settings.MeasurementTimeoutSeconds <= 0 ||
+            !double.IsFinite(settings.RelativeCiFraction) || settings.RelativeCiFraction < 0 ||
+            !double.IsFinite(settings.CiFloorSigmaMultiple) || settings.CiFloorSigmaMultiple < 0 ||
+            !double.IsFinite(settings.MaxTorquePercent) || settings.MaxTorquePercent <= 0 ||
+            !double.IsFinite(settings.SnrFloorMultiple) || settings.SnrFloorMultiple <= 0 ||
+            !double.IsFinite(settings.VentFlowToleranceLpm) || settings.VentFlowToleranceLpm <= 0 ||
+            settings.VentFlowStableSamples < 1 ||
+            !double.IsFinite(settings.VentAgitationRpm) ||
+            settings.VentAgitationRpm < 15 || settings.VentAgitationRpm > 1000 ||
+            !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0 ||
             settings.CaptureServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs ||
             settings.RestoreServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs)
         {

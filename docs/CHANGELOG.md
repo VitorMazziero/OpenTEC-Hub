@@ -88,6 +88,14 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   operador diagnosticando uma queda precisa saber qual dos dois enlaces olhar. Todos os cards
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
+### Changed
+- **Faixa operacional de agitação corrigida para 15–1000 rpm.** O construtor do protocolo,
+  validadores de receita, runner de potência, tela kLa, especificação da interface e testes
+  usam agora o mínimo real de 15 rpm; `0` permanece reservado à desabilitação do motor.
+- **Barra compartilhada de Gráficos compactada com ícones vetoriais.** Pausa/continuação,
+  cursor, limpar/restaurar, evento e CSV mantêm _tooltips_ e nomes de acessibilidade. A
+  exportação PNG foi removida intencionalmente dessa barra; a exportação CSV permanece.
+
 ### Fixed
 - **Texto dos gráficos ilegível no tema escuro.** Rótulos de eixo e números de escala usavam
   `TextSecondaryBrush`, um cinza médio pensado para texto acessório — mas num gráfico o eixo

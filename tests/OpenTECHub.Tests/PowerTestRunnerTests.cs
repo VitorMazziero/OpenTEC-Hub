@@ -37,6 +37,35 @@ public sealed class PowerTestRunnerTests
     }
 
     [Fact]
+    public async Task Preflight_refuses_non_finite_or_inconsistent_settings_without_sending_commands()
+    {
+        using var h = new Harness();
+        h.Push(0, 0);
+        var invalidSettings = new[]
+        {
+            FastSettings() with { MinRpm = double.NaN },
+            FastSettings() with { MaxRpm = double.PositiveInfinity },
+            FastSettings() with { StationaritySlopeTolerancePercentPerSecond = double.NaN },
+            FastSettings() with { RelativeCiFraction = double.PositiveInfinity },
+            FastSettings() with { DefaultStepRpm = 4, MinStepRpm = 5 },
+            FastSettings() with { VentAgitationRpm = 14 },
+        };
+
+        foreach (var settings in invalidSettings)
+        {
+            var doc = h.CreateDocument(FastSettings());
+            doc.Settings = settings;
+
+            Assert.False(h.Runner.CanStart(doc, out var reason));
+            Assert.False(string.IsNullOrWhiteSpace(reason));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
+        }
+
+        Assert.Empty(h.Device.Sent);
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
     public async Task Setting_speed_uses_measured_rpm_and_never_commands_zero()
     {
         using var h = new Harness();

@@ -140,6 +140,56 @@ public sealed class PowerMapRenderingContractTests
         Assert.Empty(PowerMapContours.Extract(undefinedField, grid, grid));
     }
 
+
+    /// <summary>
+    /// Every power plot view subscribes to the theme service and to its view model's redraw signal.
+    /// Both are longer-lived than the control, so both have to come back off on unload or the
+    /// ScottPlot surfaces stay rooted for the life of the process (§18.3 step 8.3).
+    /// </summary>
+    [Theory]
+    [InlineData("PowerMapView.xaml.cs")]
+    [InlineData("PowerImpellerComparisonView.xaml.cs")]
+    public void Plot_views_release_their_subscriptions_on_unload(string viewFileName)
+    {
+        var source = File.ReadAllText(Path.Combine(
+            TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", viewFileName));
+
+        Assert.Contains("Unloaded += OnUnloaded", source, StringComparison.Ordinal);
+        Assert.Contains("UnsubscribeFromThemeChanges", source, StringComparison.Ordinal);
+        Assert.Contains("theme.ThemeChanged -= OnThemeChanged", source, StringComparison.Ordinal);
+        Assert.Contains("VisualizationChanged -= Redraw", source, StringComparison.Ordinal);
+
+        // Attach must detach first, or navigating back and forth stacks handlers on the same event.
+        var attachIndex = source.IndexOf("private void Attach()", StringComparison.Ordinal);
+        Assert.True(attachIndex > 0, "Attach() is the single place the redraw handler is wired");
+        var detachInAttach = source.IndexOf("Detach();", attachIndex, StringComparison.Ordinal);
+        var subscribeInAttach = source.IndexOf("VisualizationChanged += Redraw", attachIndex, StringComparison.Ordinal);
+        Assert.True(
+            detachInAttach > 0 && detachInAttach < subscribeInAttach,
+            "Attach() must call Detach() before subscribing again");
+    }
+
+    /// <summary>The map view model owns per-item handlers, so it has to let them go on dispose.</summary>
+    [Fact]
+    public void Power_map_view_model_unhooks_its_per_assay_handlers_on_dispose()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            TestPaths.RepositoryRoot, "src", "OpenTECHub", "ViewModels", "PowerMapViewModel.cs"));
+
+        var disposeIndex = source.IndexOf("public void Dispose()", StringComparison.Ordinal);
+        Assert.True(disposeIndex > 0);
+
+        var disposeBody = source[disposeIndex..];
+        Assert.Contains("PropertyChanged -= OnPowerTestSelectionChanged", disposeBody, StringComparison.Ordinal);
+        Assert.Contains("_reconstructionCts?.Cancel()", disposeBody, StringComparison.Ordinal);
+
+        // Rebuilding the assay list must also drop the handlers of the items it discards.
+        var reloadIndex = source.IndexOf("public void ReloadPowerTests()", StringComparison.Ordinal);
+        Assert.True(reloadIndex > 0);
+        var reloadBody = source[reloadIndex..(reloadIndex + 900)];
+        Assert.Contains("PropertyChanged -= OnPowerTestSelectionChanged", reloadBody, StringComparison.Ordinal);
+    }
+
     /// <summary>Mean per-pixel deviation from the background colour, for the left and right halves.</summary>
     private static (double Left, double Right) SampleHalves(Plot plot)
     {

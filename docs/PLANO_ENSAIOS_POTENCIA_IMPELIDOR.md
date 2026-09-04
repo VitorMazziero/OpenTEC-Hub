@@ -830,7 +830,8 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         sessão `2026-09-03_1340`).
   - [x] 3.4 Acopla ao caminho existente: telemetria (`ServoRpm`/`ServoTorqueNm`/`ServoPowerW`) e
         comando (`motorSetpoint`; `FlowSetpoint` na fase 2).
-  - [ ] 3.5 _(fase 2)_ joelho de `P_G/P₀` numa `Fl_G` de corte.
+  - [x] 3.5 _(entregue na fase 2, passo 3)_ joelho de `P_G/P₀` numa `Fl_G` de corte — modelado no
+        simulador e detectado por `PowerAnalysisEngine.DetectFlooding`.
 
 - [x] **4. Runner + parada adaptativa — O ALGORITMO DO TESTE AUTOMÁTICO** (`PowerTestRunner`,
       molde `KlaTestRunner`). _(Fase 1 concluída em 2026-09-03, commit `3b4c054`: runner
@@ -866,7 +867,8 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
         permanece na Fase 2; a Fase 1 recusa `P₀` com gás observado ativo.
   - [x] 4.13 `HoldingForManualEnergy` (se ligado): segura a condição, aguarda a entrada do
         wattímetro e grava `ManualElecReading` amarrado ao ponto (§12.3).
-  - [ ] 4.14 _(fase 2)_ `OpeningGas` + `VentStabilizing` (§13).
+  - [x] 4.14 _(entregue na fase 2, passo 4)_ `OpeningGas` + `VentStabilizing` (§13) — fases reais
+        do `PowerTestRunner`, exercitadas de ponta a ponta com e sem a montagem de alívio.
   - [x] 4.15 Testes: cada porta, o `IC`-stop, `n_min`/`t_max`, "não convergiu", abort a 15,
         medida ausente, recusa por cascata, "Ambas", replicatas.
 

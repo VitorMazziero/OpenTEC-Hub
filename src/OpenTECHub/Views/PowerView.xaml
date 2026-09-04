@@ -491,12 +491,50 @@
                         </Border>
                         <Border Grid.Column="2" Style="{StaticResource PowerCard}" Padding="6">
                             <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <DockPanel Margin="5,2,5,4">
-                                    <TextBlock Text="Np vs. Re · escala log10" FontWeight="SemiBold" />
-                                    <TextBlock HorizontalAlignment="Right" Text="● capturado  ┄ literatura" Style="{StaticResource CaptionTextStyle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="Np × Re" GroupName="PowerChartTab" IsChecked="{Binding ShowFloodingChart, Converter={StaticResource InverseBool}}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                        <RadioButton Content="PG/P₀ × FlG (Flooding)" GroupName="PowerChartTab" IsChecked="{Binding ShowFloodingChart}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                                                <Setter Property="Text" Value="● capturado  ┄ literatura" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowFloodingChart}" Value="True">
+                                                        <Setter Property="Text" Value="● experimental  ┄ Nienow  ★ Flooding" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </DockPanel>
-                                <Border x:Name="NpChartHost" Grid.Row="1" />
+                                <Grid Grid.Row="1">
+                                    <Border x:Name="NpChartHost" Visibility="{Binding ShowFloodingChart, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                                    <Border x:Name="PgChartHost" Visibility="{Binding ShowFloodingChart, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                                <Border Grid.Row="2" Margin="0,6,0,0" Padding="8,5" Background="{DynamicResource SurfaceSunkenBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
+                                        Visibility="{Binding ShowFloodingChart, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Transição de Flooding (Nienow)" FontWeight="SemiBold" FontSize="11" />
+                                            <TextBlock Text="{Binding FloodingCoordinates}" Style="{StaticResource CaptionTextStyle}" Margin="0,1,0,0" />
+                                            <TextBlock Text="{Binding FloodingDeviationText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Border Grid.Column="1" VerticalAlignment="Center" Padding="6,2" Background="{DynamicResource AccentSubtleBrush}"
+                                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                Visibility="{Binding HasFloodingPoint, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="★ Ponto Identificado" FontWeight="SemiBold" FontSize="10.5" Foreground="{DynamicResource AccentBrush}" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
                             </Grid>
                         </Border>
                     </Grid>
@@ -540,18 +578,24 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                            <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="68" />
-                                    <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="88" />
-                                    <DataGridTextColumn Header="P líqu. (W)" Binding="{Binding Power}" Width="80" />
-                                    <DataGridTextColumn Header="Np" Binding="{Binding Np}" Width="70" />
-                                    <DataGridTextColumn Header="Re" Binding="{Binding Re}" Width="82" />
-                                    <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" Width="74" />
-                                    <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" Width="88" />
-                                    <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="52" />
-                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="78" />
-                                    <DataGridTextColumn Header="Data/hora" Binding="{Binding Timestamp}" Width="140" />
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="62" />
+                                    <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="82" />
+                                    <DataGridTextColumn Header="P líqu. (W)" Binding="{Binding Power}" Width="74" />
+                                    <DataGridTextColumn Header="Np" Binding="{Binding Np}" Width="64" />
+                                    <DataGridTextColumn Header="Re" Binding="{Binding Re}" Width="74" />
+                                    <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" Width="68" />
+                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm}" Width="72" />
+                                    <DataGridTextColumn Header="FlG" Binding="{Binding FlG}" Width="64" />
+                                    <DataGridTextColumn Header="Fr" Binding="{Binding Fr}" Width="64" />
+                                    <DataGridTextColumn Header="PG (W)" Binding="{Binding PgLiquid}" Width="70" />
+                                    <DataGridTextColumn Header="P₀ ref (W)" Binding="{Binding P0Ref}" Width="74" />
+                                    <DataGridTextColumn Header="PG/P₀ ± IC" Binding="{Binding PowerRatio}" Width="92" />
+                                    <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" Width="80" />
+                                    <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="48" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70" />
+                                    <DataGridTextColumn Header="Data/hora" Binding="{Binding Timestamp}" Width="130" />
                                 </DataGrid.Columns>
                             </DataGrid>
                             <StackPanel Grid.Row="3" HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,8,0,0">

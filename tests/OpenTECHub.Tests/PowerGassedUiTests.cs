@@ -287,6 +287,91 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.True(vm.CurrentPowerRatio > 0);
     }
 
+    [Fact]
+    public void PowerTestViewModel_rebuild_results_populates_gas_columns_and_flooding_summary()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            LiquidVolumeM3 = 0.010,
+            Impellers = [new Impeller { DiameterM = 0.06, BladeCount = 6 }]
+        };
+        var doc = _store.CreateTest("Flooding-Step6-Test", new FluidProperties { DensityKgM3 = 1000.0, ViscosityPaS = 0.001 }, geometry, new PowerTestSettings());
+
+        // Ungassed reference P0
+        var p0Run = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-20),
+            AgitationRpm = 400.0,
+            MeanRpmMeasured = 400.0,
+            NetPowerW = 20.0,
+            GasMode = PowerGasMode.Ungassed,
+            Phase = PowerRunPhase.Accepted,
+            Analysis = new PowerPointResult { AssemblyReynoldsNumber = 24000.0, AssemblyPowerNumber = 5.0 }
+        };
+        doc.Runs.Add(p0Run);
+
+        // Gassed runs at increasing gas flows
+        var flowRates = new[] { 1.0, 2.0, 4.0, 8.0, 12.0, 16.0 };
+        var ratios = new[] { 0.95, 0.90, 0.82, 0.72, 0.55, 0.50 };
+        for (var i = 0; i < flowRates.Length; i++)
+        {
+            var gassedRun = new PowerRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-15 + i),
+                AgitationRpm = 400.0,
+                MeanRpmMeasured = 400.0,
+                NetPowerW = 20.0 * ratios[i],
+                GassedPowerW = 20.0 * ratios[i],
+                ReferenceP0W = 20.0,
+                GasMode = PowerGasMode.Gassed,
+                GasFlowLpm = flowRates[i],
+                GasFlowNumber = 0.005 * (i + 1),
+                FroudeNumber = 0.18,
+                PowerRatio = ratios[i],
+                PowerRatioCi95 = 0.02,
+                Phase = PowerRunPhase.Accepted,
+                Analysis = new PowerPointResult
+                {
+                    AssemblyReynoldsNumber = 24000.0,
+                    AssemblyPowerNumber = 5.0 * ratios[i],
+                }
+            };
+            doc.Runs.Add(gassedRun);
+        }
+
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        Assert.Equal(7, vm.Results.Count); // 1 P0 + 6 Gassed
+        var gassedRow = vm.Results.FirstOrDefault(r => r.IsGassed && Math.Abs(r.Ratio - 0.82) < 1e-3);
+        Assert.NotNull(gassedRow);
+        Assert.Equal(0.015, gassedRow.AerationNumber, 4);
+        Assert.Equal(0.18, gassedRow.FroudeNumber, 3);
+        Assert.NotEqual("—", gassedRow.PgLiquid);
+        Assert.NotEqual("—", gassedRow.P0Ref);
+        Assert.NotEqual("—", gassedRow.PowerRatio);
+
+        // Flooding evaluation
+        Assert.True(vm.HasFloodingPoint);
+        Assert.NotNull(vm.FloodingResult);
+        Assert.True(vm.FloodingResult.ExperimentalFlG > 0);
+        Assert.Contains("Fl_G,F =", vm.FloodingCoordinates);
+        Assert.Contains("Nienow teórico:", vm.FloodingDeviationText);
+
+        // Tab toggle
+        Assert.False(vm.ShowFloodingChart);
+        vm.ShowFloodingChart = true;
+        Assert.True(vm.ShowFloodingChart);
+    }
+
     private sealed class TestDeviceService : IDeviceService
     {
         public ConnectionState State => ConnectionState.Connected;

@@ -188,6 +188,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial PowerGasMode SweepGasMode { get; set; } = PowerGasMode.Gassed;
     [ObservableProperty] public partial FlowInputUnit SweepFlowUnit { get; set; } = FlowInputUnit.Lpm;
 
+    [ObservableProperty] public partial bool ShowFloodingChart { get; set; }
+    [ObservableProperty] public partial FloodingAnalysisResult? FloodingResult { get; private set; }
+    [ObservableProperty] public partial bool HasFloodingPoint { get; private set; }
+    [ObservableProperty] public partial string FloodingSummary { get; private set; } = "";
+    [ObservableProperty] public partial string FloodingCoordinates { get; private set; } = "";
+    [ObservableProperty] public partial string FloodingDeviationText { get; private set; } = "";
+
     public bool IsSweepTypeNVariable => SelectedSweepType is PowerSweepType.VariableNConstantQg or PowerSweepType.MatrixNByQg;
     public bool IsSweepTypeQgVariable => SelectedSweepType is PowerSweepType.VariableQgConstantN or PowerSweepType.MatrixNByQg;
     public bool IsSweepTypeNConstant => SelectedSweepType == PowerSweepType.VariableQgConstantN;
@@ -1435,12 +1442,46 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         Results.Clear();
         if (CurrentTest is null)
         {
+            FloodingResult = null;
+            HasFloodingPoint = false;
+            FloodingCoordinates = "";
+            FloodingDeviationText = "";
+            FloodingSummary = "Nenhum ensaio carregado.";
             return;
         }
 
         foreach (var run in CurrentTest.Runs.OrderBy(r => r.StartedUtc))
         {
             Results.Add(PowerResultRow.From(run));
+        }
+
+        var flooding = CurrentTest.Flooding;
+        if (flooding is null && CurrentTest.Runs.Count >= 3)
+        {
+            flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
+            if (flooding is not null)
+            {
+                CurrentTest.Flooding = flooding;
+                _store.SaveFlooding(CurrentTest.FolderName, flooding);
+                _store.SaveTestManifest(CurrentTest);
+            }
+        }
+
+        FloodingResult = flooding;
+        HasFloodingPoint = flooding is not null;
+        if (flooding is not null)
+        {
+            var methodLabel = flooding.Method == FloodingDetectionMethod.ManualAdjusted ? "Manual" : "Automático";
+            FloodingCoordinates = $"Fl_G,F = {flooding.ExperimentalFlG:G4} · (PG/P0)_F @ {flooding.ExperimentalRpm:F0} rpm ({flooding.ExperimentalFlowLpm:F2} L/min)";
+            var devSign = flooding.RelativeDeviationPercent >= 0 ? "+" : "";
+            FloodingDeviationText = $"Nienow teórico: Fl_G = {flooding.TheoreticalFlGNienow:G4} ({devSign}{flooding.RelativeDeviationPercent:F1}%) · Método: {methodLabel}";
+            FloodingSummary = $"{FloodingCoordinates}\n{FloodingDeviationText}";
+        }
+        else
+        {
+            FloodingCoordinates = "";
+            FloodingDeviationText = "";
+            FloodingSummary = "Flooding não identificado (necessário varredura com ≥ 3 patamares de gás).";
         }
 
         OnPropertyChanged(nameof(ResultsCsvPath));
@@ -1602,14 +1643,38 @@ public sealed record PowerResultRow
     public required string Attempts { get; init; }
     public required string Timestamp { get; init; }
     public required string Status { get; init; }
+
+    // Gas & Flooding columns (§4.5, §11, §16)
+    public required string GasFlowLpm { get; init; }
+    public required string FlG { get; init; }
+    public required string Fr { get; init; }
+    public required string PgLiquid { get; init; }
+    public required string P0Ref { get; init; }
+    public required string PowerRatio { get; init; }
+
     public double ReynoldsNumber { get; init; }
     public double PowerNumber { get; init; }
     public double PowerNumberCi95 { get; init; }
+    public double AerationNumber { get; init; }
+    public double FroudeNumber { get; init; }
+    public double Ratio { get; init; }
+    public double RatioCi95 { get; init; }
+    public PowerGasMode GasMode { get; init; }
+    public bool IsGassed => GasMode is PowerGasMode.Gassed or PowerGasMode.Both;
 
     public static PowerResultRow From(PowerRunSummary run)
     {
         static string F(double? value, string format) => value is { } v && double.IsFinite(v) ? v.ToString(format, CultureInfo.CurrentCulture) : "—";
         var analysis = run.Analysis;
+
+        var ratioText = "—";
+        if (run.PowerRatio is { } pr && double.IsFinite(pr))
+        {
+            ratioText = run.PowerRatioCi95 is { } prCi && double.IsFinite(prCi) && prCi > 0
+                ? $"{pr.ToString("F3", CultureInfo.CurrentCulture)} ± {prCi.ToString("F3", CultureInfo.CurrentCulture)}"
+                : pr.ToString("F3", CultureInfo.CurrentCulture);
+        }
+
         return new PowerResultRow
         {
             RunId = run.RunId,
@@ -1618,13 +1683,29 @@ public sealed record PowerResultRow
                 ? netPower / PowerCalc.AngularVelocity(run.MeanRpmMeasured)
                 : null, "F5"),
             Power = F(run.NetPowerW, "F4"),
-            Np = F(analysis?.AssemblyPowerNumber, "G5"), Re = F(analysis?.AssemblyReynoldsNumber, "G5"), Ci = F(analysis?.AssemblyPowerNumberCi95, "G4"),
-            StopReason = run.StopReason.ToString(), Attempts = run.Tries.ToString(CultureInfo.CurrentCulture),
+            Np = F(analysis?.AssemblyPowerNumber, "G5"),
+            Re = F(analysis?.AssemblyReynoldsNumber, "G5"),
+            Ci = F(analysis?.AssemblyPowerNumberCi95, "G4"),
+            StopReason = run.StopReason.ToString(),
+            Attempts = run.Tries.ToString(CultureInfo.CurrentCulture),
             Timestamp = (run.CompletedUtc ?? run.StartedUtc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.CurrentCulture),
             Status = run.Phase == PowerRunPhase.Accepted ? "Aceito" : run.Phase == PowerRunPhase.Rejected ? "Rejeitado" : run.Phase.ToString(),
+
+            GasFlowLpm = F(run.GasFlowLpm, "F2"),
+            FlG = F(run.GasFlowNumber, "G4"),
+            Fr = F(run.FroudeNumber, "G4"),
+            PgLiquid = F(run.GassedPowerW ?? (run.GasMode is PowerGasMode.Gassed or PowerGasMode.Both ? run.NetPowerW : null), "F3"),
+            P0Ref = F(run.ReferenceP0W, "F3"),
+            PowerRatio = ratioText,
+
             ReynoldsNumber = analysis?.AssemblyReynoldsNumber ?? double.NaN,
             PowerNumber = analysis?.AssemblyPowerNumber ?? double.NaN,
             PowerNumberCi95 = analysis?.AssemblyPowerNumberCi95 ?? double.NaN,
+            AerationNumber = run.GasFlowNumber ?? double.NaN,
+            FroudeNumber = run.FroudeNumber ?? double.NaN,
+            Ratio = run.PowerRatio ?? double.NaN,
+            RatioCi95 = run.PowerRatioCi95 ?? double.NaN,
+            GasMode = run.GasMode,
         };
     }
 }

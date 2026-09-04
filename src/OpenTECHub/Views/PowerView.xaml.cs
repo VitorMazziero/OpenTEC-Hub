@@ -19,6 +19,7 @@ public partial class PowerView : UserControl
 {
     private readonly WpfPlot _livePlot = new();
     private readonly WpfPlot _npPlot = new();
+    private readonly WpfPlot _pgPlot = new();
     private readonly DispatcherTimer _redrawTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private PowerTestViewModel? ViewModel => DataContext as PowerTestViewModel;
@@ -28,6 +29,7 @@ public partial class PowerView : UserControl
         InitializeComponent();
         LiveChartHost.Child = _livePlot;
         NpChartHost.Child = _npPlot;
+        PgChartHost.Child = _pgPlot;
         _redrawTimer.Tick += (_, _) => RedrawPlots();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -87,8 +89,14 @@ public partial class PowerView : UserControl
         _livePlot.Plot.Axes.Right.TickLabelStyle.IsVisible = true;
         _livePlot.Plot.Axes.Right.FrameLineStyle.Width = 1;
         StylePlot(_npPlot.Plot, "log₁₀(Re)", "log₁₀(Np)");
+        StylePlot(_pgPlot.Plot, "Número de aeração (Fl_G)", "Razão de potência (PG / P₀)");
+        _pgPlot.Plot.Axes.Right.Label.Text = "Número de Froude (Fr)";
+        _pgPlot.Plot.Axes.Right.Label.FontSize = 10;
+        _pgPlot.Plot.Axes.Right.TickLabelStyle.IsVisible = true;
+        _pgPlot.Plot.Axes.Right.FrameLineStyle.Width = 1;
         _livePlot.Refresh();
         _npPlot.Refresh();
+        _pgPlot.Refresh();
     }
 
     private static void StylePlot(Plot plot, string xLabel, string yLabel)
@@ -118,7 +126,14 @@ public partial class PowerView : UserControl
         }
 
         RedrawLive(vm);
-        RedrawNp(vm);
+        if (!vm.ShowFloodingChart)
+        {
+            RedrawNp(vm);
+        }
+        else
+        {
+            RedrawPg(vm);
+        }
     }
 
     private void RedrawLive(PowerTestViewModel vm)
@@ -194,6 +209,92 @@ public partial class PowerView : UserControl
         }
         plot.Axes.AutoScale();
         _npPlot.Refresh();
+    }
+
+    private void RedrawPg(PowerTestViewModel vm)
+    {
+        var plot = _pgPlot.Plot;
+        plot.Clear();
+
+        var gassedRows = vm.Results
+            .Where(r => r.IsGassed && r.AerationNumber > 0 && r.Ratio > 0 &&
+                        double.IsFinite(r.AerationNumber) && double.IsFinite(r.Ratio))
+            .OrderBy(r => r.AerationNumber)
+            .ToArray();
+
+        if (gassedRows.Length > 0)
+        {
+            var xs = gassedRows.Select(r => r.AerationNumber).ToArray();
+            var ys = gassedRows.Select(r => r.Ratio).ToArray();
+            var frs = gassedRows.Select(r => r.FroudeNumber).ToArray();
+
+            // 1. Curva experimental PG/P0
+            var scatter = plot.Add.Scatter(xs, ys);
+            scatter.Color = PlotColor.FromHex("#3B82F6"); // Azul
+            scatter.LineWidth = 1.6f;
+            scatter.MarkerSize = 7;
+
+            // Barras de incerteza IC95 de PG/P0
+            for (var i = 0; i < gassedRows.Length; i++)
+            {
+                var ci = gassedRows[i].RatioCi95;
+                if (double.IsFinite(ci) && ci > 0)
+                {
+                    var err = plot.Add.Line(xs[i], Math.Max(0.0, ys[i] - ci), xs[i], ys[i] + ci);
+                    err.Color = PlotColor.FromHex("#3B82F6").WithAlpha(0.75);
+                    err.LineWidth = 1.3f;
+                }
+            }
+
+            // 2. Eixo secundário: Número de Froude Fr
+            if (frs.Any(f => double.IsFinite(f) && f > 0))
+            {
+                var frScatter = plot.Add.Scatter(xs, frs);
+                frScatter.Color = PlotColor.FromHex("#10B981").WithAlpha(0.7f); // Verde esmeralda
+                frScatter.LineWidth = 1.2f;
+                frScatter.LinePattern = LinePattern.Dotted;
+                frScatter.MarkerSize = 4;
+                frScatter.Axes.YAxis = plot.Axes.Right;
+            }
+        }
+
+        // 3. Overlay da correlação teórica de Nienow e destaque do ponto de Flooding
+        if (vm.FloodingResult is { } flooding)
+        {
+            if (flooding.TheoreticalFlGNienow > 0 && double.IsFinite(flooding.TheoreticalFlGNienow))
+            {
+                var nienowLine = plot.Add.VerticalLine(flooding.TheoreticalFlGNienow);
+                nienowLine.Color = PlotColor.FromHex("#F59E0B"); // Âmbar tracejado
+                nienowLine.LinePattern = LinePattern.Dashed;
+                nienowLine.LineWidth = 1.5f;
+            }
+
+            var floodingRow = gassedRows.FirstOrDefault(r => Math.Abs(r.AerationNumber - flooding.ExperimentalFlG) < 1e-4)
+                              ?? gassedRows.FirstOrDefault();
+            var floodRatio = floodingRow?.Ratio ?? 0.7;
+
+            var markerScatter = plot.Add.Scatter(new double[] { flooding.ExperimentalFlG }, new double[] { floodRatio });
+            markerScatter.Color = PlotColor.FromHex("#EF4444"); // Vermelho
+            markerScatter.LineWidth = 0;
+            markerScatter.MarkerSize = 13;
+            markerScatter.MarkerShape = MarkerShape.FilledDiamond;
+
+            var note = plot.Add.Text($"Flooding ((Fl_G)_F={flooding.ExperimentalFlG:G4})", flooding.ExperimentalFlG, floodRatio);
+            note.LabelFontSize = 10;
+            note.LabelFontColor = PlotColor.FromHex("#EF4444");
+        }
+
+        ApplyThemeToPgAfterClear(plot);
+        plot.Axes.AutoScale();
+        _pgPlot.Refresh();
+    }
+
+    private static void ApplyThemeToPgAfterClear(Plot plot)
+    {
+        plot.Axes.Right.Label.Text = "Número de Froude (Fr)";
+        plot.Axes.Right.Label.FontSize = 10;
+        plot.Axes.Right.TickLabelStyle.IsVisible = true;
+        plot.Axes.Right.FrameLineStyle.Width = 1;
     }
 
     private void ExportCsv_Click(object sender, RoutedEventArgs e)

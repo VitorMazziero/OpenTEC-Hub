@@ -1106,21 +1106,23 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
 
   **Auditoria da etapa 5 (2026-09-04):** UI da barra lateral e tabela de condições totalmente estendidas para ensaios gaseificados. PowerCondition implementa INotifyPropertyChanged com conversão bidirecional reativa L/min <-> vvm e validação de volume útil. Gerador de varreduras suporta N com Qg constante, Qg com N constante (transição de flooding) e matriz 2D N x Qg. Card de limiares com parâmetros de alívio reativos (sem botão "Aplicar"). Barra superior com Qg (L/min e vvm), Fl_G, Fr, PG/P0 instantâneo e badge reativo de malha de gás ("Fechado", "Alívio Estabilizando", "Reator Aberto"). 8 novos testes unitários adicionados e suíte de 981 testes aprovada.
 
-- [ ] **6. Visualização Gráfica e Curva de Flooding** (`PowerView.xaml`, `PowerTestViewModel.cs`)
-  - [ ] 6.1 Alternância de abas/gráficos no painel principal:
+- [X] **6. Visualização Gráfica e Curva de Flooding** (`PowerView.xaml`, `PowerTestViewModel.cs`)
+  - [X] 6.1 Alternância de abas/gráficos no painel principal:
         - Gráfico 1: `Np × Re` (não-gaseificado, mantido da Fase 1);
         - Gráfico 2: `P_G/P₀ × Fl_G` (gaseificado), com número de Froude `Fr` mapeado em cor ou
           exibido em eixo secundário.
-  - [ ] 6.2 Overlay da Correlação de Nienow no gráfico `P_G/P₀ × Fl_G`:
+  - [X] 6.2 Overlay da Correlação de Nienow no gráfico `P_G/P₀ × Fl_G`:
         - Linha teórica de fronteira calculada a partir de `D/T` do tanque e `Fr` do ponto.
         - Legenda clara distinguindo curva experimental de referência de Nienow.
-  - [ ] 6.3 Marcador e destaque do ponto de Flooding:
+  - [X] 6.3 Marcador e destaque do ponto de Flooding:
         - Ponto de mínimo/joelho assinalado visualmente com ícone e rótulo de coordenada
           `((Fl_G)_F, (P_G/P₀)_F)`.
         - Card explicativo com `(Fl_G)_F` medido vs Nienow e desvio percentual.
-  - [ ] 6.4 Tabela de resultados científicos e exportação:
+  - [X] 6.4 Tabela de resultados científicos e exportação:
         - Inclusão das colunas de gás: `Q_g` medido, `Fl_G`, `Fr`, `P_G` líq, `P₀` ref, `P_G/P₀ ± IC₉₅`.
         - Exportação CSV atualizada contendo todas as variáveis experimentais e adimensionais.
+
+  **Auditoria da etapa 6 (2026-09-04):** Visualização gráfica expandida com suporte a abas `[Np × Re]` e `[PG/P₀ × Fl_G (Flooding)]`. Gráfico gaseificado renderizado com curva experimental azul com barras de incerteza IC95, eixo secundário à direita exibindo número de Froude Fr (verde pontilhado), overlay da correlação teórica de Nienow (âmbar tracejado) e marcador de diamante preenchido no ponto de flooding com anotação explícita de coordenada. Card explicativo da transição de flooding exibe coordenadas e desvio percentual em relação a Nienow com badge de ponto identificado. Tabela DataGrid atualizada com colunas completas de gás (Qg, FlG, Fr, PG, P0, PG/P0 ± IC95) e exportação de CSV sincronizada. 982 testes aprovados.
 
 - [ ] **7. Revisão Científica e Ajuste Interativo de Flooding**
   - [ ] 7.1 Revisão de pontos gaseificados: aceitação, rejeição ou repetição de replicatas com gás.

@@ -9,6 +9,10 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Duas rotas para os ensaios de potência.** `Potência` abre o esqueleto mestre-detalhe de
+  aquisição, já ligado ao armazenamento, à telemetria do servo e ao árbitro; `Mapa de Potência`
+  nasce como destino estável e placeholder explícito da Fase 3. Ambas ficam após Mapeamento kLa
+  em Automação, participam dos atalhos e da paleta e são restauradas por `LastPage`.
 - **Saúde estatística compartilhada dos sensores.** Temperatura, pH, oxigênio, vazão,
   biomassa e distância acumulam as 30 leituras aceitas mais recentes e exibem o desvio
   padrão residual após remover a tendência linear. Assim uma rampa legítima do processo não é

@@ -844,16 +844,24 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   - [ ] 4.15 Testes: cada porta, o `IC`-stop, `n_min`/`t_max`, "não convergiu", abort a 15,
         medida ausente, recusa por cascata, "Ambas", replicatas.
 
-- [ ] **5. Navegação + as duas páginas** (esqueleto roteado).
-  - [ ] 5.1 `NavigationItem("power", "Potência", "Impeller", "Automação", …)` e
+- [x] **5. Navegação + as duas páginas** (esqueleto roteado). _(2026-09-03, commit
+      `0032687`: rotas e atalhos, composição DI, shell mestre-detalhe de aquisição e placeholder
+      explícito de Fase 3; 6 testes novos, suíte 870 verdes / 1 ignorado; inicialização WPF real
+      sem erro XAML/binding/fatal.)_
+
+      **Plano aplicado:** fixar primeiro os dois destinos e a persistência de rota; fazer o
+      `PowerTestViewModel` observar telemetria/propriedade sem comandar; reservar no XAML a
+      fronteira mestre-detalhe que as etapas 6–7 preencherão; manter `PowerMapView` sem cálculo
+      antecipado. Nenhuma listagem em disco ou comando é disparado durante a inicialização.
+  - [x] 5.1 `NavigationItem("power", "Potência", "Impeller", "Automação", …)` e
         `NavigationItem("power-map", "Mapa de Potência", "Search", …)` após `kla-mapping` no
         `ShellViewModel`.
-  - [ ] 5.2 Roteamento no `MainWindow.xaml` (`PowerView` e `PowerMapView` via o conversor de
+  - [x] 5.2 Roteamento no `MainWindow.xaml` (`PowerView` e `PowerMapView` via o conversor de
         visibilidade por `Id`).
-  - [ ] 5.3 `PowerTestViewModel` e `PowerMapViewModel` registrados em `App.xaml.cs`, com
+  - [x] 5.3 `PowerTestViewModel` e `PowerMapViewModel` registrados em `App.xaml.cs`, com
         `IPowerTestStore`, telemetria e árbitro injetados; descarte junto dos assinantes.
-  - [ ] 5.4 Atalho de teclado na sequência; `LastPage` persiste a página.
-  - [ ] 5.5 `PowerMapView` como **placeholder** rotulado "fase 3".
+  - [x] 5.4 Atalho de teclado na sequência; `LastPage` persiste a página.
+  - [x] 5.5 `PowerMapView` como **placeholder** rotulado "fase 3".
 
 - [ ] **6. UI de aquisição — barra lateral (setup + tabela)** (`PowerView.xaml`, mestre-detalhe).
   - [ ] 6.1 Layout: `Grid` barra lateral ~340 px + área de resultados; responsivo; **tema-aware**

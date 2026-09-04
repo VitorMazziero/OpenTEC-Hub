@@ -428,6 +428,198 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(0, capture.SampleCount);
     }
 
+    [Fact]
+    public async Task Gassed_condition_with_vent_stabilization_routes_relief_and_switches_to_reactor()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve2,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.2,
+            VentFlowStableSamples = 2,
+            MaxVentStabilizationSeconds = 30.0,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 4.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+
+        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Aeration));
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"motorSetpoint\":15"));
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"valve_2\":1"));
+
+        // Push telemetry confirming relief state with flow stabilizing
+        h.PushGas(15, 0.5, flowRate: 4.1, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+
+        // 2nd stable sample -> triggers switch to reactor (OpeningGas)
+        h.PushGas(15, 0.5, flowRate: 4.05, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"valve_2\":0"));
+
+        // Confirm reactor gas state (both valves 0, main 0)
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"motorSetpoint\":300"));
+
+        // Confirm speed
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
+
+        // Accumulate and finish
+        while (h.Runner.Phase is PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget)
+        {
+            h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        }
+
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+        Assert.True(h.Runner.CurrentRun!.UsedVentStabilization);
+        Assert.Equal(PowerGasMode.Gassed, h.Runner.CurrentRun.GasMode);
+        Assert.NotNull(h.Runner.CurrentRun.GasFlowNumber);
+        Assert.NotNull(h.Runner.CurrentRun.FroudeNumber);
+    }
+
+    [Fact]
+    public async Task Vent_stabilization_times_out_when_flow_never_settles()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.1,
+            VentFlowStableSamples = 5,
+            MaxVentStabilizationSeconds = 2.0,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 5.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+
+        // Advance past 2s with flow out of tolerance
+        for (var i = 0; i < 10; i++)
+        {
+            h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+        Assert.Equal(PowerStopReason.Tmax, h.Runner.CurrentRun!.StopReason);
+    }
+
+    [Fact]
+    public async Task Both_condition_sequences_P0_ungassed_first_then_PG_gassed_with_paired_reference()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            VentStabilizationEnabled = false,
+            AutoAcceptRuns = true,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Both);
+        doc.Conditions[0].GasFlowLpm = 3.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+
+        // Subphase 1: Ungassed
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+        Assert.Equal(PowerGasMode.Ungassed, h.Runner.CurrentRun!.GasMode);
+
+        // Speed confirmation for Subphase 1
+        h.PushGas(300, 3.0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0);
+        h.PushGas(300, 3.0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0);
+        Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
+
+        // Drive Subphase 1 to completion
+        while (h.Runner.Phase != PowerRunPhase.OpeningGas)
+        {
+            h.PushGas(300, 3.0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0);
+        }
+
+        // Subphase 1 completed, immediately started Subphase 2 (OpeningGas)
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        Assert.Equal(PowerGasMode.Gassed, h.Runner.CurrentRun!.GasMode);
+        Assert.Equal(P0Provenance.MeasuredUngassed, h.Runner.CurrentRun.P0Provenance);
+        Assert.NotNull(h.Runner.CurrentRun.ReferenceP0W);
+        var p0Captured = h.Runner.CurrentRun.ReferenceP0W.Value;
+        Assert.True(p0Captured > 0);
+
+        // Confirm reactor gas for Subphase 2 (commandId 1 because first flow command was dispatched in Subphase 2)
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+
+        // Speed confirmation for Subphase 2
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
+
+        // Drive Subphase 2 to completion
+        while (h.Runner.Phase is PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget)
+        {
+            h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+
+        // Both runs completed!
+        Assert.True(h.Runner.CurrentRun.PowerRatio is > 0 and < 1.0);
+        Assert.Equal(P0Provenance.MeasuredUngassed, h.Runner.CurrentRun.P0Provenance);
+    }
+
+    [Fact]
+    public async Task Gassed_assay_abort_parks_motor_at_minimum_and_zeros_flow_closing_valves()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with { VentStabilizationEnabled = false };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 4.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+
+        await h.Runner.AbortTestAsync("Parada de emergência");
+
+        Assert.Equal(PowerRunPhase.Faulted, h.Runner.Phase);
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"motorSetpoint\":15"));
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"flowSetpoint\":0") && json.Contains("\"v_Flow\":1"));
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Aeration));
+    }
+
+    [Fact]
+    public async Task Flowmeter_disconnect_or_offline_during_gassed_capture_pauses_for_measurement()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with { VentStabilizationEnabled = false };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 4.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+        // Confirm gas state
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+
+        // Confirm speed
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
+
+        // Flowmeter drops offline!
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1, flowmeterOnline: false);
+
+        Assert.True(h.Runner.IsPausedForMeasurement);
+    }
+
+
     private static PowerTestSettings FastSettings() => new()
     {
         MinRpm = 15,
@@ -514,6 +706,45 @@ public sealed class PowerTestRunnerTests
                 ServoTorqueNm = torquePercent / 100.0 * 1.27,
                 ServoPowerW = PowerCalc.ShaftPower(torquePercent / 100.0 * 1.27, rpm),
                 FlowRate = flowRate,
+                Temperature = 25,
+                HubFirmwareVersion = "test-hub",
+                HubProtocolVersion = 9,
+            });
+        }
+
+        public void PushGas(
+            double rpm,
+            double torquePercent,
+            double flowRate,
+            double flowSetpoint,
+            int valve1 = 0,
+            int valve2 = 0,
+            int valveMain = 0,
+            int commandId = 1,
+            int commandAck = 1,
+            bool commandPending = false,
+            bool flowmeterOnline = true)
+        {
+            _clock.Advance(TimeSpan.FromSeconds(0.5));
+            Device.Push(new SensorSnapshot
+            {
+                HasServoTelemetry = true,
+                HasServoSample = true,
+                ServoOnline = true,
+                ServoCommEnabled = true,
+                ServoRpm = rpm,
+                ServoTorquePct = torquePercent,
+                ServoTorqueNm = torquePercent / 100.0 * 1.27,
+                ServoPowerW = PowerCalc.ShaftPower(torquePercent / 100.0 * 1.27, rpm),
+                FlowRate = flowRate,
+                FlowSetpoint = flowSetpoint,
+                FlowValve1 = valve1,
+                FlowValve2 = valve2,
+                FlowValveMain = valveMain,
+                FlowCommandId = commandId,
+                FlowCommandAck = commandAck,
+                FlowCommandPending = commandPending,
+                FlowmeterOnline = flowmeterOnline,
                 Temperature = 25,
                 HubFirmwareVersion = "test-hub",
                 HubProtocolVersion = 9,

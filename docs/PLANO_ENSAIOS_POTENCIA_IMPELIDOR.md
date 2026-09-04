@@ -1046,17 +1046,17 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
   de gás para alívio versus reator, loopback e ACK com FlowCommandPending em 150ms no WireCodec/telemetria, e suíte de 12
   testes de simulação de potência e aeração aprovados.
 
-- [ ] **4. Protocolo de Gases, Alívio e Máquina de Estados no Runner** (`PowerTestRunner`)
-  - [ ] 4.1 Árbitro e propriedade de comando:
+- [x] **4. Protocolo de Gases, Alívio e Máquina de Estados no Runner** (`PowerTestRunner`)
+  - [x] 4.1 Árbitro e propriedade de comando:
         - Reivindicar `CommandOwner.PowerAssay` sobre a agitação E a malha de gases quando a
           condição for `Gassed` ou `Both`.
         - Liberação garantida da malha de gás no encerramento, interrupção, aborto ou revogação.
-  - [ ] 4.2 Entrega confiável de gás e intertravamento (§11, molde §10 do kLa):
+  - [x] 4.2 Entrega confiável de gás e intertravamento (§11, molde §10 do kLa):
         - Regra de ouro: nunca abrir duas fontes de gás em paralelo ("fechar → confirmar ACK →
           abrir novo estado → confirmar ACK").
         - Verificação de setpoint dentro da tolerância, `FlowCommandAck == FlowCommandId` e
           `FlowCommandPending == false`.
-  - [ ] 4.3 Fase `VentStabilizing` (estabilização no alívio, §13):
+  - [x] 4.3 Fase `VentStabilizing` (estabilização no alívio, §13):
         - Se `VentStabilizationEnabled` estiver ligado:
           1. Reduz agitação para `VentAgitationRpm` (padrão 15 rpm);
           2. Abre válvula de alívio selecionada (`SelectedVentValve`) e comanda `FlowSetpoint`;
@@ -1065,20 +1065,26 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
           4. Monitora timeout de guarda `MaxVentStabilizationSeconds` (falha segura com aborto);
           5. Assentada a vazão, fecha o alívio e abre a válvula do reator mantendo o setpoint.
         - Se desligado: abre diretamente a válvula do reator com dwell de amortecimento.
-  - [ ] 4.4 Sequenciamento da condição "Ambas" (`Both`, §12.2):
+  - [x] 4.4 Sequenciamento da condição "Ambas" (`Both`, §12.2):
         - Subfase 1: mede ponto não-gaseificado (gás fechado, agitação na meta, Porta 1 + Porta 2 → `P₀`);
         - Subfase 2: abre e estabiliza gás na vazão programada (com ou sem alívio), aguarda
           regime (Porta 1 + Porta 2 → `P_G`);
         - Associa ambos os pontos sob a mesma condição com rotação medida real de cada patamar.
-  - [ ] 4.5 Segurança e parada de emergência (§14):
+  - [x] 4.5 Segurança e parada de emergência (§14):
         - Aborto durante ensaio gaseificado: desacelera agitação para 15 rpm (nunca 0) E zera o
           fluxômetro (`FlowSetpoint = 0`) fechando todas as válvulas com confirmação de ACK.
         - Perda de comunicação do fluxômetro ou queda de `ServoOnline`: congela captura, descarta
           a janela corrente e notifica o operador.
-  - [ ] 4.6 Ponto Único (`SinglePoint`) com gás: permite comutar gás manualmente para inspeção ao
+  - [x] 4.6 Ponto Único (`SinglePoint`) com gás: permite comutar gás manualmente para inspeção ao
         vivo de `Fl_G` e razão.
-  - [ ] 4.7 Testes unitários do runner para fluxos de gás: estabilização no alívio com sucesso e com
+  - [x] 4.7 Testes unitários do runner para fluxos de gás: estabilização no alívio com sucesso e com
         timeout, sequência de condição "Ambas", aborto com corte de gás e perda de conectividade.
+
+  **Auditoria da etapa 4 (2026-09-04):** Máquina de estados estendida com protocolo de aeração, estabilização no
+  alívio em baixa rotação com comutação suave para o reator, sequenciamento automático de condições "Ambas"
+  (Subfase 1 ungassed P0 -> Subfase 2 gassed PG) associando o P0 real medido à razão PG/P0, parada de emergência
+  desacelerando a 15 rpm com corte de gás via FlowSafeStop e verificação de ACK, intertravamento e proteção contra
+  desconexão do fluxômetro, e 23/23 testes de runner aprovados.
 
 - [ ] **5. UI da Barra Lateral e Tabela de Condições Gaseificadas** (`PowerView.xaml`, `PowerTestViewModel.cs`)
   - [ ] 5.1 Edição e exibição de vazão de gás na tabela de condições:

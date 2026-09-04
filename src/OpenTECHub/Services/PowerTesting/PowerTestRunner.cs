@@ -9,7 +9,9 @@ namespace OpenTECHub.Services.PowerTesting;
 /// </summary>
 public sealed class PowerTestRunner : IPowerTestRunner
 {
+    private const double MaxFlow = 15.0;
     private static readonly ActuatorId[] Phase1Actuators = [ActuatorId.Agitation];
+    private static readonly ActuatorId[] GassedActuators = [ActuatorId.Agitation, ActuatorId.Aeration];
 
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
@@ -38,6 +40,14 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private int _speedStableCount;
     private int _commandedRpm;
     private bool _disposed;
+    private (double Flow, bool V1, bool V2, bool VFlow)? _targetGasState;
+    private int _minimumExpectedFlowCommandId;
+    private int _lastFlowCommandId;
+    private int _ventFlowStableCount;
+    private double? _ventFlowDeviation;
+    private double? _pairedUngassedP0W;
+    private double? _pairedUngassedP0Ci95W;
+    private bool _isSubphase2Both;
 
     public PowerTestRunner(
         IDeviceService device,
@@ -141,9 +151,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
             return false;
         }
 
+        var needsGas = doc.Conditions.Any(c => c.GasMode == PowerGasMode.Gassed);
         if (HasActiveGasPath(latest))
         {
-            reason = "Feche a vazão e a rota de gás antes de medir P0 na Fase 1.";
+            reason = "Feche a vazão e a rota de gás antes de medir P0.";
+            return false;
+        }
+
+        if (needsGas && (!latest.FlowmeterOnline || !double.IsFinite(latest.FlowRate)))
+        {
+            reason = "O fluxômetro precisa estar online para ensaios com aeração.";
             return false;
         }
 
@@ -157,6 +174,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             reason = $"A agitação pertence a {owner}; libere-a antes de iniciar.";
             return false;
+        }
+
+        if (needsGas)
+        {
+            var gasOwner = _arbiter.OwnerOf(ActuatorId.Aeration);
+            if (gasOwner is not (CommandOwner.Manual or CommandOwner.PowerAssay))
+            {
+                reason = $"A malha de gás pertence a {gasOwner}; libere-a antes de iniciar.";
+                return false;
+            }
         }
 
         reason = null;
@@ -259,9 +286,17 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             throw new InvalidOperationException("A medida do servo ainda não voltou de forma válida.");
         }
+        if (_currentRun.GasMode == PowerGasMode.Gassed && (!latest.FlowmeterOnline || !double.IsFinite(latest.FlowRate)))
+        {
+            throw new InvalidOperationException("A medida do fluxômetro ainda não voltou de forma válida.");
+        }
         if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay)
         {
             throw new InvalidOperationException("O ensaio perdeu a posse da agitação.");
+        }
+        if (_currentRun.GasMode == PowerGasMode.Gassed && _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay)
+        {
+            throw new InvalidOperationException("O ensaio perdeu a posse da malha de gás.");
         }
 
         if (_capture is null)
@@ -270,8 +305,15 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
         _speedStableCount = 0;
         _capture.Reset();
-        SetPhase(PowerRunPhase.SettingSpeed, "Medida restabelecida; reaproximando a rotação antes de recapturar.");
-        DispatchMotorOrFault(_commandedRpm, "retomar a rotação");
+        if (_currentRun.GasMode == PowerGasMode.Gassed && _currentCondition.GasFlowLpm is { } flow)
+        {
+            StartGassedSequence(flow);
+        }
+        else
+        {
+            SetPhase(PowerRunPhase.SettingSpeed, "Medida restabelecida; reaproximando a rotação antes de recapturar.");
+            DispatchMotorOrFault(_commandedRpm, "retomar a rotação");
+        }
         LogEvent("MeasurementResumed", "Telemetria válida restabelecida; as duas portas foram reiniciadas.");
         return Task.CompletedTask;
     }
@@ -510,21 +552,29 @@ public sealed class PowerTestRunner : IPowerTestRunner
         condition.Status = PowerConditionStatus.InProgress;
         _runPoints.Clear();
         _speedStableCount = 0;
+        _ventFlowStableCount = 0;
+        _ventFlowDeviation = null;
+        _pairedUngassedP0W = null;
+        _pairedUngassedP0Ci95W = null;
+        _isSubphase2Both = false;
         _commandedRpm = Math.Clamp(
             (int)Math.Round(condition.AgitationRpm, MidpointRounding.AwayFromZero),
             (int)doc.Settings.MinRpm,
             (int)doc.Settings.MaxRpm);
 
+        var needsGas = condition.GasMode == PowerGasMode.Gassed;
         var actualMode = condition.GasMode == PowerGasMode.Both
             ? PowerGasMode.Ungassed
             : condition.GasMode;
+        var initialGasFlow = actualMode == PowerGasMode.Gassed ? condition.GasFlowLpm : null;
+
         _currentRun = new PowerRun
         {
             TestId = doc.TestId,
             ConditionId = condition.ConditionId,
             ReplicateNumber = replicateNumber,
             AgitationRpm = _commandedRpm,
-            GasFlowLpm = null,
+            GasFlowLpm = initialGasFlow,
             GasMode = actualMode,
             CurrentPhase = PowerRunPhase.Preflight,
             StartedUtc = _time.GetUtcNow(),
@@ -540,24 +590,147 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _runStartMonotonic = GetMonotonicSeconds();
         SetPhase(PowerRunPhase.Preflight, $"Pré-voo da corrida {_currentRun.FolderName}.");
 
-        _arbiter.Claim(CommandOwner.PowerAssay, Phase1Actuators, $"Ensaio de potência: {_currentRun.FolderName}");
-        if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay)
+        var actuators = needsGas ? GassedActuators : Phase1Actuators;
+        _arbiter.Claim(CommandOwner.PowerAssay, actuators, $"Ensaio de potência: {_currentRun.FolderName}");
+        if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay ||
+            (needsGas && _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay))
         {
-            FaultWithoutSafeCommand("Falha ao obter posse da agitação.");
+            FaultWithoutSafeCommand("Falha ao obter posse dos atuadores.");
             return;
         }
 
-        SetPhase(PowerRunPhase.PreparingCondition, "Preparando amostragem e condição não-gaseificada.");
+        SetPhase(PowerRunPhase.PreparingCondition, "Preparando amostragem e condição do ensaio.");
         if (!Dispatch(CommandBuilders.ServoPollInterval(doc.Settings.CaptureServoPollMs), "baixar servoPollMs"))
         {
             return;
         }
-        SetPhase(PowerRunPhase.SettingSpeed, $"Aguardando a medida estabilizar em {_commandedRpm} rpm.");
-        DispatchMotorOrFault(_commandedRpm, "ajustar a rotação");
+
+        if (actualMode == PowerGasMode.Gassed)
+        {
+            _arbiter.Claim(CommandOwner.PowerAssay, GassedActuators, $"Ensaio de potência (gás): {condition.ConditionId}");
+        if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay)
+        {
+            FaultWithoutSafeCommand("Falha ao obter posse da malha de gás para Subfase 2.");
+            return;
+        }
+        StartGassedSequence(condition.GasFlowLpm ?? 0.0);
+        }
+        else
+        {
+            if (needsGas)
+            {
+                // max flow is constant MaxFlow
+                DispatchFlow(CommandBuilders.FlowSafeStop(MaxFlow), "fechar gás para medição P0");
+            }
+            SetPhase(PowerRunPhase.SettingSpeed, $"Aguardando a medida estabilizar em {_commandedRpm} rpm.");
+            DispatchMotorOrFault(_commandedRpm, "ajustar a rotação");
+        }
 
         _store.SaveConditionsTable(doc.FolderName, doc.Conditions);
         _store.SaveTestManifest(doc);
-        LogEvent("RunStarted", $"Corrida {_currentRun.FolderName}: {_commandedRpm} rpm, tentativa 1.");
+        LogEvent("RunStarted", $"Corrida {_currentRun.FolderName}: {_commandedRpm} rpm, modo {actualMode}, tentativa 1.");
+    }
+
+    private void StartGassedSequence(double targetFlow)
+    {
+        var doc = _currentTest!;
+        // max flow is constant MaxFlow
+
+        if (doc.Settings.VentStabilizationEnabled)
+        {
+            _currentRun!.UsedVentStabilization = true;
+            var isV1 = doc.Settings.SelectedVentValve == PowerVentValve.Valve1;
+            var isV2 = doc.Settings.SelectedVentValve == PowerVentValve.Valve2;
+            _targetGasState = (targetFlow, isV1, isV2, false);
+            _ventFlowStableCount = 0;
+            _ventFlowDeviation = null;
+
+            DispatchMotorOrFault((int)doc.Settings.VentAgitationRpm, "reduzir agitação durante estabilização no alívio");
+            DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, isV1, isV2, mainValveClosed: false), "abrir válvula de alívio");
+            SetPhase(
+                PowerRunPhase.VentStabilizing,
+                $"Alívio aberto ({doc.Settings.SelectedVentValve}); estabilizando vazão em {targetFlow:F2} ± {doc.Settings.VentFlowToleranceLpm:F2} L/min.");
+            LogEvent("VentStabilizationStarted", $"Alívio aberto ({doc.Settings.SelectedVentValve}), alvo {targetFlow:F2} L/min.");
+        }
+        else
+        {
+            _targetGasState = (targetFlow, false, false, false);
+            DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false, false), "abrir gás para o reator");
+            SetPhase(PowerRunPhase.OpeningGas, $"Abrindo fluxo para o reator ({targetFlow:F2} L/min)...");
+            LogEvent("OpeningGasDirect", $"Vazão de {targetFlow:F2} L/min direcionada diretamente ao reator.");
+        }
+    }
+
+    private void StartBothSubphase2()
+    {
+        var doc = _currentTest!;
+        var condition = _currentCondition!;
+        _isSubphase2Both = true;
+        _runPoints.Clear();
+        _speedStableCount = 0;
+        _ventFlowStableCount = 0;
+        _ventFlowDeviation = null;
+
+        var replicate = _currentRun?.ReplicateNumber ?? 1;
+        _currentRun = new PowerRun
+        {
+            TestId = doc.TestId,
+            ConditionId = condition.ConditionId,
+            ReplicateNumber = replicate,
+            AgitationRpm = _commandedRpm,
+            GasFlowLpm = condition.GasFlowLpm,
+            GasMode = PowerGasMode.Gassed,
+            CurrentPhase = PowerRunPhase.Preflight,
+            StartedUtc = _time.GetUtcNow(),
+            IsRelative = doc.RelativeMode || doc.Calibration is null || doc.Tare is null,
+            Tries = 1,
+            ReferenceP0W = _pairedUngassedP0W,
+            ReferenceP0Ci95W = _pairedUngassedP0Ci95W,
+            P0Provenance = P0Provenance.MeasuredUngassed,
+        };
+        _store.InitializeRunFolder(doc.FolderName, _currentRun);
+
+        double? sigma = doc.Tare is { Points.Count: > 0 } tare
+            ? TareInterpolator.InterpolateSigmaTauPercent(tare, _commandedRpm)
+            : null;
+        _arbiter.Claim(CommandOwner.PowerAssay, GassedActuators, $"Ensaio de potência (gás): {condition.ConditionId}");
+        if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay)
+        {
+            FaultWithoutSafeCommand("Falha ao obter posse da malha de gás para Subfase 2.");
+            return;
+        }
+
+        _capture = new PowerCaptureController(doc.Settings, sigma);
+        _runStartMonotonic = GetMonotonicSeconds();
+        StartGassedSequence(condition.GasFlowLpm ?? 0.0);
+    }
+
+    private bool DispatchFlow(OpenTECCommand command, string action)
+    {
+        if (_device.Latest is { } latest)
+        {
+            _lastFlowCommandId = latest.FlowCommandId;
+            _minimumExpectedFlowCommandId = latest.FlowCommandId + 1;
+        }
+        return Dispatch(command, action);
+    }
+
+    private bool IsGasStateConfirmed(SensorSnapshot s, (double Flow, bool V1, bool V2, bool VFlow)? target)
+    {
+        if (target is null)
+        {
+            return true;
+        }
+        var expected = target.Value;
+        var flowOk = Math.Abs(s.FlowSetpoint - expected.Flow) < 0.1;
+        var v1Ok = (s.FlowValve1 != 0) == expected.V1;
+        var v2Ok = (s.FlowValve2 != 0) == expected.V2;
+        var vFlowOk = (s.FlowValveMain != 0) == expected.VFlow;
+        var ackOk = s.FlowmeterOnline && !s.FlowCommandPending &&
+                    s.FlowCommandId >= _minimumExpectedFlowCommandId &&
+                    s.FlowCommandAck == s.FlowCommandId;
+
+        return flowOk && v1Ok && v2Ok && vFlowOk && ackOk;
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
@@ -632,6 +805,71 @@ public sealed class PowerTestRunner : IPowerTestRunner
             return;
         }
 
+        if (RequiresGasMeasurement(_phase) && (!snapshot.FlowmeterOnline || !double.IsFinite(snapshot.FlowRate)))
+        {
+            PauseForMeasurement("A telemetria do fluxômetro ficou ausente ou offline.");
+            return;
+        }
+
+        if (_phase == PowerRunPhase.VentStabilizing)
+        {
+            AppendSample(snapshot, now, counted: false);
+            if (!IsGasStateConfirmed(snapshot, _targetGasState))
+            {
+                if (PhaseElapsedSeconds >= 10.0)
+                {
+                    StopForReview("Tempo limite de confirmação da válvula de alívio excedido.", PowerStopReason.Tmax);
+                }
+                return;
+            }
+
+            var targetFlow = _targetGasState!.Value.Flow;
+            var dev = snapshot.FlowRate - targetFlow;
+            _ventFlowDeviation = dev;
+            if (Math.Abs(dev) <= _currentTest!.Settings.VentFlowToleranceLpm)
+            {
+                _ventFlowStableCount++;
+            }
+            else
+            {
+                _ventFlowStableCount = 0;
+            }
+
+            _statusMessage = $"Alívio ({_currentTest.Settings.SelectedVentValve}) · {snapshot.FlowRate:F2} L/min " +
+                $"(alvo {targetFlow:F2} ± {_currentTest.Settings.VentFlowToleranceLpm:F2}) · " +
+                $"estabilidade {_ventFlowStableCount}/{_currentTest.Settings.VentFlowStableSamples}";
+
+            if (_ventFlowStableCount >= _currentTest.Settings.VentFlowStableSamples)
+            {
+                LogEvent("VentFlowStable", $"Vazão estabilizada em {snapshot.FlowRate:F2} L/min no alívio. Comutando para o reator.");
+                // max flow is constant MaxFlow
+                _targetGasState = (targetFlow, false, false, false);
+                DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false, false), "comutar fluxo ao reator");
+                SetPhase(PowerRunPhase.OpeningGas, "Fechando alívio e direcionando vazão ao reator...");
+            }
+            else if (PhaseElapsedSeconds >= _currentTest.Settings.MaxVentStabilizationSeconds)
+            {
+                StopForReview("Tempo limite de estabilização da vazão no alívio excedido.", PowerStopReason.Tmax);
+            }
+            return;
+        }
+
+        if (_phase == PowerRunPhase.OpeningGas)
+        {
+            AppendSample(snapshot, now, counted: false);
+            if (IsGasStateConfirmed(snapshot, _targetGasState))
+            {
+                _speedStableCount = 0;
+                SetPhase(PowerRunPhase.SettingSpeed, $"Gás estabelecido no reator; aguardando rotação estabilizar em {_commandedRpm} rpm.");
+                DispatchMotorOrFault(_commandedRpm, "ajustar rotação para medição");
+            }
+            else if (PhaseElapsedSeconds >= 10.0)
+            {
+                StopForReview("Tempo limite de confirmação da válvula do reator excedido.", PowerStopReason.Tmax);
+            }
+            return;
+        }
+
         if (_phase == PowerRunPhase.SettingSpeed)
         {
             AppendSample(snapshot, now, counted: false);
@@ -700,6 +938,19 @@ public sealed class PowerTestRunner : IPowerTestRunner
             : PowerStopReason.NotConverged;
         CaptureResultIntoRun(stopReason);
 
+        if (_currentCondition.GasMode == PowerGasMode.Both && !_isSubphase2Both)
+        {
+            _pairedUngassedP0W = _currentRun.NetPowerW;
+            _pairedUngassedP0Ci95W = _currentRun.Ci95PowerW;
+            _currentRun.CurrentPhase = PowerRunPhase.Captured;
+            PersistCurrentRun();
+            LogEvent("Subphase1P0Captured",
+                $"Subfase 1 (P0) concluída: P0={_currentRun.NetPowerW:F3} W. Iniciando Subfase 2 (PG).");
+
+            StartBothSubphase2();
+            return;
+        }
+
         if (_currentTest.Settings.ManualEnergyCaptureEnabled)
         {
             _currentRun.CurrentPhase = PowerRunPhase.HoldingForManualEnergy;
@@ -741,6 +992,43 @@ public sealed class PowerTestRunner : IPowerTestRunner
         run.StopReason = stopReason;
         run.IsRelative = result.IsRelative;
         run.CompletedUtc = _time.GetUtcNow();
+
+        if (run.GasMode == PowerGasMode.Gassed && run.GasFlowLpm is { } flowLpm)
+        {
+            run.GassedPowerW = run.NetPowerW;
+            if (doc.Geometry.LiquidVolumeM3 > 0)
+            {
+                run.GasFlowVvm = PowerCalc.LpmToVvm(flowLpm, doc.Geometry.LiquidVolumeM3);
+            }
+            if (doc.Geometry.Impellers.Count > 0)
+            {
+                var dRef = doc.Geometry.Impellers[0].DiameterM;
+                if (dRef > 0 && run.MeanRpmMeasured > 0)
+                {
+                    run.GasFlowNumber = PowerCalc.AerationNumber(flowLpm, run.MeanRpmMeasured, dRef);
+                    run.FroudeNumber = PowerCalc.FroudeNumber(run.MeanRpmMeasured, dRef);
+                }
+            }
+
+            if (run.ReferenceP0W is null)
+            {
+                var (p0, p0Ci, prov) = _analysis.ResolveReferenceP0(run.MeanRpmMeasured, doc);
+                run.ReferenceP0W = p0;
+                run.ReferenceP0Ci95W = p0Ci;
+                run.P0Provenance = prov;
+            }
+
+            if (run.ReferenceP0W is { } refP0 && refP0 > 0)
+            {
+                var (ratio, ratioCi) = PowerCalc.PropagatePowerRatioUncertainty(
+                    run.NetPowerW,
+                    run.Ci95PowerW,
+                    refP0,
+                    run.ReferenceP0Ci95W ?? 0.0);
+                run.PowerRatio = ratio;
+                run.PowerRatioCi95 = ratioCi;
+            }
+        }
     }
 
     private void FinishCapturedRun()
@@ -1011,6 +1299,13 @@ public sealed class PowerTestRunner : IPowerTestRunner
                     CommandOwner.PowerAssay,
                     CommandBuilders.MotorSetpoint((int)doc.Settings.MinRpm));
             }
+            if (_arbiter.OwnerOf(ActuatorId.Aeration) == CommandOwner.PowerAssay)
+            {
+                // max flow is constant MaxFlow
+                _arbiter.Dispatch(
+                    CommandOwner.PowerAssay,
+                    CommandBuilders.FlowSafeStop(MaxFlow));
+            }
             _arbiter.Dispatch(
                 CommandOwner.PowerAssay,
                 CommandBuilders.ServoPollInterval(doc.Settings.RestoreServoPollMs));
@@ -1028,7 +1323,9 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             return true;
         }
-        FaultWithoutSafeCommand($"Comando recusado ao tentar {action}.");
+        FaultWithoutSafeCommand(
+            $"Comando recusado ao tentar {action}: {string.Join(", ", result.Refused)} " +
+            $"(AgOwner={_arbiter.OwnerOf(ActuatorId.Agitation)}, GasOwner={_arbiter.OwnerOf(ActuatorId.Aeration)}).");
         return false;
     }
 
@@ -1057,14 +1354,24 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     private void CheckWatchdog()
     {
-        if (_currentTest is null || !RequiresServoMeasurement(_phase))
+        if (_currentTest is null)
         {
             return;
         }
-        var last = Math.Max(_lastTelemetryMonotonic, _lastValidServoMonotonic);
-        if (last > 0 && GetMonotonicSeconds() - last > _currentTest.Settings.MeasurementTimeoutSeconds)
+        if (RequiresServoMeasurement(_phase))
         {
-            PauseForMeasurement("A telemetria do servo ficou desatualizada.");
+            var last = Math.Max(_lastTelemetryMonotonic, _lastValidServoMonotonic);
+            if (last > 0 && GetMonotonicSeconds() - last > _currentTest.Settings.MeasurementTimeoutSeconds)
+            {
+                PauseForMeasurement("A telemetria do servo ficou desatualizada.");
+            }
+        }
+        if (RequiresGasMeasurement(_phase) && _device.Latest is { } latest)
+        {
+            if (!latest.FlowmeterOnline)
+            {
+                PauseForMeasurement("A telemetria do fluxômetro ficou offline.");
+            }
         }
     }
 
@@ -1078,10 +1385,11 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     private void OnOwnershipRevoked(OwnershipTransfer transfer)
     {
-        if (transfer.Actuators.Contains(ActuatorId.Agitation) &&
+        if ((transfer.Actuators.Contains(ActuatorId.Agitation) ||
+             transfer.Actuators.Contains(ActuatorId.Aeration)) &&
             _currentTest?.Status == PowerTestStatus.Running)
         {
-            FaultWithoutSafeCommand("A posse da agitação foi revogada pelo aborto seguro do link.");
+            FaultWithoutSafeCommand("A posse dos atuadores foi revogada pelo aborto seguro do link.");
         }
     }
 
@@ -1148,6 +1456,14 @@ public sealed class PowerTestRunner : IPowerTestRunner
         PowerRunPhase.AccumulatingToTarget or
         PowerRunPhase.PausedByOperator or
         PowerRunPhase.HoldingForManualEnergy;
+
+    private bool RequiresGasMeasurement(PowerRunPhase phase) =>
+        (_currentRun?.GasMode == PowerGasMode.Gassed || phase is PowerRunPhase.VentStabilizing or PowerRunPhase.OpeningGas) &&
+        phase is PowerRunPhase.VentStabilizing or
+                 PowerRunPhase.OpeningGas or
+                 PowerRunPhase.SettlingTorque or
+                 PowerRunPhase.AccumulatingToTarget or
+                 PowerRunPhase.HoldingForManualEnergy;
 
     private static double? OptionalReading(double value) =>
         double.IsFinite(value) && value > SensorReadings.NotReceived ? value : null;
@@ -1264,9 +1580,12 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             throw new InvalidOperationException("Cada condição precisa de ao menos uma réplica.");
         }
-        if (condition.GasMode == PowerGasMode.Gassed)
+        if (condition.GasMode is PowerGasMode.Gassed or PowerGasMode.Both)
         {
-            throw new InvalidOperationException("Condições gaseificadas entram na Fase 2; a Fase 1 executa P0.");
+            if (condition.GasFlowLpm is not { } flow || !double.IsFinite(flow) || flow < 0)
+            {
+                throw new InvalidOperationException("Condições gaseificadas exigem vazão de gás válida (≥ 0 L/min).");
+            }
         }
     }
 

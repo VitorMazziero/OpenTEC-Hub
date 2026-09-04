@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Dialogs;
+using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.PowerMapping;
 using OpenTECHub.Services.PowerTesting;
 
 namespace OpenTECHub.ViewModels;
@@ -21,7 +23,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private readonly IPowerTestRunner? _runner;
     private readonly IDialogService? _dialogs;
     private readonly IPowerAnalysisEngine _analysis;
+    private readonly IKlaProfileStore? _klaStore;
     private SensorSnapshot? _latestSnapshot;
+    private long _lastPreflightTick;
     private bool _disposed;
 
     public PowerTestViewModel(IPowerTestStore store, IDeviceService device, ICommandArbiter arbiter)
@@ -46,6 +50,18 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         IPowerTestRunner? runner,
         IDialogService? dialogs,
         IPowerAnalysisEngine? analysis)
+        : this(store, device, arbiter, runner, dialogs, analysis, null)
+    {
+    }
+
+    public PowerTestViewModel(
+        IPowerTestStore store,
+        IDeviceService device,
+        ICommandArbiter arbiter,
+        IPowerTestRunner? runner,
+        IDialogService? dialogs,
+        IPowerAnalysisEngine? analysis,
+        IKlaProfileStore? klaStore)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(device);
@@ -56,6 +72,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _runner = runner;
         _dialogs = dialogs;
         _analysis = analysis ?? new PowerAnalysisEngine();
+        _klaStore = klaStore;
         PowerCondition.LiquidVolumeLProvider = () => LiquidVolumeL;
         PowerCondition.OnVvmValidationFailed = msg => ValidationMessage = msg;
         TestRootDirectory = store.RootDirectory;
@@ -319,6 +336,15 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public bool HasActiveTest => CurrentTest is not null;
     public bool CanEditPlan => CurrentTest is not null && !IsRunning && CurrentTest.Status != PowerTestStatus.Completed;
     public bool CanStartOrContinue => CurrentTest is not null && !IsRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
+
+    /// <summary>True when the runner's preflight passes right now (§12, §14).</summary>
+    [ObservableProperty]
+    public partial bool IsReadyToStart { get; set; }
+
+    /// <summary>What the preflight says, so the operator reads it before pressing start.</summary>
+    [ObservableProperty]
+    public partial string PreflightMessage { get; set; } = "Abra ou crie um ensaio para começar.";
+
     public bool CanPause => IsRunning && _runner?.Phase is PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.PausedByOperator or PowerRunPhase.PausedForMeasurement;
     public bool CanStop => IsRunning;
     public bool CanSkipCurrent => IsRunning && _runner?.CurrentCondition is not null;
@@ -590,6 +616,156 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     [RelayCommand] private void MoveConditionUp() => MoveItem(Conditions, SelectedCondition, -1, NormalizeConditionOrder);
     [RelayCommand] private void MoveConditionDown() => MoveItem(Conditions, SelectedCondition, 1, NormalizeConditionOrder);
+
+    /// <summary>
+    /// kLa maps available to seed the condition table (§18.3 step 3.1). Empty when the workspace has
+    /// no kLa experiment yet, or when the view model was built without a kLa store.
+    /// </summary>
+    public ObservableCollection<KlaMapOptionViewModel> AvailableKlaMaps { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanImportFromKlaMap))]
+    public partial KlaMapOptionViewModel? SelectedKlaMapForImport { get; set; }
+
+    /// <summary>
+    /// Adds one ungassed point per rotation ahead of the imported gassed ones. Without a P₀ at the
+    /// same rotation there is nothing to divide by, and P_G/P₀ falls back or goes missing (§4.5).
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ImportUngassedReferences { get; set; } = true;
+
+    [ObservableProperty]
+    public partial int ImportReplicates { get; set; } = 1;
+
+    public bool CanImportFromKlaMap => SelectedKlaMapForImport is not null && CanEditPlan;
+
+    [RelayCommand]
+    private async Task RefreshKlaMapsAsync()
+    {
+        AvailableKlaMaps.Clear();
+
+        if (_klaStore is null)
+        {
+            ValidationMessage = "Repositório de mapas de kLa indisponível nesta sessão.";
+            return;
+        }
+
+        try
+        {
+            var experiments = await _klaStore.LoadExperimentsAsync();
+            foreach (var experiment in experiments.Where(e => e.Snapshot.Anchors.Length > 0))
+            {
+                AvailableKlaMaps.Add(new KlaMapOptionViewModel(
+                    experiment.Snapshot.Id,
+                    experiment.Snapshot.Name,
+                    experiment.Snapshot.Anchors.Length));
+            }
+
+            ValidationMessage = AvailableKlaMaps.Count == 0
+                ? "Nenhum mapa de kLa com âncoras foi encontrado no workspace."
+                : null;
+        }
+        catch (Exception ex)
+        {
+            ValidationMessage = $"Falha ao ler os mapas de kLa: {ex.Message}";
+        }
+
+        OnPropertyChanged(nameof(CanImportFromKlaMap));
+    }
+
+    /// <summary>
+    /// Fills the condition table with the operating points a kLa map was measured at, so the power
+    /// assay lands on exactly the same (N, Qg) coordinates and the two datasets can be paired later.
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportConditionsFromKlaMapAsync()
+    {
+        if (!CanEditPlan)
+        {
+            ValidationMessage = "A tabela de condições só pode ser editada com o ensaio parado.";
+            return;
+        }
+
+        if (_klaStore is null || SelectedKlaMapForImport is null)
+        {
+            ValidationMessage = "Selecione um mapa de kLa para importar.";
+            return;
+        }
+
+        try
+        {
+            var experiments = await _klaStore.LoadExperimentsAsync();
+            var klaDocument = experiments.FirstOrDefault(e => e.Snapshot.Id == SelectedKlaMapForImport.Id);
+            if (klaDocument is null)
+            {
+                ValidationMessage = "O mapa de kLa selecionado não está mais no workspace.";
+                await RefreshKlaMapsAsync();
+                return;
+            }
+
+            var replicates = Math.Clamp(ImportReplicates, 1, 10);
+            var (_, mapName, imported) = PowerMapImportHelper.ImportConditionsFromKlaMap(klaDocument, replicates);
+
+            if (imported.Count == 0)
+            {
+                ValidationMessage = $"O mapa '{mapName}' não tem âncoras para importar.";
+                return;
+            }
+
+            if (Conditions.Count > 0 && _dialogs?.Confirm(
+                    "Substituir tabela",
+                    $"A importação de '{mapName}' substituirá as {Conditions.Count} condição(ões) atuais. Continuar?",
+                    "Substituir",
+                    "Cancelar") == false)
+            {
+                return;
+            }
+
+            Conditions.Clear();
+
+            var order = 0;
+            if (ImportUngassedReferences)
+            {
+                foreach (var rpm in imported
+                             .Where(c => (c.GasFlowLpm ?? 0) > 0)
+                             .Select(c => c.AgitationRpm)
+                             .Distinct()
+                             .OrderBy(rpm => rpm))
+                {
+                    Conditions.Add(new PowerCondition
+                    {
+                        OrderIndex = order++,
+                        AgitationRpm = rpm,
+                        GasMode = PowerGasMode.Ungassed,
+                        RequestedReplicates = replicates,
+                        Origin = PowerConditionOrigin.Map,
+                        SourceMapId = SelectedKlaMapForImport.Id,
+                        SourceMapName = mapName,
+                        Status = PowerConditionStatus.Pending,
+                    });
+                }
+            }
+
+            foreach (var condition in imported)
+            {
+                condition.OrderIndex = order++;
+                Conditions.Add(condition);
+            }
+
+            NormalizeConditionOrder();
+            SelectedCondition = Conditions.FirstOrDefault();
+
+            var referenceCount = Conditions.Count - imported.Count;
+            ValidationMessage = referenceCount > 0
+                ? $"Importadas {imported.Count} condição(ões) de '{mapName}', mais {referenceCount} referência(s) " +
+                  "não gaseificada(s) para o cálculo de P_G/P₀. Salve o setup para gravar o plano."
+                : $"Importadas {imported.Count} condição(ões) de '{mapName}'. Salve o setup para gravar o plano.";
+        }
+        catch (Exception ex)
+        {
+            ValidationMessage = $"Falha ao importar do mapa de kLa: {ex.Message}";
+        }
+    }
 
     [RelayCommand]
     private void GenerateSweep()
@@ -1635,7 +1811,53 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         CurrentTorquePercent = snapshot.HasServoSample && double.IsFinite(snapshot.ServoTorquePct) ? snapshot.ServoTorquePct : null;
         CurrentFlowLpm = ValidOptional(snapshot.FlowRate);
         RecalculateLiveMetrics();
+        RefreshPreflight();
     });
+
+    /// <summary>
+    /// Live readiness read-out. The runner already answers "can this start, and if not why", but
+    /// that answer only reached the operator as an error dialog after they pressed the button.
+    /// Publishing it continuously lets them fix the rig before committing to a run.
+    /// </summary>
+    private void RefreshPreflight()
+    {
+        if (_runner is null || CurrentTest is null)
+        {
+            IsReadyToStart = false;
+            PreflightMessage = CurrentTest is null
+                ? "Abra ou crie um ensaio para começar."
+                : "Runner indisponível nesta sessão.";
+            return;
+        }
+
+        if (IsRunning || IsInReview)
+        {
+            IsReadyToStart = false;
+            PreflightMessage = IsInReview ? "Aguardando decisão sobre o ponto capturado." : "Ensaio em andamento.";
+            return;
+        }
+
+        // Throttled: the check walks the whole plan and hashes the impeller set, and telemetry
+        // arrives far faster than an operator can act on it.
+        var now = Environment.TickCount64;
+        if (now - _lastPreflightTick < 500)
+        {
+            return;
+        }
+
+        _lastPreflightTick = now;
+
+        try
+        {
+            IsReadyToStart = _runner.CanStart(CurrentTest, out var reason);
+            PreflightMessage = IsReadyToStart ? "Pronto para iniciar." : reason ?? "Ensaio não está pronto.";
+        }
+        catch (Exception ex)
+        {
+            IsReadyToStart = false;
+            PreflightMessage = ex.Message;
+        }
+    }
 
     private void RecalculateLiveMetrics()
     {
@@ -1831,12 +2053,22 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         SelectedCondition = Conditions.FirstOrDefault(c => c.ConditionId == selectedId) ?? Conditions.FirstOrDefault();
     }
 
-    private void OnOwnershipChanged(OwnershipTransfer _) => RunOnUi(RefreshOwnership);
+    private void OnOwnershipChanged(OwnershipTransfer _) => RunOnUi(OnOwnershipTransferred);
     private void RefreshOwnership() => AgitationOwnerLabel = _arbiter.OwnerOf(ActuatorId.Agitation) switch
     {
         CommandOwner.Manual => "Operador", CommandOwner.Automatic => "Cascata", CommandOwner.Recipe => "Receita",
         CommandOwner.KlaAssay => "Ensaio kLa", CommandOwner.PowerAssay => "Ensaio de potência", var owner => owner.ToString(),
     };
+
+    private void OnOwnershipTransferred()
+    {
+        RefreshOwnership();
+
+        // Ownership is one of the preflight gates, so a hand-over must refresh the read-out at once
+        // rather than waiting for the throttle window.
+        _lastPreflightTick = 0;
+        RefreshPreflight();
+    }
 
     private void NotifyLiveText()
     {
@@ -1859,6 +2091,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel)); OnPropertyChanged(nameof(CalibrationStatus));
         OnPropertyChanged(nameof(TareStatus)); OnPropertyChanged(nameof(ResultModeLabel)); OnPropertyChanged(nameof(ImpellerSetHash));
         OnPropertyChanged(nameof(VortexWarning)); OnPropertyChanged(nameof(ResultsCsvPath)); OnPropertyChanged(nameof(ReferenceLiteratureNp));
+        OnPropertyChanged(nameof(CanImportFromKlaMap));
+
+        // Loading, saving, starting and finishing all change what the preflight would answer, so
+        // the read-out is refreshed here rather than waiting for the next telemetry sample.
+        _lastPreflightTick = 0;
+        RefreshPreflight();
     }
 
     private void NormalizeImpellerOrder() { for (var i = 0; i < Impellers.Count; i++)

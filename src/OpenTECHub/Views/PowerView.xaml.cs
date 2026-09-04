@@ -37,12 +37,19 @@ public partial class PowerView : UserControl
         Unloaded += OnUnloaded;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         SubscribeToThemeChanges();
         ApplyThemeToPlots();
         RedrawPlots();
         _redrawTimer.Start();
+
+        // The kLa maps live in a sibling workspace root that can change between visits, so the
+        // picker is filled on entry rather than once at construction.
+        if (ViewModel is { } viewModel)
+        {
+            await viewModel.RefreshKlaMapsCommand.ExecuteAsync(null);
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)

@@ -60,6 +60,31 @@
                         </Border>
                     </StackPanel>
                     <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                    <!-- Preflight ao vivo: o operador le o que falta antes de apertar Iniciar -->
+                    <Border Margin="0,5,0,0" Padding="8,3" CornerRadius="4" HorizontalAlignment="Left">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource StateWarningBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsReadyToStart}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource StateOkBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding PreflightMessage}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsReadyToStart}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource StateOkTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Novo" Margin="3,0" Command="{Binding CreateTestCommand}" />
@@ -246,6 +271,42 @@
                                 <Button Content="↓" Width="34" Margin="0,0,4,0" Command="{Binding MoveConditionDownCommand}" IsEnabled="{Binding CanEditPlan}" />
                                 <Button Content="Pular/repor" Padding="8,4" Command="{Binding ToggleSkipConditionCommand}" IsEnabled="{Binding CanEditPlan}" />
                             </WrapPanel>
+                            <!-- Importar do mapa de kLa: ensaiar potencia nos mesmos pontos onde o kLa foi medido -->
+                            <TextBlock Margin="0,9,0,3" Text="Importar do mapa de kLa" Style="{StaticResource PowerLabel}" />
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox ItemsSource="{Binding AvailableKlaMaps}" SelectedItem="{Binding SelectedKlaMapForImport}"
+                                          DisplayMemberPath="DisplayText" Height="26" IsEnabled="{Binding CanEditPlan}"
+                                          ToolTip="Mapas de kLa salvos no workspace" />
+                                <Button Grid.Column="2" Content="↻" Width="30" Height="26"
+                                        Command="{Binding RefreshKlaMapsCommand}"
+                                        ToolTip="Recarregar a lista de mapas de kLa" />
+                            </Grid>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox VerticalAlignment="Center" Content="Incluir referências P₀ (sem gás)"
+                                          IsChecked="{Binding ImportUngassedReferences}" IsEnabled="{Binding CanEditPlan}"
+                                          ToolTip="Adiciona uma condição sem gás por rotação; sem P₀ na mesma rotação não há como calcular P_G/P₀" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <TextBlock Text="Rep." VerticalAlignment="Center" Margin="0,0,4,0"
+                                               Style="{StaticResource PowerLabel}" />
+                                    <TextBox Width="42" Style="{StaticResource CompactField}"
+                                             Text="{Binding ImportReplicates, UpdateSourceTrigger=LostFocus}"
+                                             IsEnabled="{Binding CanEditPlan}" />
+                                </StackPanel>
+                            </Grid>
+                            <Button Content="Importar condições do mapa" Padding="8,4" HorizontalAlignment="Stretch"
+                                    Command="{Binding ImportConditionsFromKlaMapCommand}"
+                                    IsEnabled="{Binding CanImportFromKlaMap}" />
+
                             <TextBlock Margin="0,9,0,3" Text="Gerador de varreduras" Style="{StaticResource PowerLabel}" />
                             <Grid Margin="0,0,0,5">
                                 <Grid.ColumnDefinitions>

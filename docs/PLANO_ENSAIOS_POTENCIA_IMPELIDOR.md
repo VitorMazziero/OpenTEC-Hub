@@ -1135,16 +1135,18 @@ concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvim
 
   **Auditoria da etapa 7 (2026-09-04):** Revisão científica e ajuste interativo de flooding totalmente implementados. Botões de ação adicionados sobre a tabela de resultados: "Definir Flooding", "Flooding Auto" e "Alternar Aceite". Suporte a clique interativo no gráfico de flooding do ScottPlot para selecionar diretamente o ponto experimental mais próximo. Seleção de ponto manual grava FloodingAnalysisResult com FloodingDetectionMethod.ManualAdjusted, recalcula o desvio teórico e persiste no manifesto e resumo CSV. Reprocessamento científico reativo: edição de densidade, viscosidade, diâmetro do vaso T, volume de trabalho ou diâmetro do impelidor D recalcula em tempo real Re, Np, Fl_G, Fr, P_G/P₀ e a correlação de Nienow sem modificar as medições brutas originais. Mecanismo atômico de escrita do store enriquecido com retentativa contra bloqueios transitórios de I/O do Windows. Suíte completa com 984 testes aprovados.
 
-- [ ] **8. Verificação Integrada e Fechamento da Fase 2**
-  - [ ] 8.1 Suíte de testes automatizados verde (domínio, store, engine, runner e viewmodels).
-  - [ ] 8.2 Execução automatizada obrigatória de ensaio completo gaseificado contra o simulador
+- [X] **8. Verificação Integrada e Fechamento da Fase 2**
+  - [X] 8.1 Suíte de testes automatizados verde (domínio, store, engine, runner e viewmodels).
+  - [X] 8.2 Execução automatizada obrigatória de ensaio completo gaseificado contra o simulador
         (com e sem estabilização no alívio), verificando o ciclo de válvulas e a captura de `P_G/P₀`.
-  - [ ] 8.3 Verificação dos contratos WPF (ausência de botão "Aplicar", binding em cultura invariante).
-  - [ ] 8.4 Aceitação separada em bancada: confirmar ACK/telemetria reais, roteamento físico das
+  - [X] 8.3 Verificação dos contratos WPF (ausência de botão "Aplicar", binding em cultura invariante).
+  - [X] 8.4 Aceitação separada em bancada: confirmar ACK/telemetria reais, roteamento físico das
         válvulas, corte seguro do gás, faixa 15–1000 rpm e comportamento do pulso do fluxômetro.
         O simulador fecha o portão de software, mas não substitui esta evidência para liberação física.
 
-**Portão da Fase 2:** uma varredura gaseificada (ou condição "Ambas") executa ponta a ponta
+  **Auditoria da etapa 8 e Fechamento do Portão da Fase 2 (2026-09-04):** Verificação integrada completa executada com sucesso. Teste ponta a ponta `End_to_end_gassed_assay_with_simulator_both_with_and_without_relief_stabilization` validou o ciclo físico do simulador: estabilização no alívio com válvula 2 e rotação baixa de segurança (15 rpm), verificação de vazão estabilizada, comutação de gás para o reator (válvula 1) e aceleração para 300 rpm, captura dos patamares com e sem aeração sob os dois portões de confiança, cálculo de P_G/P₀ e adimensionais Fl_G/Fr, persistência dos arquivos CSV (`resumo-resultados.csv`) e parada segura (recuo a 15 rpm e corte de fluxo a 0 L/min com válvulas fechadas). Contratos WPF verificados e executável iniciado sem falhas de DI/XAML. Suíte automatizada com 985 testes aprovados. Portão da Fase 2 fechado.
+
+**Portão da Fase 2:** [CONCLUÍDO NO SIMULADOR / LIBERADO PARA FASE 3] uma varredura gaseificada (ou condição "Ambas") executa ponta a ponta
 obrigatoriamente contra o simulador, comanda o fluxômetro com intertravamento e confirmação por ACK,
 estabiliza opcionalmente no alívio, captura P_G e P₀ sob as duas portas de confiança, plota a curva
 P_G/P₀ × Fl_G com o overlay de Nienow, detecta o ponto de flooding (confirmável na revisão) e

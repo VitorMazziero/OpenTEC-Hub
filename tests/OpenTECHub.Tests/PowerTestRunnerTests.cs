@@ -619,6 +619,108 @@ public sealed class PowerTestRunnerTests
         Assert.True(h.Runner.IsPausedForMeasurement);
     }
 
+    [Fact]
+    public async Task End_to_end_gassed_assay_with_simulator_both_with_and_without_relief_stabilization()
+    {
+        var powerOptions = new ServoPowerModelOptions
+        {
+            SpeedTimeConstantSeconds = 0.02,
+            TorqueTimeConstantSeconds = 0.02,
+            LiquidDensityKgM3 = 1000.0,
+            MotorRatedTorqueNm = 1.27,
+            TorqueNoiseCurve = [new(0.0, 0.0)],
+            SimulateFloodingKnee = true,
+            GassedLiquidPowerRatio = 0.70,
+            VesselDiameterM = 0.190,
+            Impellers = [new("Rushton", 0.060, 5.0, 0.4, 0.001)],
+        };
+        var sim = new DeviceModel(randomSeed: 20260904, servoPowerModel: powerOptions);
+
+        using var h = new Harness(useSimulator: false, customSimulator: sim);
+        var settings = FastSettings() with
+        {
+            AutoAcceptRuns = true,
+            MinSamples = 4,
+            RelativeCiFraction = 0.50,
+            VentStabilizationEnabled = true,
+            VentFlowStableSamples = 2,
+            VentFlowToleranceLpm = 0.3,
+            VentAgitationRpm = 15.0,
+            MaxVentStabilizationSeconds = 15.0,
+        };
+
+        var doc = h.CreateDocumentWithConditions(
+            settings,
+            [
+                // Condition 0: Ungassed P0 reference at 300 rpm
+                new PowerCondition
+                {
+                    OrderIndex = 0,
+                    AgitationRpm = 300,
+                    GasMode = PowerGasMode.Ungassed,
+                    RequestedReplicates = 1,
+                },
+                // Condition 1: Gassed with relief stabilization at 300 rpm, 5 L/min
+                new PowerCondition
+                {
+                    OrderIndex = 1,
+                    AgitationRpm = 300,
+                    GasMode = PowerGasMode.Gassed,
+                    GasFlowLpm = 5.0,
+                    RequestedReplicates = 1,
+                },
+            ]);
+
+        h.AdvanceSimulator(0.5);
+        await h.Runner.StartTestAsync(doc);
+
+        var sawVentStabilizing = false;
+        var sawSettingSpeed = false;
+        var sawAccumulating = false;
+
+        for (var tick = 0; tick < 1000 && h.Runner.Phase != PowerRunPhase.Completed; tick++)
+        {
+            if (h.Runner.Phase == PowerRunPhase.VentStabilizing) sawVentStabilizing = true;
+            if (h.Runner.Phase == PowerRunPhase.SettingSpeed) sawSettingSpeed = true;
+            if (h.Runner.Phase == PowerRunPhase.AccumulatingToTarget) sawAccumulating = true;
+
+            h.AdvanceSimulator(0.2);
+        }
+
+        Assert.Equal(PowerRunPhase.Completed, h.Runner.Phase);
+        Assert.True(sawVentStabilizing, "Expected to pass through VentStabilizing phase");
+        Assert.True(sawSettingSpeed, "Expected to pass through SettingSpeed phase");
+        Assert.True(sawAccumulating, "Expected to pass through AccumulatingToTarget phase");
+
+        // Verify runs
+        Assert.Equal(2, doc.Runs.Count);
+        var p0Run = doc.Runs[0];
+        var gassedRun = doc.Runs[1];
+
+        Assert.Equal(PowerRunPhase.Accepted, p0Run.Phase);
+        Assert.Equal(PowerGasMode.Ungassed, p0Run.GasMode);
+        Assert.True(p0Run.NetPowerW > 0);
+
+        Assert.Equal(PowerRunPhase.Accepted, gassedRun.Phase);
+        Assert.Equal(PowerGasMode.Gassed, gassedRun.GasMode);
+        Assert.True(gassedRun.UsedVentStabilization);
+        Assert.NotNull(gassedRun.PowerRatio);
+        Assert.True(gassedRun.PowerRatio > 0 && gassedRun.PowerRatio < 1.0);
+        Assert.NotNull(gassedRun.GasFlowNumber);
+        Assert.NotNull(gassedRun.FroudeNumber);
+
+        // Verify summary CSV
+        var summaryPath = Path.Combine(h.Store.RootDirectory, doc.FolderName, PowerTestFileContracts.ResultsSummaryFileName);
+        Assert.True(File.Exists(summaryPath));
+        var csvLines = File.ReadAllLines(summaryPath);
+        Assert.True(csvLines.Length >= 3); // Header + 2 condition rows
+
+        // Verify motor parked at 15 rpm and gas setpoint cut to zero at completion
+        Assert.Equal(15, sim.MotorRpm);
+        Assert.Equal(0, sim.FlowSetpoint);
+        h.AdvanceSimulator(10.0);
+        Assert.InRange(sim.ReadFlow(), 0.0, 0.05);
+    }
 
     private static PowerTestSettings FastSettings() => new()
     {
@@ -646,9 +748,9 @@ public sealed class PowerTestRunnerTests
         private readonly string _root = Path.Combine(Path.GetTempPath(), "PowerRunnerTests_" + Guid.NewGuid().ToString("N"));
         private readonly TestClock _clock = new(new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero));
 
-        public Harness(string? blockReason = null, bool useSimulator = false)
+        public Harness(string? blockReason = null, bool useSimulator = false, DeviceModel? customSimulator = null)
         {
-            Device = new RunnerDeviceService(useSimulator ? new DeviceModel(randomSeed: 20260904) : null);
+            Device = new RunnerDeviceService(customSimulator ?? (useSimulator ? new DeviceModel(randomSeed: 20260904) : null));
             Arbiter = new CommandArbiter(Device, _clock);
             Store = new PowerTestStore(_root);
             Runner = new PowerTestRunner(
@@ -664,6 +766,25 @@ public sealed class PowerTestRunnerTests
         public CommandArbiter Arbiter { get; }
         public PowerTestStore Store { get; }
         public PowerTestRunner Runner { get; }
+
+        public PowerTestDocument CreateDocumentWithConditions(
+            PowerTestSettings settings,
+            IReadOnlyList<PowerCondition> conditions,
+            PowerGeometry? geometry = null)
+        {
+            geometry ??= new PowerGeometry
+            {
+                Impellers = [new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 }],
+                VesselDiameterM = 0.190,
+                LiquidVolumeM3 = 0.010,
+            };
+            return Store.CreateTest(
+                "runner-" + Guid.NewGuid().ToString("N"),
+                new FluidProperties { DensityKgM3 = 998, ViscosityPaS = 0.001 },
+                geometry,
+                settings,
+                conditions);
+        }
 
         public PowerTestDocument CreateDocument(
             PowerTestSettings settings,

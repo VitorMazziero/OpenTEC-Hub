@@ -322,6 +322,187 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.Null(_store.LoadTest("nao-existe"));
     }
 
+    [Fact]
+    public void Gassed_Conditions_And_Vent_Settings_Round_Trip()
+    {
+        var settings = new PowerTestSettings
+        {
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentFlowToleranceLpm = 0.15,
+            VentAgitationRpm = 20.0,
+            MaxVentStabilizationSeconds = 90.0,
+        };
+        var conditions = new List<PowerCondition>
+        {
+            new()
+            {
+                AgitationRpm = 450,
+                GasMode = PowerGasMode.Gassed,
+                GasFlowLpm = 3.5,
+                GasFlowVvm = 0.7,
+                FlowUnit = FlowInputUnit.Vvm,
+                RequestedReplicates = 2,
+            },
+            new()
+            {
+                AgitationRpm = 600,
+                GasMode = PowerGasMode.Both,
+                GasFlowLpm = 5.0,
+                GasFlowVvm = 1.0,
+                FlowUnit = FlowInputUnit.Lpm,
+                RequestedReplicates = 3,
+            }
+        };
+
+        var created = _store.CreateTest("Gás e Alívio", new FluidProperties(), new PowerGeometry { VesselDiameterM = 0.190 }, settings, conditions);
+        var loaded = _store.LoadTest(created.FolderName);
+
+        Assert.NotNull(loaded);
+        Assert.True(loaded!.Settings.VentStabilizationEnabled);
+        Assert.Equal(PowerVentValve.Valve1, loaded.Settings.SelectedVentValve);
+        Assert.Equal(0.15, loaded.Settings.VentFlowToleranceLpm, 3);
+        Assert.Equal(20.0, loaded.Settings.VentAgitationRpm, 1);
+        Assert.Equal(90.0, loaded.Settings.MaxVentStabilizationSeconds, 1);
+        Assert.Equal(0.190, loaded.Geometry.VesselDiameterM, 3);
+
+        Assert.Equal(2, loaded.Conditions.Count);
+        Assert.Equal(PowerGasMode.Gassed, loaded.Conditions[0].GasMode);
+        Assert.Equal(3.5, loaded.Conditions[0].GasFlowLpm!.Value, 2);
+        Assert.Equal(0.7, loaded.Conditions[0].GasFlowVvm!.Value, 2);
+        Assert.Equal(FlowInputUnit.Vvm, loaded.Conditions[0].FlowUnit);
+
+        Assert.Equal(PowerGasMode.Both, loaded.Conditions[1].GasMode);
+        Assert.Equal(5.0, loaded.Conditions[1].GasFlowLpm!.Value, 2);
+    }
+
+    [Fact]
+    public void FloodingAnalysisResult_Saves_And_Round_Trips()
+    {
+        var created = CreateSampleTest("Flooding Test");
+        var flooding = new FloodingAnalysisResult
+        {
+            ExperimentalFlG = 0.0325,
+            ExperimentalRpm = 450.0,
+            ExperimentalFlowLpm = 4.2,
+            TheoreticalFlGNienow = 0.0305,
+            RelativeDeviationPercent = 6.56,
+            ReferenceStageIndex = 0,
+            ReferenceImpellerType = ImpellerType.RushtonFlatBlade,
+            Method = FloodingDetectionMethod.Automatic,
+            Notes = "Transição observada no mínimo da razão PG/P0",
+        };
+
+        _store.SaveFlooding(created.FolderName, flooding);
+
+        var loaded = _store.LoadTest(created.FolderName);
+        Assert.NotNull(loaded);
+        Assert.NotNull(loaded!.Flooding);
+        Assert.Equal(0.0325, loaded.Flooding!.ExperimentalFlG, 4);
+        Assert.Equal(450.0, loaded.Flooding.ExperimentalRpm, 1);
+        Assert.Equal(4.2, loaded.Flooding.ExperimentalFlowLpm, 1);
+        Assert.Equal(0.0305, loaded.Flooding.TheoreticalFlGNienow, 4);
+        Assert.Equal(6.56, loaded.Flooding.RelativeDeviationPercent, 2);
+        Assert.Equal(0, loaded.Flooding.ReferenceStageIndex);
+        Assert.Equal(ImpellerType.RushtonFlatBlade, loaded.Flooding.ReferenceImpellerType);
+        Assert.Equal(FloodingDetectionMethod.Automatic, loaded.Flooding.Method);
+        Assert.Equal("Transição observada no mínimo da razão PG/P0", loaded.Flooding.Notes);
+    }
+
+    [Fact]
+    public void Gassed_PowerRun_Result_And_GlobalSeries_Round_Trip()
+    {
+        var created = CreateSampleTest("Gassed Run Results");
+        var cond = created.Conditions[1]; // Both
+        var run = new PowerRun
+        {
+            TestId = created.TestId,
+            ConditionId = cond.ConditionId,
+            ReplicateNumber = 1,
+            AgitationRpm = cond.AgitationRpm,
+            GasFlowLpm = 5.0,
+            GasFlowVvm = 1.0,
+            GasMode = PowerGasMode.Gassed,
+            UsedVentStabilization = true,
+            CurrentPhase = PowerRunPhase.Accepted,
+            StopReason = PowerStopReason.Target,
+            SampleCount = 65,
+            MeanRpmMeasured = 300.1,
+            MeanTorquePercent = 1.25,
+            MeanTorqueNm = 0.01587,
+            MeanShaftPowerW = 0.4988,
+            NetPowerW = 0.35,
+            GassedPowerW = 0.35,
+            ReferenceP0W = 0.50,
+            ReferenceP0Ci95W = 0.015,
+            P0Provenance = P0Provenance.PlateauFit,
+            PowerRatio = 0.70,
+            PowerRatioCi95 = 0.035,
+            GasFlowNumber = 0.0245,
+            FroudeNumber = 0.115,
+            TorqueCi95Percent = 0.02,
+            Ci95PowerW = 0.008,
+            StartedUtc = new DateTimeOffset(2026, 9, 4, 1, 0, 0, TimeSpan.Zero),
+            CompletedUtc = new DateTimeOffset(2026, 9, 4, 1, 1, 30, TimeSpan.Zero),
+            Analysis = new PowerPointResult
+            {
+                AssemblyPowerNumber = 3.5,
+                AssemblyReynoldsNumber = 179_600,
+                AssemblyPowerNumberCi95 = 0.12,
+                GasFlowLpm = 5.0,
+                GasFlowVvm = 1.0,
+                GasFlowNumber = 0.0245,
+                FroudeNumber = 0.115,
+                GassedPowerW = 0.35,
+                ReferenceP0W = 0.50,
+                ReferenceP0Ci95W = 0.015,
+                P0Provenance = P0Provenance.PlateauFit,
+                PowerRatio = 0.70,
+                PowerRatioCi95 = 0.035,
+            },
+        };
+
+        var runFolder = _store.InitializeRunFolder(created.FolderName, run);
+        Assert.Contains("N0300_Q05p00_Rep01", runFolder);
+
+        _store.AppendRunRawDataPoint(created.FolderName, runFolder,
+            new PowerDataPoint(run.StartedUtc, 0.0, PowerRunPhase.AccumulatingToTarget,
+                300.1, 1.25, 0.01587, 0.4988, 5.0, true));
+
+        _store.SaveRunResult(created.FolderName, run);
+
+        var resultCsv = File.ReadAllText(Path.Combine(_store.RootDirectory, created.FolderName,
+            PowerTestFileContracts.RunsDirectoryName, runFolder, PowerTestFileContracts.RunResultFileName));
+        Assert.Contains("PlateauFit", resultCsv);
+        Assert.Contains("PlateauFit", resultCsv);
+        Assert.Contains(",1.0000,", resultCsv);
+        Assert.Contains("0.0245", resultCsv);
+        Assert.Contains("0.115", resultCsv);
+
+        // Global series event logging verification
+        var now = DateTimeOffset.UtcNow;
+        _store.AppendGlobalSeriesSample(created.FolderName, new PowerGlobalSeriesSample(
+            now, 10.5, created.TestId, run.RunId, cond.ConditionId, 1, PowerRunPhase.VentStabilizing,
+            300.0, 1.2, 0.015, 0.47, 5.0, 24.5, 0.47, 0.01, 10, 1,
+            PowerTestEventCodes.VentOpened, "Válvula de alívio aberta para assentamento de fluxo"));
+
+        _store.AppendGlobalSeriesSample(created.FolderName, new PowerGlobalSeriesSample(
+            now.AddSeconds(5), 15.5, created.TestId, run.RunId, cond.ConditionId, 1, PowerRunPhase.OpeningGas,
+            300.0, 1.25, 0.0158, 0.49, 5.0, 24.5, 0.49, 0.01, 20, 1,
+            PowerTestEventCodes.GasOpened, "Gás transferido ao vaso do reator"));
+
+        _store.AppendGlobalSeriesSample(created.FolderName, new PowerGlobalSeriesSample(
+            now.AddSeconds(60), 75.5, created.TestId, run.RunId, cond.ConditionId, 1, PowerRunPhase.Accepted,
+            300.1, 1.25, 0.01587, 0.4988, 5.0, 24.5, 0.4988, 0.008, 65, 1,
+            PowerTestEventCodes.FloodingDetected, "Flooding identificado a Fl_G = 0.0245"));
+
+        var globalCsv = File.ReadAllText(Path.Combine(_store.RootDirectory, created.FolderName,
+            PowerTestFileContracts.GlobalSeriesFileName));
+        Assert.Contains("VentOpened", globalCsv);
+        Assert.Contains("GasOpened", globalCsv);
+        Assert.Contains("FloodingDetected", globalCsv);
+    }
+
     private PowerTestDocument CreateSampleTest(string name)
     {
         var geometry = new PowerGeometry

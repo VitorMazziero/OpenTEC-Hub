@@ -972,6 +972,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
             StartedUtc = run.StartedUtc,
             CompletedUtc = run.CompletedUtc,
             ManualElec = run.ManualElec,
+            GasFlowVvm = run.GasFlowVvm,
+            GasFlowNumber = run.GasFlowNumber,
+            FroudeNumber = run.FroudeNumber,
+            GassedPowerW = run.GassedPowerW,
+            ReferenceP0W = run.ReferenceP0W,
+            ReferenceP0Ci95W = run.ReferenceP0Ci95W,
+            P0Provenance = run.P0Provenance,
+            PowerRatio = run.PowerRatio,
+            PowerRatioCi95 = run.PowerRatioCi95,
+            UsedVentStabilization = run.UsedVentStabilization,
         });
     }
 

@@ -463,6 +463,20 @@ public sealed class PowerTestStore : IPowerTestStore
         }
     }
 
+    public void SaveFlooding(string testFolderName, FloodingAnalysisResult flooding)
+    {
+        ArgumentNullException.ThrowIfNull(flooding);
+        lock (_ioLock)
+        {
+            var doc = LoadTest(testFolderName);
+            if (doc is not null)
+            {
+                doc.Flooding = flooding;
+                SaveTestManifest(doc);
+            }
+        }
+    }
+
     public void UpdateResultsSummary(string testFolderName, PowerTestDocument doc)
     {
         ArgumentNullException.ThrowIfNull(doc);
@@ -506,8 +520,38 @@ public sealed class PowerTestStore : IPowerTestStore
                 }
                 double? meanRe = reValues.Length > 0 ? reValues.Average() : null;
 
+                var ratioValues = doc.Runs
+                    .Where(r => r.ConditionId == condition.ConditionId &&
+                                r.Phase == PowerRunPhase.Accepted &&
+                                r.PowerRatio is { } ratio && double.IsFinite(ratio))
+                    .Select(r => r.PowerRatio!.Value)
+                    .ToArray();
+                double? meanRatio = ratioValues.Length > 0 ? ratioValues.Average() : null;
+                double? stdDevRatio = null;
+                if (ratioValues.Length > 1 && meanRatio is { } avgRatio)
+                {
+                    stdDevRatio = Math.Sqrt(ratioValues.Sum(v => Math.Pow(v - avgRatio, 2)) / (ratioValues.Length - 1));
+                }
+
+                var flGValues = doc.Runs
+                    .Where(r => r.ConditionId == condition.ConditionId &&
+                                r.Phase == PowerRunPhase.Accepted &&
+                                r.GasFlowNumber is { } flg && double.IsFinite(flg))
+                    .Select(r => r.GasFlowNumber!.Value)
+                    .ToArray();
+                double? meanFlG = flGValues.Length > 0 ? flGValues.Average() : null;
+
+                var frValues = doc.Runs
+                    .Where(r => r.ConditionId == condition.ConditionId &&
+                                r.Phase == PowerRunPhase.Accepted &&
+                                r.FroudeNumber is { } fr && double.IsFinite(fr))
+                    .Select(r => r.FroudeNumber!.Value)
+                    .ToArray();
+                double? meanFr = frValues.Length > 0 ? frValues.Average() : null;
+
                 rows.Add(PowerTestFileContracts.FormatResultsSummaryRow(
-                    condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe));
+                    condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe,
+                    meanRatio, stdDevRatio, meanFlG, meanFr));
             }
 
             WriteAllTextAtomic(

@@ -55,6 +55,25 @@ public enum PowerGasMode
     SinglePoint,
 }
 
+public enum P0Provenance
+{
+    None,
+    PlateauFit,
+    MeasuredUngassed,
+}
+
+public enum FloodingDetectionMethod
+{
+    Automatic,
+    ManualAdjusted,
+}
+
+public enum PowerVentValve
+{
+    Valve1 = 1,
+    Valve2 = 2,
+}
+
 /// <summary>Preloaded impeller families (§8). <see cref="Custom"/> is anything else.</summary>
 public enum ImpellerType
 {
@@ -197,6 +216,7 @@ public sealed record PowerTestSettings
 
     // Estabilização no alívio (§13), montagem opcional.
     public bool VentStabilizationEnabled { get; init; }
+    public PowerVentValve SelectedVentValve { get; init; } = PowerVentValve.Valve2;
     public double VentFlowToleranceLpm { get; init; } = 0.2;
     public int VentFlowStableSamples { get; init; } = 5;
     public double VentAgitationRpm { get; init; } = 15.0;
@@ -304,6 +324,21 @@ public sealed record PowerMapReference
     public DateTimeOffset LinkedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>Summary of flooding analysis (Nienow comparison and transition point, §4.5, §16).</summary>
+public sealed record FloodingAnalysisResult
+{
+    public double ExperimentalFlG { get; init; }
+    public double ExperimentalRpm { get; init; }
+    public double ExperimentalFlowLpm { get; init; }
+    public double TheoreticalFlGNienow { get; init; }
+    public double RelativeDeviationPercent { get; init; }
+    public int ReferenceStageIndex { get; init; }
+    public ImpellerType ReferenceImpellerType { get; init; }
+    public FloodingDetectionMethod Method { get; init; } = FloodingDetectionMethod.Automatic;
+    public DateTimeOffset DeterminedUtc { get; init; } = DateTimeOffset.UtcNow;
+    public string? Notes { get; init; }
+}
+
 /// <summary>One replicate capture at one condition, with its adaptive-stop summary (§12.1).</summary>
 public sealed class PowerRun
 {
@@ -340,6 +375,17 @@ public sealed class PowerRun
     public string? RawDataPath { get; set; }
     public string? RawDataSha256 { get; set; }
     public ManualElecReading? ManualElec { get; set; }
+
+    // Gassed and flooding fields (§4.5, §11, §16)
+    public double? GasFlowVvm { get; set; }
+    public double? GasFlowNumber { get; set; }
+    public double? FroudeNumber { get; set; }
+    public double? GassedPowerW { get; set; }
+    public double? ReferenceP0W { get; set; }
+    public double? ReferenceP0Ci95W { get; set; }
+    public P0Provenance P0Provenance { get; set; } = P0Provenance.None;
+    public double? PowerRatio { get; set; }
+    public double? PowerRatioCi95 { get; set; }
 }
 
 public sealed record PowerRunSummary
@@ -367,6 +413,18 @@ public sealed record PowerRunSummary
     public DateTimeOffset StartedUtc { get; init; }
     public DateTimeOffset? CompletedUtc { get; init; }
     public ManualElecReading? ManualElec { get; init; }
+
+    // Gassed and flooding fields (§4.5, §11, §16)
+    public double? GasFlowVvm { get; init; }
+    public double? GasFlowNumber { get; init; }
+    public double? FroudeNumber { get; init; }
+    public double? GassedPowerW { get; init; }
+    public double? ReferenceP0W { get; init; }
+    public double? ReferenceP0Ci95W { get; init; }
+    public P0Provenance P0Provenance { get; init; } = P0Provenance.None;
+    public double? PowerRatio { get; init; }
+    public double? PowerRatioCi95 { get; init; }
+    public bool UsedVentStabilization { get; init; }
 }
 
 /// <summary>The per-test manifest (ensaio.json). Self-contained; independent of any cultivation session (§6).</summary>
@@ -393,6 +451,7 @@ public sealed class PowerTestDocument
     /// <summary>Run without tare/calibration; results labelled relative, not absolute (§9, §20.5).</summary>
     public bool RelativeMode { get; set; }
     public PowerMapReference? LinkedMap { get; set; }
+    public FloodingAnalysisResult? Flooding { get; set; }
 
     public string AppVersion { get; set; } = "";
     public string ProtocolVersion { get; set; } = "OpenTEC_ESP32_v9 + servo ASDA-B2";

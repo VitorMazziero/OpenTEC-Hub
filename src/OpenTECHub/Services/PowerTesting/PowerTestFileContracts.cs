@@ -14,6 +14,24 @@ namespace OpenTECHub.Services.PowerTesting;
 /// File names, name validation, JSON/CSV (de)serialization for a self-contained power assay.
 /// Mirrors <c>KlaTestFileContracts</c> so the two subsystems read the same way (§3.3, §6).
 /// </summary>
+public static class PowerTestEventCodes
+{
+    public const string PhaseChanged = "PhaseChanged";
+    public const string SpeedSet = "SpeedSet";
+    public const string SpeedSettled = "SpeedSettled";
+    public const string VentOpened = "VentOpened";
+    public const string VentStabilized = "VentStabilized";
+    public const string GasOpened = "GasOpened";
+    public const string GasClosed = "GasClosed";
+    public const string SettlingStarted = "SettlingStarted";
+    public const string AccumulatingStarted = "AccumulatingStarted";
+    public const string TargetReached = "TargetReached";
+    public const string TmaxReached = "TmaxReached";
+    public const string RunCompleted = "RunCompleted";
+    public const string RunAborted = "RunAborted";
+    public const string FloodingDetected = "FloodingDetected";
+}
+
 public static class PowerTestFileContracts
 {
     private static readonly Regex RunFolderPattern = new(
@@ -204,11 +222,11 @@ public static class PowerTestFileContracts
     }
 
     public static string FormatRunResultHeader() =>
-        "RunId,ConditionId,Replicate,Phase,AgitationRpm,GasFlowLpm,GasMode,SampleCount,MeanRpmMeasured,MeanTorquePercent,MeanTorqueNm,MeanShaftPowerW,NetPowerW,TorqueCi95Percent,Ci95PowerW,AssemblyNp,AssemblyRe,AssemblyNpCi95,BelowNoiseFloor,StopReason,Tries,IsRelative,StartedUtc,CompletedUtc,RawDataPath,RawDataSha256,ManualElectricalW,ManualInstrument,ManualNote";
+        "RunId,ConditionId,Replicate,Phase,AgitationRpm,GasFlowLpm,GasMode,SampleCount,MeanRpmMeasured,MeanTorquePercent,MeanTorqueNm,MeanShaftPowerW,NetPowerW,TorqueCi95Percent,Ci95PowerW,AssemblyNp,AssemblyRe,AssemblyNpCi95,BelowNoiseFloor,StopReason,Tries,IsRelative,StartedUtc,CompletedUtc,RawDataPath,RawDataSha256,ManualElectricalW,ManualInstrument,ManualNote,GasFlowVvm,GasFlowNumber,FroudeNumber,GassedPowerW,ReferenceP0W,ReferenceP0Ci95W,P0Provenance,PowerRatio,PowerRatioCi95,UsedVentStabilization";
 
     public static string FormatRunResultRow(PowerRun run) => string.Format(
         CultureInfo.InvariantCulture,
-        "{0},{1},{2},{3},{4:F1},{5},{6},{7},{8:F3},{9:F5},{10:F7},{11:F7},{12:F7},{13:F6},{14:F7},{15},{16},{17},{18},{19},{20},{21},{22:O},{23},{24},{25},{26},{27},{28}",
+        "{0},{1},{2},{3},{4:F1},{5},{6},{7},{8:F3},{9:F5},{10:F7},{11:F7},{12:F7},{13:F6},{14:F7},{15},{16},{17},{18},{19},{20},{21},{22:O},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38}",
         run.RunId,
         run.ConditionId,
         run.ReplicateNumber,
@@ -237,10 +255,20 @@ public static class PowerTestFileContracts
         run.RawDataSha256 ?? "",
         run.ManualElec?.PowerElectricalW.ToString("F4", CultureInfo.InvariantCulture) ?? "",
         EscapeCsv(run.ManualElec?.Instrument ?? ""),
-        EscapeCsv(run.ManualElec?.Note ?? ""));
+        EscapeCsv(run.ManualElec?.Note ?? ""),
+        run.GasFlowVvm?.ToString("F4", CultureInfo.InvariantCulture) ?? "",
+        run.GasFlowNumber?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.FroudeNumber?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.GassedPowerW?.ToString("F7", CultureInfo.InvariantCulture) ?? "",
+        run.ReferenceP0W?.ToString("F7", CultureInfo.InvariantCulture) ?? "",
+        run.ReferenceP0Ci95W?.ToString("F7", CultureInfo.InvariantCulture) ?? "",
+        run.P0Provenance,
+        run.PowerRatio?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.PowerRatioCi95?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        run.UsedVentStabilization ? 1 : 0);
 
     public static string FormatResultsSummaryHeader() =>
-        "ConditionId,AgitationRpm,GasFlowLpm,GasMode,RequestedReplicates,CompletedReplicates,AcceptedReplicates,MeanNetPowerW,StdDevNetPowerW,MeanAssemblyNp,StdDevAssemblyNp,MeanAssemblyRe";
+        "ConditionId,AgitationRpm,GasFlowLpm,GasMode,RequestedReplicates,CompletedReplicates,AcceptedReplicates,MeanNetPowerW,StdDevNetPowerW,MeanAssemblyNp,StdDevAssemblyNp,MeanAssemblyRe,MeanPowerRatio,StdDevPowerRatio,MeanGasFlowNumber,MeanFroudeNumber";
 
     public static string FormatResultsSummaryRow(
         PowerCondition condition,
@@ -248,9 +276,13 @@ public static class PowerTestFileContracts
         double? stdDevNetPowerW,
         double? meanAssemblyNp,
         double? stdDevAssemblyNp,
-        double? meanAssemblyRe) => string.Format(
+        double? meanAssemblyRe,
+        double? meanPowerRatio = null,
+        double? stdDevPowerRatio = null,
+        double? meanGasFlowNumber = null,
+        double? meanFroudeNumber = null) => string.Format(
         CultureInfo.InvariantCulture,
-        "{0},{1:F1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}",
+        "{0},{1:F1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15}",
         condition.ConditionId,
         condition.AgitationRpm,
         condition.GasFlowLpm?.ToString("F3", CultureInfo.InvariantCulture) ?? "",
@@ -262,7 +294,11 @@ public static class PowerTestFileContracts
         stdDevNetPowerW?.ToString("F7", CultureInfo.InvariantCulture) ?? "",
         meanAssemblyNp?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
         stdDevAssemblyNp?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
-        meanAssemblyRe?.ToString("G17", CultureInfo.InvariantCulture) ?? "");
+        meanAssemblyRe?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        meanPowerRatio?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        stdDevPowerRatio?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        meanGasFlowNumber?.ToString("G17", CultureInfo.InvariantCulture) ?? "",
+        meanFroudeNumber?.ToString("G17", CultureInfo.InvariantCulture) ?? "");
 
     public static string FormatEventLogLine(PowerTestEventLogEntry entry) =>
         JsonSerializer.Serialize(entry, JsonOptions);

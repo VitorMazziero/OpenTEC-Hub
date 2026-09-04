@@ -50,6 +50,8 @@ public interface IPowerTestStore
     /// <summary>Rebuilds the test-wide, condition-level export from accepted runs.</summary>
     void UpdateResultsSummary(string testFolderName, PowerTestDocument doc);
 
+    void SaveFlooding(string testFolderName, FloodingAnalysisResult flooding);
+
     bool ValidateTestName(string name, out string? error);
 
     bool TestExists(string name);

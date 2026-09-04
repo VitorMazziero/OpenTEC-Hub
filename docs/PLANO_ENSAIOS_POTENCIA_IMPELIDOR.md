@@ -971,23 +971,26 @@ pulso inicial de vazão.
 Cada passo é compilável e testável de forma independente antes de avançar. **Marque `[x]` ao
 concluir, com a data e o commit** — esta lista é o estado vivo do desenvolvimento.
 
-- [ ] **1. Domínio + Contratos de Gás e Flooding** (`PowerTestModels`, `PowerTestFileContracts`, `IPowerTestStore`/`PowerTestStore`)
-  - [ ] 1.1 Modelos de dados de ponto gaseificado: campos para `Q_g` (L/min e vvm), `Fl_G`, `Fr`, `P_G`
+- [x] **1. Domínio + Contratos de Gás e Flooding** (`PowerTestModels`, `PowerTestFileContracts`, `IPowerTestStore`/`PowerTestStore`)
+  - [x] 1.1 Modelos de dados de ponto gaseificado: campos para `Q_g` (L/min e vvm), `Fl_G`, `Fr`, `P_G`
         líquido, `P₀` de referência (valor, incerteza, proveniência: platô vs medido), razão
         `P_G/P₀` e sua incerteza propagada `IC₉₅(P_G/P₀)`.
-  - [ ] 1.2 Estrutura `FloodingAnalysisResult`: `(Fl_G)_F` experimental, `N_F`, `Q_g,F`, `(Fl_G)_F,Nienow`
+  - [x] 1.2 Estrutura `FloodingAnalysisResult`: `(Fl_G)_F` experimental, `N_F`, `Q_g,F`, `(Fl_G)_F,Nienow`
         teórico, desvio percentual, estágio/impelidor de referência e indicador de método
         (automático vs ajuste manual na revisão).
-  - [ ] 1.3 Configuração de alívio nos documentos: campo `SelectedVentValve` (`Valve1` ou `Valve2`)
+  - [x] 1.3 Configuração de alívio nos documentos: campo `SelectedVentValve` (`Valve1` ou `Valve2`)
         para garantir que a válvula de alívio não conflite com outras linhas de processo.
-  - [ ] 1.4 Diâmetro do tanque `T`: `PowerGeometry.VesselDiameterM` padrão **0,190 m (190 mm)**,
+  - [x] 1.4 Diâmetro do tanque `T`: `PowerGeometry.VesselDiameterM` padrão **0,190 m (190 mm)**,
         editável por ensaio.
-  - [ ] 1.5 Persistência e auditoria: serialização em `tabela-condicoes.json`, `ensaio.json` e
+  - [x] 1.5 Persistência e auditoria: serialização em `tabela-condicoes.json`, `ensaio.json` e
         resumo de corrida `PowerRunSummary` (gravando se usou alívio, `P_G`, `P₀` e razão); registro
         de eventos de gás (`GasOpened`, `VentOpened`, `VentStabilized`, `FloodingDetected`) na
         `serie-global.csv`.
-  - [ ] 1.6 Testes de ida-e-volta (round-trip) em `PowerTestStoreTests` com condições gaseificadas,
+  - [x] 1.6 Testes de ida-e-volta (round-trip) em `PowerTestStoreTests` com condições gaseificadas,
         alívio e pontos de flooding.
+
+  **Auditoria da etapa 1 (2026-09-04):** Modelos de domínio estendidos com grandezas de aeração e flooding,
+  contratos de arquivo atualizados, eventos de gás instrumentados e testes de round-trip integrados no store (21/21 aprovados).
 
 - [ ] **2. Engine Científico de Gaseificação e Flooding** (`PowerCalc`, `PowerAnalysisModels`, `IPowerAnalysisEngine`, `PowerAnalysisEngine`)
   - [ ] 2.1 Primitivas em `PowerCalc`:

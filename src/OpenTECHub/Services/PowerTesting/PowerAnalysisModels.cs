@@ -27,6 +27,13 @@ public sealed record PowerPointInput
 
     /// <summary>Assumed motor nominal torque when there is no calibration to carry it.</summary>
     public double MotorRatedTorqueNm { get; init; } = 1.27;
+
+    // Gassed inputs (§4.5, §11, §16)
+    public double? GasFlowLpm { get; init; }
+    public double? GasFlowVvm { get; init; }
+    public double? ReferenceP0W { get; init; }
+    public double? ReferenceP0Ci95W { get; init; }
+    public P0Provenance P0Provenance { get; init; } = P0Provenance.None;
 }
 
 /// <summary>The power number of one impeller stage, with its own diameter and Reynolds number (§4.3).</summary>
@@ -64,6 +71,18 @@ public sealed record PowerPointResult
     public double AssemblyReynoldsNumber { get; init; }
     public double AssemblyPowerNumberCi95 { get; init; }
     public double ReferenceDiameterM { get; init; }
+
+    // Gassed and flooding fields (§4.5, §11, §16)
+    public double? GasFlowLpm { get; init; }
+    public double? GasFlowVvm { get; init; }
+    public double? GasFlowNumber { get; init; }
+    public double? FroudeNumber { get; init; }
+    public double? GassedPowerW { get; init; }
+    public double? ReferenceP0W { get; init; }
+    public double? ReferenceP0Ci95W { get; init; }
+    public P0Provenance P0Provenance { get; init; } = P0Provenance.None;
+    public double? PowerRatio { get; init; }
+    public double? PowerRatioCi95 { get; init; }
 }
 
 /// <summary>The turbulent-plateau power number fitted over the accepted points (§4.3, §16).</summary>

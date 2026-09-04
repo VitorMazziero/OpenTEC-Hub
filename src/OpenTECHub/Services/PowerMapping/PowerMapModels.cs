@@ -71,6 +71,21 @@ public sealed record PowerMapAlgorithmSettings
     public double MinFlowLpm { get; init; } = 0.0;
 
     public double MaxFlowLpm { get; init; } = 20.0;
+
+    /// <summary>
+    /// When true (default) the grid is fitted to the bounding box of the supplied anchors and the
+    /// Min/Max fields above act only as the fallback used when there are too few valid anchors.
+    /// </summary>
+    public bool AutoFitDomain { get; init; } = true;
+
+    /// <summary>
+    /// Convergence tolerance of the Clough-Tocher gradient estimation. Looser values settle faster
+    /// on noisy anchor sets; tighter values give a smoother C¹ surface.
+    /// </summary>
+    public double GradientTolerance { get; init; } = 1e-6;
+
+    /// <summary>Iteration ceiling for the same gradient estimation.</summary>
+    public int GradientIterations { get; init; } = 400;
 }
 
 /// <summary>

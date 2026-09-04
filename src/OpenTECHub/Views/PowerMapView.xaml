@@ -3,44 +3,398 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:PowerMapViewModel}"
-             d:DesignHeight="800" d:DesignWidth="1400">
+             d:DesignHeight="900" d:DesignWidth="1500">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+        <Style x:Key="MapCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style x:Key="MapLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
+        <Style x:Key="MapMetric" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="MapReadout" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="CompactField" TargetType="TextBox">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+    </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="8,6">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Margin="0,0,0,12">
-            <TextBlock Text="Mapa de Potência" FontSize="{DynamicResource FontSizeTitle}"
-                       FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-            <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
-                       Text="Síntese dos ensaios de potência e acoplamento com o mapa de kLa" />
-        </StackPanel>
-
-        <!-- Intentionally a placeholder: the destination is stable now, the scientific
-             surface is a phase-3 deliverable. -->
-        <Border Grid.Row="1" Padding="32"
-                Background="{DynamicResource SurfaceCardBrush}"
-                BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640">
-                <Border Padding="12,6" HorizontalAlignment="Center"
-                        Background="{DynamicResource AccentSubtleBrush}"
-                        BorderBrush="{DynamicResource AccentBorderBrush}"
-                        BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
-                    <TextBlock Text="{Binding PhaseLabel}" FontWeight="Bold"
-                               Foreground="{DynamicResource AccentBrush}" />
-                </Border>
-                <TextBlock Margin="0,18,0,0" Text="Superfície (N, Qg)" FontSize="22"
-                           FontWeight="SemiBold" TextAlignment="Center" />
-                <TextBlock Margin="0,10,0,0" Text="{Binding StatusMessage}"
-                           TextWrapping="Wrap" TextAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-            </StackPanel>
+        <!-- Cabeçalho: identidade da página, estado e as ações que mudam o documento -->
+        <Border Grid.Row="0" Margin="0,0,0,7" Style="{StaticResource MapCard}" Padding="10,7">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Mapa de Potência" FontSize="17" FontWeight="Bold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Border Margin="10,0,0,0" Padding="8,2" Background="{DynamicResource AccentSubtleBrush}"
+                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4">
+                            <TextBlock Text="{Binding PhaseLabel}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                        </Border>
+                        <Border Margin="7,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
+                            <TextBlock Text="{Binding GridResolutionLabel}" FontSize="11" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </Border>
+                        <Border Margin="7,0,0,0" Padding="8,2" CornerRadius="4"
+                                Background="{DynamicResource StateWarningBrush}"
+                                Visibility="{Binding IsSurfaceStale, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Malha desatualizada — reconstrua" FontSize="11" FontWeight="Bold"
+                                       Foreground="{DynamicResource StateWarningTextBrush}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Novo mapa" Margin="3,0" Command="{Binding CreateMapCommand}" />
+                    <Button Content="Salvar" Margin="3,0" Command="{Binding SaveMapCommand}"
+                            IsEnabled="{Binding HasMap}" />
+                    <Button Content="↻ Reconstruir superfície" Margin="3,0" Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding ReconstructSurfaceCommand}" IsEnabled="{Binding HasMap}" />
+                    <Button Content="Excluir" Margin="3,0" Style="{StaticResource DangerButtonStyle}"
+                            Command="{Binding DeleteMapCommand}" IsEnabled="{Binding HasMap}" />
+                </StackPanel>
+            </Grid>
         </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" MinWidth="320" MaxWidth="400" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" MinWidth="430" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Barra lateral de configuração e filtros (§18.3 passo 5.1) -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          Padding="0,0,3,0">
+                <StackPanel>
+                    <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Mapa de síntese" Style="{StaticResource SectionTitle}" />
+                            <ComboBox ItemsSource="{Binding AvailableMaps}" SelectedItem="{Binding SelectedMapSummary}"
+                                      DisplayMemberPath="Name"
+                                      ToolTip="Mapas salvos na raiz Mapas-Potencia do workspace" />
+                            <TextBlock Margin="0,8,0,0" Text="Nome" Style="{StaticResource MapLabel}" />
+                            <TextBox Style="{StaticResource CompactField}" Text="{Binding MapName, UpdateSourceTrigger=LostFocus}"
+                                     IsEnabled="{Binding HasMap}" />
+                            <TextBlock Margin="0,7,0,0" Text="Novo mapa" Style="{StaticResource MapLabel}" />
+                            <TextBox Style="{StaticResource CompactField}" Text="{Binding NewMapName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,7,0,0" Text="Observações" Style="{StaticResource MapLabel}" />
+                            <TextBox Height="52" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     Text="{Binding Notes, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding HasMap}" />
+                            <TextBlock Margin="0,6,0,0" Text="{Binding MapRootDirectory}" Style="{StaticResource CaptionTextStyle}"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding MapRootDirectory}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Ensaios de origem" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="Selecione um ou mais ensaios da mesma montagem. Cada condição aceita vira uma âncora no plano (N, Qg)." />
+                            <ListBox ItemsSource="{Binding AvailablePowerTests}" MaxHeight="150"
+                                     BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="1"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="2" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Content="{Binding DisplayText}" ToolTip="{Binding DisplayText}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Button Margin="0,7,0,0" Content="Recarregar lista de ensaios" Padding="8,4"
+                                    Command="{Binding ReloadPowerTestsCommand}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Malha de interpolação" Style="{StaticResource SectionTitle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Resolução N × Qg" Style="{StaticResource MapLabel}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding GridResolutionLabel}" Style="{StaticResource MapReadout}" />
+                            </Grid>
+                            <Slider Minimum="50" Maximum="300" TickFrequency="10" IsSnapToTickEnabled="True"
+                                    Value="{Binding GridResolution}" />
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Tolerância do gradiente" Style="{StaticResource MapLabel}" />
+                                    <TextBox Style="{StaticResource CompactField}"
+                                             Text="{Binding GradientTolerance, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="Critério de convergência da estimativa de gradiente (padrão 1e-6)" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Iterações máx." Style="{StaticResource MapLabel}" />
+                                    <TextBox Style="{StaticResource CompactField}"
+                                             Text="{Binding GradientIterations, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="Teto de iterações da estimativa de gradiente (padrão 400)" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,7,0,0"
+                                       Text="Interpolação C¹ de Clough-Tocher. Fora do fecho convexo das âncoras a superfície permanece indefinida — não há extrapolação silenciosa." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card de Parâmetros de Escalonamento (§18.3 passo 5.1) -->
+                    <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Correlação kLa (van 't Riet)" Style="{StaticResource SectionTitle}" />
+                            <ComboBox ItemsSource="{Binding AvailableKlaMaps}" SelectedItem="{Binding SelectedKlaMapOption}"
+                                      DisplayMemberPath="DisplayText" ToolTip="Mapa de kLa a acoplar por P/V" />
+                            <Button Margin="0,7,0,0" Content="Vincular e ajustar modelo" Padding="8,4"
+                                    Command="{Binding LinkKlaMapAndFitCommand}" />
+                            <Border Margin="0,8,0,0" Padding="9" CornerRadius="{DynamicResource RadiusSmall}"
+                                    Background="{DynamicResource SurfaceSunkenBrush}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VanTRietFormulaText}" Style="{StaticResource MapReadout}"
+                                               TextWrapping="Wrap" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="K" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding VanTRietKText}" Style="{StaticResource MapMetric}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="R²" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding VanTRietR2Text}" Style="{StaticResource MapMetric}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,7,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="α (expoente de P/V)" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding VanTRietAlphaText}" Style="{StaticResource MapMetric}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="β (expoente de v_s)" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding VanTRietBetaText}" Style="{StaticResource MapMetric}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Margin="0,7,0,0" Style="{StaticResource CaptionTextStyle}">
+                                        <Run Text="Pares casados:" />
+                                        <Run Text="{Binding MatchedPairsCount, Mode=OneWay}" FontWeight="Bold" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                            <Button Margin="0,8,0,0" Content="Exportar P/V para o mapa kLa" Padding="8,4"
+                                    Command="{Binding ExportEnrichedKlaMapCommand}"
+                                    ToolTip="Gera uma revisão enriquecida do mapa kLa; o documento de origem nunca é sobrescrito" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Controles de visualização: aplicam-se imediatamente, sem botão de confirmação -->
+                    <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Visualização" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Camada" Style="{StaticResource MapLabel}" />
+                            <ComboBox ItemsSource="{Binding AvailableLayers}" SelectedValue="{Binding SelectedLayer}"
+                                      SelectedValuePath="Layer" DisplayMemberPath="DisplayText" />
+                            <TextBlock Margin="0,7,0,0" Text="Mapa de cores" Style="{StaticResource MapLabel}" />
+                            <ComboBox ItemsSource="{Binding AvailableColormaps}" SelectedValue="{Binding SelectedColormap}"
+                                      SelectedValuePath="Colormap" DisplayMemberPath="DisplayText" />
+                            <CheckBox Margin="0,9,0,0" Content="Pontos experimentais" IsChecked="{Binding ShowAnchors}" />
+                            <CheckBox Margin="0,5,0,0" Content="Isolinhas de contorno" IsChecked="{Binding ShowIsolines}" />
+                            <CheckBox Margin="0,5,0,0" Content="Fronteira teórica de Nienow" IsChecked="{Binding ShowNienowBoundary}" />
+                            <CheckBox Margin="0,5,0,0" Content="Fronteira experimental de flooding" IsChecked="{Binding ShowExperimentalFlooding}" />
+                            <CheckBox Margin="0,9,0,0" Content="Escala automática de cor" IsChecked="{Binding AutoScale}" />
+                            <Grid Margin="0,6,0,0" IsEnabled="{Binding AutoScale, Converter={StaticResource InverseBool}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Mín." Style="{StaticResource MapLabel}" />
+                                    <TextBox Style="{StaticResource CompactField}"
+                                             Text="{Binding ManualScaleMin, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Máx." Style="{StaticResource MapLabel}" />
+                                    <TextBox Style="{StaticResource CompactField}"
+                                             Text="{Binding ManualScaleMax, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Contraste" Style="{StaticResource MapLabel}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource MapReadout}"
+                                           Text="{Binding ContrastPercent, StringFormat={}{0:F0}%}" />
+                            </Grid>
+                            <Slider Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Value="{Binding ContrastPercent}" IsEnabled="{Binding AutoScale}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Inspeção interativa de coordenadas (§18.3 passo 4.4) -->
+                    <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Inspeção sob o cursor" Style="{StaticResource SectionTitle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="N (rpm)" Style="{StaticResource MapLabel}" />
+                                    <TextBlock Style="{StaticResource MapReadout}"
+                                               Text="{Binding InspectedAgitationRpm, StringFormat={}{0:F0}, TargetNullValue=—}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Qg (L/min)" Style="{StaticResource MapLabel}" />
+                                    <TextBlock Style="{StaticResource MapReadout}"
+                                               Text="{Binding InspectedGasFlowLpm, StringFormat={}{0:F2}, TargetNullValue=—}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Qg (vvm)" Style="{StaticResource MapLabel}" />
+                                    <TextBlock Style="{StaticResource MapReadout}"
+                                               Text="{Binding InspectedGasFlowVvm, StringFormat={}{0:F3}, TargetNullValue=—}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="v_s (m/s)" Style="{StaticResource MapLabel}" />
+                                    <TextBlock Style="{StaticResource MapReadout}"
+                                               Text="{Binding InspectedSuperficialVelocityMs, StringFormat={}{0:F5}, TargetNullValue=—}" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Margin="0,8,0,0" Text="{Binding ColorBarLabel}" Style="{StaticResource MapLabel}" />
+                            <TextBlock Text="{Binding InspectedLayerValueFormatted}" Style="{StaticResource MapMetric}"
+                                       TextWrapping="Wrap" />
+                            <Border Margin="0,8,0,0" Padding="8,4" CornerRadius="{DynamicResource RadiusSmall}"
+                                    Background="{DynamicResource SurfaceSunkenBrush}">
+                                <TextBlock Text="{Binding InspectedFlowRegime}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <!-- Área de síntese: superfície principal e validação kLa <-> P/V -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="240" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource MapCard}" Padding="6">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="4,2,4,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding ColorBarLabel}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <ProgressBar Width="120" Height="8" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                                             Value="{Binding ProgressPercent}"
+                                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}"
+                                           Text="{Binding ProgressText}"
+                                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
+                        </Grid>
+                        <Border x:Name="SurfacePlotHost" Grid.Row="1" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Margin="0,7,0,0" Style="{StaticResource MapCard}" Padding="6"
+                        Visibility="{Binding HasMatchedPairs, Converter={StaticResource BoolToVis}}">
+                    <Grid Height="250">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="7" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Margin="4,2,0,5" Text="Paridade kLa medido × previsto (faixa ±15%)"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Grid.Column="2" Margin="4,2,0,5" Text="kLa × P/V por vazão de gás"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Border x:Name="ParityPlotHost" Grid.Row="1" />
+                        <Border x:Name="KlaPvPlotHost" Grid.Row="1" Grid.Column="2" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

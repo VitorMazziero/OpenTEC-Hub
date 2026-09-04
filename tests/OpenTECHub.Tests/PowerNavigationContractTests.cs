@@ -64,14 +64,36 @@ public sealed class PowerNavigationContractTests
     }
 
     [Fact]
-    public void Power_map_is_explicitly_a_phase_3_placeholder()
+    public void Power_map_page_delivers_the_phase_3_surface_instead_of_a_placeholder()
     {
         var xaml = ReadProjectFile(Path.Combine("Views", "PowerMapView.xaml"));
+        var codeBehind = ReadProjectFile(Path.Combine("Views", "PowerMapView.xaml.cs"));
         var viewModel = ReadProjectFile(Path.Combine("ViewModels", "PowerMapViewModel.cs"));
 
         Assert.Contains("PhaseLabel", xaml, StringComparison.Ordinal);
         Assert.Contains("\"FASE 3\"", viewModel, StringComparison.Ordinal);
-        Assert.Contains("placeholder", xaml, StringComparison.OrdinalIgnoreCase);
+
+        // The phase 3 gate: the page is the real synthesis surface, not a stand-in.
+        Assert.DoesNotContain("placeholder", xaml, StringComparison.OrdinalIgnoreCase);
+
+        // Sidebar contract (§18.3 step 5.1).
+        Assert.Contains("Ensaios de origem", xaml, StringComparison.Ordinal);
+        Assert.Contains("Malha de interpolação", xaml, StringComparison.Ordinal);
+        Assert.Contains("Correlação kLa", xaml, StringComparison.Ordinal);
+        Assert.Contains("Inspeção sob o cursor", xaml, StringComparison.Ordinal);
+
+        // Plot hosts for the surface and both validation panels (§18.3 steps 5.2 and 5.3).
+        Assert.Contains("SurfacePlotHost", xaml, StringComparison.Ordinal);
+        Assert.Contains("ParityPlotHost", xaml, StringComparison.Ordinal);
+        Assert.Contains("KlaPvPlotHost", xaml, StringComparison.Ordinal);
+
+        // Visual settings apply on change - the workspace contract forbids an "Aplicar" step.
+        Assert.DoesNotContain("Aplicar", xaml, StringComparison.OrdinalIgnoreCase);
+
+        // Orientation and colour-bar handling are what make the surface readable in both themes.
+        Assert.Contains("FlipVertically = true", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("StyleColorBar", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("UpdateCursorInspection", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

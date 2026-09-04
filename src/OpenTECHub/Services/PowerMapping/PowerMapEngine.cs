@@ -34,17 +34,16 @@ public sealed class PowerMapEngine : IPowerMapEngine
         var flowMin = settings.MinFlowLpm;
         var flowMax = settings.MaxFlowLpm;
 
-        // Auto-scale bounds from anchors if requested or valid
-        if (anchors.Count >= 3)
+        // The grid must cover the measured points, not the machine's whole envelope. Taking the
+        // union with the 15-1000 rpm defaults spent almost every cell outside the convex hull,
+        // so the heatmap rendered as a small island in a mostly empty plot.
+        var validAnchors = anchors.Where(a => a.AgitationRpm > 0 && a.NetPowerW >= 0).ToList();
+        if (settings.AutoFitDomain && validAnchors.Count >= 3)
         {
-            var validAnchors = anchors.Where(a => a.AgitationRpm > 0 && a.NetPowerW >= 0).ToList();
-            if (validAnchors.Count >= 3)
-            {
-                rpmMin = Math.Min(rpmMin, validAnchors.Min(a => a.AgitationRpm));
-                rpmMax = Math.Max(rpmMax, validAnchors.Max(a => a.AgitationRpm));
-                flowMin = Math.Min(flowMin, validAnchors.Min(a => a.GasFlowLpm));
-                flowMax = Math.Max(flowMax, validAnchors.Max(a => a.GasFlowLpm));
-            }
+            rpmMin = validAnchors.Min(a => a.AgitationRpm);
+            rpmMax = validAnchors.Max(a => a.AgitationRpm);
+            flowMin = validAnchors.Min(a => a.GasFlowLpm);
+            flowMax = validAnchors.Max(a => a.GasFlowLpm);
         }
 
         if (rpmMax <= rpmMin) rpmMax = rpmMin + 100.0;
@@ -92,12 +91,17 @@ public sealed class PowerMapEngine : IPowerMapEngine
             }
         }
 
+        var gradientTolerance = settings.GradientTolerance > 0 && double.IsFinite(settings.GradientTolerance)
+            ? settings.GradientTolerance
+            : DefaultGradientTolerance;
+        var gradientIterations = Math.Clamp(settings.GradientIterations, 50, 5000);
+
         CloughTocher2D? ctNet = null;
         if (pNetPoints.Count >= 3)
         {
             try
             {
-                ctNet = new CloughTocher2D(pNetPoints, DefaultGradientTolerance, DefaultGradientIterations);
+                ctNet = new CloughTocher2D(pNetPoints, gradientTolerance, gradientIterations);
             }
             catch
             {
@@ -110,7 +114,7 @@ public sealed class PowerMapEngine : IPowerMapEngine
         {
             try
             {
-                ctRatio = new CloughTocher2D(ratioPoints, DefaultGradientTolerance, DefaultGradientIterations);
+                ctRatio = new CloughTocher2D(ratioPoints, gradientTolerance, gradientIterations);
             }
             catch
             {
@@ -118,7 +122,24 @@ public sealed class PowerMapEngine : IPowerMapEngine
             }
         }
 
+        // P/V has to agree with the anchors. When the map's geometry carries no working volume
+        // (a freshly created map keeps LiquidVolumeM3 at zero), recover the volume the anchors
+        // were reduced with instead of leaving the whole P/V layer null.
         var liquidVolume = geometry.LiquidVolumeM3;
+        if (liquidVolume <= 0)
+        {
+            var inferred = anchors
+                .Where(a => a.VolumetricPowerWm3 > 0 && a.NetPowerW > 0 && double.IsFinite(a.VolumetricPowerWm3))
+                .Select(a => a.NetPowerW / a.VolumetricPowerWm3)
+                .Where(v => v > 0 && double.IsFinite(v))
+                .OrderBy(v => v)
+                .ToList();
+
+            if (inferred.Count > 0)
+            {
+                liquidVolume = inferred[inferred.Count / 2];
+            }
+        }
 
         for (var iN = 0; iN < resN; iN++)
         {

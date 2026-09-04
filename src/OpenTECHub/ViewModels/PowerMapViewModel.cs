@@ -53,6 +53,11 @@ public sealed record KlaMapOptionViewModel(Guid Id, string Name, int AnchorCount
     public string DisplayText => $"{Name} ({AnchorCount} âncoras)";
 }
 
+/// <summary>One selectable surface layer, with the unit the colour bar has to announce.</summary>
+public sealed record PowerMapLayerOption(PowerMapLayer Layer, string DisplayText, string Unit, string ColorBarLabel);
+
+public sealed record PowerMapColormapOption(PowerMapColormap Colormap, string DisplayText);
+
 /// <summary>
 /// Routed Phase 3 ViewModel managing 2D power surface synthesis, layer selection,
 /// continuous flooding boundaries, cursor inspection, and kLa/van 't Riet coupling.
@@ -69,6 +74,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     private CancellationTokenSource? _reconstructionCts;
     private bool _initialized;
+    private double? _lastInspectedRpm;
+    private double? _lastInspectedFlow;
+    private int _reconstructionGeneration;
+    private bool _suppressStale;
 
     public PowerMapViewModel(
         IPowerTestStore testStore,
@@ -108,6 +117,21 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<KlaPowerPair> MatchedPairs { get; } = [];
 
+    public IReadOnlyList<PowerMapLayerOption> AvailableLayers { get; } =
+    [
+        new(PowerMapLayer.VolumetricPower, "Potência específica (P/V)", "W/m³", "P/V (W/m³)"),
+        new(PowerMapLayer.NetPower, "Potência de eixo (P_líq)", "W", "P_líq (W)"),
+        new(PowerMapLayer.PowerRatio, "Razão de aeração (P_G/P₀)", "–", "P_G/P₀ (–)"),
+        new(PowerMapLayer.FloodingBoundary, "Fronteira de flooding (Qg/Qg,F)", "–", "Qg / Qg,F (–)"),
+    ];
+
+    public IReadOnlyList<PowerMapColormapOption> AvailableColormaps { get; } =
+    [
+        new(PowerMapColormap.Viridis, "Viridis"),
+        new(PowerMapColormap.Magma, "Magma"),
+        new(PowerMapColormap.Turbo, "Turbo"),
+    ];
+
     // Current document & selection
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMap))]
@@ -129,23 +153,35 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     public partial string Notes { get; set; } = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSurface))]
     public partial PowerMapSurfaceData? CurrentSurfaceData { get; set; }
 
     [ObservableProperty]
     public partial PowerMapFloodingBoundary? CurrentFloodingBoundary { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCorrelation))]
     public partial KlaCorrelationResult? CurrentCorrelation { get; set; }
 
     // Layer and visual controls
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ColorBarLabel))]
+    [NotifyPropertyChangedFor(nameof(SelectedLayerUnit))]
     public partial PowerMapLayer SelectedLayer { get; set; } = PowerMapLayer.VolumetricPower;
 
     [ObservableProperty]
     public partial PowerMapColormap SelectedColormap { get; set; } = PowerMapColormap.Viridis;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridResolutionLabel))]
     public partial int GridResolution { get; set; } = 150;
+
+    /// <summary>Clough-Tocher gradient tolerance, exposed so a noisy anchor set can be loosened (§18.3 step 5.1).</summary>
+    [ObservableProperty]
+    public partial double GradientTolerance { get; set; } = 1e-6;
+
+    [ObservableProperty]
+    public partial int GradientIterations { get; set; } = 400;
 
     [ObservableProperty]
     public partial bool AutoScale { get; set; } = true;
@@ -224,6 +260,29 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     public bool HasMap => CurrentDocument is not null;
 
+    public bool HasSurface => CurrentSurfaceData is not null;
+
+    public bool HasCorrelation => CurrentCorrelation is not null && CurrentCorrelation.ValidPointsCount >= 4;
+
+    public bool HasMatchedPairs => MatchedPairs.Count > 0;
+
+    /// <summary>Colour-bar caption for the layer on screen; the plot must never show a bare number.</summary>
+    public string ColorBarLabel =>
+        AvailableLayers.FirstOrDefault(l => l.Layer == SelectedLayer)?.ColorBarLabel ?? "";
+
+    public string SelectedLayerUnit =>
+        AvailableLayers.FirstOrDefault(l => l.Layer == SelectedLayer)?.Unit ?? "";
+
+    public string GridResolutionLabel => $"{GridResolution}×{GridResolution}";
+
+    /// <summary>
+    /// True when the grid on screen no longer reflects the current selection or resolution.
+    /// The surface is expensive, so it is not recomputed on every keystroke - the operator is told
+    /// instead, and asks for it.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsSurfaceStale { get; set; }
+
     [ObservableProperty]
     public partial double ProgressPercent { get; set; }
 
@@ -236,12 +295,44 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string? ValidationMessage { get; set; }
 
-    partial void OnSelectedLayerChanged(PowerMapLayer value) => VisualizationChanged?.Invoke();
+    partial void OnSelectedLayerChanged(PowerMapLayer value)
+    {
+        RefreshInspectionForCurrentLayer();
+        VisualizationChanged?.Invoke();
+    }
+
     partial void OnSelectedColormapChanged(PowerMapColormap value) => VisualizationChanged?.Invoke();
     partial void OnShowAnchorsChanged(bool value) => VisualizationChanged?.Invoke();
     partial void OnShowIsolinesChanged(bool value) => VisualizationChanged?.Invoke();
     partial void OnShowNienowBoundaryChanged(bool value) => VisualizationChanged?.Invoke();
     partial void OnShowExperimentalFloodingChanged(bool value) => VisualizationChanged?.Invoke();
+    partial void OnAutoScaleChanged(bool value) => VisualizationChanged?.Invoke();
+    partial void OnManualScaleMinChanged(double? value) => VisualizationChanged?.Invoke();
+    partial void OnManualScaleMaxChanged(double? value) => VisualizationChanged?.Invoke();
+    partial void OnContrastPercentChanged(double value) => VisualizationChanged?.Invoke();
+
+    partial void OnGradientToleranceChanged(double value) => MarkSurfaceStale();
+
+    partial void OnGradientIterationsChanged(int value) => MarkSurfaceStale();
+
+    partial void OnGridResolutionChanged(int value)
+    {
+        if (CurrentSurfaceData is { } surface && surface.ResolutionN != Math.Clamp(value, 50, 300))
+        {
+            MarkSurfaceStale();
+        }
+    }
+
+    /// <summary>Flags the drawn grid as out of date and says why, without recomputing behind the operator.</summary>
+    public void MarkSurfaceStale()
+    {
+        if (CurrentSurfaceData is null)
+        {
+            return;
+        }
+
+        IsSurfaceStale = true;
+    }
 
     partial void OnSelectedMapSummaryChanged(PowerMapSummary? value)
     {
@@ -281,15 +372,33 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         }
     }
 
+    [RelayCommand]
     public void ReloadPowerTests()
     {
+        foreach (var existing in AvailablePowerTests)
+        {
+            existing.PropertyChanged -= OnPowerTestSelectionChanged;
+        }
+
         AvailablePowerTests.Clear();
         var tests = _testStore.ListTests();
         foreach (var t in tests)
         {
             var isSelected = CurrentDocument?.SourceTestIds.Contains(t.TestId) ?? false;
-            AvailablePowerTests.Add(new PowerTestSourceItemViewModel(t, isSelected));
+            var item = new PowerTestSourceItemViewModel(t, isSelected);
+            item.PropertyChanged += OnPowerTestSelectionChanged;
+            AvailablePowerTests.Add(item);
         }
+    }
+
+    private void OnPowerTestSelectionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressStale || e.PropertyName != nameof(PowerTestSourceItemViewModel.IsSelected))
+        {
+            return;
+        }
+
+        MarkSurfaceStale();
     }
 
     public async Task ReloadKlaMapsAsync()
@@ -353,6 +462,9 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         _mapStore.SaveMap(updated);
         CurrentDocument = updated;
         ReloadMaps();
+        // Rebuilding the list clears the ComboBox selection; restore it or the operator's map
+        // silently drops out of the picker right after a save.
+        SelectedMapSummary = AvailableMaps.FirstOrDefault(m => m.MapId == updated.MapId);
         StatusMessage = $"Mapa '{updated.Name}' salvo com sucesso.";
     }
 
@@ -394,10 +506,20 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         CurrentFloodingBoundary = doc.FloodingBoundary;
         CurrentCorrelation = doc.KlaCorrelation;
 
-        foreach (var t in AvailablePowerTests)
+        _suppressStale = true;
+        try
         {
-            t.IsSelected = doc.SourceTestIds.Contains(t.Summary.TestId);
+            foreach (var t in AvailablePowerTests)
+            {
+                t.IsSelected = doc.SourceTestIds.Contains(t.Summary.TestId);
+            }
         }
+        finally
+        {
+            _suppressStale = false;
+        }
+
+        IsSurfaceStale = false;
 
         if (doc.LinkedKlaMapId.HasValue)
         {
@@ -410,6 +532,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             MatchedPairs.Add(p);
         }
         MatchedPairsCount = doc.KlaPairs.Count;
+        OnPropertyChanged(nameof(HasMatchedPairs));
 
         if (doc.KlaCorrelation is { } corr)
         {
@@ -435,12 +558,14 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public async Task ReconstructSurfaceAsync()
     {
-        if (IsBusy) return;
-
+        // A run already in flight is abandoned rather than blocking the new one: the operator may
+        // have changed the resolution or the selected assays while the previous grid was building,
+        // and §18.3 step 4.2 requires the obsolete result to be discarded.
         _reconstructionCts?.Cancel();
         _reconstructionCts?.Dispose();
         _reconstructionCts = new CancellationTokenSource();
         var token = _reconstructionCts.Token;
+        var generation = ++_reconstructionGeneration;
 
         IsBusy = true;
         ProgressPercent = 10;
@@ -522,6 +647,8 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             {
                 ResolutionN = resolution,
                 ResolutionQg = resolution,
+                GradientTolerance = GradientTolerance,
+                GradientIterations = GradientIterations,
             };
 
             var (surfaceData, flooding) = await Task.Run(() =>
@@ -534,6 +661,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             }, token);
 
             token.ThrowIfCancellationRequested();
+            if (generation != _reconstructionGeneration)
+            {
+                return;
+            }
 
             ProgressPercent = 85;
             ProgressText = "Persistindo superfície reconstruída...";
@@ -555,10 +686,24 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
             CurrentSurfaceData = surfaceData;
             CurrentFloodingBoundary = flooding;
+            IsSurfaceStale = false;
 
             ProgressPercent = 100;
             ProgressText = "Concluído";
-            StatusMessage = $"Superfície sintetizada com sucesso: {anchors.Count} âncoras em malha {resolution}×{resolution}.";
+
+            var covered = surfaceData.PNetSurface.Count(v => v.HasValue);
+            var total = Math.Max(1, surfaceData.PNetSurface.Length);
+            StatusMessage =
+                $"Superfície sintetizada: {anchors.Count} âncoras, malha {resolution}×{resolution}, " +
+                $"{covered * 100.0 / total:F0}% do domínio dentro do fecho convexo " +
+                $"(N {surfaceData.MinRpm:F0}–{surfaceData.MaxRpm:F0} rpm, Qg {surfaceData.MinFlowLpm:F1}–{surfaceData.MaxFlowLpm:F1} L/min).";
+
+            if (covered == 0)
+            {
+                StatusMessage = "Nenhuma célula interpolada: as âncoras são colineares no plano (N, Qg). " +
+                                "Um ensaio só sem gás, ou só numa vazão, não define uma superfície 2D — " +
+                                "inclua condições com ao menos duas vazões de gás distintas.";
+            }
 
             VisualizationChanged?.Invoke();
         }
@@ -572,7 +717,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            IsBusy = false;
+            if (generation == _reconstructionGeneration)
+            {
+                IsBusy = false;
+            }
         }
     }
 
@@ -643,6 +791,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             }
 
             MatchedPairsCount = updatedPairs.Count;
+            OnPropertyChanged(nameof(HasMatchedPairs));
             VanTRietKText = $"{correlation.K:G4} ± {correlation.StdErrorK:G3}";
             VanTRietAlphaText = $"{correlation.Alpha:F3} ± {correlation.StdErrorAlpha:F3}";
             VanTRietBetaText = $"{correlation.Beta:F3} ± {correlation.StdErrorBeta:F3}";
@@ -705,8 +854,151 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Builds the field the heatmap draws for the selected layer, already oriented as
+    /// [row = N index, column = Qg index] and carrying the finite range found in it.
+    /// Cells outside the convex hull come back as NaN so the view can leave them unpainted.
+    /// </summary>
+    /// <remarks>
+    /// The flooding layer is not stored on the surface: it is the dimensionless margin
+    /// <c>Qg / Qg,F(N)</c> against Nienow's correlation, so 1.0 is exactly the frontier,
+    /// below is dispersed and above is flooded.
+    /// </remarks>
+    public bool TryBuildLayerField(out double[,] field, out double minValue, out double maxValue)
+    {
+        field = new double[1, 1];
+        minValue = 0;
+        maxValue = 1;
+
+        var surface = CurrentSurfaceData;
+        if (surface is null || surface.ResolutionN < 2 || surface.ResolutionQg < 2)
+        {
+            return false;
+        }
+
+        var rows = surface.ResolutionN;
+        var cols = surface.ResolutionQg;
+        var values = new double[rows, cols];
+
+        var min = double.PositiveInfinity;
+        var max = double.NegativeInfinity;
+        var anyFinite = false;
+
+        if (SelectedLayer == PowerMapLayer.FloodingBoundary)
+        {
+            var geom = CurrentDocument?.Geometry ?? new PowerGeometry();
+            var vesselD = geom.VesselDiameterM > 0 ? geom.VesselDiameterM : 0.190;
+            var impeller = geom.Impellers.Count > 0
+                ? geom.Impellers[0]
+                : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
+            var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
+
+            for (var i = 0; i < rows; i++)
+            {
+                var rpm = surface.RpmGrid[i];
+                var critical = PowerCalc.NienowFloodingGasFlowLpm(rpm, d, vesselD);
+
+                for (var j = 0; j < cols; j++)
+                {
+                    var ratio = critical > 0 ? surface.FlowGrid[j] / critical : double.NaN;
+                    values[i, j] = ratio;
+
+                    if (double.IsFinite(ratio))
+                    {
+                        anyFinite = true;
+                        if (ratio < min) min = ratio;
+                        if (ratio > max) max = ratio;
+                    }
+                }
+            }
+        }
+        else
+        {
+            var source = SelectedLayer switch
+            {
+                PowerMapLayer.NetPower => surface.PNetSurface,
+                PowerMapLayer.PowerRatio => surface.PowerRatioSurface,
+                _ => surface.PVolumetricSurface,
+            };
+
+            if (source.Length < rows * cols)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < rows; i++)
+            {
+                for (var j = 0; j < cols; j++)
+                {
+                    var cell = source[surface.GetIndex(i, j)];
+                    if (cell.HasValue && double.IsFinite(cell.Value))
+                    {
+                        values[i, j] = cell.Value;
+                        anyFinite = true;
+                        if (cell.Value < min) min = cell.Value;
+                        if (cell.Value > max) max = cell.Value;
+                    }
+                    else
+                    {
+                        values[i, j] = double.NaN;
+                    }
+                }
+            }
+        }
+
+        if (!anyFinite)
+        {
+            return false;
+        }
+
+        if (max - min < 1e-12)
+        {
+            max = min + 1e-9;
+        }
+
+        field = values;
+        minValue = min;
+        maxValue = max;
+        return true;
+    }
+
+    /// <summary>
+    /// Colour range actually used by the heatmap: the automatic range is the data range narrowed
+    /// by the contrast control; the manual range wins when the operator sets one.
+    /// </summary>
+    public (double Min, double Max) ResolveDisplayRange(double dataMin, double dataMax)
+    {
+        if (!AutoScale && ManualScaleMin is { } manualMin && ManualScaleMax is { } manualMax && manualMax > manualMin)
+        {
+            return (manualMin, manualMax);
+        }
+
+        var contrast = Math.Clamp(ContrastPercent, 10.0, 100.0) / 100.0;
+        if (contrast >= 0.999)
+        {
+            return (dataMin, dataMax);
+        }
+
+        // Squeezing the range around its midpoint saturates the extremes and pulls detail out of
+        // the middle of the distribution, which is where the operating points sit.
+        var mid = (dataMin + dataMax) / 2.0;
+        var half = (dataMax - dataMin) / 2.0 * contrast;
+        return (mid - half, mid + half);
+    }
+
+    /// <summary>Re-reads the value under the last cursor position after the layer changed.</summary>
+    private void RefreshInspectionForCurrentLayer()
+    {
+        if (_lastInspectedRpm is { } rpm && _lastInspectedFlow is { } flow)
+        {
+            UpdateCursorInspection(rpm, flow);
+        }
+    }
+
     public void UpdateCursorInspection(double agitationRpm, double gasFlowLpm)
     {
+        _lastInspectedRpm = agitationRpm;
+        _lastInspectedFlow = gasFlowLpm;
         InspectedAgitationRpm = agitationRpm;
         InspectedGasFlowLpm = gasFlowLpm;
 
@@ -789,6 +1081,11 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        foreach (var item in AvailablePowerTests)
+        {
+            item.PropertyChanged -= OnPowerTestSelectionChanged;
+        }
+
         _reconstructionCts?.Cancel();
         _reconstructionCts?.Dispose();
         _reconstructionCts = null;

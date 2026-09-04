@@ -1248,24 +1248,34 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
   - [x] 4.5 Acoplamento kLa: comando para vincular mapa kLa, disparar o ajuste multivariado e
         exibir os parâmetros do modelo `K`, `α`, `β` e `R²` (5 testes unitários aprovados em `PowerMapViewModelTests`).
 
-- [ ] **5. Interface de Usuário da Página "Mapa de Potência"** (`PowerMapView.xaml`, mestre-detalhe)
-  - [ ] 5.1 Barra lateral de configuração e filtros (~340 px):
-     - Seleção do ensaio de potência ativo ou combinação de ensaios da mesma montagem.
+- [x] **5. Interface de Usuário da Página "Mapa de Potência"** (`PowerMapView.xaml`, mestre-detalhe) _(2026-09-04)_
+  - [x] 5.1 Barra lateral de configuração e filtros (~340 px):
+     - Seleção do ensaio de potência ativo ou combinação de ensaios da mesma montagem (lista com
+       marcação múltipla; mudar a seleção marca a malha como desatualizada em vez de recalcular sozinha).
      - Seleção do Mapa de kLa vinculado para a correlação `P/V`.
-     - Controles de resolução da malha (padrão 150×150; faixa 50×50 a 300×300) e tolerâncias de interpolação.
+     - Controles de resolução da malha (padrão 150×150; faixa 50×50 a 300×300) e tolerâncias de
+       interpolação (`GradientTolerance`, `GradientIterations` expostos em `PowerMapAlgorithmSettings`).
      - Card de Parâmetros de Escalonamento: exibição destacada de `K`, `α`, `β` e `R²` da correlação kLa.
-     - Controles de visualização: seletor de camada, toggle de isolinhas, toggle da curva de flooding.
-  - [ ] 5.2 Painel gráfico principal de síntese (ScottPlot):
-     - Renderização de Heatmap 2D com interpolação contínua e barra de cores lateral (`ColorBar`).
-     - Dispersão dos pontos experimentais sobrepostos como marcadores identificáveis.
+     - Controles de visualização: seletor de camada, colormap, toggle de isolinhas, toggles das duas
+       curvas de flooding, escala automática/manual e contraste.
+  - [x] 5.2 Painel gráfico principal de síntese (ScottPlot):
+     - Heatmap 2D com barra de cores lateral (`ColorBar`) rotulada pela unidade da camada; células
+       fora do fecho convexo permanecem NaN e não são pintadas (verificado por pixels em
+       `PowerMapRenderingContractTests`).
+     - Dispersão dos pontos experimentais sobrepostos, separando condições medidas em dispersão das
+       medidas já em afogamento.
      - Traçado destacado da Fronteira de Flooding (experimental + teórica de Nienow), demarcando
-       as regiões de afogamento e dispersão.
-     - Curvas de contorno suaves (isolinhas de `P/V` ou de `P_G/P₀` constante).
-  - [ ] 5.3 Painel secundário de validação kLa ↔ P/V:
-     - Gráfico de paridade `kLa_medido × kLa_previsto` com faixa de tolerância de ±15% e linha 1:1.
-     - Gráfico de dispersão `kLa × P/V` parametrizado por vazão de gás / velocidade superficial.
-  - [ ] 5.4 Conformidade visual: suporte a temas claro/escuro via tokens e conformidade com
-        `ControlWorkspaceContractTests` (aplicação automática sem botão "Aplicar").
+       as regiões de afogamento e dispersão; a camada `Qg/Qg,F` projeta a margem adimensional.
+     - Curvas de contorno suaves via `PowerMapContours` (marching squares próprio, que descarta
+       qualquer célula com canto indefinido — o contorno do ScottPlot pinta sobre NaN e por isso
+       não pôde ser usado).
+  - [x] 5.3 Painel secundário de validação kLa ↔ P/V:
+     - Gráfico de paridade `kLa_medido × kLa_previsto` com faixa de tolerância de ±15% e linha 1:1,
+       destacando os pontos fora da faixa.
+     - Gráfico de dispersão `kLa × P/V` parametrizado por vazão de gás, com `v_s` na legenda.
+  - [x] 5.4 Conformidade visual: temas claro/escuro via tokens (`StylePlot`, `StyleColorBar`,
+        `StyleLegend` e assinatura de `IThemeService`), sem botão "Aplicar"; app iniciado com
+        `--nav power-map` renderiza o primeiro frame sem exceções.
 
 - [ ] **6. Módulo e UI de Comparação de Impelidores** (`PowerImpellerComparisonViewModel`, `PowerImpellerComparisonView.xaml`)
   - [ ] 6.1 Seletor multi-ensaio:

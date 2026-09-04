@@ -347,6 +347,17 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Abandons a grid computation in flight. Bumping the generation is what stops a late result
+    /// from being applied to a map the operator has already left or deleted.
+    /// </summary>
+    private void CancelReconstruction()
+    {
+        _reconstructionGeneration++;
+        _reconstructionCts?.Cancel();
+        IsBusy = false;
+    }
+
     /// <summary>Flags the drawn grid as out of date and says why, without recomputing behind the operator.</summary>
     public void MarkSurfaceStale()
     {
@@ -384,6 +395,65 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         else
         {
             StatusMessage = "Nenhum mapa salvo. Crie um mapa para começar a síntese 2D.";
+        }
+    }
+
+    /// <summary>
+    /// Re-reads the workspace on every visit to the page, keeping the open map and the ticked
+    /// assays. Initialization runs once, so without this an assay finished after the first visit
+    /// would never appear in the picker.
+    /// </summary>
+    [RelayCommand]
+    public async Task RefreshOnEnterAsync()
+    {
+        if (!_initialized)
+        {
+            await InitializeAsync();
+            return;
+        }
+
+        var openMapId = CurrentDocument?.MapId;
+        var selectedTestIds = AvailablePowerTests
+            .Where(t => t.IsSelected)
+            .Select(t => t.Summary.TestId)
+            .ToHashSet();
+        var linkedKlaId = SelectedKlaMapOption?.Id;
+        var wasStale = IsSurfaceStale;
+
+        ReloadMaps();
+
+        _suppressStale = true;
+        try
+        {
+            ReloadPowerTests();
+            foreach (var item in AvailablePowerTests)
+            {
+                item.IsSelected = selectedTestIds.Contains(item.Summary.TestId);
+            }
+        }
+        finally
+        {
+            _suppressStale = false;
+        }
+
+        IsSurfaceStale = wasStale;
+        Comparison.ReloadTests();
+        await ReloadKlaMapsAsync();
+
+        if (openMapId is { } mapId)
+        {
+            var summary = AvailableMaps.FirstOrDefault(m => m.MapId == mapId);
+            if (summary is not null && !ReferenceEquals(SelectedMapSummary, summary))
+            {
+                // Re-selecting reloads the document from disk, which is what we want if another
+                // part of the app touched it; the surface and correlation come back with it.
+                SelectedMapSummary = summary;
+            }
+        }
+
+        if (linkedKlaId is { } klaId)
+        {
+            SelectedKlaMapOption = AvailableKlaMaps.FirstOrDefault(k => k.Id == klaId) ?? SelectedKlaMapOption;
         }
     }
 
@@ -508,6 +578,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             return;
         }
 
+        CancelReconstruction();
         _mapStore.DeleteMap(CurrentDocument.FolderName);
         CurrentDocument = null;
         CurrentSurfaceData = null;
@@ -523,6 +594,9 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     {
         var doc = _mapStore.LoadMap(folderName);
         if (doc == null) return;
+
+        // A grid still being built belongs to the map we are leaving; it must not land on this one.
+        CancelReconstruction();
 
         CurrentDocument = doc;
         MapName = doc.Name;
@@ -594,6 +668,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         _reconstructionCts = new CancellationTokenSource();
         var token = _reconstructionCts.Token;
         var generation = ++_reconstructionGeneration;
+        var targetMapId = CurrentDocument?.MapId;
 
         IsBusy = true;
         ProgressPercent = 10;
@@ -706,7 +781,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             }, token);
 
             token.ThrowIfCancellationRequested();
-            if (generation != _reconstructionGeneration)
+            if (generation != _reconstructionGeneration || CurrentDocument?.MapId != targetMapId)
             {
                 return;
             }

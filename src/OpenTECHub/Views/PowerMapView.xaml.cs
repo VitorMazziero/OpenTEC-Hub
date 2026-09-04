@@ -54,7 +54,8 @@ public partial class PowerMapView : UserControl
         Attach();
         if (ViewModel is { } viewModel)
         {
-            await viewModel.InitializeCommand.ExecuteAsync(null);
+            // Re-reads the workspace on every visit; the first call initializes.
+            await viewModel.RefreshOnEnterCommand.ExecuteAsync(null);
         }
 
         Redraw();

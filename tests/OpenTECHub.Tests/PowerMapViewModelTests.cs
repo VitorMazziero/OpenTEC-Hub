@@ -292,4 +292,107 @@ public sealed class PowerMapViewModelTests : IDisposable
         Assert.NotEqual("—", vm.VanTRietBetaText);
         Assert.NotEqual("—", vm.VanTRietKText);
     }
+
+    [Fact]
+    public async Task RefreshOnEnter_picks_up_new_assays_without_losing_the_open_map_or_the_ticked_ones()
+    {
+        var first = _testStore.CreateTest("Ensaio_A", new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
+        _testStore.SaveTestManifest(first);
+
+        using var vm = new PowerMapViewModel(_testStore, _mapStore, _engine, _klaStore, _integrationService);
+        await vm.RefreshOnEnterCommand.ExecuteAsync(null);
+
+        Assert.Single(vm.AvailablePowerTests);
+
+        vm.NewMapName = "Mapa aberto";
+        vm.AvailablePowerTests[0].IsSelected = true;
+        vm.CreateMap();
+
+        var openMapId = vm.CurrentDocument!.MapId;
+
+        // An assay finished elsewhere while this page was open in another tab.
+        var second = _testStore.CreateTest("Ensaio_B", new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
+        _testStore.SaveTestManifest(second);
+
+        await vm.RefreshOnEnterCommand.ExecuteAsync(null);
+
+        // The new assay is offered...
+        Assert.Equal(2, vm.AvailablePowerTests.Count);
+        Assert.Contains(vm.AvailablePowerTests, t => t.Summary.Name == "Ensaio_B");
+
+        // ...without dropping the open map or the tick the operator had made.
+        Assert.Equal(openMapId, vm.CurrentDocument!.MapId);
+        Assert.True(vm.AvailablePowerTests.Single(t => t.Summary.Name == "Ensaio_A").IsSelected);
+        Assert.False(vm.AvailablePowerTests.Single(t => t.Summary.Name == "Ensaio_B").IsSelected);
+
+        // Re-reading the workspace is not an edit: the mesh must not be flagged stale by it.
+        Assert.False(vm.IsSurfaceStale);
+
+        // The benchmarking picker sees the same assays.
+        Assert.Equal(0, vm.Comparison.AvailableTests.Count(t => t.IsSelected));
+    }
+
+    [Fact]
+    public async Task Deleting_the_open_map_discards_the_grid_instead_of_leaving_it_on_screen()
+    {
+        var powerDoc = BuildAssayWithAcceptedRuns("Ensaio_para_excluir");
+
+        using var vm = new PowerMapViewModel(_testStore, _mapStore, _engine, _klaStore, _integrationService);
+        await vm.RefreshOnEnterCommand.ExecuteAsync(null);
+
+        vm.NewMapName = "Mapa a excluir";
+        vm.AvailablePowerTests.Single(t => t.Summary.TestId == powerDoc.TestId).IsSelected = true;
+        vm.CreateMap();
+        vm.AvailablePowerTests.Single(t => t.Summary.TestId == powerDoc.TestId).IsSelected = true;
+        vm.GridResolution = 50;
+
+        await vm.ReconstructSurfaceAsync();
+        Assert.NotNull(vm.CurrentSurfaceData);
+
+        vm.DeleteMap();
+
+        // With the map gone there is nothing for the surface to belong to.
+        Assert.Null(vm.CurrentDocument);
+        Assert.Null(vm.CurrentSurfaceData);
+        Assert.Null(vm.CurrentFloodingBoundary);
+        Assert.False(vm.IsBusy);
+    }
+
+    /// <summary>An assay with four accepted points spanning two rotations and two gas flows.</summary>
+    private PowerTestDocument BuildAssayWithAcceptedRuns(string name)
+    {
+        var doc = _testStore.CreateTest(
+            name,
+            new FluidProperties { DensityKgM3 = 998, ViscosityPaS = 0.001 },
+            new PowerGeometry
+            {
+                Impellers = [new Impeller { StageIndex = 0, DiameterM = 0.060 }],
+                VesselDiameterM = 0.190,
+                LiquidVolumeM3 = 0.010,
+            },
+            new PowerTestSettings());
+
+        foreach (var (rpm, flow, power) in new[]
+                 {
+                     (300.0, 0.0, 2.0), (300.0, 5.0, 1.5),
+                     (500.0, 0.0, 9.0), (500.0, 5.0, 7.0),
+                 })
+        {
+            doc.Runs.Add(new PowerRunSummary
+            {
+                RunId = Guid.NewGuid(),
+                AgitationRpm = rpm,
+                MeanRpmMeasured = rpm,
+                GasFlowLpm = flow,
+                GasMode = flow > 0 ? PowerGasMode.Gassed : PowerGasMode.Ungassed,
+                Phase = PowerRunPhase.Accepted,
+                NetPowerW = power,
+                PowerRatio = flow > 0 ? 0.78 : 1.0,
+                StartedUtc = DateTimeOffset.UtcNow,
+            });
+        }
+
+        _testStore.SaveTestManifest(doc);
+        return doc;
+    }
 }

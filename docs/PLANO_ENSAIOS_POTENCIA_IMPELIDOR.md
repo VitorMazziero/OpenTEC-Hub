@@ -1232,21 +1232,21 @@ data e o commit** — esta lista é o estado vivo do desenvolvimento.
         deduplicação e casamento por ID quando disponível ou por tolerâncias explícitas em rpm/L·min⁻¹,
         rejeição de pares ambíguos e validação de proveniência (5 testes aprovados).
 
-- [ ] **4. ViewModel e Lógica da Página "Mapa de Potência"** (`PowerMapViewModel`)
-  - [ ] 4.1 Gerenciamento de mapas de síntese: criar, abrir, renomear e persistir mapas de potência.
-  - [ ] 4.2 Reconstrução assíncrona da malha 2D:
+- [x] **4. ViewModel e Lógica da Página "Mapa de Potência"** (`PowerMapViewModel`) _(2026-09-04)_
+  - [x] 4.1 Gerenciamento de mapas de síntese: criar, abrir, renomear e persistir mapas de potência.
+  - [x] 4.2 Reconstrução assíncrona da malha 2D:
         - Processamento em thread separada (`Task.Run`) com `CancellationToken` e reporte de progresso.
         - Notificação reativa de conclusão para atualização dos elementos visuais, descartando
           resultados obsoletos se dados, filtros ou resolução mudarem durante o cálculo.
-  - [ ] 4.3 Controle de camadas e mapa de cores:
+  - [x] 4.3 Controle de camadas e mapa de cores:
         - Alternância entre as camadas: `Potência Específica (P/V)`, `Potência de Eixo (P_líq)`,
           `Razão de Aeração (P_G/P₀)` e `Fronteira de Flooding`.
         - Seleção de colormaps (Viridis, Magma, Turbo) com ajuste de contraste e escala (automática/manual).
-  - [ ] 4.4 Ferramenta de inspeção interativa de coordenadas:
+  - [x] 4.4 Ferramenta de inspeção interativa de coordenadas:
         - Leitura dinâmica sob o cursor do mouse: `N` (rpm), `Q_g` (L/min e vvm), valor da grandeza
           interpolada, `v_s` (m/s) e classificação hidrodinâmica (Zona Dispersa vs Zona Afogada).
-  - [ ] 4.5 Acoplamento kLa: comando para vincular mapa kLa, disparar o ajuste multivariado e
-        exibir os parâmetros do modelo `K`, `α`, `β` e `R²`.
+  - [x] 4.5 Acoplamento kLa: comando para vincular mapa kLa, disparar o ajuste multivariado e
+        exibir os parâmetros do modelo `K`, `α`, `β` e `R²` (5 testes unitários aprovados em `PowerMapViewModelTests`).
 
 - [ ] **5. Interface de Usuário da Página "Mapa de Potência"** (`PowerMapView.xaml`, mestre-detalhe)
   - [ ] 5.1 Barra lateral de configuração e filtros (~340 px):

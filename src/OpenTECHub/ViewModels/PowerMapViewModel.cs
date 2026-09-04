@@ -1,17 +1,94 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using OpenTECHub.Services.Dialogs;
+using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.PowerMapping;
 using OpenTECHub.Services.PowerTesting;
+using OpenTECHub.Services.Telemetry;
 
 namespace OpenTECHub.ViewModels;
 
-/// <summary>Routed phase-3 destination for power-map synthesis and comparison.</summary>
-public sealed class PowerMapViewModel : ObservableObject
+public enum PowerMapLayer
 {
-    public PowerMapViewModel(IPowerTestStore testStore, IPowerMapStore? mapStore = null)
+    VolumetricPower,
+    NetPower,
+    PowerRatio,
+    FloodingBoundary,
+}
+
+public enum PowerMapColormap
+{
+    Viridis,
+    Magma,
+    Turbo,
+}
+
+public sealed partial class PowerTestSourceItemViewModel : ObservableObject
+{
+    public PowerTestSummary Summary { get; }
+    public string DisplayText => $"{Summary.Name} ({Summary.AcceptedRunCount} ensaios aceitos)";
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    public PowerTestSourceItemViewModel(PowerTestSummary summary, bool isSelected = false)
     {
-        ArgumentNullException.ThrowIfNull(testStore);
-        TestRootDirectory = testStore.RootDirectory;
-        MapRootDirectory = mapStore?.RootDirectory ?? "";
+        Summary = summary;
+        IsSelected = isSelected;
+    }
+}
+
+public sealed record KlaMapOptionViewModel(Guid Id, string Name, int AnchorCount)
+{
+    public string DisplayText => $"{Name} ({AnchorCount} âncoras)";
+}
+
+/// <summary>
+/// Routed Phase 3 ViewModel managing 2D power surface synthesis, layer selection,
+/// continuous flooding boundaries, cursor inspection, and kLa/van 't Riet coupling.
+/// </summary>
+public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
+{
+    private readonly IPowerTestStore _testStore;
+    private readonly IPowerMapStore _mapStore;
+    private readonly IPowerMapEngine _engine;
+    private readonly IKlaProfileStore _klaStore;
+    private readonly IKlaPowerIntegrationService? _integrationService;
+    private readonly IDialogService? _dialogs;
+    private readonly IEventJournal? _journal;
+
+    private CancellationTokenSource? _reconstructionCts;
+    private bool _initialized;
+
+    public PowerMapViewModel(
+        IPowerTestStore testStore,
+        IPowerMapStore mapStore,
+        IPowerMapEngine engine,
+        IKlaProfileStore klaStore,
+        IKlaPowerIntegrationService? integrationService = null,
+        IDialogService? dialogs = null,
+        IEventJournal? journal = null)
+    {
+        _testStore = testStore ?? throw new ArgumentNullException(nameof(testStore));
+        _mapStore = mapStore ?? throw new ArgumentNullException(nameof(mapStore));
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _klaStore = klaStore ?? throw new ArgumentNullException(nameof(klaStore));
+        _integrationService = integrationService;
+        _dialogs = dialogs;
+        _journal = journal;
+
+        TestRootDirectory = _testStore.RootDirectory;
+        MapRootDirectory = _mapStore.RootDirectory;
     }
 
     public string TestRootDirectory { get; }
@@ -20,6 +97,700 @@ public sealed class PowerMapViewModel : ObservableObject
 
     public string PhaseLabel => "FASE 3";
 
-    public string StatusMessage =>
-        "A rota está pronta. Superfície (N, Qg), flooding e comparação de impelidores entram na Fase 3.";
+    public event Action? VisualizationChanged;
+
+    // Collections
+    public ObservableCollection<PowerMapSummary> AvailableMaps { get; } = [];
+
+    public ObservableCollection<PowerTestSourceItemViewModel> AvailablePowerTests { get; } = [];
+
+    public ObservableCollection<KlaMapOptionViewModel> AvailableKlaMaps { get; } = [];
+
+    public ObservableCollection<KlaPowerPair> MatchedPairs { get; } = [];
+
+    // Current document & selection
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMap))]
+    public partial PowerMapDocument? CurrentDocument { get; set; }
+
+    [ObservableProperty]
+    public partial PowerMapSummary? SelectedMapSummary { get; set; }
+
+    [ObservableProperty]
+    public partial KlaMapOptionViewModel? SelectedKlaMapOption { get; set; }
+
+    [ObservableProperty]
+    public partial string MapName { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string NewMapName { get; set; } = "Novo Mapa de Potência";
+
+    [ObservableProperty]
+    public partial string Notes { get; set; } = "";
+
+    [ObservableProperty]
+    public partial PowerMapSurfaceData? CurrentSurfaceData { get; set; }
+
+    [ObservableProperty]
+    public partial PowerMapFloodingBoundary? CurrentFloodingBoundary { get; set; }
+
+    [ObservableProperty]
+    public partial KlaCorrelationResult? CurrentCorrelation { get; set; }
+
+    // Layer and visual controls
+    [ObservableProperty]
+    public partial PowerMapLayer SelectedLayer { get; set; } = PowerMapLayer.VolumetricPower;
+
+    [ObservableProperty]
+    public partial PowerMapColormap SelectedColormap { get; set; } = PowerMapColormap.Viridis;
+
+    [ObservableProperty]
+    public partial int GridResolution { get; set; } = 150;
+
+    [ObservableProperty]
+    public partial bool AutoScale { get; set; } = true;
+
+    [ObservableProperty]
+    public partial double? ManualScaleMin { get; set; }
+
+    [ObservableProperty]
+    public partial double? ManualScaleMax { get; set; }
+
+    [ObservableProperty]
+    public partial double ContrastPercent { get; set; } = 100.0;
+
+    [ObservableProperty]
+    public partial bool ShowAnchors { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowIsolines { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowNienowBoundary { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowExperimentalFlooding { get; set; } = true;
+
+    // Inspection coordinates & values
+    [ObservableProperty]
+    public partial double? InspectedAgitationRpm { get; set; }
+
+    [ObservableProperty]
+    public partial double? InspectedGasFlowLpm { get; set; }
+
+    [ObservableProperty]
+    public partial double? InspectedGasFlowVvm { get; set; }
+
+    [ObservableProperty]
+    public partial double? InspectedSuperficialVelocityMs { get; set; }
+
+    [ObservableProperty]
+    public partial double? InspectedLayerValue { get; set; }
+
+    [ObservableProperty]
+    public partial string InspectedLayerValueFormatted { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string InspectedFlowRegime { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial bool IsInspectedFlooded { get; set; }
+
+    // van 't Riet display parameters
+    [ObservableProperty]
+    public partial string VanTRietKText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string VanTRietAlphaText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string VanTRietBetaText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string VanTRietR2Text { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string VanTRietFormulaText { get; set; } = "kLa = K · (P/V)^α · (v_s)^β";
+
+    [ObservableProperty]
+    public partial int MatchedPairsCount { get; set; }
+
+    // Status and progress
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsIdle))]
+    public partial bool IsBusy { get; set; }
+
+    public bool IsIdle => !IsBusy;
+
+    public bool HasMap => CurrentDocument is not null;
+
+    [ObservableProperty]
+    public partial double ProgressPercent { get; set; }
+
+    [ObservableProperty]
+    public partial string ProgressText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string StatusMessage { get; set; } = "Selecione ou crie um mapa de potência para começar.";
+
+    [ObservableProperty]
+    public partial string? ValidationMessage { get; set; }
+
+    partial void OnSelectedLayerChanged(PowerMapLayer value) => VisualizationChanged?.Invoke();
+    partial void OnSelectedColormapChanged(PowerMapColormap value) => VisualizationChanged?.Invoke();
+    partial void OnShowAnchorsChanged(bool value) => VisualizationChanged?.Invoke();
+    partial void OnShowIsolinesChanged(bool value) => VisualizationChanged?.Invoke();
+    partial void OnShowNienowBoundaryChanged(bool value) => VisualizationChanged?.Invoke();
+    partial void OnShowExperimentalFloodingChanged(bool value) => VisualizationChanged?.Invoke();
+
+    partial void OnSelectedMapSummaryChanged(PowerMapSummary? value)
+    {
+        if (value is not null)
+        {
+            LoadMap(value.FolderName);
+        }
+    }
+
+    [RelayCommand]
+    public async Task InitializeAsync()
+    {
+        if (_initialized) return;
+        _initialized = true;
+
+        ReloadMaps();
+        ReloadPowerTests();
+        await ReloadKlaMapsAsync();
+
+        if (AvailableMaps.Count > 0)
+        {
+            SelectedMapSummary = AvailableMaps[0];
+        }
+        else
+        {
+            StatusMessage = "Nenhum mapa salvo. Crie um mapa para começar a síntese 2D.";
+        }
+    }
+
+    public void ReloadMaps()
+    {
+        AvailableMaps.Clear();
+        var maps = _mapStore.ListMaps();
+        foreach (var m in maps)
+        {
+            AvailableMaps.Add(m);
+        }
+    }
+
+    public void ReloadPowerTests()
+    {
+        AvailablePowerTests.Clear();
+        var tests = _testStore.ListTests();
+        foreach (var t in tests)
+        {
+            var isSelected = CurrentDocument?.SourceTestIds.Contains(t.TestId) ?? false;
+            AvailablePowerTests.Add(new PowerTestSourceItemViewModel(t, isSelected));
+        }
+    }
+
+    public async Task ReloadKlaMapsAsync()
+    {
+        AvailableKlaMaps.Clear();
+        var klaExps = await _klaStore.LoadExperimentsAsync();
+        foreach (var exp in klaExps)
+        {
+            AvailableKlaMaps.Add(new KlaMapOptionViewModel(exp.Snapshot.Id, exp.Snapshot.Name, exp.Snapshot.Anchors.Length));
+        }
+
+        if (CurrentDocument?.LinkedKlaMapId is { } linkedId)
+        {
+            SelectedKlaMapOption = AvailableKlaMaps.FirstOrDefault(k => k.Id == linkedId);
+        }
+    }
+
+    [RelayCommand]
+    public void CreateMap()
+    {
+        var name = string.IsNullOrWhiteSpace(NewMapName) ? "Novo Mapa de Potência" : NewMapName.Trim();
+        var selectedTestIds = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary.TestId).ToList();
+        var selectedTestNames = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary.Name).ToList();
+
+        PowerGeometry? geom = null;
+        FluidProperties? fluid = null;
+        if (AvailablePowerTests.FirstOrDefault(t => t.IsSelected) is { } firstTest)
+        {
+            var firstDoc = _testStore.LoadTest(firstTest.Summary.FolderName);
+            if (firstDoc != null)
+            {
+                geom = firstDoc.Geometry;
+                fluid = firstDoc.Fluid;
+            }
+        }
+
+        var doc = _mapStore.CreateMap(name, selectedTestIds, selectedTestNames, fluid, geom);
+        ReloadMaps();
+        SelectedMapSummary = AvailableMaps.FirstOrDefault(m => m.MapId == doc.MapId);
+        NewMapName = "Novo Mapa de Potência";
+        StatusMessage = $"Mapa '{doc.Name}' criado com sucesso.";
+    }
+
+    [RelayCommand]
+    public void SaveMap()
+    {
+        if (CurrentDocument == null) return;
+
+        var selectedTestIds = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary.TestId).ToList();
+        var selectedTestNames = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary.Name).ToList();
+
+        var updated = CurrentDocument with
+        {
+            Name = string.IsNullOrWhiteSpace(MapName) ? CurrentDocument.Name : MapName.Trim(),
+            Notes = Notes,
+            SourceTestIds = selectedTestIds,
+            SourceTestNames = selectedTestNames,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        };
+
+        _mapStore.SaveMap(updated);
+        CurrentDocument = updated;
+        ReloadMaps();
+        StatusMessage = $"Mapa '{updated.Name}' salvo com sucesso.";
+    }
+
+    [RelayCommand]
+    public void DeleteMap()
+    {
+        if (CurrentDocument == null) return;
+
+        if (_dialogs != null && !_dialogs.Confirm(
+            "Excluir Mapa de Potência",
+            $"Deseja realmente remover o mapa '{CurrentDocument.Name}'?",
+            confirmText: "Excluir",
+            cancelText: "Cancelar",
+            isDanger: true))
+        {
+            return;
+        }
+
+        _mapStore.DeleteMap(CurrentDocument.FolderName);
+        CurrentDocument = null;
+        CurrentSurfaceData = null;
+        CurrentFloodingBoundary = null;
+        CurrentCorrelation = null;
+        ReloadMaps();
+        SelectedMapSummary = AvailableMaps.FirstOrDefault();
+        StatusMessage = "Mapa excluído.";
+        VisualizationChanged?.Invoke();
+    }
+
+    public void LoadMap(string folderName)
+    {
+        var doc = _mapStore.LoadMap(folderName);
+        if (doc == null) return;
+
+        CurrentDocument = doc;
+        MapName = doc.Name;
+        Notes = doc.Notes;
+        CurrentSurfaceData = doc.SurfaceData;
+        CurrentFloodingBoundary = doc.FloodingBoundary;
+        CurrentCorrelation = doc.KlaCorrelation;
+
+        foreach (var t in AvailablePowerTests)
+        {
+            t.IsSelected = doc.SourceTestIds.Contains(t.Summary.TestId);
+        }
+
+        if (doc.LinkedKlaMapId.HasValue)
+        {
+            SelectedKlaMapOption = AvailableKlaMaps.FirstOrDefault(k => k.Id == doc.LinkedKlaMapId.Value);
+        }
+
+        MatchedPairs.Clear();
+        foreach (var p in doc.KlaPairs)
+        {
+            MatchedPairs.Add(p);
+        }
+        MatchedPairsCount = doc.KlaPairs.Count;
+
+        if (doc.KlaCorrelation is { } corr)
+        {
+            VanTRietKText = $"{corr.K:G4} ± {corr.StdErrorK:G3}";
+            VanTRietAlphaText = $"{corr.Alpha:F3} ± {corr.StdErrorAlpha:F3}";
+            VanTRietBetaText = $"{corr.Beta:F3} ± {corr.StdErrorBeta:F3}";
+            VanTRietR2Text = $"{corr.R2:F4}";
+            VanTRietFormulaText = $"kLa = {corr.K:F4} · (P/V)^{corr.Alpha:F3} · (v_s)^{corr.Beta:F3}  [R² = {corr.R2:F4}]";
+        }
+        else
+        {
+            VanTRietKText = "—";
+            VanTRietAlphaText = "—";
+            VanTRietBetaText = "—";
+            VanTRietR2Text = "—";
+            VanTRietFormulaText = "kLa = K · (P/V)^α · (v_s)^β";
+        }
+
+        StatusMessage = $"Mapa '{doc.Name}' carregado.";
+        VisualizationChanged?.Invoke();
+    }
+
+    [RelayCommand]
+    public async Task ReconstructSurfaceAsync()
+    {
+        if (IsBusy) return;
+
+        _reconstructionCts?.Cancel();
+        _reconstructionCts?.Dispose();
+        _reconstructionCts = new CancellationTokenSource();
+        var token = _reconstructionCts.Token;
+
+        IsBusy = true;
+        ProgressPercent = 10;
+        ProgressText = "Coletando pontos operacionais dos ensaios...";
+
+        try
+        {
+            var selectedTestSummaries = AvailablePowerTests.Where(t => t.IsSelected).Select(t => t.Summary).ToList();
+            if (selectedTestSummaries.Count == 0)
+            {
+                StatusMessage = "Selecione ao menos um ensaio de potência para sintetizar a superfície.";
+                return;
+            }
+
+            var anchors = new List<PowerMapAnchorPoint>();
+            var sourceTestIds = new List<Guid>();
+            var sourceTestNames = new List<string>();
+            PowerGeometry? refGeometry = null;
+            FluidProperties? refFluid = null;
+
+            foreach (var testSummary in selectedTestSummaries)
+            {
+                var doc = _testStore.LoadTest(testSummary.FolderName);
+                if (doc == null) continue;
+
+                sourceTestIds.Add(doc.TestId);
+                sourceTestNames.Add(doc.Name);
+                refGeometry ??= doc.Geometry;
+                refFluid ??= doc.Fluid;
+
+                var vesselD = doc.Geometry.VesselDiameterM > 0 ? doc.Geometry.VesselDiameterM : 0.190;
+                var liquidV = doc.Geometry.LiquidVolumeM3 > 0 ? doc.Geometry.LiquidVolumeM3 : 0.010;
+                var impeller = doc.Geometry.Impellers.Count > 0 ? doc.Geometry.Impellers[0] : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
+                var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
+
+                foreach (var run in doc.Runs.Where(r => r.Phase == PowerRunPhase.Accepted && r.NetPowerW.HasValue))
+                {
+                    var flowLpm = run.GasFlowLpm ?? 0.0;
+                    var vs = PowerCalc.GasSuperficialVelocity(flowLpm, vesselD);
+                    var pv = PowerCalc.VolumetricPower(run.NetPowerW.Value, liquidV);
+                    var isFlooded = flowLpm > PowerCalc.NienowFloodingGasFlowLpm(run.AgitationRpm, d, vesselD);
+
+                    anchors.Add(new PowerMapAnchorPoint
+                    {
+                        RunId = run.RunId,
+                        SourceTestId = doc.TestId,
+                        SourceTestName = doc.Name,
+                        AgitationRpm = run.AgitationRpm,
+                        GasFlowLpm = flowLpm,
+                        GasSuperficialVelocityMs = vs,
+                        NetPowerW = run.NetPowerW.Value,
+                        VolumetricPowerWm3 = pv,
+                        PowerRatio = run.PowerRatio,
+                        GasFlowNumber = run.GasFlowNumber,
+                        FroudeNumber = run.FroudeNumber,
+                        ReynoldsNumber = run.Analysis?.AssemblyReynoldsNumber,
+                        IsFlooded = isFlooded,
+                        MeasuredAtUtc = run.CompletedUtc ?? run.StartedUtc,
+                    });
+                }
+            }
+
+            token.ThrowIfCancellationRequested();
+
+            if (anchors.Count < 3)
+            {
+                StatusMessage = $"São necessários ao menos 3 pontos operacionais aceitos (encontrados {anchors.Count}).";
+                return;
+            }
+
+            refGeometry ??= CurrentDocument?.Geometry ?? new PowerGeometry();
+            refFluid ??= CurrentDocument?.Fluid ?? new FluidProperties();
+
+            ProgressPercent = 35;
+            ProgressText = "Reconstruindo malha 2D contínua via Clough-Tocher C¹...";
+
+            var resolution = Math.Clamp(GridResolution, 50, 300);
+            var settings = new PowerMapAlgorithmSettings
+            {
+                ResolutionN = resolution,
+                ResolutionQg = resolution,
+            };
+
+            var (surfaceData, flooding) = await Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                var surface = _engine.ReconstructSurface(anchors, refGeometry, refFluid, settings);
+                token.ThrowIfCancellationRequested();
+                var flood = _engine.ComputeFloodingBoundary(refGeometry);
+                return (surface, flood);
+            }, token);
+
+            token.ThrowIfCancellationRequested();
+
+            ProgressPercent = 85;
+            ProgressText = "Persistindo superfície reconstruída...";
+
+            if (CurrentDocument != null)
+            {
+                CurrentDocument = CurrentDocument with
+                {
+                    SourceTestIds = sourceTestIds,
+                    SourceTestNames = sourceTestNames,
+                    Geometry = refGeometry,
+                    Fluid = refFluid,
+                    SurfaceData = surfaceData,
+                    FloodingBoundary = flooding,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow,
+                };
+                _mapStore.SaveMap(CurrentDocument);
+            }
+
+            CurrentSurfaceData = surfaceData;
+            CurrentFloodingBoundary = flooding;
+
+            ProgressPercent = 100;
+            ProgressText = "Concluído";
+            StatusMessage = $"Superfície sintetizada com sucesso: {anchors.Count} âncoras em malha {resolution}×{resolution}.";
+
+            VisualizationChanged?.Invoke();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Cálculo da malha descartado.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erro ao sintetizar superfície: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task LinkKlaMapAndFitAsync()
+    {
+        if (SelectedKlaMapOption == null)
+        {
+            StatusMessage = "Selecione um mapa kLa para vincular.";
+            return;
+        }
+
+        var allKla = await _klaStore.LoadExperimentsAsync();
+        var klaDoc = allKla.FirstOrDefault(k => k.Snapshot.Id == SelectedKlaMapOption.Id);
+        if (klaDoc == null)
+        {
+            StatusMessage = "Mapa kLa não encontrado no repositório.";
+            return;
+        }
+
+        var testDocs = new List<PowerTestDocument>();
+        foreach (var sourceTest in AvailablePowerTests.Where(t => t.IsSelected))
+        {
+            var doc = _testStore.LoadTest(sourceTest.Summary.FolderName);
+            if (doc != null) testDocs.Add(doc);
+        }
+
+        if (testDocs.Count == 0 && CurrentDocument != null)
+        {
+            foreach (var testId in CurrentDocument.SourceTestIds)
+            {
+                var summary = _testStore.ListTests().FirstOrDefault(t => t.TestId == testId);
+                if (summary != null)
+                {
+                    var doc = _testStore.LoadTest(summary.FolderName);
+                    if (doc != null) testDocs.Add(doc);
+                }
+            }
+        }
+
+        if (testDocs.Count == 0)
+        {
+            StatusMessage = "Nenhum ensaio de potência selecionado para casamento de dados.";
+            return;
+        }
+
+        var allPairs = new List<KlaPowerPair>();
+        foreach (var pDoc in testDocs)
+        {
+            var pairs = PowerMapImportHelper.MatchPowerTestToKlaMap(pDoc, klaDoc);
+            allPairs.AddRange(pairs);
+        }
+
+        if (allPairs.Count < 3)
+        {
+            StatusMessage = $"Casamento insuficiente: encontrados {allPairs.Count} pares (mínimo 3 para ajuste multivariado).";
+            return;
+        }
+
+        try
+        {
+            var correlation = _engine.FitVanTRietModel(allPairs, out var updatedPairs);
+            CurrentCorrelation = correlation;
+            MatchedPairs.Clear();
+            foreach (var p in updatedPairs)
+            {
+                MatchedPairs.Add(p);
+            }
+
+            MatchedPairsCount = updatedPairs.Count;
+            VanTRietKText = $"{correlation.K:G4} ± {correlation.StdErrorK:G3}";
+            VanTRietAlphaText = $"{correlation.Alpha:F3} ± {correlation.StdErrorAlpha:F3}";
+            VanTRietBetaText = $"{correlation.Beta:F3} ± {correlation.StdErrorBeta:F3}";
+            VanTRietR2Text = $"{correlation.R2:F4}";
+            VanTRietFormulaText = $"kLa = {correlation.K:F4} · (P/V)^{correlation.Alpha:F3} · (v_s)^{correlation.Beta:F3}  [R² = {correlation.R2:F4}]";
+
+            if (CurrentDocument != null)
+            {
+                CurrentDocument = CurrentDocument with
+                {
+                    LinkedKlaMapId = klaDoc.Snapshot.Id,
+                    LinkedKlaMapName = klaDoc.Snapshot.Name,
+                    KlaPairs = updatedPairs,
+                    KlaCorrelation = correlation,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow,
+                };
+                _mapStore.SaveMap(CurrentDocument);
+            }
+
+            StatusMessage = $"Ajuste van 't Riet concluído: R² = {correlation.R2:F4} ({updatedPairs.Count} pontos).";
+            VisualizationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Falha no ajuste van 't Riet: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task ExportEnrichedKlaMapAsync()
+    {
+        if (_integrationService == null)
+        {
+            StatusMessage = "Serviço de integração não disponível.";
+            return;
+        }
+
+        if (SelectedKlaMapOption == null)
+        {
+            StatusMessage = "Selecione um mapa kLa de destino.";
+            return;
+        }
+
+        var firstSelectedPowerTest = AvailablePowerTests.FirstOrDefault(t => t.IsSelected);
+        if (firstSelectedPowerTest == null)
+        {
+            StatusMessage = "Selecione ao menos um ensaio de potência para exportação.";
+            return;
+        }
+
+        var result = await _integrationService.ExportPowerResultsToKlaMapAsync(firstSelectedPowerTest.Summary.TestId, SelectedKlaMapOption.Id);
+        if (result.Success)
+        {
+            StatusMessage = $"Mapa enriquecido exportado com sucesso: '{result.EnrichedMapName}' ({result.MatchedPairsCount} âncoras vinculadas).";
+            await ReloadKlaMapsAsync();
+        }
+        else
+        {
+            StatusMessage = $"Falha na exportação: {result.Message}";
+        }
+    }
+
+    public void UpdateCursorInspection(double agitationRpm, double gasFlowLpm)
+    {
+        InspectedAgitationRpm = agitationRpm;
+        InspectedGasFlowLpm = gasFlowLpm;
+
+        var geom = CurrentDocument?.Geometry ?? new PowerGeometry();
+        var vesselDiameter = geom.VesselDiameterM > 0 ? geom.VesselDiameterM : 0.190;
+        var liquidVol = geom.LiquidVolumeM3 > 0 ? geom.LiquidVolumeM3 : 0.010;
+
+        InspectedGasFlowVvm = liquidVol > 0 ? PowerCalc.LpmToVvm(gasFlowLpm, liquidVol) : 0.0;
+        InspectedSuperficialVelocityMs = PowerCalc.GasSuperficialVelocity(gasFlowLpm, vesselDiameter);
+
+        var impeller = geom.Impellers.Count > 0 ? geom.Impellers[0] : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
+        var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
+
+        if (agitationRpm > 0)
+        {
+            var critFlowLpm = PowerCalc.NienowFloodingGasFlowLpm(agitationRpm, d, vesselDiameter);
+            IsInspectedFlooded = gasFlowLpm > critFlowLpm;
+            InspectedFlowRegime = IsInspectedFlooded ? "Zona Afogada (Flooded)" : "Zona Dispersa (Dispersed)";
+        }
+        else
+        {
+            IsInspectedFlooded = false;
+            InspectedFlowRegime = "—";
+        }
+
+        var surface = CurrentSurfaceData;
+        if (surface != null &&
+            agitationRpm >= surface.MinRpm && agitationRpm <= surface.MaxRpm &&
+            gasFlowLpm >= surface.MinFlowLpm && gasFlowLpm <= surface.MaxFlowLpm &&
+            surface.ResolutionN > 1 && surface.ResolutionQg > 1)
+        {
+            var dRpm = (surface.MaxRpm - surface.MinRpm) / (surface.ResolutionN - 1);
+            var dQg = (surface.MaxFlowLpm - surface.MinFlowLpm) / (surface.ResolutionQg - 1);
+
+            var i = Math.Clamp((int)((agitationRpm - surface.MinRpm) / dRpm), 0, surface.ResolutionN - 2);
+            var j = Math.Clamp((int)((gasFlowLpm - surface.MinFlowLpm) / dQg), 0, surface.ResolutionQg - 2);
+
+            var u = dRpm > 1e-12 ? (agitationRpm - surface.RpmGrid[i]) / dRpm : 0.0;
+            var v = dQg > 1e-12 ? (gasFlowLpm - surface.FlowGrid[j]) / dQg : 0.0;
+
+            double?[] layerData = SelectedLayer switch
+            {
+                PowerMapLayer.NetPower => surface.PNetSurface,
+                PowerMapLayer.PowerRatio => surface.PowerRatioSurface,
+                _ => surface.PVolumetricSurface,
+            };
+
+            var c00 = layerData[surface.GetIndex(i, j)];
+            var c01 = layerData[surface.GetIndex(i, j + 1)];
+            var c10 = layerData[surface.GetIndex(i + 1, j)];
+            var c11 = layerData[surface.GetIndex(i + 1, j + 1)];
+
+            if (c00.HasValue && c01.HasValue && c10.HasValue && c11.HasValue)
+            {
+                InspectedLayerValue = (1 - u) * (1 - v) * c00.Value +
+                                      (1 - u) * v * c01.Value +
+                                      u * (1 - v) * c10.Value +
+                                      u * v * c11.Value;
+            }
+            else
+            {
+                InspectedLayerValue = c00 ?? c01 ?? c10 ?? c11;
+            }
+        }
+        else
+        {
+            InspectedLayerValue = null;
+        }
+
+        InspectedLayerValueFormatted = InspectedLayerValue.HasValue
+            ? SelectedLayer switch
+            {
+                PowerMapLayer.NetPower => $"{InspectedLayerValue.Value:F2} W",
+                PowerMapLayer.PowerRatio => $"{InspectedLayerValue.Value:F3}",
+                PowerMapLayer.FloodingBoundary => $"{InspectedLayerValue.Value:F1} W/m³",
+                _ => $"{InspectedLayerValue.Value:F1} W/m³"
+            }
+            : "Fora do domínio interpolado";
+    }
+
+    public void Dispose()
+    {
+        _reconstructionCts?.Cancel();
+        _reconstructionCts?.Dispose();
+        _reconstructionCts = null;
+    }
 }

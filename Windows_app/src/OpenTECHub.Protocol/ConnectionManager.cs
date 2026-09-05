@@ -65,6 +65,18 @@ public sealed record ConnectionOptions
     public int FailuresBeforeReprobe { get; init; } = 3;
 
     /// <summary>
+    /// How long a dispatched USB command may wait for its acknowledgement and still be
+    /// reported as link latency.
+    /// </summary>
+    /// <remarks>
+    /// USB round trips are milliseconds. When an ack is dropped the send timestamp stays
+    /// armed, and without this ceiling the next unrelated ack - possibly minutes later -
+    /// would be published as the latency. Past the ceiling the correlation is abandoned
+    /// and the connection popup keeps showing "—", which is the honest answer.
+    /// </remarks>
+    public TimeSpan RoundTripCorrelationWindow { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
     /// Consecutive USB handshake failures before escalating to a hardware reset.
     /// </summary>
     /// <remarks>
@@ -94,6 +106,9 @@ public sealed record ConnectionOptions
 /// </remarks>
 public sealed class ConnectionManager : IAsyncDisposable
 {
+    /// <summary>Sentinel for "no round trip measured yet"; no real elapsed time is negative.</summary>
+    private const long NoRoundTrip = -1;
+
     private readonly ConnectionOptions _options;
     private readonly ILogger _log;
     private readonly ILoggerFactory? _loggerFactory;
@@ -160,7 +175,21 @@ public sealed class ConnectionManager : IAsyncDisposable
     private int _attemptsUsb;
     private int _attemptsWiFi;
     private double? _lastWriteMs;
-    private double? _lastRoundTripMs;
+
+    /// <summary>
+    /// Last measured round trip in <see cref="TimeSpan"/> ticks, or <see cref="NoRoundTrip"/>.
+    /// </summary>
+    /// <remarks>
+    /// Written on the request loop and read from whatever thread asks for
+    /// <see cref="Diagnostics"/>, so it is published as a single <c>long</c> through
+    /// <see cref="Interlocked"/>. A <c>double?</c> is two fields and can tear across
+    /// threads, which would surface as a nonsense latency in the connection popup.
+    /// A negative sentinel cannot collide with a real elapsed time.
+    /// </remarks>
+    private long _lastRoundTripTicks = NoRoundTrip;
+
+    // Correlation bookkeeping. Only ever touched from the request loop (HandleRequestAsync),
+    // so these need no synchronisation of their own.
     private long? _lastCommandSentTimestamp;
     private long? _flowCommandDispatchedTimestamp;
     private int _expectedFlowCommandId;
@@ -239,10 +268,38 @@ public sealed class ConnectionManager : IAsyncDisposable
         ConnectAttemptsUsb = Volatile.Read(ref _attemptsUsb),
         ConnectAttemptsWiFi = Volatile.Read(ref _attemptsWiFi),
         LastWriteMs = _lastWriteMs,
-        LastRoundTripMs = _lastRoundTripMs,
+        LastRoundTripMs = ReadRoundTripMs(),
         LastError = _lastError,
         LastFrameAt = _lastFrameAt,
     };
+
+    private double? ReadRoundTripMs()
+    {
+        var ticks = Interlocked.Read(ref _lastRoundTripTicks);
+        return ticks == NoRoundTrip ? null : TimeSpan.FromTicks(ticks).TotalMilliseconds;
+    }
+
+    private void PublishRoundTrip(TimeSpan elapsed) =>
+        Interlocked.Exchange(ref _lastRoundTripTicks, Math.Max(0, elapsed.Ticks));
+
+    private void ClearRoundTrip() => Interlocked.Exchange(ref _lastRoundTripTicks, NoRoundTrip);
+
+    /// <summary>
+    /// Publishes the time since <paramref name="sentTimestamp"/> as the link round trip,
+    /// unless the acknowledgement arrived too late to be attributable to that command.
+    /// </summary>
+    private void PublishCorrelatedRoundTrip(long sentTimestamp)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(sentTimestamp);
+        if (elapsed > _options.RoundTripCorrelationWindow)
+        {
+            _log.LogDebug("Ack arrived {Elapsed} after dispatch; too late to be this command's latency.",
+                elapsed);
+            return;
+        }
+
+        PublishRoundTrip(elapsed);
+    }
 
     // ==================================================================
     // Public API
@@ -471,6 +528,12 @@ public sealed class ConnectionManager : IAsyncDisposable
         Transition(ConnectionState.Connecting, medium, transport.Endpoint);
 
         bool connected;
+
+        // Scoped to this attempt on purpose. _lastError still holds whatever the previous
+        // attempt failed with, and reusing it would report a stale cause - a port that has
+        // since been released would still be announced as busy.
+        string? failure = null;
+
         try
         {
             connected = await transport.ConnectAsync(token).ConfigureAwait(false);
@@ -480,21 +543,15 @@ public sealed class ConnectionManager : IAsyncDisposable
             await transport.DisposeAsync().ConfigureAwait(false);
             throw;
         }
-        catch (PortBusyException ex)
-        {
-            _lastError = ex.Message;
-            _log.LogWarning(ex, "{Medium}: port busy", medium);
-            connected = false;
-        }
         catch (Exception ex) when (SerialTransport.IsPortBusyException(ex))
         {
-            _lastError = $"Porta {transport.Endpoint} está ocupada por outra aplicação (ex.: v.6 ou outro software serial).";
+            failure = DescribePortBusy(transport.Endpoint, ex);
             _log.LogWarning(ex, "{Medium}: port busy", medium);
             connected = false;
         }
         catch (Exception ex)
         {
-            _lastError = ex.Message;
+            failure = ex.Message;
             _log.LogWarning(ex, "{Medium}: connect threw", medium);
             connected = false;
         }
@@ -517,8 +574,25 @@ public sealed class ConnectionManager : IAsyncDisposable
         }
 
         await transport.DisposeAsync().ConfigureAwait(false);
-        await OnConnectFailedAsync(medium, !string.IsNullOrEmpty(_lastError) ? _lastError : "handshake falhou", token).ConfigureAwait(false);
+
+        var reason = failure ?? "handshake falhou";
+        _lastError = reason;
+        await OnConnectFailedAsync(medium, reason, token).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Operator-facing wording for a port another application is holding open.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PortBusyException"/> already carries the sentence and the port name;
+    /// anything else recognised by <see cref="SerialTransport.IsPortBusyException"/>
+    /// (a raw <c>UnauthorizedAccessException</c>, a sharing-violation <c>IOException</c>)
+    /// arrives as a driver message in the host's language, so it gets the same wording.
+    /// </remarks>
+    private static string DescribePortBusy(string endpoint, Exception ex) =>
+        ex is PortBusyException busy
+            ? busy.Message
+            : $"Porta {endpoint} está ocupada por outra aplicação (ex.: v.6 ou outro software serial).";
 
     private async Task HandleDisconnectAsync()
     {
@@ -613,6 +687,11 @@ public sealed class ConnectionManager : IAsyncDisposable
                 if (transport is not null)
                 {
                     var connected = false;
+
+                    // Each retry reports its own cause. Left sticky, a port released between
+                    // attempts would keep being announced as busy for the rest of the cycle.
+                    _lastError = "handshake falhou";
+
                     try
                     {
                         connected = await transport.ConnectAsync(interrupt.Token).ConfigureAwait(false);
@@ -628,13 +707,9 @@ public sealed class ConnectionManager : IAsyncDisposable
                         await transport.DisposeAsync().ConfigureAwait(false);
                         throw;
                     }
-                    catch (PortBusyException ex)
-                    {
-                        _lastError = ex.Message;
-                    }
                     catch (Exception ex) when (SerialTransport.IsPortBusyException(ex))
                     {
-                        _lastError = $"Porta {transport.Endpoint} está ocupada por outra aplicação (ex.: v.6 ou outro software serial).";
+                        _lastError = DescribePortBusy(transport.Endpoint, ex);
                     }
                     catch (Exception ex)
                     {
@@ -844,9 +919,9 @@ public sealed class ConnectionManager : IAsyncDisposable
                     snapshot.FlowCommandAck > 0 &&
                     snapshot.FlowCommandAck >= _expectedFlowCommandId)
                 {
-                    _lastRoundTripMs = Stopwatch.GetElapsedTime(flowSentTs).TotalMilliseconds;
                     _flowCommandDispatchedTimestamp = null;
                     _lastCommandSentTimestamp = null;
+                    PublishCorrelatedRoundTrip(flowSentTs);
                 }
                 TelemetryReceived?.Invoke(snapshot);
                 RawTelemetryReceived?.Invoke(line);
@@ -863,8 +938,8 @@ public sealed class ConnectionManager : IAsyncDisposable
                 Interlocked.Increment(ref _commandAcks);
                 if (_lastCommandSentTimestamp is { } cmdSentTs)
                 {
-                    _lastRoundTripMs = Stopwatch.GetElapsedTime(cmdSentTs).TotalMilliseconds;
                     _lastCommandSentTimestamp = null;
+                    PublishCorrelatedRoundTrip(cmdSentTs);
                 }
                 break;
 
@@ -953,17 +1028,25 @@ public sealed class ConnectionManager : IAsyncDisposable
         _lastWriteMs = stopwatch.Elapsed.TotalMilliseconds;
         Interlocked.Increment(ref _commandsSent);
 
-        var nowTs = Stopwatch.GetTimestamp();
-        _lastCommandSentTimestamp = nowTs;
         if (transport.Medium == TransportMedium.WiFi)
         {
-            _lastRoundTripMs = _lastWriteMs;
+            // The HTTP POST is synchronous: the write already spans request and response,
+            // so it is the round trip. Nothing is left pending to correlate against, and
+            // arming the ack correlation here would let a stray line overwrite a real
+            // measurement with a fabricated one.
+            PublishRoundTrip(stopwatch.Elapsed);
         }
-        else if (payload.GetRawValue(CommandKeys.FlowSetpoint) is not null ||
-                 payload.GetRawValue(CommandKeys.V_Flow) is not null)
+        else
         {
-            _expectedFlowCommandId = _parser.Readings.FlowCommandId + 1;
-            _flowCommandDispatchedTimestamp = nowTs;
+            var nowTs = Stopwatch.GetTimestamp();
+            _lastCommandSentTimestamp = nowTs;
+
+            if (payload.GetRawValue(CommandKeys.FlowSetpoint) is not null ||
+                payload.GetRawValue(CommandKeys.V_Flow) is not null)
+            {
+                _expectedFlowCommandId = _parser.Readings.FlowCommandId + 1;
+                _flowCommandDispatchedTimestamp = nowTs;
+            }
         }
 
         _log.LogDebug("TX {Payload}", json);
@@ -1145,7 +1228,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         _parseFailureStreak = 0;
         _samePortFailures = 0;
         _lastError = "";
-        _lastRoundTripMs = null;
+        ClearRoundTrip();
         _lastCommandSentTimestamp = null;
         _flowCommandDispatchedTimestamp = null;
         _expectedFlowCommandId = 0;

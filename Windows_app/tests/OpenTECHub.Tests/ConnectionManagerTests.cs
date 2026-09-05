@@ -660,4 +660,84 @@ public class ConnectionManagerTests
         Assert.NotNull(manager.Diagnostics.LastRoundTripMs);
         Assert.True(manager.Diagnostics.LastRoundTripMs >= 0);
     }
+
+    [Fact]
+    public async Task Busy_port_message_does_not_survive_into_the_next_attempt()
+    {
+        // The port is held by another application, then released. The second attempt fails
+        // on the handshake instead, and must say so - announcing the stale "busy" sends the
+        // operator hunting for a process that already let go of the port.
+        var fake = new FakeTransport
+        {
+            ConnectThrows = new PortBusyException("COM3", new UnauthorizedAccessException("Access denied")),
+        };
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Faulted));
+        Assert.Contains("ocupada por outra aplicação", manager.Diagnostics.LastError);
+
+        fake.ConnectThrows = null;
+        fake.ConnectSucceeds = false;
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
+        Assert.True(await WaitForAsync(() => fake.ConnectCalls == 2));
+        Assert.True(await WaitForAsync(
+            () => manager.Diagnostics.LastError.Contains("handshake", StringComparison.OrdinalIgnoreCase)));
+
+        Assert.DoesNotContain("ocupada por outra aplicação", manager.Diagnostics.LastError);
+    }
+
+    [Fact]
+    public async Task Wi_Fi_round_trip_is_not_overwritten_by_a_stray_ack_line()
+    {
+        // On Wi-Fi the POST is the round trip. Nothing is pending afterwards, so an "OK"
+        // that happens to arrive must not be correlated against the last send.
+        var fake = new FakeTransport(TransportMedium.WiFi);
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+
+        manager.ConnectWiFi(new HttpTransportConfig { IpAddress = "192.168.1.100" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        manager.SendCommand(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 37));
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandsSent == 1));
+
+        var postRoundTrip = manager.Diagnostics.LastRoundTripMs;
+        Assert.NotNull(postRoundTrip);
+
+        fake.Emit("OK");
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandAcks == 1));
+
+        Assert.Equal(postRoundTrip, manager.Diagnostics.LastRoundTripMs);
+    }
+
+    [Fact]
+    public async Task Late_ack_is_not_reported_as_link_latency()
+    {
+        // A dropped ack leaves the send timestamp armed. Whatever answers long afterwards is
+        // not this command's round trip, and inventing one is worse than reporting nothing.
+        var options = FastOptions(backupEnabled: false) with
+        {
+            RoundTripCorrelationWindow = TimeSpan.FromMilliseconds(1),
+        };
+
+        var fake = new FakeTransport(TransportMedium.Usb);
+        await using var manager = new ConnectionManager(options, transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        manager.SendCommand(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 37));
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandsSent == 1));
+
+        await Task.Delay(50);
+        fake.Emit("OK");
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandAcks == 1));
+
+        Assert.Null(manager.Diagnostics.LastRoundTripMs);
+    }
 }

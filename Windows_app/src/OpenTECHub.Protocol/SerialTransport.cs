@@ -97,32 +97,39 @@ public sealed record SerialPortDescriptor(
     /// </summary>
     public int Tier => ComputeTier(Description, Manufacturer, HardwareId);
 
+    /// <summary>
+    /// Fragments identifying the dedicated OpenTEC adapter (tier 1).
+    /// </summary>
+    /// <remarks>
+    /// <c>VID_1A86&amp;PID_55D4</c> is the CH343 specifically, not the whole WCH catalogue:
+    /// a plain CH340 is <c>VID_1A86&amp;PID_7523</c> and belongs in tier 2. Matching bare
+    /// <c>VID_1A86</c> or <c>wch</c> here would flatten that distinction and let any WCH
+    /// dongle outrank the board we actually ship.
+    /// </remarks>
+    public static readonly string[] OpenTecAdapterKeywords = ["VID_1A86&PID_55D4", "CH343"];
+
+    /// <summary>Fragments identifying other USB-UART bridges worth probing before generic ports (tier 2).</summary>
+    public static readonly string[] UsbUartKeywords =
+        ["VID_1A86", "wch", "CP210", "CH340", "CH910", "Silicon Labs", "FTDI", "ESP32", "USB Serial"];
+
     public static int ComputeTier(string description, string manufacturer, string hardwareId)
     {
         var combined = $"{description} {manufacturer} {hardwareId}";
 
-        // Tier 1: Native OpenTEC TECNAL CH343 High-Speed adapter (VID_1A86 & PID_55D4, or explicitly named CH343)
-        if (combined.Contains("VID_1A86&PID_55D4", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("CH343", StringComparison.OrdinalIgnoreCase))
+        if (Matches(combined, OpenTecAdapterKeywords))
         {
             return 1;
         }
 
-        // Tier 2: WCH family (CH340/CH342/CH910), CP210x, FTDI, generic ESP32 USB CDC
-        if (combined.Contains("VID_1A86", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("wch", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("CP210", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("CH340", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("CH910", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("Silicon Labs", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("FTDI", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("ESP32", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("USB Serial", StringComparison.OrdinalIgnoreCase))
+        if (Matches(combined, UsbUartKeywords))
         {
             return 2;
         }
 
         return 3;
+
+        static bool Matches(string haystack, string[] keywords) =>
+            Array.Exists(keywords, k => haystack.Contains(k, StringComparison.OrdinalIgnoreCase));
     }
 }
 
@@ -141,8 +148,12 @@ public sealed class SerialTransport(
     private const string HandshakeExpected = "OK";
 
     /// <summary>USB descriptor fragments that suggest an ESP32-class adapter.</summary>
+    /// <remarks>
+    /// The single source of truth is <see cref="SerialPortDescriptor"/>, which uses the
+    /// same fragments to rank candidates; this is the diagnostics view of that list.
+    /// </remarks>
     private static readonly string[] EspKeywords =
-        ["CP210", "CH340", "CH910", "USB Serial", "ESP32", "Silicon Labs", "wch"];
+        [.. SerialPortDescriptor.OpenTecAdapterKeywords, .. SerialPortDescriptor.UsbUartKeywords];
 
     private readonly ILogger _log = logger ?? NullLogger<SerialTransport>.Instance;
     private readonly SemaphoreSlim _ioGate = new(1, 1);
@@ -159,15 +170,10 @@ public sealed class SerialTransport(
     {
         await DisconnectAsync().ConfigureAwait(false);
 
-        SerialPort? port;
-        try
-        {
-            port = await OpenPortAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (PortBusyException)
-        {
-            throw;
-        }
+        // A busy port surfaces as PortBusyException from OpenPortAsync and is allowed to
+        // propagate: the caller has to tell "in use by another application" apart from
+        // "nothing answered there".
+        var port = await OpenPortAsync(cancellationToken).ConfigureAwait(false);
 
         if (port is null)
         {
@@ -380,26 +386,10 @@ public sealed class SerialTransport(
         return false;
     }
 
-    /// <summary>
-    /// Checks whether the specified port is present but currently locked/open by another process.
-    /// </summary>
-    public static bool IsPortBusy(string portName)
-    {
-        try
-        {
-            using var testPort = new SerialPort(portName);
-            testPort.Open();
-            return false;
-        }
-        catch (Exception ex) when (IsPortBusyException(ex))
-        {
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
+    // There is deliberately no "is this port busy?" probe. Answering it means opening
+    // the port, which is the very hijack A-6 exists to avoid, and the answer is stale
+    // the instant it is returned. Busy is discovered from the real open attempt, which
+    // raises PortBusyException.
 
     /// <summary>
     /// Compares two port names using natural numeric ordering (e.g. COM3 before COM10).
@@ -473,8 +463,35 @@ public sealed class SerialTransport(
     }
 
     /// <summary>
-    /// Serial ports worth trying, ordered by priority tier (CH343/WCH first) and natural port number.
+    /// Serial port names in natural order, <b>without</b> the hardware ranking.
     /// </summary>
+    /// <remarks>
+    /// Reads only the <c>SERIALCOMM</c> device map, which costs a few milliseconds, so
+    /// this is the one enumeration safe to call on the UI thread. It returns the same
+    /// <i>set</i> of ports as <see cref="ListCandidatePorts"/> - only the order differs -
+    /// so a caller can show this immediately and re-order once the ranking arrives.
+    /// </remarks>
+    public static IReadOnlyList<string> ListPortNames()
+    {
+        try
+        {
+            return [.. SerialPort.GetPortNames().OrderBy(static p => p, Comparer<string>.Create(ComparePortNames))];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Serial ports worth trying, ordered by priority tier (CH343 first) and natural port number.
+    /// </summary>
+    /// <remarks>
+    /// <b>Blocking, and not cheap.</b> On Windows this runs a WMI query over
+    /// <c>Win32_PnPEntity</c>, measured at ~1.1 s cold and 250-360 ms warm on a machine
+    /// with no COM device attached. Call it from a background thread - or use
+    /// <see cref="ListCandidatePortsAsync"/> - and never from the UI thread.
+    /// </remarks>
     public static IReadOnlyList<string> ListCandidatePorts()
     {
         try
@@ -494,6 +511,13 @@ public sealed class SerialTransport(
             return [];
         }
     }
+
+    /// <summary>
+    /// <see cref="ListCandidatePorts"/> with the WMI query moved off the calling thread.
+    /// </summary>
+    public static Task<IReadOnlyList<string>> ListCandidatePortsAsync(
+        CancellationToken cancellationToken = default)
+        => Task.Run(ListCandidatePorts, cancellationToken);
 
     private static Dictionary<string, SerialPortDescriptor> QueryPortDescriptors()
     {

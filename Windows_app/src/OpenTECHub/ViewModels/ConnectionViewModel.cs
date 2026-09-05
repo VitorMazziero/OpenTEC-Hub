@@ -33,7 +33,13 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         _device.StateChanged += OnStateChanged;
         _device.TelemetryReceived += OnTelemetryReceived;
 
-        RefreshPorts();
+        // The popover needs its port list, but this constructor runs on the first-frame
+        // path and the hardware ranking costs a WMI query - ~1.1 s cold. So the list is
+        // filled from the cheap device-map read first, and the ranking is folded in once
+        // it arrives off-thread. The set of ports is identical either way; only the order
+        // improves, and the operator never waits on it.
+        ApplyPortList(SerialTransport.ListPortNames());
+        _ = RankPortsInBackgroundAsync();
     }
 
     /// <summary>Serial ports offered in the popover.</summary>
@@ -176,12 +182,39 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void RefreshPorts()
+    private async Task RefreshPortsAsync()
+    {
+        // ConfigureAwait(true): the continuation mutates AvailablePorts, which is bound to
+        // the popover, so it has to land back on the UI thread.
+        ApplyPortList(await SerialTransport.ListCandidatePortsAsync().ConfigureAwait(true));
+    }
+
+    /// <summary>
+    /// Folds the hardware ranking into the list the constructor already published.
+    /// </summary>
+    /// <remarks>
+    /// Fire-and-forget from the constructor, so it swallows its own failures: a WMI
+    /// service that is disabled or wedged must degrade to the unranked list the operator
+    /// already has, not surface as an unobserved task exception.
+    /// </remarks>
+    private async Task RankPortsInBackgroundAsync()
+    {
+        try
+        {
+            await RefreshPortsAsync().ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            // The naturally-sorted list stands; ranking is an optimisation, not a contract.
+        }
+    }
+
+    private void ApplyPortList(IReadOnlyList<string> ports)
     {
         var previous = SelectedPort;
 
         AvailablePorts.Clear();
-        foreach (var port in SerialTransport.ListCandidatePorts())
+        foreach (var port in ports)
         {
             AvailablePorts.Add(port);
         }
@@ -206,7 +239,7 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         try
         {
             var found = await _device.DiscoverUsbPortAsync().ConfigureAwait(true);
-            RefreshPorts();
+            await RefreshPortsAsync().ConfigureAwait(true);
 
             if (found is not null)
             {
@@ -257,10 +290,10 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         FramesReceived = diagnostics.FramesReceived;
         CommandsSent = diagnostics.CommandsSent;
 
-        var latencyMs = diagnostics.LastRoundTripMs ??
-            (Medium == TransportMedium.WiFi ? diagnostics.LastWriteMs : null);
-
-        LatencyText = latencyMs is { } ms
+        // Only the measured round trip is shown. LastWriteMs is the time to hand the
+        // frame to the USB driver - near zero, and not a latency the operator can act on.
+        // Until the firmware has answered something, "—" is the honest reading.
+        LatencyText = diagnostics.LastRoundTripMs is { } ms
             ? ms.ToString("F0", CultureInfo.CurrentCulture) + " ms"
             : "—";
     }

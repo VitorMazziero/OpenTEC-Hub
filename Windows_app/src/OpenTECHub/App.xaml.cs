@@ -8,6 +8,7 @@ using Serilog;
 using OpenTECHub.Services.Alarms;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
+using OpenTECHub.Services.Diagnostics;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
 using OpenTECHub.Services.KlaTesting;
@@ -58,6 +59,7 @@ public partial class App : Application
         // field crash leaves nothing to diagnose.
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         var playback = ParseKlaPlaybackOptions(e.Args);
         var workspace = ParseWorkspaceStartupOptions(e.Args);
@@ -292,6 +294,7 @@ public partial class App : Application
             new SettingsService(sp.GetRequiredService<ILogger<SettingsService>>()));
 
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<ICrashReporter, CrashReporter>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IFileInteractionService, FileInteractionService>();
         services.AddSingleton<IApplicationRestartService, ApplicationRestartService>();
@@ -428,14 +431,7 @@ public partial class App : Application
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        Log.Fatal(e.Exception, "Unhandled exception on the UI thread");
-
-        MessageBox.Show(
-            $"Ocorreu um erro inesperado.\n\n{e.Exception.Message}\n\n" +
-            $"O registro completo está em:\n{AppPaths.LogDirectory}",
-            "OpenTEC-Hub",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        CrashReporter.GenerateAndSaveReport(e.Exception, "DispatcherUnhandledException", isTerminating: false);
 
         // Keep running: an operator mid-cultivation is better served by a degraded
         // window than by the controller vanishing.
@@ -444,8 +440,14 @@ public partial class App : Application
 
     private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
-        Log.Fatal(e.ExceptionObject as Exception, "Unhandled exception outside the UI thread");
-        Log.CloseAndFlush();
+        var ex = e.ExceptionObject as Exception ?? new InvalidOperationException($"Unhandled domain exception: {e.ExceptionObject}");
+        CrashReporter.GenerateAndSaveReport(ex, "AppDomain.CurrentDomain.UnhandledException", isTerminating: e.IsTerminating);
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        CrashReporter.GenerateAndSaveReport(e.Exception, "TaskScheduler.UnobservedTaskException", isTerminating: false);
+        e.SetObserved();
     }
 
     protected override void OnExit(ExitEventArgs e)

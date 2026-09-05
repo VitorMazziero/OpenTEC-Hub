@@ -1108,6 +1108,28 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 
 ---
 
+### D-041 · Empacotamento, distribuição com Inno Setup, Crash Reporting estruturado e Manual do Operador (Fase 6)
+
+**Status:** Accepted · 2026-09-05
+
+**Decisão.** A infraestrutura de entrega em campo, suporte ao operador e diagnóstico de falhas críticas foi concluída conforme a arquitetura da Fase 6:
+1. **Instalador Inno Setup (`installer/OpenTECHub_Setup.iss`):** Criado o script de empacotamento baseado no modelo de referência de `BlocosDeControle.iss`. Lê dinamicamente a versão oficial do produto via `GetStringFileInfo(MyAppDll, PRODUCT_VERSION)` a partir do binário compilado (`Directory.Build.props` como fonte única), gera pacote *self-contained* para `win-x64` (.NET 10 embutido sem dependência de runtimes externos na máquina do laboratório), configura atalhos de desktop e menu iniciar, registro limpo de desinstalação e assistente em português brasileiro.
+2. **Automação de Build (`installer/build_installer.ps1`):** Script PowerShell que realiza a publicação self-contained do projeto e invoca o compilador `ISCC.exe` para produzir o instalador executável sob `installer/Output/`.
+3. **Serviço de Diagnóstico e Pânico (`CrashReporter`):**
+   - Intercepta os três canais de exceções não tratadas do .NET: `DispatcherUnhandledException` (thread de UI), `AppDomain.CurrentDomain.UnhandledException` (threads secundárias/pool) e `TaskScheduler.UnobservedTaskException` (tarefas assíncronas abandonadas).
+   - Coleta métricas de processo (WorkingSet, PrivateBytes, GC Heap, threads ativas, tempo de atividade), informações completas da máquina e sistema operacional, além de decodificação recursiva de todas as inner exceptions e aggregate exceptions com seus HResults e dados adicionais (`Exception.Data`).
+   - Implementa gravação de dupla contingência (`{Workspace}/Logs/Crash/` como destino primário e `%LOCALAPPDATA%\OpenTEC-Hub\CrashDumps\` como destino de contingência para falhas precoces ou de disco) e diálogo informativo amigável ao operador.
+4. **Manual do Operador (`docs/MANUAL_DO_OPERADOR.md`):** Documento técnico abrangente em português cobrindo a topologia de hardware, instalação e drivers, gerenciamento de workspaces, controle manual, árbitro de comandos, Parada Segura Global, calibrações analíticas e ensaios de $k_L a$ e potência.
+
+**Por quê.** A implantação de software em ambiente de laboratório fabril/acadêmico exige processos de instalação sem atrito (sem necessidade de instalar manualmente SDKs ou runtimes do .NET), documentação clara e operacional para os técnicos e garantia de que qualquer exceção imprevista gere um relatório detalhado de pânico em disco para permitir diagnóstico e suporte rápido da engenharia.
+
+**Consequências.**
+- **Fechamento de 100% do Eixo 1:** Todas as 10 etapas do Eixo 1 (Software Desktop) estão plenamente concluídas e verificadas.
+- **Distribuição Autônoma:** Geração reprodutível de instaladores para bancadas de bioprocessos.
+- **Rastreabilidade de Falhas:** Dumps de pânico estruturados evitam perda de contexto em erros não tratados.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

@@ -67,7 +67,7 @@ temas claro/escuro (`ThemeServiceTests`) execute sem depender de sessão interat
 | Receitas authoring and execution | Feature-complete | P0 safe-stop/manual-lock corrections, minor canvas polish and hardware confirmation |
 | Receitas holding for an unresponsive external device | Software-complete **(new since the audit)** | Flow-setpoint and aeration-enable blocks wait for the flowmeter to confirm, latch the `Receita aguardando dispositivo` alarm after 8 s and offer skip/stop; needs a bench receipt with a genuinely offline meter |
 | Synoptic and main UI | Detail panels standardized; pH has PV/SP/Δ, trend, control and direct calibration navigation; summary cards enlarged; measured sensors expose detrended-noise health | Resolução da captura automatizada via `RenderTargetBitmap` (ADR D-040); 30 capturas geradas em 100%, 125% e 150% de DPI sem truncamentos; homologação final de bancada com operador aberta |
-| Packaging and field cutover | Not complete | Installer, first-run path, crash reporting, performance soak and operator manual |
+| Packaging and field cutover | Software-complete | Instalador Inno Setup (`installer/OpenTECHub_Setup.iss`), script de build (`build_installer.ps1`), serviço `CrashReporter` e Manual do Operador concluídos (ADR D-041); soak test de campo aguardando bancada física |
 
 ## Audit findings
 

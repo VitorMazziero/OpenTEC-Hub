@@ -20,7 +20,7 @@
    - [AUD-007 (P1): Recibo de gráficos em pacote publicado (Self-Contained)](#etapa-17--aud-007-p1-recibo-de-gráficos-em-executável-empacotado-publish) `[CONCLUÍDO]`
    - [AUD-008 (P2): Dívida técnica de formatação e regras de CI](#etapa-18--aud-008-p2-dívida-técnica-de-formatação-e-analyzers-sem-barreira-no-ci) `[CONCLUÍDO]`
    - [Captura de Telas: Correção do erro COM 0x80004002](#etapa-19--falha-de-captura-de-telas-automatizada-erro-com-0x80004002) `[CONCLUÍDO]`
-   - [Fase 6: Empacotamento, Crash Reporting e Manual do Operador](#etapa-110--empacotamento-e-entrega-de-campo-fase-6)
+   - [Fase 6: Empacotamento, Crash Reporting e Manual do Operador](#etapa-110--empacotamento-e-entrega-de-campo-fase-6) `[CONCLUÍDO]`
 2. [Eixo 2 — Ensaios de Potência de Impelidor e Determinação de kLa](#eixo-2--ensaios-de-potência-de-impelidor-e-determinação-de-kla)
    - [Item 8.4: Aceitação em Bancada Física (Blocos P-1 a P-7)](#etapa-21--item-84-aceitação-em-bancada-física-dos-blocos-p-1-a-p-7)
 3. [Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)](#eixo-3--firmware-esp32-s3-hub-v9v10-e-nó-servo-drive-delta-asda-b2)
@@ -42,7 +42,7 @@
 
 | Eixo | Total de Itens | Concluídos | Pendentes | Status Global |
 |---|:---:|:---:|:---:|---|
-| **1. Software Desktop (OpenTEC-Hub)** | 10 | 9 | 1 | 🟢 90% Concluído (AUD-001 a AUD-008 e Etapa 1.9 resolvidos) |
+| **1. Software Desktop (OpenTEC-Hub)** | 10 | 10 | 0 | 🟢 100% Concluído (Todas as 10 etapas concluídas com sucesso) |
 | **2. Ensaios de Potência e kLa** | 7 blocos | 0 | 7 | 🔬 Aguardando bancada física |
 | **3. Firmware ESP32-S3 e Servo** | 7 | 0 | 7 | 🔬 Aguardando bancada física |
 | **4. Enlace e Protocolo Geral** | 3 | 0 | 3 | 📋 Especificado / A validar |
@@ -232,15 +232,21 @@ pie title Status Geral dos Itens de Implementação
 
 ### Etapa 1.10 · Empacotamento e Entrega de Campo (Fase 6)
 - **Prioridade:** P1 — Pré-requisito de Entrega Final
-- **Status:** 📋 A Fazer
-- **Arquivos a Criar/Atualizar:**
-  - `installer/OpenTECHub_Setup.iss` (Inno Setup)
-  - `src/OpenTECHub/Services/Diagnostics/CrashReporter.cs`
-  - `docs/MANUAL_DO_OPERADOR.md`
-- **Passo a Passo de Implementação:**
-  1. **Instalador Inno Setup**: Criar script instalador configurando atalhos na Área de Trabalho/Menu Iniciar, registro de desinstalação limpo e checagem de dependências de hardware (driver CH343/WCH USB).
-  2. **Crash Reporting**: Implementar tratador de exceções não capturadas no `App.xaml.cs` (`AppDomain.CurrentDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`) que grave log detalhado em arquivo de pânico antes do encerramento.
-  3. **Manual do Operador**: Redigir manual operacional completo em português brasileiro cobrindo calibrações, operação manual, configuração de cascata e execução de receitas.
+- **Status:** ✅ Concluído (05/09/2026)
+- **Arquivos Criados/Atualizados:**
+  - `installer/OpenTECHub_Setup.iss` (Inno Setup baseado na referência da Ourofino)
+  - `installer/build_installer.ps1` (Script automatizado de build e empacotamento)
+  - `src/OpenTECHub/Services/Diagnostics/CrashReporter.cs` (Serviço de captura e persistência de pânico)
+  - `src/OpenTECHub/App.xaml.cs` (Interceptação de exceções não tratadas nos 3 canais de runtime)
+  - `tests/OpenTECHub.Tests/CrashReporterTests.cs` (Suíte de testes de diagnóstico)
+  - `docs/MANUAL_DO_OPERADOR.md` (Manual operacional de campo completo em pt-BR)
+  - `docs/DECISIONS.md` (ADR D-041)
+- **Implementação e Resultados:**
+  1. **Instalador Inno Setup (`OpenTECHub_Setup.iss`):** Criado o script do instalador seguindo a arquitetura de referência de `BlocosDeControle.iss`. Lê a versão dinamicamente via `GetStringFileInfo(MyAppDll, PRODUCT_VERSION)` a partir do binário publicado (`Directory.Build.props`), empacota publicação *self-contained* win-x64 (.NET 10 integrado, sem dependências externas no destino), cria atalhos no Menu Iniciar e Área de Trabalho, suporta desinstalação limpa e assistente moderno em português brasileiro.
+  2. **Script de Automação (`build_installer.ps1`):** Script PowerShell que executa `dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false`, localiza o compilador `ISCC.exe` e gera o executável de instalação sob `installer/Output/`.
+  3. **Diagnóstico e Relatório de Pânico (`CrashReporter.cs`):** Implementado serviço que intercepta falhas graves nos 3 canais de exceções do .NET (`DispatcherUnhandledException`, `AppDomain.CurrentDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`). Grava relatório estruturado contendo timestamp local/UTC, stack trace completo com todas as inner exceptions, métricas de memória do processo (WorkingSet, PrivateBytes, GC Heap), tempo de atividade (*uptime*), detalhes do sistema operacional e do hardware. Possui persistência com contingência dupla (`{Workspace}/Logs/Crash/` primário e `%LOCALAPPDATA%\OpenTEC-Hub\CrashDumps\` secundário) e aviso informativo ao operador via diálogo.
+  4. **Manual do Operador (`MANUAL_DO_OPERADOR.md`):** Redigido manual técnico detalhado em português cobrindo arquitetura, instalação, driver USB CH343, gerenciamento de workspaces, controle manual, modos de posse do árbitro, procedimento de Parada Segura Global (*Safe Stop*), calibrações de eletrodos (pH, DO, bombas, biomassa), ensaios de $k_L a$ e potência, receitas industriais, alarmes e solução de problemas.
+  5. **Verificação e Qualidade:** 4 novos testes unitários adicionados em `CrashReporterTests` (totalizando 1120 testes aprovados, 0 falhas, 0 ignorados). Formalizado no [ADR D-041](DECISIONS.md#d-041--empacotamento-distribuição-com-inno-setup-crash-reporting-estruturado-e-manual-do-operador-fase-6).
 
 ---
 

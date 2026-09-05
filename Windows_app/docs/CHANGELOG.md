@@ -9,6 +9,14 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Instalador Inno Setup, serviço de Crash Reporting e Manual do Operador (Etapa 1.10 / Fase 6).**
+  Criado script de instalação `installer/OpenTECHub_Setup.iss` baseado na referência de `BlocosDeControle.iss`,
+  com empacotamento self-contained win-x64 (.NET 10 embutido), leitura dinâmica de versão do binário,
+  script automatizado `build_installer.ps1`. Implementado serviço de diagnóstico `CrashReporter` capturando exceções
+  não tratadas no `App.xaml.cs` (`Dispatcher`, `AppDomain`, `TaskScheduler`) com dump de memória, métricas de
+  processo e dupla contingência de gravação (`{Workspace}/Logs/Crash/` e `%LOCALAPPDATA%\OpenTEC-Hub\CrashDumps\`).
+  Redigido manual operacional de campo completo em português brasileiro (`docs/MANUAL_DO_OPERADOR.md`).
+  Conclusão de 100% do Eixo 1 (Software Desktop). Ver [DECISIONS D-041](DECISIONS.md).
 - **Modelo de potência no simulador do servo.** O caminho real de `motorSetpoint` até
   `ServoRpm`/`ServoTorqueNm`/`ServoPowerW` agora responde com assentamento de primeira ordem,
   soma `rho*Np*N^3*D^5` e tara por estágio e injeta a curva de ruído medida na sessão

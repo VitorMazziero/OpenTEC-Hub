@@ -1,4 +1,4 @@
-﻿# Decision Log
+# Decision Log
 
 > One entry per decision that would otherwise be re-litigated in three months.
 > Newest last. A decision is only "Open" if it genuinely blocks work.
@@ -948,6 +948,40 @@ já conhecia antes de renderizar.
 - **Um id de navegação sem host renderiza página em branco** e nada mais acusaria isso — o build
   compila e o smoke abre só um destino. `Every_shell_destination_is_hosted_by_a_deferred_page`
   compara os ids do `ShellViewModel` com os hosts do `MainWindow.xaml`.
+
+---
+
+### D-034 · Coordenador de segurança unificado e despacho privilegiado no CommandArbiter (AUD-001)
+
+**Decisão.** A ação global de parada segura no painel (`ControlViewModel.SafeStopCommand`) é coordenada
+pelo serviço central `ISafetyCoordinator` (`SafetyCoordinator`), em vez de disparar quadros manuais
+diretos via `IDeviceService.Send`. Quando acionada:
+1. O coordenador comanda a parada da receita em execução (`IRecipeEngine.StopAsync`), o desengajamento
+   da cascata (`ICascadeService.Disengage`) e o aborto dos ensaios de automação (`IKlaTestRunner`, `IPowerTestRunner`).
+2. Verifica explicitamente o estado da conexão física com o hardware (`_device.State == ConnectionState.Connected`),
+   retornando falha explícita se o link estiver desconectado e impedindo confirmação falsa de desligamento.
+3. O `CommandArbiter` expõe métodos dedicados de despacho de segurança (`DispatchSafety` e `DispatchSeparateSafetyFrame`),
+   que atuam como rota prioritária de emergência: transmitem o frame de segurança com zeros e fechamento de válvulas
+   ao hardware e forçam o retorno incondicional de todos os atuadores para `CommandOwner.Manual`, disparando
+   `OwnershipRevoked(isSafeAbort: true)` para notificar consumidores de automação.
+4. A UI do `ControlViewModel` somente reporta sucesso após a confirmação de aceite pelo coordenador/árbitro.
+   Qualquer recusa ou falha de transporte é exibida com motivo claro ao operador.
+
+**Por quê.** Na arquitetura anterior, `ControlViewModel.SafeStop` chamava `_device.Send(...)`. No composition
+root, `_device` é o `CommandArbiter`, cujo método `Send` trata todo comando como `CommandOwner.Manual`.
+Durante a execução de uma receita, os atuadores pertencem a `CommandOwner.Recipe`. O árbitro rejeitava o
+quadro de parada por conflito atômico de posse, mas como `IDeviceService.Send` retorna `void`, a rejeição
+era descartada silenciosamente. A UI então zerava as propriedades locais e exibia falsamente que todos os
+atuadores haviam sido desligados, criando um risco crítico de segurança física (AUD-001).
+
+**Consequências.**
+- **Garantia de atuação de emergência.** O botão de parada segura tem precedência funcional e física sobre qualquer
+  automação em execução (receita, cascata ou ensaios kLa/potência).
+- **Sem falsos positivos de desligamento.** Uma desconexão do cabo ou falha de transporte é notificada na hora ao
+  operador, deixando claro que os atuadores podem ainda estar energizados no reator.
+- **Testabilidade determinística.** A coordenação de parada segura passa a ser coberta por testes automatizados em
+  `SafetyCoordinatorTests` e `ControlViewModelTests`, garantindo que futuras modificações não reintroduzam conflitos
+  de posse silenciosos.
 
 ---
 

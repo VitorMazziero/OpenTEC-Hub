@@ -1,35 +1,70 @@
-﻿# OpenTEC-Hub Documentation
+# OpenTEC-Hub Documentation
 
-Index of the project documentation. The repository entry point is
-[../README.md](../README.md).
+Índice mestre da documentação técnica do projeto OpenTEC-Hub. O ponto de entrada da aplicação é [../README.md](../README.md).
 
-| Document | What it covers |
+---
+
+## 📌 Documentos Principais (Raiz de `docs/`)
+
+Estes são os documentos centrais que definem o estado, arquitetura, protocolo e regras de design do projeto:
+
+| Documento | Descrição |
 |---|---|
-| [CURRENT_STATUS.md](CURRENT_STATUS.md) | **Current audited state.** Release posture, defects, verification evidence and the v0.25.0 stabilization plan |
-| [ROADMAP.md](ROADMAP.md) | **Start here.** Phases, scope, non-functional targets, deferred work |
-| [PROTOCOL.md](PROTOCOL.md) | The frozen ESP32-S3 wire contract |
-| [PHASE0_RESULTS.md](PHASE0_RESULTS.md) | Hardware validation results and what the bench taught us |
-| [PHASE_LOG.md](PHASE_LOG.md) | Decisions taken while executing each phase, with evidence |
-| [MIGRATION.md](MIGRATION.md) | v.6 module mapping, startup analysis, known defects |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, threading, layout, testing |
-| [UI_DESIGN.md](UI_DESIGN.md) | Visual identity, dashboard layout, connection UX |
-| [DECISIONS.md](DECISIONS.md) | Decision log, and the open questions |
-| [CONVENTIONS.md](CONVENTIONS.md) | Code conventions |
-| [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](FIRMWARE_DISPOSITIVOS_EXTERNOS.md) | **O que gravar em cada dispositivo**, o que mudou em cada firmware e a verificação de bancada |
-| [PLANO_DISPOSITIVOS_EXTERNOS.md](PLANO_DISPOSITIVOS_EXTERNOS.md) | Auditoria dos firmwares dos dispositivos externos contra o app e plano de padronização (presença, ACK, Controle e Painel) |
-| [PLANO_IMPLEMENTACAO_TESTES_KLA.md](PLANO_IMPLEMENTACAO_TESTES_KLA.md) | Plano detalhado da página Determinar kLa, armazenamento em `Testes-kLa` e importação bidirecional com Mapas |
-| [SIMULACAO_TESTES_KLA.md](SIMULACAO_TESTES_KLA.md) | Como iniciar o modo offline de Testes-kLa com reprodução de arquivo experimental e ACKs simulados |
-| [PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md](PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md) | Plano detalhado das páginas Potência/Mapa de Potência: ensaios de potência de impelidor (Np, P_G/flooding), tara+calibração, parada adaptativa por confiança. §18.1 é o progresso vivo da Fase 1 |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [CURRENT_STATUS.md](CURRENT_STATUS.md) | **Estado auditado atual.** Postura de release, auditoria de defeitos, evidências de testes e checklist de gate da v0.25.0 |
+| [ROADMAP.md](ROADMAP.md) | **Roadmap estratégico.** Fases do projeto, escopo, metas não-funcionais e trabalho planejado |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | **Arquitetura de software.** Padrões MVVM, threading model, camadas, arbitração de comandos e pipeline de dados |
+| [PROTOCOL.md](PROTOCOL.md) | **Contrato de comunicação serial/Wi-Fi.** Chaves JSON, tipos, unidades, limites e temporização com o ESP32-S3 |
+| [DECISIONS.md](DECISIONS.md) | **Registro de Decisões Arquiteturais (ADRs).** Justificativas e histórico (D-001 a D-034) |
+| [UI_DESIGN.md](UI_DESIGN.md) | **Especificação de interface.** Identidade visual, tokens, paleta de cores, telas de sinótico e controles |
+| [CONVENTIONS.md](CONVENTIONS.md) | **Convenções de código.** Nomenclatura, padrões assíncronos, testes e regras de engenharia de software |
+| [CHANGELOG.md](CHANGELOG.md) | **Histórico de versões.** Alterações registradas por versão e lançamentos |
 
-## Reading paths
+---
 
-**Assessing or planning the next release** → [CURRENT_STATUS.md](CURRENT_STATUS.md) → [ROADMAP.md](ROADMAP.md)
+## 📁 Documentação Especializada por Subpasta
 
-**Implementing a phase** → [ROADMAP.md](ROADMAP.md) → [ARCHITECTURE.md](ARCHITECTURE.md) → [CONVENTIONS.md](CONVENTIONS.md)
+### 1. Planos Técnicos e Implementação (`docs/plans/`)
+Planos de engenharia e especificações detalhadas de novos módulos e subsistemas:
+- [PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md](plans/PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md) — Ensaios de potência de impelidor (Np, $P_g/P_0$, flooding, parada adaptativa por $IC_{95}$).
+- [PLANO_IMPLEMENTACAO_TESTES_KLA.md](plans/PLANO_IMPLEMENTACAO_TESTES_KLA.md) — Especificação do módulo de determinação de $k_L a$ e persistência de corridas.
+- [PLANO_DISPOSITIVOS_EXTERNOS.md](plans/PLANO_DISPOSITIVOS_EXTERNOS.md) — Auditoria e padronização dos dispositivos externos (biomassa, bomba externa, agitador).
+- [PLANO_SERVO_POTENCIA_APP.md](plans/PLANO_SERVO_POTENCIA_APP.md) — Integração do servo acionamento ASDA-B2 sobre Modbus RTU para leitura de torque e potência.
+- [FLOWMETER_V05_HUB_V7_SYNC_PLAN.md](plans/FLOWMETER_V05_HUB_V7_SYNC_PLAN.md) — Sincronização do firmware do medidor de vazão v05 com o Hub v7.
 
-**Touching anything that reaches the ESP32** → [PROTOCOL.md](PROTOCOL.md), all of it, before writing code
+### 2. Hardware, Firmware e Validação (`docs/hardware/`)
+Validação na bancada, integração física com sensores e atuadores, e simulador de hardware:
+- [HARDWARE_VALIDATION.md](hardware/HARDWARE_VALIDATION.md) — Procedimentos de validação e checklist de bancada para hardware real.
+- [PHASE0_RESULTS.md](hardware/PHASE0_RESULTS.md) — Resultados medidos dos testes de hardware da Fase 0 na placa física.
+- [ACEITACAO_BANCADA_POTENCIA.md](hardware/ACEITACAO_BANCADA_POTENCIA.md) — Critérios de aceitação de bancada e ensaios do módulo de potência.
+- [FIRMWARE_DISPOSITIVOS_EXTERNOS.md](hardware/FIRMWARE_DISPOSITIVOS_EXTERNOS.md) — Guia de gravação, alterações e pinouts dos firmwares dos periféricos auxiliares.
+- [SIMULATOR.md](hardware/SIMULATOR.md) — Especificação e operação do simulador de firmware ESP32 para desenvolvimento offline.
 
-**Building a screen** → [UI_DESIGN.md](UI_DESIGN.md) → the token dictionaries in `src/OpenTECHub/Themes/`
+### 3. Processos e Bioprocessos (`docs/processes/`)
+Ciência de bioprocessos, calibração e procedimentos operacionais:
+- [CALIBRATION.md](processes/CALIBRATION.md) — Procedimentos de calibração para sondas de pH, $O_2$ dissolvido e vazão de ar/nitrogênio.
+- [KLA_MAPPING.md](processes/KLA_MAPPING.md) — Mapeamento experimental de $k_L a$, cálculo de headroom e algoritmo de interpolação.
+- [SIMULACAO_TESTES_KLA.md](processes/SIMULACAO_TESTES_KLA.md) — Guia para testes em modo offline com reprodução de corridas experimentais de $k_L a$.
 
-**Wondering why something is the way it is** → [DECISIONS.md](DECISIONS.md), then [MIGRATION.md](MIGRATION.md)
+### 4. Histórico e Migração (`docs/history/`)
+Registros de execução e legado do software:
+- [PHASE_LOG.md](history/PHASE_LOG.md) — Diário de bordo detalhado com evidências e marcos técnicos de cada fase de desenvolvimento.
+- [MIGRATION.md](history/MIGRATION.md) — Mapeamento dos módulos do app legado em Python (v.6) para C# e catálogo de defeitos históricos corrigidos.
+
+### 5. Governança e Ativos (`docs/governance/`)
+Proveniência técnica de modelos e avisos legais:
+- [ASSET_PROVENANCE.md](governance/ASSET_PROVENANCE.md) — Proveniência, contrato alfa e prompt de renderização do modelo tridimensional do biorreator.
+- [THIRD_PARTY_NOTICES.md](governance/THIRD_PARTY_NOTICES.md) — Reconhecimento de direitos autorais e licenças de algoritmos científicos de terceiros.
+
+### 6. Guias de Design e Evidências
+- `docs/UI_design_guides/` — Ativos visuais e referências de renderização consumidos pela interface (XAML).
+- `docs/evidence/` — Logs de testes de longa duração, capturas de telemetria e evidências empíricas.
+
+---
+
+## 🧭 Guias de Leitura Recomendados
+
+- **Avaliar o status e próximos passos do release:** [CURRENT_STATUS.md](CURRENT_STATUS.md) → [ROADMAP.md](ROADMAP.md)
+- **Implementar novas funcionalidades:** [ROADMAP.md](ROADMAP.md) → [ARCHITECTURE.md](ARCHITECTURE.md) → [CONVENTIONS.md](CONVENTIONS.md)
+- **Modificar comunicação ou comandos com o ESP32:** [PROTOCOL.md](PROTOCOL.md)
+- **Construir ou modificar telas e componentes:** [UI_DESIGN.md](UI_DESIGN.md) → Tokens em `src/OpenTECHub/Themes/`
+- **Entender decisões de projeto históricas:** [DECISIONS.md](DECISIONS.md) → [MIGRATION.md](history/MIGRATION.md)

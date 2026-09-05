@@ -1,4 +1,4 @@
-﻿# OpenTEC-Hub
+# OpenTEC-Hub
 
 Windows control application for the OpenTEC bioreactor module, communicating with an
 **ESP32-S3** hub over USB or Wi-Fi.
@@ -24,21 +24,22 @@ Read in this order:
 
 | Document | What it covers |
 |---|---|
+| [docs/README.md](docs/README.md) | **Índice completo de documentação.** Navegação por categorias e subsistemas |
 | [CURRENT_STATUS.md](docs/CURRENT_STATUS.md) | **Current audited state.** Release posture, defects, verification evidence and the v0.25.0 stabilization plan |
 | [ROADMAP.md](docs/ROADMAP.md) | **Start here.** Phases, scope per phase, non-functional targets, what is deferred |
-| [PROTOCOL.md](docs/PROTOCOL.md) | The frozen ESP32-S3 wire contract. Every key, unit, range and timing constant |
-| [CALIBRATION.md](docs/CALIBRATION.md) | Calibration ownership, pH/O₂/airflow procedures, interlocks and refusal states |
-| [KLA_MAPPING.md](docs/KLA_MAPPING.md) | kLa experiment, reference algorithm/parameters, headroom path, refusals and receipts |
-| [PHASE0_RESULTS.md](docs/PHASE0_RESULTS.md) | Hardware validation results — measured, on a real board |
-| [PHASE_LOG.md](docs/PHASE_LOG.md) | Decisions taken while executing each phase, with evidence |
-| [MIGRATION.md](docs/MIGRATION.md) | What each v.6 module becomes, why startup is slow, and 11 known defects found in the source |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, threading model, directory layout, testing strategy |
+| [PROTOCOL.md](docs/PROTOCOL.md) | The frozen ESP32-S3 wire contract. Every key, unit, range and timing constant |
+| [DECISIONS.md](docs/DECISIONS.md) | Decision log — why things are the way they are (ADRs) |
 | [UI_DESIGN.md](docs/UI_DESIGN.md) | Visual identity, the synoptic + detail layout, connection UX |
-| [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md) | Generated reactor prompt, structure, alpha contract and hash |
-| [DECISIONS.md](docs/DECISIONS.md) | Decision log — why things are the way they are |
 | [CONVENTIONS.md](docs/CONVENTIONS.md) | Naming, layering rules, async, error handling |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Version history |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Notices for source-derived third-party algorithms |
+| [CALIBRATION.md](docs/processes/CALIBRATION.md) | Calibration ownership, pH/O₂/airflow procedures, interlocks and refusal states |
+| [KLA_MAPPING.md](docs/processes/KLA_MAPPING.md) | kLa experiment, reference algorithm/parameters, headroom path, refusals and receipts |
+| [PHASE0_RESULTS.md](docs/hardware/PHASE0_RESULTS.md) | Hardware validation results — measured, on a real board |
+| [PHASE_LOG.md](docs/history/PHASE_LOG.md) | Decisions taken while executing each phase, with evidence |
+| [MIGRATION.md](docs/history/MIGRATION.md) | What each v.6 module becomes, why startup is slow, and 11 known defects found in the source |
+| [ASSET_PROVENANCE.md](docs/governance/ASSET_PROVENANCE.md) | Generated reactor prompt, structure, alpha contract and hash |
+| [THIRD_PARTY_NOTICES.md](docs/governance/THIRD_PARTY_NOTICES.md) | Notices for source-derived third-party algorithms |
 
 ---
 

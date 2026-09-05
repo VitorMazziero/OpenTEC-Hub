@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTECHub.Protocol;
@@ -118,6 +118,17 @@ public interface ICommandArbiter
     CommandDispatchResult DispatchSeparateFrame(CommandOwner requester, OpenTECCommand command)
         => Dispatch(requester, command);
 
+    /// <summary>
+    /// Dispatches a privileged safety stop frame, bypassing ownership conflicts, and optionally returns
+    /// all actuators to Manual (raising OwnershipRevoked if requested).
+    /// </summary>
+    CommandDispatchResult DispatchSafety(OpenTECCommand command, string reason, bool returnToManual = true);
+
+    /// <summary>
+    /// The same safety dispatch, but the frame is sent on its own rather than merged.
+    /// </summary>
+    CommandDispatchResult DispatchSeparateSafetyFrame(OpenTECCommand command, string reason, bool returnToManual = true);
+
     /// <summary>Transfers a set of actuators to <paramref name="owner"/>, explicitly and journalled.</summary>
     OwnershipTransfer Claim(CommandOwner owner, IReadOnlyList<ActuatorId> actuators, string reason);
 
@@ -125,7 +136,7 @@ public interface ICommandArbiter
     OwnershipTransfer Release(CommandOwner owner, string reason);
 
     /// <summary>Returns every actuator to Manual — the operator taking the wire back.</summary>
-    OwnershipTransfer ReturnToManual(string reason);
+    OwnershipTransfer ReturnToManual(string reason, bool isSafeAbort = false);
 
     /// <summary>Raised on an explicit ownership transfer.</summary>
     event Action<OwnershipTransfer>? OwnershipChanged;
@@ -318,6 +329,75 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
         return new CommandDispatchResult(true, [], requester);
     }
 
+    public CommandDispatchResult DispatchSafety(OpenTECCommand command, string reason, bool returnToManual = true)
+        => DispatchSafetyInternal(command, reason, separateFrame: false, returnToManual);
+
+    public CommandDispatchResult DispatchSeparateSafetyFrame(OpenTECCommand command, string reason, bool returnToManual = true)
+        => DispatchSafetyInternal(command, reason, separateFrame: true, returnToManual);
+
+    private CommandDispatchResult DispatchSafetyInternal(OpenTECCommand command, string reason, bool separateFrame, bool returnToManual)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.IsEmpty)
+        {
+            return CommandDispatchResult.Nothing(CommandOwner.Manual);
+        }
+
+        if (returnToManual)
+        {
+            ReturnToManual($"parada de segurança: {reason}", isSafeAbort: true);
+        }
+
+        var actuators = CommandActuators.ActuatorsIn(command);
+        List<CommandLifecycleEntry> issued = [];
+
+        lock (_gate)
+        {
+            var now = _time.GetUtcNow();
+            foreach (var actuator in CommandActuators.All.Where(actuators.Contains))
+            {
+                var isAeration = actuator == ActuatorId.Aeration;
+                var entry = new CommandLifecycleEntry(
+                    actuator,
+                    CommandOwner.Manual,
+                    CommandPhase.Issued,
+                    now,
+                    now,
+                    isAeration ? AerationChannel : NoEchoChannel,
+                    Describe(actuator, command));
+                _lifecycle[actuator] = entry;
+                issued.Add(entry);
+
+                if (isAeration)
+                {
+                    _flowConfirmTarget =
+                        TryParseValue(command.GetRawValue(CommandKeys.FlowSetpoint), out var target)
+                            ? target
+                            : null;
+                }
+            }
+        }
+
+        _log.LogInformation("Safety dispatch sent to wire for {Actuators} ({Reason})",
+            string.Join(", ", actuators), reason);
+
+        foreach (var entry in issued)
+        {
+            CommandTracked?.Invoke(entry);
+        }
+
+        if (separateFrame)
+        {
+            _inner.SendAfterCurrentFrame(command);
+        }
+        else
+        {
+            _inner.Send(command);
+        }
+
+        return new CommandDispatchResult(true, [], CommandOwner.Manual);
+    }
+
     public OwnershipTransfer Claim(CommandOwner owner, IReadOnlyList<ActuatorId> actuators, string reason)
     {
         ArgumentNullException.ThrowIfNull(actuators);
@@ -335,7 +415,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
         return Transfer(CommandOwner.Manual, held, reason, isSafeAbort: false);
     }
 
-    public OwnershipTransfer ReturnToManual(string reason)
+    public OwnershipTransfer ReturnToManual(string reason, bool isSafeAbort = false)
     {
         IReadOnlyList<ActuatorId> nonManual;
         lock (_gate)
@@ -343,7 +423,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
             nonManual = _ownership.Where(kv => kv.Value != CommandOwner.Manual).Select(kv => kv.Key).ToArray();
         }
 
-        return Transfer(CommandOwner.Manual, nonManual, reason, isSafeAbort: false);
+        return Transfer(CommandOwner.Manual, nonManual, reason, isSafeAbort);
     }
 
     private OwnershipTransfer Transfer(

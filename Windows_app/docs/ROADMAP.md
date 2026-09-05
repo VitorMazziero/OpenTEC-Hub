@@ -1,4 +1,4 @@
-﻿# OpenTEC-Hub — Build Roadmap
+# OpenTEC-Hub — Build Roadmap
 
 > **Version:** 0.24.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-26
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
@@ -66,7 +66,7 @@ and dependency, not on implementation size.
 |---|---|---|---|
 | **P0** | Field protocol closure: captured byte comparison, live-sensor/calibration run, command acknowledgement timing, safe COM discovery and configured Wi-Fi poll period | Partial; software/simulator complete, hardware gate open | Phase 0 follow-ups + Phase 2 WP4 |
 | **P0** | Operational safety kernel: link/module/flowmeter/frozen-sensor/unacknowledged-command alarms, audible indication with timed silence, event journal, and an operator session-time zero | **Done (WP4):** six latching system alarms with deadband, acknowledgement, timed audible silence, journal and a shell banner; session-time zero. Full Alarmes page is Phase 5 | Phase 2 WP4 |
-| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and `Receita`, including safe abort on link/feedback loss | Arbiter/engine complete, but **release blocker open:** global Manual safe-stop can be atomically refused while Recipe owns the wire, and manual controls do not visibly lock. See AUD-001/AUD-002 | v0.25.0 stabilization |
+| **P0** | Exclusive command ownership and bumpless transfer among `Manual`, `Automático` and `Receita`, including safe abort on link/feedback loss | Arbiter/engine complete; AUD-001 fixed (coordenador de parada segura / caminho privilegiado); **bloqueador aberto:** controles manuais não bloqueiam visualmente sob posse de Receita (AUD-002). | v0.25.0 stabilization |
 | **P1** | Dedicated kLa experimental mapping window: enter `(Q_g,N,kLa)` anchors, estimate `kLa(Q_g,N)`, calculate the normalized gradient/headroom path, review and publish it | **Done (WP5):** blank-start experiment, paper/custom identity, headroom workspace and immutable receipts | Phase 2 WP5 — [D-008](DECISIONS.md) |
 | **P1** | Live oxygen cascade: kLa-path allocation plus the v.6 agitation-only and aeration-only fallback modes, explicit integrator reset, live tuning chart and O₂ `Cascata/PID/Saída` detail | **Done (WP6):** kLa-path allocation, three modes, ownership handshake, bumpless engage, integral reset, safe abort, the O₂ detail tabs and the live tuning chart. Bioreactor run is the field gate | Phase 2 WP6 |
 | **P1** | Cultivation auxiliaries: nutrient dosing, antifoam dosing, distance/foam timing and the separate flask agitator | **Done (WP7):** operator controls, ownership, safe-stop aggregation and synoptic coverage; hardware receipt remains | Phase 2 WP7 |

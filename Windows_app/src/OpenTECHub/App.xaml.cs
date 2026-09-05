@@ -16,6 +16,7 @@ using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.Recipes;
+using OpenTECHub.Services.Safety;
 using OpenTECHub.Services.Telemetry;
 using OpenTECHub.Services.Theme;
 using OpenTECHub.ViewModels;
@@ -380,6 +381,18 @@ public partial class App : Application
         // automatic workflows. The runner is telemetry-driven and contains no UI dependency.
         services.AddSingleton<IPowerTestInterlock, PowerTestInterlock>();
         services.AddSingleton<IPowerTestRunner, PowerTestRunner>();
+
+        // The safety coordinator (AUD-001) resolves ownership conflicts during safe stops,
+        // revokes automation ownerships across recipes, cascade, and assays, and guarantees
+        // safe zero-setpoint dispatch to the wire.
+        services.AddSingleton<ISafetyCoordinator>(sp => new SafetyCoordinator(
+            sp.GetRequiredService<ICommandArbiter>(),
+            sp.GetRequiredService<IDeviceService>(),
+            recipeEngine: sp.GetService<IRecipeEngine>(),
+            cascade: sp.GetService<ICascadeService>(),
+            klaRunner: sp.GetService<IKlaTestRunner>(),
+            powerRunner: sp.GetService<IPowerTestRunner>(),
+            sp.GetService<ILogger<SafetyCoordinator>>()));
 
         services.AddSingleton<ConnectionViewModel>();
         services.AddSingleton<ChartsViewModel>();

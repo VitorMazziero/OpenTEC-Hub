@@ -1,4 +1,4 @@
-﻿# OpenTEC-Hub current status and stabilization audit
+# OpenTEC-Hub current status and stabilization audit
 
 > **Audit date:** 2026-08-26 · **Revised:** 2026-08-29  
 > **Current version:** 0.24.0  
@@ -78,6 +78,8 @@ Severity means release impact: **P0** blocks any recipe-enabled field release, *
 
 ### AUD-001 — P0 — global safe-stop may be refused during an active recipe
 
+**Resolvido (05/09/2026).**
+
 `ControlViewModel.SafeStop` disengages the automatic cascade and then sends a combined frame through
 `IDeviceService.Send`. In the application composition root, that service is the `CommandArbiter`,
 whose plain `Send` is a **Manual** dispatch. A running recipe owns every actuator, and one ownership
@@ -100,6 +102,14 @@ frame under valid ownership, release ownership, and update UI state only after a
 Exit test: start a recipe, press the global safe stop, assert one accepted safe frame, recipe state
 stopped, all required actuator owners returned to Manual, and no false success on refusal/transport
 failure.
+
+**Implementação e Verificação (05/09/2026):**
+- Criado o serviço coordenador de segurança `ISafetyCoordinator` / `SafetyCoordinator` (`src/OpenTECHub/Services/Safety/`), responsável por coordenar a parada de receitas ativas (`IRecipeEngine.StopAsync`), desengajamento de cascata (`ICascadeService.Disengage`), aborto de ensaios (`IKlaTestRunner.AbortTestAsync`, `IPowerTestRunner.AbortTestAsync`) e verificação do estado de conexão da camada de transporte.
+- Implementado caminho privilegiado de segurança no `ICommandArbiter` (`DispatchSafety` e `DispatchSeparateSafetyFrame`), permitindo o envio atômico do quadro de emergência para o hardware e garantindo a revogação de posse para `CommandOwner.Manual` com emissão do evento `OwnershipRevoked(isSafeAbort: true)`.
+- Atualizado `ControlViewModel.SafeStopCommand` para rotear a parada por `_safetyCoordinator.ExecuteGlobalSafeStopAsync`, avaliando o `SafetyStopResult` e exibindo mensagem de erro explícita em caso de desconexão ou recusa, eliminando qualquer falso positivo de sucesso na UI.
+- Registrado `ISafetyCoordinator` no contêiner DI em `App.xaml.cs` e injetado em `ShellViewModel.cs`.
+- Criada a suíte `SafetyCoordinatorTests.cs` cobrindo cenários com receita em execução, cascata engajada, link desconectado e override forçado no `CommandArbiter`.
+- Adicionados testes de integração em `ControlViewModelTests.cs` validando o comando de parada segura durante receita ativa e o retorno de falha honesta quando desconectado. Total de 1078 testes passando.
 
 ### AUD-002 — P0 — manual controls do not visibly become inert under Recipe ownership
 
@@ -276,9 +286,9 @@ release checklist and rollback instructions are complete.
 
 Do not bump/release until all of the following are true:
 
-- [ ] AUD-001 and AUD-002 closed with active-recipe tests
+- [ ] AUD-001 (fechado em 05/09/2026 com testes) e AUD-002 (aberto) com testes de receita ativa
 - [ ] AUD-003 through AUD-007 closed; no false command-success state
-- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **28/08: 587/1 skip/0 fail**; re-confirm at release time
+- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **05/09: 1078/1 skip/0 fail**; re-confirm at release time
 - [ ] Release build and self-contained publish have zero warnings, including `NU1701`
 - [ ] `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` passes
 - [ ] package vulnerability scan reports no known vulnerabilities

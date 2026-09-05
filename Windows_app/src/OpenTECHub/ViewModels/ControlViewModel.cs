@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,6 +10,7 @@ using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Safety;
 
 namespace OpenTECHub.ViewModels;
 
@@ -128,6 +129,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     /// disagreement with the Hub. Null in the view-model tests, which do not raise alarms.
     /// </summary>
     private readonly IAlarmService? _alarms;
+    private readonly ISafetyCoordinator _safetyCoordinator;
     private readonly SubsystemViewModel _flowSubsystem;
     private bool _switchingSharedPump;
     private bool _flowCommitPending;
@@ -153,7 +155,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         IAlarmService? alarms = null,
         ProcessVariableViewModel? phVariable = null,
         ProcessVariableViewModel? distanceVariable = null,
-        ProcessVariableViewModel? biomassVariable = null)
+        ProcessVariableViewModel? biomassVariable = null,
+        ISafetyCoordinator? safetyCoordinator = null)
     {
         if (subsystems.Count != 5)
         {
@@ -166,6 +169,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _cascade = cascade;
         _klaProfileStore = klaProfileStore;
         _alarms = alarms;
+        _safetyCoordinator = safetyCoordinator ??
+            new SafetyCoordinator(
+                device as ICommandArbiter ?? new CommandArbiter(device, TimeProvider.System),
+                device,
+                recipeEngine: null,
+                cascade: cascade);
         PHVariable = phVariable;
         DistanceVariable = distanceVariable;
         BiomassVariable = biomassVariable;
@@ -639,7 +648,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void SafeStop()
+    private async Task SafeStopAsync()
     {
         // Every actuator with an app-side control surface goes to its safe state in one
         // frame: the Phase 1 core loop, pH, and the WP7 nutrient, antifoam and flask
@@ -665,15 +674,19 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Release the cascade first so the safe frame lands as a manual command rather than
-        // being rejected for actuators the cascade still owns.
-        _cascade.Disengage("parada segura");
-        _device.Send(command);
+        // Deliver through the owner-aware safety coordinator (AUD-001).
+        // It disengages the cascade, stops/aborts any active recipe, aborts active assays,
+        // delivers the safe frame and routing disable under valid ownership, and ensures
+        // no false success if the hardware transport is disconnected or refused.
+        var routingDisable = PumpControl.BuildRoutingDisable();
+        var result = await _safetyCoordinator.ExecuteGlobalSafeStopAsync(command, routingDisable, "parada segura").ConfigureAwait(true);
 
-        // The pump's routing switch travels on its own frame, after the one above. Merged in,
-        // the Hub would clear routing while parsing and then discard the mode:0 beside it,
-        // leaving the node dosing through a stop that reported success.
-        _device.SendAfterCurrentFrame(PumpControl.BuildRoutingDisable());
+        if (!result.Accepted)
+        {
+            StatusText = $"Falha na parada segura: {result.FailureReason ?? "comando recusado pelo árbitro"}";
+            RefreshState();
+            return;
+        }
 
         foreach (var row in Rows)
         {

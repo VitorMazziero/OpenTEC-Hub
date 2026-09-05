@@ -14,6 +14,7 @@ using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
+using OpenTECHub.Services.Safety;
 using OpenTECHub.Services.Telemetry;
 using OpenTECHub.Services.Theme;
 
@@ -157,7 +158,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         ISessionLogger sessionLogger,
         IRecipeEngine recipeEngine,
         ReceitasViewModel receitas,
-        ILogger<ShellViewModel> log)
+        ILogger<ShellViewModel> log,
+        ISafetyCoordinator? safetyCoordinator = null)
     {
         _device = device;
         _alarms = alarms;
@@ -321,7 +323,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             alarms,
             phVariable: Ph,
             distanceVariable: Level,
-            biomassVariable: Biomass);
+            biomassVariable: Biomass,
+            safetyCoordinator: safetyCoordinator);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 

@@ -1,8 +1,10 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Recipes;
+using OpenTECHub.Services.Safety;
 using OpenTECHub.ViewModels;
 using Xunit;
 
@@ -285,11 +287,72 @@ public sealed class ControlViewModelTests
         Assert.Equal(0.88, fixture.Settings.Current.Cascade.CascadePid.Kp);
     }
 
+    [Fact]
+    public async Task Safe_stop_during_active_recipe_succeeds_and_stops_recipe()
+    {
+        var device = new RecordingDeviceService();
+        var clock = new TestClock(DateTimeOffset.UnixEpoch);
+        var arbiter = new CommandArbiter(device, clock);
+        var settings = new MemorySettingsService(new AppSettings());
+        var recipeEngine = new RecipeEngine(arbiter, arbiter, settings, clock, journal: null,
+            delay: (requested, ct) => Task.Delay(TimeSpan.FromMilliseconds(Math.Clamp(requested.TotalMilliseconds, 0, 5)), ct));
+        var coordinator = new SafetyCoordinator(arbiter, device, recipeEngine: recipeEngine);
+
+        using var fixture = new ControlFixture(
+            safetyCoordinator: coordinator,
+            device: arbiter);
+        fixture.Dialogs.ConfirmResult = true;
+
+        // Start recipe claiming actuators
+        var recipe = new RecipeDocument { Name = "Holding" };
+        var start = RecipeNode.Create(NodeType.Start, id: "start");
+        var monitor = RecipeNode.Create(NodeType.MonitorVariable, id: "mon");
+        monitor.Set("variavel", MeasuredVariable.Temperature.ToString());
+        monitor.Set("condicao", ComparisonOperator.GreaterOrEqual.ToString());
+        monitor.Set("valorAlvo", 100000.0);
+        var end = RecipeNode.Create(NodeType.End, id: "end");
+        recipe.Nodes.AddRange([start, monitor, end]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "mon", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("mon", ConnectorNames.Out, "end", ConnectorNames.In));
+
+        await recipeEngine.StartAsync(recipe);
+        Assert.Equal(RecipeRunState.Running, recipeEngine.State);
+        Assert.All(CommandActuators.All, a => Assert.Equal(CommandOwner.Recipe, arbiter.OwnerOf(a)));
+
+        // Operator executes SafeStop
+        await fixture.Control.SafeStopCommand.ExecuteAsync(null);
+
+        // Before AUD-001 fix, the safe stop frame was dropped due to ownership conflict.
+        // With AUD-001 fix:
+        Assert.Equal(RecipeRunState.Stopped, recipeEngine.State);
+        Assert.All(CommandActuators.All, a => Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(a)));
+        Assert.Contains(device.Sent, s => s.Contains("tempSetpoint") && s.Contains("0"));
+        Assert.Contains("Parada segura executada", fixture.Control.StatusText);
+    }
+
+    [Fact]
+    public async Task Safe_stop_when_disconnected_displays_error_status_and_does_not_claim_success()
+    {
+        using var fixture = new ControlFixture();
+        fixture.Dialogs.ConfirmResult = true;
+        fixture.Device.PushState(ConnectionState.Disconnected);
+
+        await fixture.Control.SafeStopCommand.ExecuteAsync(null);
+
+        Assert.Contains("Falha na parada segura", fixture.Control.StatusText);
+        Assert.Contains("desconectado", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Parada segura executada: todos os atuadores foram desligados", fixture.Control.StatusText);
+    }
+
     private sealed class ControlFixture : IDisposable
     {
-        public ControlFixture(AppSettings? initialSettings = null)
+        public ControlFixture(
+            AppSettings? initialSettings = null,
+            ISafetyCoordinator? safetyCoordinator = null,
+            IDeviceService? device = null)
         {
-            Device = new RecordingDeviceService();
+            Device = (device as RecordingDeviceService) ?? new RecordingDeviceService();
+            var targetDevice = device ?? Device;
             Settings = new MemorySettingsService(initialSettings ?? new AppSettings());
             Dialogs = new RecordingDialogService();
             Flow = new FlowControlViewModel(Settings.Current.Setpoints.MaxFlowLitresPerMinute);
@@ -321,19 +384,20 @@ public sealed class ControlViewModelTests
                     Settings.Current.Setpoints.PressureKilopascal),
             ];
 
-            var cascadeArbiter = new CommandArbiter(Device, TimeProvider.System);
-            Cascade = new CascadeService(cascadeArbiter, cascadeArbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
-            PH = new PHControlViewModel(Device, Settings);
-            Nutrient = new NutrientControlViewModel(Device, Settings);
-            Antifoam = new AntifoamControlViewModel(Device, Settings);
-            Foam = new FoamControlViewModel(Device, Settings);
-            Agitator = new FlaskAgitatorViewModel(Device, Settings);
-            Biomass = new BiomassControlViewModel(Device, Settings);
-            Pump = new PumpControlViewModel(Device, Settings);
-            Servo = new ServoDriveViewModel(Device);
+            var cascadeArbiter = targetDevice as ICommandArbiter ?? new CommandArbiter(targetDevice, TimeProvider.System);
+            Cascade = new CascadeService(targetDevice, cascadeArbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
+            PH = new PHControlViewModel(targetDevice, Settings);
+            Nutrient = new NutrientControlViewModel(targetDevice, Settings);
+            Antifoam = new AntifoamControlViewModel(targetDevice, Settings);
+            Foam = new FoamControlViewModel(targetDevice, Settings);
+            Agitator = new FlaskAgitatorViewModel(targetDevice, Settings);
+            Biomass = new BiomassControlViewModel(targetDevice, Settings);
+            Pump = new PumpControlViewModel(targetDevice, Settings);
+            Servo = new ServoDriveViewModel(targetDevice);
             Control = new ControlViewModel(
                 Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump, Servo,
-                Device, Settings, Dialogs, Cascade);
+                targetDevice, Settings, Dialogs, Cascade,
+                safetyCoordinator: safetyCoordinator);
             Device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true });
         }
 

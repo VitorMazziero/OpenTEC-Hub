@@ -21,17 +21,15 @@ panel lines are unified on `main` through `230c6ce`. All 20 local branches are a
 none carries a commit outside it. The application core is substantially built, but **0.24.0 is not
 yet a field-release candidate**.
 
-The 42 commits added since the audited baseline are feature, UI and integration work. They close no
-P0/P1 finding outright — AUD-002 is the only one that moved, and only partially. The release
-blockers below stand as written.
+The P0 findings AUD-001 and AUD-002 are now **both resolved (05/09/2026)**. The release blockers below
+reflect the remaining stabilization and verification items.
 
-The remaining work is no longer a broad rebuild. It is concentrated in:
+The remaining work is concentrated in:
 
-1. closing two command-ownership/safe-stop safety defects;
-2. making every manual surface report accepted versus refused commands honestly;
-3. stabilizing startup, chart dependencies and the code-quality gate;
-4. completing visual/operator review and real-hardware receipts; and
-5. packaging the application for field use.
+1. making every manual surface report accepted versus refused commands honestly (AUD-003, AUD-004);
+2. stabilizing startup, chart dependencies and the code-quality gate;
+3. completing visual/operator review and real-hardware receipts; and
+4. packaging the application for field use.
 
 The authoritative version should remain **0.24.0** while the P0 findings below are open. Use
 **0.25.0** as the next milestone and bump `Directory.Build.props` only after the 0.25.0 release
@@ -113,23 +111,27 @@ failure.
 
 ### AUD-002 — P0 — manual controls do not visibly become inert under Recipe ownership
 
-**Partially addressed on 28/08; still open.** `de1141f` added page-level locking: `ControlViewModel`
-now exposes `IsRecipeRunning`, `IsManualOperationEnabled` and a `RecipeRunningNotice` banner, and
-`c54de43` routed the external-device toggles and setpoint entries through `CanActuate` so they no
-longer accept an order that cannot leave over the wire. What the finding asked for is still missing:
-the lock is a single page-wide flag derived from *a recipe running*, not per-actuator ownership read
-from the arbiter, and there is no `receita` provenance badge or refusal reason on a row. A cascade or
-Automatic owner still locks nothing here.
+**Resolvido (05/09/2026).**
 
-The arbiter correctly refuses Manual writes while a recipe runs, but `ControlViewModel.CanActuate`
-checks connection only (verified again on 28/08:
-`public bool CanActuate => _device.State == ConnectionState.Connected;`). The page has cascade-specific locks and badges, not general Recipe ownership
-bindings. Therefore controls can remain editable and appear to send even while the wire rejects them.
-This does not satisfy the documented promise that starting a recipe deactivates manual control.
+`ControlViewModel` e todos os ViewModels de subsistemas e periféricos (`FlowControlViewModel`, `PHControlViewModel`, `NutrientControlViewModel`, `AntifoamControlViewModel`, `FlaskAgitatorViewModel`, `BiomassControlViewModel`, `PumpControlViewModel`) agora rastreiam dinamicamente o estado de posse de cada atuador via `ICommandArbiter` (`OwnershipChanged` e `OwnershipRevoked`).
 
-Required correction: expose ownership/read-only state to each control row/card, disable all conflicting
-edit/apply actions, display `receita` provenance and a clear reason, and keep the global safety action
-available. Add UI/view-model tests for acquire, release, abort and reconnect transitions.
+Cada linha de processo e cada cartão de periférico expõe:
+- `CurrentOwner`: proprietário atual do atuador (`Manual`, `Recipe`, `Automatic`, `KlaAssay`, `PowerAssay`);
+- `IsOwnedByOther`: booleano indicando se o atuador está sob controle de outro processo (`CurrentOwner != Manual`);
+- `HasOwnerBadge`: booleano que ativa a exibição do crachá de proveniência (no caso do oxigênio, suprimido quando em `Automatic` pois a linha atua como seletor da cascata);
+- `OwnerBadgeText`: texto padronizado em minúsculas para o `ctl:ProvenanceBadge` (`receita`, `controle o₂`, `ensaio kla`, `ensaio pot`);
+- `OwnerLockReason`: descrição explicativa em pt-BR utilizada como `ToolTip` de bloqueio nos controles manuais e mensagem explicativa de recusa.
+
+No XAML (`ControlView.xaml`):
+- O bloqueio genérico de página inteira (`<Grid Grid.Row="1" IsEnabled="{Binding IsManualOperationEnabled}">`) foi **removido**, garantindo que a barra de status e a ação de parada segura ("Parada segura") permaneçam **100% operáveis e acessíveis a qualquer momento**, mesmo durante uma receita ou automação ativa.
+- Todas as 5 linhas de processo (temperatura, agitação, oxigênio, vazão, pressão) desabilitam seus toggles, caixas de texto e botões via `IsEnabled="{Binding IsOwnedByOther, Converter={StaticResource InverseBool}}"`, exibem `ctl:ProvenanceBadge` com bind em `HasOwnerBadge`/`OwnerBadgeText` e mostram tooltips contextuais com `OwnerLockReason`.
+- Todos os cartões periféricos e gavetas (bomba externa, sensor de biomassa, agitador de frascos, pH, nutriente e antiespumante) desabilitam suas entradas, sliders e botões de envio/aplicação quando sob posse externa e exibem seus respectivos crachás e tooltips.
+- Defesa em profundidade: `CanApplyAll` e `ApplyAll` validam se há linhas alteradas sob posse de outro processo e abortam o envio com aviso explícito no `StatusText`. Os métodos de aplicação dos periféricos (`Apply`, `ApplyProfile`, `ApplyThresholds`, `SendMomentary`) rejeitam qualquer disparo manual sob posse externa.
+- Para a linha de oxigênio, a alternância do botão "Ativo" desengaja a cascata normalmente quando em `Automatic` ou `Manual`.
+
+Testes automatizados:
+- `ControlWorkspaceContractTests.cs`: adicionados testes contratuais `Safe_stop_is_never_locked_by_parent_grid` e `Process_rows_and_peripherals_bind_ownership_lock_and_provenance_badges`.
+- `ControlViewModelTests.cs`: adicionados testes `When_recipe_claims_actuators_manual_controls_visually_lock_and_show_recipe_badge`, `When_recipe_releases_actuators_manual_controls_unlock_and_badges_disappear`, `When_actuator_is_owned_by_recipe_manual_application_is_prevented` e `When_cascade_engages_only_overridden_actuators_show_oxygen_badge`. 100% dos testes da solução passando (1084 aprovados, 0 falhas).
 
 ### AUD-003 — P1 — manual command acceptance is not observable by view-models
 

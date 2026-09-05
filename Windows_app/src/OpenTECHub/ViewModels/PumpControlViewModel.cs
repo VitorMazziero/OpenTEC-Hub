@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -199,9 +199,22 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     public bool ShowPiecewise => SelectedModeOption.Mode == PumpProfileMode.Piecewise;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
+    [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
+    [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
+    [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
+    public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
+    public bool HasOwnerBadge => IsOwnedByOther;
+    public string? OwnerBadgeText => OwnershipUi.GetBadgeText(CurrentOwner);
+    public string? OwnerLockReason => OwnershipUi.GetLockReason(CurrentOwner);
+
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => IsEnabled && IsValid && Status.CanSend;
+    public bool CanApply => IsEnabled && IsValid && Status.CanSend && !IsOwnedByOther;
 
     public string StateText => IsEnabled ? "Ativa" : "Desligada";
 
@@ -212,6 +225,13 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
         if (!_initialised || _revertingEnable)
         {
+            return;
+        }
+
+        if (IsOwnedByOther)
+        {
+            RevertEnable(value);
+            StatusText = OwnerLockReason ?? "Bomba externa sob controle de outro processo.";
             return;
         }
 
@@ -304,6 +324,12 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void ApplyProfile()
     {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Operação bloqueada pelo controlador atual.";
+            return;
+        }
+
         if (!TryBuildSpec(out var spec, out var error))
         {
             StatusText = error ?? "Revise os parâmetros do perfil da bomba.";

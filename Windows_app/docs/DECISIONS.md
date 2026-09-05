@@ -985,6 +985,30 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 
 ---
 
+### D-035 · Bloqueio visual dinâmico de controles manuais por posse e desacoplamento do botão de parada segura (AUD-002)
+
+**Decisão.** O travamento dos controles manuais na interface do `ControlView` passa a refletir dinamicamente a posse individual de cada atuador registrada no `ICommandArbiter`:
+1. Cada linha de processo (Temperatura, Agitação, Oxigênio, Vazão de Ar, Pressão) e cada cartão periférico (Bomba Externa, Sensor de Biomassa, Agitador de Frascos, Dosagem de pH, Nutriente, Antiespumante) monitora os eventos `OwnershipChanged` e `OwnershipRevoked` do árbitro através do `ControlViewModel.UpdateOwnershipFromArbiter()`.
+2. As propriedades de bloqueio e proveniência são expostas individualmente:
+   - `CurrentOwner`: enum do proprietário (`Manual`, `Recipe`, `Automatic`, `KlaAssay`, `PowerAssay`);
+   - `IsOwnedByOther`: booleano (`CurrentOwner != Manual`);
+   - `HasOwnerBadge`: ativa a exibição do crachá visual `ctl:ProvenanceBadge` (para o oxigênio, suprimido quando em `Automatic` pois a linha atua como seletor da cascata);
+   - `OwnerBadgeText`: texto em minúsculas padronizado (`receita`, `controle o₂`, `ensaio kla`, `ensaio pot`);
+   - `OwnerLockReason`: justificativa contextual em pt-BR utilizada como `ToolTip` de bloqueio e feedback em caso de tentativa de envio.
+3. No XAML (`ControlView.xaml`), o bloqueio genérico de página inteira (`<Grid Grid.Row="1" IsEnabled="{Binding IsManualOperationEnabled}">`) é **eliminado**, garantindo que a barra de status e a ação de parada segura ("Parada segura") permaneçam permanentemente ativas e acessíveis ao operador, mesmo com receita em execução.
+4. Cada elemento interativo de entrada (sliders, caixas de texto numéricas, toggles de estado, botões de aplicação local) tem seu `IsEnabled` vinculado a `IsOwnedByOther` via `conv:InverseBoolConverter`, tornando os controles inertes e exibindo o crachá de proveniência ao lado do cabeçalho.
+5. Defesa em profundidade nos comandos de disparo: os métodos `Apply`, `ApplyProfile`, `ApplyThresholds`, `SendMomentary` e `ApplyAll` abortam a operação se o atuador estiver sob posse de outro processo (`IsOwnedByOther`), informando o motivo no `StatusText` e evitando disparos espúrios pela interface.
+6. A linha de oxigênio permite o desengajamento da cascata pelo toggle ativo quando o atuador estiver em `Automatic` ou `Manual`.
+
+**Por quê.** O apontamento AUD-002 identificou que os controles manuais não ficavam inertes sob a posse da receita e não exibiam crachás de proveniência de comando. Além disso, a implementação preliminar com bloqueio de página inteira via `IsManualOperationEnabled` desabilitava o contêiner onde ficavam a barra de status e o botão de emergência, violando a regra de segurança física de que a parada de emergência deve ser incondicionalmente acessível a qualquer momento.
+
+**Consequências.**
+- **Clareza operacional instantânea.** O operador visualiza exatamente qual processo ou automação tem autoridade sobre cada atuador e por que os controles manuais correspondentes estão desabilitados.
+- **Segurança irrestrita.** O botão global de parada segura nunca é bloqueado por contêineres pais ou estado de receita, permanecendo sempre funcional.
+- **Zero conflitos na camada física.** Impossibilidade de acionamentos manuais acidentais concorrendo com o motor de receitas ou rotinas de ensaio.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

@@ -11,10 +11,11 @@ Estes são os documentos centrais que definem o estado, arquitetura, protocolo e
 | Documento | Descrição |
 |---|---|
 | [CURRENT_STATUS.md](CURRENT_STATUS.md) | **Estado auditado atual.** Postura de release, auditoria de defeitos, evidências de testes e checklist de gate da v0.25.0 |
+| [IMPLEMENTATION_STEPS.md](IMPLEMENTATION_STEPS.md) | **Plano de implementação passo a passo.** Roteiro detalhado de resolução de pendências de software, bancada e firmware |
 | [ROADMAP.md](ROADMAP.md) | **Roadmap estratégico.** Fases do projeto, escopo, metas não-funcionais e trabalho planejado |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | **Arquitetura de software.** Padrões MVVM, threading model, camadas, arbitração de comandos e pipeline de dados |
 | [PROTOCOL.md](PROTOCOL.md) | **Contrato de comunicação serial/Wi-Fi.** Chaves JSON, tipos, unidades, limites e temporização com o ESP32-S3 |
-| [DECISIONS.md](DECISIONS.md) | **Registro de Decisões Arquiteturais (ADRs).** Justificativas e histórico (D-001 a D-034) |
+| [DECISIONS.md](DECISIONS.md) | **Registro de Decisões Arquiteturais (ADRs).** Justificativas e histórico (D-001 a D-035) |
 | [UI_DESIGN.md](UI_DESIGN.md) | **Especificação de interface.** Identidade visual, tokens, paleta de cores, telas de sinótico e controles |
 | [CONVENTIONS.md](CONVENTIONS.md) | **Convenções de código.** Nomenclatura, padrões assíncronos, testes e regras de engenharia de software |
 | [CHANGELOG.md](CHANGELOG.md) | **Histórico de versões.** Alterações registradas por versão e lançamentos |

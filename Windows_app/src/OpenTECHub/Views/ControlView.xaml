@@ -16,6 +16,7 @@
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:ActiveToStateConverter x:Key="ActiveToState" />
         <conv:ActiveVariableStateConverter x:Key="ActiveVariableState" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
 
         <!-- An external device that is not on the wire cannot be commanded, so its
              switch and its setpoint box stay dead rather than accepting an order that
@@ -125,7 +126,7 @@
         </StackPanel>
 
         <!-- Main Body -->
-        <Grid Grid.Row="1" IsEnabled="{Binding IsManualOperationEnabled}">
+        <Grid Grid.Row="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -226,15 +227,15 @@
                                                         <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                         <Setter Property="BorderThickness" Value="2" />
                                                     </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
                                                         <Setter Property="IsEnabled" Value="False" />
-                                                        <Setter Property="ToolTip" Value="Controle bloqueado pelo controle de oxigênio." />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBox.Style>
                                     </TextBox>
-                                    <ctl:ProvenanceBadge Text="controle o₂" Margin="4,0,0,0" Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                    <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
@@ -243,9 +244,9 @@
                                     <ToggleButton.Style>
                                         <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
                                                     <Setter Property="IsEnabled" Value="False" />
-                                                    <Setter Property="ToolTip" Value="Controlado pelo controle de oxigênio." />
+                                                    <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -291,9 +292,9 @@
                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
                                                             <Setter Property="IsEnabled" Value="False" />
-                                                            <Setter Property="ToolTip" Value="Controle bloqueado pelo controle de oxigênio." />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -305,8 +306,8 @@
                                         <TextBlock Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}"
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
-                                        <ctl:ProvenanceBadge Text="controle o₂" Margin="8,0,0,0"
-                                                             Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="8,0,0,0"
+                                                             Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
 
                                     <!-- The route selector does not create a second setpoint. It only
@@ -526,15 +527,31 @@
                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                                  IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de temperatura" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de temperatura">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: Temperatura -->
@@ -604,15 +621,31 @@
                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="pH" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="1,00–14,00" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Habilitar controle de pH" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Habilitar controle de pH">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: pH -->
@@ -631,7 +664,7 @@
 
                                         <!-- Left: pH Parameters -->
                                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                            <WrapPanel>
+                                            <WrapPanel IsEnabled="{Binding IsOwnedByOther, Converter={StaticResource InverseBool}}">
                                                 <StackPanel Width="130" Margin="0,0,12,6">
                                                     <TextBlock Text="Histerese (±)" Style="{StaticResource DosingFieldLabel}" />
                                                     <TextBox Text="{Binding InactiveBandText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Banda inativa: 0,01 a 2,00 pH" />
@@ -716,15 +749,31 @@
                                                         <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                         <Setter Property="BorderThickness" Value="2" />
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBox.Style>
                                     </TextBox>
+                                    <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
-                                <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                              IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de alívio de pressão" />
+                                <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              IsChecked="{Binding EffectiveActive, Mode=TwoWay}" ToolTip="Habilitar controle de alívio de pressão">
+                                    <ToggleButton.Style>
+                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ToggleButton.Style>
+                                </ToggleButton>
                             </Grid>
 
                             <!-- 5. Oxigênio -->
@@ -777,13 +826,25 @@
                                                 Command="{Binding DataContext.OpenOxygenConfigCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                             <ctl:Icon Key="Gear" Size="18" />
                                         </Button>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     
                                     <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}"
-                                                  ToolTip="Ativa o controle automático de oxigênio (cascata)." />
+                                                  ToolTip="Ativa o controle automático de oxigênio (cascata).">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: Oxigênio -->
@@ -865,15 +926,31 @@
                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="%" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="0–99 %" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Habilitar bomba de nutrientes" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Habilitar bomba de nutrientes">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: Nutrientes -->
@@ -885,7 +962,7 @@
                                         Margin="28,4,8,8"
                                         Padding="14,10">
                                     <StackPanel>
-                                        <WrapPanel>
+                                        <WrapPanel IsEnabled="{Binding IsOwnedByOther, Converter={StaticResource InverseBool}}">
                                             <StackPanel Width="130" Margin="0,0,12,6">
                                                 <TextBlock Text="Operação (s)" Style="{StaticResource DosingFieldLabel}" />
                                                 <TextBox Text="{Binding OperationSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 a 999 s (padrão: 999)" />
@@ -950,15 +1027,31 @@
                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="%" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="0–99 %" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ToggleSwitchStyle}"
-                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Habilitar bomba de antiespumante" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Habilitar bomba de antiespumante">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: Antiespumante -->
@@ -970,7 +1063,7 @@
                                         Margin="28,4,8,8"
                                         Padding="14,10">
                                     <StackPanel>
-                                        <WrapPanel>
+                                        <WrapPanel IsEnabled="{Binding IsOwnedByOther, Converter={StaticResource InverseBool}}">
                                             <StackPanel Width="140" Margin="0,0,12,6">
                                                 <TextBlock Text="Operação (s)" Style="{StaticResource DosingFieldLabel}" />
                                                 <TextBox Text="{Binding OperationSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="0 a 999 s (padrão: 2)" />
@@ -1100,15 +1193,15 @@
                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
                                                             <Setter Property="IsEnabled" Value="False" />
-                                                            <Setter Property="ToolTip" Value="Controle bloqueado pelo controle de oxigênio." />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
-                                        <ctl:ProvenanceBadge Text="controle o₂" Margin="4,0,0,0" Visibility="{Binding IsOverriddenByCascade, Converter={StaticResource BoolToVis}}" />
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
@@ -1124,8 +1217,9 @@
                                                         </MultiDataTrigger.Conditions>
                                                         <Setter Property="IsEnabled" Value="True" />
                                                     </MultiDataTrigger>
-                                                    <DataTrigger Binding="{Binding IsOverriddenByCascade}" Value="True">
-                                                        <Setter Property="ToolTip" Value="Controlado pelo controle de oxigênio." />
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -1449,19 +1543,42 @@
                                     </Grid>
                                     <TextBlock Grid.Column="3" Text="{Binding PumpFlowText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding PumpVolumeText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <ComboBox Grid.Column="5"
-                                              Width="90"
-                                              Height="40"
-                                              HorizontalAlignment="Left"
-                                              ItemsSource="{Binding ModeOptions}"
-                                              SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}"
-                                              DisplayMemberPath="Label"
-                                              IsEnabled="{Binding Status.IsOnline}"
-                                              ToolTip="Modo do perfil de dosagem" />
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <ComboBox Width="90"
+                                                  Height="40"
+                                                  ItemsSource="{Binding ModeOptions}"
+                                                  SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}"
+                                                  DisplayMemberPath="Label"
+                                                  ToolTip="Modo do perfil de dosagem">
+                                            <ComboBox.Style>
+                                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                    <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ComboBox.Style>
+                                        </ComboBox>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
                                     <TextBlock Grid.Column="6" Text="mL/min" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="5 perfis + gás prop." Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
-                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar a bomba externa" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar a bomba externa">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ConnectedExternalDeviceToggleStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
                                 <Border Visibility="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
                                         Background="{DynamicResource SurfaceHoverBrush}"
@@ -1672,31 +1789,48 @@
                                     </Grid>
                                     <TextBlock Grid.Column="3" Text="{Binding AbsorbanceText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="4" Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Grid.Column="5"
-                                             Width="90"
-                                             HorizontalAlignment="Left"
-                                             VerticalAlignment="Center"
-                                             Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="Limiar ótimo: maior que o baixo e menor que o alto">
-                                        <TextBox.Style>
-                                            <Style TargetType="TextBox" BasedOn="{StaticResource ConnectedExternalDeviceEntryStyle}">
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <TextBox Width="90"
+                                                 HorizontalAlignment="Left"
+                                                 VerticalAlignment="Center"
+                                                 Text="{Binding OptimalThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="Limiar ótimo: maior que o baixo e menor que o alto">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource ConnectedExternalDeviceEntryStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasPendingChange}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                        <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="6" Text="AU" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="7" Text="Abs / Raw / IT / PWM" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar o sensor de biomassa">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ConnectedExternalDeviceToggleStyle}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasPendingChange}" Value="True">
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
-                                                        <Setter Property="BorderThickness" Value="2" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsValid}" Value="False">
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
-                                                        <Setter Property="BorderThickness" Value="2" />
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </TextBox.Style>
-                                    </TextBox>
-                                    <TextBlock Grid.Column="6" Text="AU" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="7" Text="Abs / Raw / IT / PWM" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
-                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ativar o sensor de biomassa" />
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: Biomassa -->
@@ -1878,25 +2012,41 @@
                                                  Text="{Binding MagnitudePercentText, UpdateSourceTrigger=PropertyChanged}"
                                                  ToolTip="{Binding ValidationError}">
                                             <TextBox.Style>
-                                                 <Style TargetType="TextBox" BasedOn="{StaticResource ConnectedExternalDeviceEntryStyle}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasPendingChange}" Value="True">
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
-                                                            <Setter Property="BorderThickness" Value="2" />
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsValid}" Value="False">
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
-                                                            <Setter Property="BorderThickness" Value="2" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
+                                                  <Style TargetType="TextBox" BasedOn="{StaticResource ConnectedExternalDeviceEntryStyle}">
+                                                     <Style.Triggers>
+                                                         <DataTrigger Binding="{Binding HasPendingChange}" Value="True">
+                                                             <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                             <Setter Property="BorderThickness" Value="2" />
+                                                         </DataTrigger>
+                                                         <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                             <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                             <Setter Property="BorderThickness" Value="2" />
+                                                         </DataTrigger>
+                                                         <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                             <Setter Property="IsEnabled" Value="False" />
+                                                             <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                         </DataTrigger>
+                                                     </Style.Triggers>
+                                                 </Style>
                                             </TextBox.Style>
-                                        </TextBox>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="6" Text="%" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="7" Text="0–100 %" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
-                                    <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
-                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ligar o agitador de frasco" />
+                                         </TextBox>
+                                         <ctl:ProvenanceBadge Text="{Binding OwnerBadgeText}" Explanation="{Binding OwnerLockReason}" Margin="4,0,0,0" Visibility="{Binding HasOwnerBadge, Converter={StaticResource BoolToVis}}" />
+                                     </StackPanel>
+                                     <TextBlock Grid.Column="6" Text="%" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                     <TextBlock Grid.Column="7" Text="0–100 %" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                                     <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" ToolTip="Ligar o agitador de frasco">
+                                         <ToggleButton.Style>
+                                             <Style TargetType="ToggleButton" BasedOn="{StaticResource ConnectedExternalDeviceToggleStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                 </Grid>
 
                                 <!-- Dropdown Drawer: Frasco Agitador -->

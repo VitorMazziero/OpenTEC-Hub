@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -129,11 +129,25 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
     public partial string StatusText { get; set; } =
         "Parâmetros restaurados para revisão; nenhum comando foi enviado.";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(CanActuate))]
+    [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
+    [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
+    [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
+    [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
+    public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
+    public bool HasOwnerBadge => IsOwnedByOther;
+    public string? OwnerBadgeText => OwnershipUi.GetBadgeText(CurrentOwner);
+    public string? OwnerLockReason => OwnershipUi.GetLockReason(CurrentOwner);
+
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => (!IsEnabled || IsValid) && Status.IsOnline && Status.CanSend;
+    public bool CanApply => (!IsEnabled || IsValid) && Status.IsOnline && Status.CanSend && !IsOwnedByOther;
 
-    public bool CanActuate => Status.IsOnline && Status.CanSend;
+    public bool CanActuate => Status.IsOnline && Status.CanSend && !IsOwnedByOther;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
@@ -188,6 +202,12 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
 
     partial void OnIsEnabledChanged(bool value)
     {
+        if (_initialised && IsOwnedByOther && value != AppliedIsEnabled)
+        {
+            IsEnabled = AppliedIsEnabled;
+            return;
+        }
+
         ValidateAndRefresh();
         OnPropertyChanged(nameof(StateText));
     }
@@ -199,6 +219,12 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
     {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Operação bloqueada pelo controlador atual.";
+            return;
+        }
+
         if (!TryBuildPendingCommand(out var command))
         {
             StatusText = ValidationError ?? "Revise os parâmetros do agitador.";

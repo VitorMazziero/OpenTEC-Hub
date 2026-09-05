@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using OpenTECHub.Services.Persistence;
 using Xunit;
 
@@ -238,6 +238,31 @@ public sealed class ControlWorkspaceContractTests
 
         Assert.Contains("Text=\"Alívio de Pressão\"", row, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding Subsystem.DisplayName}\"", row, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Safe_stop_is_never_locked_by_parent_grid()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        // AUD-002: Safe Stop must remain accessible at all times, so the page-wide
+        // IsManualOperationEnabled disable must NOT be on the Main Body Grid.
+        Assert.DoesNotContain("<Grid Grid.Row=\"1\" IsEnabled=\"{Binding IsManualOperationEnabled}\">", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Parada segura\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding SafeStopCommand}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Process_rows_and_peripherals_bind_ownership_lock_and_provenance_badges()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        // AUD-002: 12 provenance badges bound to OwnerBadgeText across all process rows and peripherals
+        Assert.Equal(12, Count(xaml, "Text=\"{Binding OwnerBadgeText}\""));
+        // 22 data triggers bound to IsOwnedByOther disabling textboxes, combos, and toggles
+        Assert.Equal(22, Count(xaml, "Binding=\"{Binding IsOwnedByOther}\""));
+        // 3 drawers gated by InverseBool (pH, Nutrientes, Antiespumante)
+        Assert.Equal(3, Count(xaml, "Converter={StaticResource InverseBool}"));
     }
 
     private static int Count(string value, string term)

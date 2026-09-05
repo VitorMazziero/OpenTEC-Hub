@@ -1,6 +1,7 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Communication;
 
 namespace OpenTECHub.ViewModels;
 
@@ -126,6 +127,19 @@ public sealed partial class FlowControlViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
     public partial bool HasFlowmeterTelemetry { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
+    [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
+    [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
+    [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
+    public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
+    public bool HasOwnerBadge => IsOwnedByOther;
+    public string? OwnerBadgeText => OwnershipUi.GetBadgeText(CurrentOwner);
+    public string? OwnerLockReason => OwnershipUi.GetLockReason(CurrentOwner);
+
     public double AppliedMaxFlow => _appliedMaxFlow;
 
     /// <summary>Valid staged ceiling, or the last applied value while the field is invalid.</summary>
@@ -135,7 +149,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
 
     public bool IsFlowmeterOffline => HasFlowmeterTelemetry && !IsFlowmeterOnline;
 
-    public bool CanSendFlowCommands => HasFlowmeterTelemetry && IsFlowmeterOnline && !IsAwaitingAck;
+    public bool CanSendFlowCommands => HasFlowmeterTelemetry && IsFlowmeterOnline && !IsAwaitingAck && !IsOwnedByOther;
 
     public bool HasFlowStatusAlert => HasFlowmeterTelemetry && (IsFlowmeterOffline || IsAwaitingAck);
 

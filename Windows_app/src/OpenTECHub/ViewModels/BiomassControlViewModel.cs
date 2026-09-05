@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -103,18 +103,31 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     public partial string StatusText { get; set; } = "";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(CanActuate))]
+    [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
+    [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
+    [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
+    [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
+    public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
+    public bool HasOwnerBadge => IsOwnedByOther;
+    public string? OwnerBadgeText => OwnershipUi.GetBadgeText(CurrentOwner);
+    public string? OwnerLockReason => OwnershipUi.GetLockReason(CurrentOwner);
+
     public bool IsValid => ValidationError is null;
 
     /// <summary>
-    /// Thresholds may be applied only when a frame can actually reach the node.
+    /// Thresholds may be applied only when a frame can actually reach the node and not owned by another.
     /// </summary>
-    public bool CanApply => IsValid && Status.IsOnline && Status.CanSend;
+    public bool CanApply => IsValid && Status.IsOnline && Status.CanSend && !IsOwnedByOther;
 
     /// <summary>
-    /// The momentary actions need the sensor on <i>and</i> a free mailbox: the Hub keeps one
-    /// pending biomass command, and a second one overwrites the first before the node polls.
+    /// The momentary actions need the sensor on, a free mailbox, and not owned by another.
     /// </summary>
-    public bool CanActuate => IsEnabled && Status.IsOnline && Status.CanSend;
+    public bool CanActuate => IsEnabled && Status.IsOnline && Status.CanSend && !IsOwnedByOther;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
@@ -128,6 +141,13 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
 
         if (!_initialised || _revertingEnable)
         {
+            return;
+        }
+
+        if (IsOwnedByOther)
+        {
+            RevertEnable(value);
+            StatusText = OwnerLockReason ?? "Sensor de biomassa sob controle de outro processo.";
             return;
         }
 
@@ -210,6 +230,12 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     /// </remarks>
     private void SendMomentary(OpenTECCommand command, string label)
     {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Sensor de biomassa sob controle de outro processo.";
+            return;
+        }
+
         var result = _dispatcher.Dispatch(command);
         if (!result.Accepted)
         {
@@ -224,6 +250,12 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void ApplyThresholds()
     {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Sensor de biomassa sob controle de outro processo.";
+            return;
+        }
+
         if (!TryGetStagedSettings(out var staged))
         {
             StatusText = ValidationError ?? "Revise os limiares de biomassa.";

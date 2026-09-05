@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -74,10 +74,23 @@ public sealed partial class NutrientControlViewModel : ObservableObject
     public partial string StatusText { get; set; } =
         "Parâmetros restaurados para revisão; nenhum comando foi enviado.";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
+    [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
+    [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
+    [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
+    public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
+    public bool HasOwnerBadge => IsOwnedByOther;
+    public string? OwnerBadgeText => OwnershipUi.GetBadgeText(CurrentOwner);
+    public string? OwnerLockReason => OwnershipUi.GetLockReason(CurrentOwner);
+
     public bool IsValid => ValidationError is null;
 
-    /// <summary>A stop is never blocked by an invalid staged field.</summary>
-    public bool CanApply => !IsEnabled || IsValid;
+    /// <summary>A stop is never blocked by an invalid staged field; blocked if owned by another.</summary>
+    public bool CanApply => (!IsEnabled || IsValid) && !IsOwnedByOther;
 
     public string StateText => IsEnabled ? "Ativo" : "Desligado";
 
@@ -93,6 +106,12 @@ public sealed partial class NutrientControlViewModel : ObservableObject
 
     partial void OnIsEnabledChanged(bool value)
     {
+        if (_initialised && IsOwnedByOther && value != AppliedIsEnabled)
+        {
+            IsEnabled = AppliedIsEnabled;
+            return;
+        }
+
         ValidateAndRefresh();
         OnPropertyChanged(nameof(StateText));
     }
@@ -104,6 +123,12 @@ public sealed partial class NutrientControlViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
     {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Operação bloqueada pelo controlador atual.";
+            return;
+        }
+
         if (!TryBuildPendingCommand(out var command))
         {
             StatusText = ValidationError ?? "Revise os parâmetros do nutriente.";

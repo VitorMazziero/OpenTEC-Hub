@@ -344,12 +344,157 @@ public sealed class ControlViewModelTests
         Assert.DoesNotContain("Parada segura executada: todos os atuadores foram desligados", fixture.Control.StatusText);
     }
 
+    [Fact]
+    public void When_recipe_claims_actuators_manual_controls_visually_lock_and_show_recipe_badge()
+    {
+        using var fixture = new ControlFixture();
+
+        // Initially all manual
+        Assert.All(fixture.Control.Rows, row =>
+        {
+            Assert.Equal(CommandOwner.Manual, row.CurrentOwner);
+            Assert.False(row.IsOwnedByOther);
+            Assert.False(row.HasOwnerBadge);
+            Assert.Null(row.OwnerBadgeText);
+        });
+
+        // Claim all actuators by Recipe
+        var result = fixture.Arbiter.Claim(CommandOwner.Recipe, CommandActuators.All, "Início da receita");
+        Assert.Equal(CommandOwner.Recipe, result.To);
+
+        // All process rows lock visually and display recipe badge
+        Assert.All(fixture.Control.Rows, row =>
+        {
+            Assert.Equal(CommandOwner.Recipe, row.CurrentOwner);
+            Assert.True(row.IsOwnedByOther);
+            Assert.True(row.HasOwnerBadge);
+            Assert.Equal("receita", row.OwnerBadgeText);
+            Assert.Contains("receita", row.OwnerLockReason, StringComparison.OrdinalIgnoreCase);
+        });
+        Assert.False(fixture.Control.CanApplyAll);
+
+        // All peripherals lock visually and display recipe badge
+        Assert.True(fixture.Flow.IsOwnedByOther);
+        Assert.Equal("receita", fixture.Flow.OwnerBadgeText);
+        Assert.False(fixture.Flow.CanSendFlowCommands);
+
+        Assert.True(fixture.PH.IsOwnedByOther);
+        Assert.Equal("receita", fixture.PH.OwnerBadgeText);
+
+        Assert.True(fixture.Nutrient.IsOwnedByOther);
+        Assert.Equal("receita", fixture.Nutrient.OwnerBadgeText);
+        Assert.False(fixture.Nutrient.CanApply);
+
+        Assert.True(fixture.Antifoam.IsOwnedByOther);
+        Assert.Equal("receita", fixture.Antifoam.OwnerBadgeText);
+        Assert.False(fixture.Antifoam.CanApply);
+
+        Assert.True(fixture.Agitator.IsOwnedByOther);
+        Assert.Equal("receita", fixture.Agitator.OwnerBadgeText);
+        Assert.False(fixture.Agitator.CanApply);
+
+        Assert.True(fixture.Biomass.IsOwnedByOther);
+        Assert.Equal("receita", fixture.Biomass.OwnerBadgeText);
+
+        Assert.True(fixture.Pump.IsOwnedByOther);
+        Assert.Equal("receita", fixture.Pump.OwnerBadgeText);
+        Assert.False(fixture.Pump.CanApply);
+    }
+
+    [Fact]
+    public void When_recipe_releases_actuators_manual_controls_unlock_and_badges_disappear()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Arbiter.Claim(CommandOwner.Recipe, CommandActuators.All, "Início da receita");
+        Assert.True(fixture.Control.Rows[0].IsOwnedByOther);
+
+        // Release recipe ownership
+        fixture.Arbiter.Release(CommandOwner.Recipe, "Fim da receita");
+
+        // All rows unlock
+        Assert.All(fixture.Control.Rows, row =>
+        {
+            Assert.Equal(CommandOwner.Manual, row.CurrentOwner);
+            Assert.False(row.IsOwnedByOther);
+            Assert.False(row.HasOwnerBadge);
+            Assert.Null(row.OwnerBadgeText);
+        });
+
+        // Peripherals unlock
+        Assert.False(fixture.Flow.IsOwnedByOther);
+        Assert.True(fixture.Flow.CanSendFlowCommands);
+        Assert.False(fixture.Nutrient.IsOwnedByOther);
+        Assert.False(fixture.Antifoam.IsOwnedByOther);
+        Assert.False(fixture.Agitator.IsOwnedByOther);
+        Assert.False(fixture.Pump.IsOwnedByOther);
+        Assert.False(fixture.Biomass.IsOwnedByOther);
+        Assert.False(fixture.PH.IsOwnedByOther);
+    }
+
+    [Fact]
+    public void When_actuator_is_owned_by_recipe_manual_application_is_prevented()
+    {
+        using var fixture = new ControlFixture();
+
+        // Claim temperature actuator only
+        fixture.Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Temperature], "Receita controla temperatura");
+
+        // Temperature row locks
+        Assert.True(fixture.Control.Rows[0].IsOwnedByOther);
+        // Motor is still manual
+        Assert.False(fixture.Control.Rows[1].IsOwnedByOther);
+
+        // Try staging temperature
+        fixture.Subsystems[0].Stage(42.0, isEnabled: true);
+        // CanApplyAll must be false because dirty row is owned by another
+        Assert.False(fixture.Control.CanApplyAll);
+
+        // Even if execute is called directly, ApplyAll skips owned rows
+        fixture.Control.ApplyAllCommand.Execute(null);
+        Assert.Empty(fixture.Device.Sent);
+
+        // Claim nutrient pump
+        fixture.Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Nutrient], "Receita controla nutrientes");
+        Assert.True(fixture.Nutrient.IsOwnedByOther);
+        Assert.False(fixture.Nutrient.CanApply);
+
+        fixture.Nutrient.IsEnabled = true;
+        fixture.Nutrient.PumpSpeedPercentText = "50";
+        fixture.Nutrient.ApplyCommand.Execute(null);
+        Assert.Empty(fixture.Device.Sent);
+    }
+
+    [Fact]
+    public void When_cascade_engages_only_overridden_actuators_show_oxygen_badge()
+    {
+        using var fixture = new ControlFixture();
+        var oxygenRow = fixture.Control.Rows[2];
+        var agitationRow = fixture.Control.Rows[1];
+        var tempRow = fixture.Control.Rows[0];
+        var pressureRow = fixture.Control.Rows[4];
+
+        oxygenRow.SelectedOxygenMode = "Agitação";
+        oxygenRow.IsCascadeEngaged = true;
+
+        Assert.True(agitationRow.IsOwnedByOther);
+        Assert.True(agitationRow.HasOwnerBadge);
+        Assert.Equal("controle o₂", agitationRow.OwnerBadgeText);
+
+        // Temperature and Pressure are not claimed by cascade
+        Assert.False(tempRow.IsOwnedByOther);
+        Assert.False(tempRow.HasOwnerBadge);
+        Assert.False(pressureRow.IsOwnedByOther);
+        Assert.False(pressureRow.HasOwnerBadge);
+    }
+
     private sealed class ControlFixture : IDisposable
     {
         public ControlFixture(
             AppSettings? initialSettings = null,
             ISafetyCoordinator? safetyCoordinator = null,
-            IDeviceService? device = null)
+            IDeviceService? device = null,
+            ICommandArbiter? arbiter = null)
         {
             Device = (device as RecordingDeviceService) ?? new RecordingDeviceService();
             var targetDevice = device ?? Device;
@@ -384,8 +529,8 @@ public sealed class ControlViewModelTests
                     Settings.Current.Setpoints.PressureKilopascal),
             ];
 
-            var cascadeArbiter = targetDevice as ICommandArbiter ?? new CommandArbiter(targetDevice, TimeProvider.System);
-            Cascade = new CascadeService(targetDevice, cascadeArbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
+            Arbiter = arbiter ?? targetDevice as ICommandArbiter ?? new CommandArbiter(targetDevice, TimeProvider.System);
+            Cascade = new CascadeService(targetDevice, Arbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
             PH = new PHControlViewModel(targetDevice, Settings);
             Nutrient = new NutrientControlViewModel(targetDevice, Settings);
             Antifoam = new AntifoamControlViewModel(targetDevice, Settings);
@@ -397,10 +542,12 @@ public sealed class ControlViewModelTests
             Control = new ControlViewModel(
                 Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump, Servo,
                 targetDevice, Settings, Dialogs, Cascade,
-                safetyCoordinator: safetyCoordinator);
+                safetyCoordinator: safetyCoordinator,
+                arbiter: Arbiter);
             Device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true });
         }
 
+        public ICommandArbiter Arbiter { get; }
         public RecordingDeviceService Device { get; }
         public MemorySettingsService Settings { get; }
         public RecordingDialogService Dialogs { get; }

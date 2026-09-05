@@ -324,7 +324,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             phVariable: Ph,
             distanceVariable: Level,
             biomassVariable: Biomass,
-            safetyCoordinator: safetyCoordinator);
+            safetyCoordinator: safetyCoordinator,
+            arbiter: device as ICommandArbiter);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 

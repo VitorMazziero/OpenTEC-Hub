@@ -6,11 +6,11 @@
 >
 > **Docs:** [Current status](CURRENT_STATUS.md) · [README](README.md) · [Architecture](ARCHITECTURE.md) · [Protocol](PROTOCOL.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md) · [Conventions](CONVENTIONS.md)
 
-> **Audited status — 2026-08-26.** The core feature inventory is built on `main` at v0.24.0,
-> including both Receitas/cascade and biomass/external-pump histories. The next milestone is
-> v0.25.0 stabilization and UI polish, not a new subsystem phase. Two P0 ownership/safe-stop
-> defects block a field release; hardware parity, full cultivation and packaging also remain
-> open. See [CURRENT_STATUS.md](CURRENT_STATUS.md) for evidence, findings and exit gates.
+> **Audited status — 2026-08-26 (Atualizado 05/09/2026).** The core feature inventory is built on `main` at v0.24.0,
+> including both Receitas/cascade and biomass/external-pump histories. The two P0 ownership/safe-stop defects
+> (AUD-001 e AUD-002) are now fully resolved. The next milestone is v0.25.0 stabilization and UI polish;
+> hardware parity, full cultivation and packaging remain open. See [CURRENT_STATUS.md](CURRENT_STATUS.md)
+> for evidence, findings and exit gates.
 
 ---
 

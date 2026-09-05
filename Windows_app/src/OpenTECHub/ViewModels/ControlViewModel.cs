@@ -17,10 +17,11 @@ namespace OpenTECHub.ViewModels;
 /// <summary>One row in Controle's all-setpoints table.</summary>
 public sealed partial class ControlParameterRowViewModel : ObservableObject
 {
-    public ControlParameterRowViewModel(SubsystemViewModel subsystem, string iconKey)
+    public ControlParameterRowViewModel(SubsystemViewModel subsystem, string iconKey, ActuatorId actuator = ActuatorId.Temperature)
     {
         Subsystem = subsystem;
         IconKey = iconKey;
+        Actuator = actuator;
         SelectedMode = ModeOptions[0];
         SelectedOxygenMode = OxygenModeOptions[0];
     }
@@ -28,6 +29,8 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
     public SubsystemViewModel Subsystem { get; }
 
     public string IconKey { get; }
+
+    public ActuatorId Actuator { get; }
 
     public bool IsOxygenRow => IconKey == "Oxygen";
 
@@ -57,10 +60,30 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(EffectiveActive))]
     public partial bool IsOverriddenByCascade { get; set; }
 
-    public string OwnerText => SelectedMode.Owner switch
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
+    [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
+    [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
+    [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
+    [NotifyPropertyChangedFor(nameof(CanEditOxygenMode))]
+    [NotifyPropertyChangedFor(nameof(EffectiveActive))]
+    [NotifyPropertyChangedFor(nameof(OwnerText))]
+    public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
+
+    public bool HasOwnerBadge => IsOwnedByOther && (Actuator != ActuatorId.Oxygen || CurrentOwner != CommandOwner.Automatic);
+
+    public string? OwnerBadgeText => OwnershipUi.GetBadgeText(CurrentOwner);
+
+    public string? OwnerLockReason => OwnershipUi.GetLockReason(CurrentOwner);
+
+    public string OwnerText => CurrentOwner switch
     {
         CommandOwner.Automatic => "Controle O₂",
         CommandOwner.Recipe => "Receita",
+        CommandOwner.KlaAssay => "Ensaio kLa",
+        CommandOwner.PowerAssay => "Ensaio Potência",
         _ => "Operador",
     };
 
@@ -88,11 +111,17 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
     public bool IsCascadeEngaged
     {
         get => CascadeEngagedGetter?.Invoke() ?? false;
-        set => CascadeEngageRequested?.Invoke(value);
+        set
+        {
+            if (CurrentOwner is CommandOwner.Manual or CommandOwner.Automatic)
+            {
+                CascadeEngageRequested?.Invoke(value);
+            }
+        }
     }
 
-    /// <summary>The mode may only change while the cascade is not engaged.</summary>
-    public bool CanEditOxygenMode => !IsCascadeEngaged;
+    /// <summary>The mode may only change while the cascade is not engaged and not owned by another.</summary>
+    public bool CanEditOxygenMode => !IsCascadeEngaged && !IsOwnedByOther;
 
     /// <summary>
     /// A non-oxygen row's "Ativo" state: its subsystem enable, forced on (and locked) while the
@@ -101,7 +130,13 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
     public bool EffectiveActive
     {
         get => IsOverriddenByCascade || Subsystem.IsEnabled;
-        set => Subsystem.IsEnabled = value;
+        set
+        {
+            if (!IsOwnedByOther)
+            {
+                Subsystem.IsEnabled = value;
+            }
+        }
     }
 
     /// <summary>Re-reads the engagement-derived states after a cascade or enable change.</summary>
@@ -110,6 +145,11 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
         OnPropertyChanged(nameof(EffectiveActive));
         OnPropertyChanged(nameof(IsCascadeEngaged));
         OnPropertyChanged(nameof(CanEditOxygenMode));
+        OnPropertyChanged(nameof(IsOwnedByOther));
+        OnPropertyChanged(nameof(HasOwnerBadge));
+        OnPropertyChanged(nameof(OwnerBadgeText));
+        OnPropertyChanged(nameof(OwnerLockReason));
+        OnPropertyChanged(nameof(OwnerText));
     }
 }
 
@@ -130,6 +170,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     /// </summary>
     private readonly IAlarmService? _alarms;
     private readonly ISafetyCoordinator _safetyCoordinator;
+    private readonly ICommandArbiter _arbiter;
     private readonly SubsystemViewModel _flowSubsystem;
     private bool _switchingSharedPump;
     private bool _flowCommitPending;
@@ -156,7 +197,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         ProcessVariableViewModel? phVariable = null,
         ProcessVariableViewModel? distanceVariable = null,
         ProcessVariableViewModel? biomassVariable = null,
-        ISafetyCoordinator? safetyCoordinator = null)
+        ISafetyCoordinator? safetyCoordinator = null,
+        ICommandArbiter? arbiter = null)
     {
         if (subsystems.Count != 5)
         {
@@ -169,9 +211,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _cascade = cascade;
         _klaProfileStore = klaProfileStore;
         _alarms = alarms;
+        _arbiter = arbiter ?? (device as ICommandArbiter) ?? new CommandArbiter(device, TimeProvider.System);
         _safetyCoordinator = safetyCoordinator ??
             new SafetyCoordinator(
-                device as ICommandArbiter ?? new CommandArbiter(device, TimeProvider.System),
+                _arbiter,
                 device,
                 recipeEngine: null,
                 cascade: cascade);
@@ -190,11 +233,11 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         Rows =
         [
-            new(subsystems[0], "Temperature"),
-            new(subsystems[1], "Impeller"),
-            new(subsystems[2], "Oxygen"),
-            new(subsystems[3], "Airflow"),
-            new(subsystems[4], "Pressure"),
+            new(subsystems[0], "Temperature", ActuatorId.Temperature),
+            new(subsystems[1], "Impeller", ActuatorId.Agitation),
+            new(subsystems[2], "Oxygen", ActuatorId.Oxygen),
+            new(subsystems[3], "Airflow", ActuatorId.Aeration),
+            new(subsystems[4], "Pressure", ActuatorId.Pressure),
         ];
         _flowSubsystem = subsystems[3];
 
@@ -215,6 +258,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _cascade.Updated += OnCascadeUpdated;
         _device.StateChanged += OnDeviceStateChanged;
         _device.TelemetryReceived += OnTelemetryReceived;
+
+        _arbiter.OwnershipChanged += OnOwnershipChanged;
+        _arbiter.OwnershipRevoked += OnOwnershipRevoked;
 
         FlowControl.PropertyChanged += OnFlowStateChanged;
         PHControl.PropertyChanged += OnPHStateChanged;
@@ -254,6 +300,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
 
         SelectedPreset = Presets.FirstOrDefault();
+        UpdateOwnershipFromArbiter();
         RefreshState();
         OnCascadeUpdated();
     }
@@ -421,6 +468,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     public bool CanApplyAll
         => DirtyCount > 0 && DirtyRowsAreValid() &&
+           !Rows.Any(r => r.Subsystem.HasPendingChange && r.IsOwnedByOther) &&
            (!PHControl.HasPendingChange || PHControl.CanApply) &&
            (!NutrientControl.HasPendingChange || NutrientControl.CanApply) &&
            (!AntifoamControl.HasPendingChange || AntifoamControl.CanApply) &&
@@ -442,6 +490,17 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         var nutrientWasDirty = NutrientControl.HasPendingChange;
         var antifoamWasDirty = AntifoamControl.HasPendingChange;
         var agitatorWasDirty = FlaskAgitator.HasPendingChange;
+
+        if (dirtyRows.Any(r => r.IsOwnedByOther) ||
+            (phWasDirty && PHControl.IsOwnedByOther) ||
+            (nutrientWasDirty && NutrientControl.IsOwnedByOther) ||
+            (antifoamWasDirty && AntifoamControl.IsOwnedByOther) ||
+            (agitatorWasDirty && FlaskAgitator.IsOwnedByOther) ||
+            (flowWasDirty && FlowControl.IsOwnedByOther))
+        {
+            StatusText = "Não é possível aplicar: há atuadores sob controle da automação ou ensaios.";
+            return;
+        }
 
         if (!TryBuildCombinedCommand(out var command))
         {
@@ -924,6 +983,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             FlowControl.MarkHubUnavailable();
         }
 
+        UpdateOwnershipFromArbiter();
         RefreshState();
     }
 
@@ -1077,8 +1137,50 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void OnOwnershipChanged(OwnershipTransfer transfer)
+        => RunOnUi(UpdateOwnershipFromArbiter);
+
+    private void OnOwnershipRevoked(OwnershipTransfer transfer)
+        => RunOnUi(UpdateOwnershipFromArbiter);
+
+    public void UpdateOwnershipFromArbiter()
+    {
+        foreach (var row in Rows)
+        {
+            row.CurrentOwner = _arbiter.OwnerOf(row.Actuator);
+            row.SelectedMode = row.ModeOptions.FirstOrDefault(m => m.Owner == row.CurrentOwner) ?? row.SelectedMode;
+            row.NotifyActiveChanged();
+        }
+
+        FlowControl.CurrentOwner = _arbiter.OwnerOf(ActuatorId.Aeration);
+        PHControl.CurrentOwner = _arbiter.OwnerOf(ActuatorId.PHDosing);
+        NutrientControl.CurrentOwner = _arbiter.OwnerOf(ActuatorId.Nutrient);
+        AntifoamControl.CurrentOwner = _arbiter.OwnerOf(ActuatorId.Antifoam);
+        FlaskAgitator.CurrentOwner = _arbiter.OwnerOf(ActuatorId.FlaskAgitator);
+        BiomassControl.CurrentOwner = _arbiter.OwnerOf(ActuatorId.Biomass);
+        PumpControl.CurrentOwner = _arbiter.OwnerOf(ActuatorId.ExternalPump);
+
+        RefreshState();
+    }
+
+    private static void RunOnUi(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(action);
+        }
+        else
+        {
+            action();
+        }
+    }
+
     public void Dispose()
     {
+        _arbiter.OwnershipChanged -= OnOwnershipChanged;
+        _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+
         foreach (var row in Rows)
         {
             row.Subsystem.PropertyChanged -= OnStagedStateChanged;

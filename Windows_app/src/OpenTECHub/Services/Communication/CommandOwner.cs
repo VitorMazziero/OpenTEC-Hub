@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Communication;
+namespace OpenTECHub.Services.Communication;
 
 /// <summary>
 /// Who is allowed to put commands on the wire for a given actuator.
@@ -35,4 +35,28 @@ public enum CommandOwner
 
     /// <summary>The phase-1 impeller power-assay runner owns agitation (and airflow/valves in phase 2).</summary>
     PowerAssay,
+}
+
+/// <summary>
+/// User interface helpers for displaying command ownership, badge text and lock reasons.
+/// </summary>
+public static class OwnershipUi
+{
+    public static string? GetBadgeText(CommandOwner owner) => owner switch
+    {
+        CommandOwner.Recipe => "receita",
+        CommandOwner.Automatic => "controle o₂",
+        CommandOwner.KlaAssay => "ensaio kla",
+        CommandOwner.PowerAssay => "ensaio potência",
+        _ => null,
+    };
+
+    public static string? GetLockReason(CommandOwner owner) => owner switch
+    {
+        CommandOwner.Recipe => "Controle bloqueado pela receita.",
+        CommandOwner.Automatic => "Controle bloqueado pelo controle de oxigênio.",
+        CommandOwner.KlaAssay => "Controle bloqueado pelo ensaio de kLa.",
+        CommandOwner.PowerAssay => "Controle bloqueado pelo ensaio de potência.",
+        _ => null,
+    };
 }

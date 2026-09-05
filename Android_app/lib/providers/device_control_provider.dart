@@ -36,7 +36,7 @@ class DeviceControlProvider with ChangeNotifier {
   // ==========================================
 
   Future<bool> setMotorRpm(int rpm) async {
-    final clampedRpm = rpm.clamp(0, 1000);
+    final clampedRpm = rpm > 0 ? rpm.clamp(15, 1000) : 0;
     return sendRawCommand({"motorSetpoint": clampedRpm});
   }
 
@@ -55,7 +55,12 @@ class DeviceControlProvider with ChangeNotifier {
   }
 
   Future<bool> resetServoEnergy() async {
-    return sendRawCommand({"resetServoEnergy": true});
+    return sendRawCommand({"resetServoEnergy": 1});
+  }
+
+  Future<bool> setServoPollMs(int pollMs) async {
+    final clamped = pollMs.clamp(250, 10000);
+    return sendRawCommand({"servoPollMs": clamped});
   }
 
   // ==========================================
@@ -255,8 +260,18 @@ class DeviceControlProvider with ChangeNotifier {
     return sendRawCommand(cmd);
   }
 
-  Future<bool> stopAgitator() async {
-    return sendRawCommand({"agitatorOn": 0});
+  Future<bool> stopAgitator({bool lockoutPot = false}) async {
+    final Map<String, dynamic> cmd = {"agitatorOn": 0};
+    if (lockoutPot) {
+      cmd["agitatorReEnablePot"] = 0;
+    }
+    return sendRawCommand(cmd);
+  }
+
+  /// Emergency/Safe stop of flask agitator, locking out the bench potentiometer
+  /// so it cannot inadvertently restart rotation.
+  Future<bool> safeStopAgitator() async {
+    return stopAgitator(lockoutPot: true);
   }
 
   Future<bool> setAgitatorSettings({
@@ -337,6 +352,22 @@ class DeviceControlProvider with ChangeNotifier {
   // ==========================================
   // SYSTEM LEVEL COMMANDS
   // ==========================================
+
+  /// Safely disables every subsystem in the Phase 1 core loop in one atomic command,
+  /// matching Windows App's CoreSafeStop.
+  Future<bool> coreSafeStop({double maxFlow = 5.0}) async {
+    return sendRawCommand({
+      "tempSetpoint": 0.0,
+      "motorSetpoint": 0,
+      "oxygenMonitor": 0,
+      "flowSetpoint": 0.0,
+      "maxFlow": maxFlow,
+      "valve_1": 0,
+      "valve_2": 0,
+      "v_Flow": 1,
+      "pressureReference": 0,
+    });
+  }
 
   /// Emergency Stop / Safe Reset of all process variables
   Future<bool> emergencyStopAll() async {

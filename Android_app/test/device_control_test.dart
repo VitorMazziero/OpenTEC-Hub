@@ -53,7 +53,15 @@ void main() {
 
     test('Sends resetServoEnergy', () async {
       await provider.resetServoEnergy();
-      expect(mockApi.lastSentCommand, {"resetServoEnergy": true});
+      expect(mockApi.lastSentCommand, {"resetServoEnergy": 1});
+    });
+
+    test('Sends servo poll ms within valid limits', () async {
+      await provider.setServoPollMs(500);
+      expect(mockApi.lastSentCommand, {"servoPollMs": 500});
+
+      await provider.setServoPollMs(50); // should clamp to 250
+      expect(mockApi.lastSentCommand, {"servoPollMs": 250});
     });
 
     test('Sends temperature setpoint (0 when disabled)', () async {
@@ -132,6 +140,21 @@ void main() {
     test('Sends Emergency All-Stop (resetVariables)', () async {
       await provider.emergencyStopAll();
       expect(mockApi.lastSentCommand, {"resetVariables": 1});
+    });
+
+    test('Sends CoreSafeStop in single atomic frame', () async {
+      await provider.coreSafeStop(maxFlow: 6.0);
+      expect(mockApi.lastSentCommand, {
+        "tempSetpoint": 0.0,
+        "motorSetpoint": 0,
+        "oxygenMonitor": 0,
+        "flowSetpoint": 0.0,
+        "maxFlow": 6.0,
+        "valve_1": 0,
+        "valve_2": 0,
+        "v_Flow": 1,
+        "pressureReference": 0,
+      });
     });
 
     test('Sends reboot command', () async {

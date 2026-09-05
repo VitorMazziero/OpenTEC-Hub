@@ -1302,7 +1302,7 @@ class _ControlsScreenState extends State<ControlsScreen> {
             ),
             const SizedBox(height: 8),
 
-            // Quick Stop Agitator
+            // Quick Stop Agitator (Safe Stop with Potentiometer Lockout)
             Align(
               alignment: Alignment.centerRight,
               child: OutlinedButton.icon(
@@ -1310,8 +1310,8 @@ class _ControlsScreenState extends State<ControlsScreen> {
                 label: const Text("Stop Agitator", style: TextStyle(color: Colors.red)),
                 onPressed: (!control.isBusy)
                     ? () async {
-                        final ok = await control.stopAgitator();
-                        if (context.mounted) _showFeedback(context, ok, "Agitator STOP");
+                        final ok = await control.safeStopAgitator();
+                        if (context.mounted) _showFeedback(context, ok, "Agitator Safe STOP (Pot Locked)");
                       }
                     : null,
               ),

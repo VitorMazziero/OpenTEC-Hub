@@ -246,7 +246,7 @@ class DashboardScreen extends StatelessWidget {
               }
             },
             onStop: () async {
-              final ok = await controlProv.stopAgitator();
+              final ok = await controlProv.safeStopAgitator();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

@@ -111,12 +111,12 @@ class HubApiService {
       final response = await _client
           .post(
             _buildUri(ApiConstants.commandEndpoint),
-            headers: {'Content-Type': 'text/plain'},
+            headers: {'Content-Type': 'application/json'},
             body: jsonPayload,
           )
           .timeout(ApiConstants.commandTimeout);
 
-      final success = response.statusCode == 200;
+      final success = response.statusCode >= 200 && response.statusCode < 300;
       return (
         success: success,
         statusCode: response.statusCode,

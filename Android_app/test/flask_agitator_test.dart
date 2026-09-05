@@ -160,6 +160,15 @@ void main() {
       });
     });
 
+    test('Sends safeStopAgitator with potentiometer lockout', () async {
+      await provider.safeStopAgitator();
+
+      expect(mockApi.lastSentCommand, {
+        "agitatorOn": 0,
+        "agitatorReEnablePot": 0,
+      });
+    });
+
     test('Sends setAgitatorSettings with auto foam and pot re-enable', () async {
       await provider.setAgitatorSettings(
         autoFoam: true,

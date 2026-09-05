@@ -500,11 +500,12 @@ Esperado: 0 erros, 0 avisos. Roda antes dos testes porque falha em segundos e ev
 dotnet test --nologo
 ```
 
-Esperado: **1144 aprovados, 0 falhas, 0 ignorados** (05/09/2026).
+Esperado: **1144 aprovados, 0 falhas, 0 ignorados** (05/09/2026). Uma falha isolada de `RecipeEngineTests` sob carga é conhecida — ver abaixo antes de tratar como regressão.
 
 Cuidados aprendidos na auditoria:
 - **Não confiar em código de saída com `-v q` e *logger* silencioso.** Nesta bancada, execuções com verbosidade reduzida retornaram 0 escondendo 5 falhas. Sempre usar `--logger "console;verbosity=normal"` e conferir a linha `Total de testes` impressa.
-- **Reexecutar falhas isoladamente antes de investigar.** `RecipeEngineTests` e vizinhos têm testes sensíveis a tempo que falham sob carga da suíte cheia e passam sozinhos.
+- **Reexecutar falhas isoladamente antes de investigar.** `RecipeEngineTests` tem testes sensíveis a tempo que falham sob carga da suíte cheia e passam sozinhos — em 05/09 foram vistos `The_operator_can_stop_the_recipe_while_it_holds_for_the_flowmeter` e `Cascade_loop_exits_when_its_saida_loop_monitor_condition_is_met`, ambos verdes isolados (18/18). Conferir com `dotnet test --filter "FullyQualifiedName~RecipeEngineTests"` antes de tratar como regressão.
+- **Teto de correlação de RTT nos testes.** `ConnectionOptions.RoundTripCorrelationWindow` vale 5 s em produção, dimensionado para um ida-e-volta USB de milissegundos. Em teste, o intervalo entre despachar e a confirmação falsa ser bombeada é tempo de parede sob carga, não latência: `FastOptions` levanta o teto para 1 minuto e só o teste do próprio teto define o seu.
 - **Testes de renderização WPF são sensíveis ao host.** `ScreenshotCaptureTests.Render_full_shell_in_both_light_and_dark_themes` falhava em máquinas cujo painel dispara `ShouldStartMaximizedForSmallScreen()`: o WPF recusa `Show()` com `ShowActivated=false` e `WindowState=Maximized`. `WpfRenderingHost.RenderWindow` agora força `WindowState.Normal`, tornando a captura idêntica em qualquer tela.
 
 ### 5. Consistência de algoritmo (verificação dirigida)

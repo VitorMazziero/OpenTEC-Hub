@@ -80,7 +80,63 @@ class ServoMonitorCard extends StatelessWidget {
                 ),
               ],
             ),
-            const Divider(height: 24),
+            const Divider(height: 20),
+
+            // Hardware Command Route Flow Banner
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: servoState.viaModbus ? Colors.blue.shade300 : Colors.teal.shade300,
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        servoState.viaModbus ? Icons.alt_route : Icons.cable,
+                        size: 14,
+                        color: servoState.viaModbus ? Colors.blue.shade800 : Colors.teal.shade800,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "VIA DE COMANDO RPM: ${servoState.viaModbus ? 'MODBUS DIRETO' : 'UART / PLACA CONTROLADORA'}",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          color: servoState.viaModbus ? Colors.blue.shade900 : Colors.teal.shade900,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        servoState.routeAckDescription,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: servoState.routeAck >= 0 ? Colors.green.shade800 : Colors.orange.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    servoState.routePath,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             // Speed Display Row
             Row(

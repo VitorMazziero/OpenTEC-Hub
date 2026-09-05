@@ -236,6 +236,7 @@ class _ControlsScreenState extends State<ControlsScreen> {
     final flowmeterState = context.watch<TelemetryProvider>().flowmeterState;
     final agitatorState = context.watch<TelemetryProvider>().agitatorState;
     final pumpState = context.watch<TelemetryProvider>().pumpState;
+    final servoState = context.watch<TelemetryProvider>().servoState;
 
     return ListView(
       padding: const EdgeInsets.all(12.0),
@@ -261,30 +262,152 @@ class _ControlsScreenState extends State<ControlsScreen> {
             if (context.mounted) _showFeedback(context, ok, "Motor $parsedRpm RPM");
           },
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    "Command Route:",
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+            // Command Route Selection & Hardware Path Explanation
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _motorRoute == 1 ? Colors.blue.shade300 : Colors.teal.shade300,
+                  width: 1.2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _motorRoute == 1 ? Icons.alt_route : Icons.cable,
+                        size: 16,
+                        color: _motorRoute == 1 ? Colors.blue.shade800 : Colors.teal.shade800,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "SELEÇÃO DA VIA DE CONTROLE DO SERVO",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          color: _motorRoute == 1 ? Colors.blue.shade900 : Colors.teal.shade900,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (servoState.online)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: servoState.routeAck >= 0 ? Colors.green.shade50 : Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: servoState.routeAck >= 0 ? Colors.green.shade300 : Colors.amber.shade300,
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            "ACK: ${servoState.routeAckDescription}",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: servoState.routeAck >= 0 ? Colors.green.shade800 : Colors.amber.shade900,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 1, label: Text("Modbus (Driver)")),
-                    ButtonSegment(value: 0, label: Text("UART/CN1")),
-                  ],
-                  selected: {_motorRoute},
-                  onSelectionChanged: (set) async {
-                    final selected = set.first;
-                    setState(() => _motorRoute = selected);
-                    final ok = await control.setMotorControlMode(selected);
-                    if (context.mounted) {
-                      _showFeedback(context, ok, "Route changed to ${selected == 1 ? 'Modbus' : 'UART'}");
-                    }
-                  },
-                ),
-              ],
+                  const SizedBox(height: 10),
+
+                  // Route Switch Segments
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 1,
+                          label: Text("1. Modbus Direto (ESP32-Servo)"),
+                          icon: Icon(Icons.flash_on, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: 0,
+                          label: Text("2. UART Legada (Placa Controladora)"),
+                          icon: Icon(Icons.settings_input_composite, size: 16),
+                        ),
+                      ],
+                      selected: {_motorRoute},
+                      onSelectionChanged: (set) async {
+                        final selected = set.first;
+                        setState(() {
+                          _motorRoute = selected;
+                          // Firmware disables motor on route change
+                          _motorRpm = 0;
+                          _motorRpmController.text = "0";
+                        });
+                        final ok = await control.setMotorControlMode(selected);
+                        if (context.mounted) {
+                          _showFeedback(
+                            context,
+                            ok,
+                            "Via alterada para ${selected == 1 ? 'Modbus Direto' : 'UART/CN1 Legada'} (Motor desabilitado por segurança)",
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Detailed Flow Path
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Fluxo Físico de Comando:",
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _motorRoute == 1
+                              ? "ESP32S3-HUB → ESP32S3-Servo → Servo Delta ASDA-B2"
+                              : "ESP32S3-HUB → UART → ControllerBoard → Servo Delta ASDA-B2",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _motorRoute == 1 ? Colors.blue.shade800 : Colors.teal.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _motorRoute == 1
+                              ? "• Modbus RS-485 via nó ESP32-Servo dedicado gravando no registrador P1-09. Suporta leitura completa de telemetria, torque e energia."
+                              : "• Envio via barramento serial UART para a Placa Controladora TECNAL, que aciona o servo pelo conector CN1 (modo analógico/pulso legado).",
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade800, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 13, color: Colors.amber.shade900),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          "A troca de via desabilita o motor imediatamente no firmware (0 RPM). Aplique um novo setpoint de velocidade após a seleção.",
+                          style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.amber.shade900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
 

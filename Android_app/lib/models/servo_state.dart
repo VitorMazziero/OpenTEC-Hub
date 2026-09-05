@@ -145,4 +145,19 @@ class ServoState {
         return "Idle / Standby";
     }
   }
+
+  /// Title of the selected command path
+  String get routeName => viaModbus ? "Modbus Direto (ESP32-Servo)" : "UART / CN1 (Placa Controladora)";
+
+  /// Explicit hardware signal flow topology
+  String get routePath => viaModbus
+      ? "ESP32S3-HUB → ESP32S3-Servo → Servo Delta ASDA-B2"
+      : "ESP32S3-HUB → UART → ControllerBoard → Servo Delta ASDA-B2";
+
+  /// Status of the hardware route ACK from the drive
+  String get routeAckDescription {
+    if (routeAck == 1) return "Confirmado (Modbus)";
+    if (routeAck == 0) return "Confirmado (UART/CN1)";
+    return "Aguardando confirmação";
+  }
 }

@@ -28,6 +28,15 @@ public class ConnectionManagerTests
         // Connect_aborts_the_connect_attempt_in_flight came to fail ~30% of full-suite runs while
         // passing in isolation. No test covers the re-probe path, so it is kept out of the way here.
         FailuresBeforeReprobe = int.MaxValue,
+
+        // The production ceiling is 5 s, sized for a USB round trip measured in
+        // milliseconds. Under the full suite the gap between a test dispatching a command
+        // and its fake ack being pumped through the request loop is wall-clock, not link
+        // latency, and it exceeded 5 s often enough to fail Usb_measures_RTT_on_CommandAck
+        // in a full run while passing in isolation. These tests are about the correlation
+        // itself, so the ceiling is lifted out of the way here; the one test that is about
+        // the ceiling sets its own.
+        RoundTripCorrelationWindow = TimeSpan.FromMinutes(1),
     };
 
     /// <summary>Polls until <paramref name="condition"/> holds, or gives up.</summary>

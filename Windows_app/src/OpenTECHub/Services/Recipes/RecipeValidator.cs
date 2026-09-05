@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 /// <summary>
 /// The setpoint device envelopes, matched to the manual setpoint fields and wire builders.
@@ -507,50 +507,50 @@ public static class RecipeValidator
                 break;
 
             case OpenTECHub.Protocol.PumpProfileMode.Polynomial:
-            {
-                // p0..p20 is what the firmware forwards; more coefficients would be dropped
-                // silently and the delivered profile would not be the one on screen.
-                var coefficients = ParseNumberList(node.Text("coeficientes"));
-                if (coefficients.Count is < 1 or > 21)
                 {
-                    findings.Add(Error(
-                        "O perfil polinomial precisa de 1 a 21 coeficientes (p0..p20).", node.Id));
-                }
+                    // p0..p20 is what the firmware forwards; more coefficients would be dropped
+                    // silently and the delivered profile would not be the one on screen.
+                    var coefficients = ParseNumberList(node.Text("coeficientes"));
+                    if (coefficients.Count is < 1 or > 21)
+                    {
+                        findings.Add(Error(
+                            "O perfil polinomial precisa de 1 a 21 coeficientes (p0..p20).", node.Id));
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case OpenTECHub.Protocol.PumpProfileMode.Piecewise:
-            {
-                var times = ParseNumberList(node.Text("tempos"));
-                var flows = ParseNumberList(node.Text("vazoes"));
+                {
+                    var times = ParseNumberList(node.Text("tempos"));
+                    var flows = ParseNumberList(node.Text("vazoes"));
 
-                if (times.Count != flows.Count)
-                {
-                    findings.Add(Error(
-                        "Os segmentos precisam do mesmo número de tempos e de vazões.", node.Id));
-                }
-                else if (times.Count is < 2 or > 100)
-                {
-                    findings.Add(Error("O perfil por segmentos precisa de 2 a 100 pontos.", node.Id));
-                }
-                else
-                {
-                    // Interpolation between two points at the same time is a division by zero, and
-                    // a decreasing series would silently reorder the profile.
-                    for (var i = 1; i < times.Count; i++)
+                    if (times.Count != flows.Count)
                     {
-                        if (times[i] <= times[i - 1])
+                        findings.Add(Error(
+                            "Os segmentos precisam do mesmo número de tempos e de vazões.", node.Id));
+                    }
+                    else if (times.Count is < 2 or > 100)
+                    {
+                        findings.Add(Error("O perfil por segmentos precisa de 2 a 100 pontos.", node.Id));
+                    }
+                    else
+                    {
+                        // Interpolation between two points at the same time is a division by zero, and
+                        // a decreasing series would silently reorder the profile.
+                        for (var i = 1; i < times.Count; i++)
                         {
-                            findings.Add(Error(
-                                "Os tempos dos segmentos devem ser estritamente crescentes.", node.Id));
-                            break;
+                            if (times[i] <= times[i - 1])
+                            {
+                                findings.Add(Error(
+                                    "Os tempos dos segmentos devem ser estritamente crescentes.", node.Id));
+                                break;
+                            }
                         }
                     }
-                }
 
-                break;
-            }
+                    break;
+                }
         }
     }
 

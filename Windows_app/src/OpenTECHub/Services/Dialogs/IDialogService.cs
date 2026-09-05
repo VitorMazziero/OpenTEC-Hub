@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Dialogs;
+namespace OpenTECHub.Services.Dialogs;
 
 public enum RecipeStartOption
 {

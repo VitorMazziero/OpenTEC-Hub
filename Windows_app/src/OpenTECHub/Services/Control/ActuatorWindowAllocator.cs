@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>
 /// One actuator's operating band and the slice of control effort that drives it.

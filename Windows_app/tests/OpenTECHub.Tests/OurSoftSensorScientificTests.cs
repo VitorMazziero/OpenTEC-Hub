@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using OpenTECHub.Services.Control;
 using Xunit;

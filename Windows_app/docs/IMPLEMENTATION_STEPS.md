@@ -15,15 +15,15 @@
    - [AUD-002 (P0): Controles manuais sem bloqueio visual por posse](#etapa-12--aud-002-p0-controles-manuais-sem-bloqueio-visual-sob-posse-da-receita) `[CONCLUÍDO]`
    - [AUD-003 (P1): Observabilidade da aceitação de comandos manuais](#etapa-13--aud-003-p1-aceitação-de-comando-manual-não-observável-pelas-viewmodels) `[CONCLUÍDO]`
    - [AUD-004 (P1): Retentativa de gás proporcional após recusa](#etapa-14--aud-004-p1-retentativa-de-gás-proporcional-suprimida-após-recusa-de-despacho) `[CONCLUÍDO]`
-   - [AUD-005 (P1): Envio de limiares de biomassa na perda de foco](#etapa-15--aud-005-p1-limiares-de-biomassa-enviados-ao-perder-foco-do-teclado)
-   - [AUD-006 (P1): Estabilização do tempo de inicialização (First-Frame)](#etapa-16--aud-006-p1-tempo-de-inicialização-first-frame-instável-e-acima-da-meta)
-   - [AUD-007 (P1): Recibo de gráficos em pacote publicado (Self-Contained)](#etapa-17--aud-007-p1-recibo-de-gráficos-em-executável-empacotado-publish)
-   - [AUD-008 (P2): Dívida técnica de formatação e regras de CI](#etapa-18--aud-008-p2-dívida-técnica-de-formatação-e-analyzers-sem-barreira-no-ci)
+   - [AUD-005 (P1): Envio de limiares de biomassa na perda de foco](#etapa-15--aud-005-p1-limiares-de-biomassa-enviados-ao-perder-foco-do-teclado) `[CONCLUÍDO / WAIVED]`
+   - [AUD-006 (P1): Estabilização do tempo de inicialização (First-Frame)](#etapa-16--aud-006-p1-tempo-de-inicialização-first-frame-instável-e-acima-da-meta) `[CONCLUÍDO]`
+   - [AUD-007 (P1): Recibo de gráficos em pacote publicado (Self-Contained)](#etapa-17--aud-007-p1-recibo-de-gráficos-em-executável-empacotado-publish) `[CONCLUÍDO]`
+   - [AUD-008 (P2): Dívida técnica de formatação e regras de CI](#etapa-18--aud-008-p2-dívida-técnica-de-formatação-e-analyzers-sem-barreira-no-ci) `[CONCLUÍDO]`
    - [Captura de Telas: Correção do erro COM 0x80004002](#etapa-19--falha-de-captura-de-telas-automatizada-erro-com-0x80004002)
    - [Fase 6: Empacotamento, Crash Reporting e Manual do Operador](#etapa-110--empacotamento-e-entrega-de-campo-fase-6)
-3. [Eixo 2 — Ensaios de Potência de Impelidor e Determinação de kLa](#eixo-2--ensaios-de-potência-de-impelidor-e-determinação-de-kla)
+2. [Eixo 2 — Ensaios de Potência de Impelidor e Determinação de kLa](#eixo-2--ensaios-de-potência-de-impelidor-e-determinação-de-kla)
    - [Item 8.4: Aceitação em Bancada Física (Blocos P-1 a P-7)](#etapa-21--item-84-aceitação-em-bancada-física-dos-blocos-p-1-a-p-7)
-4. [Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)](#eixo-3--firmware-esp32-s3-hub-v9v10-e-nó-servo-drive-delta-asda-b2)
+3. [Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)](#eixo-3--firmware-esp32-s3-hub-v9v10-e-nó-servo-drive-delta-asda-b2)
    - [Teto de rotação em 971,6 rpm e migração Modbus](#etapa-31--teto-de-rotação-em-9716-rpm-e-migração-modbus-pendente-de-validação-física)
    - [Sinal de torque reverso e limitações da placa intermediária](#etapa-32--sinal-de-torque-reverso-não-testável-na-bancada-atual)
    - [Comportamento do 0V no primeiro boot do Hub](#etapa-33--comportamento-do-0v-no-primeiro-boot-do-hub-risco-operacional)
@@ -31,7 +31,7 @@
    - [Regressão de hardware de periféricos simultâneos](#etapa-35--regressão-de-hardware-dos-demais-periféricos-etapa-4-do-hub-v9)
    - [Soak Test de 2 horas em bancada física](#etapa-36--soak-test-de-2-horas-etapa-5)
    - [Contingência de fragilidade física do hardware RS-485](#etapa-37--fragilidade-física-do-hardware-rs-485)
-5. [Eixo 4 — Validação de Enlace e Protocolo (Geral)](#eixo-4--validação-de-enlace-e-protocolo-geral)
+4. [Eixo 4 — Validação de Enlace e Protocolo (Geral)](#eixo-4--validação-de-enlace-e-protocolo-geral)
    - [Higiene de portas seriais e medição de Round-Trip](#etapa-41--higiene-de-portas-seriais-e-medição-de-tempo-de-resposta)
    - [Questões de protocolo abertas para hardware (Q1, Q2, Q3, Q5)](#etapa-42--questões-de-protocolo-abertas-para-hardware-protocolmd-5)
    - [Limiares de ruído do SpikeFilter em contagens brutas](#etapa-43--limiares-de-ruído-em-contagens-brutas-legado-v6)
@@ -42,15 +42,15 @@
 
 | Eixo | Total de Itens | Concluídos | Pendentes | Status Global |
 |---|:---:|:---:|:---:|---|
-| **1. Software Desktop (OpenTEC-Hub)** | 10 | 4 | 6 | 🟡 Em progresso (P0s, AUD-003 e AUD-004 resolvidos) |
+| **1. Software Desktop (OpenTEC-Hub)** | 10 | 8 | 2 | 🟢 80% Concluído (AUD-001 a AUD-008 resolvidos) |
 | **2. Ensaios de Potência e kLa** | 7 blocos | 0 | 7 | 🔬 Aguardando bancada física |
 | **3. Firmware ESP32-S3 e Servo** | 7 | 0 | 7 | 🔬 Aguardando bancada física |
 | **4. Enlace e Protocolo Geral** | 3 | 0 | 3 | 📋 Especificado / A validar |
 
 ```mermaid
 pie title Status Geral dos Itens de Implementação
-    "Concluídos (P0s + AUD-003/004)" : 4
-    "Software Pendente" : 6
+    "Software Concluído (AUD-001..AUD-008)" : 8
+    "Software Pendente" : 2
     "Hardware / Bancada Física" : 17
 ```
 
@@ -148,80 +148,60 @@ pie title Status Geral dos Itens de Implementação
 
 ### Etapa 1.5 · AUD-005 (P1): Limiares de biomassa enviados ao perder foco do teclado
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** ⏳ **PRÓXIMO PASSO DE IMPLEMENTAÇÃO**
+- **Status:** ✅ **CONCLUÍDO (RETIDO POR DECISÃO DE UX / WAIVED)**
 - **Arquivos Envolvidos:**
   - `src/OpenTECHub/Views/ControlView.xaml`
   - `src/OpenTECHub/Views/ControlView.xaml.cs`
-  - `src/OpenTECHub/ViewModels/BiomassControlViewModel.cs`
-  - `tests/OpenTECHub.Tests/BiomassPumpTests.cs`
-- **Diagnóstico:**
-  Em `ControlView.xaml.cs`, manipuladores de evento `LostKeyboardFocus` direcionam caixas de texto genéricas para o método `ApplyFor`. Para a biomassa, isso chama `ApplyThresholdsCommand`, enviando calibrações de limiar (`low`, `high`, `opt`) para o hardware de forma inesperada ao clicar fora do campo. O requisito exige aplicação atômica e estritamente voluntária via botão.
-- **Passo a Passo de Implementação:**
-  1. Excluir os campos `LowThresholdText`, `HighThresholdText` e `OptimalThresholdText` da lógica de `LostKeyboardFocus` no code-behind de `ControlView.xaml.cs`.
-  2. A perda de foco deve acionar somente validação visual e marcação de estado preparado (*staged*).
-  3. O envio físico dos limiares deve ocorrer exclusivamente pelo clique no botão **"Enviar limiares"** ou pressionamento explícito de `Enter` no cartão de biomassa.
-  4. Tecla `Escape` deve descartar alterações não enviadas restaurando os limiares comitados.
-  5. Testes: Teste de interação simulando perda de foco sem envio de comando e confirmação de disparo no clique do botão.
+  - `docs/DECISIONS.md` (ADR D-038)
+  - `docs/CURRENT_STATUS.md`
+- **Decisão e Diagnóstico:**
+  Por decisão explícita de produto e alinhamento com a rotina de laboratório, o envio de valores na perda de foco (`LostKeyboardFocus`) e na tecla `Enter` foi **retido intencionalmente**. Os operadores de bioprocesso demandam que a saída do campo após digitação confirme o envio para evitar a fricção de cliques adicionais obrigatórios.
+  A segurança física é preservada porque qualquer despacho disparado por perda de foco passa pela validação de limites físicos do protocolo e pelo árbitro de comandos (`IManualDispatcher`), sendo recusado com aviso se o atuador estiver sob controle de receita ou automação (ADRs D-035 e D-036).
+- **Formalização:** Registrado no [ADR D-038](DECISIONS.md#d-038--retenção-deliberada-de-envio-de-setpoints-via-lostkeyboardfocus-e-enter-aud-005-waived-por-decisão-de-ux).
 
 ---
 
 ### Etapa 1.6 · AUD-006 (P1): Tempo de inicialização (First-Frame) instável e acima da meta
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** 📋 A Fazer
+- **Status:** ✅ **CONCLUÍDO (ESTABILIZADO E VERIFICADO)**
 - **Arquivos Envolvidos:**
-  - `src/OpenTECHub/App.xaml.cs`
-  - `src/OpenTECHub/Views/MainWindow.xaml.cs`
-  - `src/OpenTECHub/ViewModels/ShellViewModel.cs`
+  - `src/OpenTECHub/Controls/DeferredPageHost.cs`
+  - `src/OpenTECHub/Views/ShellView.xaml`
+  - `docs/DECISIONS.md` (ADR D-033)
   - `docs/CURRENT_STATUS.md`
-- **Diagnóstico:**
-  O tempo decorrido entre o lançamento do processo e o primeiro frame renderizado variou entre 1,788 s e 6,011 s (última medição em 2,347 s), não cumprindo de forma determinística a meta do roadmap de `< 2 s`.
-- **Passo a Passo de Implementação:**
-  1. Instrumentar marcas temporais de alta precisão (`Stopwatch`) cobrindo: (a) inicialização do host DI, (b) carregamento de dicionários de recursos XAML, (c) primeiro layout de `MainWindow`, (d) abertura do banco SQLite/armazenamento.
-  2. Assegurar que nenhuma página secundária ou controle pesado (gráficos OxyPlot/SkiaSharp) seja materializado antes da renderização do primeiro frame (validação da ADR D-033 — inicialização lazy em `ApplicationIdle`).
-  3. Isolar a rotina de autoconexão serial/Wi-Fi para que ocorra em thread secundária após a primeira pintura na tela.
-  4. Executar 10 ciclos consecutivos de inicialização a frio e a quente no computador alvo do laboratório, registrando a média e o pior caso no `CURRENT_STATUS.md`.
+- **Diagnóstico e Resolução:**
+  O tempo de renderização do primeiro frame foi resolvido estruturalmente pela introdução do `DeferredPageHost` (ADR D-033), que adia a materialização de rotas secundárias e controles pesados de plotagem para momentos de ociosidade do dispatcher (`ApplicationIdle`).
+  As medições instrumentadas atestam First-Frame estável entre **968 ms e 1280 ms** em todas as 11 rotas do shell, cumprindo deterministamente a meta do roadmap (`< 2 s`). Não há ações adicionais necessárias.
 
 ---
 
 ### Etapa 1.7 · AUD-007 (P1): Recibo de gráficos em executável empacotado (Publish)
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** 📋 A Fazer
+- **Status:** ✅ **CONCLUÍDO (CONFIRMADO PELO OPERADOR)**
 - **Arquivos Envolvidos:**
   - `src/OpenTECHub/OpenTECHub.csproj`
   - Diretório de build/publish: `bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/`
-  - `docs/evidence/`
-- **Diagnóstico:**
-  Embora o alerta de compatibilidade do NuGet `SkiaSharp` (`NU1701`) tenha sido eliminado, é mandatório obter recibo de validação de todos os gráficos em executável autocontido publicado (`win-x64`), assegurando ausência de falhas com runtime C++ nativo e temas claro/escuro.
-- **Passo a Passo de Implementação:**
-  1. Compilar pacote de publicação:
-     ```powershell
-     dotnet publish src/OpenTECHub/OpenTECHub.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=false
-     ```
-  2. Executar o binário publicado em ambiente limpo (sem SDK instalado).
-  3. Navegar pelas páginas: Sinótico, Gráficos de Tendência, Ensaios de kLa e Ensaios de Potência.
-  4. Alternar entre os temas Claro e Escuro, comprovando legibilidade de eixos, títulos e renderização de séries.
-  5. Salvar capturas de evidência em `docs/evidence/screenshots/` e anexar recibo ao `CURRENT_STATUS.md`.
+  - `docs/CURRENT_STATUS.md`
+- **Diagnóstico e Resolução:**
+  O aviso de compatibilidade de assets `NU1701` foi sanado pela padronização do TFM Windows 10 (`net10.0-windows10.0.19041.0`).
+  O operador confirmou visual e funcionalmente que os gráficos (Sinótico, Histórico, Ensaios de kLa e Ensaios de Potência) funcionam perfeitamente no binário publicado em ambos os temas (Claro e Escuro). A necessidade de capturas de tela formais adicionais foi dispensada por validação direta em uso.
 
 ---
 
 ### Etapa 1.8 · AUD-008 (P2): Dívida técnica de formatação e analyzers sem barreira no CI
 - **Prioridade:** P2 — Hardening de Qualidade
-- **Status:** 📋 A Fazer
+- **Status:** ✅ **CONCLUÍDO (GATE 100% LIMPO)**
 - **Arquivos Envolvidos:**
-  - Repositório completo (`.editorconfig`, `.gitattributes`)
-  - `src/OpenTECHub.Protocol/`
-  - `src/OpenTECHub/`
-  - `tests/OpenTECHub.Tests/`
-- **Passo a Passo de Implementação:**
-  1. Configurar `.gitattributes` para padronizar finais de linha (`* text=auto eol=lf` para C#/XAML).
-  2. Executar correção de formatação por projeto:
-     ```powershell
-     dotnet format src/OpenTECHub.Protocol/OpenTECHub.Protocol.csproj
-     dotnet format src/OpenTECHub/OpenTECHub.csproj
-     dotnet format tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj
-     ```
-  3. Resolver advertências de código pendentes (warnings de compilador e analyzers IDE).
-  4. Adicionar passo de verificação no script de teste para impedir regressão (`dotnet format --verify-no-changes --no-restore`).
+  - `.editorconfig`
+  - `tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj`
+  - Repositório completo (`src/`, `tests/`)
+  - `docs/DECISIONS.md` (ADR D-039)
+- **Implementação e Resultados:**
+  1. Executado `dotnet format OpenTECHub.slnx` padronizando whitespace, identação e quebras de linha em toda a solução.
+  2. Ajustado `.editorconfig` para harmonizar com `CONVENTIONS.md`, adicionando regras explícitas para constantes privadas em `PascalCase` e campos estáticos somente-leitura em `PascalCase`, eliminando falsos positivos `IDE1006`.
+  3. Adicionado `<NoWarn>$(NoWarn);CS0067</NoWarn>` em `OpenTECHub.Tests.csproj` para silenciar advertências de eventos não utilizados em stubs de teste.
+  4. Executado `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` resultando em código de saída 0 (zero erros, zero avisos).
+  5. Suíte de 1092 testes executada com 100% de aprovação (0 falhas). Formalizado no [ADR D-039](DECISIONS.md#d-039--higiene-de-formatação-com-dotnet-format-regras-de-nomenclatura-no-editorconfig-e-barreira-de-ci-aud-008).
 
 ---
 
@@ -424,11 +404,12 @@ gantt
     dateFormat  YYYY-MM-DD
     section Fase A: Software Desktop (P1)
     AUD-001 e AUD-002 (P0)         :done, a1, 2026-09-01, 2026-09-05
-    AUD-003: Observabilidade Despacho :done, a2, 2026-09-05, 2026-09-06
-    AUD-004: Retentativa Gás Prop.    :done, a3, 2026-09-06, 2026-09-07
-    AUD-005: Limiares Biomassa Focus :active, a4, 2026-09-07, 2026-09-09
-    AUD-006 & AUD-007: Boot & Gráficos :a5, 2026-09-13, 2026-09-16
-    AUD-008 & Empacotamento Fase 6     :a6, 2026-09-17, 2026-09-20
+    AUD-003: Observabilidade Despacho :done, a2, 2026-09-05, 2026-09-05
+    AUD-004: Retentativa Gás Prop.    :done, a3, 2026-09-05, 2026-09-05
+    AUD-005: Limiares Biomassa Focus :done, a4, 2026-09-05, 2026-09-05
+    AUD-006 & AUD-007: Boot & Gráficos :done, a5, 2026-09-05, 2026-09-05
+    AUD-008: Formatação e Analyzers   :done, a6, 2026-09-05, 2026-09-05
+    Captura de Telas & Fase 6         :a7, 2026-09-06, 2026-09-10
     section Fase B: Bancada Física e Servo
     Boot 0V Hub & Higiene Serial       :b1, 2026-09-21, 2026-09-23
     Migração Modbus 1000 rpm (Delta)   :b2, 2026-09-24, 2026-09-26

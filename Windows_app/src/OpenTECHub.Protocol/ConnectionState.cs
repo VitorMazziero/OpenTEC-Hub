@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// Link lifecycle.

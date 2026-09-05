@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.KlaMapping;
+namespace OpenTECHub.Services.KlaMapping;
 
 public interface IKlaMappingEngine
 {

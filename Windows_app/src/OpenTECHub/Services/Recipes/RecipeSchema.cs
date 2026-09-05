@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 /// <summary>The editing control a parameter needs.</summary>
 public enum ParameterKind

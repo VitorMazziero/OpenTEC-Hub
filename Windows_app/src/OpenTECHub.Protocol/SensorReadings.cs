@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// Snapshot of the most recent good value for every telemetry channel.

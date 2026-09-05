@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Platform;
+namespace OpenTECHub.Services.Platform;
 
 /// <summary>Small, testable boundary around Windows file and clipboard interactions.</summary>
 public interface IFileInteractionService

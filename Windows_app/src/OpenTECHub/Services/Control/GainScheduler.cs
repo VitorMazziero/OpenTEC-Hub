@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>The result of advancing the gain scheduler by one loop step.</summary>
 /// <param name="Tuning">The base tuning with the effective scheduled gains substituted in.</param>

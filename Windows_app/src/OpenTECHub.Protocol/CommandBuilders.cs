@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// Builders for commands whose correct shape is a protocol rule rather than a
@@ -6,7 +6,7 @@
 /// </summary>
 /// <remarks>
 /// Anything here exists because getting it wrong by hand is easy and the
-    /// consequence is on real hardware - an inverted shutoff flag, or a nitrogen valve
+/// consequence is on real hardware - an inverted shutoff flag, or a nitrogen valve
 /// left open through a stop. Callers should reach for these rather than assembling
 /// the keys themselves. See <c>docs/PROTOCOL.md</c> section 3.1.
 /// </remarks>

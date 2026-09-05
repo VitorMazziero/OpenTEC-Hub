@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>One PID gain triple (velocity-form Kp/Ki/Kd).</summary>
 public readonly record struct GainSet(double Kp, double Ki, double Kd);

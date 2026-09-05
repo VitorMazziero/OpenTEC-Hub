@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;

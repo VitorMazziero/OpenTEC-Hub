@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Telemetry;
 using OpenTECHub.ViewModels;

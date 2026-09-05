@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>
 /// The oxygen cascade's inner control law: a velocity-form PID with dead-time

@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using OpenTECHub.Protocol;
 
 namespace OpenTECHub.Tests;

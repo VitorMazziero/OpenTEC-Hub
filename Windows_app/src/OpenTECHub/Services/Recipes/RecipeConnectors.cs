@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 /// <summary>Direction of a node port.</summary>
 public enum PortDirection

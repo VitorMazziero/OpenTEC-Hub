@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using OpenTECHub.ViewModels;
 
 namespace OpenTECHub.Views.Dialogs;

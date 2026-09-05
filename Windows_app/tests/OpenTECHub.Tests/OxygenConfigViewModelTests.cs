@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.KlaMapping;

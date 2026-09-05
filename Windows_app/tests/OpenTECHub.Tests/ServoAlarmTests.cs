@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Telemetry;
 using OpenTECHub.ViewModels;
 using Xunit;

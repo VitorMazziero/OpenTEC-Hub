@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>
 /// The tunable parameters of the oxygen cascade's dual-loop PID.

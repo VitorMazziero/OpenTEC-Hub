@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Telemetry;

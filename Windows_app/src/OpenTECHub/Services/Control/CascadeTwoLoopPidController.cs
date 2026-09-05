@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>
 /// Method for estimating the dissolved-oxygen rate (dDOT/dt).

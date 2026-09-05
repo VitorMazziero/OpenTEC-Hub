@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>One point on the live cascade trend: PV, setpoint, kLa demand and effort over time.</summary>
 public readonly record struct CascadeSample(

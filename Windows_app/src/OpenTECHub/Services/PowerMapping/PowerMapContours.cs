@@ -205,40 +205,40 @@ public static class PowerMapContours
             // the centre is only a heuristic and can choose the wrong topology when opposite
             // corners have strongly different magnitudes.
             case 5:
-            {
-                var determinant = ((bottomLeft - level) * (topRight - level)) -
-                                  ((bottomRight - level) * (topLeft - level));
-                if (determinant >= 0)
                 {
-                    segments.Add(new IsolineSegment(left.X, left.Y, top.X, top.Y));
-                    segments.Add(new IsolineSegment(bottom.X, bottom.Y, right.X, right.Y));
-                }
-                else
-                {
-                    segments.Add(new IsolineSegment(left.X, left.Y, bottom.X, bottom.Y));
-                    segments.Add(new IsolineSegment(top.X, top.Y, right.X, right.Y));
-                }
+                    var determinant = ((bottomLeft - level) * (topRight - level)) -
+                                      ((bottomRight - level) * (topLeft - level));
+                    if (determinant >= 0)
+                    {
+                        segments.Add(new IsolineSegment(left.X, left.Y, top.X, top.Y));
+                        segments.Add(new IsolineSegment(bottom.X, bottom.Y, right.X, right.Y));
+                    }
+                    else
+                    {
+                        segments.Add(new IsolineSegment(left.X, left.Y, bottom.X, bottom.Y));
+                        segments.Add(new IsolineSegment(top.X, top.Y, right.X, right.Y));
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case 10:
-            {
-                var determinant = ((bottomLeft - level) * (topRight - level)) -
-                                  ((bottomRight - level) * (topLeft - level));
-                if (determinant <= 0)
                 {
-                    segments.Add(new IsolineSegment(left.X, left.Y, bottom.X, bottom.Y));
-                    segments.Add(new IsolineSegment(top.X, top.Y, right.X, right.Y));
-                }
-                else
-                {
-                    segments.Add(new IsolineSegment(left.X, left.Y, top.X, top.Y));
-                    segments.Add(new IsolineSegment(bottom.X, bottom.Y, right.X, right.Y));
-                }
+                    var determinant = ((bottomLeft - level) * (topRight - level)) -
+                                      ((bottomRight - level) * (topLeft - level));
+                    if (determinant <= 0)
+                    {
+                        segments.Add(new IsolineSegment(left.X, left.Y, bottom.X, bottom.Y));
+                        segments.Add(new IsolineSegment(top.X, top.Y, right.X, right.Y));
+                    }
+                    else
+                    {
+                        segments.Add(new IsolineSegment(left.X, left.Y, top.X, top.Y));
+                        segments.Add(new IsolineSegment(bottom.X, bottom.Y, right.X, right.Y));
+                    }
 
-                break;
-            }
+                    break;
+                }
         }
     }
 

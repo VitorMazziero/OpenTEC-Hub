@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>
 /// A single evaluation of the cascade PID, decomposed so every contribution is visible.

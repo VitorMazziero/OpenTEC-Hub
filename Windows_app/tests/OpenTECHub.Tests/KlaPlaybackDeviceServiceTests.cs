@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTECHub.Protocol;

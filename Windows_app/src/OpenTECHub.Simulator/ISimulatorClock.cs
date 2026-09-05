@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Simulator;
+namespace OpenTECHub.Simulator;
 
 /// <summary>
 /// Time source for the simulation loop and process dynamics.

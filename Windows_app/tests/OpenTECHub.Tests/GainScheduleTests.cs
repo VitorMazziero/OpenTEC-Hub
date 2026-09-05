@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Telemetry;

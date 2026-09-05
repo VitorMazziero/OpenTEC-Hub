@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using OpenTECHub.Simulator;
 using Xunit;
 

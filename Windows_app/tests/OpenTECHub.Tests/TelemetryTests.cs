@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Telemetry;

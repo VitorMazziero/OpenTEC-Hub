@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// Tuning for one <see cref="SpikeFilter"/> channel.

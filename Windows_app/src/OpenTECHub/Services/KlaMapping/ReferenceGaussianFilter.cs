@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.KlaMapping;
+namespace OpenTECHub.Services.KlaMapping;
 
 /// <summary>Separable Gaussian filter using SciPy's default radius and reflect boundary.</summary>
 internal static class ReferenceGaussianFilter

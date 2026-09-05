@@ -629,12 +629,12 @@ public sealed class PowerTestRunner : IPowerTestRunner
         if (actualMode == PowerGasMode.Gassed)
         {
             _arbiter.Claim(CommandOwner.PowerAssay, GassedActuators, $"Ensaio de potência (gás): {condition.ConditionId}");
-        if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay)
-        {
-            FaultWithoutSafeCommand("Falha ao obter posse da malha de gás para Subfase 2.");
-            return;
-        }
-        StartGassedSequence(condition.GasFlowLpm ?? 0.0);
+            if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay)
+            {
+                FaultWithoutSafeCommand("Falha ao obter posse da malha de gás para Subfase 2.");
+                return;
+            }
+            StartGassedSequence(condition.GasFlowLpm ?? 0.0);
         }
         else
         {

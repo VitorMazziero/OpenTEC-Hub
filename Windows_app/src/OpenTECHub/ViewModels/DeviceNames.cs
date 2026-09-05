@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.ViewModels;
+namespace OpenTECHub.ViewModels;
 
 /// <summary>
 /// The one place each device is named, for every surface that shows or matches that name.

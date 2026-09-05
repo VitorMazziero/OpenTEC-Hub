@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// A physically distinct actuator group, for command ownership.

@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Tests;
+namespace OpenTECHub.Tests;
 
 /// <summary>
 /// A manually advanced clock, so time-dependent behaviour can be tested without

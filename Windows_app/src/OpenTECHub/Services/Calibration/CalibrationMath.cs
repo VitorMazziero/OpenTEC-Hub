@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Calibration;
+namespace OpenTECHub.Services.Calibration;
 
 /// <summary>One point whose raw instrument reading maps to an engineering reference.</summary>
 public readonly record struct LinearCalibrationPoint(double Raw, double Reference);

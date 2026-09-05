@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 /// <summary>
 /// The nineteen recipe block types, taken from ReceitasOpenTEC's <c>NodeType</c> enum and

@@ -704,9 +704,20 @@ public sealed class PowerTestRunnerTests
 
         for (var tick = 0; tick < 1000 && h.Runner.Phase != PowerRunPhase.Completed; tick++)
         {
-            if (h.Runner.Phase == PowerRunPhase.VentStabilizing) sawVentStabilizing = true;
-            if (h.Runner.Phase == PowerRunPhase.SettingSpeed) sawSettingSpeed = true;
-            if (h.Runner.Phase == PowerRunPhase.AccumulatingToTarget) sawAccumulating = true;
+            if (h.Runner.Phase == PowerRunPhase.VentStabilizing)
+            {
+                sawVentStabilizing = true;
+            }
+
+            if (h.Runner.Phase == PowerRunPhase.SettingSpeed)
+            {
+                sawSettingSpeed = true;
+            }
+
+            if (h.Runner.Phase == PowerRunPhase.AccumulatingToTarget)
+            {
+                sawAccumulating = true;
+            }
 
             h.AdvanceSimulator(0.2);
         }

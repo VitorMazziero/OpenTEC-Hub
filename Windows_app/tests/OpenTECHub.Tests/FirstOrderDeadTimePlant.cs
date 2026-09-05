@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Tests;
+namespace OpenTECHub.Tests;
 
 /// <summary>
 /// A first-order dissolved-oxygen plant with transport dead time, for controller tests.

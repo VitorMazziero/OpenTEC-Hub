@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
 
 using CommunityToolkit.Mvvm.ComponentModel;

@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 // Flow: walking the graph from Início, fanning out parallel branches, and the idempotent AND/OR
 // join gates. Ported from ReceitasOpenTEC's RecipeEngine.Flow.

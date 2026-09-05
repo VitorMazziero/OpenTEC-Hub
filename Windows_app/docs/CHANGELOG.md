@@ -95,8 +95,23 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 - **Barra compartilhada de Gráficos compactada com ícones vetoriais.** Pausa/continuação,
   cursor, limpar/restaurar, evento e CSV mantêm _tooltips_ e nomes de acessibilidade. A
   exportação PNG foi removida intencionalmente dessa barra; a exportação CSV permanece.
+- **Retenção intencional de envio de setpoints na perda de foco e Enter (AUD-005).** Decisão explícita de
+  produto mantém o disparo de setpoints e limiares de calibração ao perder o foco do teclado (`LostKeyboardFocus`)
+  ou pressionar `Enter`, preservando a agilidade operacional do operador no laboratório. Proteções de validação
+  e recusa sob posse externa permanecem ativas via `IManualDispatcher`. Ver [DECISIONS D-038](DECISIONS.md).
 
 ### Fixed
+- **Dívida técnica de formatação e barreira de analisadores no CI (AUD-008).** Executado `dotnet format`
+  em toda a solução, corrigindo quebras de linha, identação e estilos. O arquivo `.editorconfig` foi
+  alinhado com `CONVENTIONS.md` para suportar regras de nomenclatura explícitas de constantes privadas
+  e campos estáticos somente-leitura em `PascalCase`. Suprimido aviso `CS0067` para eventos de mock em
+  testes. O gate `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` passa a retornar código 0
+  com zero erros e zero avisos na solução. Ver [DECISIONS D-039](DECISIONS.md).
+- **Estabilização determinística do tempo de inicialização (AUD-006).** Verificado o impacto do `DeferredPageHost`
+  (ADR D-033), garantindo inicialização diferida de rotas secundárias em `ApplicationIdle` e atingindo First-Frame
+  estável de 968–1280 ms em todas as rotas (abaixo da meta de 2 s).
+- **Verificação de temas de gráficos em binário empacotado (AUD-007).** Validação confirmada pelo operador
+  em build publicado (`win-x64`), assegurando renderização correta de eixos e séries em temas Claro e Escuro.
 - **Retentativa automática reativa de gás proporcional na liberação de aeração (AUD-004).**
   O `PumpControlViewModel` agora assina os eventos de transição de posse do `ICommandArbiter` (`OwnershipChanged`
   e `OwnershipRevoked`). Quando a aeração é tomada por outro controlador (como cascata de oxigênio ou receitas),

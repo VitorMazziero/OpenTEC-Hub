@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using OpenTECHub.Services.Control;
 using Xunit;
 

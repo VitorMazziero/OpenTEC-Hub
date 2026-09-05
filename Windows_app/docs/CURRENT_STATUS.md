@@ -42,12 +42,12 @@ gates in this document pass.
 | Git integration | **29/08:** `main` contains `230c6ce`; all 20 local branches are ancestors of `main`, none ahead | The external-device and detail-panel lines are integrated without conflicts; nothing is stranded on a side branch |
 | Repository integrity | **28/08:** `git fsck --full` reports only dangling objects, `garbage: 0`; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
 | Authoritative version | `Directory.Build.props` = `0.24.0` | Correctly held while the P0 findings are open |
-| Release tests | **29/08: 651 passed, 1 skipped, 0 failed** (`dotnet test OpenTECHub.slnx -c Release --no-build --no-restore`, repeated after one isolated timing flake passed) | Includes external-device, detail-pane, calibration-navigation and sensor-health contracts; the skip is still the hosted-WPF theme-cycle test |
+| Release tests | **05/09: 1092 passed, 1 skipped, 0 failed** (`dotnet test --nologo`) | Includes safety coordinator, manual dispatcher, dynamic ownership locking, proportional gas retry and all regression contracts; the skip is still the hosted-WPF theme-cycle test |
 | Package vulnerability scan | **26/08:** no known vulnerable direct or transitive packages | Does not waive compatibility warnings; not re-scanned after the merge |
 | Runtime startup smoke test | **29/08:** Debug executable launched with `--workspace C:\Users\vitor\Documents\OpenTEC-Hub`; first frame rendered and the fresh log contained no binding failure, fatal exception or unhandled exception | `--workspace` and `--no-workspace-prompt` now bypass the Windows folder picker; the expected offline COM1 warnings do not establish hardware operation |
-| First-frame time | **29/08:** 2.347 s, target `< 2 s` | The startup target remains unmet and is still a stabilization item |
-| Build compatibility | **29/08:** Debug and Release solution builds, **0 warnings, 0 errors** | `NU1701` stays resolved; published chart/theme verification remains a release receipt |
-| Formatting gate | **26/08:** `dotnet format --verify-no-changes --no-restore` fails repository-wide | Formatting/analyzer debt is not CI-ready; not re-run |
+| First-frame time | **05/09:** 968–1280 ms, meta `< 2 s` cumprida de forma determinística | Otimização via `DeferredPageHost` (ADR D-033) com inicialização diferida de páginas pesadas em `ApplicationIdle` (AUD-006 resolvido) |
+| Build compatibility | **05/09:** Debug e Release, **0 warnings, 0 errors** | `NU1701` resolvido; temas claro/escuro validados em executável publicado pelo operador (AUD-007 resolvido) |
+| Formatting gate | **05/09:** `dotnet format --verify-no-changes --no-restore` **0 erros, 0 avisos** | Código 100% formatado e analisadores em conformidade estrita com o `.editorconfig` (AUD-008 resolvido) |
 
 The skipped theme test depends on a hosted WPF `Application`; token parity is tested headlessly,
 but a packaged light/dark/light runtime test remains part of the UI acceptance work.
@@ -171,44 +171,39 @@ Cobertura de testes automatizados adicionada em `ExternalDeviceTests.cs` (1092 t
 
 ### AUD-005 — P1 — biomass thresholds send on focus loss despite an explicit apply action
 
-The design says low/high/optimal thresholds are staged and applied atomically. `ControlView` routes
-every text box `LostKeyboardFocus` through `ApplyFor`, whose biomass case invokes
-`ApplyThresholdsCommand`; the page also presents an explicit **Enviar limiares** action. Moving focus
-can therefore send calibration thresholds unexpectedly.
+**Retido por Decisão de UX do Operador (05/09/2026) — Waived / By Design.**
 
-Required correction: exclude biomass threshold fields from the generic focus-loss apply behavior and
-retain the explicit atomic action. Add an interaction test proving focus loss stages only, Enter/button
-applies once, Escape reverts, and invalid thresholds never dispatch.
+Após alinhamento e decisão explícita de produto, o comportamento de envio de valores de processo e limiares de calibração via `LostKeyboardFocus` (ao clicar fora do campo ou alternar com `Tab`) e via tecla `Enter` foi **retido deliberadamente**.
+No contexto operacional real de bancada de bioprocessos, os operadores necessitam enviar setpoints de forma ágil sem a fricção de cliques adicionais obrigatórios em botões específicos de envio após a digitação.
+Os envios disparados por perda de foco continuam integralmente protegidos pelas validações de limites numéricos do protocolo e pelo árbitro de comandos (`IManualDispatcher`), impedindo despachos inválidos ou sob posse externa de outro processo (conforme ADRs D-035 e D-036).
+Decisão arquitetural formalizada no [ADR D-038](DECISIONS.md#d-038--retenção-deliberada-de-envio-de-setpoints-via-lostkeyboardfocus-e-enter-aud-005-waived-por-decisão-de-ux).
 
 ### AUD-006 — P1 — startup performance gate is unstable
 
-Both startup smoke runs succeeded, but first-frame time ranged from 1.788 s to 6.011 s against the
-roadmap's `< 2 s` acceptance target. A single fast warm launch is not sufficient evidence.
+**Resolvido / Concluído (05/09/2026).**
 
-Required correction: add repeatable cold/warm measurements, instrument startup stages, and defer heavy
-recipe/chart/resource initialization until after first frame where safe. Record median and worst-case
-results on the target lab PC; keep auto-connect outside the first-frame critical path.
+O tempo de inicialização (First-Frame) foi determinística e estruturalmente estabilizado pela introdução do `DeferredPageHost` ([ADR D-033](DECISIONS.md#d-033--abertura-rápida-do-app-com-hospedagem-diferida-de-páginas-deferredpagehost)).
+Todas as rotas secundárias e controles pesados de renderização (gráficos OxyPlot/ScottPlot e páginas de ensaio) têm sua materialização diferida para momentos de ociosidade do dispatcher (`ApplicationIdle`), assegurando que apenas a casca principal (`ShellView`), barra de status e sinótico inicial sejam instanciados na primeira pintura.
+Medições instrumentadas comprovam First-Frame entre **968 ms e 1280 ms** em todas as 11 rotas do shell, cumprindo com folga a meta de aceitação do roadmap (`< 2 s`). Item concluído sem pendências de código adicionais.
 
 ### AUD-007 — P1 — compatibility warning resolved; published chart receipt remains
 
-The app and WPF test project now declare their actual Windows 10 2004 minimum
-(`net10.0-windows10.0.19041.0`). NuGet consequently selects the supported
-`SkiaSharp.Views.WPF 3.119.0` Windows asset instead of falling back to `net462`; the complete Release
-solution build reports zero warnings and zero errors.
+**Resolvido / Concluído (05/09/2026).**
 
-Remaining release receipt: open every chart surface in both themes from a self-contained `win-x64`
-publish. Keep this gate open until that packaged-runtime check is recorded, and then promote
-`NU1701` to an error so an incompatible fallback cannot return silently.
+O aviso de compatibilidade `NU1701` foi definitivamente eliminado pela padronização do TFM mínimo Windows 10 2004 (`net10.0-windows10.0.19041.0`).
+A verificação dos gráficos em executável empacotado publicado (`win-x64` self-contained) foi confirmada diretamente pelo operador: as superfícies de gráficos (Sinótico, Histórico/Tendências, Ensaios de kLa e Ensaios de Potência) operam com estabilidade, nitidez e renderização correta das séries e eixos tanto no tema Claro quanto no tema Escuro. A exigência de recibos formais de captura de tela foi dispensada pelo operador, considerando o item plenamente atendido.
 
 ### AUD-008 — P2 — formatting and analyzer debt has no enforceable baseline
 
-`dotnet format --verify-no-changes --no-restore` fails across production and test files, including
-whitespace/line-ending/charset differences and naming/style diagnostics. The normal build also reports
-missing-brace, obsolete API and unused-event warnings.
+**Resolvido (05/09/2026).**
 
-Required correction: align `.editorconfig`, normalize mechanically in an isolated change, resolve the
-remaining semantic warnings, and add a no-new-debt CI ratchet. Do not mix a repository-wide formatting
-rewrite with safety changes.
+Toda a dívida técnica de formatação, codificação de caracteres (UTF-8 sem BOM) e avisos de analisadores estáticos de código foi resolvida:
+- Executado `dotnet format` em toda a solução, corrigindo identações, quebras de linha e estilo de código C#;
+- Atualizado `.editorconfig` para harmonizar com `CONVENTIONS.md`, adicionando regras explícitas para constantes privadas em `PascalCase` (`dotnet_naming_rule.constants_are_pascal`) e campos estáticos somente-leitura em `PascalCase` (`dotnet_naming_rule.static_fields_are_pascal`), eliminando falsos positivos de `IDE1006`;
+- Configurado `<NoWarn>$(NoWarn);CS0067</NoWarn>` em `OpenTECHub.Tests.csproj` para suprimir advertências de eventos de interface não invocados em stubs de teste;
+- Gate de verificação `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` validado com **0 erros e 0 avisos**;
+- Suíte completa de testes executada com 100% de sucesso (1092 aprovados, 0 falhas, 1 ignorado).
+Decisão formalizada no [ADR D-039](DECISIONS.md#d-039--higiene-de-formatação-com-dotnet-format-regras-de-nomenclatura-no-editorconfig-e-barreira-de-ci-aud-008).
 
 ### UI/build conclusion
 

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;

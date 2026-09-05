@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.KlaMapping;
+namespace OpenTECHub.Services.KlaMapping;
 
 /// <summary>
 /// Two-dimensional, C1 Clough-Tocher interpolator. The coefficient construction and

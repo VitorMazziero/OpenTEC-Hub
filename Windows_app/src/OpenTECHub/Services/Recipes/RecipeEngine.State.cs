@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 // State tracking: run state, per-block state, the executed-path set, and the outward events.
 public sealed partial class RecipeEngine

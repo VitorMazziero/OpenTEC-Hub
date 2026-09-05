@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Services.Control;
+using OpenTECHub.Services.Control;
 using Xunit;
 
 namespace OpenTECHub.Tests;

@@ -1,4 +1,4 @@
-﻿using System.Windows.Threading;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Persistence;

@@ -786,25 +786,25 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 Impellers.Add(cloned);
             }
 
-        Conditions.Clear();
-        foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
-        {
-            Conditions.Add(condition.Clone());
-        }
+            Conditions.Clear();
+            foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
+            {
+                Conditions.Add(condition.Clone());
+            }
 
-        SelectedImpeller = Impellers.FirstOrDefault();
-        SelectedCondition = Conditions.FirstOrDefault();
-        LivePoints.Clear();
-        RebuildResults();
-        _runner?.PrepareTest(doc);
-        ValidationMessage = "";
-        StatusMessage = $"Ensaio '{doc.Name}' carregado.";
-        RefreshManualEnergyReadings();
-        NotifyDocumentState();
-        RecalculateLiveMetrics();
-        _linkedKlaDocument = null;
-        _linkedKlaSurface = null;
-        UpdateKlaEfficiencyComparison();
+            SelectedImpeller = Impellers.FirstOrDefault();
+            SelectedCondition = Conditions.FirstOrDefault();
+            LivePoints.Clear();
+            RebuildResults();
+            _runner?.PrepareTest(doc);
+            ValidationMessage = "";
+            StatusMessage = $"Ensaio '{doc.Name}' carregado.";
+            RefreshManualEnergyReadings();
+            NotifyDocumentState();
+            RecalculateLiveMetrics();
+            _linkedKlaDocument = null;
+            _linkedKlaSurface = null;
+            UpdateKlaEfficiencyComparison();
         }
         finally
         {
@@ -1358,114 +1358,73 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         switch (SelectedSweepType)
         {
             case PowerSweepType.VariableNConstantQg:
-            {
-                if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
-                    MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || StepRpm < 5)
                 {
-                    ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
-                    return;
-                }
-                if (!double.IsFinite(SweepConstantQgLpm) || SweepConstantQgLpm < 0)
-                {
-                    ValidationMessage = "Vazão Qg fixa inválida: deve ser maior ou igual a zero.";
-                    return;
-                }
-
-                if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
-                {
-                    return;
-                }
-
-                Conditions.Clear();
-                var index = 0;
-                var hasGas = SweepConstantQgLpm > 0 && SweepGasMode != PowerGasMode.Ungassed;
-                var mode = hasGas ? SweepGasMode : PowerGasMode.Ungassed;
-
-                foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
-                {
-                    var cond = new PowerCondition
+                    if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
+                        MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || StepRpm < 5)
                     {
-                        FlowUnit = FlowInputUnit.Lpm,
-                        AgitationRpm = rpm,
-                        GasFlowLpm = hasGas ? SweepConstantQgLpm : null,
-                        GasMode = mode,
-                        OrderIndex = index++,
-                        Origin = PowerConditionOrigin.Manual,
-                    };
-                    Conditions.Add(cond);
+                        ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
+                        return;
+                    }
+                    if (!double.IsFinite(SweepConstantQgLpm) || SweepConstantQgLpm < 0)
+                    {
+                        ValidationMessage = "Vazão Qg fixa inválida: deve ser maior ou igual a zero.";
+                        return;
+                    }
+
+                    if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
+                    {
+                        return;
+                    }
+
+                    Conditions.Clear();
+                    var index = 0;
+                    var hasGas = SweepConstantQgLpm > 0 && SweepGasMode != PowerGasMode.Ungassed;
+                    var mode = hasGas ? SweepGasMode : PowerGasMode.Ungassed;
+
+                    foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
+                    {
+                        var cond = new PowerCondition
+                        {
+                            FlowUnit = FlowInputUnit.Lpm,
+                            AgitationRpm = rpm,
+                            GasFlowLpm = hasGas ? SweepConstantQgLpm : null,
+                            GasMode = mode,
+                            OrderIndex = index++,
+                            Origin = PowerConditionOrigin.Manual,
+                        };
+                        Conditions.Add(cond);
+                    }
+                    break;
                 }
-                break;
-            }
 
             case PowerSweepType.VariableQgConstantN:
-            {
-                if (!double.IsFinite(SweepConstantRpm) || SweepConstantRpm < 15 || SweepConstantRpm > 1000)
                 {
-                    ValidationMessage = "Rotação N fixa inválida: use 15–1000 rpm.";
-                    return;
-                }
-                if (!double.IsFinite(SweepStartQgLpm) || !double.IsFinite(SweepEndQgLpm) || !double.IsFinite(SweepStepQgLpm) ||
-                    SweepStartQgLpm < 0 || SweepEndQgLpm < SweepStartQgLpm || SweepStepQgLpm <= 0)
-                {
-                    ValidationMessage = "Varredura Qg inválida: use Qg ≥ 0 e passo positivo.";
-                    return;
-                }
-
-                if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
-                {
-                    return;
-                }
-
-                Conditions.Clear();
-                var index = 0;
-                foreach (var qg in BuildInclusiveRange(SweepStartQgLpm, SweepEndQgLpm, SweepStepQgLpm))
-                {
-                    var hasGas = qg > 0 && SweepGasMode != PowerGasMode.Ungassed;
-                    var cond = new PowerCondition
+                    if (!double.IsFinite(SweepConstantRpm) || SweepConstantRpm < 15 || SweepConstantRpm > 1000)
                     {
-                        FlowUnit = FlowInputUnit.Lpm,
-                        AgitationRpm = SweepConstantRpm,
-                        GasFlowLpm = hasGas ? qg : null,
-                        GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
-                        OrderIndex = index++,
-                        Origin = PowerConditionOrigin.Manual,
-                    };
-                    Conditions.Add(cond);
-                }
-                break;
-            }
+                        ValidationMessage = "Rotação N fixa inválida: use 15–1000 rpm.";
+                        return;
+                    }
+                    if (!double.IsFinite(SweepStartQgLpm) || !double.IsFinite(SweepEndQgLpm) || !double.IsFinite(SweepStepQgLpm) ||
+                        SweepStartQgLpm < 0 || SweepEndQgLpm < SweepStartQgLpm || SweepStepQgLpm <= 0)
+                    {
+                        ValidationMessage = "Varredura Qg inválida: use Qg ≥ 0 e passo positivo.";
+                        return;
+                    }
 
-            case PowerSweepType.MatrixNByQg:
-            {
-                if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
-                    MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || StepRpm < 5)
-                {
-                    ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
-                    return;
-                }
-                if (!double.IsFinite(SweepStartQgLpm) || !double.IsFinite(SweepEndQgLpm) || !double.IsFinite(SweepStepQgLpm) ||
-                    SweepStartQgLpm < 0 || SweepEndQgLpm < SweepStartQgLpm || SweepStepQgLpm <= 0)
-                {
-                    ValidationMessage = "Varredura Qg inválida: use Qg ≥ 0 e passo positivo.";
-                    return;
-                }
+                    if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
+                    {
+                        return;
+                    }
 
-                if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
-                {
-                    return;
-                }
-
-                Conditions.Clear();
-                var index = 0;
-                foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
-                {
+                    Conditions.Clear();
+                    var index = 0;
                     foreach (var qg in BuildInclusiveRange(SweepStartQgLpm, SweepEndQgLpm, SweepStepQgLpm))
                     {
                         var hasGas = qg > 0 && SweepGasMode != PowerGasMode.Ungassed;
                         var cond = new PowerCondition
                         {
                             FlowUnit = FlowInputUnit.Lpm,
-                            AgitationRpm = rpm,
+                            AgitationRpm = SweepConstantRpm,
                             GasFlowLpm = hasGas ? qg : null,
                             GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
                             OrderIndex = index++,
@@ -1473,9 +1432,50 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                         };
                         Conditions.Add(cond);
                     }
+                    break;
                 }
-                break;
-            }
+
+            case PowerSweepType.MatrixNByQg:
+                {
+                    if (!double.IsFinite(MinRpm) || !double.IsFinite(MaxRpm) || !double.IsFinite(StepRpm) ||
+                        MinRpm < 15 || MaxRpm > 1000 || MaxRpm < MinRpm || StepRpm < 5)
+                    {
+                        ValidationMessage = "Varredura N inválida: use 15–1000 rpm e passo mínimo de 5 rpm.";
+                        return;
+                    }
+                    if (!double.IsFinite(SweepStartQgLpm) || !double.IsFinite(SweepEndQgLpm) || !double.IsFinite(SweepStepQgLpm) ||
+                        SweepStartQgLpm < 0 || SweepEndQgLpm < SweepStartQgLpm || SweepStepQgLpm <= 0)
+                    {
+                        ValidationMessage = "Varredura Qg inválida: use Qg ≥ 0 e passo positivo.";
+                        return;
+                    }
+
+                    if (Conditions.Count > 0 && _dialogs?.Confirm("Substituir tabela", "A varredura substituirá as condições atuais. Continuar?", "Substituir", "Cancelar") == false)
+                    {
+                        return;
+                    }
+
+                    Conditions.Clear();
+                    var index = 0;
+                    foreach (var rpm in BuildInclusiveRange(MinRpm, MaxRpm, StepRpm))
+                    {
+                        foreach (var qg in BuildInclusiveRange(SweepStartQgLpm, SweepEndQgLpm, SweepStepQgLpm))
+                        {
+                            var hasGas = qg > 0 && SweepGasMode != PowerGasMode.Ungassed;
+                            var cond = new PowerCondition
+                            {
+                                FlowUnit = FlowInputUnit.Lpm,
+                                AgitationRpm = rpm,
+                                GasFlowLpm = hasGas ? qg : null,
+                                GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
+                                OrderIndex = index++,
+                                Origin = PowerConditionOrigin.Manual,
+                            };
+                            Conditions.Add(cond);
+                        }
+                    }
+                    break;
+                }
         }
 
         SelectedCondition = Conditions.FirstOrDefault();
@@ -1750,7 +1750,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         catch (Exception ex) { ShowError(ex.Message); }
     }
 
-    [RelayCommand] private async Task StopAndReviewAsync() { if (_runner is not null)
+    [RelayCommand]
+    private async Task StopAndReviewAsync()
+    {
+        if (_runner is not null)
         {
             await _runner.StopRunAndReviewAsync();
         }
@@ -1773,7 +1776,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         catch (Exception ex) { ShowError(ex.Message); }
     }
 
-    [RelayCommand] private async Task AcceptRunAsync() { if (_runner is not null)
+    [RelayCommand]
+    private async Task AcceptRunAsync()
+    {
+        if (_runner is not null)
         {
             try { await _runner.AcceptRunAsync(); } catch (Exception ex) { ShowError(ex.Message); }
         }
@@ -1797,7 +1803,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         catch (Exception ex) { ShowError(ex.Message); }
     }
 
-    [RelayCommand] private async Task RepeatRunAsync() { if (_runner is not null)
+    [RelayCommand]
+    private async Task RepeatRunAsync()
+    {
+        if (_runner is not null)
         {
             try { await _runner.RepeatRunAsync(); } catch (Exception ex) { ShowError(ex.Message); }
         }
@@ -1816,7 +1825,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         catch (Exception ex) { ShowError(ex.Message); }
     }
 
-    [RelayCommand] private async Task CompleteTestAsync() { if (_runner is not null)
+    [RelayCommand]
+    private async Task CompleteTestAsync()
+    {
+        if (_runner is not null)
         {
             try { await _runner.CompleteTestAsync(); } catch (Exception ex) { ShowError(ex.Message); }
         }
@@ -3120,8 +3132,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private void OnOwnershipChanged(OwnershipTransfer _) => RunOnUi(OnOwnershipTransferred);
     private void RefreshOwnership() => AgitationOwnerLabel = _arbiter.OwnerOf(ActuatorId.Agitation) switch
     {
-        CommandOwner.Manual => "Operador", CommandOwner.Automatic => "Cascata", CommandOwner.Recipe => "Receita",
-        CommandOwner.KlaAssay => "Ensaio kLa", CommandOwner.PowerAssay => "Ensaio de potência", var owner => owner.ToString(),
+        CommandOwner.Manual => "Operador",
+        CommandOwner.Automatic => "Cascata",
+        CommandOwner.Recipe => "Receita",
+        CommandOwner.KlaAssay => "Ensaio kLa",
+        CommandOwner.PowerAssay => "Ensaio de potência",
+        var owner => owner.ToString(),
     };
 
     private void OnOwnershipTransferred()
@@ -3163,12 +3179,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         RefreshPreflight();
     }
 
-    private void NormalizeImpellerOrder() { for (var i = 0; i < Impellers.Count; i++)
+    private void NormalizeImpellerOrder()
+    {
+        for (var i = 0; i < Impellers.Count; i++)
         {
             Impellers[i].StageIndex = i;
         }
     }
-    private void NormalizeConditionOrder() { for (var i = 0; i < Conditions.Count; i++)
+    private void NormalizeConditionOrder()
+    {
+        for (var i = 0; i < Conditions.Count; i++)
         {
             Conditions[i].OrderIndex = i;
         }
@@ -3213,12 +3233,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(seconds >= 3600 ? @"hh\:mm\:ss" : @"mm\:ss", CultureInfo.InvariantCulture);
     private static string PhaseText(PowerRunPhase phase) => phase switch
     {
-        PowerRunPhase.Idle => "Pronto", PowerRunPhase.Preflight => "Pré-voo", PowerRunPhase.PreparingCondition => "Preparando",
-        PowerRunPhase.SettingSpeed => "Ajustando rotação", PowerRunPhase.SettlingTorque => "Porta 1 · estacionariedade",
-        PowerRunPhase.AccumulatingToTarget => "Porta 2 · IC95", PowerRunPhase.PausedByOperator => "Pausado pelo operador",
-        PowerRunPhase.PausedForMeasurement => "Pausado · sem medida", PowerRunPhase.HoldingForManualEnergy => "Aguardando wattímetro",
-        PowerRunPhase.Reviewing => "Revisão", PowerRunPhase.Accepted => "Aceito", PowerRunPhase.Rejected => "Rejeitado",
-        PowerRunPhase.Completed => "Concluído", PowerRunPhase.Faulted => "Interrompido", _ => phase.ToString(),
+        PowerRunPhase.Idle => "Pronto",
+        PowerRunPhase.Preflight => "Pré-voo",
+        PowerRunPhase.PreparingCondition => "Preparando",
+        PowerRunPhase.SettingSpeed => "Ajustando rotação",
+        PowerRunPhase.SettlingTorque => "Porta 1 · estacionariedade",
+        PowerRunPhase.AccumulatingToTarget => "Porta 2 · IC95",
+        PowerRunPhase.PausedByOperator => "Pausado pelo operador",
+        PowerRunPhase.PausedForMeasurement => "Pausado · sem medida",
+        PowerRunPhase.HoldingForManualEnergy => "Aguardando wattímetro",
+        PowerRunPhase.Reviewing => "Revisão",
+        PowerRunPhase.Accepted => "Aceito",
+        PowerRunPhase.Rejected => "Rejeitado",
+        PowerRunPhase.Completed => "Concluído",
+        PowerRunPhase.Faulted => "Interrompido",
+        _ => phase.ToString(),
     };
 
     private static void RunOnUi(Action action)

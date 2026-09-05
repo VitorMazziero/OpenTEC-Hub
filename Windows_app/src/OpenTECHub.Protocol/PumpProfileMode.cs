@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// The five external-pump flow profiles the firmware understands, by wire <c>mode</c> value.

@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Control;
+namespace OpenTECHub.Services.Control;
 
 /// <summary>Why a conditional-OUR sample was or was not accepted this frame.</summary>
 public enum OurStatus

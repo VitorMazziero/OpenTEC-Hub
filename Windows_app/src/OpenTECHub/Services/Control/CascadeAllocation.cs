@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.KlaMapping;
 
 namespace OpenTECHub.Services.Control;
 

@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Services.Control;
+using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.ViewModels;
 using Xunit;

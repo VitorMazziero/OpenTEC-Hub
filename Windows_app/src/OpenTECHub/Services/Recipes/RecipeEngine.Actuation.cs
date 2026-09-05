@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Nodes;
+using System.Text.Json.Nodes;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 
@@ -19,47 +19,47 @@ public sealed partial class RecipeEngine
         switch (node.Type)
         {
             case NodeType.SetSetpoint:
-            {
-                var variable = node.Enum<SetpointVariable>("variavel");
-                var value = node.Number("valor");
-                Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
-                DispatchRecipe(BuildSetpoint(variable, value, node.Number("histerese")), node.Id);
-                if (variable == SetpointVariable.Flow)
                 {
-                    await AwaitFlowAppliedAsync(node, value, ct).ConfigureAwait(false);
-                }
+                    var variable = node.Enum<SetpointVariable>("variavel");
+                    var value = node.Number("valor");
+                    Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
+                    DispatchRecipe(BuildSetpoint(variable, value, node.Number("histerese")), node.Id);
+                    if (variable == SetpointVariable.Flow)
+                    {
+                        await AwaitFlowAppliedAsync(node, value, ct).ConfigureAwait(false);
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case NodeType.MultiSetpoint:
-            {
-                // One combined command object — the protocol prefers it and it saves round trips.
-                var combined = OpenTECCommand.Create();
-                double? flowTarget = null;
-                foreach (var row in node.Rows("pontos").OfType<JsonObject>())
                 {
-                    if (Enum.TryParse<SetpointVariable>(row["variavel"]?.GetValue<string>(), out var variable))
+                    // One combined command object — the protocol prefers it and it saves round trips.
+                    var combined = OpenTECCommand.Create();
+                    double? flowTarget = null;
+                    foreach (var row in node.Rows("pontos").OfType<JsonObject>())
                     {
-                        var value = row["valor"] is JsonValue v && RecipeNode.TryReadNumber(v, out var d) ? d : 0.0;
-                        var hyst = row["histerese"] is JsonValue h && RecipeNode.TryReadNumber(h, out var hv) ? hv : 0.0;
-                        combined.Merge(BuildSetpoint(variable, value, hyst));
-                        Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
-                        if (variable == SetpointVariable.Flow)
+                        if (Enum.TryParse<SetpointVariable>(row["variavel"]?.GetValue<string>(), out var variable))
                         {
-                            flowTarget = value;
+                            var value = row["valor"] is JsonValue v && RecipeNode.TryReadNumber(v, out var d) ? d : 0.0;
+                            var hyst = row["histerese"] is JsonValue h && RecipeNode.TryReadNumber(h, out var hv) ? hv : 0.0;
+                            combined.Merge(BuildSetpoint(variable, value, hyst));
+                            Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
+                            if (variable == SetpointVariable.Flow)
+                            {
+                                flowTarget = value;
+                            }
                         }
                     }
-                }
 
-                DispatchRecipe(combined, node.Id);
-                if (flowTarget is { } target)
-                {
-                    await AwaitFlowAppliedAsync(node, target, ct).ConfigureAwait(false);
-                }
+                    DispatchRecipe(combined, node.Id);
+                    if (flowTarget is { } target)
+                    {
+                        await AwaitFlowAppliedAsync(node, target, ct).ConfigureAwait(false);
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case NodeType.SetLoop:
                 await ExecuteLoopAsync(node, node.Enum<ControlLoop>("malha"), node.Enum<LoopOperation>("operacao"), ct)

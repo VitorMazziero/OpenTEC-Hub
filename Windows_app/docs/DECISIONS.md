@@ -1046,6 +1046,43 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 
 ---
 
+### D-038 · Retenção deliberada de envio de setpoints via LostKeyboardFocus e Enter (AUD-005: Waived por Decisão de UX)
+
+**Status:** Accepted · 2026-09-05
+
+**Decisão.** Os campos de entrada de setpoint numérico (caixas de texto de processo e cartões de periféricos, incluindo os limiares de biomassa em `ControlView.xaml.cs`) retêm intencionalmente o comportamento de envio imediato do comando ao pressionar a tecla `Enter` ou ao perder o foco do teclado (`LostKeyboardFocus` direcionado a `ApplyFor`). A proposta de exigir exclusivamente clique no botão "Enviar" (item de auditoria AUD-005) foi rejeitada e o item formalmente arquivado como *waived / by design*.
+
+**Por quê.** Na rotina operacional do laboratório de bioprocessos, os operadores frequentemente digitam os valores de processo (temperatura, agitação, vazão, limiares de biomassa, etc.) e avançam imediatamente para a checagem física da bancada ou clicam em outros pontos da interface. Exigir um clique adicional obrigatório em um botão específico de envio quebraria o fluxo de uso habitual e aumentaria a sobrecarga de interação durante as operações de campo. A perda de foco após a digitação expressa a conclusão da intenção do operador, desde que os valores passem pela validação de formato e limites de segurança antes do despacho físico.
+
+**Consequências.**
+- **Experiência do Operador Fluida:** O operador pode confirmar qualquer valor digitado pressionando `Enter` ou simplesmente mudando o foco para outro campo/área da tela.
+- **Segurança Mantida:** O envio acionado por perda de foco continua submetido à validação de limites físicos do protocolo e ao árbitro de comandos (`IManualDispatcher`), impedindo despachos inválidos ou sob posse externa de outro processo (conforme D-035 e D-036).
+- **Fechamento do AUD-005:** Decisão de produto documentada para evitar reaberturas futuras da mesma discussão de UX.
+
+---
+
+### D-039 · Higiene de formatação com dotnet format, regras de nomenclatura no .editorconfig e barreira de CI (AUD-008)
+
+**Status:** Accepted · 2026-09-05
+
+**Decisão.** A dívida técnica de formatação, codificação de caracteres e advertências de analisadores estáticos da solução foi sanada de forma completa e padronizada (AUD-008):
+1. **Execução de Formatação Automatizada:** Aplicado `dotnet format` em toda a solução, padronizando quebras de linha, identação e estilo de código C#.
+2. **Harmonização do `.editorconfig` com `CONVENTIONS.md`:**
+   - Adicionada regra explícita `dotnet_naming_rule.constants_are_pascal` (com `applicable_kinds = field` e `required_modifiers = const`) para que constantes privadas sejam formatadas em `PascalCase` (ex.: `BootSettleMilliseconds`, `MaxFlow`, `ErrorWindowFrames`), em conformidade com as diretrizes da Microsoft e da documentação do projeto.
+   - Adicionada regra explícita `dotnet_naming_rule.static_fields_are_pascal` (com `applicable_kinds = field` e `required_modifiers = static, readonly`) para que campos estáticos somente-leitura sejam formatados em `PascalCase` (ex.: `DefaultWindowSize`, `Anchors`, `Phase1Actuators`).
+   - Mantida a regra `dotnet_naming_rule.private_fields_underscore` (`_camelCase`) para os demais campos privados de instância e campos estáticos mutáveis (`_customDataDirectory`).
+3. **Supressão de Avisos em Mocks de Teste:** Configurado `<NoWarn>$(NoWarn);CS0067</NoWarn>` em `OpenTECHub.Tests.csproj` para silenciar advertências de eventos de interface não invocados em stubs de teste.
+4. **Barreira de Verificação Integrada:** O comando `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` passa a retornar código 0 com zero divergências e zero advertências, estabelecendo um gate rigoroso e automatizável para prevenção de regressões.
+
+**Por quê.** A auditoria apontou que a solução acumulava pequenas divergências de charset (arquivos com e sem BOM UTF-8), espaçamentos e estilos, impedindo a adoção de uma barreira estrita de CI baseada em `dotnet format --verify-no-changes`. Além disso, a ausência de regras específicas para constantes no `.editorconfig` gerava falsos positivos `IDE1006` que o mecanismo automático de correção não conseguia solucionar em lote.
+
+**Consequências.**
+- **Zero Dívida de Estilo:** Código 100% formatado de maneira uniforme em todos os projetos (`OpenTECHub.Protocol`, `OpenTECHub.Simulator`, `OpenTECHub`, `OpenTECHub.Tests`).
+- **Build e Análise Estática Limpos:** Zero advertências de compilador (CS) e zero advertências de IDE/analisador de nomenclatura na solução.
+- **Portão de Qualidade Confiável:** Qualquer colaborador ou pipeline de CI pode executar `dotnet format --verify-no-changes --no-restore` e `dotnet test --nologo` como verificação determinística e reprodutível.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

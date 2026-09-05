@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;

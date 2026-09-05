@@ -1,4 +1,4 @@
-﻿# OpenTEC-Hub - formatting and naming, enforced at build via EnforceCodeStyleInBuild.
+# OpenTEC-Hub - formatting and naming, enforced at build via EnforceCodeStyleInBuild.
 root = true
 
 [*]
@@ -20,6 +20,20 @@ dotnet_naming_rule.interfaces_start_with_i.style = prefix_i_pascal
 dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
 dotnet_naming_style.prefix_i_pascal.required_prefix = I
 dotnet_naming_style.prefix_i_pascal.capitalization = pascal_case
+
+# Constants (const) -> PascalCase (per docs/CONVENTIONS.md)
+dotnet_naming_rule.constants_are_pascal.severity = warning
+dotnet_naming_rule.constants_are_pascal.symbols = constant_symbols
+dotnet_naming_rule.constants_are_pascal.style = pascal
+dotnet_naming_symbols.constant_symbols.applicable_kinds = field
+dotnet_naming_symbols.constant_symbols.required_modifiers = const
+
+# Static readonly fields -> PascalCase (per docs/CONVENTIONS.md)
+dotnet_naming_rule.static_fields_are_pascal.severity = warning
+dotnet_naming_rule.static_fields_are_pascal.symbols = static_readonly_field_symbols
+dotnet_naming_rule.static_fields_are_pascal.style = pascal
+dotnet_naming_symbols.static_readonly_field_symbols.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_field_symbols.required_modifiers = static, readonly
 
 dotnet_naming_rule.private_fields_underscore.severity = warning
 dotnet_naming_rule.private_fields_underscore.symbols = private_field_symbols

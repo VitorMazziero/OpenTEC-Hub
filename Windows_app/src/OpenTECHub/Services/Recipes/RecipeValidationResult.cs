@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Recipes;
+namespace OpenTECHub.Services.Recipes;
 
 /// <summary>Severity of a validation finding.</summary>
 public enum RecipeFindingSeverity

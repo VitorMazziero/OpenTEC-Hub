@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.KlaMapping;
+namespace OpenTECHub.Services.KlaMapping;
 
 /// <summary>
 /// Tensor-product not-a-knot cubic spline over a uniform square grid. This is the

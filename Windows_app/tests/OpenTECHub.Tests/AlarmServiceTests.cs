@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Alarms;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;

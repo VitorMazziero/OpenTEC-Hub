@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.IO.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTECHub.Services.Persistence;

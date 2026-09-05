@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Services.Control;
+using OpenTECHub.Services.Control;
 
 namespace OpenTECHub.Services.Recipes;
 

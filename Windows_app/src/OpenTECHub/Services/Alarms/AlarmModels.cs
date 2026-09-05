@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Services.Alarms;
+namespace OpenTECHub.Services.Alarms;
 
 /// <summary>The system alarms of the Phase 2 WP4 safety kernel.</summary>
 /// <remarks>

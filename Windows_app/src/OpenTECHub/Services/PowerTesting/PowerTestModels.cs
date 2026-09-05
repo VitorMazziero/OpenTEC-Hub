@@ -515,7 +515,27 @@ public sealed record TareCurve
     public string ImpellerSetHash { get; init; } = "";
     public string? CalibrationHash { get; init; }
     public DateTimeOffset MeasuredUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Name of the shaft profile this curve belongs to, empty when it was never filed.
+    /// </summary>
+    /// <remarks>
+    /// A tare is a property of the shaft and its seal, not of the assay. A bench running
+    /// two shafts (say <c>eixo_furo_unico</c> and <c>eixo_furo_duplo</c>) has two valid
+    /// tares at once, and each new assay on either shaft should reuse the matching one
+    /// rather than re-measuring it in the air. The name is what lets an operator tell
+    /// them apart; the store keeps one file per name under
+    /// <see cref="PowerTestFileContracts.TareProfilesDirectoryName"/>.
+    /// </remarks>
+    public string ProfileName { get; init; } = "";
 }
+
+/// <summary>A filed tare profile as listed for the operator, without loading its samples.</summary>
+public sealed record TareProfileSummary(
+    string Name,
+    int PointCount,
+    DateTimeOffset MeasuredUtc,
+    string ImpellerSetHash);
 
 public enum TareCapturePhase
 {

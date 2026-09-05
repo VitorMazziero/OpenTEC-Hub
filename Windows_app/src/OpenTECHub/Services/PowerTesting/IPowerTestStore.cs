@@ -33,6 +33,23 @@ public interface IPowerTestStore
 
     TareCurve? LoadTare(string testFolderName);
 
+    // ---- Tare profile library ------------------------------------------------
+    // A tare belongs to a shaft, not to an assay. These keep one named curve per shaft
+    // for the whole store, so a bench with two shafts can hold both and attach whichever
+    // matches the one currently mounted.
+
+    /// <summary>Filed tare profiles, newest measurement first, without loading their samples.</summary>
+    IReadOnlyList<TareProfileSummary> ListTareProfiles();
+
+    /// <summary>The filed curve for <paramref name="profileName"/>, or null when absent.</summary>
+    TareCurve? LoadTareProfile(string profileName);
+
+    /// <summary>Files <paramref name="tare"/> under <paramref name="profileName"/>, replacing any curve already there.</summary>
+    void SaveTareProfile(string profileName, TareCurve tare);
+
+    /// <summary>Removes a filed profile. Returns false when there was nothing to remove.</summary>
+    bool DeleteTareProfile(string profileName);
+
     void SaveCalibration(string testFolderName, TorqueCalibration calibration);
 
     TorqueCalibration? LoadCalibration(string testFolderName);

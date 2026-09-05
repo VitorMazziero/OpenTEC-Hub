@@ -46,6 +46,16 @@ public static class PowerTestFileContracts
     public const string GlobalSeriesFileName = "serie-global.csv";
     public const string ResultsSummaryFileName = "resumo-resultados.csv";
     public const string RunsDirectoryName = "Corridas";
+
+    /// <summary>
+    /// Store-wide library of named tare profiles, one JSON file per shaft.
+    /// </summary>
+    /// <remarks>
+    /// Sits beside the assay folders rather than inside one, because a tare outlives the
+    /// assay that measured it: the same shaft is used across many assays, and a bench with
+    /// more than one shaft needs more than one valid tare on hand at the same time.
+    /// </remarks>
+    public const string TareProfilesDirectoryName = "Taras";
     public const string RunRawDataFileName = "dados-brutos.csv";
     public const string RunResultFileName = "resultado.csv";
 
@@ -101,6 +111,28 @@ public static class PowerTestFileContracts
         error = null;
         return true;
     }
+
+    /// <summary>
+    /// Validates a tare profile name, which becomes a file name in the profile library.
+    /// </summary>
+    /// <remarks>
+    /// Same rules as an assay name: the name reaches the file system directly, so the
+    /// reserved device names and the invalid path characters have to be rejected here
+    /// rather than surfacing as an <c>IOException</c> when the operator hits save.
+    /// </remarks>
+    public static bool ValidateTareProfileName(string? name, out string? error)
+    {
+        if (!ValidateTestName(name, out error))
+        {
+            error = error?.Replace("do ensaio", "da tara", StringComparison.Ordinal);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>File name holding the profile <paramref name="name"/> in the tare library.</summary>
+    public static string TareProfileFileName(string name) => name.Trim() + ".json";
 
     /// <summary>Ungassed runs fold to <c>Seco</c>; gassed carry the flow to hundredths of L/min.</summary>
     public static string FormatRunFolderName(double agitationRpm, double? gasFlowLpm, int replicateNumber)

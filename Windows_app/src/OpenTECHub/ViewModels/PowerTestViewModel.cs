@@ -480,6 +480,20 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string TareProgressMessage { get; set; } = "";
     public ObservableCollection<TarePoint> CurrentTarePoints { get; } = [];
 
+    // 8.2.1 Tare profile library (one curve per shaft, shared across assays)
+    [ObservableProperty] public partial string TareProfileName { get; set; } = "";
+    [ObservableProperty] public partial TareProfileSummary? SelectedTareProfile { get; set; }
+    public ObservableCollection<TareProfileSummary> TareProfiles { get; } = [];
+
+    /// <summary>Typing over the box detaches it from the list, so the two never disagree.</summary>
+    partial void OnSelectedTareProfileChanged(TareProfileSummary? value)
+    {
+        if (value is not null)
+        {
+            TareProfileName = value.Name;
+        }
+    }
+
     // 8.3 Single Point Spot-Check
     [ObservableProperty] public partial bool IsSinglePointPanelOpen { get; set; }
     [ObservableProperty] public partial bool IsSinglePointActive { get; set; }
@@ -2194,6 +2208,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             IsCalibrationAssistantOpen = false;
             IsSinglePointPanelOpen = false;
             IsEnergyCorrelationOpen = false;
+
+            RefreshTareProfiles();
+            if (string.IsNullOrWhiteSpace(TareProfileName) &&
+                CurrentTest?.Tare?.ProfileName is { Length: > 0 } filedAs)
+            {
+                TareProfileName = filedAs;
+            }
+
             TareProgressMessage = CurrentTest?.Tare is null
                 ? "Monte os impelidores no eixo e opere com o vaso no ar (seco)."
                 : $"Tara atual possui {CurrentTest.Tare.Points.Count} patamares ({TareStatus}).";
@@ -2302,6 +2324,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 CurrentTarePoints.Add(point);
             }
 
+            // A named sweep is filed in the shaft library as well as in the assay, so the
+            // other bioreactor's assays can pick it up without measuring in the air again.
+            var profileName = TareProfileName?.Trim() ?? "";
+            var filed = profileName.Length > 0 &&
+                        PowerTestFileContracts.ValidateTareProfileName(profileName, out _);
+
             var tare = new TareCurve
             {
                 SchemaVersion = 2,
@@ -2313,14 +2341,22 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                     CurrentTest.Calibration,
                     CurrentTest.MotorRatedTorqueNm),
                 MeasuredUtc = DateTimeOffset.UtcNow,
+                ProfileName = filed ? profileName : "",
             };
 
             CurrentTest.Tare = tare;
             _store.SaveTare(CurrentTest.FolderName, tare);
             _store.SaveTestManifest(CurrentTest);
 
-            TareProgressMessage =
-                $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}.";
+            if (filed)
+            {
+                _store.SaveTareProfile(profileName, tare);
+                RefreshTareProfiles();
+            }
+
+            TareProgressMessage = filed
+                ? $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}, também arquivada no perfil \"{profileName}\"."
+                : $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}.";
             ValidationMessage = TareProgressMessage;
             OnPropertyChanged(nameof(TareStatus));
             OnPropertyChanged(nameof(ResultModeLabel));
@@ -2461,6 +2497,152 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         foreach (var point in tare.Points.OrderBy(point => point.Rpm))
         {
             CurrentTarePoints.Add(point);
+        }
+    }
+
+    // =========================================================================
+    // 8.2.1 Biblioteca de taras por eixo
+    //
+    // A tara pertence ao eixo, não ao ensaio: uma bancada com dois eixos (p. ex.
+    // "eixo_furo_unico" e "eixo_furo_duplo") tem duas taras válidas ao mesmo tempo.
+    // A curva continua gravada dentro do ensaio (tara.json) para rastreabilidade; a
+    // biblioteca guarda uma cópia nomeada que qualquer ensaio pode reaproveitar.
+    // =========================================================================
+
+    private void RefreshTareProfiles()
+    {
+        var previous = SelectedTareProfile?.Name ?? TareProfileName;
+
+        TareProfiles.Clear();
+        foreach (var profile in _store.ListTareProfiles())
+        {
+            TareProfiles.Add(profile);
+        }
+
+        SelectedTareProfile = TareProfiles.FirstOrDefault(
+            p => string.Equals(p.Name, previous, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [RelayCommand]
+    private void SaveTareProfile()
+    {
+        if (CurrentTest?.Tare is not { } tare)
+        {
+            ShowError("Meça a tara antes de salvá-la como perfil de eixo.");
+            return;
+        }
+
+        var name = TareProfileName?.Trim() ?? "";
+        if (!PowerTestFileContracts.ValidateTareProfileName(name, out var error))
+        {
+            ShowError(error ?? "Nome de perfil de tara inválido.");
+            return;
+        }
+
+        try
+        {
+            _store.SaveTareProfile(name, tare);
+
+            // The assay keeps its own copy, now stamped with the shaft it came from.
+            CurrentTest.Tare = tare with { ProfileName = name };
+            _store.SaveTare(CurrentTest.FolderName, CurrentTest.Tare);
+            _store.SaveTestManifest(CurrentTest);
+
+            RefreshTareProfiles();
+            TareProgressMessage =
+                $"Tara salva como perfil \"{name}\" ({tare.Points.Count} patamares). Outros ensaios podem reaproveitá-la.";
+            ValidationMessage = TareProgressMessage;
+            OnPropertyChanged(nameof(TareStatus));
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível salvar o perfil de tara: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ApplyTareProfile()
+    {
+        if (CurrentTest is null)
+        {
+            ShowError("Abra um ensaio para aplicar um perfil de tara.");
+            return;
+        }
+        if (IsRunning || IsTareRunning)
+        {
+            ShowError("Aguarde a operação atual finalizar para trocar a tara.");
+            return;
+        }
+        if (SelectedTareProfile is not { } selected)
+        {
+            ShowError("Escolha um perfil de tara na lista.");
+            return;
+        }
+
+        var curve = _store.LoadTareProfile(selected.Name);
+        if (curve is null)
+        {
+            ShowError($"O perfil \"{selected.Name}\" não pôde ser lido. Atualize a lista.");
+            RefreshTareProfiles();
+            return;
+        }
+
+        try
+        {
+            CurrentTest.Tare = curve;
+            _store.SaveTare(CurrentTest.FolderName, curve);
+            _store.SaveTestManifest(CurrentTest);
+
+            RefreshCurrentTarePoints();
+            TareProfileName = selected.Name;
+
+            // TareStatus does the real compatibility check against the mounted impeller set
+            // and the current torque calibration; it is repeated here so the operator sees the
+            // verdict at the moment of the swap, not only in the traceability card.
+            TareProgressMessage =
+                $"Perfil \"{selected.Name}\" aplicado: {curve.Points.Count} patamares ({TareStatus}).";
+            ValidationMessage = TareProgressMessage;
+            OnPropertyChanged(nameof(TareStatus));
+            OnPropertyChanged(nameof(ResultModeLabel));
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível aplicar o perfil de tara: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteTareProfile()
+    {
+        if (SelectedTareProfile is not { } selected)
+        {
+            ShowError("Escolha um perfil de tara para excluir.");
+            return;
+        }
+
+        if (_dialogs is not null &&
+            !_dialogs.Confirm(
+                "Excluir perfil de tara",
+                $"Excluir o perfil \"{selected.Name}\"? Os ensaios que já o utilizam mantêm a própria cópia.",
+                isDanger: true))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_store.DeleteTareProfile(selected.Name))
+            {
+                ShowError($"O perfil \"{selected.Name}\" já não existe.");
+            }
+
+            RefreshTareProfiles();
+            TareProgressMessage = $"Perfil de tara \"{selected.Name}\" removido da biblioteca.";
+            ValidationMessage = TareProgressMessage;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível excluir o perfil de tara: {ex.Message}");
         }
     }
 

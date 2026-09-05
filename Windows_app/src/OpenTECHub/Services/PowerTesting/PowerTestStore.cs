@@ -34,14 +34,21 @@ public sealed class PowerTestStore : IPowerTestStore
             return false;
         }
 
-        if (string.Equals(name.Trim(), TrashDirectoryName, StringComparison.OrdinalIgnoreCase))
+        if (IsReservedFolderName(name.Trim()))
         {
-            error = "Esse nome é reservado para a lixeira interna dos ensaios.";
+            error = "Esse nome é reservado pela pasta de ensaios (lixeira interna ou biblioteca de taras).";
             return false;
         }
 
         return true;
     }
+
+    /// <summary>
+    /// Folders the store owns itself, which are neither assays nor available as assay names.
+    /// </summary>
+    private static bool IsReservedFolderName(string folderName) =>
+        string.Equals(folderName, TrashDirectoryName, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(folderName, PowerTestFileContracts.TareProfilesDirectoryName, StringComparison.OrdinalIgnoreCase);
 
     public bool TestExists(string name)
     {
@@ -66,7 +73,7 @@ public sealed class PowerTestStore : IPowerTestStore
             foreach (var dir in Directory.GetDirectories(_rootDirectory))
             {
                 var folderName = Path.GetFileName(dir);
-                if (string.Equals(folderName, TrashDirectoryName, StringComparison.OrdinalIgnoreCase))
+                if (IsReservedFolderName(folderName))
                 {
                     continue;
                 }
@@ -394,6 +401,108 @@ public sealed class PowerTestStore : IPowerTestStore
         {
             var path = Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.TareFileName);
             return File.Exists(path) ? PowerTestFileContracts.DeserializeTare(File.ReadAllText(path)) : null;
+        }
+    }
+
+    // ---- Tare profile library ------------------------------------------------
+
+    private string TareProfilesDirectory =>
+        Path.Combine(_rootDirectory, PowerTestFileContracts.TareProfilesDirectoryName);
+
+    public IReadOnlyList<TareProfileSummary> ListTareProfiles()
+    {
+        lock (_ioLock)
+        {
+            var dir = TareProfilesDirectory;
+            if (!Directory.Exists(dir))
+            {
+                return [];
+            }
+
+            var list = new List<TareProfileSummary>();
+            foreach (var path in Directory.GetFiles(dir, "*.json"))
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+                try
+                {
+                    var curve = PowerTestFileContracts.DeserializeTare(File.ReadAllText(path));
+                    if (curve is not null)
+                    {
+                        list.Add(new TareProfileSummary(
+                            name,
+                            curve.Points.Count,
+                            curve.MeasuredUtc,
+                            curve.ImpellerSetHash));
+                    }
+                }
+                catch (Exception)
+                {
+                    // A corrupt profile must not hide the healthy ones; it is simply not listed.
+                }
+            }
+
+            return [.. list.OrderByDescending(p => p.MeasuredUtc)];
+        }
+    }
+
+    public TareCurve? LoadTareProfile(string profileName)
+    {
+        if (!PowerTestFileContracts.ValidateTareProfileName(profileName, out _))
+        {
+            return null;
+        }
+
+        lock (_ioLock)
+        {
+            var path = Path.Combine(
+                TareProfilesDirectory, PowerTestFileContracts.TareProfileFileName(profileName));
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var curve = PowerTestFileContracts.DeserializeTare(File.ReadAllText(path));
+
+            // The name lives in the file name, so a profile written by an older build - or
+            // renamed on disk - still comes back carrying the name it was filed under.
+            return curve is null ? null : curve with { ProfileName = profileName.Trim() };
+        }
+    }
+
+    public void SaveTareProfile(string profileName, TareCurve tare)
+    {
+        if (!PowerTestFileContracts.ValidateTareProfileName(profileName, out var error))
+        {
+            throw new ArgumentException(error, nameof(profileName));
+        }
+
+        lock (_ioLock)
+        {
+            Directory.CreateDirectory(TareProfilesDirectory);
+            WriteAllTextAtomic(
+                Path.Combine(TareProfilesDirectory, PowerTestFileContracts.TareProfileFileName(profileName)),
+                PowerTestFileContracts.SerializeTare(tare with { ProfileName = profileName.Trim() }));
+        }
+    }
+
+    public bool DeleteTareProfile(string profileName)
+    {
+        if (!PowerTestFileContracts.ValidateTareProfileName(profileName, out _))
+        {
+            return false;
+        }
+
+        lock (_ioLock)
+        {
+            var path = Path.Combine(
+                TareProfilesDirectory, PowerTestFileContracts.TareProfileFileName(profileName));
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            File.Delete(path);
+            return true;
         }
     }
 

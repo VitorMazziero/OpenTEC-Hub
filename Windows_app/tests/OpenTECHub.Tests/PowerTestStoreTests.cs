@@ -585,6 +585,87 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.Contains("FloodingDetected", globalCsv);
     }
 
+    [Fact]
+    public void Two_Shaft_Tare_Profiles_Coexist_And_Attach_To_Different_Tests()
+    {
+        // The bench runs two bioreactors with different shafts. Both tares have to be on
+        // hand at once: measuring the second must not cost the first.
+        var singleHole = TareOf(300, 0.61);
+        var doubleHole = TareOf(300, 0.94);
+
+        _store.SaveTareProfile("eixo_furo_unico", singleHole);
+        _store.SaveTareProfile("eixo_furo_duplo", doubleHole);
+
+        var profiles = _store.ListTareProfiles();
+        Assert.Equal(2, profiles.Count);
+        Assert.Contains(profiles, p => p.Name == "eixo_furo_unico");
+        Assert.Contains(profiles, p => p.Name == "eixo_furo_duplo");
+
+        Assert.Equal(0.61, _store.LoadTareProfile("eixo_furo_unico")!.Points[0].PVoidW, 4);
+        Assert.Equal(0.94, _store.LoadTareProfile("eixo_furo_duplo")!.Points[0].PVoidW, 4);
+
+        // Each assay attaches the profile of the shaft it is actually running.
+        var testA = CreateSampleTest("Ensaio Eixo A");
+        var testB = CreateSampleTest("Ensaio Eixo B");
+        _store.SaveTare(testA.FolderName, _store.LoadTareProfile("eixo_furo_unico")!);
+        _store.SaveTare(testB.FolderName, _store.LoadTareProfile("eixo_furo_duplo")!);
+
+        Assert.Equal(0.61, _store.LoadTest(testA.FolderName)!.Tare!.Points[0].PVoidW, 4);
+        Assert.Equal(0.94, _store.LoadTest(testB.FolderName)!.Tare!.Points[0].PVoidW, 4);
+    }
+
+    [Fact]
+    public void Tare_Profile_Carries_Its_Name_And_Is_Replaced_On_Resave()
+    {
+        _store.SaveTareProfile("eixo_furo_unico", TareOf(300, 0.61));
+        Assert.Equal("eixo_furo_unico", _store.LoadTareProfile("eixo_furo_unico")!.ProfileName);
+
+        // Re-measuring the same shaft overwrites that shaft's curve, never adds a second one.
+        _store.SaveTareProfile("eixo_furo_unico", TareOf(300, 0.72));
+
+        Assert.Single(_store.ListTareProfiles());
+        Assert.Equal(0.72, _store.LoadTareProfile("eixo_furo_unico")!.Points[0].PVoidW, 4);
+    }
+
+    [Fact]
+    public void Deleting_One_Tare_Profile_Leaves_The_Other_Intact()
+    {
+        _store.SaveTareProfile("eixo_furo_unico", TareOf(300, 0.61));
+        _store.SaveTareProfile("eixo_furo_duplo", TareOf(300, 0.94));
+
+        Assert.True(_store.DeleteTareProfile("eixo_furo_duplo"));
+        Assert.False(_store.DeleteTareProfile("eixo_furo_duplo"));
+
+        var remaining = Assert.Single(_store.ListTareProfiles());
+        Assert.Equal("eixo_furo_unico", remaining.Name);
+    }
+
+    [Fact]
+    public void Tare_Profile_Library_Is_Not_Listed_Or_Claimable_As_An_Assay()
+    {
+        _store.SaveTareProfile("eixo_furo_unico", TareOf(300, 0.61));
+
+        Assert.Empty(_store.ListTests());
+        Assert.False(_store.ValidateTestName(PowerTestFileContracts.TareProfilesDirectoryName, out var error));
+        Assert.NotNull(error);
+    }
+
+    [Fact]
+    public void Invalid_Tare_Profile_Names_Are_Rejected_Before_Touching_Disk()
+    {
+        Assert.Throws<ArgumentException>(() => _store.SaveTareProfile("eixo/furo", TareOf(300, 0.61)));
+        Assert.Throws<ArgumentException>(() => _store.SaveTareProfile("  ", TareOf(300, 0.61)));
+
+        Assert.Null(_store.LoadTareProfile("eixo/furo"));
+        Assert.Empty(_store.ListTareProfiles());
+    }
+
+    private static TareCurve TareOf(double rpm, double pVoidW) => new()
+    {
+        SchemaVersion = 2,
+        Points = { new TarePoint(rpm, pVoidW, 0.5) { SampleCount = 120 } },
+    };
+
     private PowerTestDocument CreateSampleTest(string name)
     {
         var geometry = new PowerGeometry

@@ -515,6 +515,33 @@
                                         <StackPanel Grid.Column="2"><TextBlock Text="N fim" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareEndRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
                                         <StackPanel Grid.Column="4"><TextBlock Text="Passo" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStepRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
                                     </Grid>
+                                    <!-- Biblioteca de taras: uma curva por eixo, compartilhada entre ensaios -->
+                                    <Border Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="7" Margin="0,8,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Perfis de tara por eixo" FontWeight="SemiBold" />
+                                            <TextBlock Text="Cada eixo tem a sua tara. Nomeie o eixo montado (ex.: eixo_furo_unico) para arquivar a curva e reaproveitá-la em outros ensaios." Style="{StaticResource PowerLabel}" TextWrapping="Wrap" Margin="0,2,0,5" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                <ComboBox Grid.Column="0" ItemsSource="{Binding TareProfiles}" SelectedItem="{Binding SelectedTareProfile}" DisplayMemberPath="Name" />
+                                                <!-- O rótulo evita o vocabulário de confirmar/descartar: a tela de potência
+                                                     grava direto, e PowerNavigationContractTests barra esse termo no XAML. -->
+                                                <Button Grid.Column="2" Content="Usar no ensaio" Padding="8,4" Command="{Binding ApplyTareProfileCommand}"
+                                                        IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}"
+                                                        ToolTip="Usa a curva arquivada deste eixo no ensaio aberto, sem repetir a varredura no ar" />
+                                            </Grid>
+                                            <Grid Margin="0,5,0,0">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Style="{StaticResource CompactField}" Text="{Binding TareProfileName, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="Nome do eixo montado; vira o arquivo do perfil na biblioteca de taras" />
+                                                <Button Grid.Column="2" Content="Salvar perfil" Padding="8,4" Command="{Binding SaveTareProfileCommand}"
+                                                        IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}"
+                                                        ToolTip="Arquiva a tara atual do ensaio sob esse nome de eixo" />
+                                                <Button Grid.Column="4" Content="Excluir" Padding="8,4" Command="{Binding DeleteTareProfileCommand}"
+                                                        IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
                                     <TextBlock Margin="0,6,0,4" Text="{Binding TareProgressMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     <DataGrid Height="155" Margin="0,3,0,4" ItemsSource="{Binding CurrentTarePoints}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                                         <DataGrid.Columns>

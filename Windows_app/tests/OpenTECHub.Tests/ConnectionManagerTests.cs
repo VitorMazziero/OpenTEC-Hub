@@ -563,4 +563,101 @@ public class ConnectionManagerTests
         Assert.Equal(0, manager.Diagnostics.ParseFailures);
         Assert.Equal(ConnectionState.Connected, manager.State);
     }
+
+    [Fact]
+    public async Task Busy_port_reports_friendly_error_message()
+    {
+        var fake = new FakeTransport
+        {
+            ConnectThrows = new PortBusyException("COM3", new UnauthorizedAccessException("Access denied")),
+        };
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Faulted));
+
+        Assert.Contains("COM3", manager.Diagnostics.LastError);
+        Assert.Contains("ocupada por outra aplicação", manager.Diagnostics.LastError);
+    }
+
+    [Fact]
+    public async Task Wi_Fi_records_synchronous_RTT_on_write()
+    {
+        var fake = new FakeTransport(TransportMedium.WiFi);
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+
+        manager.ConnectWiFi(new HttpTransportConfig { IpAddress = "192.168.1.100" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        manager.SendCommand(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 37));
+
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandsSent == 1));
+        Assert.NotNull(manager.Diagnostics.LastRoundTripMs);
+        Assert.True(manager.Diagnostics.LastRoundTripMs >= 0);
+    }
+
+    [Fact]
+    public async Task Usb_measures_RTT_on_CommandAck()
+    {
+        var fake = new FakeTransport(TransportMedium.Usb);
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        // Before any command or ack, LastRoundTripMs should be null.
+        Assert.Null(manager.Diagnostics.LastRoundTripMs);
+
+        // Send a non-flow command (e.g. TempSetpoint)
+        manager.SendCommand(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 37));
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandsSent == 1));
+
+        // Write buffer does not prematurely populate LastRoundTripMs on USB
+        Assert.Null(manager.Diagnostics.LastRoundTripMs);
+
+        // Simulate firmware responding with OK
+        fake.Emit("OK");
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandAcks == 1));
+
+        // Now LastRoundTripMs has a genuine measured RTT
+        Assert.NotNull(manager.Diagnostics.LastRoundTripMs);
+        Assert.True(manager.Diagnostics.LastRoundTripMs >= 0);
+    }
+
+    [Fact]
+    public async Task Usb_measures_RTT_on_FlowCommandAck()
+    {
+        var fake = new FakeTransport(TransportMedium.Usb);
+
+        await using var manager = new ConnectionManager(
+            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        // Baseline telemetry frame
+        fake.Emit("""{"Time":1.0,"FlowCommandId":1,"FlowCommandAck":1}""");
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.FramesReceived == 1));
+        Assert.Null(manager.Diagnostics.LastRoundTripMs);
+
+        // Send flow setpoint command
+        manager.SendCommand(OpenTECCommand.Create().Set(CommandKeys.FlowSetpoint, 2.5));
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.CommandsSent == 1));
+
+        // Before firmware acks, RTT is still null on USB
+        Assert.Null(manager.Diagnostics.LastRoundTripMs);
+
+        // Firmware reports frame with FlowCommandAck echoing the new command (id=2)
+        fake.Emit("""{"Time":2.0,"FlowCommandId":2,"FlowCommandAck":2}""");
+        Assert.True(await WaitForAsync(() => manager.Diagnostics.FramesReceived == 2));
+
+        Assert.NotNull(manager.Diagnostics.LastRoundTripMs);
+        Assert.True(manager.Diagnostics.LastRoundTripMs >= 0);
+    }
 }

@@ -32,6 +32,9 @@ internal sealed class FakeTransport(TransportMedium medium = TransportMedium.Usb
     /// <summary>Result of the liveness probe.</summary>
     public bool IsAlive { get; set; } = true;
 
+    /// <summary>When set, <see cref="ConnectAsync"/> throws it.</summary>
+    public Exception? ConnectThrows { get; set; }
+
     /// <summary>When set, <see cref="ReadAsync"/> throws it once.</summary>
     public Exception? NextReadThrows { get; set; }
 
@@ -67,6 +70,11 @@ internal sealed class FakeTransport(TransportMedium medium = TransportMedium.Usb
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
     {
         ConnectCalls++;
+
+        if (ConnectThrows is { } ex)
+        {
+            throw ex;
+        }
 
         if (ConnectDuration > TimeSpan.Zero)
         {

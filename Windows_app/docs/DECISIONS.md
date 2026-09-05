@@ -1151,6 +1151,45 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 
 ---
 
+### D-043 · Higiene de portas seriais (A-6), priorização WMI com CH343 (A-7) e medição fidedigna de RTT (A-8)
+
+**Status:** Accepted and implemented · 2026-09-05 · see [HARDWARE_VALIDATION.md §Block A](hardware/HARDWARE_VALIDATION.md)
+
+**Decisão.** Implementadas todas as salvaguardas de software e telemetria fidedigna de enlace serial e Wi-Fi da Etapa 4.1:
+1. **Tratamento Seguro de Portas Ocupadas (A-6):**
+   - Criação da exceção de domínio `PortBusyException`.
+   - Detecção defensiva via `SerialTransport.IsPortBusyException`: identifica `UnauthorizedAccessException` e `IOException` com HResults Win32 `0x80070005` (`ERROR_ACCESS_DENIED`) e `0x80070020` (`ERROR_SHARING_VIOLATION`), comuns quando o v.6 legado ou um terminal serial está com o descritor aberto.
+   - Em vez de travar ou tentar sequestrar o descritor com falhas opacas, a porta é pulada com segurança durante a varredura automática (`ProbePortsAsync`) e, em conexão explícita, reporta mensagem amigável em português ao operador (*"Porta COMx está ocupada por outra aplicação (ex.: v.6 ou outro software serial)."*).
+2. **Priorização Inteligente WMI e Ordenação Natural (A-7):**
+   - A consulta WMI no Windows agora inspeciona propriedades estendidas (`PNPDeviceID`, `Manufacturer`, `Description`, `DeviceID`).
+   - Categorização em três níveis de prioridade (*Tiers*):
+     - **Tier 1 (Alta prioridade):** Dispositivos com VID/PID `VID_1A86&PID_55D4` e drivers `CH343`/`wch` (conversor USB-UART oficial do ESP32-S3).
+     - **Tier 2 (Média prioridade):** Outros conversores USB-UART conhecidos (`CP210`, `CH340`, `FTDI`, `Silicon Labs`, `ESP32`).
+     - **Tier 3 (Baixa prioridade):** Portas COM seriais genéricas ou integradas.
+   - Ordenação natural estrita por número de porta (`COM3` precede `COM10`), evitando o ordenamento lexicográfico defeituoso.
+3. **Medição Fidedigna de Tempo de Resposta / RTT (A-8):**
+   - Remoção do falso "0 ms" em USB decorrente do tempo de escrita no buffer do kernel do sistema operacional.
+   - Propriedade `LastRoundTripMs` adicionada a `LinkDiagnostics`.
+   - Em Wi-Fi (`HttpTransport`): a requisição HTTP POST é síncrona com confirmação da controladora, sendo seu tempo o RTT genuíno (`LastRoundTripMs = LastWriteMs`).
+   - Em USB (`SerialTransport`):
+     - Correlaciona confirmações explícitas de comandos de fluxo (`snapshot.FlowCommandAck >= expectedId`) com o timestamp de despacho.
+     - Correlaciona linhas de confirmação de texto (`OK\r\n` -> `ParseOutcome.CommandAck`) retornadas pelo firmware com o timestamp de envio de comandos.
+     - Enquanto nenhuma confirmação real for processada, exibe travessão `"—"`, prevenindo diagnósticos enganosos de latência nula.
+   - Exibição de `LatencyText` adicionada ao pop-up de diagnóstico de conexão na barra de título (`MainWindow.xaml`).
+
+**Por quê.**
+- O operador de laboratório frequentemente alterna ou esquece o software legado v.6 aberto em segundo plano. Sem a higiene adequada, a tentativa de abrir a porta falhava com erro de acesso genérico e assustador ou reiniciava o fluxo de forma instável.
+- Em computadores modernos com múltiplos adaptadores USB e portas seriais virtuais Bluetooth, a varredura sequencial ou sem prioridade perde tempo tentando portas irrelevantes.
+- Exibir "0 ms" como latência em USB é tecnicamente incorreto e enganoso para a equipe de controle e validação de bancada.
+
+**Consequências.**
+- Resiliência operacional máxima mesmo com aplicações concorrentes abertas na máquina.
+- Conexão e auto-descoberta ultrarrápidas priorizando o hardware TECNAL oficial.
+- Observabilidade real da saúde e latência da comunicação com o ESP32-S3.
+- 1133 testes automatizados aprovados na suíte, com 0 falhas e conformidade total de código.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

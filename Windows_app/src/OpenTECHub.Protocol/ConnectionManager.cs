@@ -160,6 +160,10 @@ public sealed class ConnectionManager : IAsyncDisposable
     private int _attemptsUsb;
     private int _attemptsWiFi;
     private double? _lastWriteMs;
+    private double? _lastRoundTripMs;
+    private long? _lastCommandSentTimestamp;
+    private long? _flowCommandDispatchedTimestamp;
+    private int _expectedFlowCommandId;
     private string _lastError = "";
     private DateTimeOffset? _lastFrameAt;
 
@@ -235,6 +239,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         ConnectAttemptsUsb = Volatile.Read(ref _attemptsUsb),
         ConnectAttemptsWiFi = Volatile.Read(ref _attemptsWiFi),
         LastWriteMs = _lastWriteMs,
+        LastRoundTripMs = _lastRoundTripMs,
         LastError = _lastError,
         LastFrameAt = _lastFrameAt,
     };
@@ -475,6 +480,18 @@ public sealed class ConnectionManager : IAsyncDisposable
             await transport.DisposeAsync().ConfigureAwait(false);
             throw;
         }
+        catch (PortBusyException ex)
+        {
+            _lastError = ex.Message;
+            _log.LogWarning(ex, "{Medium}: port busy", medium);
+            connected = false;
+        }
+        catch (Exception ex) when (SerialTransport.IsPortBusyException(ex))
+        {
+            _lastError = $"Porta {transport.Endpoint} está ocupada por outra aplicação (ex.: v.6 ou outro software serial).";
+            _log.LogWarning(ex, "{Medium}: port busy", medium);
+            connected = false;
+        }
         catch (Exception ex)
         {
             _lastError = ex.Message;
@@ -500,7 +517,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         }
 
         await transport.DisposeAsync().ConfigureAwait(false);
-        await OnConnectFailedAsync(medium, "handshake falhou", token).ConfigureAwait(false);
+        await OnConnectFailedAsync(medium, !string.IsNullOrEmpty(_lastError) ? _lastError : "handshake falhou", token).ConfigureAwait(false);
     }
 
     private async Task HandleDisconnectAsync()
@@ -610,6 +627,14 @@ public sealed class ConnectionManager : IAsyncDisposable
                     {
                         await transport.DisposeAsync().ConfigureAwait(false);
                         throw;
+                    }
+                    catch (PortBusyException ex)
+                    {
+                        _lastError = ex.Message;
+                    }
+                    catch (Exception ex) when (SerialTransport.IsPortBusyException(ex))
+                    {
+                        _lastError = $"Porta {transport.Endpoint} está ocupada por outra aplicação (ex.: v.6 ou outro software serial).";
                     }
                     catch (Exception ex)
                     {
@@ -814,7 +839,16 @@ public sealed class ConnectionManager : IAsyncDisposable
                 _lastTelemetryTicks = Environment.TickCount64;
                 Interlocked.Increment(ref _framesReceived);
                 _lastFrameAt = DateTimeOffset.Now;
-                TelemetryReceived?.Invoke(_parser.Readings.Snapshot());
+                var snapshot = _parser.Readings.Snapshot();
+                if (_flowCommandDispatchedTimestamp is { } flowSentTs &&
+                    snapshot.FlowCommandAck > 0 &&
+                    snapshot.FlowCommandAck >= _expectedFlowCommandId)
+                {
+                    _lastRoundTripMs = Stopwatch.GetElapsedTime(flowSentTs).TotalMilliseconds;
+                    _flowCommandDispatchedTimestamp = null;
+                    _lastCommandSentTimestamp = null;
+                }
+                TelemetryReceived?.Invoke(snapshot);
                 RawTelemetryReceived?.Invoke(line);
                 break;
 
@@ -827,6 +861,11 @@ public sealed class ConnectionManager : IAsyncDisposable
                 // Expected traffic; already counted as activity above.
                 _parseFailureStreak = 0;
                 Interlocked.Increment(ref _commandAcks);
+                if (_lastCommandSentTimestamp is { } cmdSentTs)
+                {
+                    _lastRoundTripMs = Stopwatch.GetElapsedTime(cmdSentTs).TotalMilliseconds;
+                    _lastCommandSentTimestamp = null;
+                }
                 break;
 
             case ParseOutcome.Malformed:
@@ -913,6 +952,20 @@ public sealed class ConnectionManager : IAsyncDisposable
 
         _lastWriteMs = stopwatch.Elapsed.TotalMilliseconds;
         Interlocked.Increment(ref _commandsSent);
+
+        var nowTs = Stopwatch.GetTimestamp();
+        _lastCommandSentTimestamp = nowTs;
+        if (transport.Medium == TransportMedium.WiFi)
+        {
+            _lastRoundTripMs = _lastWriteMs;
+        }
+        else if (payload.GetRawValue(CommandKeys.FlowSetpoint) is not null ||
+                 payload.GetRawValue(CommandKeys.V_Flow) is not null)
+        {
+            _expectedFlowCommandId = _parser.Readings.FlowCommandId + 1;
+            _flowCommandDispatchedTimestamp = nowTs;
+        }
+
         _log.LogDebug("TX {Payload}", json);
         CommandSent?.Invoke(json);
 
@@ -1092,6 +1145,10 @@ public sealed class ConnectionManager : IAsyncDisposable
         _parseFailureStreak = 0;
         _samePortFailures = 0;
         _lastError = "";
+        _lastRoundTripMs = null;
+        _lastCommandSentTimestamp = null;
+        _flowCommandDispatchedTimestamp = null;
+        _expectedFlowCommandId = 0;
     }
 
     private void Transition(ConnectionState state, TransportMedium? medium, string endpoint, string reason = "",

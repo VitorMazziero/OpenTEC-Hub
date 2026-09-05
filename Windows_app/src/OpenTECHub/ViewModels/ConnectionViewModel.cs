@@ -244,6 +244,11 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
             Endpoint = change.Endpoint;
             SelectedPort = change.Endpoint;
         }
+
+        if (change.State != ConnectionState.Connected)
+        {
+            LatencyText = "—";
+        }
     }
 
     private void OnTelemetryReceived(SensorSnapshot _)
@@ -252,7 +257,10 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         FramesReceived = diagnostics.FramesReceived;
         CommandsSent = diagnostics.CommandsSent;
 
-        LatencyText = diagnostics.LastWriteMs is { } ms
+        var latencyMs = diagnostics.LastRoundTripMs ??
+            (Medium == TransportMedium.WiFi ? diagnostics.LastWriteMs : null);
+
+        LatencyText = latencyMs is { } ms
             ? ms.ToString("F0", CultureInfo.CurrentCulture) + " ms"
             : "—";
     }

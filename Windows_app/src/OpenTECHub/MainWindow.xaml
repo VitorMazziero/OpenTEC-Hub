@@ -334,6 +334,7 @@
                                         <RowDefinition />
                                         <RowDefinition />
                                         <RowDefinition />
+                                        <RowDefinition />
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Quadros" Style="{StaticResource CaptionTextStyle}" />
@@ -344,8 +345,12 @@
                                     <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CommandsSent}"
                                                HorizontalAlignment="Right" FontFamily="{DynamicResource FontNumeric}" FontSize="11" />
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Último erro" Style="{StaticResource CaptionTextStyle}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastError}"
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Latência" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LatencyText}"
+                                               HorizontalAlignment="Right" FontFamily="{DynamicResource FontNumeric}" FontSize="11" />
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Último erro" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastError}"
                                                HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
                                                MaxWidth="190" Style="{StaticResource CaptionTextStyle}" />
                                 </Grid>

@@ -387,12 +387,12 @@ flowchart TD
 
 ### Etapa 4.1 · Higiene de portas seriais e medição de tempo de resposta
 - **Prioridade:** P1 de Conectividade
-- **Status:** 📋 A Fazer
-- **Fontes:** [HARDWARE_VALIDATION.md](hardware/HARDWARE_VALIDATION.md), [MIGRATION.md](history/MIGRATION.md)
+- **Status:** ✅ Concluído no Software (Testes em Bancada Física Abertos quando o hardware estiver disponível)
+- **Fontes:** [HARDWARE_VALIDATION.md](hardware/HARDWARE_VALIDATION.md), [MIGRATION.md](history/MIGRATION.md), [DECISIONS.md](DECISIONS.md#d-043--higiene-de-portas-seriais-a-6-prioriza%C3%A7%C3%A3o-wmi-com-ch343-a-7-e-medi%C3%A7%C3%A3o-fidedigna-de-rtt-a-8)
 - **Passo a Passo de Implementação:**
-  1. **A-6 (Portas em Uso)**: Tratar portas COM ocupadas por outras aplicações exibindo aviso de "em uso" em vez de disparar exceção concorrente de abertura.
-  2. **A-7 (Priorização WMI/USB)**: Ordenar a busca automática de portas priorizando adaptadores com identificador `VID_1A86` / `PID_55D4` ou strings de driver `wch` / `CH343`.
-  3. **A-8 (Medição Real de Round-Trip)**: No transporte USB CDC, a escrita direta no buffer de transmissão reporta tempo de envio ~0 ms. Correlacionar `LastRoundTripMs` ao recebimento da confirmação real do hardware (`FlowCommandAck`), fornecendo medição real da latência do enlace.
+  1. **A-6 (Portas em Uso)**: Tratar portas COM ocupadas por outras aplicações (`PortBusyException`, verificação defensiva de `0x80070005` e `0x80070020`) exibindo aviso amigável de "em uso por outra aplicação" em vez de disparar exceção não tratada ou travar o discovery.
+  2. **A-7 (Priorização WMI/USB)**: Ordenar a busca automática de portas priorizando adaptadores com identificador `VID_1A86` / `PID_55D4` ou strings de driver `wch` / `CH343` (Tier 1), outros conversores USB-UART (Tier 2), e portas genéricas (Tier 3), aplicando ordenação natural numérica (`COM3` antes de `COM10`).
+  3. **A-8 (Medição Real de Round-Trip)**: No transporte USB CDC, a escrita direta no buffer de transmissão reporta tempo de envio ~0 ms. Correlacionar `LastRoundTripMs` ao recebimento da confirmação real do hardware (`FlowCommandAck` para comandos de vazão e linhas `OK\r\n` de `CommandAck` para comandos gerais), fornecendo medição real da latência do enlace e exibindo `"—"` quando pendente. Em Wi-Fi, o RTT utiliza a duração síncrona do HTTP POST. Visualização adicionada no pop-up de conexão (`MainWindow.xaml`).
 
 ---
 

@@ -70,6 +70,63 @@ public sealed record SerialTransportConfig
 }
 
 /// <summary>
+/// Exception thrown when a serial port cannot be opened because another application has locked it.
+/// </summary>
+public sealed class PortBusyException : InvalidOperationException
+{
+    public PortBusyException(string portName, Exception inner)
+        : base($"Porta {portName} está ocupada por outra aplicação (ex.: v.6 ou outro software serial).", inner)
+    {
+        PortName = portName;
+    }
+
+    public string PortName { get; }
+}
+
+/// <summary>
+/// Descriptor of a serial port discovered on the host system with hardware identification.
+/// </summary>
+public sealed record SerialPortDescriptor(
+    string PortName,
+    string Description = "",
+    string Manufacturer = "",
+    string HardwareId = "")
+{
+    /// <summary>
+    /// Priority tier: 1 = Dedicated OpenTEC CH343 adapter, 2 = Known ESP32/USB-UART bridge, 3 = Generic COM port.
+    /// </summary>
+    public int Tier => ComputeTier(Description, Manufacturer, HardwareId);
+
+    public static int ComputeTier(string description, string manufacturer, string hardwareId)
+    {
+        var combined = $"{description} {manufacturer} {hardwareId}";
+
+        // Tier 1: Native OpenTEC TECNAL CH343 High-Speed adapter (VID_1A86 & PID_55D4, or explicitly named CH343)
+        if (combined.Contains("VID_1A86&PID_55D4", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("CH343", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        // Tier 2: WCH family (CH340/CH342/CH910), CP210x, FTDI, generic ESP32 USB CDC
+        if (combined.Contains("VID_1A86", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("wch", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("CP210", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("CH340", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("CH910", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("Silicon Labs", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("FTDI", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("ESP32", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("USB Serial", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return 3;
+    }
+}
+
+/// <summary>
 /// USB CDC transport for the OpenTEC ESP32-S3 controller.
 /// </summary>
 /// <remarks>
@@ -102,7 +159,16 @@ public sealed class SerialTransport(
     {
         await DisconnectAsync().ConfigureAwait(false);
 
-        var port = await OpenPortAsync(cancellationToken).ConfigureAwait(false);
+        SerialPort? port;
+        try
+        {
+            port = await OpenPortAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (PortBusyException)
+        {
+            throw;
+        }
+
         if (port is null)
         {
             return false;
@@ -278,74 +344,192 @@ public sealed class SerialTransport(
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Serial ports worth trying, ESP32-like adapters first.
+    /// Checks whether an exception indicates the serial port is in use by another application.
     /// </summary>
-    /// <remarks>
-    /// .NET exposes only port names, not the USB descriptors pyserial reads, so the
-    /// keyword ranking v.6 performs is only possible where a description is
-    /// available. Ordering is therefore a hint; probing still decides.
-    /// </remarks>
+    public static bool IsPortBusyException(Exception? ex)
+    {
+        if (ex is null)
+        {
+            return false;
+        }
+
+        if (ex is PortBusyException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+
+        if (ex is IOException io)
+        {
+            var hr = io.HResult;
+            if (hr is unchecked((int)0x80070005) or unchecked((int)0x80070020))
+            {
+                return true;
+            }
+
+            var msg = io.Message;
+            if (msg.Contains("access", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("denied", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("negado", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("used by another process", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("sendo usado por outro processo", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks whether the specified port is present but currently locked/open by another process.
+    /// </summary>
+    public static bool IsPortBusy(string portName)
+    {
+        try
+        {
+            using var testPort = new SerialPort(portName);
+            testPort.Open();
+            return false;
+        }
+        catch (Exception ex) when (IsPortBusyException(ex))
+        {
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Compares two port names using natural numeric ordering (e.g. COM3 before COM10).
+    /// </summary>
+    public static int ComparePortNames(string? a, string? b)
+    {
+        if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (a is null)
+        {
+            return -1;
+        }
+
+        if (b is null)
+        {
+            return 1;
+        }
+
+        var numA = ExtractPortNumber(a);
+        var numB = ExtractPortNumber(b);
+        if (numA is not null && numB is not null)
+        {
+            var cmp = numA.Value.CompareTo(numB.Value);
+            if (cmp != 0)
+            {
+                return cmp;
+            }
+        }
+
+        return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int? ExtractPortNumber(string name)
+    {
+        if (name.StartsWith("COM", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(name.AsSpan(3), out var n))
+        {
+            return n;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Ranks port candidate names by priority tier (Tier 1: CH343 / VID_1A86&amp;PID_55D4 first,
+    /// Tier 2: other USB UART, Tier 3: generic) and sorts naturally by port number within each tier.
+    /// </summary>
+    public static IReadOnlyList<string> RankCandidatePorts(
+        IEnumerable<string> portNames,
+        IReadOnlyDictionary<string, SerialPortDescriptor>? descriptors = null)
+    {
+        var unique = portNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (unique.Count <= 1)
+        {
+            return unique;
+        }
+
+        return [.. unique
+            .OrderBy(port =>
+            {
+                if (descriptors is not null && descriptors.TryGetValue(port, out var desc))
+                {
+                    return desc.Tier;
+                }
+                return 3;
+            })
+            .ThenBy(port => port, Comparer<string>.Create(ComparePortNames))];
+    }
+
+    /// <summary>
+    /// Serial ports worth trying, ordered by priority tier (CH343/WCH first) and natural port number.
+    /// </summary>
     public static IReadOnlyList<string> ListCandidatePorts()
     {
         try
         {
-            var ports = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var ports = SerialPort.GetPortNames();
 
             if (OperatingSystem.IsWindows())
             {
-                var portDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                try
-                {
-#pragma warning disable CA1416 // Validate platform compatibility
-                    using var searcher = new System.Management.ManagementObjectSearcher(
-                        "SELECT Name, Description, Manufacturer FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
-                    foreach (var obj in searcher.Get())
-                    {
-                        if (obj["Name"] is string name)
-                        {
-                            var start = name.LastIndexOf("(COM", StringComparison.OrdinalIgnoreCase);
-                            if (start >= 0)
-                            {
-                                var end = name.IndexOf(')', start);
-                                if (end > start)
-                                {
-                                    var com = name.Substring(start + 1, end - start - 1);
-                                    portDescriptions[com] = $"{obj["Description"]} {obj["Manufacturer"]}";
-                                }
-                            }
-                        }
-                    }
-#pragma warning restore CA1416
-                }
-                catch (Exception) { /* WMI might be disabled or unavailable */ }
-
-                var ranked = new List<string>();
-                var unranked = new List<string>();
-
-                foreach (var port in ports)
-                {
-                    if (portDescriptions.TryGetValue(port, out var desc) &&
-                        EspKeywords.Any(k => desc.Contains(k, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        ranked.Add(port);
-                    }
-                    else
-                    {
-                        unranked.Add(port);
-                    }
-                }
-
-                ranked.Sort(StringComparer.OrdinalIgnoreCase);
-                unranked.Sort(StringComparer.OrdinalIgnoreCase);
-                return [.. ranked, .. unranked];
+                var descriptors = QueryPortDescriptors();
+                return RankCandidatePorts(ports, descriptors);
             }
 
-            return [.. ports.OrderBy(static p => p, StringComparer.OrdinalIgnoreCase)];
+            return [.. ports.OrderBy(static p => p, Comparer<string>.Create(ComparePortNames))];
         }
         catch (Exception)
         {
             return [];
         }
+    }
+
+    private static Dictionary<string, SerialPortDescriptor> QueryPortDescriptors()
+    {
+        var result = new Dictionary<string, SerialPortDescriptor>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+#pragma warning disable CA1416 // Validate platform compatibility
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                "SELECT Name, Description, Manufacturer, PNPDeviceID, DeviceID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
+            foreach (var obj in searcher.Get())
+            {
+                if (obj["Name"] is string name)
+                {
+                    var start = name.LastIndexOf("(COM", StringComparison.OrdinalIgnoreCase);
+                    if (start >= 0)
+                    {
+                        var end = name.IndexOf(')', start);
+                        if (end > start)
+                        {
+                            var com = name.Substring(start + 1, end - start - 1);
+                            var desc = obj["Description"]?.ToString() ?? "";
+                            var mfg = obj["Manufacturer"]?.ToString() ?? "";
+                            var hwId = obj["PNPDeviceID"]?.ToString() ?? obj["DeviceID"]?.ToString() ?? "";
+                            result[com] = new SerialPortDescriptor(com, desc, mfg, hwId);
+                        }
+                    }
+                }
+            }
+#pragma warning restore CA1416
+        }
+        catch (Exception)
+        {
+            // WMI might be disabled or unavailable
+        }
+
+        return result;
     }
 
     /// <summary>Keyword list used to rank adapters; exposed for diagnostics.</summary>
@@ -498,6 +682,12 @@ public sealed class SerialTransport(
         }
         catch (Exception ex)
         {
+            if (IsPortBusyException(ex))
+            {
+                _log.LogWarning("USB {Port}: port is currently in use by another application (e.g. v.6). Skipping safely without hijacking.", config.PortName);
+                throw new PortBusyException(config.PortName, ex);
+            }
+
             _log.LogDebug(ex, "USB {Port}: open failed", config.PortName);
             return null;
         }

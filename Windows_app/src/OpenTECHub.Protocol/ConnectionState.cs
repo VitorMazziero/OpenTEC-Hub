@@ -76,7 +76,16 @@ public sealed record LinkDiagnostics
     public int LivenessProbes { get; init; }
     public int ConnectAttemptsUsb { get; init; }
     public int ConnectAttemptsWiFi { get; init; }
+
+    /// <summary>Duration of the transport write itself (ms).</summary>
     public double? LastWriteMs { get; init; }
+
+    /// <summary>
+    /// True round-trip latency (ms): on Wi-Fi this is the HTTP POST request-response;
+    /// on USB this is correlated against firmware response (OK line or FlowCommandAck echo).
+    /// </summary>
+    public double? LastRoundTripMs { get; init; }
+
     public string LastError { get; init; } = "";
     public DateTimeOffset? LastFrameAt { get; init; }
 }

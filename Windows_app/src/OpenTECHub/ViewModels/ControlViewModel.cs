@@ -171,6 +171,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private readonly IAlarmService? _alarms;
     private readonly ISafetyCoordinator _safetyCoordinator;
     private readonly ICommandArbiter _arbiter;
+    private readonly IManualDispatcher _dispatcher;
     private readonly SubsystemViewModel _flowSubsystem;
     private bool _switchingSharedPump;
     private bool _flowCommitPending;
@@ -198,7 +199,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         ProcessVariableViewModel? distanceVariable = null,
         ProcessVariableViewModel? biomassVariable = null,
         ISafetyCoordinator? safetyCoordinator = null,
-        ICommandArbiter? arbiter = null)
+        ICommandArbiter? arbiter = null,
+        IManualDispatcher? dispatcher = null)
     {
         if (subsystems.Count != 5)
         {
@@ -212,6 +214,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _klaProfileStore = klaProfileStore;
         _alarms = alarms;
         _arbiter = arbiter ?? (device as ICommandArbiter) ?? new CommandArbiter(device, TimeProvider.System);
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher((_arbiter as IDeviceService) ?? device);
         _safetyCoordinator = safetyCoordinator ??
             new SafetyCoordinator(
                 _arbiter,
@@ -491,24 +494,18 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         var antifoamWasDirty = AntifoamControl.HasPendingChange;
         var agitatorWasDirty = FlaskAgitator.HasPendingChange;
 
-        if (dirtyRows.Any(r => r.IsOwnedByOther) ||
-            (phWasDirty && PHControl.IsOwnedByOther) ||
-            (nutrientWasDirty && NutrientControl.IsOwnedByOther) ||
-            (antifoamWasDirty && AntifoamControl.IsOwnedByOther) ||
-            (agitatorWasDirty && FlaskAgitator.IsOwnedByOther) ||
-            (flowWasDirty && FlowControl.IsOwnedByOther))
-        {
-            StatusText = "Não é possível aplicar: há atuadores sob controle da automação ou ensaios.";
-            return;
-        }
-
         if (!TryBuildCombinedCommand(out var command))
         {
             StatusText = "Revise os campos destacados antes de aplicar.";
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
 
         foreach (var row in dirtyRows.Where(row => row.Subsystem != _flowSubsystem))
         {
@@ -567,7 +564,13 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         _flowCommitPending = true;
         _flowRowCommitPending = flowRowWasDirty;
         FlowControl.MarkCommandDispatched();
@@ -861,6 +864,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     private void OnStagedStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(SubsystemViewModel.StatusText) &&
+            sender is SubsystemViewModel { StatusText: not null } sub)
+        {
+            StatusText = sub.StatusText;
+        }
+
         if (e.PropertyName == nameof(SubsystemViewModel.IsEnabled))
         {
             foreach (var row in Rows)

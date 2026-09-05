@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -26,11 +26,16 @@ namespace OpenTECHub.ViewModels;
 public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
 
-    public BiomassCalibrationViewModel(IDeviceService device, ISettingsService settings)
+    public BiomassCalibrationViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null)
     {
         _device = device;
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _settings = settings;
 
         var stored = settings.Current.BiomassControl;
@@ -82,7 +87,13 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
 
     partial void OnSensorEnabledChanged(bool value)
     {
-        _device.Send(CommandBuilders.BiomassComm(value));
+        var result = _dispatcher.Dispatch(CommandBuilders.BiomassComm(value));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         StatusText = value
             ? "Sensor ativado. Com o meio de branco no lugar, capture o branco."
             : "Sensor desativado.";
@@ -98,21 +109,39 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
     [RelayCommand(CanExecute = nameof(CanActOnSensor))]
     private void CaptureBlank()
     {
-        _device.Send(CommandBuilders.BiomassBlank());
+        var result = _dispatcher.Dispatch(CommandBuilders.BiomassBlank());
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         StatusText = "Comando de branco enviado. Aguarde e confirme que a absorbância se aproxima de zero.";
     }
 
     [RelayCommand(CanExecute = nameof(CanActOnSensor))]
     private void Start()
     {
-        _device.Send(CommandBuilders.BiomassStart());
+        var result = _dispatcher.Dispatch(CommandBuilders.BiomassStart());
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         StatusText = "Aquisição de biomassa iniciada.";
     }
 
     [RelayCommand(CanExecute = nameof(CanActOnSensor))]
     private void Stop()
     {
-        _device.Send(CommandBuilders.BiomassStop());
+        var result = _dispatcher.Dispatch(CommandBuilders.BiomassStop());
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         StatusText = "Aquisição de biomassa parada.";
     }
 
@@ -129,7 +158,13 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
         var high = int.Parse(HighThresholdText, CultureInfo.CurrentCulture);
         var optimal = int.Parse(OptimalThresholdText, CultureInfo.CurrentCulture);
 
-        _device.Send(CommandBuilders.BiomassThresholds(low, high, optimal));
+        var result = _dispatcher.Dispatch(CommandBuilders.BiomassThresholds(low, high, optimal));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         _settings.Update(settings => settings with
         {
             BiomassControl = settings.BiomassControl with

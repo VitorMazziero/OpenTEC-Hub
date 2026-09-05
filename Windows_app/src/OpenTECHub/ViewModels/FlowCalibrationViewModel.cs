@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -48,6 +48,7 @@ public sealed partial class FlowCalibrationPointViewModel : ObservableObject
 public sealed partial class FlowCalibrationViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private readonly List<double> _capture = [];
     private readonly int _captureTarget;
@@ -57,9 +58,13 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private double? _commandedSetpoint;
     private string? _pendingConfirmationText;
 
-    public FlowCalibrationViewModel(IDeviceService device, ISettingsService settings)
+    public FlowCalibrationViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null)
     {
         _device = device;
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _settings = settings;
         _maximumFlow = settings.Current.Setpoints.MaxFlowLitresPerMinute;
         _captureTarget = Math.Clamp(settings.Current.Calibration.FlowCaptureSamples, 1, 100);
@@ -298,7 +303,13 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         PersistPoints();
         MarkAwaitingAck(Curve.IsComplete
             ? "Dois segmentos enviados ao fluxômetro; pontos salvos no app."
@@ -326,7 +337,13 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
     private void SendCalibrationSetpoint(double flow)
     {
-        _device.Send(CommandBuilders.FlowCalibrationSetpoint(flow));
+        var result = _dispatcher.Dispatch(CommandBuilders.FlowCalibrationSetpoint(flow));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         _commandedSetpoint = flow;
         // Keep the entry in step with what is actually commanded, so the step buttons and the
         // typed value never disagree about the current trial point.

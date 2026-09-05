@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 
 namespace OpenTECHub.Services.Communication;
 
@@ -32,6 +32,11 @@ public interface IManualDispatcher
     /// firmware drop the first. See <c>docs/PLANO_DISPOSITIVOS_EXTERNOS.md</c> section 3.5.
     /// </remarks>
     CommandDispatchResult DispatchSeparateFrame(OpenTECCommand command);
+
+    /// <summary>
+    /// Current actuator ownership snapshot, if the underlying device service supports arbitration.
+    /// </summary>
+    IReadOnlyDictionary<ActuatorId, CommandOwner>? Ownership => null;
 }
 
 /// <inheritdoc cref="IManualDispatcher"/>
@@ -44,6 +49,12 @@ public sealed class ManualDispatcher : IManualDispatcher
         ArgumentNullException.ThrowIfNull(device);
         _device = device;
     }
+
+    /// <summary>The underlying device service or arbiter.</summary>
+    public IDeviceService Device => _device;
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<ActuatorId, CommandOwner>? Ownership => (_device as ICommandArbiter)?.Ownership;
 
     public CommandDispatchResult Dispatch(OpenTECCommand command)
     {
@@ -112,11 +123,24 @@ public static class DispatchRefusal
         return $"Comando recusado: {refused} sob controle de {string.Join(" / ", owners)}.";
     }
 
+    /// <summary>
+    /// Formats a refusal using the active dispatcher's ownership snapshot.
+    /// </summary>
+    public static string Describe(CommandDispatchResult result, IManualDispatcher? dispatcher) =>
+        Describe(result, dispatcher?.Ownership);
+
+    /// <summary>
+    /// Formats a refusal using the device or arbiter's ownership snapshot.
+    /// </summary>
+    public static string Describe(CommandDispatchResult result, IDeviceService? device) =>
+        Describe(result, (device as ICommandArbiter)?.Ownership);
+
     private static string OwnerLabel(CommandOwner owner) => owner switch
     {
         CommandOwner.Automatic => "Controle O₂",
         CommandOwner.Recipe => "Receita",
         CommandOwner.KlaAssay => "Ensaio de kLa",
+        CommandOwner.PowerAssay => "Ensaio de Potência",
         _ => "Operador",
     };
 }

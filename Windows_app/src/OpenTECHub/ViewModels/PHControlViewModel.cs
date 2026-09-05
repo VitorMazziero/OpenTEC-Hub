@@ -14,14 +14,19 @@ namespace OpenTECHub.ViewModels;
 public sealed partial class PHControlViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
     private PHControlSettings _committed;
 
-    public PHControlViewModel(IDeviceService device, ISettingsService settings)
+    public PHControlViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _committed = settings.Current.PHControl;
 
         Load(_committed);
@@ -152,7 +157,13 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         CommitPendingCommand();
         StatusText = IsEnabled
             ? "Estado completo do controle de pH enviado."
@@ -229,7 +240,13 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
     /// </summary>
     public void SuspendForCalibration()
     {
-        _device.Send(BuildSafeStop());
+        var result = _dispatcher.Dispatch(BuildSafeStop());
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         IsEnabled = false;
         AppliedIsEnabled = false;
         AppliedSetpoint = 0.0;

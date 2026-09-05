@@ -19,14 +19,19 @@ namespace OpenTECHub.ViewModels;
 public sealed partial class AntifoamControlViewModel : ObservableObject, IDisposable
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
     private AntifoamControlSettings _committed;
 
-    public AntifoamControlViewModel(IDeviceService device, ISettingsService settings)
+    public AntifoamControlViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _committed = settings.Current.AntifoamControl;
 
         Load(_committed);
@@ -124,7 +129,13 @@ public sealed partial class AntifoamControlViewModel : ObservableObject, IDispos
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         CommitPendingCommand();
         StatusText = IsEnabled
             ? "Estado completo da dosagem de antiespumante enviado."

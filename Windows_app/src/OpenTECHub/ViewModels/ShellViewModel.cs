@@ -159,9 +159,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IRecipeEngine recipeEngine,
         ReceitasViewModel receitas,
         ILogger<ShellViewModel> log,
-        ISafetyCoordinator? safetyCoordinator = null)
+        ISafetyCoordinator? safetyCoordinator = null,
+        IManualDispatcher? dispatcher = null)
     {
         _device = device;
+        var manualDispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _alarms = alarms;
         _settings = settings;
         _theme = theme;
@@ -264,7 +266,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 new SubsystemSpec(15, 60, IsInteger: false,
                     value => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, value),
                     () => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 0.0)),
-                device, setpoints.TemperatureCelsius, setpoints.TemperatureEnabled),
+                device, setpoints.TemperatureCelsius, setpoints.TemperatureEnabled,
+                dispatcher: manualDispatcher),
 
             new SubsystemViewModel(Motor,
                 new SubsystemSpec(15, 1000, IsInteger: true,
@@ -276,7 +279,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     // agitation to it is a product decision, not a consequence of the
                     // reading existing - see ProcessVariableViewModel.SupportsSensorHealth.
                     HasHealth: false),
-                device, setpoints.MotorRpm, setpoints.MotorEnabled),
+                device, setpoints.MotorRpm, setpoints.MotorEnabled,
+                dispatcher: manualDispatcher),
 
             new SubsystemViewModel(Oxygen,
                 new SubsystemSpec(0, 100, IsInteger: false,
@@ -286,7 +290,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     // so it carries the Cascata / PID / Saída tabs. Their content is the live
                     // cascade state (ShellViewModel.CascadeDetail); it is controlled on Controle.
                     HasOutput: true, HasCascade: true, HasPid: true, HasCalibration: true, HasSetpointEntry: false),
-                device, 100.0, setpoints.OxygenEnabled),
+                device, 100.0, setpoints.OxygenEnabled,
+                dispatcher: manualDispatcher),
 
             new SubsystemViewModel(Flow,
                 new SubsystemSpec(0, maxFlow, IsInteger: false,
@@ -303,13 +308,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     HasOutput: true, HasCalibration: true,
                     OnCommitted: (_, enabled) => FlowControl.CommitFromFlowSetpoint(enabled),
                     CanApplyNow: () => FlowControl.CanSendFlowCommands),
-                device, setpoints.FlowLitresPerMinute, setpoints.FlowEnabled),
+                device, setpoints.FlowLitresPerMinute, setpoints.FlowEnabled,
+                dispatcher: manualDispatcher),
 
             new SubsystemViewModel(Pressure,
                 new SubsystemSpec(1, 380, IsInteger: false,
                     value => OpenTECCommand.Create().Set(CommandKeys.PressureReference, value),
                     () => OpenTECCommand.Create().Set(CommandKeys.PressureReference, 0.0)),
-                device, setpoints.PressureKilopascal, setpoints.PressureEnabled),
+                device, setpoints.PressureKilopascal, setpoints.PressureEnabled,
+                dispatcher: manualDispatcher),
         ];
 
         ApplyUnits(_appliedUnits);
@@ -325,7 +332,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             distanceVariable: Level,
             biomassVariable: Biomass,
             safetyCoordinator: safetyCoordinator,
-            arbiter: device as ICommandArbiter);
+            arbiter: device as ICommandArbiter,
+            dispatcher: manualDispatcher);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 

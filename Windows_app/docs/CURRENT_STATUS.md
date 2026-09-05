@@ -135,14 +135,29 @@ Testes automatizados:
 
 ### AUD-003 — P1 — manual command acceptance is not observable by view-models
 
-`ICommandArbiter.Dispatch` already returns `CommandDispatchResult`, but most UI code receives only the
-legacy `IDeviceService.Send(OpenTECCommand)` `void` method. Biomass, pump and other manual surfaces can
-persist staged state and announce "sent" after an ownership rejection.
+**Resolvido (05/09/2026).**
 
-Required correction: introduce a manual command-dispatch abstraction that returns the result (and,
-where needed, later transport acknowledgement). Commit/persist fields only after acceptance; show the
-conflicting owner and retain staged input after refusal. Migrate all actuator view-models, not only the
-two newly merged cards.
+Todas as ViewModels de atuação e despacho manual foram migradas da chamada legado `IDeviceService.Send` (`void`) para a interface observável `IManualDispatcher` (`CommandDispatchResult`), eliminando o descarte silencioso de recusas emitidas pelo `CommandArbiter`:
+
+- **Abstração e Diagnóstico (`IManualDispatcher` / `ManualDispatcher` / `DispatchRefusal`):**
+  - Adicionada a propriedade `Ownership` à interface `IManualDispatcher` e à classe `ManualDispatcher`, expondo o snapshot de atuadores ativos quando o serviço subjacente for o `ICommandArbiter`.
+  - Atualizado `DispatchRefusal.Describe` com sobrecargas convenientes recebendo `IManualDispatcher` e `IDeviceService`, além do suporte ao rótulo `CommandOwner.PowerAssay => "Ensaio de Potência"`.
+- **Subsistemas de Processo (`SubsystemViewModel`):**
+  - Injetado `IManualDispatcher? dispatcher = null` no construtor com fallback retrocompatível.
+  - Adicionada propriedade observável `StatusText`.
+  - No método `Apply()`: envio roteado via `_dispatcher.Dispatch(command)`. Em caso de recusa (`!result.Accepted`), o `StatusText` é preenchido com a mensagem descritiva de recusa (ex.: *"Comando recusado: temperatura sob controle de Receita."*), o valor digitado permanece em `SetpointText` e o marcador `HasPendingChange` permanece `true` sem chamar `CommitPendingCommand()`.
+- **Tela de Controle Integrada (`ControlViewModel`):**
+  - Injetado `IManualDispatcher? dispatcher = null` no construtor.
+  - No método `ApplyAll()`: envio atômico despachado via `_dispatcher.Dispatch(command)`. Se recusado pelo árbitro, aborta sem comitar nenhuma linha e sem persistir predefinições, atribuindo a recusa descritiva ao `StatusText`. Somente comita e persiste após aceitação comprovada.
+  - No método `ApplyFlowState()`: despacho avaliado via `_dispatcher.Dispatch(command)`;
+  - Em `OnStagedStateChanged`: propaga notificações de `StatusText` originadas de disparos individuais nos subsistemas para a barra de status principal.
+- **Cartões de Dosagem e Calibrações:**
+  - `PHControlViewModel`, `NutrientControlViewModel` e `AntifoamControlViewModel`: migrados para `_dispatcher.Dispatch`, preservando campos *staged* e informando motivo de recusa/bloqueio no `StatusText` em caso de conflito.
+  - `FlowCalibrationViewModel` e `BiomassCalibrationViewModel`: migrados para `_dispatcher.Dispatch`, validando aceitação nos comandos de envio de curvas, limiares e setpoints de teste.
+- **Shell e Injeção de Dependência:**
+  - Injetado `IManualDispatcher? dispatcher = null` no `ShellViewModel`, repassando a instância nas fábricas dos 5 `SubsystemViewModel` e no `ControlViewModel`.
+- **Testes Automatizados:**
+  - `ControlViewModelTests.cs`: atualizado `ControlFixture` com `Dispatcher = new ManualDispatcher(Arbiter)` conectado ao árbitro de testes; adicionados novos testes validando a retenção de estado *staged*, ausência de comit e exibição de mensagens de recusa sob conflito no árbitro (1089 testes aprovados, 0 falhas).
 
 ### AUD-004 — P1 — proportional-gas retry is suppressed after a refused dispatch
 

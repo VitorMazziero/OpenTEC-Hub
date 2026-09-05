@@ -13,7 +13,7 @@
 2. [Eixo 1 — Defeitos de Software e Auditoria do Aplicativo Desktop (OpenTEC-Hub)](#eixo-1--defeitos-de-software-e-auditoria-do-aplicativo-desktop-opentec-hub)
    - [AUD-001 (P0): Parada segura global silenciosamente recusada](#etapa-11--aud-001-p0-parada-segura-global-recusada-durante-receita-ativa) `[CONCLUÍDO]`
    - [AUD-002 (P0): Controles manuais sem bloqueio visual por posse](#etapa-12--aud-002-p0-controles-manuais-sem-bloqueio-visual-sob-posse-da-receita) `[CONCLUÍDO]`
-   - [AUD-003 (P1): Observabilidade da aceitação de comandos manuais](#etapa-13--aud-003-p1-aceitação-de-comando-manual-não-observável-pelas-viewmodels)
+   - [AUD-003 (P1): Observabilidade da aceitação de comandos manuais](#etapa-13--aud-003-p1-aceitação-de-comando-manual-não-observável-pelas-viewmodels) `[CONCLUÍDO]`
    - [AUD-004 (P1): Retentativa de gás proporcional após recusa](#etapa-14--aud-004-p1-retentativa-de-gás-proporcional-suprimida-após-recusa-de-despacho)
    - [AUD-005 (P1): Envio de limiares de biomassa na perda de foco](#etapa-15--aud-005-p1-limiares-de-biomassa-enviados-ao-perder-foco-do-teclado)
    - [AUD-006 (P1): Estabilização do tempo de inicialização (First-Frame)](#etapa-16--aud-006-p1-tempo-de-inicialização-first-frame-instável-e-acima-da-meta)
@@ -42,15 +42,15 @@
 
 | Eixo | Total de Itens | Concluídos | Pendentes | Status Global |
 |---|:---:|:---:|:---:|---|
-| **1. Software Desktop (OpenTEC-Hub)** | 10 | 2 | 8 | 🟡 Em progresso (P0s resolvidos) |
+| **1. Software Desktop (OpenTEC-Hub)** | 10 | 3 | 7 | 🟡 Em progresso (P0s e AUD-003 resolvidos) |
 | **2. Ensaios de Potência e kLa** | 7 blocos | 0 | 7 | 🔬 Aguardando bancada física |
 | **3. Firmware ESP32-S3 e Servo** | 7 | 0 | 7 | 🔬 Aguardando bancada física |
 | **4. Enlace e Protocolo Geral** | 3 | 0 | 3 | 📋 Especificado / A validar |
 
 ```mermaid
 pie title Status Geral dos Itens de Implementação
-    "Concluídos (P0 Críticos)" : 2
-    "Software Pendente" : 8
+    "Concluídos (P0s + AUD-003)" : 3
+    "Software Pendente" : 7
     "Hardware / Bancada Física" : 17
 ```
 
@@ -101,40 +101,35 @@ pie title Status Geral dos Itens de Implementação
 
 ### Etapa 1.3 · AUD-003 (P1): Aceitação de comando manual não observável pelas ViewModels
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** ⏳ **PRÓXIMO PASSO DE IMPLEMENTAÇÃO**
+- **Status:** ✅ **CONCLUÍDO (05/09/2026)**
 - **Arquivos Envolvidos:**
   - `src/OpenTECHub/Services/Communication/IManualDispatcher.cs`
   - `src/OpenTECHub/Services/Communication/ManualDispatcher.cs`
+  - `src/OpenTECHub/ViewModels/SubsystemViewModel.cs`
   - `src/OpenTECHub/ViewModels/ControlViewModel.cs`
   - `src/OpenTECHub/ViewModels/PHControlViewModel.cs`
   - `src/OpenTECHub/ViewModels/NutrientControlViewModel.cs`
   - `src/OpenTECHub/ViewModels/AntifoamControlViewModel.cs`
-  - `src/OpenTECHub/ViewModels/FlowControlViewModel.cs`
+  - `src/OpenTECHub/ViewModels/FlowCalibrationViewModel.cs`
+  - `src/OpenTECHub/ViewModels/BiomassCalibrationViewModel.cs`
+  - `src/OpenTECHub/ViewModels/ShellViewModel.cs`
   - `tests/OpenTECHub.Tests/ControlViewModelTests.cs`
-- **Diagnóstico:**
-  Vários pontos do aplicativo utilizam `IDeviceService.Send` (que retorna `void`), descartando o `CommandDispatchResult` gerado pelo `CommandArbiter`. Com isso, se um comando manual for rejeitado por conflito de posse ou sobreposição, as ViewModels mantêm os campos como se tivessem sido comitados e anunciam "enviado" falsamente.
-- **Passo a Passo de Implementação:**
-  1. **Migração para `IManualDispatcher`**: Substituir a injeção direta de `IDeviceService.Send` por `IManualDispatcher.Dispatch` nos ViewModels de pH, Nutriente, Antiespumante e linhas principais do `ControlViewModel`.
-  2. **Tratamento de Retorno**:
-     ```csharp
-     var result = _dispatcher.Dispatch(command);
-     if (!result.Accepted)
-     {
-         StatusText = DispatchRefusal.Describe(result);
-         // Não comitar staged state: reter o valor digitado como pendente para revisão
-         return;
-     }
-     CommitPendingCommand();
-     StatusText = "Comando aceito e despachado ao dispositivo.";
-     ```
-  3. **Preservação de Staging**: Garantir que o valor digitado pelo operador permaneça destacado em amarelo/pendente caso o despacho seja recusado.
-  4. **Testes Automatizados**: Criar testes unitários para cada ViewModel comprovando que, ao simular recusa no árbitro/dispatcher, o estado local não é comitado e o `StatusText` descreve o proprietário conflitante.
+  - `docs/DECISIONS.md` (ADR D-036)
+- **Problema Resolvido:**
+  Vários pontos do aplicativo utilizavam `IDeviceService.Send` (que retorna `void`), descartando o `CommandDispatchResult` gerado pelo `CommandArbiter`. Com isso, se um comando manual fosse rejeitado por conflito de posse no hardware, as ViewModels comitavam os campos e anunciavam falsamente que o comando havia sido enviado.
+- **Implementação Realizada:**
+  1. **Interface `IManualDispatcher` e `ManualDispatcher`:** Exposição da propriedade `Ownership` snapshot dos atuadores quando o serviço subjacente é o `CommandArbiter`.
+  2. **Diagnóstico pt-BR com `DispatchRefusal.Describe`:** Sobrecargas recebendo diretamente o dispatcher ou device service, com mensagens informativas indicando o atuador e o processo conflitante (`Receita`, `Controle O₂`, `Ensaio de kLa`, `Ensaio de Potência`).
+  3. **Migração de ViewModels de Actuação:** Todas as ViewModels de subsistemas (`SubsystemViewModel`, `ControlViewModel`, `PHControlViewModel`, `NutrientControlViewModel`, `AntifoamControlViewModel`, `FlowCalibrationViewModel`, `BiomassCalibrationViewModel`) agora chamam `_dispatcher.Dispatch(command)`.
+  4. **Preservação de Estado Staged e Não-Comit:** Em caso de recusa (`!result.Accepted`), `CommitPendingCommand()` não é chamado, os valores permanecem pendentes/destacados e `StatusText` exibe a mensagem de recusa.
+  5. **ApplyAll e Propagação de Status:** Em `ControlViewModel.ApplyAll`, a avaliação de recusa é feita diretamente pelo despacho do árbitro sem comitar nenhuma linha e sem persistir predefinições caso haja recusa. Propagação de `StatusText` de subsistemas individuais para o painel principal.
+  6. **Testes Automatizados:** 4 novos testes unitários adicionados em `ControlViewModelTests.cs` cobrindo subsistema individual, `ApplyAll`, periféricos e recusa por dispatcher customizado. 100% dos 1089 testes da solução aprovados.
 
 ---
 
 ### Etapa 1.4 · AUD-004 (P1): Retentativa de gás proporcional suprimida após recusa de despacho
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** 📋 A Fazer
+- **Status:** ⏳ **PRÓXIMO PASSO DE IMPLEMENTAÇÃO**
 - **Arquivos Envolvidos:**
   - `src/OpenTECHub/ViewModels/PumpControlViewModel.cs`
   - `tests/OpenTECHub.Tests/ExternalDeviceTests.cs`

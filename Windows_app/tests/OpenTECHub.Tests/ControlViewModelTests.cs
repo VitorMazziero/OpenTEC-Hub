@@ -488,6 +488,146 @@ public sealed class ControlViewModelTests
         Assert.False(pressureRow.HasOwnerBadge);
     }
 
+    [Fact]
+    public void When_manual_command_is_refused_by_arbiter_subsystem_retains_staged_state_and_reports_refusal()
+    {
+        using var fixture = new ControlFixture();
+
+        // Stage temperature setpoint
+        fixture.Subsystems[0].Stage(45.0, isEnabled: true);
+        Assert.True(fixture.Subsystems[0].HasPendingChange);
+
+        // Claim temperature actuator in arbiter
+        fixture.Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Temperature], "Receita em execução");
+
+        // Attempt manual apply
+        fixture.Subsystems[0].ApplyCommand.Execute(null);
+
+        // Assert pending change is preserved (not committed)
+        Assert.True(fixture.Subsystems[0].HasPendingChange);
+        Assert.NotEqual(45.0, fixture.Subsystems[0].AppliedSetpoint);
+        Assert.NotNull(fixture.Subsystems[0].StatusText);
+        Assert.Contains("recusado", fixture.Subsystems[0].StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("temperatura", fixture.Subsystems[0].StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(fixture.Subsystems[0].StatusText, fixture.Control.StatusText);
+    }
+
+    [Fact]
+    public void When_manual_command_is_refused_by_arbiter_apply_all_skips_commit_and_reports_refusal()
+    {
+        using var fixture = new ControlFixture();
+
+        fixture.Subsystems[0].Stage(38.0, isEnabled: true);
+        fixture.Subsystems[1].Stage(400, isEnabled: true);
+        Assert.True(fixture.Subsystems[0].HasPendingChange);
+        Assert.True(fixture.Subsystems[1].HasPendingChange);
+
+        // Claim agitation actuator in arbiter
+        fixture.Arbiter.Claim(CommandOwner.KlaAssay, [ActuatorId.Agitation], "Ensaio de kLa em execução");
+
+        // Attempt bulk apply
+        fixture.Control.ApplyAllCommand.Execute(null);
+
+        // Neither row was committed
+        Assert.True(fixture.Subsystems[0].HasPendingChange);
+        Assert.True(fixture.Subsystems[1].HasPendingChange);
+        Assert.NotNull(fixture.Control.StatusText);
+        Assert.Contains("recusado", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("agitação", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void When_peripheral_manual_command_is_locked_by_ownership_staged_state_is_retained_and_reports_lock()
+    {
+        using var fixture = new ControlFixture();
+
+        // 1. pH Control
+        fixture.PH.SetpointText = "6.50";
+        Assert.True(fixture.PH.HasPendingChange);
+        fixture.Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.PHDosing], "Receita em execução");
+        fixture.PH.ApplyCommand.Execute(null);
+        Assert.True(fixture.PH.HasPendingChange);
+        Assert.Contains("bloqueado", fixture.PH.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        // 2. Nutrient Control
+        fixture.Nutrient.PumpSpeedPercentText = "75";
+        Assert.True(fixture.Nutrient.HasPendingChange);
+        fixture.Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Nutrient], "Receita em execução");
+        fixture.Nutrient.ApplyCommand.Execute(null);
+        Assert.True(fixture.Nutrient.HasPendingChange);
+        Assert.Contains("bloqueado", fixture.Nutrient.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        // 3. Antifoam Control
+        fixture.Antifoam.PumpSpeedPercentText = "65";
+        Assert.True(fixture.Antifoam.HasPendingChange);
+        fixture.Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Antifoam], "Receita em execução");
+        fixture.Antifoam.ApplyCommand.Execute(null);
+        Assert.True(fixture.Antifoam.HasPendingChange);
+        Assert.Contains("bloqueado", fixture.Antifoam.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void When_dispatcher_refuses_peripheral_command_staged_state_is_retained_and_reports_refusal()
+    {
+        var targetDevice = new RecordingDeviceService();
+        var refusingDispatcher = new RefusingManualDispatcher([ActuatorId.PHDosing, ActuatorId.Nutrient, ActuatorId.Antifoam]);
+        var settings = new MemorySettingsService(new AppSettings());
+
+        using var ph = new PHControlViewModel(targetDevice, settings, refusingDispatcher);
+        ph.SetpointText = "6.50";
+        Assert.True(ph.HasPendingChange);
+        ph.ApplyCommand.Execute(null);
+        Assert.True(ph.HasPendingChange);
+        Assert.Contains("recusado", ph.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        var nutrient = new NutrientControlViewModel(targetDevice, settings, refusingDispatcher);
+        nutrient.PumpSpeedPercentText = "75";
+        Assert.True(nutrient.HasPendingChange);
+        nutrient.ApplyCommand.Execute(null);
+        Assert.True(nutrient.HasPendingChange);
+        Assert.Contains("recusado", nutrient.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        using var antifoam = new AntifoamControlViewModel(targetDevice, settings, refusingDispatcher);
+        antifoam.PumpSpeedPercentText = "65";
+        Assert.True(antifoam.HasPendingChange);
+        antifoam.ApplyCommand.Execute(null);
+        Assert.True(antifoam.HasPendingChange);
+        Assert.Contains("recusado", antifoam.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void When_manual_command_is_accepted_by_arbiter_state_is_committed_and_success_reported()
+    {
+        using var fixture = new ControlFixture();
+
+        // 1. Single subsystem
+        fixture.Subsystems[0].Stage(36.0, isEnabled: true);
+        Assert.True(fixture.Subsystems[0].HasPendingChange);
+        fixture.Subsystems[0].ApplyCommand.Execute(null);
+
+        Assert.False(fixture.Subsystems[0].HasPendingChange);
+        Assert.Equal(36.0, fixture.Subsystems[0].AppliedSetpoint);
+        Assert.Null(fixture.Subsystems[0].StatusText);
+
+        // 2. Bulk apply
+        fixture.Subsystems[0].Stage(37.0, isEnabled: true);
+        Assert.True(fixture.Subsystems[0].HasPendingChange);
+        fixture.Control.ApplyAllCommand.Execute(null);
+
+        Assert.False(fixture.Subsystems[0].HasPendingChange);
+        Assert.Equal(37.0, fixture.Subsystems[0].AppliedSetpoint);
+        Assert.Contains("enviado", fixture.Control.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class RefusingManualDispatcher(IReadOnlyList<ActuatorId> refused) : IManualDispatcher
+    {
+        public CommandDispatchResult Dispatch(OpenTECCommand command) =>
+            new(false, refused, CommandOwner.Manual);
+
+        public CommandDispatchResult DispatchSeparateFrame(OpenTECCommand command) =>
+            new(false, refused, CommandOwner.Manual);
+    }
+
     private sealed class ControlFixture : IDisposable
     {
         public ControlFixture(
@@ -501,6 +641,9 @@ public sealed class ControlViewModelTests
             Settings = new MemorySettingsService(initialSettings ?? new AppSettings());
             Dialogs = new RecordingDialogService();
             Flow = new FlowControlViewModel(Settings.Current.Setpoints.MaxFlowLitresPerMinute);
+
+            Arbiter = arbiter ?? targetDevice as ICommandArbiter ?? new CommandArbiter(targetDevice, TimeProvider.System);
+            Dispatcher = new ManualDispatcher((Arbiter as IDeviceService) ?? targetDevice);
 
             Subsystems =
             [
@@ -529,25 +672,26 @@ public sealed class ControlViewModelTests
                     Settings.Current.Setpoints.PressureKilopascal),
             ];
 
-            Arbiter = arbiter ?? targetDevice as ICommandArbiter ?? new CommandArbiter(targetDevice, TimeProvider.System);
             Cascade = new CascadeService(targetDevice, Arbiter, Settings, new FakeKlaProfileStore(), TimeProvider.System);
-            PH = new PHControlViewModel(targetDevice, Settings);
-            Nutrient = new NutrientControlViewModel(targetDevice, Settings);
-            Antifoam = new AntifoamControlViewModel(targetDevice, Settings);
-            Foam = new FoamControlViewModel(targetDevice, Settings);
-            Agitator = new FlaskAgitatorViewModel(targetDevice, Settings);
-            Biomass = new BiomassControlViewModel(targetDevice, Settings);
-            Pump = new PumpControlViewModel(targetDevice, Settings);
-            Servo = new ServoDriveViewModel(targetDevice);
+            PH = new PHControlViewModel(targetDevice, Settings, Dispatcher);
+            Nutrient = new NutrientControlViewModel(targetDevice, Settings, Dispatcher);
+            Antifoam = new AntifoamControlViewModel(targetDevice, Settings, Dispatcher);
+            Foam = new FoamControlViewModel(targetDevice, Settings, Dispatcher);
+            Agitator = new FlaskAgitatorViewModel(targetDevice, Settings, Dispatcher);
+            Biomass = new BiomassControlViewModel(targetDevice, Settings, Dispatcher);
+            Pump = new PumpControlViewModel(targetDevice, Settings, Dispatcher);
+            Servo = new ServoDriveViewModel(targetDevice, Dispatcher);
             Control = new ControlViewModel(
                 Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump, Servo,
                 targetDevice, Settings, Dialogs, Cascade,
                 safetyCoordinator: safetyCoordinator,
-                arbiter: Arbiter);
+                arbiter: Arbiter,
+                dispatcher: Dispatcher);
             Device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true });
         }
 
         public ICommandArbiter Arbiter { get; }
+        public IManualDispatcher Dispatcher { get; }
         public RecordingDeviceService Device { get; }
         public MemorySettingsService Settings { get; }
         public RecordingDialogService Dialogs { get; }
@@ -581,7 +725,8 @@ public sealed class ControlViewModelTests
                 new ProcessVariableViewModel(id, name, unit, decimals),
                 new SubsystemSpec(minimum, maximum, integer, apply, disable, OnCommitted: committed),
                 Device,
-                initial);
+                initial,
+                dispatcher: Dispatcher);
 
         public void Dispose()
         {

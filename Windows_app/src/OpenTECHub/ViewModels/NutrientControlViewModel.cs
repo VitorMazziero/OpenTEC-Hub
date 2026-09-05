@@ -19,14 +19,19 @@ namespace OpenTECHub.ViewModels;
 public sealed partial class NutrientControlViewModel : ObservableObject
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
     private NutrientControlSettings _committed;
 
-    public NutrientControlViewModel(IDeviceService device, ISettingsService settings)
+    public NutrientControlViewModel(
+        IDeviceService device,
+        ISettingsService settings,
+        IManualDispatcher? dispatcher = null)
     {
         _device = device;
         _settings = settings;
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _committed = settings.Current.NutrientControl;
 
         Load(_committed);
@@ -135,7 +140,13 @@ public sealed partial class NutrientControlViewModel : ObservableObject
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
         CommitPendingCommand();
         StatusText = IsEnabled
             ? "Estado completo da dosagem de nutriente enviado."

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -71,6 +71,7 @@ public sealed record SubsystemSpec(
 public sealed partial class SubsystemViewModel : ObservableObject
 {
     private readonly IDeviceService _device;
+    private readonly IManualDispatcher _dispatcher;
     private SubsystemSpec _spec;
 
     /// <summary>
@@ -88,11 +89,13 @@ public sealed partial class SubsystemViewModel : ObservableObject
         SubsystemSpec spec,
         IDeviceService device,
         double initialSetpoint,
-        bool initialIsEnabled = false)
+        bool initialIsEnabled = false,
+        IManualDispatcher? dispatcher = null)
     {
         Variable = variable;
         _spec = spec;
         _device = device;
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
 
         SetpointText = Format(initialSetpoint);
         IsEnabled = initialIsEnabled;
@@ -179,6 +182,10 @@ public sealed partial class SubsystemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsValid))]
     [NotifyPropertyChangedFor(nameof(CanApply))]
     public partial string? ValidationError { get; set; }
+
+    /// <summary>Latest send outcome or refusal description.</summary>
+    [ObservableProperty]
+    public partial string? StatusText { get; set; }
 
     /// <summary>Whether the operator wants this subsystem running.</summary>
     [ObservableProperty]
@@ -280,7 +287,14 @@ public sealed partial class SubsystemViewModel : ObservableObject
             return;
         }
 
-        _device.Send(command);
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
+        StatusText = null;
         CommitPendingCommand();
     }
 
@@ -396,6 +410,7 @@ public sealed partial class SubsystemViewModel : ObservableObject
         SetpointText = AppliedSetpoint is { } applied ? Format(applied) : SetpointText;
         IsEnabled = AppliedIsEnabled;
         HasPendingChange = false;
+        StatusText = null;
     }
 
     private void RefreshPendingState()

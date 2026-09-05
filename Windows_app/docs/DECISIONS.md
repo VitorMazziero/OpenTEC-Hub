@@ -1007,6 +1007,25 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 - **Segurança irrestrita.** O botão global de parada segura nunca é bloqueado por contêineres pais ou estado de receita, permanecendo sempre funcional.
 - **Zero conflitos na camada física.** Impossibilidade de acionamentos manuais acidentais concorrendo com o motor de receitas ou rotinas de ensaio.
 
+### D-036 · Adoção de IManualDispatcher e Observabilidade de Aceitação de Comandos Manuais (AUD-003)
+
+**Decisão.** Todas as superfícies de comando e atuação manual do aplicativo migram da chamada legado `IDeviceService.Send` (que retorna `void`) para a abstração observável `IManualDispatcher` (`CommandDispatchResult Dispatch(OpenTECCommand)`):
+1. A interface `IManualDispatcher` e a implementação `ManualDispatcher` expõem `Ownership` (snapshot atual dos proprietários dos atuadores quando o serviço for o `CommandArbiter`).
+2. O utilitário `DispatchRefusal.Describe` formata mensagens detalhadas em pt-BR identificando o atuador e o processo conflitante (`"Comando recusado: {atuador} sob controle de {proprietário}."`), com sobrecargas recebendo diretamente `IManualDispatcher` ou `IDeviceService`.
+3. Todos os ViewModels de atuação (`SubsystemViewModel`, `ControlViewModel`, `PHControlViewModel`, `NutrientControlViewModel`, `AntifoamControlViewModel`, `FlowCalibrationViewModel`, `BiomassCalibrationViewModel`) recebem `IManualDispatcher? dispatcher = null` no construtor (com fallback automático retrocompatível para testes legados).
+4. Em qualquer tentativa de aplicação manual (`Apply`, `ApplyAll`, `ApplyFlowState`, etc.):
+   - Se `result.Accepted == false`: o estado comitado **não é atualizado**, o valor digitado permanece nos campos de edição, o marcador de pendência (`HasPendingChange`) **permanece ativo** e a mensagem de recusa do árbitro é exibida no `StatusText`;
+   - Se `result.Accepted == true`: o estado é comitado (`CommitPendingCommand()`), o marcador de pendência é limpo e o status de envio bem-sucedido é informado ao operador.
+5. No `ControlViewModel.ApplyAll`, os disparos combinados em lote são avaliados diretamente pelo árbitro através do `_dispatcher.Dispatch`, abortando sem comitar nenhuma linha em caso de conflito e exibindo a recusa específica.
+6. A propagação de status dos subsistemas individuais é encaminhada para o `ControlViewModel.StatusText` quando disparos pontuais ocorrem nas linhas de processo.
+
+**Por quê.** A assinatura `void` do método legado `IDeviceService.Send` descartava silenciosamente a recusa emitida pelo `CommandArbiter` caso houvesse conflito atômico de posse (por exemplo, durante receita ativa, controle de oxigênio ou ensaios kLa/potência). As ViewModels comitavam os valores e anunciavam falso sucesso ao operador enquanto o hardware continuava inalterado, violando o princípio de honestidade da interface (AUD-003).
+
+**Consequências.**
+- **Transparência e Integridade de Estado:** A interface do operador nunca exibe valores confirmados ou limpa marcas de alteração pendente quando o comando foi rejeitado pelo árbitro.
+- **Diagnóstico Claro:** O operador é informado exatamente sobre qual parâmetro foi recusado e qual controlador detém o atuador (Receita, Controle O₂, Ensaio de kLa, Ensaio de Potência).
+- **Retrocompatibilidade e Robustez:** Testes unitários com dublês simples (`RecordingDeviceService`) continuam funcionando normalmente graças ao fallback interno no `ManualDispatcher`.
+
 ---
 
 ## Open questions

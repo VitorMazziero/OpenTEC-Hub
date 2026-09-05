@@ -6,6 +6,8 @@
 **/bin/
 **/obj/
 **/[Dd]ebug/
+!**/src/debug/
+!**/src/debug/**
 **/[Rr]elease/
 **/x64/
 **/publish/
@@ -17,6 +19,7 @@
 # Installer & self-contained outputs
 installer/Output/
 tools/wifi-test/
+**/executavel/
 
 # Flutter / Android build output
 **/build/

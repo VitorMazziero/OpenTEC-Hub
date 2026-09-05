@@ -23,6 +23,7 @@
    - [Fase 6: Empacotamento, Crash Reporting e Manual do Operador](#etapa-110--empacotamento-e-entrega-de-campo-fase-6) `[CONCLUÍDO]`
 2. [Eixo 2 — Ensaios de Potência de Impelidor e Determinação de kLa](#eixo-2--ensaios-de-potência-de-impelidor-e-determinação-de-kla)
    - [Item 8.4: Aceitação em Bancada Física (Blocos P-1 a P-7)](#etapa-21--item-84-aceitação-em-bancada-física-dos-blocos-p-1-a-p-7)
+   - [Biblioteca de taras por eixo (perfis nomeados)](#etapa-22--biblioteca-de-taras-por-eixo-perfis-nomeados) `[CONCLUÍDO]`
 3. [Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)](#eixo-3--firmware-esp32-s3-hub-v9v10-e-nó-servo-drive-delta-asda-b2)
    - [Teto de rotação em 971,6 rpm e migração Modbus](#etapa-31--teto-de-rotação-em-9716-rpm-e-migração-modbus-pendente-de-validação-física)
    - [Sinal de torque reverso e limitações da placa intermediária](#etapa-32--sinal-de-torque-reverso-não-testável-na-bancada-atual)
@@ -32,9 +33,11 @@
    - [Soak Test de 2 horas em bancada física](#etapa-36--soak-test-de-2-horas-etapa-5)
    - [Contingência de fragilidade física do hardware RS-485](#etapa-37--fragilidade-física-do-hardware-rs-485)
 4. [Eixo 4 — Validação de Enlace e Protocolo (Geral)](#eixo-4--validação-de-enlace-e-protocolo-geral)
-   - [Higiene de portas seriais e medição de Round-Trip](#etapa-41--higiene-de-portas-seriais-e-medição-de-tempo-de-resposta)
+   - [Higiene de portas seriais e medição de Round-Trip](#etapa-41--higiene-de-portas-seriais-e-medição-de-tempo-de-resposta) `[CONCLUÍDO / AUDITADO]`
+   - [Pendências abertas pela auditoria da Etapa 4.1](#etapa-41-a--pendências-abertas-pela-auditoria-da-etapa-41) `[P1 CORRIGIDO / P3 ABERTO]`
    - [Questões de protocolo abertas para hardware (Q1, Q2, Q3, Q5)](#etapa-42--questões-de-protocolo-abertas-para-hardware-protocolmd-5)
    - [Limiares de ruído do SpikeFilter em contagens brutas](#etapa-43--limiares-de-ruído-em-contagens-brutas-legado-v6)
+5. [Verificação Obrigatória Antes da Publicação](#verificação-obrigatória-antes-da-publicação)
 
 ---
 
@@ -43,7 +46,7 @@
 | Eixo | Total de Itens | Concluídos | Pendentes | Status Global |
 |---|:---:|:---:|:---:|---|
 | **1. Software Desktop (OpenTEC-Hub)** | 10 | 10 | 0 | 🟢 100% Concluído (Todas as 10 etapas concluídas com sucesso) |
-| **2. Ensaios de Potência e kLa** | 7 blocos | 0 | 7 | 🔬 Aguardando bancada física |
+| **2. Ensaios de Potência e kLa** | 7 blocos + 1 software | 1 | 7 | 🔬 Software da biblioteca de taras concluído; blocos P-1 a P-7 aguardando bancada física |
 | **3. Firmware ESP32-S3 e Servo** | 7 | 0 | 7 | 🔬 Aguardando bancada física |
 | **4. Enlace e Protocolo Geral** | 3 | 0 | 3 | 📋 Especificado / A validar |
 
@@ -301,6 +304,27 @@ flowchart TD
 
 ---
 
+### Etapa 2.2 · Biblioteca de taras por eixo (perfis nomeados)
+- **Prioridade:** P1 para Módulo de Potência
+- **Status:** ✅ **CONCLUÍDO (05/09/2026)** — Testes em bancada física abertos junto ao Bloco P-2
+- **Fonte:** [DECISIONS.md](DECISIONS.md#d-044--biblioteca-de-taras-por-eixo-perfis-nomeados)
+- **Arquivos-Chave:**
+  - `src/OpenTECHub/Services/PowerTesting/PowerTestModels.cs` (`TareCurve.ProfileName`, `TareProfileSummary`)
+  - `src/OpenTECHub/Services/PowerTesting/PowerTestFileContracts.cs`
+  - `src/OpenTECHub/Services/PowerTesting/IPowerTestStore.cs` e `PowerTestStore.cs`
+  - `src/OpenTECHub/ViewModels/PowerTestViewModel.cs`
+  - `src/OpenTECHub/Views/PowerView.xaml`
+  - `tests/OpenTECHub.Tests/PowerTestStoreTests.cs`
+- **Problema Resolvido:** A tara existia apenas como `tara.json` dentro da pasta do ensaio, uma por ensaio. A bancada opera dois biorreatores com eixos diferentes (`eixo_furo_unico` e `eixo_furo_duplo`) e o atrito de selo e mancal muda entre eles, de modo que há duas taras simultaneamente válidas. Sem uma biblioteca, trocar de eixo obrigava a repetir a varredura no ar a cada ensaio — ou, pior, a aceitar em silêncio a `P_vazio` do eixo errado, que entra subtraída na potência de eixo e contamina o $N_p$.
+- **Implementação Realizada:**
+  1. `TareCurve.ProfileName` registra o eixo sob o qual a curva foi arquivada.
+  2. Biblioteca em `Testes-Potencia/Taras/<nome>.json`, com `ListTareProfiles`, `LoadTareProfile`, `SaveTareProfile` e `DeleteTareProfile` no `IPowerTestStore`. A pasta é reservada: não aparece em `ListTests` nem pode ser tomada como nome de ensaio.
+  3. O ensaio mantém a própria cópia em `tara.json` — a biblioteca é a origem reaproveitável, o `tara.json` é o registro imutável do que aquele ensaio de fato usou; excluir um perfil não altera ensaios anteriores.
+  4. Assistente de tara com seleção de perfil, **Aplicar**, **Salvar perfil** e **Excluir**; uma varredura iniciada com o nome preenchido é arquivada automaticamente ao terminar.
+  5. `TareStatus` permanece confrontando `ImpellerSetHash` e `CalibrationHash`, e o veredito é repetido na hora da troca de perfil.
+
+---
+
 ## Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)
 
 ### Etapa 3.1 · Teto de rotação em 971,6 rpm e migração Modbus pendente de validação física
@@ -391,8 +415,31 @@ flowchart TD
 - **Fontes:** [HARDWARE_VALIDATION.md](hardware/HARDWARE_VALIDATION.md), [MIGRATION.md](history/MIGRATION.md), [DECISIONS.md](DECISIONS.md#d-043--higiene-de-portas-seriais-a-6-prioriza%C3%A7%C3%A3o-wmi-com-ch343-a-7-e-medi%C3%A7%C3%A3o-fidedigna-de-rtt-a-8)
 - **Passo a Passo de Implementação:**
   1. **A-6 (Portas em Uso)**: Tratar portas COM ocupadas por outras aplicações (`PortBusyException`, verificação defensiva de `0x80070005` e `0x80070020`) exibindo aviso amigável de "em uso por outra aplicação" em vez de disparar exceção não tratada ou travar o discovery.
-  2. **A-7 (Priorização WMI/USB)**: Ordenar a busca automática de portas priorizando adaptadores com identificador `VID_1A86` / `PID_55D4` ou strings de driver `wch` / `CH343` (Tier 1), outros conversores USB-UART (Tier 2), e portas genéricas (Tier 3), aplicando ordenação natural numérica (`COM3` antes de `COM10`).
-  3. **A-8 (Medição Real de Round-Trip)**: No transporte USB CDC, a escrita direta no buffer de transmissão reporta tempo de envio ~0 ms. Correlacionar `LastRoundTripMs` ao recebimento da confirmação real do hardware (`FlowCommandAck` para comandos de vazão e linhas `OK\r\n` de `CommandAck` para comandos gerais), fornecendo medição real da latência do enlace e exibindo `"—"` quando pendente. Em Wi-Fi, o RTT utiliza a duração síncrona do HTTP POST. Visualização adicionada no pop-up de conexão (`MainWindow.xaml`).
+  2. **A-7 (Priorização WMI/USB)**: Ordenar a busca automática de portas priorizando o adaptador oficial — `VID_1A86&PID_55D4` (par completo) ou `CH343` — como Tier 1; os demais conversores USB-UART, incluindo o restante da família WCH (`VID_1A86` genérico, `wch`, `CH340`, `CH910`), `CP210`, `FTDI`, `Silicon Labs` e `ESP32`, como Tier 2; e as portas genéricas como Tier 3, aplicando ordenação natural numérica (`COM3` antes de `COM10`). O par VID+PID é casado inteiro de propósito: `VID_1A86` isolado também pertence ao CH340 (`PID_7523`), que não é o conversor que acompanha o ESP32-S3 da TECNAL.
+  3. **A-8 (Medição Real de Round-Trip)**: No transporte USB CDC, a escrita direta no buffer de transmissão reporta tempo de envio ~0 ms. Correlacionar `LastRoundTripMs` ao recebimento da confirmação real do hardware (`FlowCommandAck` para comandos de vazão e linhas `OK\r\n` de `CommandAck` para comandos gerais), fornecendo medição real da latência do enlace e exibindo `"—"` quando pendente. A correlação vale apenas dentro de `ConnectionOptions.RoundTripCorrelationWindow` (5 s): uma confirmação perdida não deve fazer da próxima resposta, minutos depois, a "latência do enlace". Em Wi-Fi, o RTT é a duração síncrona do HTTP POST e nenhuma correlação é armada. Visualização adicionada no pop-up de conexão (`MainWindow.xaml`).
+- **Auditoria (05/09/2026):** revisão da entrega corrigiu causa de falha obsoleta entre tentativas, RTT de Wi-Fi sobrescrito por linha `OK`, ausência de janela de correlação e publicação não atômica de `LastRoundTripMs`; removido o helper morto `SerialTransport.IsPortBusy(string)`, que só respondia abrindo a porta. Detalhes na emenda do [ADR D-043](DECISIONS.md#d-043--higiene-de-portas-seriais-a-6-prioriza%C3%A7%C3%A3o-wmi-com-ch343-a-7-e-medi%C3%A7%C3%A3o-fidedigna-de-rtt-a-8).
+
+---
+
+### Etapa 4.1-A · Pendências abertas pela auditoria da Etapa 4.1
+- **Prioridade:** P3 (itens 2 a 4); o item 1, P1, foi corrigido
+- **Status:** ✅ Item 1 corrigido · 📋 Itens 2 a 4 registrados, **não corrigidos** — dependem de mudança de protocolo ou de decisão de projeto
+- **Contexto:** A auditoria de 05/09/2026 corrigiu quatro defeitos da entrega (ver emenda do [ADR D-043](DECISIONS.md#d-043--higiene-de-portas-seriais-a-6-prioriza%C3%A7%C3%A3o-wmi-com-ch343-a-7-e-medi%C3%A7%C3%A3o-fidedigna-de-rtt-a-8)) e deixou registrados os itens abaixo, que exigem escolha de projeto antes de mexer no código.
+
+1. ~~**Consulta WMI síncrona na thread de UI, no caminho do primeiro quadro (P1).**~~ ✅ **CORRIGIDO (05/09/2026)**
+   `ConnectionViewModel.RefreshPorts` era um `[RelayCommand]` síncrono chamado no **construtor** e chamava `SerialTransport.ListCandidatePorts()`, que em Windows executa `ManagementObjectSearcher` sobre `Win32_PnPEntity`. Medido nesta máquina, sem nenhum dispositivo COM conectado: **~1090 ms a frio, 256–364 ms a quente**. Com o orçamento de *first-frame* em `< 2 s` e medição de 968–1280 ms (AUD-006), a consulta a frio praticamente dobrava o tempo de partida e travava a UI a cada clique em "atualizar portas".
+   **Correção aplicada** (opções (a) + (c) combinadas):
+   - `SerialTransport.ListPortNames()` — enumeração barata, só o mapa `SERIALCOMM`, sem WMI. É a única segura na thread de UI.
+   - `SerialTransport.ListCandidatePortsAsync()` — a enumeração ranqueada com a consulta WMI fora da thread chamadora.
+   - O construtor publica a lista barata imediatamente e dobra o ranqueamento por cima quando ele chega (`ConfigureAwait(true)`, de volta à thread de UI). O **conjunto** de portas é idêntico nas duas: só a ordem melhora, e o operador nunca espera por ela. Falha de WMI degrada para a lista em ordem natural em vez de virar exceção de tarefa não observada.
+   - `RefreshPortsCommand` passou a ser `IAsyncRelayCommand`. O nome gerado não muda (o toolkit remove o sufixo `Async`), mas nada no build garante isso — e uma ligação `Command` que não resolve falha **em silêncio**, sem exceção e sem log. Daí o guarda em `ConnectionPopoverContractTests`.
+   - `ProbePortsAsync` e o *harness* continuam usando a versão síncrona: já rodam fora da thread de UI.
+2. **Comandos gerais em sequência subestimam o RTT (P3).**
+   `_lastCommandSentTimestamp` guarda apenas o último despacho. Se dois comandos gerais saem antes da primeira linha `OK`, a confirmação é correlacionada ao segundo envio e o RTT sai menor que o real. Só comandos de vazão têm identificador próprio (`FlowCommandId`); corrigir de fato exige um identificador por comando no protocolo do firmware — ver [PROTOCOL.md §5](PROTOCOL.md#5-open-questions-for-hardware-verification).
+3. **Porta ocupada não é reportada durante a varredura automática (P3).**
+   `SerialTransport.TryPortAsync` engole toda exceção, inclusive `PortBusyException`, para que a corrida entre portas continue. É o comportamento correto para a corrida, mas o operador recebe "nenhuma porta respondeu" quando a causa real é o v.6 segurando a COM3. A mensagem amigável de A-6 só aparece na conexão explícita. Sugestão: coletar as portas recusadas por ocupação e anexá-las ao motivo da falha de descoberta.
+4. **`LastWriteMs`, `LastError` e `LastFrameAt` continuam sem publicação atômica (P3).**
+   A auditoria converteu `LastRoundTripMs` para um único `long` publicado via `Interlocked`, mas os três campos vizinhos de `LinkDiagnostics` seguem sendo lidos de outra thread sem sincronização. São apenas indicadores de diagnóstico, e uma leitura rasgada de `double?` exibe um número sem sentido no pop-up — não afeta controle nem segurança.
 
 ---
 
@@ -416,6 +463,81 @@ flowchart TD
   1. Avaliar desacoplamento dos limiares do filtro de ruído para operar nas unidades calibradas reais.
   2. Manter opção de retrocompatibilidade estrita com v.6 através de flag de configuração.
   3. Validar estabilidade da sonda de oxigênio e pH com meio de cultivo real.
+
+---
+
+## Verificação Obrigatória Antes da Publicação
+
+Rodar na raiz `Windows_app/`, **nesta ordem**, antes de qualquer *merge* em `main`, empacotamento ou entrega de campo. Nenhum item é opcional: cada um já barrou um defeito real que os demais não pegam.
+
+### 1. Consistência de repositório
+
+```bash
+git status --short && git fsck --no-progress && git rev-list --left-right --count main...HEAD
+```
+
+Esperado: árvore limpa, `git fsck` sem erros (dangling é aceitável), e contagem `0 <n>` — `main` sem commits exclusivos, ou seja, *fast-forward* possível. Se o lado esquerdo for diferente de zero, a integração exige *merge* explícito e revisão de conflito.
+
+### 2. Compilação
+
+```bash
+dotnet build -c Release -clp:ErrorsOnly
+```
+
+Esperado: **0 erros e 0 avisos**. O repositório trata aviso como dívida bloqueante desde AUD-008; um aviso novo é regressão, não ruído.
+
+### 3. Formatação e analisadores
+
+```bash
+dotnet format --verify-no-changes --no-restore
+```
+
+Esperado: 0 erros, 0 avisos. Roda antes dos testes porque falha em segundos e evita gastar minutos de suíte com o código fora do `.editorconfig`.
+
+### 4. Suíte automatizada completa
+
+```bash
+dotnet test --nologo
+```
+
+Esperado: **1144 aprovados, 0 falhas, 0 ignorados** (05/09/2026).
+
+Cuidados aprendidos na auditoria:
+- **Não confiar em código de saída com `-v q` e *logger* silencioso.** Nesta bancada, execuções com verbosidade reduzida retornaram 0 escondendo 5 falhas. Sempre usar `--logger "console;verbosity=normal"` e conferir a linha `Total de testes` impressa.
+- **Reexecutar falhas isoladamente antes de investigar.** `RecipeEngineTests` e vizinhos têm testes sensíveis a tempo que falham sob carga da suíte cheia e passam sozinhos.
+- **Testes de renderização WPF são sensíveis ao host.** `ScreenshotCaptureTests.Render_full_shell_in_both_light_and_dark_themes` falhava em máquinas cujo painel dispara `ShouldStartMaximizedForSmallScreen()`: o WPF recusa `Show()` com `ShowActivated=false` e `WindowState=Maximized`. `WpfRenderingHost.RenderWindow` agora força `WindowState.Normal`, tornando a captura idêntica em qualquer tela.
+
+### 5. Consistência de algoritmo (verificação dirigida)
+
+A suíte cobre estes pontos, mas eles são conferidos explicitamente porque um erro aqui é silencioso — produz número plausível e errado, não exceção:
+
+| Área | O que conferir | Onde |
+|---|---|---|
+| Ranking de portas | `VID_1A86&PID_55D4` casado como par completo (Tier 1); CH340 (`PID_7523`) em Tier 2; `COM3` antes de `COM10` | `SerialPortRankingTests` |
+| Porta ocupada | `PortBusyException` chega ao operador com o nome da porta; causa de falha **não** sobrevive à tentativa seguinte | `ConnectionManagerTests.Busy_port_*` |
+| RTT fidedigno | USB só publica latência após confirmação real; Wi-Fi usa o POST síncrono e não é sobrescrito por linha `OK`; confirmação fora de `RoundTripCorrelationWindow` é descartada e a UI mantém `"—"` | `ConnectionManagerTests.*RTT*`, `*round_trip*` |
+| Tara por eixo | Dois perfis coexistem; regravar o mesmo eixo substitui em vez de duplicar; excluir um perfil não altera ensaios que já o aplicaram; pasta `Taras/` não vira ensaio | `PowerTestStoreTests.*Tare_Profile*` |
+| Compatibilidade de tara | `ImpellerSetHash` e `CalibrationHash` continuam confrontados; perfil de outro conjunto é rotulado, não aceito em silêncio | `PowerTestViewModel.TareStatus` |
+| Contratos de UI | Rótulos e *bindings* das abas de potência; a tela de potência não usa vocabulário de confirmar/descartar | `PowerNavigationContractTests` |
+| Ligações de comando | Todo `Command` ligado no pop-up de conexão existe na *view model*; `RefreshPortsCommand` continua assíncrono e `ListPortNames` continua sem WMI | `ConnectionPopoverContractTests` |
+
+### 6. Vulnerabilidades de pacote
+
+```bash
+dotnet list package --vulnerable --include-transitive
+```
+
+Esperado: nenhum pacote direto ou transitivo vulnerável.
+
+### 7. Fumaça de execução real
+
+```bash
+dotnet run --project src/OpenTECHub -- --workspace C:\Users\vitor\Documents\OpenTEC-Hub --no-workspace-prompt
+```
+
+Esperado: primeiro quadro renderizado em `< 2 s`, log novo sem falha de *binding*, exceção fatal ou exceção não tratada. Avisos de COM offline são esperados sem hardware e **não** comprovam operação de bancada.
+
+> **Nenhum destes passos substitui a aceitação em bancada física.** Software aprovado aqui continua marcado como "pendente de bancada" nos Eixos 2 e 3 até que o roteiro com motor, fluido e vaso reais seja executado.
 
 ---
 

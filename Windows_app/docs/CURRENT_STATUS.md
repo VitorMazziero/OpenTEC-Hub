@@ -1,14 +1,14 @@
 # OpenTEC-Hub current status and stabilization audit
 
-> **Audit date:** 2026-08-26 · **Revised:** 2026-08-29  
+> **Audit date:** 2026-08-26 · **Revised:** 2026-09-05  
 > **Current version:** 0.24.0  
 > **Next release target:** 0.25.0 — safety stabilization and UI polish  
-> **Implementation base:** `230c6ce` on `main` — committed and fully integrated
+> **Implementation base:** `feature/etapa-4.1-serial-hygiene-and-rtt` — 11 ahead / 0 behind `main`, fast-forward ready
 
-The 2026-08-29 revision re-measured branch integration and the Debug/Release test suites, then
-launched the current executable with an explicit workspace. Rows and findings marked **26/08**
-carry over from the original audit and were not re-run today; read an undated claim in this
-document as evidence from 26/08.
+The 2026-09-05 revision audited the Etapa 4.1 delivery (serial hygiene, WMI ranking, RTT), added
+the per-shaft tare profile library, and re-ran the repository, build, format and test gates. Rows
+and findings marked **26/08** or **29/08** carry over from earlier audits and were not re-run
+today; read an undated claim in this document as evidence from 26/08.
 
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
@@ -16,13 +16,20 @@ This document is the current release-status source. The detailed build sequence 
 
 ## Executive status
 
-Branch integration is now **complete**. The kLa/flowmeter, UI/receitas and external-device/detail-
-panel lines are unified on `main` through `230c6ce`. All 20 local branches are ancestors of `main`;
-none carries a commit outside it. The application core is substantially built, but **0.24.0 is not
-yet a field-release candidate**.
+Branch integration is **ready but not yet performed**. The AUD-001…AUD-008, Etapa 1.9, Etapa 1.10
+and Etapa 4.1 work forms a single linear chain on
+`feature/etapa-4.1-serial-hygiene-and-rtt`, 11 commits ahead of `main` and 0 behind: the seven other
+unmerged branches are all ancestors of this branch's HEAD, so **one fast-forward integrates
+everything**. The application core is substantially built, but **0.24.0 is not yet a field-release
+candidate**.
 
-The P0 findings AUD-001 e AUD-002 e as P1s AUD-003 e AUD-004 estão agora **resolvidas (05/09/2026)**. Os itens abaixo
-refletem a estabilização e verificação das pendências restantes de release.
+The P0 findings AUD-001 e AUD-002 e as P1s AUD-003 e AUD-004 estão **resolvidas (05/09/2026)**. A
+auditoria da Etapa 4.1, no mesmo dia, corrigiu cinco defeitos da entrega de enlace serial — causa de
+falha obsoleta entre tentativas, RTT de Wi-Fi sobrescrito, confirmação atrasada publicada como
+latência, publicação não atômica e consulta WMI bloqueando a thread de UI no caminho do primeiro
+quadro — e registrou três pendências P3 em
+[IMPLEMENTATION_STEPS.md · Etapa 4.1-A](IMPLEMENTATION_STEPS.md#etapa-41-a--pendências-abertas-pela-auditoria-da-etapa-41).
+Os itens abaixo refletem a estabilização e verificação das pendências restantes de release.
 
 The remaining work is concentrated in:
 
@@ -39,10 +46,11 @@ gates in this document pass.
 
 | Check | Result (date) | Interpretation |
 |---|---|---|
-| Git integration | **29/08:** `main` contains `230c6ce`; all 20 local branches are ancestors of `main`, none ahead | The external-device and detail-panel lines are integrated without conflicts; nothing is stranded on a side branch |
-| Repository integrity | **28/08:** `git fsck --full` reports only dangling objects, `garbage: 0`; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
+| Git integration | **05/09:** `feature/etapa-4.1-serial-hygiene-and-rtt` is 11 ahead / 0 behind `main`; the 7 other unmerged branches are all ancestors of this branch's HEAD | A single fast-forward of `main` integrates the whole AUD-001…AUD-008 + Etapa 1.9/1.10/4.1 chain; nothing is stranded on a side branch |
+| Repository integrity | **05/09:** `git fsck --no-progress` reports no errors and **0 dangling objects**; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
 | Authoritative version | `Directory.Build.props` = `0.24.0` | Correctly held while the P0 findings are open |
-| Release tests | **05/09: 1133 passed, 0 skipped, 0 failed** (`dotnet test --nologo`) | Includes safety coordinator, manual dispatcher, dynamic ownership locking, proportional gas retry, serial hygiene, WMI ranking, RTT timing, unskipped hosted-WPF theme-cycle test and complete 30-image screenshot capture suite |
+| Release tests | **05/09: 1144 passed, 0 skipped, 0 failed** (`dotnet test --nologo --logger "console;verbosity=normal"`) | Includes safety coordinator, manual dispatcher, dynamic ownership locking, proportional gas retry, serial hygiene, WMI ranking, audited RTT correlation, per-shaft tare profile library, connection-popover command bindings, unskipped hosted-WPF theme-cycle test and complete 30-image screenshot capture suite. The shell-render test was host-dependent until `WpfRenderingHost` forced `WindowState.Normal`; the earlier "1133 passed" baseline was recorded on a host where the shell did not self-maximize. **Read the printed `Total de testes` line** — with `-v q` plus a quiet logger this suite returned exit 0 while hiding 5 failures |
+| Port enumeration cost | **05/09:** the `Win32_PnPEntity` WMI query measures **~1090 ms cold / 256–364 ms warm** with no COM device attached, and is now off the UI thread and off the first-frame path | `ConnectionViewModel` fills the popover from the WMI-free `SerialTransport.ListPortNames()` and folds in the ranking from `ListCandidatePortsAsync()`. The first-frame figure below predates this change and was measured with the cold query still on that path, so it is a ceiling, not the current cost |
 | Package vulnerability scan | **26/08:** no known vulnerable direct or transitive packages | Does not waive compatibility warnings; not re-scanned after the merge |
 | Runtime startup smoke test | **29/08:** Debug executable launched with `--workspace C:\Users\vitor\Documents\OpenTEC-Hub`; first frame rendered and the fresh log contained no binding failure, fatal exception or unhandled exception | `--workspace` and `--no-workspace-prompt` now bypass the Windows folder picker; the expected offline COM1 warnings do not establish hardware operation |
 | First-frame time | **05/09:** 968–1280 ms, meta `< 2 s` cumprida de forma determinística | Otimização via `DeferredPageHost` (ADR D-033) com inicialização diferida de páginas pesadas em `ApplicationIdle` (AUD-006 resolvido) |

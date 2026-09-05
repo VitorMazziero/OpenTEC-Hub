@@ -1163,8 +1163,8 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 2. **Priorização Inteligente WMI e Ordenação Natural (A-7):**
    - A consulta WMI no Windows agora inspeciona propriedades estendidas (`PNPDeviceID`, `Manufacturer`, `Description`, `DeviceID`).
    - Categorização em três níveis de prioridade (*Tiers*):
-     - **Tier 1 (Alta prioridade):** Dispositivos com VID/PID `VID_1A86&PID_55D4` e drivers `CH343`/`wch` (conversor USB-UART oficial do ESP32-S3).
-     - **Tier 2 (Média prioridade):** Outros conversores USB-UART conhecidos (`CP210`, `CH340`, `FTDI`, `Silicon Labs`, `ESP32`).
+     - **Tier 1 (Alta prioridade):** Somente o adaptador oficial: `VID_1A86&PID_55D4` ou `CH343`. O par VID+PID é casado inteiro, e não `VID_1A86` isolado — a WCH também fabrica o CH340 (`VID_1A86&PID_7523`), que não é o conversor que acompanha o ESP32-S3 da TECNAL.
+     - **Tier 2 (Média prioridade):** Demais conversores USB-UART conhecidos, incluindo o restante da família WCH (`VID_1A86` genérico, `wch`, `CH340`, `CH910`) e `CP210`, `FTDI`, `Silicon Labs`, `ESP32`, `USB Serial`.
      - **Tier 3 (Baixa prioridade):** Portas COM seriais genéricas ou integradas.
    - Ordenação natural estrita por número de porta (`COM3` precede `COM10`), evitando o ordenamento lexicográfico defeituoso.
 3. **Medição Fidedigna de Tempo de Resposta / RTT (A-8):**
@@ -1187,6 +1187,41 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 - Conexão e auto-descoberta ultrarrápidas priorizando o hardware TECNAL oficial.
 - Observabilidade real da saúde e latência da comunicação com o ESP32-S3.
 - 1133 testes automatizados aprovados na suíte, com 0 falhas e conformidade total de código.
+
+**Emenda · auditoria da Etapa 4.1 (2026-09-05).** A revisão da implementação encontrou quatro pontos em que o comportamento entregue não correspondia à decisão acima; todos corrigidos:
+
+1. **Causa de falha obsoleta (A-6).** `_lastError` sobrevivia de uma tentativa para a outra. Uma porta liberada entre as tentativas continuava sendo anunciada como *"ocupada por outra aplicação"* quando a falha real era de handshake, mandando o operador caçar um processo que já havia soltado a porta. A causa passou a ter escopo de tentativa (`HandleConnectAsync`) e é reescrita a cada volta do ciclo de reconexão.
+2. **RTT de Wi-Fi sobrescrito (A-8).** O timestamp de correlação era armado também em Wi-Fi. Como o POST já é síncrono e o RTT já estava medido, qualquer linha `OK` subsequente substituía a medida verdadeira por uma correlação fabricada. A correlação agora só é armada em USB.
+3. **Confirmação atrasada publicada como latência (A-8).** Uma confirmação perdida deixava o timestamp armado indefinidamente, e a próxima confirmação — possivelmente minutos depois — virava a "latência do enlace". Introduzido `ConnectionOptions.RoundTripCorrelationWindow` (5 s): fora da janela a correlação é descartada e o pop-up mantém `"—"`.
+4. **Publicação não atômica.** `LastRoundTripMs` era um `double?` escrito no laço de requisições e lido de outra thread, sujeito a leitura rasgada. Passou a ser publicado como um único `long` (ticks) via `Interlocked`.
+
+5. **Consulta WMI bloqueando a thread de UI no caminho do primeiro quadro.** A priorização de A-7 foi entregue como uma enumeração única e síncrona: `ConnectionViewModel.RefreshPorts` era um `[RelayCommand]` chamado no **construtor** e disparava `ManagementObjectSearcher` sobre `Win32_PnPEntity` — medido em **~1090 ms a frio e 256–364 ms a quente**, sem nenhum dispositivo COM conectado. Com o *first-frame* orçado em `< 2 s` e medido entre 968 e 1280 ms (AUD-006), a consulta a frio quase dobrava a partida e congelava o pop-up a cada "atualizar portas".
+   A enumeração foi separada em duas: `ListPortNames()` lê apenas o mapa `SERIALCOMM` (milissegundos, segura na thread de UI) e `ListCandidatePortsAsync()` faz o ranqueamento com o WMI fora da thread chamadora. O construtor publica a lista barata na hora e sobrepõe o ranqueamento quando ele chega — o conjunto de portas é o mesmo nas duas, só a ordem melhora, então nada é exibido errado no intervalo. `ProbePortsAsync` mantém a versão síncrona, pois já roda fora da thread de UI.
+
+Removido ainda o helper morto `SerialTransport.IsPortBusy(string)`: responder "esta porta está ocupada?" exige abrir a porta — exatamente o sequestro que A-6 existe para evitar — e a resposta já nasce obsoleta. O estado ocupado é descoberto na tentativa real de abertura, que levanta `PortBusyException`.
+
+Acrescentado `ConnectionPopoverContractTests`, que prende os nomes de comando ligados em `MainWindow.xaml` ao que a *view model* expõe. Uma ligação `Command` que não resolve falha em silêncio no WPF — sem exceção, sem log, o botão apenas não responde — e foi exatamente o risco criado ao converter `RefreshPorts` em `RefreshPortsAsync`.
+
+---
+
+### D-044 · Biblioteca de taras por eixo (perfis nomeados)
+
+**Status:** Accepted and implemented · 2026-09-05
+
+**Decisão.** A curva de tara deixa de existir apenas dentro do ensaio e passa a ter também uma biblioteca nomeada, com um arquivo por eixo em `Testes-Potencia/Taras/<nome>.json`:
+
+- `TareCurve.ProfileName` registra sob qual eixo a curva foi arquivada.
+- `IPowerTestStore` ganha `ListTareProfiles`, `LoadTareProfile`, `SaveTareProfile` e `DeleteTareProfile`.
+- O ensaio continua gravando a sua própria cópia em `tara.json`. A biblioteca é a origem reaproveitável; o `tara.json` é o registro imutável do que aquele ensaio de fato usou.
+- A pasta `Taras/` é reservada: não aparece em `ListTests` e não pode ser tomada como nome de ensaio.
+- Na aba de Validação, o assistente de tara ganhou seleção de perfil, **Aplicar**, **Salvar perfil** e **Excluir**. Uma varredura iniciada com o campo de nome preenchido é arquivada automaticamente no perfil ao terminar.
+
+**Por quê.** A bancada opera dois biorreatores com eixos distintos (`eixo_furo_unico` e `eixo_furo_duplo`). O atrito de selo e mancal muda entre eles, então há duas taras simultaneamente válidas. Com uma única tara por ensaio, trocar de eixo obrigava a repetir a varredura no ar a cada ensaio, ou — pior — a aceitar silenciosamente a `P_vazio` do eixo errado, que entra subtraída na potência de eixo e contamina o Np.
+
+**Consequências.**
+- Trocar de eixo passa a ser escolher um perfil, sem repetir a varredura no ar.
+- A verificação de compatibilidade não foi afrouxada: `TareStatus` continua confrontando `ImpellerSetHash` e `CalibrationHash`, e um perfil aplicado a um conjunto diferente é rotulado como *"Tara de outro conjunto"* na hora da troca.
+- Excluir um perfil não afeta ensaios que já o aplicaram — cada um guarda a sua cópia.
 
 ---
 

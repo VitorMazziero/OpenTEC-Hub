@@ -422,8 +422,8 @@ gantt
     dateFormat  YYYY-MM-DD
     section Fase A: Software Desktop (P1)
     AUD-001 e AUD-002 (P0)         :done, a1, 2026-09-01, 2026-09-05
-    AUD-003: Observabilidade Despacho :active, a2, 2026-09-06, 2026-09-08
-    AUD-004: Retentativa Gás Prop.    :a3, 2026-09-09, 2026-09-10
+    AUD-003: Observabilidade Despacho :done, a2, 2026-09-05, 2026-09-06
+    AUD-004: Retentativa Gás Prop.    :active, a3, 2026-09-06, 2026-09-07
     AUD-005: Limiares Biomassa Focus :a4, 2026-09-11, 2026-09-12
     AUD-006 & AUD-007: Boot & Gráficos :a5, 2026-09-13, 2026-09-16
     AUD-008 & Empacotamento Fase 6     :a6, 2026-09-17, 2026-09-20

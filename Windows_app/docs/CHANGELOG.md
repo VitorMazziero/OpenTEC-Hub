@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to OpenTEC-Hub. Version numbers follow
 [Semantic Versioning](https://semver.org/); the single source for the number is
@@ -97,6 +97,27 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   exportação PNG foi removida intencionalmente dessa barra; a exportação CSV permanece.
 
 ### Fixed
+- **Observabilidade completa de aceitação de comandos manuais nas ViewModels (AUD-003).** A migração para
+  `IManualDispatcher.Dispatch` com retorno observável `CommandDispatchResult` foi expandida para
+  `SubsystemViewModel`, `ControlViewModel` (`ApplyAll`, `ApplyFlowState`), cartões de dosagem
+  (`PHControlViewModel`, `NutrientControlViewModel`, `AntifoamControlViewModel`) e telas de calibração
+  (`FlowCalibrationViewModel`, `BiomassCalibrationViewModel`). Quadros manuais recusados pelo árbitro
+  (ex.: receita ativa, cascata ou ensaio) não chamam mais `CommitPendingCommand()`, retêm os valores
+  editados no estado pendente (`HasPendingChange = true`) e reportam explicitamente no `StatusText`
+  o atuador recusado e o processo conflitante com rótulos amigáveis em pt-BR (ex.: *"Comando recusado:
+  temperatura sob controle de Receita"*). Ver [DECISIONS D-036](DECISIONS.md).
+- **Travamento visual dinâmico de controles manuais e desacoplamento da parada segura (AUD-002).**
+  As cinco linhas de processo e os seis cartões periféricos passam a refletir em tempo real o estado de
+  posse por atuador (`CurrentOwner`, `IsOwnedByOther`, `HasOwnerBadge`, `OwnerBadgeText`, `OwnerLockReason`),
+  desabilitando campos de entrada e exibindo crachás de proveniência (`receita`, `controle o₂`,
+  `ensaio kla`, `ensaio pot`) quando sob controle externo. O bloqueio geral de página no
+  `ControlView.xaml` foi removido, assegurando que a barra de status e o botão de **Parada segura
+  permaneçam 100% operáveis e acessíveis em qualquer circunstância**. Ver [DECISIONS D-035](DECISIONS.md).
+- **Parada segura global garantida durante receita ativa (AUD-001).** Implementado o `ISafetyCoordinator`
+  e caminho privilegiado de segurança no `ICommandArbiter` (`DispatchSafety`), revogando com prioridade
+  absoluta a posse de receitas em execução, cascatas ou ensaios e despachando atomicamente o quadro de parada
+  de emergência para o hardware, eliminando falhas silenciosas e falsos positivos de sucesso.
+  Ver [DECISIONS D-034](DECISIONS.md).
 - **Texto dos gráficos ilegível no tema escuro.** Rótulos de eixo e números de escala usavam
   `TextSecondaryBrush`, um cinza médio pensado para texto acessório — mas num gráfico o eixo
   *é* o conteúdo. Passam a usar `TextPrimaryBrush` nos quatro gráficos grandes (mapeamento kLa,

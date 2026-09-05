@@ -21,12 +21,12 @@ panel lines are unified on `main` through `230c6ce`. All 20 local branches are a
 none carries a commit outside it. The application core is substantially built, but **0.24.0 is not
 yet a field-release candidate**.
 
-The P0 findings AUD-001 and AUD-002 are now **both resolved (05/09/2026)**. The release blockers below
-reflect the remaining stabilization and verification items.
+The P0 findings AUD-001 e AUD-002 e a P1 AUD-003 estão agora **resolvidas (05/09/2026)**. Os itens abaixo
+refletem a estabilização e verificação das pendências restantes de release.
 
 The remaining work is concentrated in:
 
-1. making every manual surface report accepted versus refused commands honestly (AUD-003, AUD-004);
+1. completing remaining arbitration and control findings (AUD-004, AUD-005);
 2. stabilizing startup, chart dependencies and the code-quality gate;
 3. completing visual/operator review and real-hardware receipts; and
 4. packaging the application for field use.
@@ -303,9 +303,9 @@ release checklist and rollback instructions are complete.
 
 Do not bump/release until all of the following are true:
 
-- [ ] AUD-001 (fechado em 05/09/2026 com testes) e AUD-002 (aberto) com testes de receita ativa
-- [ ] AUD-003 through AUD-007 closed; no false command-success state
-- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **05/09: 1078/1 skip/0 fail**; re-confirm at release time
+- [x] AUD-001 e AUD-002 (P0) fechados em 05/09/2026 com testes de receita ativa e segurança física
+- [ ] AUD-004 through AUD-007 closed (AUD-003 fechado em 05/09/2026); no false command-success state
+- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **05/09: 1089/1 skip/0 fail**; re-confirm at release time
 - [ ] Release build and self-contained publish have zero warnings, including `NU1701`
 - [ ] `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` passes
 - [ ] package vulnerability scan reports no known vulnerabilities

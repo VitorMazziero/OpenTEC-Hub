@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 > How OpenTEC-Hub is put together and why.
 >
@@ -178,17 +178,20 @@ rows into one wire frame and then commit the same state transition per row.
 
 **Presets stage; they never command.** Named core-loop presets live in the typed settings
 record. Loading one fills setpoint, enable, valve and `maxFlow` fields; only an explicit
-Apply action can call `IDeviceService.Send`.
+Apply action can call `IManualDispatcher.Dispatch`.
 
 **One command arbiter owns the wire.** `CommandArbiter` decorates the transport wrapper, so
 the `IDeviceService` everything resolves *is* the arbiter and a plain `Send` is a Manual
 dispatch — there is no un-arbitrated path to the link, and a future control surface cannot
-forget to ask. Ownership is per `ActuatorId`, so the cascade can own the oxygen actuators
-while the operator holds pH; a frame touching an actuator owned by another owner is refused
-whole. A non-Connected link revokes every non-Manual owner back to Manual (safe abort) and
-journals it, and the command lifecycle only claims a `TelemetryConfirmed` where the firmware
-echoes the setpoint (aeration) — every other channel rests at transport-accepted and says so.
-See [D-015](DECISIONS.md).
+forget to ask. Manual commands from ViewModels are routed through `IManualDispatcher.Dispatch`,
+which returns a `CommandDispatchResult` observable by the UI. If a command is refused due to
+ownership conflict or unmet preconditions, pending values remain uncommitted (`HasPendingChange`)
+and an explicit rejection message naming the actuator and conflicting owner is presented to the
+operator. Ownership is per `ActuatorId`, so the cascade can own the oxygen actuators while the
+operator holds pH; a frame touching an actuator owned by another owner is refused whole.
+Emergency stops route through `ISafetyCoordinator` / `DispatchSafety` with privileged precedence.
+A non-Connected link revokes every non-Manual owner back to Manual (safe abort) and journals it.
+See [D-015](DECISIONS.md), [D-034](DECISIONS.md), [D-035](DECISIONS.md) and [D-036](DECISIONS.md).
 
 **The alarm engine latches, and its audible is timed.** `AlarmService` runs the six system
 alarms as small state machines — on-delay, latch, acknowledge, off-deadband — and holds a

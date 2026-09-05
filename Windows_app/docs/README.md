@@ -15,7 +15,7 @@ Estes são os documentos centrais que definem o estado, arquitetura, protocolo e
 | [ROADMAP.md](ROADMAP.md) | **Roadmap estratégico.** Fases do projeto, escopo, metas não-funcionais e trabalho planejado |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | **Arquitetura de software.** Padrões MVVM, threading model, camadas, arbitração de comandos e pipeline de dados |
 | [PROTOCOL.md](PROTOCOL.md) | **Contrato de comunicação serial/Wi-Fi.** Chaves JSON, tipos, unidades, limites e temporização com o ESP32-S3 |
-| [DECISIONS.md](DECISIONS.md) | **Registro de Decisões Arquiteturais (ADRs).** Justificativas e histórico (D-001 a D-035) |
+| [DECISIONS.md](DECISIONS.md) | **Registro de Decisões Arquiteturais (ADRs).** Justificativas e histórico (D-001 a D-036) |
 | [UI_DESIGN.md](UI_DESIGN.md) | **Especificação de interface.** Identidade visual, tokens, paleta de cores, telas de sinótico e controles |
 | [CONVENTIONS.md](CONVENTIONS.md) | **Convenções de código.** Nomenclatura, padrões assíncronos, testes e regras de engenharia de software |
 | [CHANGELOG.md](CHANGELOG.md) | **Histórico de versões.** Alterações registradas por versão e lançamentos |

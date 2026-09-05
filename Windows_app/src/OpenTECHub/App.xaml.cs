@@ -43,7 +43,12 @@ public partial class App : Application
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
 
     private ServiceProvider? _services;
-    public IServiceProvider? Services => _services;
+    private IServiceProvider? _testServices;
+    public IServiceProvider? Services
+    {
+        get => _testServices ?? _services;
+        internal set => _testServices = value;
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -275,7 +280,7 @@ public partial class App : Application
         return string.IsNullOrWhiteSpace(file) ? null : new KlaPlaybackOptions(Path.GetFullPath(file), Math.Clamp(speed, 0.1, 100));
     }
 
-    private static void ConfigureServices(IServiceCollection services, KlaPlaybackOptions? playback)
+    internal static void ConfigureServices(IServiceCollection services, KlaPlaybackOptions? playback)
     {
         services.AddLogging(builder =>
         {

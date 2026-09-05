@@ -63,7 +63,13 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
     public bool UseUsb
     {
         get => !UseWiFi;
-        set => UseWiFi = !value;
+        set
+        {
+            if (value != !UseWiFi)
+            {
+                UseWiFi = !value;
+            }
+        }
     }
 
     [ObservableProperty]

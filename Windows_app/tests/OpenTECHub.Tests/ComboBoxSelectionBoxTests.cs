@@ -88,30 +88,6 @@ public sealed class ComboBoxSelectionBoxTests
 
     private static T OnStaThread<T>(Func<T> action)
     {
-        T result = default!;
-        Exception? failure = null;
-
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                result = action();
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-        });
-
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        if (failure is not null)
-        {
-            throw new InvalidOperationException("STA thread failed", failure);
-        }
-
-        return result;
+        return Rendering.WpfRenderingHost.Run(action);
     }
 }

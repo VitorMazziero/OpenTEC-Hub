@@ -60,7 +60,7 @@ public partial class PowerView : UserControl
 
     private void SubscribeToThemeChanges()
     {
-        var theme = ((App)Application.Current).Services?.GetService<IThemeService>();
+        var theme = (Application.Current as App)?.Services?.GetService<IThemeService>();
         if (theme is null)
         {
             return;
@@ -72,7 +72,7 @@ public partial class PowerView : UserControl
 
     private void UnsubscribeFromThemeChanges()
     {
-        var theme = ((App)Application.Current).Services?.GetService<IThemeService>();
+        var theme = (Application.Current as App)?.Services?.GetService<IThemeService>();
         if (theme is not null)
         {
             theme.ThemeChanged -= OnThemeChanged;

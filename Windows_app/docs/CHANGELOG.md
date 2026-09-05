@@ -101,6 +101,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   e recusa sob posse externa permanecem ativas via `IManualDispatcher`. Ver [DECISIONS D-038](DECISIONS.md).
 
 ### Fixed
+- **Captura automatizada de telas e eliminação do erro COM 0x80004002 (Etapa 1.9).** Substituída a automação
+  externa de desktop (`UIAutomationClient.dll`) por renderização em memória via `RenderTargetBitmap` operando sobre
+  dispatcher STA isolado (`WpfRenderingHost`). Eliminados ciclos de binding recursivo em `RadioButton` (`UpdateRadioButtonGroup`),
+  corrigida a sincronização de `RunOnUi` em ViewModels e adicionada suíte de testes `ScreenshotCaptureTests` cobrindo 100%,
+  125% e 150% DPI em temas Claro e Escuro (30 artefatos PNG gerados em `docs/evidence/screenshots/`). Reativado e aprovado o
+  teste `ThemeServiceTests`. Total da suíte ampliado para 1116 testes com 100% de aprovação e zero ignorados. Ver [DECISIONS D-040](DECISIONS.md).
 - **Dívida técnica de formatação e barreira de analisadores no CI (AUD-008).** Executado `dotnet format`
   em toda a solução, corrigindo quebras de linha, identação e estilos. O arquivo `.editorconfig` foi
   alinhado com `CONVENTIONS.md` para suportar regras de nomenclatura explícitas de constantes privadas

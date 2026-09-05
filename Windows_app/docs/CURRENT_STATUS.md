@@ -42,15 +42,15 @@ gates in this document pass.
 | Git integration | **29/08:** `main` contains `230c6ce`; all 20 local branches are ancestors of `main`, none ahead | The external-device and detail-panel lines are integrated without conflicts; nothing is stranded on a side branch |
 | Repository integrity | **28/08:** `git fsck --full` reports only dangling objects, `garbage: 0`; no merge/rebase state and no stale lock files | No corruption, despite `.git` living inside the shared OneDrive folder |
 | Authoritative version | `Directory.Build.props` = `0.24.0` | Correctly held while the P0 findings are open |
-| Release tests | **05/09: 1092 passed, 1 skipped, 0 failed** (`dotnet test --nologo`) | Includes safety coordinator, manual dispatcher, dynamic ownership locking, proportional gas retry and all regression contracts; the skip is still the hosted-WPF theme-cycle test |
+| Release tests | **05/09: 1116 passed, 0 skipped, 0 failed** (`dotnet test --nologo`) | Includes safety coordinator, manual dispatcher, dynamic ownership locking, proportional gas retry, unskipped hosted-WPF theme-cycle test and complete 30-image screenshot capture suite |
 | Package vulnerability scan | **26/08:** no known vulnerable direct or transitive packages | Does not waive compatibility warnings; not re-scanned after the merge |
 | Runtime startup smoke test | **29/08:** Debug executable launched with `--workspace C:\Users\vitor\Documents\OpenTEC-Hub`; first frame rendered and the fresh log contained no binding failure, fatal exception or unhandled exception | `--workspace` and `--no-workspace-prompt` now bypass the Windows folder picker; the expected offline COM1 warnings do not establish hardware operation |
 | First-frame time | **05/09:** 968–1280 ms, meta `< 2 s` cumprida de forma determinística | Otimização via `DeferredPageHost` (ADR D-033) com inicialização diferida de páginas pesadas em `ApplicationIdle` (AUD-006 resolvido) |
 | Build compatibility | **05/09:** Debug e Release, **0 warnings, 0 errors** | `NU1701` resolvido; temas claro/escuro validados em executável publicado pelo operador (AUD-007 resolvido) |
 | Formatting gate | **05/09:** `dotnet format --verify-no-changes --no-restore` **0 erros, 0 avisos** | Código 100% formatado e analisadores em conformidade estrita com o `.editorconfig` (AUD-008 resolvido) |
 
-The skipped theme test depends on a hosted WPF `Application`; token parity is tested headlessly,
-but a packaged light/dark/light runtime test remains part of the UI acceptance work.
+A suíte hosted-WPF agora executa sobre thread STA dedicada (`WpfRenderingHost`), permitindo que o ciclo de
+temas claro/escuro (`ThemeServiceTests`) execute sem depender de sessão interativa do Windows.
 
 ## Capability status
 
@@ -66,7 +66,7 @@ but a packaged light/dark/light runtime test remains part of the UI acceptance w
 | External pump and proportional gas | Software-complete | Rejected-dispatch retry correction and hardware receipt |
 | Receitas authoring and execution | Feature-complete | P0 safe-stop/manual-lock corrections, minor canvas polish and hardware confirmation |
 | Receitas holding for an unresponsive external device | Software-complete **(new since the audit)** | Flow-setpoint and aeration-enable blocks wait for the flowmeter to confirm, latch the `Receita aguardando dispositivo` alarm after 8 s and offer skip/stop; needs a bench receipt with a genuinely offline meter |
-| Synoptic and main UI | Detail panels standardized; pH has PV/SP/Δ, trend, control and direct calibration navigation; summary cards enlarged; measured sensors expose detrended-noise health | Screenshot capture failed with Windows `0x80004002`; accessibility/runtime tree passed, but final visual spacing and operator walkthrough remain open |
+| Synoptic and main UI | Detail panels standardized; pH has PV/SP/Δ, trend, control and direct calibration navigation; summary cards enlarged; measured sensors expose detrended-noise health | Resolução da captura automatizada via `RenderTargetBitmap` (ADR D-040); 30 capturas geradas em 100%, 125% e 150% de DPI sem truncamentos; homologação final de bancada com operador aberta |
 | Packaging and field cutover | Not complete | Installer, first-run path, crash reporting, performance soak and operator manual |
 
 ## Audit findings

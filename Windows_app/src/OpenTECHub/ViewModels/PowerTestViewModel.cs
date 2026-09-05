@@ -3253,13 +3253,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private static void RunOnUi(Action action)
     {
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        if (dispatcher is not null && !dispatcher.HasShutdownStarted && !dispatcher.CheckAccess())
         {
-            action();
+            dispatcher.Invoke(action);
         }
         else
         {
-            dispatcher.BeginInvoke(action);
+            action();
         }
     }
 

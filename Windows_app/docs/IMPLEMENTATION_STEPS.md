@@ -19,7 +19,7 @@
    - [AUD-006 (P1): Estabilização do tempo de inicialização (First-Frame)](#etapa-16--aud-006-p1-tempo-de-inicialização-first-frame-instável-e-acima-da-meta) `[CONCLUÍDO]`
    - [AUD-007 (P1): Recibo de gráficos em pacote publicado (Self-Contained)](#etapa-17--aud-007-p1-recibo-de-gráficos-em-executável-empacotado-publish) `[CONCLUÍDO]`
    - [AUD-008 (P2): Dívida técnica de formatação e regras de CI](#etapa-18--aud-008-p2-dívida-técnica-de-formatação-e-analyzers-sem-barreira-no-ci) `[CONCLUÍDO]`
-   - [Captura de Telas: Correção do erro COM 0x80004002](#etapa-19--falha-de-captura-de-telas-automatizada-erro-com-0x80004002)
+   - [Captura de Telas: Correção do erro COM 0x80004002](#etapa-19--falha-de-captura-de-telas-automatizada-erro-com-0x80004002) `[CONCLUÍDO]`
    - [Fase 6: Empacotamento, Crash Reporting e Manual do Operador](#etapa-110--empacotamento-e-entrega-de-campo-fase-6)
 2. [Eixo 2 — Ensaios de Potência de Impelidor e Determinação de kLa](#eixo-2--ensaios-de-potência-de-impelidor-e-determinação-de-kla)
    - [Item 8.4: Aceitação em Bancada Física (Blocos P-1 a P-7)](#etapa-21--item-84-aceitação-em-bancada-física-dos-blocos-p-1-a-p-7)
@@ -42,7 +42,7 @@
 
 | Eixo | Total de Itens | Concluídos | Pendentes | Status Global |
 |---|:---:|:---:|:---:|---|
-| **1. Software Desktop (OpenTEC-Hub)** | 10 | 8 | 2 | 🟢 80% Concluído (AUD-001 a AUD-008 resolvidos) |
+| **1. Software Desktop (OpenTEC-Hub)** | 10 | 9 | 1 | 🟢 90% Concluído (AUD-001 a AUD-008 e Etapa 1.9 resolvidos) |
 | **2. Ensaios de Potência e kLa** | 7 blocos | 0 | 7 | 🔬 Aguardando bancada física |
 | **3. Firmware ESP32-S3 e Servo** | 7 | 0 | 7 | 🔬 Aguardando bancada física |
 | **4. Enlace e Protocolo Geral** | 3 | 0 | 3 | 📋 Especificado / A validar |
@@ -207,14 +207,26 @@ pie title Status Geral dos Itens de Implementação
 
 ### Etapa 1.9 · Falha de captura de telas automatizada (Erro COM 0x80004002)
 - **Prioridade:** P2 — Suporte à Qualidade Visual
-- **Status:** 📋 A Fazer
+- **Status:** ✅ Concluído (05/09/2026)
 - **Arquivos Envolvidos:**
-  - Scripts de teste de UI / screenshot em `tests/`
-- **Passo a Passo de Implementação:**
-  1. Investigar a causa do erro de agregação COM (`0x80004002: E_NOINTERFACE`) durante o binding de UI Automation.
-  2. Substituir a captura via automação de desktop por renderização em memória baseada em `RenderTargetBitmap` aplicada à raiz de cada View em janela hosted de teste.
-  3. Gerar suíte de capturas nas três escalas de tela: 100%, 125% e 150% de DPI.
-  4. Validar truncamento de texto, sobreposição de cards e espaçamento de sinótico.
+  - `tests/OpenTECHub.Tests/Rendering/WpfRenderingHost.cs`
+  - `tests/OpenTECHub.Tests/Rendering/VisualValidationHelper.cs`
+  - `tests/OpenTECHub.Tests/ScreenshotCaptureTests.cs`
+  - `tests/OpenTECHub.Tests/ThemeServiceTests.cs`
+  - `tests/OpenTECHub.Tests/ComboBoxSelectionBoxTests.cs`
+  - `src/OpenTECHub/Services/Theme/ThemeService.cs`
+  - `src/OpenTECHub/App.xaml.cs`
+  - `src/OpenTECHub/Views/ControlView.xaml`, `PowerView.xaml`, `CalibrationView.xaml`, `MainWindow.xaml`
+  - `src/OpenTECHub/ViewModels/ControlViewModel.cs`, `PowerTestViewModel.cs`, `KlaDeterminationViewModel.cs`, `PumpControlViewModel.cs`
+  - `docs/evidence/screenshots/` (30 capturas PNG em 100%, 125% e 150% DPI)
+  - `docs/DECISIONS.md` (ADR D-040)
+- **Implementação e Resultados:**
+  1. **Diagnóstico da Causa Raiz:** O erro `0x80004002 (E_NOINTERFACE)` ocorria porque o cliente de UI Automation (`IUIAutomation` / `UIAutomationClient.dll`) exigia agregação COM inter-processos para `IRawElementProviderSimple`. Em sessões não interativas/background ou sem DWM ativo, a composição de janelas DirectX/WPF fica inativa, falhando na agregação COM e gerando quadros pretos em screen-scrapers GDI.
+  2. **Arquitetura Hosted STA com `RenderTargetBitmap`:** Implementado `WpfRenderingHost` com thread STA dedicada executando o message pump do WPF (`Dispatcher.Run()`) com `Application.ShutdownMode = ShutdownMode.OnExplicitShutdown` e injeção de dependências desacoplada (`RecordingDeviceService`). A renderização é realizada diretamente na memória de bitmap (`PixelFormats.Pbgra32`), operando no rasterizador de software do WPF e eliminando qualquer dependência de COM ou do desktop.
+  3. **Correção de Recursão em `RadioButton`:** Eliminados loops infinitos de two-way binding causados por `GroupName` em pares de RadioButtons com propriedades booleanas inversas em `ControlView.xaml` (`AgitatorDir`), `PowerView.xaml` (`PowerChartTab`), `CalibrationView.xaml` e `MainWindow.xaml`, além de guards de valor nos setters das ViewModels.
+  4. **Padronização Cross-Thread:** Delegada execução de `ComboBoxSelectionBoxTests` para o `WpfRenderingHost.Run()` e unificado o padrão de `RunOnUi` com `dispatcher.Invoke` síncrono quando fora da UI thread em `PowerTestViewModel` e `KlaDeterminationViewModel`.
+  5. **Suíte e Validação Visual:** 23 testes em `ScreenshotCaptureTests` executando em ~11s e gerando 30 imagens sob `docs/evidence/screenshots/{100dpi,125dpi,150dpi}/` cobrindo todas as telas nos temas Claro e Escuro. Testes automatizados verificaram ausência de truncamento de texto, integridade de layout e entropia de pixels.
+  6. **Reativação de `ThemeServiceTests`:** O teste de ciclo de temas anteriormente ignorado foi reativado e passa 100%. Total da suíte expandido para 1116 testes com 100% de aprovação e zero ignorados. Formalizado no [ADR D-040](DECISIONS.md#d-040--captura-automatizada-de-screenshots-via-rendertargetbitmap-em-thread-sta-isolada-e-resolução-do-erro-com-0x80004002).
 
 ---
 

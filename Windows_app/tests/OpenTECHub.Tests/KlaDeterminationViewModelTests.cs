@@ -523,8 +523,11 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _runner.Phase = RunPhase.Reviewing;
         _runner.RaiseStateChanged();
 
-        // Wait a short moment for async auto-accept delay
-        await Task.Delay(250);
+        // Wait adaptively for async auto-accept delay and runner advancement
+        for (var i = 0; i < 40 && _runner.CurrentCondition?.AgitationRpm != 600; i++)
+        {
+            await Task.Delay(50);
+        }
 
         // Runner should have auto-accepted condition 1 and advanced to condition 2
         Assert.NotNull(_runner.CurrentCondition);

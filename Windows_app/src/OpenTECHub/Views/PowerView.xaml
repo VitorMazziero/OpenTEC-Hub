@@ -736,8 +736,8 @@
                                 </Grid.RowDefinitions>
                                 <DockPanel Margin="5,2,5,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <RadioButton Content="Np × Re" GroupName="PowerChartTab" IsChecked="{Binding ShowFloodingChart, Converter={StaticResource InverseBool}}" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                        <RadioButton Content="PG/P₀ × FlG (Flooding)" GroupName="PowerChartTab" IsChecked="{Binding ShowFloodingChart}" VerticalAlignment="Center" />
+                                        <RadioButton Content="Np × Re" IsChecked="{Binding ShowFloodingChart, Converter={StaticResource InverseBool}}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                        <RadioButton Content="PG/P₀ × FlG (Flooding)" IsChecked="{Binding ShowFloodingChart}" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center">
                                         <TextBlock.Style>

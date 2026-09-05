@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="OpenTECHub.Views.CalibrationView"
+<UserControl x:Class="OpenTECHub.Views.CalibrationView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
@@ -106,10 +106,10 @@
                                                Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,10" />
 
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" IsEnabled="{Binding CanStart}">
-                                        <RadioButton Content="Dois pontos" GroupName="PHCalibrationMode"
+                                        <RadioButton Content="Dois pontos"
                                                      IsChecked="{Binding IsTwoPoint, Mode=TwoWay}"
                                                      VerticalAlignment="Center" Margin="0,0,16,0" />
-                                        <RadioButton Content="Um ponto (só intercepto)" GroupName="PHCalibrationMode"
+                                        <RadioButton Content="Um ponto (só intercepto)"
                                                      IsChecked="{Binding IsOnePoint, Mode=TwoWay}"
                                                      VerticalAlignment="Center" />
                                     </StackPanel>
@@ -218,10 +218,10 @@
                                                Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,10" />
 
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" IsEnabled="{Binding CanStart}">
-                                        <RadioButton Content="Dois pontos" GroupName="OxygenCalibrationMode"
+                                        <RadioButton Content="Dois pontos"
                                                      IsChecked="{Binding IsTwoPoint, Mode=TwoWay}"
                                                      VerticalAlignment="Center" Margin="0,0,16,0" />
-                                        <RadioButton Content="Um ponto (só intercepto)" GroupName="OxygenCalibrationMode"
+                                        <RadioButton Content="Um ponto (só intercepto)"
                                                      IsChecked="{Binding IsOnePoint, Mode=TwoWay}"
                                                      VerticalAlignment="Center" />
                                     </StackPanel>

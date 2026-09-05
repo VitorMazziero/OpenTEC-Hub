@@ -52,7 +52,7 @@ public partial class KlaDeterminationView : UserControl
 
     private void SubscribeToThemeChanges()
     {
-        var theme = ((App)Application.Current).Services?.GetService<IThemeService>();
+        var theme = (Application.Current as App)?.Services?.GetService<IThemeService>();
         if (theme != null)
         {
             theme.ThemeChanged -= OnThemeChanged;
@@ -62,7 +62,7 @@ public partial class KlaDeterminationView : UserControl
 
     private void UnsubscribeFromThemeChanges()
     {
-        var theme = ((App)Application.Current).Services?.GetService<IThemeService>();
+        var theme = (Application.Current as App)?.Services?.GetService<IThemeService>();
         if (theme != null)
         {
             theme.ThemeChanged -= OnThemeChanged;

@@ -1726,9 +1726,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void OnRunnerStateChanged()
     {
-        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.HasShutdownStarted && !dispatcher.CheckAccess())
         {
-            dispatcher.BeginInvoke(OnRunnerStateChanged);
+            dispatcher.Invoke(OnRunnerStateChanged);
             return;
         }
         Phase = _runner.Phase;

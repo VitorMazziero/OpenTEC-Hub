@@ -71,7 +71,13 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
     public bool IsOnePoint
     {
         get => !IsTwoPoint;
-        set => IsTwoPoint = !value;
+        set
+        {
+            if (value != !IsTwoPoint)
+            {
+                IsTwoPoint = !value;
+            }
+        }
     }
 
     public string ProcedureTitle => IsTwoPoint

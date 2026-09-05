@@ -57,7 +57,7 @@ public partial class KlaMappingView : UserControl
 
     private void SubscribeToThemeChanges()
     {
-        var theme = ((App)Application.Current).Services?.GetService<OpenTECHub.Services.Theme.IThemeService>();
+        var theme = (Application.Current as App)?.Services?.GetService<OpenTECHub.Services.Theme.IThemeService>();
         if (theme != null)
         {
             theme.ThemeChanged -= OnThemeChanged;
@@ -67,7 +67,7 @@ public partial class KlaMappingView : UserControl
 
     private void UnsubscribeFromThemeChanges()
     {
-        var theme = ((App)Application.Current).Services?.GetService<OpenTECHub.Services.Theme.IThemeService>();
+        var theme = (Application.Current as App)?.Services?.GetService<OpenTECHub.Services.Theme.IThemeService>();
         if (theme != null)
         {
             theme.ThemeChanged -= OnThemeChanged;

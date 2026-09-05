@@ -172,7 +172,13 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
     public bool IsOnePoint
     {
         get => !IsTwoPoint;
-        set => IsTwoPoint = !value;
+        set
+        {
+            if (value != !IsTwoPoint)
+            {
+                IsTwoPoint = !value;
+            }
+        }
     }
 
     public string ProcedureTitle => IsTwoPoint

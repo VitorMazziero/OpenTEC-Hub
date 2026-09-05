@@ -48,8 +48,8 @@ public sealed class ThemeService : IThemeService, IDisposable
         @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     private const string AppsUseLightThemeValue = "AppsUseLightTheme";
 
-    private static readonly Uri LightTokens = new("Themes/Tokens.Light.xaml", UriKind.Relative);
-    private static readonly Uri DarkTokens = new("Themes/Tokens.Dark.xaml", UriKind.Relative);
+    private static readonly Uri LightTokens = new("pack://application:,,,/OpenTECHub;component/Themes/Tokens.Light.xaml", UriKind.Absolute);
+    private static readonly Uri DarkTokens = new("pack://application:,,,/OpenTECHub;component/Themes/Tokens.Dark.xaml", UriKind.Absolute);
 
     private readonly ILogger<ThemeService> _log;
     private ThemePreference _preference = ThemePreference.System;

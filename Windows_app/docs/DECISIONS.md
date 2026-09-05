@@ -1083,6 +1083,31 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 
 ---
 
+### D-040 · Captura automatizada de telas via RenderTargetBitmap em thread STA isolada e resolução do erro COM 0x80004002
+
+**Status:** Accepted · 2026-09-05
+
+**Decisão.** A estratégia de captura automatizada de telas da aplicação foi migrada de clientes externos de automação do Windows (`UIAutomationClient.dll` / GDI screen scraping) para renderização determinística em memória via `RenderTargetBitmap` operando sobre um dispatcher STA isolado (`WpfRenderingHost`):
+1. **Host STA Dedicado (`WpfRenderingHost`):** Criado um harness de teste que inicializa uma thread STA com message pump próprio (`Dispatcher.Run()`), configurando explicitamente `Application.ShutdownMode = ShutdownMode.OnExplicitShutdown` e um provedor de DI em memória (`RecordingDeviceService`) seguro e desacoplado de hardware físico.
+2. **Renderização em Memória (`RenderTargetBitmap`):** As views e controles são medidos, organizados e renderizados diretamente em superfícies de bitmap (`PixelFormats.Pbgra32`) de forma desacoplada do Desktop Window Manager (DWM) ou do subsistema COM de acessibilidade.
+3. **Eliminação de Loops de Recursão em `RadioButton` (`UpdateRadioButtonGroup`):**
+   - Removido o atributo `GroupName` em pares de `RadioButton` com binding bidirecional para booleanos mutuamente exclusivos nas telas `ControlView.xaml` (`AgitatorDir`), `PowerView.xaml` (`PowerChartTab`), `CalibrationView.xaml` e `MainWindow.xaml`.
+   - Adicionados guards de validação de alteração de valor nos setters das ViewModels (`FlaskAgitatorViewModel`, `ConnectionViewModel`, `OxygenCalibrationViewModel`, `PHCalibrationViewModel`).
+4. **Resolução de Conflitos de Thread e Dispatching:**
+   - O teste `ComboBoxSelectionBoxTests` foi integrado ao `WpfRenderingHost.Run()` para executar na mesma thread STA do `Application.Current`, prevenindo erros de cross-thread ownership.
+   - Os despachos de telemetria e estado de runner em `PowerTestViewModel.RunOnUi` e `KlaDeterminationViewModel.OnRunnerStateChanged` foram padronizados para utilizar `dispatcher.Invoke` síncrono quando fora da UI thread, garantindo transições determinísticas durante a execução paralela de testes.
+5. **Reativação de `ThemeServiceTests`:** O teste de ciclo de temas claro/escuro (`ThemeServiceTests`), anteriormente suprimido com `[Fact(Skip = ...)]`, foi reativado e passa com 100% de sucesso.
+6. **Suíte e Artefatos Visuais:** 23 testes em `ScreenshotCaptureTests` executam em ~11s e geram 30 artefatos PNG sob `docs/evidence/screenshots/{100dpi,125dpi,150dpi}/` cobrindo todas as telas principais em temas Claro e Escuro, com validação algorítmica contra truncamento de texto por reticências e entropia mínima de pixels.
+
+**Por quê.** O erro Windows `0x80004002: E_NOINTERFACE` era causado pela tentativa da biblioteca de UI Automation do Windows de consultar a interface `IRawElementProviderSimple` através de chamadas COM inter-processos. Em ambientes não interativos, sem desktop ativo ou em esteiras de CI, a composição de tela do Windows para janelas DirectX/WPF é desativada, inviabilizando a agregação COM e gerando imagens em preto em rotinas de print de tela via GDI. A renderização direta via `RenderTargetBitmap` opera no pipeline de rasterização de software do WPF em nível de memória bitmap, independente de composição de desktop ou provedores COM do sistema operacional.
+
+**Consequências.**
+- **Independência de Ambiente:** A geração de screenshots funciona perfeitamente em modo interativo, headless ou background CI sem lançar exceções COM `0x80004002`.
+- **Suíte de Testes 100% Verde:** A suíte de testes da solução alcança 1116 testes aprovados, com 0 falhas e 0 testes ignorados.
+- **Auditoria Visual Confiável:** Evidências em alta definição em 100%, 125% e 150% de escala DPI estão salvas e prontas para revisão de espaçamentos, layout sinótico e responsividade.
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

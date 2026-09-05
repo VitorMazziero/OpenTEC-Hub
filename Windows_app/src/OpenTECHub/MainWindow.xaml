@@ -11,7 +11,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="OpenTEC-Hub"
-        Icon="pack://application:,,,/Resources/Icons/app_icon.ico"
+        Icon="pack://application:,,,/OpenTECHub;component/Resources/Icons/app_icon.ico"
         Width="1280" Height="800"
         MinWidth="960" MinHeight="640"
         WindowStartupLocation="CenterScreen"
@@ -192,7 +192,7 @@
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Application Icon -->
-                    <Image Source="pack://application:,,,/Resources/Icons/app_icon.ico"
+                    <Image Source="pack://application:,,,/OpenTECHub;component/Resources/Icons/app_icon.ico"
                            Width="24" Height="24"
                            Margin="0,0,10,0"
                            RenderOptions.BitmapScalingMode="HighQuality" />
@@ -303,7 +303,7 @@
                             </Border.Effect>
                             <StackPanel DataContext="{Binding Connection}">
 
-                                <RadioButton Content="USB" GroupName="Medium" Margin="0,0,0,6"
+                                <RadioButton Content="USB" Margin="0,0,0,6"
                                              IsChecked="{Binding UseUsb, Mode=TwoWay}" />
                                 <Grid Margin="18,0,0,10">
                                     <Grid.ColumnDefinitions>
@@ -318,7 +318,7 @@
                                             Command="{Binding RefreshPortsCommand}" />
                                 </Grid>
 
-                                <RadioButton Content="Wi-Fi" GroupName="Medium" Margin="0,0,0,6"
+                                <RadioButton Content="Wi-Fi" Margin="0,0,0,6"
                                              IsChecked="{Binding UseWiFi, Mode=TwoWay}" />
                                 <TextBox Margin="18,0,0,12"
                                          Text="{Binding IpAddress, UpdateSourceTrigger=PropertyChanged}" />

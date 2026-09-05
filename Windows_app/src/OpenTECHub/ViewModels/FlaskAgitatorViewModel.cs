@@ -167,7 +167,13 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
     public bool CounterClockwise
     {
         get => !Clockwise;
-        set => Clockwise = !value;
+        set
+        {
+            if (value != !Clockwise)
+            {
+                Clockwise = !value;
+            }
+        }
     }
 
     partial void OnMagnitudePercentChanged(double value)

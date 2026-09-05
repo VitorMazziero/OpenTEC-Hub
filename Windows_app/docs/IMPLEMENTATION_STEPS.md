@@ -14,7 +14,7 @@
    - [AUD-001 (P0): Parada segura global silenciosamente recusada](#etapa-11--aud-001-p0-parada-segura-global-recusada-durante-receita-ativa) `[CONCLUÍDO]`
    - [AUD-002 (P0): Controles manuais sem bloqueio visual por posse](#etapa-12--aud-002-p0-controles-manuais-sem-bloqueio-visual-sob-posse-da-receita) `[CONCLUÍDO]`
    - [AUD-003 (P1): Observabilidade da aceitação de comandos manuais](#etapa-13--aud-003-p1-aceitação-de-comando-manual-não-observável-pelas-viewmodels) `[CONCLUÍDO]`
-   - [AUD-004 (P1): Retentativa de gás proporcional após recusa](#etapa-14--aud-004-p1-retentativa-de-gás-proporcional-suprimida-após-recusa-de-despacho)
+   - [AUD-004 (P1): Retentativa de gás proporcional após recusa](#etapa-14--aud-004-p1-retentativa-de-gás-proporcional-suprimida-após-recusa-de-despacho) `[CONCLUÍDO]`
    - [AUD-005 (P1): Envio de limiares de biomassa na perda de foco](#etapa-15--aud-005-p1-limiares-de-biomassa-enviados-ao-perder-foco-do-teclado)
    - [AUD-006 (P1): Estabilização do tempo de inicialização (First-Frame)](#etapa-16--aud-006-p1-tempo-de-inicialização-first-frame-instável-e-acima-da-meta)
    - [AUD-007 (P1): Recibo de gráficos em pacote publicado (Self-Contained)](#etapa-17--aud-007-p1-recibo-de-gráficos-em-executável-empacotado-publish)
@@ -42,15 +42,15 @@
 
 | Eixo | Total de Itens | Concluídos | Pendentes | Status Global |
 |---|:---:|:---:|:---:|---|
-| **1. Software Desktop (OpenTEC-Hub)** | 10 | 3 | 7 | 🟡 Em progresso (P0s e AUD-003 resolvidos) |
+| **1. Software Desktop (OpenTEC-Hub)** | 10 | 4 | 6 | 🟡 Em progresso (P0s, AUD-003 e AUD-004 resolvidos) |
 | **2. Ensaios de Potência e kLa** | 7 blocos | 0 | 7 | 🔬 Aguardando bancada física |
 | **3. Firmware ESP32-S3 e Servo** | 7 | 0 | 7 | 🔬 Aguardando bancada física |
 | **4. Enlace e Protocolo Geral** | 3 | 0 | 3 | 📋 Especificado / A validar |
 
 ```mermaid
 pie title Status Geral dos Itens de Implementação
-    "Concluídos (P0s + AUD-003)" : 3
-    "Software Pendente" : 7
+    "Concluídos (P0s + AUD-003/004)" : 4
+    "Software Pendente" : 6
     "Hardware / Bancada Física" : 17
 ```
 
@@ -129,24 +129,26 @@ pie title Status Geral dos Itens de Implementação
 
 ### Etapa 1.4 · AUD-004 (P1): Retentativa de gás proporcional suprimida após recusa de despacho
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** ⏳ **PRÓXIMO PASSO DE IMPLEMENTAÇÃO**
+- **Status:** ✅ **CONCLUÍDO (05/09/2026)**
 - **Arquivos Envolvidos:**
   - `src/OpenTECHub/ViewModels/PumpControlViewModel.cs`
+  - `tests/OpenTECHub.Tests/ControlViewModelTests.cs`
   - `tests/OpenTECHub.Tests/ExternalDeviceTests.cs`
-  - `tests/OpenTECHub.Tests/PumpControlViewModelTests.cs`
-- **Diagnóstico:**
-  No método `PumpControlViewModel.MaybeSendProportionalGas`, a variável `_lastGasFlowSentLpm` é atualizada incondicionalmente logo após a chamada de envio. Se a cascata ou controle de oxigênio detiver a posse da aeração no momento, o árbitro rejeita o frame, mas a bomba assume o valor como entregue e não retenta até que o cálculo de vazão varie além da banda morta.
-- **Passo a Passo de Implementação:**
-  1. Atualizar `_lastGasFlowSentLpm` **apenas** quando `dispatcher.Dispatch(frame).Accepted == true`.
-  2. Assinar os eventos de posse do árbitro ou monitorar a transição da aeração para `CommandOwner.Manual`.
-  3. Ao detectar que o atuador `Aeration` foi liberado, disparar retentativa imediata com o último valor proporcional calculado.
-  4. Testes: Pinar recusa sob cascata ativa -> verificar que target permanece não-comitado -> liberar posse de aeração -> comprovar envio automático com sucesso.
+  - `docs/DECISIONS.md` (ADR D-037)
+- **Problema Resolvido:**
+  No método `PumpControlViewModel.MaybeSendProportionalGas`, a variável `_lastGasFlowSentLpm` não era tratada de forma reativa a eventos de arbitragem de posse. Quando o controle automático ou receita assumia a aeração, o despacho era recusado, mas o ViewModel não observava a liberação posterior do atuador para `CommandOwner.Manual`. Caso o volume permanecesse sem variação suficiente para vencer a banda morta (`GasFlowResendThresholdLpm`), o acoplamento permanecia desativado silenciosamente no hardware.
+- **Implementação Realizada:**
+  1. **Assinatura de Eventos do Árbitro:** `PumpControlViewModel` agora assina `_arbiter.OwnershipChanged` e `_arbiter.OwnershipRevoked`, rastreando também `ActuatorId.ExternalPump` e `ActuatorId.Aeration`.
+  2. **Invalidação e Sinalização Reativa:** Ao detectar reivindicação externa da aeração (`transfer.To != CommandOwner.Manual`), o ViewModel limpa `_lastGasFlowSentLpm = null` e marca `_gasRetryPending = true; _aerationOverridden = true;`.
+  3. **Retentativa Forçada Automática:** Ao detectar liberação da aeração para `CommandOwner.Manual`, o ViewModel aciona imediatamente `MaybeSendProportionalGas(force: true)`, ignorando o limiar de banda morta e restabelecendo a vazão proporcional no hardware sem necessitar de novas telemetrias.
+  4. **Avanço Condicional de Estado:** `_lastGasFlowSentLpm` avança para o valor calculado exclusivamente após confirmação de aceite (`result.Accepted == true`). Em recusa, `StatusText` exibe a mensagem amigável via `DispatchRefusal.Describe(result)`.
+  5. **Testes Automatizados:** Adicionados 3 testes dedicados em `ExternalDeviceTests.cs` cobrindo retentativa automática sem nova telemetria, reenvio com target inalterado e atualização de setpoint sob variação de volume durante o travamento (1092 testes aprovados, 0 falhas).
 
 ---
 
 ### Etapa 1.5 · AUD-005 (P1): Limiares de biomassa enviados ao perder foco do teclado
 - **Prioridade:** P1 — Bloqueador de Release 0.25.0
-- **Status:** 📋 A Fazer
+- **Status:** ⏳ **PRÓXIMO PASSO DE IMPLEMENTAÇÃO**
 - **Arquivos Envolvidos:**
   - `src/OpenTECHub/Views/ControlView.xaml`
   - `src/OpenTECHub/Views/ControlView.xaml.cs`
@@ -423,8 +425,8 @@ gantt
     section Fase A: Software Desktop (P1)
     AUD-001 e AUD-002 (P0)         :done, a1, 2026-09-01, 2026-09-05
     AUD-003: Observabilidade Despacho :done, a2, 2026-09-05, 2026-09-06
-    AUD-004: Retentativa Gás Prop.    :active, a3, 2026-09-06, 2026-09-07
-    AUD-005: Limiares Biomassa Focus :a4, 2026-09-11, 2026-09-12
+    AUD-004: Retentativa Gás Prop.    :done, a3, 2026-09-06, 2026-09-07
+    AUD-005: Limiares Biomassa Focus :active, a4, 2026-09-07, 2026-09-09
     AUD-006 & AUD-007: Boot & Gráficos :a5, 2026-09-13, 2026-09-16
     AUD-008 & Empacotamento Fase 6     :a6, 2026-09-17, 2026-09-20
     section Fase B: Bancada Física e Servo

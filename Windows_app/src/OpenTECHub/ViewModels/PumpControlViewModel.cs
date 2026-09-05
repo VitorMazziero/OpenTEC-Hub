@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -44,6 +45,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     private const double GasFlowResendThresholdLpm = 0.01;
 
     private readonly IDeviceService _device;
+    private readonly ICommandArbiter? _arbiter;
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private bool _initialised;
@@ -57,15 +59,21 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     private double _lastPumpVolumeMl;
     private double? _lastGasFlowSentLpm;
 
+    /// <summary>True when proportional gas was refused or overridden and needs automatic retry upon aeration release (AUD-004).</summary>
+    private bool _gasRetryPending;
+    private bool _aerationOverridden;
+
     public PumpControlViewModel(
         IDeviceService device,
         ISettingsService settings,
         IManualDispatcher? dispatcher = null,
+        ICommandArbiter? arbiter = null,
         TimeProvider? timeProvider = null)
     {
         _device = device;
         _settings = settings;
-        _dispatcher = dispatcher ?? new ManualDispatcher(device);
+        _arbiter = arbiter ?? (device as ICommandArbiter);
+        _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher((_arbiter as IDeviceService) ?? device);
         _committed = settings.Current.PumpControl;
         Status = new ExternalDeviceStatus(DeviceNames.ExternalPump, "da bomba externa", timeProvider);
         Status.PropertyChanged += OnStatusChanged;
@@ -82,6 +90,20 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         Load(_committed);
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnDeviceStateChanged;
+
+        if (_arbiter is not null)
+        {
+            CurrentOwner = _arbiter.OwnerOf(ActuatorId.ExternalPump);
+            _aerationOverridden = _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.Manual;
+            if (_aerationOverridden)
+            {
+                _gasRetryPending = true;
+            }
+
+            _arbiter.OwnershipChanged += OnOwnershipChanged;
+            _arbiter.OwnershipRevoked += OnOwnershipRevoked;
+        }
+
         _initialised = true;
         ValidateAndRefresh();
         HasPendingChange = false;
@@ -262,6 +284,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         }
 
         _lastGasFlowSentLpm = null;
+        _gasRetryPending = false;
+        _aerationOverridden = false;
 
         var disable = _dispatcher.DispatchSeparateFrame(CommandBuilders.PumpRoutingDisabled());
         if (!disable.Accepted)
@@ -313,6 +337,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         if (_initialised && !value)
         {
             _lastGasFlowSentLpm = null;
+            _gasRetryPending = false;
+            _aerationOverridden = false;
             StatusText = "Acoplamento de gás proporcional desativado; a vazão permanece no último valor.";
         }
     }
@@ -387,6 +413,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         IsEnabled = false;
         _initialised = true;
         _lastGasFlowSentLpm = null;
+        _gasRetryPending = false;
+        _aerationOverridden = false;
     }
 
     public bool TryGetStagedSettings(out PumpControlSettings settings)
@@ -642,8 +670,10 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     /// <summary>
     /// While the coupling is active, drive the air flow from the pump volume, sending only when
     /// the target moves materially. Refused by the arbiter if the cascade owns aeration.
+    /// When <paramref name="force"/> is true, bypasses the resend threshold check to re-establish
+    /// coupling immediately upon ownership restoration (AUD-004).
     /// </summary>
-    private void MaybeSendProportionalGas()
+    private void MaybeSendProportionalGas(bool force = false)
     {
         // A dead node's last volume is not a measurement. The parser invalidates PumpVolume
         // when the pump goes absent, and recomputing Q_g from the zero that leaves behind
@@ -666,7 +696,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         var maxFlow = _settings.Current.Setpoints.MaxFlowLitresPerMinute;
         var qg = Math.Clamp((v0 + (_lastPumpVolumeMl / 1000.0)) * vvm, 0.0, maxFlow);
 
-        if (_lastGasFlowSentLpm is { } last && Math.Abs(qg - last) < GasFlowResendThresholdLpm)
+        if (!force && _lastGasFlowSentLpm is { } last && Math.Abs(qg - last) < GasFlowResendThresholdLpm)
         {
             return;
         }
@@ -679,11 +709,22 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             // Aeration is owned by the cascade or a recipe. Remembering qg as sent would
             // suppress every retry until the calculated flow moved by the resend threshold,
             // so the coupling would stay dead long after ownership came back (AUD-004).
+            _lastGasFlowSentLpm = null;
+            _gasRetryPending = true;
+            _aerationOverridden = true;
             StatusText = DispatchRefusal.Describe(result);
             return;
         }
 
+        var wasOverriddenOrPending = _gasRetryPending || _aerationOverridden;
         _lastGasFlowSentLpm = qg;
+        _gasRetryPending = false;
+        _aerationOverridden = false;
+
+        if (wasOverriddenOrPending)
+        {
+            StatusText = $"Vazão proporcional restabelecida ({qg.ToString("F2", CultureInfo.CurrentCulture)} L/min).";
+        }
     }
 
     private bool TryParseGas(out bool enabled, out double initialVolume, out double vvm)
@@ -773,10 +814,60 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void OnOwnershipChanged(OwnershipTransfer transfer)
+        => RunOnUi(() => HandleOwnershipTransfer(transfer));
+
+    private void OnOwnershipRevoked(OwnershipTransfer transfer)
+        => RunOnUi(() => HandleOwnershipTransfer(transfer));
+
+    private void HandleOwnershipTransfer(OwnershipTransfer transfer)
+    {
+        if (transfer.Actuators.Contains(ActuatorId.ExternalPump))
+        {
+            CurrentOwner = transfer.To;
+        }
+
+        if (transfer.Actuators.Contains(ActuatorId.Aeration))
+        {
+            if (transfer.To == CommandOwner.Manual)
+            {
+                if (_gasRetryPending || _aerationOverridden || (GasProportionalEnabled && IsEnabled))
+                {
+                    _aerationOverridden = false;
+                    MaybeSendProportionalGas(force: true);
+                }
+            }
+            else
+            {
+                _aerationOverridden = true;
+                _lastGasFlowSentLpm = null;
+                _gasRetryPending = true;
+            }
+        }
+    }
+
+    private static void RunOnUi(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(action);
+        }
+        else
+        {
+            action();
+        }
+    }
+
     public void Dispose()
     {
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnDeviceStateChanged;
         Status.PropertyChanged -= OnStatusChanged;
+        if (_arbiter is not null)
+        {
+            _arbiter.OwnershipChanged -= OnOwnershipChanged;
+            _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+        }
     }
 }

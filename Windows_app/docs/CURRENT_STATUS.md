@@ -21,12 +21,12 @@ panel lines are unified on `main` through `230c6ce`. All 20 local branches are a
 none carries a commit outside it. The application core is substantially built, but **0.24.0 is not
 yet a field-release candidate**.
 
-The P0 findings AUD-001 e AUD-002 e a P1 AUD-003 estão agora **resolvidas (05/09/2026)**. Os itens abaixo
+The P0 findings AUD-001 e AUD-002 e as P1s AUD-003 e AUD-004 estão agora **resolvidas (05/09/2026)**. Os itens abaixo
 refletem a estabilização e verificação das pendências restantes de release.
 
 The remaining work is concentrated in:
 
-1. completing remaining arbitration and control findings (AUD-004, AUD-005);
+1. completing remaining control findings (AUD-005: foco e limiares de biomassa);
 2. stabilizing startup, chart dependencies and the code-quality gate;
 3. completing visual/operator review and real-hardware receipts; and
 4. packaging the application for field use.
@@ -161,13 +161,13 @@ Todas as ViewModels de atuação e despacho manual foram migradas da chamada leg
 
 ### AUD-004 — P1 — proportional-gas retry is suppressed after a refused dispatch
 
-`PumpControlViewModel.MaybeSendProportionalGas` records `_lastGasFlowSentLpm` immediately after the
-`void` send. If the cascade owns aeration, the arbiter refuses the frame, but the pump remembers the
-target as sent and will not retry until the calculated flow changes by the resend threshold.
+**Resolvido (05/09/2026).**
 
-Required correction: advance the last-accepted value only when dispatch succeeds and retry when
-aeration ownership returns to Manual. Tests must pin refusal, unchanged target, ownership release and
-successful retry.
+`PumpControlViewModel` agora assina os eventos de transição de posse do `ICommandArbiter` (`OwnershipChanged` e `OwnershipRevoked`).
+Quando o atuador de aeração (`ActuatorId.Aeration`) é tomado por outro controlador (como cascata de oxigênio em `Automatic` ou receitas em `Recipe`), o ViewModel invalida o último setpoint entregue (`_lastGasFlowSentLpm = null`) e sinaliza pendência de retentativa (`_gasRetryPending = true; _aerationOverridden = true;`).
+Quando a posse da aeração retorna para `CommandOwner.Manual`, o ViewModel intercepta a transição imediatamente e dispara um envio forçado (`MaybeSendProportionalGas(force: true)`), ignorando a banda morta de reenvio (`GasFlowResendThresholdLpm`) para garantir que a vazão calculada $Q_g = (V_0 + V_{\text{bomba}}/1000) \cdot \text{vvm}$ seja restaurada no hardware mesmo que o valor de volume não tenha sofrido alteração e sem depender de novos pacotes de telemetria.
+O valor de último envio aceito só avança quando o despacho é efetivamente confirmado pelo árbitro (`result.Accepted == true`).
+Cobertura de testes automatizados adicionada em `ExternalDeviceTests.cs` (1092 testes aprovados, 0 falhas).
 
 ### AUD-005 — P1 — biomass thresholds send on focus loss despite an explicit apply action
 
@@ -304,8 +304,8 @@ release checklist and rollback instructions are complete.
 Do not bump/release until all of the following are true:
 
 - [x] AUD-001 e AUD-002 (P0) fechados em 05/09/2026 com testes de receita ativa e segurança física
-- [ ] AUD-004 through AUD-007 closed (AUD-003 fechado em 05/09/2026); no false command-success state
-- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **05/09: 1089/1 skip/0 fail**; re-confirm at release time
+- [ ] AUD-005 through AUD-007 closed (AUD-001..AUD-004 fechados em 05/09/2026); no false command-success state
+- [x] `dotnet test OpenTECHub.slnx -c Release` passes with no unexpected skip — **05/09: 1092/1 skip/0 fail**; re-confirm at release time
 - [ ] Release build and self-contained publish have zero warnings, including `NU1701`
 - [ ] `dotnet format OpenTECHub.slnx --verify-no-changes --no-restore` passes
 - [ ] package vulnerability scan reports no known vulnerabilities

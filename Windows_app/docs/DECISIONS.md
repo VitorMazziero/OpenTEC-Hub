@@ -1026,6 +1026,24 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 - **Diagnóstico Claro:** O operador é informado exatamente sobre qual parâmetro foi recusado e qual controlador detém o atuador (Receita, Controle O₂, Ensaio de kLa, Ensaio de Potência).
 - **Retrocompatibilidade e Robustez:** Testes unitários com dublês simples (`RecordingDeviceService`) continuam funcionando normalmente graças ao fallback interno no `ManualDispatcher`.
 
+### D-037 · Retentativa reativa automática do acoplamento de gás proporcional sob liberação de posse (AUD-004)
+
+**Decisão.** O `PumpControlViewModel` passa a monitorar ativamente os eventos de posse do `ICommandArbiter` (`OwnershipChanged` e `OwnershipRevoked`):
+1. O construtor recebe `ICommandArbiter? arbiter = null` (com fallback retrocompatível `_arbiter = arbiter ?? (device as ICommandArbiter)`).
+2. Quando `ActuatorId.Aeration` é reivindicado por outro controlador (`transfer.To != CommandOwner.Manual`), o ViewModel invalida o último setpoint gravado (`_lastGasFlowSentLpm = null`) e sinaliza a pendência de retentativa (`_gasRetryPending = true; _aerationOverridden = true;`).
+3. Quando a aeração retorna para `CommandOwner.Manual` (`transfer.To == CommandOwner.Manual`), o ViewModel intercepta a transição e, se o acoplamento estiver ativo (`GasProportionalEnabled && IsEnabled`), dispara imediatamente um despacho forçado (`MaybeSendProportionalGas(force: true)`).
+4. O parâmetro `force: true` ignora a verificação de banda morta (`Math.Abs(qg - last) < GasFlowResendThresholdLpm`), assegurando que a vazão proporcional correta seja restabelecida no hardware sem depender de variação no volume ou de novas telemetrias.
+5. O avanço de `_lastGasFlowSentLpm = qg` ocorre **exclusivamente** após aceite pelo árbitro (`result.Accepted == true`).
+6. Se o despacho for recusado pelo árbitro, `_lastGasFlowSentLpm` permanece nulo, a pendência permanece ativa e a mensagem descritiva de recusa com atuador e proprietário é exibida no `StatusText`.
+7. O atuador `ActuatorId.ExternalPump` também é rastreado para manter `CurrentOwner` sincronizado diretamente pelos eventos do árbitro.
+
+**Por quê.** O apontamento AUD-004 diagnosticou que quando a cascata de oxigênio ou receitas em execução assumiam a aeração, o quadro de gás proporcional era recusado atomicamente pelo árbitro, mas a bomba não monitorava a liberação da posse. Caso o volume não variasse acima de 0,01 L/min ou não chegassem novas telemetrias, o acoplamento permanecia suprimido indefinidamente pela banda morta, deixando o biorreator na vazão residual deixada pelo controlador anterior.
+
+**Consequências.**
+- **Restauração garantida do bioprocesso:** Ao término de uma cascata de oxigênio ou receita, o acoplamento de gás proporcional reassume o controle da aeração de forma determinística e imediata.
+- **Zero supressão indevida:** A banda morta filtra ruído em regime permanente normal, mas nunca bloqueia a reconexão pós-desengajamento de automação prioritária.
+- **Integridade de testes:** A suíte passa a contar com testes de integração cobrindo recusa por posse externa, target inalterado e retentativa imediata com sucesso após liberação da posse.
+
 ---
 
 ## Open questions

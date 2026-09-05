@@ -97,6 +97,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   exportação PNG foi removida intencionalmente dessa barra; a exportação CSV permanece.
 
 ### Fixed
+- **Retentativa automática reativa de gás proporcional na liberação de aeração (AUD-004).**
+  O `PumpControlViewModel` agora assina os eventos de transição de posse do `ICommandArbiter` (`OwnershipChanged`
+  e `OwnershipRevoked`). Quando a aeração é tomada por outro controlador (como cascata de oxigênio ou receitas),
+  o último setpoint enviado é invalidado e a retentativa é sinalizada como pendente. Ao término da sobreposição,
+  quando o atuador de aeração retorna para `CommandOwner.Manual`, o ViewModel aciona imediatamente um despacho
+  forçado (`MaybeSendProportionalGas(force: true)`), ignorando a banda morta de reenvio (`GasFlowResendThresholdLpm`)
+  e restaurando a vazão calculada $Q_g = (V_0 + V_{\text{bomba}}/1000) \cdot \text{vvm}$ no hardware sem requerer
+  novas telemetrias ou variação de volume. O setpoint aceito só é registrado após confirmação de sucesso pelo árbitro.
+  Ver [DECISIONS D-037](DECISIONS.md).
 - **Observabilidade completa de aceitação de comandos manuais nas ViewModels (AUD-003).** A migração para
   `IManualDispatcher.Dispatch` com retorno observável `CommandDispatchResult` foi expandida para
   `SubsystemViewModel`, `ControlViewModel` (`ApplyAll`, `ApplyFlowState`), cartões de dosagem

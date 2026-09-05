@@ -1,4 +1,4 @@
-﻿using OpenTECHub.Protocol;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.ViewModels;
@@ -508,6 +508,108 @@ public sealed class ExternalDeviceTests
         Assert.Equal(
             """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             Assert.Single(dispatcher.Sent));
+    }
+
+    [Fact]
+    public void Proportional_gas_automatically_retries_and_delivers_when_aeration_ownership_returns_to_manual()
+    {
+        var targetDevice = new RecordingDeviceService();
+        var arbiter = new CommandArbiter(targetDevice, TimeProvider.System);
+        var dispatcher = new ManualDispatcher(arbiter);
+        using var vm = new PumpControlViewModel(
+            targetDevice, new MemorySettingsService(), dispatcher, arbiter: arbiter)
+        {
+            IsEnabled = true,
+            InitialVolumeText = "1.0",
+            VvmText = "0.5",
+            GasProportionalEnabled = true,
+        };
+
+        targetDevice.Sent.Clear();
+
+        // 1. Cascade claims Aeration.
+        arbiter.Claim(CommandOwner.Automatic, [ActuatorId.Aeration], "Cascade engaged");
+
+        // 2. Telemetry triggers MaybeSendProportionalGas; arbiter refuses because Aeration is owned by Automatic.
+        targetDevice.PushTelemetry(new SensorSnapshot { PumpVolume = 0.0, PumpFlow = 0.0 });
+        Assert.Empty(targetDevice.Sent);
+        Assert.Contains("recusado", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        // 3. Cascade disengages, releasing Aeration back to Manual WITHOUT ANY NEW TELEMETRY.
+        arbiter.Release(CommandOwner.Automatic, "Cascade disengaged");
+
+        // 4. The pump automatically retried upon receiving OwnershipChanged, delivering the target!
+        Assert.Equal(
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            Assert.Single(targetDevice.Sent));
+        Assert.Contains("restabelecida", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Proportional_gas_resends_unchanged_target_when_ownership_is_released()
+    {
+        var targetDevice = new RecordingDeviceService();
+        var arbiter = new CommandArbiter(targetDevice, TimeProvider.System);
+        var dispatcher = new ManualDispatcher(arbiter);
+        using var vm = new PumpControlViewModel(
+            targetDevice, new MemorySettingsService(), dispatcher, arbiter: arbiter)
+        {
+            IsEnabled = true,
+            InitialVolumeText = "1.0",
+            VvmText = "0.5",
+            GasProportionalEnabled = true,
+        };
+
+        targetDevice.Sent.Clear();
+
+        // Telemetry sends initial target (0.5 LPM) and is accepted.
+        targetDevice.PushTelemetry(new SensorSnapshot { PumpVolume = 0.0, PumpFlow = 0.0 });
+        Assert.Single(targetDevice.Sent);
+        targetDevice.Sent.Clear();
+
+        // Recipe claims Aeration.
+        arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Aeration], "Recipe running");
+
+        // Recipe releases Aeration back to Manual without target having changed.
+        arbiter.Release(CommandOwner.Recipe, "Recipe finished");
+
+        // The unchanged target is re-sent to ensure hardware has the correct flow setpoint.
+        Assert.Equal(
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            Assert.Single(targetDevice.Sent));
+    }
+
+    [Fact]
+    public void Proportional_gas_updates_and_retries_latest_target_after_volume_changes_during_lock()
+    {
+        var targetDevice = new RecordingDeviceService();
+        var arbiter = new CommandArbiter(targetDevice, TimeProvider.System);
+        var dispatcher = new ManualDispatcher(arbiter);
+        using var vm = new PumpControlViewModel(
+            targetDevice, new MemorySettingsService(), dispatcher, arbiter: arbiter)
+        {
+            IsEnabled = true,
+            InitialVolumeText = "1.0",
+            VvmText = "0.5",
+            GasProportionalEnabled = true,
+        };
+
+        targetDevice.Sent.Clear();
+
+        // Cascade owns aeration.
+        arbiter.Claim(CommandOwner.Automatic, [ActuatorId.Aeration], "Cascade engaged");
+
+        // Pump doses 1000 mL during cascade. Qg moves from 0.5 to (1.0 + 1.0) * 0.5 = 1.0 LPM.
+        targetDevice.PushTelemetry(new SensorSnapshot { PumpVolume = 1000.0, PumpFlow = 5.0 });
+        Assert.Empty(targetDevice.Sent);
+
+        // Cascade releases aeration.
+        arbiter.Release(CommandOwner.Automatic, "Cascade disengaged");
+
+        // Pump automatically sends the updated 1.0 LPM flow setpoint.
+        Assert.Equal(
+            """{"flowSetpoint":1.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            Assert.Single(targetDevice.Sent));
     }
 
     /// <summary>

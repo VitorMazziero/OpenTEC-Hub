@@ -250,6 +250,14 @@ public static class WpfRenderingHost
     {
         return Run(() =>
         {
+            // MainWindow decides for itself whether to open maximized - from the saved
+            // placement, or from ShouldStartMaximizedForSmallScreen() on a laptop-sized
+            // panel. Both contradict an offscreen capture, which needs the exact size and
+            // position set below, and WPF refuses outright to Show() a maximized window
+            // with ShowActivated false. Normal is forced first so the capture is the same
+            // on every host, whatever screen the suite happens to run on.
+            window.WindowState = WindowState.Normal;
+
             window.Width = width;
             window.Height = height;
             window.WindowStyle = WindowStyle.None;

@@ -679,7 +679,7 @@ public sealed class ControlViewModelTests
             Foam = new FoamControlViewModel(targetDevice, Settings, Dispatcher);
             Agitator = new FlaskAgitatorViewModel(targetDevice, Settings, Dispatcher);
             Biomass = new BiomassControlViewModel(targetDevice, Settings, Dispatcher);
-            Pump = new PumpControlViewModel(targetDevice, Settings, Dispatcher, arbiter: Arbiter);
+            Pump = new PumpControlViewModel(targetDevice, Settings, Dispatcher, arbiter: Arbiter, cascade: Cascade);
             Servo = new ServoDriveViewModel(targetDevice, Dispatcher);
             Control = new ControlViewModel(
                 Subsystems, Flow, PH, Nutrient, Antifoam, Foam, Agitator, Biomass, Pump, Servo,

@@ -142,7 +142,12 @@ pie title Status Geral dos Itens de Implementação
   2. **Invalidação e Sinalização Reativa:** Ao detectar reivindicação externa da aeração (`transfer.To != CommandOwner.Manual`), o ViewModel limpa `_lastGasFlowSentLpm = null` e marca `_gasRetryPending = true; _aerationOverridden = true;`.
   3. **Retentativa Forçada Automática:** Ao detectar liberação da aeração para `CommandOwner.Manual`, o ViewModel aciona imediatamente `MaybeSendProportionalGas(force: true)`, ignorando o limiar de banda morta e restabelecendo a vazão proporcional no hardware sem necessitar de novas telemetrias.
   4. **Avanço Condicional de Estado:** `_lastGasFlowSentLpm` avança para o valor calculado exclusivamente após confirmação de aceite (`result.Accepted == true`). Em recusa, `StatusText` exibe a mensagem amigável via `DispatchRefusal.Describe(result)`.
-  5. **Testes Automatizados:** Adicionados 3 testes dedicados em `ExternalDeviceTests.cs` cobrindo retentativa automática sem nova telemetria, reenvio com target inalterado e atualização de setpoint sob variação de volume durante o travamento (1092 testes aprovados, 0 falhas).
+  5. **Exclusão Mútua Bidirecional Estrita (ADR D-042):**
+     - O acoplamento de gás proporcional e o controle de oxigênio dissolvido ($DO\%$ por cascata ou mapa) são mutuamente exclusivos.
+     - `ICascadeService.ProportionalGasActivePredicate` consulta o estado ativo do gás proporcional (`IsGasProportionalActive == true`), bloqueando `CanEngage` com mensagem explicativa ao operador.
+     - `PumpControlViewModel` impede a ativação do toggle de gás proporcional ou ativação da bomba com gás proporcional enquanto `_cascade.IsEngaged == true`.
+     - `MaybeSendProportionalGas` aborta emissão de comandos se a cascata de oxigênio estiver em execução.
+  6. **Testes Automatizados:** Adicionados testes dedicados em `CascadeServiceTests.cs` e `ExternalDeviceTests.cs` cobrindo a exclusão mútua em ambas as direções e a integração completa de ciclo de vida (1124 testes aprovados, 0 falhas).
 
 ---
 

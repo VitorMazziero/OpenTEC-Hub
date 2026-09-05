@@ -161,13 +161,16 @@ Todas as ViewModels de atuação e despacho manual foram migradas da chamada leg
 
 ### AUD-004 — P1 — proportional-gas retry is suppressed after a refused dispatch
 
-**Resolvido (05/09/2026).**
+**Resolvido e Reforçado com Exclusão Mútua Estrita (05/09/2026).**
 
-`PumpControlViewModel` agora assina os eventos de transição de posse do `ICommandArbiter` (`OwnershipChanged` e `OwnershipRevoked`).
-Quando o atuador de aeração (`ActuatorId.Aeration`) é tomado por outro controlador (como cascata de oxigênio em `Automatic` ou receitas em `Recipe`), o ViewModel invalida o último setpoint entregue (`_lastGasFlowSentLpm = null`) e sinaliza pendência de retentativa (`_gasRetryPending = true; _aerationOverridden = true;`).
-Quando a posse da aeração retorna para `CommandOwner.Manual`, o ViewModel intercepta a transição imediatamente e dispara um envio forçado (`MaybeSendProportionalGas(force: true)`), ignorando a banda morta de reenvio (`GasFlowResendThresholdLpm`) para garantir que a vazão calculada $Q_g = (V_0 + V_{\text{bomba}}/1000) \cdot \text{vvm}$ seja restaurada no hardware mesmo que o valor de volume não tenha sofrido alteração e sem depender de novos pacotes de telemetria.
-O valor de último envio aceito só avança quando o despacho é efetivamente confirmado pelo árbitro (`result.Accepted == true`).
-Cobertura de testes automatizados adicionada em `ExternalDeviceTests.cs` (1092 testes aprovados, 0 falhas).
+1. **Formulação Matemática e Despacho:**
+   No `PumpControlViewModel`, o acoplamento de gás proporcional calcula a vazão $Q_g = \min\left(\left(V_0 + \frac{V_{\text{bomba}}}{1000}\right) \cdot \text{vvm},\; \text{maxFlow}\right)$, onde $V_0$ é o volume inicial em L, $V_{\text{bomba}}$ é o volume acumulado da bomba em mL, $\text{vvm}$ é a taxa específica de aeração ($\text{min}^{-1}$) e $\text{maxFlow}$ é o limite do fluxômetro. O envio ocorre via `_dispatcher.Dispatch(CommandBuilders.FlowSetpoint(qg, maxFlow, valve1: false, valve2: false))` sobre `ActuatorId.Aeration`.
+2. **Fundamentação de Bioprocesso e Retentativa Reativa:**
+   Em bateladas alimentadas (*fed-batch*), a adição de líquido altera a relação estequiométrica/hidrodinâmica de $vvm$. O acoplamento ajusta dinamicamente $Q_g$ para manter $vvm$ fixo. `PumpControlViewModel` assina os eventos do `ICommandArbiter` (`OwnershipChanged` e `OwnershipRevoked`), invalidando o setpoint entregue sob sobreposição e restaurando a vazão via `MaybeSendProportionalGas(force: true)` quando a aeração é liberada.
+3. **Exclusão Mútua Bidirecional Estrita (Gás Proporcional vs Controle de Oxigênio Dissolvido):**
+   - **Gás Proporcional em Execução Bloqueia Cascata/Mapa:** Enquanto a bomba peristáltica estiver ativa e o gás proporcional habilitado (`IsGasProportionalActive == true`), `ICascadeService.CanEngage` recusa a ativação da malha de oxigênio com o motivo explícito: *"O acoplamento de gás proporcional ao volume dosado está ativo na Bomba Externa. Desative-o para iniciar o controle de oxigênio (cascata/mapa)."*
+   - **Cascata/Mapa em Execução Bloqueia Gás Proporcional:** Enquanto a cascata de oxigênio estiver engajada (`_cascade.IsEngaged == true`), o toggle de `GasProportionalEnabled` e a ativação da bomba com gás proporcional são imediatamente revertidos para desligado com notificação no `StatusText` (*"Gás proporcional indisponível: controle de oxigênio (cascata/mapa) em execução."*), e nenhum frame é disparado por `MaybeSendProportionalGas`.
+   - Cobertura de testes automatizados completa em `CascadeServiceTests.cs` e `ExternalDeviceTests.cs` (1124 testes aprovados, 0 falhas).
 
 ### AUD-005 — P1 — biomass thresholds send on focus loss despite an explicit apply action
 

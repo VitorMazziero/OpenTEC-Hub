@@ -134,4 +134,29 @@ public class CascadeServiceTests
 
         Assert.Equal(4, count);
     }
+
+    [Fact]
+    public void CanEngage_refuses_when_proportional_gas_is_active()
+    {
+        var (service, _, _) = Build();
+        service.ProportionalGasActivePredicate = () => true;
+
+        var canEngage = service.CanEngage(out var reason);
+
+        Assert.False(canEngage);
+        Assert.NotNull(reason);
+        Assert.Contains("gás proporcional", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CanEngage_permits_when_proportional_gas_is_inactive()
+    {
+        var (service, _, _) = Build();
+        service.ProportionalGasActivePredicate = () => false;
+
+        var canEngage = service.CanEngage(out var reason);
+
+        Assert.True(canEngage);
+        Assert.Null(reason);
+    }
 }

@@ -48,10 +48,14 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     private readonly ICommandArbiter? _arbiter;
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
+    private readonly ICascadeService? _cascade;
     private bool _initialised;
 
     /// <summary>Guards the enable setter while a refused toggle is being rolled back.</summary>
     private bool _revertingEnable;
+
+    /// <summary>Guards the gas-proportional toggle while a refused toggle is rolled back.</summary>
+    private bool _revertingGasProportional;
 
     private PumpControlSettings _committed;
 
@@ -68,15 +72,22 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         ISettingsService settings,
         IManualDispatcher? dispatcher = null,
         ICommandArbiter? arbiter = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ICascadeService? cascade = null)
     {
         _device = device;
         _settings = settings;
+        _cascade = cascade;
         _arbiter = arbiter ?? (device as ICommandArbiter);
         _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher((_arbiter as IDeviceService) ?? device);
         _committed = settings.Current.PumpControl;
         Status = new ExternalDeviceStatus(DeviceNames.ExternalPump, "da bomba externa", timeProvider);
         Status.PropertyChanged += OnStatusChanged;
+
+        if (_cascade is not null)
+        {
+            _cascade.ProportionalGasActivePredicate = () => IsGasProportionalActive;
+        }
 
         ModeOptions =
         [
@@ -240,9 +251,13 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     public string StateText => IsEnabled ? "Ativa" : "Desligada";
 
+    /// <summary>True when the pump is active and proportional gas coupling is enabled and driving aeration.</summary>
+    public bool IsGasProportionalActive => _initialised && IsEnabled && GasProportionalEnabled;
+
     partial void OnIsEnabledChanged(bool value)
     {
         OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(IsGasProportionalActive));
         ValidateAndRefresh();
 
         if (!_initialised || _revertingEnable)
@@ -255,6 +270,14 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             RevertEnable(value);
             StatusText = OwnerLockReason ?? "Bomba externa sob controle de outro processo.";
             return;
+        }
+
+        if (value && GasProportionalEnabled && _cascade is { IsEngaged: true })
+        {
+            _revertingGasProportional = true;
+            GasProportionalEnabled = false;
+            _revertingGasProportional = false;
+            StatusText = "Gás proporcional desativado: controle de oxigênio (cascata/mapa) em execução.";
         }
 
         if (value)
@@ -332,6 +355,16 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     partial void OnGasProportionalEnabledChanged(bool value)
     {
+        if (_initialised && !_revertingGasProportional && value && _cascade is { IsEngaged: true })
+        {
+            _revertingGasProportional = true;
+            GasProportionalEnabled = false;
+            _revertingGasProportional = false;
+            StatusText = "Gás proporcional indisponível: controle de oxigênio (cascata/mapa) em execução.";
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsGasProportionalActive));
         RefreshPendingState();
         RefreshGasReadout();
         if (_initialised && !value)
@@ -678,7 +711,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         // A dead node's last volume is not a measurement. The parser invalidates PumpVolume
         // when the pump goes absent, and recomputing Q_g from the zero that leaves behind
         // would silently drop aeration to its base rate; hold the last gas setpoint instead.
-        if (Status.IsOffline)
+        if (Status.IsOffline || (_cascade is { IsEngaged: true }))
         {
             return;
         }
@@ -868,6 +901,11 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         {
             _arbiter.OwnershipChanged -= OnOwnershipChanged;
             _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+        }
+
+        if (_cascade is not null && ReferenceEquals(_cascade.ProportionalGasActivePredicate?.Target, this))
+        {
+            _cascade.ProportionalGasActivePredicate = null;
         }
     }
 }

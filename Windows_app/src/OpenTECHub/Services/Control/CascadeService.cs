@@ -118,6 +118,12 @@ public interface ICascadeService
 
     /// <summary>Applies a new gain schedule (WP8), rebuilding the scheduler around the base tuning.</summary>
     void ConfigureGainSchedule(GainScheduleSettings schedule);
+
+    /// <summary>
+    /// Optional predicate queried by <see cref="CanEngage"/> to verify whether an external subsystem
+    /// (such as proportional gas coupling on the external pump) is currently claiming aeration.
+    /// </summary>
+    Func<bool>? ProportionalGasActivePredicate { get; set; }
 }
 
 /// <inheritdoc cref="ICascadeService"/>
@@ -374,6 +380,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         return _availablePaths;
     }
 
+    public Func<bool>? ProportionalGasActivePredicate { get; set; }
+
     public bool CanEngage(out string? reason)
     {
         if (_device.State is not ConnectionState.Connected)
@@ -385,6 +393,12 @@ public sealed class CascadeService : ICascadeService, IDisposable
         if (Mode == CascadeMode.KlaPath && ActivePath is null)
         {
             reason = "Selecione um mapa kLa publicado para o modo trajetória.";
+            return false;
+        }
+
+        if (ProportionalGasActivePredicate?.Invoke() == true)
+        {
+            reason = "O acoplamento de gás proporcional ao volume dosado está ativo na Bomba Externa. Desative-o para iniciar o controle de oxigênio (cascata/mapa).";
             return false;
         }
 

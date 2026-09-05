@@ -1130,6 +1130,27 @@ atuadores haviam sido desligados, criando um risco crítico de segurança físic
 
 ---
 
+### D-042 · Exclusão mútua bidirecional estrita entre Gás Proporcional e Controle de Oxigênio Dissolvido
+
+**Status:** Accepted · 2026-09-05
+
+**Decisão.** Estabelecida a exclusão mútua bidirecional em nível de domínio de bioprocesso e de interface entre o acoplamento de Gás Proporcional ($vvm$ constante em batelada alimentada) e qualquer malha de controle de oxigênio dissolvido ($DO\%$ via cascata agitação/aeração, aeração pura, agitação pura sob malha de O₂ ou mapa de $k_L a$):
+1. **Controle de Oxigênio Bloqueado por Gás Proporcional:** A interface `ICascadeService` ganha a propriedade `Func<bool>? ProportionalGasActivePredicate { get; set; }`. Em `CascadeService.CanEngage(out string? reason)`, se o predicado retornar `true` (isto é, a bomba peristáltica está ativa com acoplamento habilitado, `IsGasProportionalActive == true`), a ativação da malha de oxigênio é rejeitada atomicamente com a mensagem: *"O acoplamento de gás proporcional ao volume dosado está ativo na Bomba Externa. Desative-o para iniciar o controle de oxigênio (cascata/mapa)."* No `ControlViewModel`, a tentativa do operador reverte imediatamente o switch visual da linha de oxigênio.
+2. **Gás Proporcional Bloqueado por Controle de Oxigênio:** No `PumpControlViewModel`, ao tentar habilitar o toggle `GasProportionalEnabled` ou ligar a bomba (`IsEnabled = true`) com gás proporcional enquanto `_cascade.IsEngaged == true`, a ação é imediatamente revertida para desligado com notificação de status (*"Gás proporcional indisponível: controle de oxigênio (cascata/mapa) em execução."*).
+3. **Guarda de Despacho:** O método `MaybeSendProportionalGas` aborta imediatamente qualquer emissão de setpoint caso `_cascade is { IsEngaged: true }`.
+4. **Ciclo de Vida Limpo:** Ao descartar o `PumpControlViewModel`, o predicado registrado em `_cascade` é desregistrado se pertencer à instância.
+
+**Por quê.**
+- **Fundamentação Biológica:** Em cultivos alimentados (*fed-batch*), a adição de volume líquido altera a relação estequiométrica/hidrodinâmica de aeração. O acoplamento volumétrico de gás proporcional impõe uma taxa fixa de volumes de ar por volume de caldo por minuto ($vvm$), operando em **malha aberta volumétrica** estrita ($Q_g(t) = \min((V_0 + V_{\text{bomba}}/1000) \cdot \text{vvm}, Q_{\text{max}})$).
+- **Incompatibilidade com Malha Fechada de $DO\%$:** O controle de oxigênio dissolvido (cascata clássica ou mapa de $k_L a$) opera em **malha fechada com realimentação de sensor** ($DO\%$), variando a vazão de gás de forma oportunista para manter a saturação de oxigênio em um valor alvo. Ambas as estratégias atuam sobre o mesmo recurso físico (`ActuatorId.Aeration`). Permitir a concorrência causaria conflito direto e desvio da premissa estequiométrica de $vvm$ fixo.
+
+**Consequências.**
+- **Zero Conflito de Controle:** Impossibilidade arquitetural de concorrência entre o controle de $DO\%$ e o $vvm$ constante.
+- **Feedback Transparente:** O operador compreende exatamente por que um modo bloqueia o outro em qualquer uma das direções de ativação.
+- **Suíte de Testes Validada:** Cobertura de testes unitários e de integração adicionada em `CascadeServiceTests.cs` e `ExternalDeviceTests.cs` (1124 testes aprovados, 0 falhas).
+
+---
+
 ## Open questions
 
 | # | Question | Blocks |

@@ -1,5 +1,6 @@
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -610,6 +611,80 @@ public sealed class ExternalDeviceTests
         Assert.Equal(
             """{"flowSetpoint":1.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
             Assert.Single(targetDevice.Sent));
+    }
+
+    [Fact]
+    public void Proportional_gas_cannot_be_enabled_when_cascade_is_engaged()
+    {
+        var targetDevice = new RecordingDeviceService();
+        var arbiter = new CommandArbiter(targetDevice, TimeProvider.System);
+        var dispatcher = new ManualDispatcher(arbiter);
+        var settings = new MemorySettingsService();
+        var cascade = new CascadeService(arbiter, arbiter, settings, new FakeKlaProfileStore(), TimeProvider.System);
+
+        using var vm = new PumpControlViewModel(
+            targetDevice, settings, dispatcher, arbiter: arbiter, cascade: cascade)
+        {
+            IsEnabled = true,
+            InitialVolumeText = "1.0",
+            VvmText = "0.5",
+        };
+
+        // Engage cascade
+        cascade.Engage(400, 2.0);
+        Assert.True(cascade.IsEngaged);
+
+        // Try to enable proportional gas
+        vm.GasProportionalEnabled = true;
+
+        Assert.False(vm.GasProportionalEnabled);
+        Assert.Contains("indisponível", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Proportional_gas_and_cascade_are_strictly_mutually_exclusive()
+    {
+        var targetDevice = new RecordingDeviceService();
+        var arbiter = new CommandArbiter(targetDevice, TimeProvider.System);
+        var dispatcher = new ManualDispatcher(arbiter);
+        var settings = new MemorySettingsService();
+        var cascade = new CascadeService(arbiter, arbiter, settings, new FakeKlaProfileStore(), TimeProvider.System);
+
+        using var vm = new PumpControlViewModel(
+            targetDevice, settings, dispatcher, arbiter: arbiter, cascade: cascade)
+        {
+            IsEnabled = true,
+            InitialVolumeText = "1.0",
+            VvmText = "0.5",
+            GasProportionalEnabled = true,
+        };
+
+        Assert.True(vm.IsGasProportionalActive);
+
+        // 1. Cascade cannot engage because proportional gas is active
+        var canEngage = cascade.CanEngage(out var reason);
+        Assert.False(canEngage);
+        Assert.Contains("gás proporcional", reason, StringComparison.OrdinalIgnoreCase);
+
+        // 2. Disabling proportional gas allows cascade to engage
+        vm.GasProportionalEnabled = false;
+        Assert.False(vm.IsGasProportionalActive);
+        Assert.True(cascade.CanEngage(out _));
+
+        // 3. Engaging cascade locks out proportional gas
+        cascade.Engage(400, 2.0);
+        Assert.True(cascade.IsEngaged);
+
+        vm.GasProportionalEnabled = true;
+        Assert.False(vm.GasProportionalEnabled);
+        Assert.Contains("indisponível", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        // 4. Disengaging cascade frees proportional gas to be enabled again
+        cascade.Disengage("Teste encerrado");
+        Assert.False(cascade.IsEngaged);
+
+        vm.GasProportionalEnabled = true;
+        Assert.True(vm.GasProportionalEnabled);
     }
 
     /// <summary>

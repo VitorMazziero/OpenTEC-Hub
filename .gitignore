@@ -23,7 +23,8 @@ tools/wifi-test/
 
 # Flutter / Android build output
 **/build/
-.dart_tool/
+**/.dart_tool/
+**/ephemeral/
 
 # Arduino & C++ build output
 tools/.bin/

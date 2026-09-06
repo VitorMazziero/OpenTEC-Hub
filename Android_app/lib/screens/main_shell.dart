@@ -91,7 +91,7 @@ class _MainShellState extends State<MainShell> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "TECNAL Controller",
+              "OpenTEC-Hub",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             Row(

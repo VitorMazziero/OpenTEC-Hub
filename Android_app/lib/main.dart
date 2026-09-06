@@ -7,11 +7,11 @@ import 'screens/main_shell.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const TecnalApp());
+  runApp(const OpenTECHubApp());
 }
 
-class TecnalApp extends StatelessWidget {
-  const TecnalApp({super.key});
+class OpenTECHubApp extends StatelessWidget {
+  const OpenTECHubApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class TecnalApp extends StatelessWidget {
           telemetry.onPhCalChanged = (phCal) => control.sendPhCalEcho(phCal);
 
           return MaterialApp(
-            title: 'TECNAL Controller',
+            title: 'OpenTEC-Hub',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               useMaterial3: true,

@@ -6,7 +6,7 @@
 
 
     <application
-        android:label="_TECNAL App"
+        android:label="OpenTEC-Hub"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -1,0 +1,58 @@
+﻿name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'feature/**'
+    paths:
+      - 'Android_app/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Environment
+        run: |
+          java -version
+          flutter doctor -v
+
+      - name: Install Dependencies
+        working-directory: ./Android_app
+        run: flutter pub get
+
+      - name: Run Tests
+        working-directory: ./Android_app
+        run: flutter test
+
+      - name: Build Release APK
+        working-directory: ./Android_app
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tecnal-hub-release-apk
+          path: Android_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14

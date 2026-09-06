@@ -10,8 +10,17 @@ import '../widgets/flowmeter_card.dart';
 import '../widgets/flask_agitator_card.dart';
 import '../widgets/peristaltic_pump_card.dart';
 
-class DashboardScreen extends StatelessWidget {
+enum DeviceCategory { internal, external }
+
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  DeviceCategory _selectedCategory = DeviceCategory.internal;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +49,33 @@ class DashboardScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(12.0),
         children: [
-          // 1. Servo Monitor Card (Primary Actuator)
-          ServoMonitorCard(
+          // Navigation Submenu: Internal vs External
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: SegmentedButton<DeviceCategory>(
+              segments: const [
+                ButtonSegment<DeviceCategory>(
+                  value: DeviceCategory.internal,
+                  icon: Icon(Icons.biotech),
+                  label: Text("Biorreator (Interno)"),
+                ),
+                ButtonSegment<DeviceCategory>(
+                  value: DeviceCategory.external,
+                  icon: Icon(Icons.devices_other),
+                  label: Text("Periféricos Externos"),
+                ),
+              ],
+              selected: {_selectedCategory},
+              onSelectionChanged: (newSelection) {
+                setState(() {
+                  _selectedCategory = newSelection.first;
+                });
+              },
+            ),
+          ),
+          if (_selectedCategory == DeviceCategory.internal) ...[
+            // 1. Servo Monitor Card (Primary Actuator)
+            ServoMonitorCard(
             servoState: servo,
             onStopPressed: () async {
               final ok = await controlProv.stopMotor();
@@ -148,34 +182,132 @@ class DashboardScreen extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // External Peripherals Section
-          Row(
-            children: [
-              const Icon(Icons.devices_other, size: 20, color: Colors.indigo),
-              const SizedBox(width: 8),
-              Text(
-                "External Peripherals",
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
+          // 3. Hub System Diagnostics
+          Card(
+            elevation: 1,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Hub ${telemetry.hubFirmwareVersion.isNotEmpty ? telemetry.hubFirmwareVersion : 'v10'} (Proto: ${telemetry.hubProtocolVersion})",
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  Text(
+                    "Stations: ${telemetry.hubStations} • Time: ${telemetry.time.toStringAsFixed(0)}s",
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
-              const Spacer(),
-              Text(
-                "Wi-Fi Nodes",
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.outline),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 8),
+        ] else ...[
+          // ==========================================
+          // PERIFÉRICOS EXTERNOS (ESP32 Wi-Fi NODES)
+          // ==========================================
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.wifi_tethering, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Módulos Periféricos Sem Fio (ESP32 Wi-Fi Nodes)",
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ),
+                Text(
+                  "5 nós integrados",
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+              ],
+            ),
+          ),
 
-          // External Distance Sensor Card
-          DistanceSensorCard(
-            state: telemetryProv.distanceState,
+          // 1. External Peristaltic Pump Card (Em destaque no topo dos periféricos!)
+          PeristalticPumpCard(
+            state: telemetryProv.pumpState,
+            onStop: () async {
+              final ok = await controlProv.stopPump();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? "Pump dosing stopped" : "Failed to stop pump"),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
           ),
           const SizedBox(height: 12),
 
-          // External Biomass Sensor Card
+          // 2. External Flowmeter & Gas Sparging Card
+          FlowmeterCard(
+            state: telemetryProv.flowmeterState,
+            onStopFlow: () async {
+              final ok = await controlProv.stopFlow();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? "Gas flow stopped" : "Failed to stop gas flow"),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // 3. External Flask Agitator Card
+          FlaskAgitatorCard(
+            state: telemetryProv.agitatorState,
+            onStart: () async {
+              final ok = await controlProv.setAgitatorState(on: true);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? "Flask agitator started" : "Failed to start agitator"),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            onStop: () async {
+              final ok = await controlProv.safeStopAgitator();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? "Flask agitator stopped" : "Failed to stop agitator"),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // 4. External Biomass Sensor Card
           BiomassSensorCard(
             state: telemetryProv.biomassState,
             onStartAcquisition: () async {
@@ -214,99 +346,14 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // External Flowmeter & Gas Sparging Card
-          FlowmeterCard(
-            state: telemetryProv.flowmeterState,
-            onStopFlow: () async {
-              final ok = await controlProv.stopFlow();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Gas flow stopped" : "Failed to stop gas flow"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
+          // 5. External Distance Sensor Card
+          DistanceSensorCard(
+            state: telemetryProv.distanceState,
           ),
           const SizedBox(height: 12),
-
-          // External Flask Agitator Card
-          FlaskAgitatorCard(
-            state: telemetryProv.agitatorState,
-            onStart: () async {
-              final ok = await controlProv.setAgitatorState(on: true);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Flask agitator started" : "Failed to start agitator"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-            onStop: () async {
-              final ok = await controlProv.safeStopAgitator();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Flask agitator stopped" : "Failed to stop agitator"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // External Peristaltic Pump Card
-          PeristalticPumpCard(
-            state: telemetryProv.pumpState,
-            onStop: () async {
-              final ok = await controlProv.stopPump();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Pump dosing stopped" : "Failed to stop pump"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-
-          const SizedBox(height: 16),
-
-          // 3. Hub System Diagnostics
-          Card(
-            elevation: 1,
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.info_outline, size: 16, color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Text(
-                        "Hub ${telemetry.hubFirmwareVersion.isNotEmpty ? telemetry.hubFirmwareVersion : 'v10'} (Proto: ${telemetry.hubProtocolVersion})",
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  Text(
-                    "Stations: ${telemetry.hubStations} • Time: ${telemetry.time.toStringAsFixed(0)}s",
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 }

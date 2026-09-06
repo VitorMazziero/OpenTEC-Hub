@@ -5,6 +5,7 @@ import '../providers/telemetry_provider.dart';
 import '../widgets/control_section_card.dart';
 import '../models/peristaltic_pump_state.dart';
 import '../services/pump_profile_math.dart';
+import 'dashboard_screen.dart';
 
 class ControlsScreen extends StatefulWidget {
   const ControlsScreen({super.key});
@@ -14,6 +15,8 @@ class ControlsScreen extends StatefulWidget {
 }
 
 class _ControlsScreenState extends State<ControlsScreen> {
+  DeviceCategory _selectedCategory = DeviceCategory.internal;
+
   // Distance Sensor (External)
   bool _distanceCommOn = true;
   late TextEditingController _distanceRefController;
@@ -241,10 +244,35 @@ class _ControlsScreenState extends State<ControlsScreen> {
     return ListView(
       padding: const EdgeInsets.all(12.0),
       children: [
-        // ====================================================
-        // 1. SERVO MOTOR (DELTA ASDA-B2)
-        // ====================================================
-        ControlSectionCard(
+        // Navigation Submenu: Internal vs External
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: SegmentedButton<DeviceCategory>(
+            segments: const [
+              ButtonSegment<DeviceCategory>(
+                value: DeviceCategory.internal,
+                icon: Icon(Icons.tune),
+                label: Text("Biorreator (Interno)"),
+              ),
+              ButtonSegment<DeviceCategory>(
+                value: DeviceCategory.external,
+                icon: Icon(Icons.devices_other),
+                label: Text("Periféricos Externos"),
+              ),
+            ],
+            selected: {_selectedCategory},
+            onSelectionChanged: (newSelection) {
+              setState(() {
+                _selectedCategory = newSelection.first;
+              });
+            },
+          ),
+        ),
+        if (_selectedCategory == DeviceCategory.internal) ...[
+          // ====================================================
+          // 1. SERVO MOTOR (DELTA ASDA-B2)
+          // ====================================================
+          ControlSectionCard(
           title: "Servo Agitator (Delta ASDA-B2)",
           icon: Icons.cyclone,
           accentColor: Colors.blueAccent,
@@ -814,30 +842,40 @@ class _ControlsScreenState extends State<ControlsScreen> {
           ],
         ),
 
-        const SizedBox(height: 16),
-
-        // ====================================================
-        // EXTERNAL PERIPHERALS
-        // ====================================================
-        Row(
-          children: [
-            const Icon(Icons.devices_other, size: 20, color: Colors.indigo),
-            const SizedBox(width: 8),
-            Text(
-              "External Peripherals",
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
+        ] else ...[
+          // ==========================================
+          // PERIFÉRICOS EXTERNOS (ESP32 Wi-Fi NODES)
+          // ==========================================
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
             ),
-            const Spacer(),
-            Text(
-              "Wi-Fi Subsystems",
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+            child: Row(
+              children: [
+                Icon(Icons.wifi_tethering, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Controle de Módulos Externos (Wi-Fi)",
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ),
+                Text(
+                  "5 nós configuráveis",
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
+          ),
 
         ControlSectionCard(
           title: "Distance & Level Sensor (External)",
@@ -1865,6 +1903,7 @@ class _ControlsScreenState extends State<ControlsScreen> {
           ],
         ),
       ],
-    );
-  }
+    ],
+  );
+}
 }

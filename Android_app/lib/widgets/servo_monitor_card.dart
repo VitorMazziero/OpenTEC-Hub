@@ -105,22 +105,37 @@ class ServoMonitorCard extends StatelessWidget {
                         color: servoState.viaModbus ? Colors.blue.shade800 : Colors.teal.shade800,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        "VIA DE COMANDO RPM: ${servoState.viaModbus ? 'MODBUS DIRETO' : 'UART / PLACA CONTROLADORA'}",
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                          color: servoState.viaModbus ? Colors.blue.shade900 : Colors.teal.shade900,
+                      Expanded(
+                        child: Text(
+                          "VIA RPM: ${servoState.viaModbus ? 'MODBUS DIRETO' : 'UART / PLACA CONTROLADORA'}",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.3,
+                            color: servoState.viaModbus ? Colors.blue.shade900 : Colors.teal.shade900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
-                      Text(
-                        servoState.routeAckDescription,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: servoState.routeAck >= 0 ? Colors.green.shade800 : Colors.orange.shade800,
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: servoState.routeAck >= 0 ? Colors.green.shade50 : Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: servoState.routeAck >= 0 ? Colors.green.shade300 : Colors.amber.shade300,
+                            width: 0.7,
+                          ),
+                        ),
+                        child: Text(
+                          servoState.routeAckDescription,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: servoState.routeAck >= 0 ? Colors.green.shade800 : Colors.amber.shade900,
+                          ),
                         ),
                       ),
                     ],

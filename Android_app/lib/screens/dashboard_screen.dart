@@ -57,12 +57,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ButtonSegment<DeviceCategory>(
                   value: DeviceCategory.internal,
                   icon: Icon(Icons.biotech),
-                  label: Text("Biorreator (Interno)"),
+                  label: Text("Biorreator"),
                 ),
                 ButtonSegment<DeviceCategory>(
                   value: DeviceCategory.external,
                   icon: Icon(Icons.devices_other),
-                  label: Text("Periféricos Externos"),
+                  label: Text("Periféricos"),
                 ),
               ],
               selected: {_selectedCategory},
@@ -96,10 +96,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Expanded(
                 child: MetricTile(
-                  title: "Temperature",
+                  title: "Temperatura",
                   value: tempVal,
                   unit: "°C",
-                  subtext: "Range: 0-100°C",
+                  subtext: "Faixa: 0-100°C",
                   icon: Icons.thermostat,
                   accentColor: Colors.redAccent,
                   isActive: telemetry.hasValidTemperature,
@@ -108,12 +108,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: MetricTile(
-                  title: "pH (Calibrated)",
+                  title: "pH (Calibrado)",
                   value: phVal,
                   unit: "pH",
                   subtext: telemetry.hasValidPh
                       ? "Raw: ${telemetry.rawPh.toInt()} ADC"
-                      : "Sensor absent",
+                      : "Sensor ausente",
                   icon: Icons.science_outlined,
                   accentColor: Colors.blueAccent,
                   isActive: telemetryProv.calibratedPh >= 0.0,
@@ -127,12 +127,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Expanded(
                 child: MetricTile(
-                  title: "Dissolved O₂",
+                  title: "Oxigênio Dissolvido (O₂)",
                   value: oxyVal,
                   unit: "mg/L",
                   subtext: telemetry.hasValidOxygen
                       ? "Raw: ${telemetry.rawOxygen.toInt()} ADC"
-                      : "Sensor absent",
+                      : "Sensor ausente",
                   icon: Icons.bubble_chart_outlined,
                   accentColor: Colors.teal,
                   isActive: telemetryProv.calibratedOxygen >= 0.0,
@@ -141,10 +141,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: MetricTile(
-                  title: "Pressure",
+                  title: "Pressão",
                   value: pressureVal,
                   unit: "mmHg",
-                  subtext: "Vessel pressure",
+                  subtext: "Pressão do vaso",
                   icon: Icons.speed,
                   accentColor: Colors.orangeAccent,
                   isActive: true,
@@ -158,9 +158,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Expanded(
                 child: MetricTile(
-                  title: "Foam Sensor",
+                  title: "Sensor Espuma",
                   value: antifoamVal,
-                  subtext: "Level: ${telemetry.antifoam.toStringAsFixed(0)}",
+                  subtext: "Nível: ${telemetry.antifoam.toStringAsFixed(0)}",
                   icon: Icons.waves,
                   accentColor: Colors.deepOrangeAccent,
                   isActive: telemetry.antifoam > 0.5,
@@ -169,9 +169,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: MetricTile(
-                  title: "Sensor Board",
+                  title: "Placa Sensores",
                   value: telemetry.sensorCommOk ? "ACTIVE" : "OFFLINE",
-                  subtext: "OpenTEC UART link",
+                  subtext: "Link OpenTEC UART",
                   icon: Icons.memory,
                   accentColor: telemetry.sensorCommOk ? Colors.green : Colors.red,
                   isActive: telemetry.sensorCommOk,

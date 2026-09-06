@@ -42,28 +42,41 @@ class MetricTile extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  radius: 16,
+                  radius: 14,
                   backgroundColor: accentColor.withValues(alpha: 0.12),
-                  child: Icon(icon, size: 18, color: accentColor),
+                  child: Icon(icon, size: 16, color: accentColor),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     title,
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      height: 1.15,
+                    ),
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (!isActive)
+                if (!isActive) ...[
+                  const SizedBox(width: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text("OFF", style: theme.textTheme.labelSmall?.copyWith(color: Colors.grey.shade700)),
+                    child: Text(
+                      "OFF",
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.grey.shade700,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 8),

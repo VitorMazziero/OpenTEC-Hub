@@ -252,12 +252,12 @@ class _ControlsScreenState extends State<ControlsScreen> {
               ButtonSegment<DeviceCategory>(
                 value: DeviceCategory.internal,
                 icon: Icon(Icons.tune),
-                label: Text("Biorreator (Interno)"),
+                label: Text("Biorreator"),
               ),
               ButtonSegment<DeviceCategory>(
                 value: DeviceCategory.external,
                 icon: Icon(Icons.devices_other),
-                label: Text("Periféricos Externos"),
+                label: Text("Periféricos"),
               ),
             ],
             selected: {_selectedCategory},
@@ -273,7 +273,7 @@ class _ControlsScreenState extends State<ControlsScreen> {
           // 1. SERVO MOTOR (DELTA ASDA-B2)
           // ====================================================
           ControlSectionCard(
-          title: "Servo Agitator (Delta ASDA-B2)",
+          title: "Servo Agitador (ASDA-B2)",
           icon: Icons.cyclone,
           accentColor: Colors.blueAccent,
           isEnabled: _servoCommOn,
@@ -312,16 +312,20 @@ class _ControlsScreenState extends State<ControlsScreen> {
                         color: _motorRoute == 1 ? Colors.blue.shade800 : Colors.teal.shade800,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        "SELEÇÃO DA VIA DE CONTROLE DO SERVO",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                          color: _motorRoute == 1 ? Colors.blue.shade900 : Colors.teal.shade900,
+                      Expanded(
+                        child: Text(
+                          "VIA DE CONTROLE DO SERVO",
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.4,
+                            color: _motorRoute == 1 ? Colors.blue.shade900 : Colors.teal.shade900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 6),
                       if (servoState.online)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -353,12 +357,12 @@ class _ControlsScreenState extends State<ControlsScreen> {
                       segments: const [
                         ButtonSegment(
                           value: 1,
-                          label: Text("1. Modbus Direto (ESP32-Servo)"),
+                          label: Text("1. Modbus Direto"),
                           icon: Icon(Icons.flash_on, size: 16),
                         ),
                         ButtonSegment(
                           value: 0,
-                          label: Text("2. UART Legada (Placa Controladora)"),
+                          label: Text("2. UART Legada"),
                           icon: Icon(Icons.settings_input_composite, size: 16),
                         ),
                       ],

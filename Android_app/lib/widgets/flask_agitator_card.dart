@@ -63,30 +63,9 @@ class FlaskAgitatorCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            "Flask Agitator & Stirrer",
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.deepPurple.shade50,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.deepPurple.shade200, width: 0.8),
-                            ),
-                            child: Text(
-                              "EXTERNAL",
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.deepPurple.shade800,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 9,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        "Flask Agitator & Stirrer",
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
                       Text(

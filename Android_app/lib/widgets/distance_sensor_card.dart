@@ -66,30 +66,9 @@ class DistanceSensorCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            "Distance & Level Sensor",
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.indigo.shade50,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.indigo.shade200, width: 0.8),
-                            ),
-                            child: Text(
-                              "EXTERNAL",
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.indigo.shade800,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 9,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        "Distance & Level Sensor",
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
                       Text(

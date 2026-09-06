@@ -18,30 +18,30 @@ class _ControlsScreenState extends State<ControlsScreen> {
   DeviceCategory _selectedCategory = DeviceCategory.internal;
 
   // Distance Sensor (External)
-  bool _distanceCommOn = true;
+  bool _distanceCommOn = false;
   late TextEditingController _distanceRefController;
 
   // Biomass Sensor (External)
-  bool _biomassCommOn = true;
+  bool _biomassCommOn = false;
   late TextEditingController _biomassLowController;
   late TextEditingController _biomassHighController;
   late TextEditingController _biomassOptController;
 
   // Flowmeter & Gas Sparging (External)
-  bool _flowmeterCommOn = true;
+  bool _flowmeterCommOn = false;
   bool _valve1On = false;
   bool _valve2On = false;
   late TextEditingController _flowSetpointController;
 
   // Flask Agitator (External)
-  int _agitatorPercent = 80;
+  int _agitatorPercent = 0;
   int _agitatorDir = 1; // 1 = CW, 0 = CCW
   bool _agitatorAuto = true;
   bool _agitatorReEnablePot = true;
   late TextEditingController _agitatorPercentController;
 
   // Peristaltic Feed Pump (External)
-  bool _pumpCommOn = true;
+  bool _pumpCommOn = false;
   PeristalticPumpMode _selectedPumpMode = PeristalticPumpMode.constant;
   late TextEditingController _pumpInitMinutesController;
   late TextEditingController _pumpFinalMinutesController;
@@ -54,9 +54,9 @@ class _ControlsScreenState extends State<ControlsScreen> {
   String? _pumpValidationError;
 
   // Servo controls
-  int _motorRpm = 100;
+  int _motorRpm = 0;
   int _motorRoute = 1; // 1 = Modbus Direct, 0 = UART/CN1
-  bool _servoCommOn = true;
+  bool _servoCommOn = false;
   late TextEditingController _motorRpmController;
 
   // Temperature

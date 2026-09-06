@@ -22,10 +22,10 @@ class FlaskAgitatorCard extends StatelessWidget {
     String statusTitle;
     String statusSubtitle;
 
-    if (state.isDisconnected) {
-      statusColor = Colors.amber.shade800;
-      statusIcon = Icons.wifi_tethering_off_outlined;
-      statusTitle = "AGITATOR DISCONNECTED";
+    if (state.isDisabled) {
+      statusColor = Colors.grey.shade600;
+      statusIcon = Icons.sensors_off_outlined;
+      statusTitle = "DISABLED ON HUB";
       statusSubtitle = "External flask agitator node is offline or out of range. No push data received.";
     } else if (state.isSpinning) {
       statusColor = Colors.deepPurple.shade700;

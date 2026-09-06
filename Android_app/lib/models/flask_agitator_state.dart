@@ -78,6 +78,9 @@ class FlaskAgitatorState {
   /// Rotation direction is clockwise (1) vs counter-clockwise (0)
   bool get isClockwise => direction == 1;
 
+  /// Agitator node is offline / disabled on Hub
+  bool get isDisabled => !online;
+
   String get statusLabel {
     if (isDisconnected) return "Agitator Disconnected";
     if (isSpinning) return "Agitating (${speedPercent.toStringAsFixed(0)}%)";

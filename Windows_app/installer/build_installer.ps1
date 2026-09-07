@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Script automatizado de publicacao e geracao do instalador do OpenTEC-Hub.
 
@@ -21,7 +21,7 @@ $ProjectFile = Join-Path $ProjectDir "OpenTECHub.csproj"
 $IssFile = Join-Path $ScriptDir "OpenTECHub_Setup.iss"
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host " OpenTEC-Hub — Build do Instalador e Publicacao" -ForegroundColor Cyan
+Write-Host " OpenTEC-Hub - Build do Instalador e Publicacao" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 
 if (-not $SkipPublish) {
@@ -63,6 +63,7 @@ Write-Host "`n[2/3] Versao detectada no binario: $version" -ForegroundColor Cyan
 # Localizar compilador Inno Setup
 Write-Host "`n[3/3] Localizando compilador do Inno Setup (ISCC.exe)..." -ForegroundColor Yellow
 $isccCandidates = @(
+    "C:\Program Files\Inno Setup 7\ISCC.exe",
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     "C:\Program Files\Inno Setup 6\ISCC.exe",
     (Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)

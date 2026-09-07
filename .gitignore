@@ -44,6 +44,7 @@ preferences.local.json
 Configuracoes/
 Sessoes/
 harness-trace-*.log
+**/.Lixeira/
 
 # Git backups
 **/.git_backup/

@@ -1,2 +1,0 @@
-﻿ConditionId,AgitationRpm,GasFlowLpm,GasMode,RequestedReplicates,CompletedReplicates,AcceptedReplicates,MeanNetPowerW,StdDevNetPowerW,MeanAssemblyNp,StdDevAssemblyNp,MeanAssemblyRe,MeanPowerRatio,StdDevPowerRatio,MeanGasFlowNumber,MeanFroudeNumber
-8992e5ae-0c78-477d-bfd5-b74452d74a63,300.0,,Ungassed,1,1,0,,,,,,,,,

@@ -229,7 +229,7 @@ public sealed class KlaTestStore : IKlaTestStore
                 WriteAllTextAtomic(
                     Path.Combine(temporaryPath, KlaTestFileContracts.TestManifestFileName),
                     KlaTestFileContracts.SerializeTestDocument(sourceDoc));
-                Directory.Move(temporaryPath, targetPath);
+                MoveDirectoryWithRetry(temporaryPath, targetPath);
                 return targetName;
             }
             catch
@@ -239,6 +239,22 @@ public sealed class KlaTestStore : IKlaTestStore
                     Directory.Delete(temporaryPath, recursive: true);
                 }
                 throw;
+            }
+        }
+    }
+
+    private static void MoveDirectoryWithRetry(string sourcePath, string targetPath, int maxRetries = 5)
+    {
+        for (var i = 0; i < maxRetries; i++)
+        {
+            try
+            {
+                Directory.Move(sourcePath, targetPath);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && i < maxRetries - 1)
+            {
+                Thread.Sleep(50);
             }
         }
     }

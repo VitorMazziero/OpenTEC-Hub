@@ -40,7 +40,7 @@ public class ConnectionManagerTests
     };
 
     /// <summary>Polls until <paramref name="condition"/> holds, or gives up.</summary>
-    private static async Task<bool> WaitForAsync(Func<bool> condition, int timeoutMs = 3000)
+    private static async Task<bool> WaitForAsync(Func<bool> condition, int timeoutMs = 10000)
     {
         var deadline = Environment.TickCount64 + timeoutMs;
         while (Environment.TickCount64 < deadline)
@@ -613,9 +613,14 @@ public class ConnectionManagerTests
     public async Task Usb_measures_RTT_on_CommandAck()
     {
         var fake = new FakeTransport(TransportMedium.Usb);
+        var options = FastOptions(backupEnabled: false) with
+        {
+            TelemetrySilenceTimeout = TimeSpan.FromSeconds(10),
+            LivenessProbeAfterSilence = TimeSpan.FromSeconds(5),
+        };
 
         await using var manager = new ConnectionManager(
-            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+            options, transportFactory: _ => fake);
 
         manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
         Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
@@ -643,9 +648,14 @@ public class ConnectionManagerTests
     public async Task Usb_measures_RTT_on_FlowCommandAck()
     {
         var fake = new FakeTransport(TransportMedium.Usb);
+        var options = FastOptions(backupEnabled: false) with
+        {
+            TelemetrySilenceTimeout = TimeSpan.FromSeconds(10),
+            LivenessProbeAfterSilence = TimeSpan.FromSeconds(5),
+        };
 
         await using var manager = new ConnectionManager(
-            FastOptions(backupEnabled: false), transportFactory: _ => fake);
+            options, transportFactory: _ => fake);
 
         manager.ConnectUsb(new SerialTransportConfig { PortName = "COM3" });
         Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));

@@ -139,6 +139,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         UpdateRunnerState();
+        LoadImpellerCatalog();
     }
 
     private void OnConditionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -254,9 +255,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PowerTestSummary> Tests { get; } = [];
     public ObservableCollection<Impeller> Impellers { get; } = [];
+    public ObservableCollection<Impeller> CatalogImpellers { get; } = [];
     public ObservableCollection<PowerCondition> Conditions { get; } = [];
     public ObservableCollection<PowerDataPoint> LivePoints { get; } = [];
     public ObservableCollection<PowerResultRow> Results { get; } = [];
+
+    [ObservableProperty]
+    private Impeller? _selectedCatalogImpeller;
 
     public PowerMapViewModel? MapViewModel { get; }
 
@@ -910,6 +915,85 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand] private void MoveImpellerUp() => MoveItem(Impellers, SelectedImpeller, -1, NormalizeImpellerOrder);
     [RelayCommand] private void MoveImpellerDown() => MoveItem(Impellers, SelectedImpeller, 1, NormalizeImpellerOrder);
 
+    public void LoadImpellerCatalog()
+    {
+        CatalogImpellers.Clear();
+        var catalog = PowerImpellerCatalog.LoadCatalog();
+        foreach (var item in catalog)
+        {
+            CatalogImpellers.Add(item);
+        }
+        SelectedCatalogImpeller = CatalogImpellers.FirstOrDefault();
+    }
+
+    [RelayCommand]
+    private void AddCatalogImpeller()
+    {
+        var item = new Impeller
+        {
+            Type = ImpellerType.Custom,
+            Label = $"Impelidor {CatalogImpellers.Count + 1}",
+            DiameterM = 0.065,
+            BladeCount = 6,
+            ClearanceM = 0.065,
+            LiteratureNp = 1.0,
+        };
+        CatalogImpellers.Add(item);
+        SelectedCatalogImpeller = item;
+        TrySaveImpellerCatalog($"Impelidor '{item.Label}' adicionado ao catálogo.");
+    }
+
+    [RelayCommand]
+    private void RemoveCatalogImpeller()
+    {
+        if (SelectedCatalogImpeller is null)
+        {
+            return;
+        }
+
+        var removed = SelectedCatalogImpeller;
+        CatalogImpellers.Remove(removed);
+        SelectedCatalogImpeller = CatalogImpellers.FirstOrDefault();
+        TrySaveImpellerCatalog($"Impelidor '{removed.Label}' removido do catálogo.");
+    }
+
+    [RelayCommand]
+    private void SaveCatalog()
+    {
+        TrySaveImpellerCatalog("Catálogo de impelidores salvo com sucesso.");
+    }
+
+    private void TrySaveImpellerCatalog(string successMessage)
+    {
+        try
+        {
+            PowerImpellerCatalog.SaveCatalog(CatalogImpellers);
+            StatusMessage = successMessage;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Não foi possível salvar o catálogo de impelidores: {ex.Message}";
+            ValidationMessage = StatusMessage;
+        }
+    }
+
+    [RelayCommand]
+    private void AddCatalogImpellerToAssembly()
+    {
+        if (!CanEditPlan || SelectedCatalogImpeller is null)
+        {
+            return;
+        }
+
+        var item = SelectedCatalogImpeller.Clone();
+        item.ClearanceM = Impellers.Count == 0 ? item.ClearanceM : Impellers.Max(i => i.ClearanceM) + (item.DiameterM > 0 ? item.DiameterM : 0.065);
+        item.StageIndex = Impellers.Count;
+        Impellers.Add(item);
+        SelectedImpeller = item;
+        NotifyGeometryState();
+        StatusMessage = $"Impelidor '{item.Label}' adicionado ao eixo.";
+    }
+
     [RelayCommand]
     private void AddCondition()
     {
@@ -919,7 +1003,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         var rpm = Conditions.Count == 0 ? Math.Max(MinRpm, 300) : Math.Min(MaxRpm, Conditions.Max(c => c.AgitationRpm) + StepRpm);
-        var condition = new PowerCondition { AgitationRpm = rpm, OrderIndex = Conditions.Count };
+        var condition = new PowerCondition { AgitationRpm = rpm, GasFlowLpm = 0.0, OrderIndex = Conditions.Count };
         Conditions.Add(condition);
         SelectedCondition = condition;
         PersistConditionPlan("Condição adicionada e salva.");
@@ -1076,7 +1160,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                     ConditionId = Guid.NewGuid(),
                     OrderIndex = index++,
                     AgitationRpm = Math.Round(rpm, 1),
-                    GasFlowLpm = isGassed ? Math.Round(qg, 2) : null,
+                    GasFlowLpm = isGassed ? Math.Round(qg, 2) : 0.0,
                     GasMode = isGassed ? PowerGasMode.Gassed : PowerGasMode.Ungassed,
                     FlowUnit = FlowInputUnit.Lpm,
                     RequestedReplicates = 1,
@@ -1401,7 +1485,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                         {
                             FlowUnit = FlowInputUnit.Lpm,
                             AgitationRpm = rpm,
-                            GasFlowLpm = hasGas ? SweepConstantQgLpm : null,
+                            GasFlowLpm = hasGas ? SweepConstantQgLpm : 0.0,
                             GasMode = mode,
                             OrderIndex = index++,
                             Origin = PowerConditionOrigin.Manual,
@@ -1439,7 +1523,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                         {
                             FlowUnit = FlowInputUnit.Lpm,
                             AgitationRpm = SweepConstantRpm,
-                            GasFlowLpm = hasGas ? qg : null,
+                            GasFlowLpm = hasGas ? qg : 0.0,
                             GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
                             OrderIndex = index++,
                             Origin = PowerConditionOrigin.Manual,
@@ -1480,7 +1564,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                             {
                                 FlowUnit = FlowInputUnit.Lpm,
                                 AgitationRpm = rpm,
-                                GasFlowLpm = hasGas ? qg : null,
+                                GasFlowLpm = hasGas ? qg : 0.0,
                                 GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
                                 OrderIndex = index++,
                                 Origin = PowerConditionOrigin.Manual,
@@ -1613,7 +1697,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             rows.Add(new PowerCondition
             {
                 AgitationRpm = rpm,
-                GasFlowLpm = hasGas ? qg : null,
+                GasFlowLpm = hasGas ? qg : 0.0,
                 GasMode = hasGas ? SweepGasMode : PowerGasMode.Ungassed,
                 FlowUnit = FlowInputUnit.Lpm,
                 OrderIndex = rows.Count,
@@ -2728,7 +2812,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var cond = new PowerCondition
         {
             AgitationRpm = SinglePointRpm,
-            GasFlowLpm = SinglePointFlowLpm > 0 ? SinglePointFlowLpm : null,
+            GasFlowLpm = SinglePointFlowLpm > 0 ? SinglePointFlowLpm : 0.0,
             GasMode = SinglePointFlowLpm > 0 ? PowerGasMode.Gassed : PowerGasMode.Ungassed,
             FlowUnit = FlowInputUnit.Lpm,
             RequestedReplicates = 1,

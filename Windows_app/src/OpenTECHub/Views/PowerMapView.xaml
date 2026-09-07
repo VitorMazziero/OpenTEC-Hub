@@ -34,7 +34,7 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
-        <Style x:Key="CompactField" TargetType="TextBox">
+        <Style x:Key="CompactField" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Height" Value="28" />
             <Setter Property="Padding" Value="5,2" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -80,7 +80,9 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                         </Border>
                         <Border Margin="7,0,0,0" Padding="8,2" CornerRadius="4"
-                                Background="{DynamicResource StateWarningBrush}"
+                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                BorderBrush="{DynamicResource StateWarningBrush}"
+                                BorderThickness="1"
                                 Visibility="{Binding IsSurfaceStale, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="Malha desatualizada — reconstrua" FontSize="11" FontWeight="Bold"
                                        Foreground="{DynamicResource StateWarningTextBrush}" />
@@ -141,6 +143,7 @@
                             <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6"
                                        Text="Selecione um ou mais ensaios da mesma montagem. Cada condição aceita vira uma âncora no plano (N, Qg)." />
                             <ListBox ItemsSource="{Binding AvailablePowerTests}" MaxHeight="150"
+                                     Background="{DynamicResource SurfaceSunkenBrush}"
                                      BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="1"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemContainerStyle>
@@ -374,7 +377,7 @@
 
             <!-- Área de síntese: superfície, validação kLa <-> P/V e comparação de impelidores.
                  As três vivem nesta página porque a §10 mantém apenas dois destinos de potência. -->
-            <TabControl Grid.Column="2" Padding="0,7,0,0" Background="Transparent" BorderThickness="0">
+            <TabControl Grid.Column="2" Style="{StaticResource SingleLineSegmentedControlStyle}" Padding="0,7,0,0">
             <TabItem Header="Superfície (N, Qg)">
             <Grid>
                 <Grid.RowDefinitions>

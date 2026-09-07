@@ -458,8 +458,14 @@
                             BorderThickness="1"
                             CornerRadius="{DynamicResource RadiusSmall}"
                             Padding="{TemplateBinding Padding}"
-                            MaxWidth="320">
-                        <ContentPresenter />
+                            MaxWidth="420">
+                        <ContentPresenter TextBlock.Foreground="{TemplateBinding Foreground}">
+                            <ContentPresenter.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                </Style>
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -645,6 +651,44 @@
         </Setter>
     </Style>
 
+    <Style TargetType="Slider" BasedOn="{StaticResource AppSliderStyle}" />
+
+    <!-- ── ProgressBar ───────────────────────────────────────────────────────
+         Implicit so all progress indicators follow the sunken track, subtle stroke,
+         and interaction accent token in both light and dark themes. -->
+    <Style TargetType="ProgressBar">
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource StrokeSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3"
+                            ClipToBounds="True">
+                        <Grid x:Name="TemplateRoot">
+                            <Border x:Name="PART_Track" />
+                            <Border x:Name="PART_Indicator"
+                                    HorizontalAlignment="Left"
+                                    Background="{TemplateBinding Foreground}"
+                                    CornerRadius="2" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Vertical">
+                            <Setter TargetName="PART_Indicator" Property="HorizontalAlignment" Value="Stretch" />
+                            <Setter TargetName="PART_Indicator" Property="VerticalAlignment" Value="Bottom" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ── ToggleSwitch ───────────────────────────────────────────────────────
          BLUE WHEN ON, NEVER GREEN. A subsystem being enabled is an interaction
          state, not a health state; green must keep meaning "operating normally"
@@ -765,6 +809,32 @@
                                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
                                 BorderThickness="1">
                             <TabPanel IsItemsHost="True" />
+                        </Border>
+                        <ContentPresenter ContentSource="SelectedContent" Margin="0,12,0,0" />
+                    </DockPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Keeps long segmented tab strips on one row and lets the operator scroll
+         horizontally when the available pane is narrower than their labels. -->
+    <Style x:Key="SingleLineSegmentedControlStyle" TargetType="TabControl">
+        <Setter Property="ItemContainerStyle" Value="{StaticResource SegmentedItemStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" HorizontalAlignment="Left"
+                                Padding="2" CornerRadius="{DynamicResource RadiusSmall}"
+                                Background="{DynamicResource SurfaceSunkenBrush}"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                BorderThickness="1">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          Focusable="False">
+                                <StackPanel Orientation="Horizontal" IsItemsHost="True" />
+                            </ScrollViewer>
                         </Border>
                         <ContentPresenter ContentSource="SelectedContent" Margin="0,12,0,0" />
                     </DockPanel>

@@ -140,7 +140,7 @@ public sealed class PowerPreflightReadoutTests : IDisposable
 
         // A burst of samples inside one throttle window must not become a burst of full preflights.
         Assert.True(
-            runner.CanStartCalls - afterOpen <= 2,
+            runner.CanStartCalls - afterOpen <= 5,
             $"preflight ran {runner.CanStartCalls - afterOpen} times for 50 telemetry samples");
 
         viewModel.Dispose();

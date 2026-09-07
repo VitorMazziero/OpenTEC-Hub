@@ -31,7 +31,7 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
-        <Style x:Key="CompactField" TargetType="TextBox">
+        <Style x:Key="CompactField" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Height" Value="28" />
             <Setter Property="Padding" Value="5,2" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -63,29 +63,6 @@
                                 <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SingleLineSegmentedControlStyle" TargetType="TabControl">
-            <Setter Property="ItemContainerStyle" Value="{StaticResource SegmentedItemStyle}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <DockPanel>
-                            <Border DockPanel.Dock="Top" HorizontalAlignment="Left"
-                                    Padding="2" CornerRadius="{DynamicResource RadiusSmall}"
-                                    Background="{DynamicResource SurfaceSunkenBrush}"
-                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                                    BorderThickness="1">
-                                <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                              VerticalScrollBarVisibility="Disabled"
-                                              Focusable="False">
-                                    <StackPanel Orientation="Horizontal" IsItemsHost="True" />
-                                </ScrollViewer>
-                            </Border>
-                            <ContentPresenter ContentSource="SelectedContent" Margin="0,12,0,0" />
-                        </DockPanel>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -162,13 +139,14 @@
                     <StackPanel Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}">
                         <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                         <!-- Preflight ao vivo: o operador le o que falta antes de apertar Iniciar -->
-                        <Border Margin="0,5,0,0" Padding="8,3" CornerRadius="4" HorizontalAlignment="Left">
+                        <Border Margin="0,5,0,0" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
+                                Background="{DynamicResource SurfaceSunkenBrush}" BorderThickness="1">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{DynamicResource StateWarningBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource StateWarningBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsReadyToStart}" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource StateOkBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource StateOkBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -293,7 +271,7 @@
                         <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="Impelidores" FontSize="15" FontWeight="SemiBold" />
+                                <TextBlock Text="Impelidores no eixo" FontSize="15" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="1" Text="{Binding ImpellerSetHash, StringFormat=hash {0}}" Style="{StaticResource CaptionTextStyle}" />
                             </Grid>
                             <DataGrid Margin="0,7,0,5" Height="150" ItemsSource="{Binding Impellers}" SelectedItem="{Binding SelectedImpeller}"
@@ -316,6 +294,40 @@
                                 <Button Content="−" Width="34" Margin="0,0,5,0" Command="{Binding RemoveImpellerCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Remover estágio" />
                                 <Button Content="↑" Width="34" Margin="0,0,5,0" Command="{Binding MoveImpellerUpCommand}" IsEnabled="{Binding CanEditPlan}" />
                                 <Button Content="↓" Width="34" Command="{Binding MoveImpellerDownCommand}" IsEnabled="{Binding CanEditPlan}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <TextBlock Text="Catálogo de impelidores (Biblioteca)" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                       Text="Biblioteca de modelos de impelidores. Edite as propriedades, crie novos modelos, salve em disco ou adicione diretamente ao eixo atual." />
+                            <DataGrid Margin="0,7,0,5" Height="150" ItemsSource="{Binding CatalogImpellers}" SelectedItem="{Binding SelectedCatalogImpeller}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
+                                      HeadersVisibility="Column" HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="Tipo" Width="120">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ComboBox ItemsSource="{Binding DataContext.ImpellerTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Type, UpdateSourceTrigger=PropertyChanged}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Nome" Binding="{Binding Label, UpdateSourceTrigger=LostFocus}" Width="130" />
+                                    <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus}" Width="62" />
+                                    <DataGridTextColumn Header="Pás" Binding="{Binding BladeCount, UpdateSourceTrigger=LostFocus}" Width="42" />
+                                    <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus}" Width="70" />
+                                    <DataGridTextColumn Header="Np lit." Binding="{Binding LiteratureNp, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="58" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <WrapPanel>
+                                <Button Content="+ Novo" Padding="8,3" Margin="0,0,5,0" Command="{Binding AddCatalogImpellerCommand}" ToolTip="Adicionar novo modelo ao catálogo" />
+                                <Button Content="− Remover" Padding="8,3" Margin="0,0,5,0" Command="{Binding RemoveCatalogImpellerCommand}" ToolTip="Remover modelo selecionado do catálogo" />
+                                <Button Content="💾 Salvar catálogo" Padding="8,3" Margin="0,0,5,0" Command="{Binding SaveCatalogCommand}" ToolTip="Salvar alterações do catálogo em disco (impellers.json)" />
+                                <Button Content="⬇ Adicionar ao eixo" Padding="8,3" Command="{Binding AddCatalogImpellerToAssemblyCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Inserir cópia deste impelidor na montagem do eixo atual" />
                             </WrapPanel>
                         </StackPanel>
                     </Border>
@@ -430,15 +442,11 @@
                                       AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" IsEnabled="{Binding CanEditPlan}" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="28" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="N rpm" Binding="{Binding AgitationRpm, UpdateSourceTrigger=LostFocus}" Width="62" />
-                                    <DataGridTextColumn Header="L/min" Binding="{Binding GasFlowLpm, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="58" />
-                                    <DataGridTextColumn Header="vvm" Binding="{Binding GasFlowVvm, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="52" />
-                                    <DataGridTemplateColumn Header="Un." Width="58"><DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding DataContext.FlowUnits, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding FlowUnit}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="Modo" Width="112"><DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding DataContext.GasModes, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding GasMode}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Rep." Binding="{Binding RequestedReplicates}" Width="42" />
-                                    <DataGridTextColumn Header="Feitas" Binding="{Binding CompletedReplicates}" Width="48" IsReadOnly="True" />
-                                    <DataGridTemplateColumn Header="Status" Width="76"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Pendente" /><Style.Triggers><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.InProgress}"><Setter Property="Text" Value="Em curso" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Completed}"><Setter Property="Text" Value="Concluída" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Skipped}"><Setter Property="Text" Value="Pulada" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="Origem" Width="64"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Manual" /><Style.Triggers><DataTrigger Binding="{Binding Origin}" Value="{x:Static power:PowerConditionOrigin.Map}"><Setter Property="Text" Value="Mapa" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="N rpm" Binding="{Binding AgitationRpm, UpdateSourceTrigger=LostFocus}" Width="65" />
+                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}, TargetNullValue='0'}" Width="85" />
+                                    <DataGridTextColumn Header="Rep." Binding="{Binding RequestedReplicates}" Width="45" />
+                                    <DataGridTextColumn Header="Feitas" Binding="{Binding CompletedReplicates}" Width="52" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Status" Width="90"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Pendente" /><Style.Triggers><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.InProgress}"><Setter Property="Text" Value="Em curso" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Completed}"><Setter Property="Text" Value="Concluída" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Skipped}"><Setter Property="Text" Value="Pulada" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                             <WrapPanel>

@@ -5,6 +5,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection("AppPaths")]
 public sealed class CrashReporterTests : IDisposable
 {
     private readonly string _tempDir;
@@ -107,9 +108,19 @@ public sealed class CrashReporterTests : IDisposable
 
         var path = reporter.WriteCrashReport(ex, "InterfaceTest", isTerminating: false);
 
-        Assert.False(string.IsNullOrWhiteSpace(path));
-        Assert.True(File.Exists(path));
-        var content = File.ReadAllText(path);
-        Assert.Contains("DivideByZeroException", content);
+        try
+        {
+            Assert.False(string.IsNullOrWhiteSpace(path));
+            Assert.True(File.Exists(path));
+            var content = File.ReadAllText(path);
+            Assert.Contains("DivideByZeroException", content);
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                try { File.Delete(path); } catch { }
+            }
+        }
     }
 }

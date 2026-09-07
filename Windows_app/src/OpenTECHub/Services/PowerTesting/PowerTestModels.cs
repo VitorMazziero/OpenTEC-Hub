@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.Services.PowerTesting;
 
@@ -320,7 +324,7 @@ public sealed class PowerCondition : INotifyPropertyChanged
     }
 
     private double? _gasFlowLpm;
-    /// <summary>Stored primary gas flow, always L/min (§11). Null for ungassed rows.</summary>
+    /// <summary>Stored primary gas flow, always L/min (§11). 0 or null for ungassed rows.</summary>
     public double? GasFlowLpm
     {
         get => _gasFlowLpm;
@@ -330,9 +334,23 @@ public sealed class PowerCondition : INotifyPropertyChanged
             {
                 _gasFlowLpm = value;
                 OnPropertyChanged();
-                if (value.HasValue && GasMode == PowerGasMode.Ungassed)
+                if (value.HasValue && value.Value > 0.0001)
                 {
-                    GasMode = PowerGasMode.Gassed;
+                    if (GasMode == PowerGasMode.Ungassed)
+                    {
+                        GasMode = PowerGasMode.Gassed;
+                    }
+                }
+                else if (!value.HasValue || value.Value <= 0.0001)
+                {
+                    if (GasMode == PowerGasMode.Gassed)
+                    {
+                        // A flow edit to zero is still a measured/entered zero. Update the
+                        // mode without routing through its setter, which intentionally clears
+                        // flow values when the operator explicitly selects "Ungassed".
+                        _gasMode = PowerGasMode.Ungassed;
+                        OnPropertyChanged(nameof(GasMode));
+                    }
                 }
                 var vol = _liquidVolumeLProvider?.Invoke() ?? 0;
                 if (vol > 0 && value.HasValue)
@@ -365,9 +383,20 @@ public sealed class PowerCondition : INotifyPropertyChanged
             {
                 _gasFlowVvm = value;
                 OnPropertyChanged();
-                if (value.HasValue && GasMode == PowerGasMode.Ungassed)
+                if (value.HasValue && value.Value > 0.0001)
                 {
-                    GasMode = PowerGasMode.Gassed;
+                    if (GasMode == PowerGasMode.Ungassed)
+                    {
+                        GasMode = PowerGasMode.Gassed;
+                    }
+                }
+                else if (!value.HasValue || value.Value <= 0.0001)
+                {
+                    if (GasMode == PowerGasMode.Gassed)
+                    {
+                        _gasMode = PowerGasMode.Ungassed;
+                        OnPropertyChanged(nameof(GasMode));
+                    }
                 }
                 var vol = _liquidVolumeLProvider?.Invoke() ?? 0;
                 if (vol > 0 && value.HasValue)
@@ -792,18 +821,59 @@ public sealed record PowerTestEventLogEntry(
     string Message,
     string? Details = null);
 
-/// <summary>The four impeller families the registry ships with (§8). Np values are editable references.</summary>
+/// <summary>The impeller catalog/library. Persisted to impellers.json in AppPaths.ConfigDirectory.</summary>
 public static class PowerImpellerCatalog
 {
+    public static string CatalogFilePath => Path.Combine(AppPaths.ConfigDirectory, "impellers.json");
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     public static IReadOnlyList<Impeller> Defaults => new[]
     {
-        new Impeller { Type = ImpellerType.RushtonFlatBlade, Label = "Rushton (pás planas)", BladeCount = 6, LiteratureNp = 5.0 },
-        new Impeller { Type = ImpellerType.MarinePropeller, Label = "Hélice marinha", BladeCount = 3, LiteratureNp = 0.35 },
-        new Impeller { Type = ImpellerType.ElephantEar, Label = "Orelha de elefante", BladeCount = 3, LiteratureNp = 1.3 },
-        new Impeller { Type = ImpellerType.SmithConcaveBlade, Label = "Smith (pás côncavas / CD-6)", BladeCount = 6, LiteratureNp = 4.1 },
+        new Impeller { Type = ImpellerType.RushtonFlatBlade, Label = "Rushton (pás planas)", DiameterM = 0.065, BladeCount = 6, ClearanceM = 0.065, LiteratureNp = 5.0 },
+        new Impeller { Type = ImpellerType.MarinePropeller, Label = "Hélice marinha", DiameterM = 0.065, BladeCount = 3, ClearanceM = 0.065, LiteratureNp = 0.35 },
+        new Impeller { Type = ImpellerType.ElephantEar, Label = "Orelha de elefante", DiameterM = 0.065, BladeCount = 3, ClearanceM = 0.065, LiteratureNp = 1.3 },
+        new Impeller { Type = ImpellerType.SmithConcaveBlade, Label = "Smith (pás côncavas / CD-6)", DiameterM = 0.065, BladeCount = 6, ClearanceM = 0.065, LiteratureNp = 4.1 },
     };
 
     public static Impeller Create(ImpellerType type) =>
-        Defaults.FirstOrDefault(i => i.Type == type)?.Clone()
-        ?? new Impeller { Type = ImpellerType.Custom, Label = "Personalizado" };
+        LoadCatalog().FirstOrDefault(i => i.Type == type)?.Clone()
+        ?? Defaults.FirstOrDefault(i => i.Type == type)?.Clone()
+        ?? new Impeller { Type = ImpellerType.Custom, Label = "Personalizado", DiameterM = 0.065, BladeCount = 6, ClearanceM = 0.065 };
+
+    public static List<Impeller> LoadCatalog()
+    {
+        try
+        {
+            if (File.Exists(CatalogFilePath))
+            {
+                var json = File.ReadAllText(CatalogFilePath);
+                var items = JsonSerializer.Deserialize<List<Impeller>>(json, JsonOpts);
+                if (items is not null)
+                {
+                    return items;
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to defaults on read/deserialization failure
+        }
+
+        return Defaults.Select(i => i.Clone()).ToList();
+    }
+
+    public static void SaveCatalog(IEnumerable<Impeller> impellers)
+    {
+        ArgumentNullException.ThrowIfNull(impellers);
+        Directory.CreateDirectory(AppPaths.ConfigDirectory);
+        var list = impellers.ToList();
+        var json = JsonSerializer.Serialize(list, JsonOpts);
+        File.WriteAllText(CatalogFilePath, json);
+    }
 }

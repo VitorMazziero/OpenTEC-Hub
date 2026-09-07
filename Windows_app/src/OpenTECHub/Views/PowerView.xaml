@@ -221,20 +221,20 @@
                             <TextBlock Text="Ensaio" FontSize="15" FontWeight="SemiBold" />
                             <ComboBox Margin="0,8,0,5" ItemsSource="{Binding Tests}" SelectedItem="{Binding SelectedTest}"
                                       DisplayMemberPath="Name" ToolTip="Ensaios autocontidos em Testes-Potencia" />
-                            <Grid>
+                            <Grid Margin="0,4,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
                                            ToolTip="Rascunhos e ensaios interrompidos podem ter sua tabela editada enquanto estão parados" />
-                                <Button Grid.Column="1" Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="10,4"
-                                        ToolTip="Carrega o ensaio escolhido acima: fluido, geometria, tabela de condições e pontos já medidos" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="8,3" Margin="0,0,4,0"
+                                            ToolTip="Carrega o ensaio escolhido acima: fluido, geometria, tabela de condições e pontos já medidos" />
+                                    <Button Content="Renomear" Command="{Binding RenameTestCommand}"
+                                            IsEnabled="{Binding CanManageTest}" Padding="8,3" Margin="0,0,4,0" ToolTip="Renomeia o ensaio aberto e sua pasta" />
+                                    <Button Content="Excluir" Command="{Binding DeleteTestCommand}"
+                                            IsEnabled="{Binding CanManageTest}" Padding="8,3" Style="{StaticResource DangerButtonStyle}"
+                                            ToolTip="Move o ensaio aberto para a lixeira interna" />
+                                </StackPanel>
                             </Grid>
-                            <WrapPanel Margin="0,5,0,0" HorizontalAlignment="Right">
-                                <Button Content="Renomear" Command="{Binding RenameTestCommand}"
-                                        IsEnabled="{Binding CanManageTest}" Padding="8,4" ToolTip="Renomeia o ensaio aberto e sua pasta" />
-                                <Button Content="Excluir" Margin="5,0,0,0" Command="{Binding DeleteTestCommand}"
-                                        IsEnabled="{Binding CanManageTest}" Padding="8,4" Style="{StaticResource DangerButtonStyle}"
-                                        ToolTip="Move o ensaio aberto para a lixeira interna" />
-                            </WrapPanel>
                             <TextBlock Margin="0,6,0,0" Text="{Binding TestRootDirectory}" Style="{StaticResource CaptionTextStyle}"
                                        TextTrimming="CharacterEllipsis" ToolTip="{Binding TestRootDirectory}" />
                         </StackPanel>
@@ -279,55 +279,40 @@
                                       HeadersVisibility="Column" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Binding="{Binding StageIndex}" Width="28" IsReadOnly="True" />
-                                    <DataGridTemplateColumn Header="Tipo" Width="120">
-                                        <DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding DataContext.ImpellerTypes, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Type, UpdateSourceTrigger=PropertyChanged}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                    <DataGridTemplateColumn Header="Nome" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Command="{Binding DataContext.SelectImpellerForStageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding DataContext.CanEditPlan, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        HorizontalContentAlignment="Left"
+                                                        Padding="6,2"
+                                                        Background="Transparent"
+                                                        BorderThickness="0"
+                                                        Cursor="Hand"
+                                                        ToolTip="Clique para selecionar modelo do catálogo">
+                                                    <DockPanel LastChildFill="True">
+                                                        <TextBlock Text="▾" DockPanel.Dock="Right" Margin="4,0,0,0"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="Medium" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus}" Width="62" />
+                                    <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F3}}" Width="62" />
                                     <DataGridTextColumn Header="Pás" Binding="{Binding BladeCount, UpdateSourceTrigger=LostFocus}" Width="42" />
-                                    <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus}" Width="70" />
-                                    <DataGridTextColumn Header="Nome" Binding="{Binding Label, UpdateSourceTrigger=LostFocus}" Width="130" />
+                                    <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F3}}" Width="65" />
                                     <DataGridTextColumn Header="Np lit." Binding="{Binding LiteratureNp, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="58" />
                                 </DataGrid.Columns>
                             </DataGrid>
                             <WrapPanel>
                                 <Button Content="+" Width="34" Margin="0,0,5,0" Command="{Binding AddImpellerCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Adicionar estágio" />
-                                <Button Content="−" Width="34" Margin="0,0,5,0" Command="{Binding RemoveImpellerCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Remover estágio" />
-                                <Button Content="↑" Width="34" Margin="0,0,5,0" Command="{Binding MoveImpellerUpCommand}" IsEnabled="{Binding CanEditPlan}" />
-                                <Button Content="↓" Width="34" Command="{Binding MoveImpellerDownCommand}" IsEnabled="{Binding CanEditPlan}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
-                        <StackPanel>
-                            <TextBlock Text="Catálogo de impelidores (Biblioteca)" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                       Text="Biblioteca de modelos de impelidores. Edite as propriedades, crie novos modelos, salve em disco ou adicione diretamente ao eixo atual." />
-                            <DataGrid Margin="0,7,0,5" Height="150" ItemsSource="{Binding CatalogImpellers}" SelectedItem="{Binding SelectedCatalogImpeller}"
-                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
-                                      HeadersVisibility="Column" HorizontalScrollBarVisibility="Auto">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="Tipo" Width="120">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <ComboBox ItemsSource="{Binding DataContext.ImpellerTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                          DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                          SelectedValue="{Binding Type, UpdateSourceTrigger=PropertyChanged}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Nome" Binding="{Binding Label, UpdateSourceTrigger=LostFocus}" Width="130" />
-                                    <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus}" Width="62" />
-                                    <DataGridTextColumn Header="Pás" Binding="{Binding BladeCount, UpdateSourceTrigger=LostFocus}" Width="42" />
-                                    <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus}" Width="70" />
-                                    <DataGridTextColumn Header="Np lit." Binding="{Binding LiteratureNp, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="58" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            <WrapPanel>
-                                <Button Content="+ Novo" Padding="8,3" Margin="0,0,5,0" Command="{Binding AddCatalogImpellerCommand}" ToolTip="Adicionar novo modelo ao catálogo" />
-                                <Button Content="− Remover" Padding="8,3" Margin="0,0,5,0" Command="{Binding RemoveCatalogImpellerCommand}" ToolTip="Remover modelo selecionado do catálogo" />
-                                <Button Content="💾 Salvar catálogo" Padding="8,3" Margin="0,0,5,0" Command="{Binding SaveCatalogCommand}" ToolTip="Salvar alterações do catálogo em disco (impellers.json)" />
-                                <Button Content="⬇ Adicionar ao eixo" Padding="8,3" Command="{Binding AddCatalogImpellerToAssemblyCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Inserir cópia deste impelidor na montagem do eixo atual" />
+                                <Button Content="−" Width="34" Margin="0,0,5,0" Command="{Binding RemoveImpellerCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Remover estágio selecionado" />
+                                <Button Content="↑" Width="34" Margin="0,0,5,0" Command="{Binding MoveImpellerUpCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Mover para cima" />
+                                <Button Content="↓" Width="34" Margin="0,0,8,0" Command="{Binding MoveImpellerDownCommand}" IsEnabled="{Binding CanEditPlan}" ToolTip="Mover para baixo" />
+                                <Button Content="📖 Catálogo de impelidores..." Padding="8,3" Command="{Binding OpenImpellerCatalogCommand}" ToolTip="Abrir biblioteca de modelos de impelidores para gerenciar ou adicionar ao eixo" />
                             </WrapPanel>
                         </StackPanel>
                     </Border>
@@ -368,67 +353,11 @@
                                 </Grid.ColumnDefinitions>
                                 <Button Content="Gerar tabela" Padding="8,4" Command="{Binding GenerateConditionsPlanCommand}" IsEnabled="{Binding CanEditPlan}"
                                         ToolTip="Gera a grade N × Qg com os parâmetros definidos acima" />
-                                <Button Grid.Column="2" Content="Remover todos os pontos" Padding="8,4" Command="{Binding ClearAllConditionsCommand}" IsEnabled="{Binding CanEditPlan}"
+                                <Button Grid.Column="2" Content="Limpar tabela" Padding="8,4" Command="{Binding ClearAllConditionsCommand}" IsEnabled="{Binding CanEditPlan}"
                                         ToolTip="Limpa todos os pontos da tabela de condições" />
                             </Grid>
-                            <!-- Critérios Estatísticos e Janelas de Parada -->
-                            <Grid Margin="0,7,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="IC rel. (%)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding RelativeCiPercent, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Piso στ (×)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding CiFloorSigmaMultiple, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Text="n mín." Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MinimumSamples, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-                            <Grid Margin="0,7,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="t máx. (s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxCaptureSeconds, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Tentativas" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding MaxTries, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Text="Janela (s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationarityWindowSeconds, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-                            <Grid Margin="0,7,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="Deriva (%/s)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationaritySlopeTolerance, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Confirmações" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding StationarityRequiredSamples, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-                            <CheckBox Margin="0,8,0,0" Content="Leitura manual de energia após cada ponto" IsChecked="{Binding ManualEnergyCaptureEnabled}" />
-                            <CheckBox Margin="0,5,0,0" Content="Estabilização no alívio" IsChecked="{Binding VentStabilizationEnabled}" IsEnabled="{Binding CanEditPlan}" ToolTip="Estabiliza a vazão direcionada ao alívio antes de alimentar o reator" />
-                            <Border Visibility="{Binding VentStabilizationEnabled, Converter={StaticResource BoolToVis}}"
-                                    Background="{DynamicResource SurfaceSunkenBrush}"
-                                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="{DynamicResource RadiusSmall}"
-                                    Padding="8"
-                                    Margin="0,6,0,0">
-                                <StackPanel>
-                                    <TextBlock Text="Válvula de alívio:" Style="{StaticResource PowerLabel}" />
-                                    <ComboBox Margin="0,0,0,6" ItemsSource="{Binding VentValves}"
-                                              SelectedValue="{Binding SelectedVentValve}"
-                                              SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
-                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
-                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Tol. (L/min)" Style="{StaticResource PowerLabel}" />
-                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowToleranceLpm, UpdateSourceTrigger=LostFocus}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Amostras" Style="{StaticResource PowerLabel}" />
-                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStableSamples, UpdateSourceTrigger=LostFocus}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="4">
-                                            <TextBlock Text="N alívio" Style="{StaticResource PowerLabel}" />
-                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding VentAgitationRpm, UpdateSourceTrigger=LostFocus}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="6">
-                                            <TextBlock Text="t máx. (s)" Style="{StaticResource PowerLabel}" />
-                                            <TextBox Style="{StaticResource CompactField}" Text="{Binding MaxVentStabilizationSeconds, UpdateSourceTrigger=LostFocus}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
+                            <Button Margin="0,6,0,0" Content="⚙ Critérios de parada e opções..." Padding="8,4" Command="{Binding OpenCaptureSettingsCommand}"
+                                    ToolTip="Abre mini janela com critérios estatísticos de parada (§12), estabilização no alívio e captura manual de energia" />
                         </StackPanel>
                     </Border>
 
@@ -441,11 +370,17 @@
                             <DataGrid Margin="0,7,0,5" Height="220" ItemsSource="{Binding Conditions}" SelectedItem="{Binding SelectedCondition}"
                                       AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" IsEnabled="{Binding CanEditPlan}" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="28" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="N rpm" Binding="{Binding AgitationRpm, UpdateSourceTrigger=LostFocus}" Width="65" />
-                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}, TargetNullValue='0'}" Width="85" />
-                                    <DataGridTextColumn Header="Rep." Binding="{Binding RequestedReplicates}" Width="45" />
-                                    <DataGridTextColumn Header="Feitas" Binding="{Binding CompletedReplicates}" Width="52" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="Auto" MinWidth="34" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="N" Binding="{Binding AgitationRpm, UpdateSourceTrigger=LostFocus}" Width="55" />
+                                    <DataGridTextColumn Header="Qg" Binding="{Binding GasFlowLpm, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}, TargetNullValue='0'}" Width="55" />
+                                    <DataGridTextColumn Header="Rep." Binding="{Binding ReplicatesDisplay, UpdateSourceTrigger=LostFocus}" Width="52" />
                                     <DataGridTemplateColumn Header="Status" Width="90"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Pendente" /><Style.Triggers><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.InProgress}"><Setter Property="Text" Value="Em curso" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Completed}"><Setter Property="Text" Value="Concluída" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.Skipped}"><Setter Property="Text" Value="Pulada" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>

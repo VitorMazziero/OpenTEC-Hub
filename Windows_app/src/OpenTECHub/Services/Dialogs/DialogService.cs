@@ -1,4 +1,7 @@
+using System;
+using System.Collections.ObjectModel;
 using System.Windows;
+using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Views.Dialogs;
 
 namespace OpenTECHub.Services.Dialogs;
@@ -57,5 +60,36 @@ public sealed class DialogService : IDialogService
         };
 
         return dialog.ShowDialog() == true ? dialog.Result : RecipeStartOption.Cancel;
+    }
+
+    public bool ShowImpellerCatalog(
+        ObservableCollection<Impeller> catalog,
+        Impeller? targetStage,
+        out Impeller? selectedImpeller,
+        Action? saveCatalog = null,
+        Action<Impeller>? onAddToAssembly = null)
+    {
+        var dialog = new ImpellerCatalogDialog(catalog, targetStage, saveCatalog, onAddToAssembly)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            selectedImpeller = dialog.SelectedResult;
+            return true;
+        }
+
+        selectedImpeller = null;
+        return false;
+    }
+
+    public void ShowCaptureSettings(ViewModels.PowerTestViewModel viewModel)
+    {
+        var dialog = new CaptureSettingsDialog(viewModel)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        dialog.ShowDialog();
     }
 }

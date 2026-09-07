@@ -445,14 +445,50 @@ public sealed class PowerCondition : INotifyPropertyChanged
     public int RequestedReplicates
     {
         get => _requestedReplicates;
-        set { if (_requestedReplicates != value) { _requestedReplicates = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_requestedReplicates != value)
+            {
+                _requestedReplicates = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ReplicatesDisplay));
+            }
+        }
     }
 
     private int _completedReplicates;
     public int CompletedReplicates
     {
         get => _completedReplicates;
-        set { if (_completedReplicates != value) { _completedReplicates = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_completedReplicates != value)
+            {
+                _completedReplicates = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ReplicatesDisplay));
+            }
+        }
+    }
+
+    /// <summary>Formatted as &lt;completed&gt;/&lt;requested&gt; (e.g. 0/1, 1/1).</summary>
+    public string ReplicatesDisplay
+    {
+        get => $"{CompletedReplicates}/{RequestedReplicates}";
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            var parts = value.Split('/');
+            var targetStr = parts.Length > 1 ? parts[1] : parts[0];
+            if (int.TryParse(targetStr.Trim(), out var r) && r >= 1)
+            {
+                RequestedReplicates = r;
+            }
+        }
     }
 
     private int _acceptedReplicates;
@@ -845,6 +881,26 @@ public static class PowerImpellerCatalog
         LoadCatalog().FirstOrDefault(i => i.Type == type)?.Clone()
         ?? Defaults.FirstOrDefault(i => i.Type == type)?.Clone()
         ?? new Impeller { Type = ImpellerType.Custom, Label = "Personalizado", DiameterM = 0.065, BladeCount = 6, ClearanceM = 0.065 };
+
+    public static Impeller CreateByName(string name)
+    {
+        var catalog = LoadCatalog();
+        var match = catalog.FirstOrDefault(i => string.Equals(i.Label, name, StringComparison.OrdinalIgnoreCase));
+        if (match != null)
+        {
+            return match.Clone();
+        }
+
+        return new Impeller
+        {
+            Type = ImpellerType.Custom,
+            Label = !string.IsNullOrWhiteSpace(name) ? name : "Novo Impelidor",
+            DiameterM = 0.065,
+            BladeCount = 6,
+            ClearanceM = 0.065,
+            LiteratureNp = 1.0,
+        };
+    }
 
     public static List<Impeller> LoadCatalog()
     {

@@ -104,6 +104,7 @@ public static class ImpellerComparisonBuilder
             TestName = document.Name,
             TestDateUtc = document.CompletedUtc ?? document.CreatedUtc,
             ImpellerType = impeller.Type,
+            ImpellerName = impeller.Label,
             ImpellerDiameterM = impeller.DiameterM,
             VesselDiameterM = geometry.VesselDiameterM,
             LiquidVolumeM3 = geometry.LiquidVolumeM3,

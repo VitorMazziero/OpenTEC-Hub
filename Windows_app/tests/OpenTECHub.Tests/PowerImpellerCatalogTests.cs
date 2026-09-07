@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.PowerMapping;
 using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -177,5 +178,132 @@ public sealed class PowerImpellerCatalogTests : IDisposable
         Assert.Equal(4, inAssembly.BladeCount);
         Assert.Equal(1.8, inAssembly.LiteratureNp);
         Assert.Equal(0, inAssembly.StageIndex);
+    }
+
+    [Fact]
+    public void PowerImpellerCatalog_CreateByName_Returns_Exact_Model()
+    {
+        var custom = new Impeller
+        {
+            Type = ImpellerType.Custom,
+            Label = "Combijet",
+            DiameterM = 0.070,
+            BladeCount = 4,
+            ClearanceM = 0.050,
+            LiteratureNp = 1.25,
+        };
+        PowerImpellerCatalog.SaveCatalog([custom]);
+
+        var created = PowerImpellerCatalog.CreateByName("Combijet");
+        Assert.Equal("Combijet", created.Label);
+        Assert.Equal(0.070, created.DiameterM);
+        Assert.Equal(4, created.BladeCount);
+        Assert.Equal(1.25, created.LiteratureNp);
+    }
+
+    [Fact]
+    public void PowerTestViewModel_ApplyCatalogImpellerToStage_AppliesPropertiesProperly()
+    {
+        var inner = new RecordingDeviceService();
+        using var arbiter = new CommandArbiter(inner, TimeProvider.System);
+        var store = new PowerTestStore();
+        var testName = "Ensaio Teste StageApply " + Guid.NewGuid().ToString("N");
+        var doc = store.CreateTest(testName, new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
+        using var vm = new PowerTestViewModel(store, arbiter, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        var stage = new Impeller
+        {
+            StageIndex = 0,
+            Label = "Old Model",
+            DiameterM = 0.060,
+            BladeCount = 6,
+            ClearanceM = 0.065,
+            LiteratureNp = 5.0,
+        };
+        vm.Impellers.Add(stage);
+
+        var catalogModel = new Impeller
+        {
+            Label = "IsojetB",
+            DiameterM = 0.072,
+            BladeCount = 3,
+            ClearanceM = 0.080,
+            LiteratureNp = 0.95,
+        };
+
+        vm.ApplyCatalogImpellerToStage(stage, catalogModel);
+
+        Assert.Equal("IsojetB", stage.Label);
+        Assert.Equal(0.072, stage.DiameterM);
+        Assert.Equal(3, stage.BladeCount);
+        Assert.Equal(0.95, stage.LiteratureNp);
+    }
+
+    [Fact]
+    public void PowerTestViewModel_DuplicateCatalogImpeller_Creates_Unique_Copy()
+    {
+        var inner = new RecordingDeviceService();
+        using var arbiter = new CommandArbiter(inner, TimeProvider.System);
+        var store = new PowerTestStore();
+        var testName = "Ensaio Teste Duplicate " + Guid.NewGuid().ToString("N");
+        var doc = store.CreateTest(testName, new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
+        using var vm = new PowerTestViewModel(store, arbiter, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        var baseModel = vm.CatalogImpellers.First();
+        vm.SelectedCatalogImpeller = baseModel;
+        var countBefore = vm.CatalogImpellers.Count;
+
+        vm.DuplicateCatalogImpellerCommand.Execute(null);
+
+        Assert.Equal(countBefore + 1, vm.CatalogImpellers.Count);
+        var duplicate = vm.SelectedCatalogImpeller;
+        Assert.NotNull(duplicate);
+        Assert.StartsWith(baseModel.Label, duplicate.Label);
+        Assert.Contains("(Cópia)", duplicate.Label);
+        Assert.Equal(baseModel.DiameterM, duplicate.DiameterM);
+        Assert.Equal(baseModel.BladeCount, duplicate.BladeCount);
+        Assert.Equal(baseModel.LiteratureNp, duplicate.LiteratureNp);
+    }
+
+    [Fact]
+    public void ImpellerComparisonItem_Propagates_ImpellerName_To_Label()
+    {
+        var item = new ImpellerComparisonItem
+        {
+            TestName = "Ensaio Combijet",
+            ImpellerName = "Combijet",
+            ImpellerType = ImpellerType.Custom,
+            ImpellerDiameterM = 0.065,
+        };
+        var row = new ImpellerComparisonRow(item);
+        Assert.Equal("Combijet", row.ImpellerTypeLabel);
+    }
+
+    [Fact]
+    public void PowerCondition_ReplicatesDisplay_ShowsProgress_And_AllowsEditing()
+    {
+        var cond = new PowerCondition
+        {
+            RequestedReplicates = 3,
+            CompletedReplicates = 1,
+        };
+
+        Assert.Equal("1/3", cond.ReplicatesDisplay);
+
+        cond.CompletedReplicates = 2;
+        Assert.Equal("2/3", cond.ReplicatesDisplay);
+
+        // Edit target via string setter
+        cond.ReplicatesDisplay = "4";
+        Assert.Equal(4, cond.RequestedReplicates);
+        Assert.Equal("2/4", cond.ReplicatesDisplay);
+
+        cond.ReplicatesDisplay = "2/5";
+        Assert.Equal(5, cond.RequestedReplicates);
+        Assert.Equal("2/5", cond.ReplicatesDisplay);
     }
 }

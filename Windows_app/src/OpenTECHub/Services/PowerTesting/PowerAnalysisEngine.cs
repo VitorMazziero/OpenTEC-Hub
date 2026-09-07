@@ -74,7 +74,7 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
                 var np = PowerCalc.PowerNumber(perStageW, rho, rpm, impeller.DiameterM);
                 var re = PowerCalc.ReynoldsNumber(rho, rpm, impeller.DiameterM, mu);
                 var npCi95 = Math.Abs(PowerCalc.PowerNumber(perStageCi95W, rho, rpm, impeller.DiameterM));
-                stages.Add(new StageNpResult(impeller.StageIndex, impeller.Type, impeller.DiameterM, np, re, npCi95));
+                stages.Add(new StageNpResult(impeller.StageIndex, impeller.Type, impeller.DiameterM, np, re, npCi95, impeller.Label));
                 referenceDiameterM = Math.Max(referenceDiameterM, impeller.DiameterM);
             }
         }

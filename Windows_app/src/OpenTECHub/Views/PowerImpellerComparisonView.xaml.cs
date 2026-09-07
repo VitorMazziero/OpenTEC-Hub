@@ -153,7 +153,8 @@ public partial class PowerImpellerComparisonView : UserControl
             series.MarkerSize = 6;
             series.LineWidth = 1.4f;
             series.Color = color;
-            series.LegendText = $"{item.TestName} — {item.ImpellerType} D/T {item.DiameterRatioDt:F2}";
+            var impellerLabel = !string.IsNullOrWhiteSpace(item.ImpellerName) ? item.ImpellerName : item.ImpellerType.ToString();
+            series.LegendText = $"{item.TestName} — {impellerLabel} D/T {item.DiameterRatioDt:F2}";
 
             // IC95 as a vertical whisker per point: the band is the measurement, not decoration.
             foreach (var point in points.Where(p => p.Uncertainty95 > 0))
@@ -229,7 +230,8 @@ public partial class PowerImpellerComparisonView : UserControl
             series.MarkerSize = 6;
             series.LineWidth = 1.4f;
             series.Color = color;
-            series.LegendText = $"{item.TestName} — {item.ImpellerType}";
+            var impellerLabel = !string.IsNullOrWhiteSpace(item.ImpellerName) ? item.ImpellerName : item.ImpellerType.ToString();
+            series.LegendText = $"{item.TestName} — {impellerLabel}";
 
             // The experimental flooding knee, where the impeller stops dispersing.
             if (item.ExperimentalFloodingFlG is { } flooding && flooding > 0)
@@ -291,7 +293,8 @@ public partial class PowerImpellerComparisonView : UserControl
             series.MarkerSize = 6;
             series.LineWidth = 1.4f;
             series.Color = palette.GetColor(index);
-            series.LegendText = $"{item.TestName} — {item.ImpellerType}";
+            var impellerLabel = !string.IsNullOrWhiteSpace(item.ImpellerName) ? item.ImpellerName : item.ImpellerType.ToString();
+            series.LegendText = $"{item.TestName} — {impellerLabel}";
         }
 
         plot.Axes.AutoScale();

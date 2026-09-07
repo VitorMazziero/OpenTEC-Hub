@@ -1,0 +1,175 @@
+<Window x:Class="OpenTECHub.Views.Dialogs.ImpellerCatalogDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Catálogo de Impelidores"
+        Width="640" Height="460"
+        MinWidth="540" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBaseBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        UseLayoutRounding="True">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="40"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            NonClientFrameEdges="None"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- Custom Caption Buttons (Minimize and Close only) -->
+        <Style x:Key="CaptionButtonBase" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+
+        <Style x:Key="CaptionMinimizeButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
+            <Setter Property="ToolTip" Value="Minimizar" />
+            <Setter Property="AutomationProperties.Name" Value="Minimizar" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <Path Width="10" Height="10" Stretch="None"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                  Data="M0,5 H10" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CaptionCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
+            <Setter Property="ToolTip" Value="Fechar" />
+            <Setter Property="AutomationProperties.Name" Value="Fechar" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <Path x:Name="Glyph" Width="10" Height="10" Stretch="None"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                  Data="M0,0 L10,10 M0,10 L10,0" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource CaptionCloseHoverBrush}" />
+                                <Setter TargetName="Glyph" Property="Stroke"
+                                        Value="{DynamicResource CaptionCloseGlyphBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Top Bar -->
+        <Border DockPanel.Dock="Top"
+                Height="40"
+                Background="{DynamicResource SurfaceCardBrush}"
+                BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Style="{StaticResource CaptionMinimizeButtonStyle}" Click="OnMinimizeWindow" />
+                    <Button Style="{StaticResource CaptionCloseButtonStyle}" Click="OnCloseWindow" />
+                </StackPanel>
+                <TextBlock Text="Catálogo de Impelidores (Biblioteca)"
+                           VerticalAlignment="Center"
+                           Margin="16,0"
+                           FontFamily="{DynamicResource FontDisplay}"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource FontSizeBody}"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+            </DockPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Margin="16,12,16,14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Stage Context / Info Banner -->
+            <Border x:Name="StageBanner" Grid.Row="0" Margin="0,0,0,10"
+                    Background="{DynamicResource SurfaceSunkenBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="2,0,0,0"
+                    Padding="10,6"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="StageBannerText"
+                           Text="Selecione um modelo do catálogo para aplicar ao estágio."
+                           FontSize="12"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+            </Border>
+
+            <!-- Catalog DataGrid -->
+            <DataGrid x:Name="CatalogGrid" Grid.Row="1"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      IsReadOnly="False"
+                      HeadersVisibility="Column"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      SelectionMode="Single"
+                      MouseDoubleClick="OnCatalogGridMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Nome do Impelidor" Binding="{Binding Label, UpdateSourceTrigger=PropertyChanged}" Width="*" MinWidth="130" />
+                    <DataGridTextColumn Header="D (m)" Binding="{Binding DiameterM, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F3}}" Width="70" />
+                    <DataGridTextColumn Header="Pás" Binding="{Binding BladeCount, UpdateSourceTrigger=LostFocus}" Width="50" />
+                    <DataGridTextColumn Header="Folga (m)" Binding="{Binding ClearanceM, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F3}}" Width="75" />
+                    <DataGridTextColumn Header="Np lit." Binding="{Binding LiteratureNp, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="70" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Catalog Action Toolbar -->
+            <DockPanel Grid.Row="2" Margin="0,8,0,0">
+                <WrapPanel DockPanel.Dock="Left">
+                    <Button Content="+ Novo" Padding="8,4" Margin="0,0,5,0" Click="OnAddClick" ToolTip="Criar novo modelo de impelidor" />
+                    <Button Content="📋 Duplicar" Padding="8,4" Margin="0,0,5,0" Click="OnDuplicateClick" ToolTip="Duplicar modelo selecionado" />
+                    <Button Content="− Remover" Padding="8,4" Margin="0,0,5,0" Click="OnRemoveClick" ToolTip="Remover modelo selecionado do catálogo" />
+                    <Button Content="💾 Salvar catálogo" Padding="8,4" Margin="0,0,5,0" Click="OnSaveClick" ToolTip="Salvar alterações no arquivo do catálogo (impellers.json)" />
+                </WrapPanel>
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center" HorizontalAlignment="Right"
+                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="8,0,0,0" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+
+            <!-- Footer Buttons -->
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button x:Name="AddToAssemblyButton" Content="⬇ Adicionar ao eixo" Padding="12,5" Margin="0,0,8,0"
+                        Click="OnAddToAssemblyClick" ToolTip="Adiciona o modelo selecionado como um novo estágio no eixo" />
+                <Button x:Name="CancelButton" Content="Cancelar" MinWidth="85" Padding="10,5" Margin="0,0,8,0"
+                        IsCancel="True" Click="OnCancelClick" />
+                <Button x:Name="SelectButton" Content="✔ Selecionar" MinWidth="110" Padding="12,5"
+                        Style="{StaticResource AccentButtonStyle}"
+                        IsDefault="True" Click="OnSelectClick" />
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

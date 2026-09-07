@@ -1,3 +1,7 @@
+using System;
+using System.Collections.ObjectModel;
+using OpenTECHub.Services.PowerTesting;
+
 namespace OpenTECHub.Services.Dialogs;
 
 public enum RecipeStartOption
@@ -30,4 +34,24 @@ public interface IDialogService
     /// Prompts the operator to choose how a recipe should start (reset loops vs start preserving current state).
     /// </summary>
     RecipeStartOption PromptRecipeStart(string recipeName);
+
+    /// <summary>
+    /// Displays the impeller catalog mini window. If targetStage is specified, operates in
+    /// stage-selection mode and returns true with the chosen impeller.
+    /// </summary>
+    bool ShowImpellerCatalog(
+        ObservableCollection<Impeller> catalog,
+        Impeller? targetStage,
+        out Impeller? selectedImpeller,
+        Action? saveCatalog = null,
+        Action<Impeller>? onAddToAssembly = null)
+    {
+        selectedImpeller = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Displays the capture settings dialog for power tests.
+    /// </summary>
+    void ShowCaptureSettings(ViewModels.PowerTestViewModel viewModel) { }
 }

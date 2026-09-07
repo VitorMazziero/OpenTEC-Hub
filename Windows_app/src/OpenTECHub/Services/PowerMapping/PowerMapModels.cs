@@ -288,6 +288,8 @@ public sealed record ImpellerComparisonItem
 
     public ImpellerType ImpellerType { get; init; }
 
+    public string ImpellerName { get; init; } = "";
+
     public double ImpellerDiameterM { get; init; }
 
     public double VesselDiameterM { get; init; }

@@ -978,20 +978,127 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void AddCatalogImpellerToAssembly()
+    private void DuplicateCatalogImpeller(Impeller? source = null)
     {
-        if (!CanEditPlan || SelectedCatalogImpeller is null)
+        var target = source ?? SelectedCatalogImpeller;
+        if (target is null)
         {
             return;
         }
 
-        var item = SelectedCatalogImpeller.Clone();
+        var copy = target.Clone();
+        copy.Label = GetUniqueCatalogName($"{target.Label} (Cópia)");
+        CatalogImpellers.Add(copy);
+        SelectedCatalogImpeller = copy;
+        TrySaveImpellerCatalog($"Impelidor duplicado como '{copy.Label}'.");
+    }
+
+    private string GetUniqueCatalogName(string baseName)
+    {
+        var name = baseName;
+        var counter = 1;
+        while (CatalogImpellers.Any(i => string.Equals(i.Label, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            counter++;
+            name = $"{baseName} {counter}";
+        }
+        return name;
+    }
+
+    [RelayCommand]
+    public void AddCatalogImpellerToAssembly(Impeller? catalogItem = null)
+    {
+        var source = catalogItem ?? SelectedCatalogImpeller;
+        if (!CanEditPlan || source is null)
+        {
+            return;
+        }
+
+        var item = source.Clone();
         item.ClearanceM = Impellers.Count == 0 ? item.ClearanceM : Impellers.Max(i => i.ClearanceM) + (item.DiameterM > 0 ? item.DiameterM : 0.065);
         item.StageIndex = Impellers.Count;
         Impellers.Add(item);
         SelectedImpeller = item;
         NotifyGeometryState();
         StatusMessage = $"Impelidor '{item.Label}' adicionado ao eixo.";
+    }
+
+    [RelayCommand]
+    private void OpenImpellerCatalog()
+    {
+        if (_dialogs is null)
+        {
+            return;
+        }
+
+        _dialogs.ShowImpellerCatalog(
+            CatalogImpellers,
+            targetStage: null,
+            out _,
+            saveCatalog: () => SaveCatalog(),
+            onAddToAssembly: (item) => AddCatalogImpellerToAssembly(item));
+    }
+
+    [RelayCommand]
+    private void OpenCaptureSettings()
+    {
+        _dialogs?.ShowCaptureSettings(this);
+    }
+
+    [RelayCommand]
+    private void SelectImpellerForStage(Impeller? stage)
+    {
+        if (!CanEditPlan)
+        {
+            return;
+        }
+
+        var target = stage ?? SelectedImpeller;
+        if (target is null)
+        {
+            return;
+        }
+
+        if (_dialogs != null && _dialogs.ShowImpellerCatalog(
+            CatalogImpellers,
+            targetStage: target,
+            out var chosen,
+            saveCatalog: () => SaveCatalog(),
+            onAddToAssembly: (item) => AddCatalogImpellerToAssembly(item)))
+        {
+            if (chosen != null)
+            {
+                ApplyCatalogImpellerToStage(target, chosen);
+            }
+        }
+    }
+
+    public void ApplyCatalogImpellerToStage(Impeller stage, Impeller catalogModel)
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        ArgumentNullException.ThrowIfNull(catalogModel);
+
+        _applyingImpellerDefaults = true;
+        try
+        {
+            stage.Label = catalogModel.Label;
+            stage.Type = catalogModel.Type;
+            stage.DiameterM = catalogModel.DiameterM;
+            stage.BladeCount = catalogModel.BladeCount;
+            stage.LiteratureNp = catalogModel.LiteratureNp;
+            if (stage.ClearanceM <= 0 && catalogModel.ClearanceM > 0)
+            {
+                stage.ClearanceM = catalogModel.ClearanceM;
+            }
+        }
+        finally
+        {
+            _applyingImpellerDefaults = false;
+        }
+
+        NotifyGeometryState();
+        ReprocessIfActive();
+        StatusMessage = $"Estágio #{stage.StageIndex} atualizado para '{stage.Label}'.";
     }
 
     [RelayCommand]

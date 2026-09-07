@@ -15,7 +15,9 @@ public sealed record ImpellerComparisonRow(ImpellerComparisonItem Item)
 {
     public string TestName => Item.TestName;
 
-    public string ImpellerTypeLabel => Item.ImpellerType.ToString();
+    public string ImpellerTypeLabel => !string.IsNullOrWhiteSpace(Item.ImpellerName)
+        ? Item.ImpellerName
+        : Item.ImpellerType.ToString();
 
     public string DiameterMm => (Item.ImpellerDiameterM * 1000).ToString("F1", CultureInfo.CurrentCulture);
 

@@ -43,7 +43,8 @@ public sealed record StageNpResult(
     double DiameterM,
     double PowerNumber,
     double ReynoldsNumber,
-    double PowerNumberCi95);
+    double PowerNumberCi95,
+    string Label = "");
 
 /// <summary>The analysed result of one captured operating point.</summary>
 public sealed record PowerPointResult

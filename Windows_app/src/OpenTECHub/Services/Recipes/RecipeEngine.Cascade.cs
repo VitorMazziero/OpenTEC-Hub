@@ -24,8 +24,11 @@ public sealed partial class RecipeEngine
     {
         CascadeController? controller = null;
 
-        // The Saída Loop wires to the loop's exit condition: a Monitor (automatic) or an Intervenção
-        // Manual (a manual Continuar/Pular switch). It is read here, never executed as a flow block.
+        // The Condição de Saída port wires to the rule that ends the loop: a Monitor (exits when the
+        // comparison becomes true), a Temporizador (exits once it elapses) or an Intervenção Manual
+        // (the operator's Manter Rodando / Sair do Loop switch). Every one of them is *read* once per
+        // iteration and never executed as a flow block. With nothing wired, the loop exits on the
+        // settle rule below. In all cases the condition being TRUE means "leave the loop".
         var condition = LoopConditionNode(node);
         var mode = node.Enum<CascadeMode>("modo");
         Log(RecipeLogSeverity.Info,
@@ -33,6 +36,15 @@ public sealed partial class RecipeEngine
 
         DateTimeOffset? lastStep = null;
         var settled = 0;
+        var loopStarted = _time.GetUtcNow();
+
+        // A Monitorar Variável keeps the debounce and timeout it obeys in the normal flow, so the
+        // same block does not mean two different things depending on where it is wired.
+        var monitorConfirmations = 0;
+        var monitorDeadline = condition is { Type: NodeType.MonitorVariable } cond
+                              && cond.Number("tempoLimiteMs") > 0
+            ? loopStarted + TimeSpan.FromMilliseconds(cond.Number("tempoLimiteMs"))
+            : (DateTimeOffset?)null;
 
         try
         {
@@ -41,16 +53,38 @@ public sealed partial class RecipeEngine
                 ct.ThrowIfCancellationRequested();
                 _pauseGate.Wait(ct);
 
-                // Manual exit: the operator flipped the gate to Pular Cascata (Passar). Checked before
-                // the frame wait so a skip takes effect promptly.
+                // Manual exit: the operator flipped the switch to Sair do Loop (Passar). Checked before
+                // the frame wait so leaving the loop takes effect promptly.
                 if (condition is { Type: NodeType.ManualIntervention } gate &&
                     gate.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass)
                 {
-                    Log(RecipeLogSeverity.Info, "Controle de O₂ encerrado pelo operador (Pular).", node.Id);
+                    Log(RecipeLogSeverity.Info, "Controle de O₂ encerrado pelo operador (Sair do Loop).", node.Id);
+                    break;
+                }
+
+                // Timed exit: the loop runs for the block's duration, then leaves. Also checked before
+                // the frame wait, so the loop ends on time even if telemetry has gone quiet.
+                if (condition is { Type: NodeType.Timer } timer &&
+                    (_time.GetUtcNow() - loopStarted).TotalSeconds
+                        >= DurationSeconds(timer.Number("duracao"), timer.Enum<TimeUnit>("unidade")))
+                {
+                    Log(RecipeLogSeverity.Info,
+                        $"Controle de O₂ encerrado por tempo ({timer.Number("duracao"):0.##} "
+                        + $"{UnitLabel(timer.Enum<TimeUnit>("unidade"))}).", node.Id);
                     break;
                 }
 
                 await WaitNextFrameAsync(ct).ConfigureAwait(false);
+
+                // Automatic exit, evaluated BEFORE the cascade's own O₂ guard: a condition on
+                // temperature or pH must not be held hostage by a silent O₂ probe, and the timeout
+                // has to be able to fire even when no reading is arriving at all.
+                if (condition is { Type: NodeType.MonitorVariable } monitor
+                    && MonitorExitReached(monitor, _latest, ref monitorConfirmations, monitorDeadline, node.Id))
+                {
+                    break;
+                }
+
                 if (_latest is not { } snapshot || snapshot.OxygenCalibrated <= SensorReadings.NotReceived)
                 {
                     continue; // flying blind without a usable O₂ reading; wait for the next frame
@@ -72,13 +106,6 @@ public sealed partial class RecipeEngine
                     {
                         _liveCascades[node.Id] = controller;
                     }
-                }
-
-                // Automatic exit: the monitored variable met the condition.
-                if (condition is { Type: NodeType.MonitorVariable } monitor && MonitorConditionMet(monitor, snapshot))
-                {
-                    Log(RecipeLogSeverity.Info, "Controle de O₂: condição de saída atingida.", node.Id);
-                    break;
                 }
 
                 var now = _time.GetUtcNow();
@@ -134,25 +161,85 @@ public sealed partial class RecipeEngine
     };
 
     /// <summary>The node wired to the cascade's Saída Loop — its exit condition, or null.</summary>
+    /// <remarks>
+    /// More than one edge can leave the Saída Loop — a hand-drawn self-loop back into Entrada Loop
+    /// alongside a real gate, say. The condition is therefore chosen by kind, not by position: the
+    /// self-loop carries no condition and is skipped, and a Monitor / Intervenção Manual wins over
+    /// anything else. Taking the first edge would make the loop's exit depend on the order the
+    /// operator happened to draw the connections.
+    /// </remarks>
     private RecipeNode? LoopConditionNode(RecipeNode cascade)
     {
-        var loopEdge = Current!.Connections.FirstOrDefault(c =>
-            c.SourceNodeId == cascade.Id && ConnectorNames.IsLoopOut(c.SourceConnector));
-        return loopEdge is null ? null : Current.Node(loopEdge.TargetNodeId);
+        RecipeNode? fallback = null;
+
+        foreach (var edge in Current!.Connections.Where(c =>
+                     c.SourceNodeId == cascade.Id && ConnectorNames.IsLoopOut(c.SourceConnector)))
+        {
+            if (edge.TargetNodeId == cascade.Id)
+            {
+                continue; // a self-loop is the loop turning on itself, not an exit condition
+            }
+
+            var target = Current.Node(edge.TargetNodeId);
+            if (target?.Type is NodeType.MonitorVariable or NodeType.ManualIntervention or NodeType.Timer)
+            {
+                return target;
+            }
+
+            fallback ??= target;
+        }
+
+        return fallback;
     }
 
     private static string DescribeCondition(RecipeNode? condition) => condition?.Type switch
     {
         NodeType.MonitorVariable => ", saída por condição",
         NodeType.ManualIntervention => ", saída manual",
-        _ => "",
+        NodeType.Timer => ", saída por tempo",
+        _ => ", saída por estabilização",
     };
 
-    private static bool MonitorConditionMet(RecipeNode monitor, SensorSnapshot snapshot)
+    /// <summary>
+    /// Evaluates a Monitorar Variável acting as the loop's exit condition, honouring the same
+    /// <c>confirmacoes</c> debounce and <c>tempoLimiteMs</c> timeout it obeys as a normal flow block.
+    /// </summary>
+    /// <remarks>
+    /// <c>intervaloPollingMs</c> has no meaning here — the cascade's own <c>intervaloPidS</c> sets
+    /// the cadence — so the editor hides that field while the block is wired as a condition.
+    /// Parameters are read fresh on every pass, so a live edit takes effect mid-run.
+    /// </remarks>
+    private bool MonitorExitReached(
+        RecipeNode monitor,
+        SensorSnapshot? snapshot,
+        ref int consecutive,
+        DateTimeOffset? deadline,
+        string cascadeId)
     {
-        var value = MeasuredValue(snapshot, monitor.Enum<MeasuredVariable>("variavel"));
-        return value is { } reading
-            && Satisfies(reading, monitor.Enum<ComparisonOperator>("condicao"), monitor.Number("valorAlvo"));
+        var variable = monitor.Enum<MeasuredVariable>("variavel");
+
+        if (snapshot is not null && MeasuredValue(snapshot, variable) is { } value)
+        {
+            consecutive = Satisfies(value, monitor.Enum<ComparisonOperator>("condicao"), monitor.Number("valorAlvo"))
+                ? consecutive + 1
+                : 0; // a single frame that misses resets the run, exactly as in the normal flow
+
+            if (consecutive >= Math.Max(1, (int)monitor.Number("confirmacoes")))
+            {
+                Log(RecipeLogSeverity.Info,
+                    $"Controle de O₂: condição de saída atingida ({variable} = {value:0.##}).", cascadeId);
+                return true;
+            }
+        }
+
+        if (deadline is { } d && _time.GetUtcNow() >= d)
+        {
+            Log(RecipeLogSeverity.Warning,
+                "Tempo limite da condição de saída atingido; encerrando o controle de O₂.", cascadeId);
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>Builds a controller from the block's parameters (§5.3.7 defaults on a fresh block).</summary>

@@ -239,6 +239,57 @@ public sealed class RecipeDomainTests
     }
 
     [Fact]
+    public void A_continuation_hanging_off_the_saida_loop_block_is_an_error()
+    {
+        // Cascata -(Saída Loop)-> Intervenção Manual -> Registrar -> Fim, with no Saída on the
+        // cascade: the engine follows normal-flow edges only, so the continuation never runs.
+        var recipe = CascadeLoopRecipe();
+        recipe.Connections.RemoveAll(c => c.SourceNodeId == "casc" && c.SourceConnector == ConnectorNames.Out);
+        recipe.Connections.RemoveAll(c => c.SourceNodeId == "body");
+        recipe.Connections.Add(new RecipeConnection("body", ConnectorNames.Out, "end", ConnectorNames.In));
+
+        var result = RecipeValidator.Validate(recipe);
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.NodeId == "casc" && e.Message.Contains("Saída Loop"));
+    }
+
+    [Fact]
+    public void A_loop_body_returning_to_entrada_loop_is_not_a_stranded_continuation()
+    {
+        // The healthy shape: the body's only output is the loop return, and the cascade has a Saída.
+        var result = RecipeValidator.Validate(CascadeLoopRecipe());
+        Assert.DoesNotContain(result.Errors, e => e.Message.Contains("Saída Loop"));
+    }
+
+    [Fact]
+    public void Only_monitor_timer_and_manual_can_be_the_cascade_exit_condition()
+    {
+        // A Registrar Evento wired to the Condição de Saída would be ignored by the engine, which
+        // would then exit on the settle rule — a run the operator never asked for.
+        var recipe = CascadeLoopRecipe();
+        recipe.Nodes.RemoveAll(n => n.Id == "body");
+        recipe.Nodes.Add(RecipeNode.Create(NodeType.LogEvent, id: "body"));
+
+        var result = RecipeValidator.Validate(recipe);
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.NodeId == "body" && e.Message.Contains("condição de saída"));
+    }
+
+    [Theory]
+    [InlineData(NodeType.MonitorVariable)]
+    [InlineData(NodeType.Timer)]
+    [InlineData(NodeType.ManualIntervention)]
+    public void The_three_supported_exit_conditions_validate(NodeType type)
+    {
+        var recipe = CascadeLoopRecipe();
+        recipe.Nodes.RemoveAll(n => n.Id == "body");
+        recipe.Nodes.Add(RecipeNode.Create(type, id: "body"));
+
+        var result = RecipeValidator.Validate(recipe);
+        Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => e.Message)));
+    }
+
+    [Fact]
     public void Timer_with_negative_duration_is_rejected()
     {
         var recipe = SampleRecipe();
@@ -404,12 +455,13 @@ public sealed class RecipeDomainTests
 
         var start = RecipeNode.Create(NodeType.Start, id: "start");
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
-        var body = RecipeNode.Create(NodeType.LogEvent, id: "body");
+        var condition = RecipeNode.Create(NodeType.MonitorVariable, id: "body");
         var end = RecipeNode.Create(NodeType.End, id: "end");
 
-        recipe.Nodes.AddRange([start, cascade, body, end]);
+        recipe.Nodes.AddRange([start, cascade, condition, end]);
         recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "casc", ConnectorNames.In));
-        // Loop body: cascade fires Saída Loop -> body -> returns to cascade's Entrada Loop.
+        // Exit condition: the cascade reads this block each iteration and leaves the loop when it
+        // becomes true; the return wire closes the loop on the canvas. It is never executed.
         recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.LoopOut, "body", ConnectorNames.In));
         recipe.Connections.Add(new RecipeConnection("body", ConnectorNames.Out, "casc", ConnectorNames.LoopIn));
         // Normal exit when the loop terminates.

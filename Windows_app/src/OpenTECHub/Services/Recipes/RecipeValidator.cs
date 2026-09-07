@@ -143,6 +143,66 @@ public static class RecipeValidator
         {
             findings.Add(Error("Ciclo detectado fora de um laço de cascata."));
         }
+
+        ValidateCascadeContinuations(recipe, findings);
+    }
+
+    /// <summary>
+    /// Catches the continuation drawn <b>after</b> the cascade's exit condition instead of after the
+    /// cascade itself.
+    /// </summary>
+    /// <remarks>
+    /// The engine walks normal-flow edges only: when the cascade's loop ends it follows the block's
+    /// own Saída, never the exit condition's. So <c>Cascata –(Saída Loop)→ Intervenção Manual →
+    /// Vazão de Gás → Fim</c> — a natural reading of the canvas — silently ends the recipe without
+    /// the gas flow. <see cref="Reachable"/> cannot see this: it walks loop edges too, so both the
+    /// continuation and the Fim look reachable and no block is reported as orphaned.
+    /// </remarks>
+    private static void ValidateCascadeContinuations(RecipeDocument recipe, List<RecipeFinding> findings)
+    {
+        foreach (var cascade in recipe.Nodes.Where(n => n.Type == NodeType.CascadeControl))
+        {
+            // Only three block types are read as an exit condition; anything else wired to the
+            // Condição de Saída would be ignored and the loop would quietly fall back to the
+            // settle rule — a run the operator never asked for.
+            foreach (var wrong in recipe.Connections
+                         .Where(c => c.SourceNodeId == cascade.Id
+                                     && ConnectorNames.IsLoopOut(c.SourceConnector)
+                                     && c.TargetNodeId != cascade.Id)
+                         .Select(c => recipe.Node(c.TargetNodeId))
+                         .OfType<RecipeNode>()
+                         .Where(t => t.Type is not (NodeType.MonitorVariable
+                                                    or NodeType.ManualIntervention
+                                                    or NodeType.Timer)))
+            {
+                findings.Add(Error(
+                    $"'{Title(wrong)}' não pode ser a condição de saída da cascata — use Monitorar "
+                    + "Variável, Temporizador ou Intervenção Manual.",
+                    wrong.Id));
+            }
+
+            if (recipe.OutgoingFrom(cascade.Id).Any())
+            {
+                continue; // the cascade has its own Saída; the loop's exit condition is just that
+            }
+
+            var stranded = recipe.Connections
+                .Where(c => c.SourceNodeId == cascade.Id
+                            && ConnectorNames.IsLoopOut(c.SourceConnector)
+                            && c.TargetNodeId != cascade.Id)
+                .Select(c => recipe.Node(c.TargetNodeId))
+                .OfType<RecipeNode>()
+                .FirstOrDefault(target => recipe.OutgoingFrom(target.Id)
+                    .Any(o => !ConnectorNames.IsLoopIn(o.TargetConnector)));
+
+            if (stranded is not null)
+            {
+                findings.Add(Error(
+                    $"O bloco ligado à Saída Loop ({Title(stranded)}) tem uma saída própria que nunca "
+                    + "será executada — ligue a continuação à Saída da cascata.",
+                    cascade.Id));
+            }
+        }
     }
 
     /// <summary>Nodes reachable from <paramref name="startId"/> over every edge (loop edges included).</summary>

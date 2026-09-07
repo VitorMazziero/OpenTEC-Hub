@@ -157,6 +157,53 @@ public sealed class RecipeEngineTests
     }
 
     [Fact]
+    public async Task Cascade_gate_still_wins_when_a_self_loop_edge_is_drawn_first()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithGateRecipe(out var gate);
+
+        // A hand-drawn Saída Loop -> Entrada Loop self-loop, listed BEFORE the gate's edge. Picking
+        // the first loop edge would read the cascade itself as the condition and ignore the gate.
+        recipe.Connections.Insert(0, new RecipeConnection("casc", ConnectorNames.LoopOut, "casc", ConnectorNames.LoopIn));
+
+        await engine.StartAsync(recipe);
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25); await Task.Delay(10); }
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        gate.Set("operacao", nameof(ManualGateOperation.Pass));
+        PushFrame(device, clock, oxygen: 25);
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_loop_exits_when_its_saida_loop_timer_elapses()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithGateRecipe(out var gate);
+
+        // Swap the manual gate for a 30 s Temporizador: the loop must run, then leave on time.
+        recipe.Nodes.Remove(gate);
+        var timer = RecipeNode.Create(NodeType.Timer, id: "gate");
+        timer.Set("duracao", 30.0);
+        timer.Set("unidade", nameof(TimeUnit.Seconds));
+        recipe.Nodes.Add(timer);
+
+        await engine.StartAsync(recipe);
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25); await Task.Delay(10); }
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        // Past the 30 s duration. Several frames, so the loop is certain to observe one even if the
+        // engine has not re-entered its frame wait when the first is pushed.
+        clock.Advance(TimeSpan.FromSeconds(40));
+        for (var i = 0; i < 4; i++) { PushFrame(device, clock, oxygen: 25); await Task.Delay(10); }
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
     public async Task Cascade_loop_exits_when_its_saida_loop_monitor_condition_is_met()
     {
         var (engine, device, _, clock) = Build();
@@ -167,6 +214,69 @@ public sealed class RecipeEngineTests
         for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
         // Temperature reaches the exit condition.
         PushFrame(device, clock, oxygen: 25, temperature: 45);
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_monitor_condition_honours_the_consecutive_confirmations()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40);
+        recipe.Node("mon")!.Set("confirmacoes", 3);
+
+        await engine.StartAsync(recipe);
+        // One frame over the target, then one under: the run resets, so the loop must NOT exit.
+        PushFrame(device, clock, oxygen: 25, temperature: 45); await Task.Delay(10);
+        PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10);
+        PushFrame(device, clock, oxygen: 25, temperature: 45); await Task.Delay(10);
+        PushFrame(device, clock, oxygen: 25, temperature: 45); await Task.Delay(10);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        // The third consecutive frame over the target completes the debounce.
+        for (var i = 0; i < 3; i++) { PushFrame(device, clock, oxygen: 25, temperature: 45); await Task.Delay(10); }
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_monitor_condition_gives_up_at_its_timeout()
+    {
+        var (engine, device, _, clock) = Build();
+        // A target the telemetry never reaches; without the timeout the loop would run forever.
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 400);
+        recipe.Node("mon")!.Set("tempoLimiteMs", 30_000);
+
+        await engine.StartAsync(recipe);
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        clock.Advance(TimeSpan.FromSeconds(40));
+        for (var i = 0; i < 4; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_monitor_on_another_variable_exits_even_while_the_oxygen_probe_is_silent()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40);
+
+        await engine.StartAsync(recipe);
+        for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        // O₂ goes silent while temperature reaches the target. The condition does not depend on O₂,
+        // so the cascade's own oxygen guard must not keep the loop from leaving.
+        for (var i = 0; i < 4; i++)
+        {
+            PushFrame(device, clock, oxygen: SensorReadings.NotReceived, temperature: 45);
+            await Task.Delay(10);
+        }
 
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
@@ -253,9 +363,12 @@ public sealed class RecipeEngineTests
         Assert.True(await Eventually(() => device.Sent.Any(s => s.Contains("flowSetpoint"))));
 
         // Past the grace with no usable frame: the engine declares the hold rather than moving on.
-        clock.Advance(TimeSpan.FromSeconds(30));
-        device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
-        Assert.True(await Eventually(() => engine.Waiting is not null));
+        Assert.True(await Eventually(() =>
+        {
+            clock.Advance(TimeSpan.FromSeconds(5));
+            device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
+            return engine.Waiting is not null;
+        }));
         Assert.Equal("Fluxômetro", engine.Waiting!.Device);
         Assert.Equal("sp", engine.Waiting.NodeId);
         Assert.Equal(RecipeRunState.Running, engine.State);
@@ -278,9 +391,12 @@ public sealed class RecipeEngineTests
 
         await engine.StartAsync(SetpointRecipe(SetpointVariable.Flow, 2.5));
         Assert.True(await Eventually(() => device.Sent.Any(s => s.Contains("flowSetpoint"))));
-        clock.Advance(TimeSpan.FromSeconds(30));
-        device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
-        Assert.True(await Eventually(() => engine.Waiting is not null));
+        Assert.True(await Eventually(() =>
+        {
+            clock.Advance(TimeSpan.FromSeconds(5));
+            device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = false });
+            return engine.Waiting is not null;
+        }));
 
         await engine.StopAsync("parada pelo operador");
 

@@ -150,6 +150,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         var vm = CreateNodeViewModel(node);
         Nodes.Add(vm);
         SelectNode(vm);
+        RefreshGateRoles(); // a freshly dropped cascade has no exit condition yet, and says so
         MarkDirty();
         Revalidate();
     }
@@ -201,6 +202,13 @@ public sealed partial class RecipeTabViewModel : ObservableObject
                                    ConnectorNames.IsLoopIn(port.Name);
 
         if (!port.IsInput || (node.Id == sourceId && !isLoopSelfConnection))
+        {
+            return;
+        }
+
+        // A self-loop next to a real exit condition only muddies the graph: the engine skips it,
+        // so the canvas would show a loop wire that decides nothing.
+        if (isLoopSelfConnection && HasLoopExitCondition(node.Id))
         {
             return;
         }
@@ -384,9 +392,17 @@ public sealed partial class RecipeTabViewModel : ObservableObject
             .Select(c => c.TargetNodeId)
             .ToHashSet();
 
+        // A cascade with an empty Condição de Saída falls back to the settle rule, so it says so.
+        var cascadesWithCondition = Document.Connections
+            .Where(c => ConnectorNames.IsLoopOut(c.SourceConnector) && c.TargetNodeId != c.SourceNodeId)
+            .Select(c => c.SourceNodeId)
+            .ToHashSet();
+
         foreach (var node in Nodes)
         {
             node.IsCascadeLoopCondition = gateTargets.Contains(node.Id);
+            node.IsCascadeWithoutExitCondition =
+                node.Type == NodeType.CascadeControl && !cascadesWithCondition.Contains(node.Id);
         }
     }
 
@@ -439,6 +455,12 @@ public sealed partial class RecipeTabViewModel : ObservableObject
             Revalidate();
         }
     }
+
+    /// <summary>True when the block's Saída Loop already feeds another block — its exit condition.</summary>
+    private bool HasLoopExitCondition(string nodeId)
+        => Document.Connections.Any(c => c.SourceNodeId == nodeId
+                                         && ConnectorNames.IsLoopOut(c.SourceConnector)
+                                         && c.TargetNodeId != nodeId);
 
     private static bool Same(RecipeConnection a, RecipeConnection b)
         => a.SourceNodeId == b.SourceNodeId && a.SourceConnector == b.SourceConnector

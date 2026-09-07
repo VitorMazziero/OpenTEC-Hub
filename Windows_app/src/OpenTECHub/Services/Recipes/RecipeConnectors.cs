@@ -42,10 +42,14 @@ public static class ConnectorNames
     /// <summary>Normal flow in.</summary>
     public const string In = "Entrada";
 
-    /// <summary>Cascade: fires each loop iteration, driving the blocks inside the loop.</summary>
+    /// <summary>
+    /// Cascade: the loop's <b>exit condition</b>. The block wired here is <i>read</i> once per PID
+    /// iteration and never executed as a flow step — the engine only asks it "should the loop stop?".
+    /// The wire name is historical ("Saida Loop"); the port is labelled "Condição de Saída".
+    /// </summary>
     public const string LoopOut = "Saida Loop";
 
-    /// <summary>Cascade: where the loop body returns.</summary>
+    /// <summary>Cascade: where the exit condition wires back, closing the loop on the canvas.</summary>
     public const string LoopIn = "Entrada Loop";
 
     // Tolerated on load (accented / joined), never written — keeps legacy recipes loading.

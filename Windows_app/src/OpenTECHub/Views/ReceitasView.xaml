@@ -362,9 +362,31 @@
                                                 <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextOnAccentBrush}"
                                                            FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Margin="12,0" />
                                             </Border>
+                                            <!-- Read by the cascade each iteration, never executed: the chip
+                                                 says so, and the tooltip spells out the polarity. -->
+                                            <Border Visibility="{Binding IsCascadeLoopCondition, Converter={StaticResource BoolToVis}}"
+                                                    Background="{DynamicResource AccentSubtleBrush}"
+                                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                                    CornerRadius="3" Margin="12,8,12,0" Padding="6,2"
+                                                    HorizontalAlignment="Left" ToolTipService.ShowDuration="30000"
+                                                    ToolTip="{Binding LoopConditionHint}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#x2139;" FontSize="10" Margin="0,0,4,0"
+                                                               VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                                                    <TextBlock Text="{Binding LoopConditionBadge}" FontSize="9"
+                                                               FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                                                </StackPanel>
+                                            </Border>
+
                                             <TextBlock Text="{Binding Summary}" FontSize="12" Margin="12,8,12,8"
                                                        Visibility="{Binding ShowSummary, Converter={StaticResource BoolToVis}}"
                                                        TextWrapping="Wrap" LineHeight="16" Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                            <!-- A cascade with an empty Condição de Saída exits on settling. -->
+                                            <TextBlock Text="{Binding CascadeNoConditionHint}" FontSize="10" TextWrapping="Wrap"
+                                                       Visibility="{Binding IsCascadeWithoutExitCondition, Converter={StaticResource BoolToVis}}"
+                                                       Margin="12,0,12,8" LineHeight="13"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
 
                                             <!-- Intervenção Manual button & explanation -->
                                             <StackPanel Visibility="{Binding IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="10,8,10,0">

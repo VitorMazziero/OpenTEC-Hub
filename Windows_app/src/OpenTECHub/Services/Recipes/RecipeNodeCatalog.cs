@@ -502,8 +502,8 @@ public static class RecipeNodeCatalog
         Ports =
         [
             PortIn,
-            new(ConnectorNames.LoopOut, PortDirection.Out, Label: "Saída do Loop"),
-            new(ConnectorNames.LoopIn, PortDirection.In, Label: "Entrada do Loop"),
+            new(ConnectorNames.LoopOut, PortDirection.Out, Label: "Condição de Saída"),
+            new(ConnectorNames.LoopIn, PortDirection.In, Label: "Retorno da Condição"),
             PortOut,
         ],
         Parameters =

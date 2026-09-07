@@ -261,8 +261,87 @@ public sealed class ReceitasViewModelTests
 
         Assert.True(gate.IsCascadeLoopCondition);
         var operation = gate.Fields.First(f => f.Key == "operacao");
-        Assert.Contains(operation.Options, o => o.Label == "Continuar Cascata");
-        Assert.Contains(operation.Options, o => o.Label == "Pular Cascata");
+        Assert.Contains(operation.Options, o => o.Label == "Manter Rodando");
+        Assert.Contains(operation.Options, o => o.Label == "Sair do Loop");
+    }
+
+    [Theory]
+    [InlineData(NodeType.MonitorVariable)]
+    [InlineData(NodeType.Timer)]
+    public void A_block_wired_to_the_exit_condition_says_it_leaves_the_loop(NodeType type)
+    {
+        var vm = Build();
+        vm.AddBlockCommand.Execute(NodeType.CascadeControl);
+        vm.AddBlockCommand.Execute(type);
+        var cascade = Tab(vm).Nodes.First(n => n.Type == NodeType.CascadeControl);
+        var condition = Tab(vm).Nodes.First(n => n.Type == type);
+
+        // Off the loop it reads as a normal step; the summary must not promise an exit.
+        Assert.DoesNotContain("Sai do loop", condition.Summary);
+
+        vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopOut));
+        vm.PortClicked(condition, condition.Ports.First(p => p.Name == ConnectorNames.In));
+
+        Assert.True(condition.IsCascadeLoopCondition);
+        Assert.Contains("Sai do loop", condition.Summary);
+    }
+
+    [Fact]
+    public void Monitor_hides_its_polling_interval_while_it_is_an_exit_condition()
+    {
+        var vm = Build();
+        vm.AddBlockCommand.Execute(NodeType.CascadeControl);
+        vm.AddBlockCommand.Execute(NodeType.MonitorVariable);
+        var cascade = Tab(vm).Nodes.First(n => n.Type == NodeType.CascadeControl);
+        var monitor = Tab(vm).Nodes.First(n => n.Type == NodeType.MonitorVariable);
+
+        Assert.Contains(monitor.VisibleFields, f => f.Key == "intervaloPollingMs");
+
+        // In the loop role the cascade's intervaloPidS sets the cadence, so the field decides nothing.
+        vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopOut));
+        vm.PortClicked(monitor, monitor.Ports.First(p => p.Name == ConnectorNames.In));
+
+        Assert.DoesNotContain(monitor.VisibleFields, f => f.Key == "intervaloPollingMs");
+        // The debounce and the timeout still apply, so they stay editable.
+        Assert.Contains(monitor.VisibleFields, f => f.Key == "confirmacoes");
+        Assert.Contains(monitor.VisibleFields, f => f.Key == "tempoLimiteMs");
+    }
+
+    [Fact]
+    public void A_cascade_without_an_exit_condition_is_flagged_until_one_is_wired()
+    {
+        var vm = Build();
+        vm.AddBlockCommand.Execute(NodeType.CascadeControl);
+        vm.AddBlockCommand.Execute(NodeType.ManualIntervention);
+        var cascade = Tab(vm).Nodes.First(n => n.Type == NodeType.CascadeControl);
+        var gate = Tab(vm).Nodes.First(n => n.Type == NodeType.ManualIntervention);
+
+        Assert.True(cascade.IsCascadeWithoutExitCondition);
+
+        vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopOut));
+        vm.PortClicked(gate, gate.Ports.First(p => p.Name == ConnectorNames.In));
+
+        Assert.False(cascade.IsCascadeWithoutExitCondition);
+    }
+
+    [Fact]
+    public void A_self_loop_is_refused_once_the_saida_loop_feeds_an_exit_condition()
+    {
+        var vm = Build();
+        vm.AddBlockCommand.Execute(NodeType.CascadeControl);
+        vm.AddBlockCommand.Execute(NodeType.ManualIntervention);
+        var cascade = Tab(vm).Nodes.First(n => n.Type == NodeType.CascadeControl);
+        var gate = Tab(vm).Nodes.First(n => n.Type == NodeType.ManualIntervention);
+
+        vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopOut));
+        vm.PortClicked(gate, gate.Ports.First(p => p.Name == ConnectorNames.In));
+        var before = Tab(vm).Connections.Count;
+
+        // Saída Loop -> Entrada Loop on the cascade itself: it would decide nothing, so it is refused.
+        vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopOut));
+        vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopIn));
+
+        Assert.Equal(before, Tab(vm).Connections.Count);
     }
 
     [Fact]

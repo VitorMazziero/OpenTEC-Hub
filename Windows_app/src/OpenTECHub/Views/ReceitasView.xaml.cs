@@ -138,6 +138,16 @@ public partial class ReceitasView : UserControl
                     continue;
                 }
 
+                // The Saída Loop already feeds an exit condition, so a self-loop would decide
+                // nothing and the drop is refused — do not offer it as a target.
+                if (isLoopSelf && existingConnections.Any(c => c.SourceNodeId == sourceNode.Id
+                        && ConnectorNames.IsLoopOut(c.SourceConnector)
+                        && c.TargetNodeId != sourceNode.Id))
+                {
+                    port.IsConnectableTarget = false;
+                    continue;
+                }
+
                 // Check if this input port is already connected
                 var alreadyConnected = !port.Port.Multiple && existingConnections.Any(c => c.TargetNodeId == node.Id && c.TargetConnector == port.Name);
 

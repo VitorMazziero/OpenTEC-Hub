@@ -264,8 +264,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     private static readonly RecipeOption[] LoopGateOptions =
     [
-        new(nameof(ManualGateOperation.Hold), "Continuar Cascata"),
-        new(nameof(ManualGateOperation.Pass), "Pular Cascata"),
+        new(nameof(ManualGateOperation.Hold), "Manter Rodando"),
+        new(nameof(ManualGateOperation.Pass), "Sair do Loop"),
     ];
 
     private readonly ISettingsService? _settings;
@@ -324,7 +324,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     public bool IsManualIntervention => Type == NodeType.ManualIntervention;
 
     public string ManualButtonText => IsCascadeLoopCondition
-        ? (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "PULAR CASCATA" : "CONTINUAR CASCATA")
+        ? (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "SAIR DO LOOP" : "MANTER RODANDO")
         : (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "PASSAR" : "BLOQUEAR");
 
     public string ManualButtonIcon => IsCascadeLoopCondition
@@ -336,7 +336,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         : (Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "#16A34A" : "#DC2626");
 
     public string ManualExplanationText => IsCascadeLoopCondition
-        ? "No loop da cascata: em Continuar Cascata a cascata opera; mude para Pular Cascata para encerrá-la e avançar ao próximo bloco (ajustável ao vivo durante a execução)."
+        ? "Condição de saída da cascata, lida a cada iteração do PID. Em Manter Rodando o controle de O₂ continua; mude para Sair do Loop para encerrá-lo e seguir pela Saída da cascata (ajustável ao vivo durante a execução)."
         : "Bloqueado: a receita fica em standby neste bloco até Passar (ajustável ao vivo durante a execução).";
 
     [RelayCommand]
@@ -419,6 +419,28 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsCascadeLoopCondition { get; set; }
 
+    /// <summary>True for a cascade whose Condição de Saída port is empty — it exits on settling.</summary>
+    [ObservableProperty]
+    public partial bool IsCascadeWithoutExitCondition { get; set; }
+
+    /// <summary>Chip shown on a block that the cascade reads rather than executes.</summary>
+    public string LoopConditionBadge => "CONDIÇÃO DE SAÍDA";
+
+    /// <summary>
+    /// Tooltip for the chip. Spells out the polarity, because the same block means the opposite
+    /// thing in the normal flow: here, becoming true ends the loop.
+    /// </summary>
+    public string LoopConditionHint =>
+        "Este bloco não é executado como etapa: a cascata o lê a cada iteração do PID. "
+        + "Enquanto for falso o controle de O₂ continua; quando ficar verdadeiro o loop encerra "
+        + "e a receita segue pela Saída da cascata.";
+
+    /// <summary>Note shown on a cascade with nothing wired to its Condição de Saída.</summary>
+    public string CascadeNoConditionHint =>
+        "Sem condição de saída: o loop encerra sozinho ao estabilizar (±2 % do SP por 3 leituras). "
+        + "Ligue um Monitorar Variável, Temporizador ou Intervenção Manual à Condição de Saída "
+        + "para decidir você mesmo quando sair.";
+
     /// <summary>Raised when a field value or the position changes, so the tab re-validates.</summary>
     public event Action? Changed;
 
@@ -428,12 +450,29 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     partial void OnIsCascadeLoopConditionChanged(bool value)
     {
-        // An Intervenção Manual wired to the cascade's Saída Loop is the Continuar/Pular switch.
+        // An Intervenção Manual wired to the cascade's Condição de Saída is the Manter Rodando /
+        // Sair do Loop switch.
         if (Type == NodeType.ManualIntervention && Fields.FirstOrDefault(f => f.Key == "operacao") is { } field)
         {
             field.Options = value ? LoopGateOptions : RecipeNodeCatalog.Definition(Type).Parameter("operacao")!.Options;
         }
 
+        // A Monitorar Variável in the loop role is polled by the cascade at its own intervaloPidS,
+        // so its polling interval decides nothing — showing it would only invite a pointless edit.
+        if (Type == NodeType.MonitorVariable
+            && Fields.FirstOrDefault(f => f.Key == "intervaloPollingMs") is { } polling)
+        {
+            if (value)
+            {
+                polling.IsVisible = false;
+            }
+            else
+            {
+                polling.RefreshVisibility();
+            }
+        }
+
+        OnPropertyChanged(nameof(VisibleFields));
         OnPropertyChanged(nameof(ManualButtonText));
         OnPropertyChanged(nameof(ManualButtonIcon));
         OnPropertyChanged(nameof(ManualButtonColor));
@@ -928,13 +967,19 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     private string BuildSummary() => Type switch
     {
-        NodeType.Timer => $"Aguardar {Model.Number("duracao"):0.##} {OptionLabel("unidade")}",
-        NodeType.MonitorVariable => $"{OptionLabel("variavel")} {FormatCondition(Model.Enum<ComparisonOperator>("condicao"))} {Model.Number("valorAlvo"):0.##}",
+        // In the loop role a Temporizador and a Monitorar are read as exit conditions, so their
+        // summary must say what becoming true actually does — leave the loop, not "wait here".
+        NodeType.Timer => IsCascadeLoopCondition
+            ? $"Sai do loop após {Model.Number("duracao"):0.##} {OptionLabel("unidade")}"
+            : $"Aguardar {Model.Number("duracao"):0.##} {OptionLabel("unidade")}",
+        NodeType.MonitorVariable => IsCascadeLoopCondition
+            ? $"Sai do loop quando {OptionLabel("variavel")} {FormatCondition(Model.Enum<ComparisonOperator>("condicao"))} {Model.Number("valorAlvo"):0.##}"
+            : $"{OptionLabel("variavel")} {FormatCondition(Model.Enum<ComparisonOperator>("condicao"))} {Model.Number("valorAlvo"):0.##}",
         NodeType.SetSetpoint => $"{OptionLabel("variavel")} → {Model.Number("valor"):0.##}",
         NodeType.SetLoop => $"{OptionLabel("operacao")} {OptionLabel("malha")}",
         NodeType.CascadeControl => FormatCascade(Model),
         NodeType.ManualIntervention => IsCascadeLoopCondition
-            ? Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "Pular Cascata" : "Continuar Cascata"
+            ? Model.Enum<ManualGateOperation>("operacao") == ManualGateOperation.Pass ? "Sair do Loop" : "Manter Rodando"
             : OptionLabel("operacao"),
         NodeType.LogEvent => Model.Text("mensagem"),
         NodeType.PhPump => FormatPump(Model),

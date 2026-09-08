@@ -84,22 +84,42 @@ fila de eventos.
 |---|---:|---|---|
 | P1-01 | `0x0102` | modo de controle | deve ser `0x0002`; somente leitura |
 | P1-09 | `0x0112–0x0113` | velocidade interna 1 | `10H`, signed 32-bit, 0,1 rpm, word baixa primeiro |
-| P2-10 | `0x0214` | DI1 | deve ser `0x0101` (SON); somente leitura |
-| P2-12 | `0x0218` | DI3 | deve ser `0x0114` (SPD0); somente leitura |
-| P2-13 | `0x021A` | DI4 | deve ser `0x0115` (SPD1); somente leitura |
+| P2-10..P2-17, P2-36 | `0x0214`+2/DI, `0x0248` | função de DI1..DI9 | varridos para localizar SON, SPD0 e SPD1; **somente leitura** |
 | P2-30 | `0x023C` | política de escrita | `5`, escritas cíclicas somente em RAM |
-| P3-06 | `0x030C` | fonte das DIs | `0x000D`, DI1, DI3 e DI4 por comunicação |
-| P4-07 | `0x040E` | estado das DIs por software | `0x0004` parado; `0x0005` rodando |
+| P3-06 | `0x030C` | fonte das DIs | máscara derivada do mapa descoberto |
+| P4-07 | `0x040E` | estado das DIs por software | estados derivados do mapa descoberto |
 
-DI4 também passa ao software para garantir explicitamente `SPD1=0`; assim a
-seleção P1-09 não depende do nível deixado pela placa intermediária. Antes de
-trocar P3-06, o driver pré-carrega P4-07 com SON=0, SPD0=1 e SPD1=0.
+O mapa de DIs **não é constante do projeto**. P3-06 e P4-07 endereçam as DIs por
+posição (bit 0 = DI1), mas qual função mora em qual DI é configuração do drive, e
+cada instalação acomoda SPD0 no pino que sobra do CN1. O driver varre as nove DIs,
+identifica SON (`0x01`), SPD0 (`0x14`) e SPD1 (`0x15`) pelo byte baixo de `P2-1x`,
+aceita apenas contato tipo A (byte alto `0x01`) e monta máscara e estados a partir
+do que encontrou. Exigir DI1/DI3/DI4 fixas obrigaria a remapear pinos que a placa
+original já usa no CN1.
+
+O drive do Módulo 2 tem `SON=DI1, SPD0=DI2, SPD1=DI3` — daí `P3-06=0x0007`,
+`P4-07` com `0x0002` parado e `0x0003` rodando. A configuração documentada
+anteriormente (DI3=SPD0, DI4=SPD1) descrevia apenas uma instalação possível.
+
+SPD1 só entra na máscara quando existe: uma DI sem função já vale zero, mas uma DI
+com SPD1 no CN1 selecionaria P1-10/P1-11 sem o driver saber. Antes de trocar
+P3-06, o driver pré-carrega P4-07 com SON=0, SPD0=1 e SPD1=0.
+
+`P4-07` tem leitura e escrita distintas: a leitura mostra o estado das DIs **após a
+combinação** com P3-06; a escrita define apenas as SDI de software. Por isso a
+confirmação compara somente os bits que P3-06 delega ao software — comparar a
+palavra inteira reprova escritas corretas.
 
 Exemplo: 1000 rpm = 10000 décimos de rpm = `0x00002710`; o quadro `10H`
 escreve `[0x2710, 0x0000]` a partir de P1-09. Toda escrita é seguida de leitura
-de confirmação. Se P1-01 ou qualquer atribuição DI não coincidir, o driver
-recusa a tomada de controle e reporta falha 1; ele não corrige silenciosamente
-parâmetros persistentes.
+de confirmação. Se P1-01 não for `0x0002`, ou se faltar SON ou SPD0 em contato
+tipo A, o driver recusa a tomada de controle, lista as nove DIs no log e reporta
+falha 1; ele não corrige silenciosamente parâmetros persistentes.
+
+Sem SPD0 atribuído o par SPD1/SPD0 fica em `00`, que em modo S seleciona o
+comando analógico do CN1 e nunca P1-09 (manual, pág. 6-14). Nesse caso o motor
+não gira por mais correta que seja a escrita, e a única saída é comissionar o
+drive — decisão de instalação, nunca automática.
 
 P2-30 e P3-06 são voláteis e são reaplicados após religamento do drive. P0-45=54
 continua sendo mantido e confirmado para a leitura correta de torque.
@@ -129,7 +149,9 @@ supervisão.
 ### Preparação
 
 1. Deixar o eixo sem carga, área livre e E-stop físico acessível.
-2. Registrar pelo painel/Modbus: P1-01, P2-10, P2-12, P2-13, P3-03 e P3-10.
+2. Registrar pelo painel/Modbus: P1-01, P3-03, P3-10 e a função de todas as DIs
+   (P2-10..P2-17 e P2-36) — o driver imprime esse mapa no log ao validar o
+   perfil, e é ele que define a máscara P3-06 desta instalação.
 3. Confirmar os dois seletores de build em `2`:
    `MODULO_TECNAL_ALVO` no driver e `MODULO_TECNAL` no Hub.
 4. Manter `motorSetpoint=0` e desligar o servo antes de gravar.

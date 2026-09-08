@@ -25,7 +25,9 @@ presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardwa
 
 ## Matriz física obrigatória
 
-1. Confirmar P1-01=2, P2-10=0x0101, P2-12=0x0114 e P2-13=0x0115.
+1. Confirmar P1-01=2 e conferir no log do driver a linha `Mapa de DIs`, que
+   informa onde estão SON, SPD0 e SPD1 e qual máscara P3-06 será usada. As
+   posições variam por instalação e não devem ser presumidas.
 2. Confirmar setpoint zero no boot do Hub e após reboot de cada ESP32.
 3. Ensaiar 100, 250, 500, 750, 950 e 1000 rpm; comparar P1-09, `ServoRpm` e
    painel do drive.
@@ -37,8 +39,8 @@ presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardwa
    P1-09=0 e SON off.
 8. Reiniciar o driver durante sessão direta: a recuperação pré-Wi-Fi deve tirar
    SON.
-9. Religando o drive, confirmar reaplicação de P2-30/P3-06=`0x000D` com
-   heartbeat válido e SPD1 mantido em zero.
+9. Religando o drive, confirmar reaplicação de P2-30 e da máscara P3-06 do mapa
+   descoberto, com heartbeat válido e SPD1 mantido em zero.
 10. Configurar e ensaiar P3-03/P3-10 para falha total do mestre RS-485.
 11. Verificar reset de energia, limites de `servoPollMs`, presença e reconexão.
 12. Revalidar o ACK revisionado do fluxômetro, que é caminho retido.

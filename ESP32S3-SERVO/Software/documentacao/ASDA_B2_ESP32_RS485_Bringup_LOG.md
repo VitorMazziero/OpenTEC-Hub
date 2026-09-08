@@ -557,3 +557,183 @@ recomendação sobre Dupont — e muda a natureza do risco. O trecho
 acessível para medição nem reparo. Se aquele enlace voltar a emudecer, o
 diagnóstico por software continua válido (sniffer, `IntLoop`, `PinLoop`), mas a
 correção passa a ser a substituição do conjunto inteiro.
+
+# Sessão de 2026-09-08 — o RPM que não saía por nenhuma das duas vias
+
+Sintoma relatado: depois da mudança que introduziu a via selecionável, o setpoint
+de rotação parou de funcionar tanto por UART/CN1 quanto por Modbus. Duas vias
+independentes quebrando ao mesmo tempo é um sinal forte de causa comum a
+montante, e foi por aí que o cerco começou.
+
+## 1. O portão do Hub que engolia todo setpoint, em silêncio
+
+`motorRouteTransitionPending` nasce `true` e só era limpo pelo ACK do
+ESP32S3-driver. Em `processOutgoingCommands()`:
+
+```cpp
+if (motorRouteTransitionPending && motorRPM > 0) {
+  // Mantem o pedido pendente; ele sera aplicado depois do ACK de P3-06.
+}
+```
+
+O ramo não tem prazo, não emite log e não limpa `flagMotorDirty`. Pior: valia
+para **as duas vias**. A via UART/CN1 não depende do nó do servo em nada, mas
+ficava refém dele. Nó que nunca confirma ⇒ Hub mudo para sempre.
+
+A telemetria ao vivo do hub fechou o diagnóstico antes de qualquer alteração:
+
+```text
+MotorControlViaModbus:false   ServoOnline:true
+ServoMotorRouteAck:-1         ServoMotorCommandAck:0
+ServoMotorCommandPending:true ServoMotorCommandAgeMs:11135 (crescendo)
+ServoMotorControlFault:2
+```
+
+Correção: a retenção passa a valer só para a via UART/CN1 — a única que corre o
+risco de topar com P3-06 ainda em modo software — e sempre termina, por ACK, por
+ausência do nó ou por prazo de 5 s. Na via Modbus não há retenção: o próprio
+`setMotorDesired()` substitui o comando da troca por uma revisão que já leva via
+e rotação juntas, e o nó sequencia P4-07/P3-06 sozinho.
+
+**Regra que este defeito ensina:** um periférico ausente ou defeituoso nunca pode
+desabilitar um caminho que não depende dele. E retenção sem prazo e sem log é
+indistinguível de comando perdido.
+
+## 2. Por que o nó nunca confirmava (falha 2 perpétua)
+
+`releaseMotorToUartCn1()` reescrevia P1-09 e P4-07 mesmo quando P3-06 já estava
+em modo físico. Nesse estado não há nada a liberar, e a escrita ainda mexe num
+drive que pertence à placa original. Falhava sempre, sem ACK, alimentando o
+item 1. Agora sai cedo quando `P3-06 == 0x0000`, e cada etapa registra qual
+escrita reprovou.
+
+## 3. `P4-07` não é registrador espelho — confirmado no manual
+
+Manual ASDA-B2, P4-07 (`040EH`), pág. 7-88:
+
+> Read parameters: shows the DI status after combination
+> Write parameters: writes the software SDI status
+
+Confirmar a escrita comparando a palavra inteira reprovava escritas corretas
+sempre que qualquer DI fora da máscara estivesse ativa, e reprovava sempre com
+P3-06 físico. A confirmação passa a comparar apenas os bits que P3-06 delega ao
+software — correto sob as duas semânticas.
+
+Registro de método: esta correção foi feita **por hipótese**, antes da leitura do
+manual, e só depois confirmada. Ela não era a causa do sintoma relatado; a causa
+era o item 2. Vale como endurecimento, não como o conserto.
+
+## 4. Falsa pista corrigida: o perfil de DIs não é constante do projeto
+
+O log antigo dizia:
+
+```text
+[MOTOR] Perfil recusado: P1-01=0002 P2-10=0101 P2-12=0115 P2-13=0117
+```
+
+Disso concluiu-se, precipitadamente, que **nenhuma DI tinha SPD0** e que seria
+inevitável comissionar o drive — escrevendo `P2-1x`, o que mudaria a função de um
+pino do CN1. **A conclusão estava errada.** O código só lia DI1, DI3 e DI4,
+exatamente as três que esperava; DI2 nunca foi olhada.
+
+Com a varredura completa de `P2-10..P2-17` e `P2-36`:
+
+```text
+[MOTOR] Mapa de DIs: SON=DI1 SPD0=DI2 SPD1=DI3 -> P3-06=0007, P4-07 run=0003 stop=0002
+[MOTOR] Perfil direto confirmado; controle habilitado.
+```
+
+Este drive tem SPD0 em **DI2**, SPD1 em DI3 e TCM1 em DI4 (inerte em modo
+velocidade). O drive já estava corretamente comissionado — só num arranjo
+diferente do que o firmware assumia. **Nenhuma mudança de fiação ou de parâmetro
+foi necessária.**
+
+O firmware passa a descobrir o mapa em vez de exigi-lo: lê as nove DIs, localiza
+SON, SPD0 e SPD1 por código de função (byte baixo de `P2-1x`), aceita apenas
+contato tipo A e monta máscara e estados de P4-07 a partir disso. SPD1 só entra
+na máscara se existir — uma DI sem função já vale zero, mas uma DI com SPD1 no
+CN1 selecionaria P1-10/P1-11 pelas costas do nó.
+
+**Regra que esta falsa pista ensina:** um diagnóstico que lê só os campos que
+espera encontrar confirma a própria hipótese. Quando o perfil é recusado, o log
+agora despeja as nove DIs.
+
+## 5. Por que SPD0 é indispensável (manual, pág. 6-14)
+
+| SPD1 | SPD0 | Fonte do comando de velocidade |
+|---|---|---|
+| 0 | 0 | analógico externo V-REF/GND (modo S) — **é como a placa original comanda** |
+| 0 | 1 | **P1-09** — o registrador que o nó escreve |
+| 1 | 0 | P1-10 |
+| 1 | 1 | P1-11 |
+
+Sem SPD0 atribuído a alguma DI, o par nunca sai de `00`/`10` e P1-09 jamais é
+selecionado, por mais correta que seja a escrita. É a diferença entre "o comando
+não chegou" e "o drive não tinha como obedecer".
+
+## 6. `P3-06` é bit a bit — o CN1 não é afetado
+
+Manual, P3-06 (`030CH`):
+
+> Bit0 ~ Bit8 correspond to DI1 ~ DI9.
+> 0: The input status is controlled by the external hardware.
+> 1: The input status is controlled by P4-07.
+
+A tomada de controle é cirúrgica: só as DIs cujo bit está em 1 saem do CN1; todas
+as demais continuam no hardware externo. E P3-06 é volátil — religar o drive
+devolve tudo ao CN1 físico, o que é uma rede de segurança e não um efeito
+colateral.
+
+Consequência prática: a via Modbus não altera nada de permanente no drive. P2-30
+e P3-06 são voláteis, e o nó deliberadamente **não escreve** `P2-1x`.
+
+## 7. Pendência aberta — escritas Modbus com CRC inválido
+
+Estado ao fim da sessão: perfil aceito, controle habilitado, e `applyMotorCommand()`
+falhando nas escritas.
+
+```text
+[MODBUS] 06H em 040E: CRC invalido na resposta.   (83x em 40 s)
+[MODBUS] 10H em 0112: CRC invalido na resposta.   (42x em 40 s)
+```
+
+Chegam exatamente 8 bytes e o CRC não fecha. Não é exceção Modbus e não é
+ausência de resposta — o drive responde algo que não é quadro válido.
+
+O que **está descartado**: o quadro de requisição `06H` tem os mesmos 8 bytes do
+quadro de leitura `03H`, mesmo tempo de linha e mesmo chaveamento de DE/RE. Como
+toda leitura `03H` passa (telemetria contínua, as nove DIs, P3-06, P2-30), a
+camada física, o baud, o endereço de escravo e o tempo de direção estão provados
+bons. Sobram enquadramento e conteúdo da resposta.
+
+Suspeita principal, ainda não confirmada: em `writeSingleRegister()` e
+`writeMultipleRegisters()` a limpeza do buffer de recepção acontece **antes** da
+pausa de silêncio, não depois:
+
+```cpp
+while (rs485Serial.available() > 0) (void)rs485Serial.read();  // limpa
+vTaskDelay(pdMS_TO_TICKS(RTU_SILENCE_MS));                     // e só então espera
+digitalWrite(RS485_DE_RE_PIN, HIGH);                           // transmite
+```
+
+Qualquer byte que chegue atrasado dentro desses 12 ms fica no buffer e é lido
+como o começo da próxima resposta, deslocando o quadro e quebrando o CRC. A
+ordem correta é esperar o silêncio e limpar imediatamente antes de transmitir.
+
+**Isto não é regressão desta sessão.** O caminho de escrita nunca havia sido
+exercido neste drive: o perfil era recusado antes de chegar lá, e antes disso o
+portão do Hub impedia até o comando de chegar. O defeito é latente e só ficou
+alcançável depois que os itens 1, 2 e 4 foram corrigidos.
+
+Instrumentação já gravada para a próxima medida: os dois helpers de escrita
+despejam bytes enviados e recebidos, decodificam exceção Modbus e distinguem
+ausência de resposta, quadro curto e CRC inválido. Falta apenas a leitura.
+
+## Estado ao fim da sessão
+
+```text
+UART/CN1   funcionando, confirmado em bancada
+Modbus     hub destravado, perfil aceito, escritas reprovando por CRC
+Manual     P3-06 bit a bit, P3-06 volátil, P4-07 com leitura e escrita distintas
+Hardware   nenhuma alteração de fiação ou de parâmetro foi necessária
+```

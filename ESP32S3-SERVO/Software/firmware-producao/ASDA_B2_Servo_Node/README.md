@@ -30,27 +30,44 @@ ambos estão em `2` (`ModuloTECNAL_2`).
 
 ## Controle direto e segurança
 
-O nó só assume o comando depois de receber os quatro campos v10 do Hub e
-confirmar:
+O nó só assume o comando depois de receber os quatro campos v10 do Hub,
+confirmar `P1-01 = 0x0002` (modo velocidade) e descobrir onde estão as DIs de
+que precisa. O mapa **não é fixo**: ele varre `P2-10..P2-17` e `P2-36`,
+identifica SON (`0x01`), SPD0 (`0x14`) e SPD1 (`0x15`) pelo byte baixo, aceita
+apenas contato tipo A, e monta a máscara de P3-06 e os estados de P4-07 a partir
+disso. No drive do Módulo 2 o resultado é:
 
 ```text
-P1-01 = 0x0002   modo velocidade
-P2-10 = 0x0101   DI1 = SON
-P2-12 = 0x0114   DI3 = SPD0
-P2-13 = 0x0115   DI4 = SPD1
+SON=DI1  SPD0=DI2  SPD1=DI3
+P3-06 = 0x0007      DIs por comunicação
+P4-07 = 0x0002      parado (SON=0, SPD0=1, SPD1=0)
+P4-07 = 0x0003      rodando (SON=1, SPD0=1, SPD1=0)
 ```
 
-Depois ele mantém P2-30=5 (escritas em RAM), P3-06=0x000D (DI1/DI3/DI4 por
-comunicação, com SPD1 forçado em zero) e usa P4-07=0x0004 para parar ou
-`0x0005` para rodar. P1-09 é
-escrito por `10H`, duas words, unidade 0,1 rpm e word baixa primeiro. Toda
-escrita é confirmada por `03H`.
+Faltando SON ou SPD0, o nó recusa a tomada de controle, lista as nove DIs no log
+e reporta falha 1. Sem SPD0 o par SPD1/SPD0 fica em `00`, que em modo S seleciona
+o comando analógico do CN1 e nunca P1-09.
+
+Depois ele mantém P2-30=5 (escritas em RAM). P1-09 é escrito por `10H`, duas
+words, unidade 0,1 rpm e word baixa primeiro, e confirmado por `03H`. A escrita
+de P4-07 é confirmada apenas nos bits que P3-06 delega ao software: o registrador
+não é espelho, pois a leitura devolve o estado das DIs após a combinação com
+P3-06 e a escrita define só as SDI de software.
+
+P3-06 é bit a bit — as DIs fora da máscara continuam integralmente no CN1 — e é
+volátil, de modo que religar o drive devolve tudo ao comando físico. O nó nunca
+escreve `P2-1x`: atribuir função a uma DI é ato de comissionamento, não efeito
+colateral de firmware.
 
 O Hub é consultado a cada 500 ms. Se nenhum comando válido chegar dentro do
 lease de 3000 ms, o nó escreve P1-09=0 e remove SON. Se o nó reiniciar e detectar
 que P3-06 ainda pertence a uma sessão direta anterior, faz a mesma parada antes
 de iniciar o Wi-Fi. Com Hub antigo e P3-06 físico, permanece passivo — por isso
 este firmware deve ser gravado primeiro.
+
+Quando o Hub pede a via UART/CN1 e P3-06 já está físico, a liberação é um no-op:
+não há nada a soltar, e reescrever P1-09 ou P4-07 mexeria num drive que pertence
+à placa original. O nó apenas confirma a via.
 
 Essa proteção não cobre travamento total do ESP32 ou rompimento do RS-485.
 Configure e ensaie o timeout interno do drive (P3-10, se disponível nesta

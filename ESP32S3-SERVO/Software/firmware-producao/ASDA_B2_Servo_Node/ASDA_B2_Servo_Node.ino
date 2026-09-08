@@ -564,10 +564,21 @@ bool writeAndConfirmInternalSpeed(uint16_t rpm) {
     static_cast<uint16_t>(raw & 0xFFFFU),
     static_cast<uint16_t>(raw >> 16U)
   };
-  if (!writeMultipleRegisters(REG_INTERNAL_SPEED_1, words, 2)) return false;
+  if (!writeMultipleRegisters(REG_INTERNAL_SPEED_1, words, 2)) {
+    Serial.println(F("[MOTOR] P1-09: escrita 10H sem resposta valida."));
+    return false;
+  }
   uint16_t confirmed[2] = {0};
-  return readHoldingRegisters(REG_INTERNAL_SPEED_1, 2, confirmed) &&
-         confirmed[0] == words[0] && confirmed[1] == words[1];
+  if (!readHoldingRegisters(REG_INTERNAL_SPEED_1, 2, confirmed)) {
+    Serial.println(F("[MOTOR] P1-09: leitura de confirmacao falhou."));
+    return false;
+  }
+  if (confirmed[0] != words[0] || confirmed[1] != words[1]) {
+    Serial.printf("[MOTOR] P1-09: escrito %04X%04X, lido %04X%04X.\n",
+                  words[1], words[0], confirmed[1], confirmed[0]);
+    return false;
+  }
+  return true;
 }
 
 // P4-07 nao e um registrador espelho: a escrita define as DIs por comunicacao,
@@ -580,7 +591,12 @@ bool writeSoftwareDiState(uint16_t state, uint16_t mask) {
   if (!writeSingleRegister(REG_SOFTWARE_DI_STATE, state)) return false;
   uint16_t confirmed = 0;
   if (!readHoldingRegisters(REG_SOFTWARE_DI_STATE, 1, &confirmed)) return false;
-  return (confirmed & mask) == (state & mask);
+  if ((confirmed & mask) != (state & mask)) {
+    Serial.printf("[MOTOR] P4-07: escrito %04X, lido %04X, mascara %04X.\n",
+                  state, confirmed, mask);
+    return false;
+  }
+  return true;
 }
 
 // DI1..DI8 ficam em P2-10..P2-17, de duas em duas words; DI9 mora em P2-36.
@@ -668,21 +684,45 @@ bool ensureRamOnlyWrites() {
 bool applyMotorCommand(uint16_t rpm, bool enable) {
   if (enable && rpm == 0) return false;
   if (!diProfile.valid) return false;
-  if (!ensureRamOnlyWrites()) return false;
+  if (!ensureRamOnlyWrites()) {
+    Serial.println(F("[MOTOR] Aplicacao: falha em P2-30."));
+    return false;
+  }
   uint16_t currentMask = 0;
-  if (!readHoldingRegisters(REG_SOFTWARE_DI_MASK, 1, &currentMask)) return false;
+  if (!readHoldingRegisters(REG_SOFTWARE_DI_MASK, 1, &currentMask)) {
+    Serial.println(F("[MOTOR] Aplicacao: P3-06 ilegivel."));
+    return false;
+  }
   if (currentMask != diProfile.mask) {
     // Pre-carrega SON=0/SPD0=1/SPD1=0 apenas na tomada de controle. Fazer isso
     // a cada troca de rpm desligaria e religaria SON entre dois setpoints.
     // Enquanto P3-06 ainda esta fisico a leitura de P4-07 reflete o CN1, entao
     // a pre-carga vai sem confirmacao e so e conferida apos a troca da mascara.
-    if (!writeSingleRegister(REG_SOFTWARE_DI_STATE, diProfile.stopState)) return false;
-    if (!writeAndConfirmSingle(REG_SOFTWARE_DI_MASK, diProfile.mask)) return false;
-    if (!writeSoftwareDiState(diProfile.stopState, diProfile.mask)) return false;
+    if (!writeSingleRegister(REG_SOFTWARE_DI_STATE, diProfile.stopState)) {
+      Serial.println(F("[MOTOR] Aplicacao: falha ao pre-carregar P4-07."));
+      return false;
+    }
+    if (!writeAndConfirmSingle(REG_SOFTWARE_DI_MASK, diProfile.mask)) {
+      Serial.println(F("[MOTOR] Aplicacao: falha em P3-06 (tomada de controle)."));
+      return false;
+    }
+    if (!writeSoftwareDiState(diProfile.stopState, diProfile.mask)) {
+      Serial.println(F("[MOTOR] Aplicacao: falha em P4-07 (pre-carga com SON=0)."));
+      return false;
+    }
+    Serial.printf("[MOTOR] Controle assumido: P3-06=%04X.\n", diProfile.mask);
   }
-  if (!writeAndConfirmInternalSpeed(enable ? rpm : 0)) return false;
-  return writeSoftwareDiState(enable ? diProfile.runState : diProfile.stopState,
-                              diProfile.mask);
+  if (!writeAndConfirmInternalSpeed(enable ? rpm : 0)) {
+    Serial.printf("[MOTOR] Aplicacao: falha em P1-09 (%u rpm).\n",
+                  static_cast<unsigned>(enable ? rpm : 0));
+    return false;
+  }
+  if (!writeSoftwareDiState(enable ? diProfile.runState : diProfile.stopState,
+                            diProfile.mask)) {
+    Serial.println(F("[MOTOR] Aplicacao: falha em P4-07 (SON)."));
+    return false;
+  }
+  return true;
 }
 
 bool forceMotorSafeStop() {

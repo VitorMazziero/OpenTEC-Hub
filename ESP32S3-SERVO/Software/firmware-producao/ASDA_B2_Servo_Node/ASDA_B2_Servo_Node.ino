@@ -430,6 +430,37 @@ bool readHoldingRegisters(uint16_t startAddress,
   return true;
 }
 
+// Uma escrita reprovada so dizia "false". Se o drive responde excecao, o motivo
+// esta no quadro e e o unico jeito de separar recusa do drive de problema de
+// linha: leitura e escrita 06H tem o mesmo tamanho de quadro, entao se a
+// leitura passa e a escrita nao, a linha esta boa e a recusa e do drive.
+void logModbusWriteFailure(const char *what, uint16_t address,
+                           const uint8_t *response, size_t received) {
+  if (received == 0) {
+    Serial.printf("[MODBUS] %s em %04X: sem resposta.\n", what, address);
+    return;
+  }
+  if (received >= 3 && (response[1] & 0x80U) != 0U) {
+    const char *motivo;
+    switch (response[2]) {
+      case 0x01: motivo = "funcao ilegal"; break;
+      case 0x02: motivo = "endereco ilegal"; break;
+      case 0x03: motivo = "valor ilegal"; break;
+      case 0x04: motivo = "falha do dispositivo"; break;
+      default:   motivo = "codigo nao catalogado"; break;
+    }
+    Serial.printf("[MODBUS] %s em %04X: excecao %02X (%s).\n",
+                  what, address, response[2], motivo);
+    return;
+  }
+  Serial.printf("[MODBUS] %s em %04X: recebido %u bytes:", what, address,
+                static_cast<unsigned>(received));
+  for (size_t index = 0; index < received; ++index) {
+    Serial.printf(" %02X", response[index]);
+  }
+  Serial.println();
+}
+
 // Escreve um unico registrador pela funcao 06H.
 bool writeSingleRegister(uint16_t address, uint16_t value) {
   uint8_t request[8] = {
@@ -483,13 +514,29 @@ bool writeSingleRegister(uint16_t address, uint16_t value) {
 
   vTaskDelay(pdMS_TO_TICKS(RTU_SILENCE_MS));
 
-  if (received != sizeof(response)) return false;
+  if (received != sizeof(response)) {
+    logModbusWriteFailure("06H", address, response, received);
+    return false;
+  }
 
   const uint16_t receivedCrc =
     static_cast<uint16_t>(response[6]) | (static_cast<uint16_t>(response[7]) << 8U);
-  if (receivedCrc != modbusCrc16(response, 6)) return false;
+  if (receivedCrc != modbusCrc16(response, 6)) {
+    // Sem os bytes nao da para separar eco da propria transmissao, quadro
+    // deslocado por resto de transacao anterior e resposta truncada.
+    Serial.print(F("[MODBUS] 06H: enviado"));
+    for (size_t index = 0; index < sizeof(request); ++index) {
+      Serial.printf(" %02X", request[index]);
+    }
+    logModbusWriteFailure("06H CRC", address, response, received);
+    return false;
+  }
 
-  return memcmp(request, response, 6) == 0;
+  if (memcmp(request, response, 6) != 0) {
+    logModbusWriteFailure("06H", address, response, received);
+    return false;
+  }
+  return true;
 }
 
 // Escreve words contiguas por 10H. P1-09 ocupa duas words e precisa ser
@@ -541,14 +588,28 @@ bool writeMultipleRegisters(uint16_t address, const uint16_t *values, uint16_t c
     vTaskDelay(pdMS_TO_TICKS(1));
   }
   vTaskDelay(pdMS_TO_TICKS(RTU_SILENCE_MS));
-  if (received != sizeof(response)) return false;
+  if (received != sizeof(response)) {
+    logModbusWriteFailure("10H", address, response, received);
+    return false;
+  }
 
   const uint16_t receivedCrc = static_cast<uint16_t>(response[6]) |
                                (static_cast<uint16_t>(response[7]) << 8U);
-  if (receivedCrc != modbusCrc16(response, 6)) return false;
-  if (response[0] != MODBUS_SLAVE_ADDRESS || response[1] != 0x10U) return false;
-  return response[2] == request[2] && response[3] == request[3] &&
-         response[4] == request[4] && response[5] == request[5];
+  if (receivedCrc != modbusCrc16(response, 6)) {
+    Serial.print(F("[MODBUS] 10H: enviado"));
+    for (size_t index = 0; index < requestLength; ++index) {
+      Serial.printf(" %02X", request[index]);
+    }
+    logModbusWriteFailure("10H CRC", address, response, received);
+    return false;
+  }
+  if (response[0] != MODBUS_SLAVE_ADDRESS || response[1] != 0x10U ||
+      response[2] != request[2] || response[3] != request[3] ||
+      response[4] != request[4] || response[5] != request[5]) {
+    logModbusWriteFailure("10H", address, response, received);
+    return false;
+  }
+  return true;
 }
 
 bool writeAndConfirmSingle(uint16_t address, uint16_t value) {
@@ -677,7 +738,12 @@ bool validateDirectControlProfile(bool &driveResponded) {
 bool ensureRamOnlyWrites() {
   uint16_t mode = 0;
   if (!readHoldingRegisters(REG_PARAMETER_WRITE_MODE, 1, &mode)) return false;
+  // Se P2-30 ja vale 5 esta funcao nunca escreve, e uma escrita 06H bem
+  // sucedida deixa de ser evidencia disponivel. Registrar o valor lido evita
+  // concluir que "escrita funciona" a partir de um caminho so de leitura.
   if (mode == PARAMETER_WRITE_RAM_ONLY) return true;
+  Serial.printf("[MOTOR] P2-30 lido como %u; escrevendo %u.\n",
+                mode, PARAMETER_WRITE_RAM_ONLY);
   return writeAndConfirmSingle(REG_PARAMETER_WRITE_MODE, PARAMETER_WRITE_RAM_ONLY);
 }
 

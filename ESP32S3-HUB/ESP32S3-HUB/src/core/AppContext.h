@@ -175,7 +175,19 @@ int   pHIntensity = 0;
 // direto no ESP32S3-driver ou UART/CN1 pela placa original, sem PI no Hub.
 int   motorRPM = 0;
 MotorControlRoute motorControlRoute = MotorControlRoute::Modbus;
+
+// Uma troca de via retem o proximo setpoint ate o ESP32S3-driver confirmar que
+// soltou (ou assumiu) P3-06. A retencao precisa de prazo: sem ele, um no que
+// nunca confirma o ACK deixava o Hub mudo tambem na via UART/CN1, que sequer
+// depende dele. Vencido o prazo, o setpoint segue para a via escolhida.
 bool motorRouteTransitionPending = true;
+uint32_t motorRouteTransitionStartedMs = 0;
+const uint32_t MOTOR_ROUTE_TRANSITION_TIMEOUT_MS = 5000;
+
+inline void beginMotorRouteTransition(uint32_t nowMs) {
+  motorRouteTransitionPending = true;
+  motorRouteTransitionStartedMs = nowMs;
+}
 
 bool   agitatorAuto        = true;
 bool   agitatorReEnablePot = true;

@@ -130,23 +130,39 @@ constexpr uint16_t MONITOR_CODE_TORQUE_FEEDBACK = 54;
 // Controle direto de velocidade. Endereco = grupo * 0x100 + indice * 2.
 constexpr uint16_t REG_CONTROL_MODE = 0x0102;        // P1-01
 constexpr uint16_t REG_INTERNAL_SPEED_1 = 0x0112;    // P1-09, signed 32-bit, 0.1 rpm
-constexpr uint16_t REG_DI1_FUNCTION = 0x0214;        // P2-10
-constexpr uint16_t REG_DI3_FUNCTION = 0x0218;        // P2-12
-constexpr uint16_t REG_DI4_FUNCTION = 0x021A;        // P2-13
+constexpr uint16_t REG_DI_FUNCTION_BASE = 0x0214;    // P2-10 = DI1; +2 por DI
+constexpr uint16_t REG_DI9_FUNCTION = 0x0248;        // P2-36 = DI9, fora do bloco
+constexpr uint8_t  DI_COUNT = 9;                     // DI1..DI9, como em P3-06
 constexpr uint16_t REG_PARAMETER_WRITE_MODE = 0x023C;// P2-30
 constexpr uint16_t REG_SOFTWARE_DI_MASK = 0x030C;    // P3-06
 constexpr uint16_t REG_SOFTWARE_DI_STATE = 0x040E;   // P4-07
 
 constexpr uint16_t EXPECTED_CONTROL_MODE_SPEED = 0x0002;
-constexpr uint16_t EXPECTED_DI1_SON = 0x0101;
-constexpr uint16_t EXPECTED_DI3_SPD0 = 0x0114;
-constexpr uint16_t EXPECTED_DI4_SPD1 = 0x0115;
 constexpr uint16_t PARAMETER_WRITE_RAM_ONLY = 5;
 constexpr uint16_t SOFTWARE_DI_MASK_PHYSICAL = 0x0000;
-constexpr uint16_t SOFTWARE_DI_MASK_SON_SPEED = 0x000D; // DI1, DI3 e DI4
-constexpr uint16_t SOFTWARE_DI_STOP = 0x0004; // SPD0=1, SON=0
-constexpr uint16_t SOFTWARE_DI_RUN = 0x0005;  // SPD0=1, SON=1
 constexpr uint16_t MAX_MOTOR_RPM = 1000;
+
+// P2-1x codifica a DI como tipo de contato no byte alto e funcao no byte baixo.
+constexpr uint16_t DI_FUNCTION_MASK = 0x00FF;
+constexpr uint16_t DI_CONTACT_NORMALLY_OPEN = 0x0100;
+constexpr uint16_t DI_FUNCTION_SON = 0x01;
+constexpr uint16_t DI_FUNCTION_SPD0 = 0x14;
+constexpr uint16_t DI_FUNCTION_SPD1 = 0x15;
+
+// P3-06 e P4-07 enderecam DIs por posicao (bit 0 = DI1), mas qual funcao mora
+// em qual DI e configuracao do drive, nao constante do projeto: cada instalacao
+// acomoda SPD0 no pino que sobra do CN1. Fixar DI1/DI3/DI4 obrigava a remapear
+// DIs que a placa original ja usa, entao o mapa e lido do proprio drive.
+struct DiProfile {
+  uint16_t mask = 0;       // bits que P3-06 deve entregar ao software
+  uint16_t stopState = 0;  // P4-07 com SON=0, SPD0=1, SPD1=0
+  uint16_t runState = 0;   // P4-07 com SON=1, SPD0=1, SPD1=0
+  bool valid = false;
+};
+
+// Escrito e lido apenas pela modbusTask, e uma vez no setup antes de as tarefas
+// existirem, entao dispensa mutex.
+DiProfile diProfile;
 
 enum MotorControlRoute : uint8_t {
   MOTOR_ROUTE_UART_CN1 = 0,
@@ -554,26 +570,92 @@ bool writeAndConfirmInternalSpeed(uint16_t rpm) {
          confirmed[0] == words[0] && confirmed[1] == words[1];
 }
 
+// P4-07 nao e um registrador espelho: a escrita define as DIs por comunicacao,
+// mas a leitura devolve o estado combinado das DIs do drive, ja com P3-06
+// aplicado. Exigir que a leitura repetisse o valor escrito reprovava escritas
+// corretas sempre que qualquer DI fora da mascara estivesse ativa, e reprovava
+// sempre quando P3-06 estava fisico. So os bits que P3-06 entrega ao software
+// tem eco garantido, entao apenas eles sao comparados.
+bool writeSoftwareDiState(uint16_t state, uint16_t mask) {
+  if (!writeSingleRegister(REG_SOFTWARE_DI_STATE, state)) return false;
+  uint16_t confirmed = 0;
+  if (!readHoldingRegisters(REG_SOFTWARE_DI_STATE, 1, &confirmed)) return false;
+  return (confirmed & mask) == (state & mask);
+}
+
+// DI1..DI8 ficam em P2-10..P2-17, de duas em duas words; DI9 mora em P2-36.
+uint16_t diFunctionRegister(uint8_t index) {
+  if (index >= 8) return REG_DI9_FUNCTION;
+  return static_cast<uint16_t>(REG_DI_FUNCTION_BASE + (index * 2U));
+}
+
+// Varre as DIs e monta mascara e estados de P4-07 a partir de onde SON, SPD0 e
+// SPD1 realmente estao. driveResponded separa drive mudo de drive que respondeu
+// mas nao tem as funcoes necessarias, para o chamador escolher a falha certa.
+bool discoverDiProfile(DiProfile &profile, bool &driveResponded) {
+  profile = DiProfile();
+  driveResponded = false;
+
+  uint16_t functions[DI_COUNT] = {0};
+  int sonBit = -1;
+  int spd0Bit = -1;
+  int spd1Bit = -1;
+
+  for (uint8_t index = 0; index < DI_COUNT; ++index) {
+    if (!readHoldingRegisters(diFunctionRegister(index), 1, &functions[index])) return false;
+    // So acionamos contato tipo A: num contato tipo B o bit 1 de P4-07
+    // desativaria a funcao, e inverter isso em silencio seria perigoso.
+    if ((functions[index] & DI_CONTACT_NORMALLY_OPEN) == 0) continue;
+    switch (functions[index] & DI_FUNCTION_MASK) {
+      case DI_FUNCTION_SON:  sonBit  = index; break;
+      case DI_FUNCTION_SPD0: spd0Bit = index; break;
+      case DI_FUNCTION_SPD1: spd1Bit = index; break;
+      default: break;
+    }
+  }
+  driveResponded = true;
+
+  if (sonBit < 0 || spd0Bit < 0) {
+    Serial.printf("[MOTOR] Perfil recusado: SON=%s, SPD0=%s. Sem SPD0 o par SPD1/SPD0 "
+                  "fica em 00 e o drive segue no comando analogico do CN1.\n",
+                  sonBit < 0 ? "ausente" : "ok", spd0Bit < 0 ? "ausente" : "ok");
+    for (uint8_t index = 0; index < DI_COUNT; ++index) {
+      Serial.printf("[MOTOR]   DI%u = %04X%s\n", index + 1, functions[index],
+                    functions[index] == 0 ? "  (livre)" : "");
+    }
+    return false;
+  }
+
+  profile.mask = static_cast<uint16_t>((1U << sonBit) | (1U << spd0Bit));
+  // SPD1 so entra na mascara se existir: DI sem funcao ja vale zero, mas uma
+  // DI com SPD1 no CN1 selecionaria P1-10/P1-11 pelas nossas costas.
+  if (spd1Bit >= 0) profile.mask |= static_cast<uint16_t>(1U << spd1Bit);
+
+  profile.stopState = static_cast<uint16_t>(1U << spd0Bit);
+  profile.runState = static_cast<uint16_t>(profile.stopState | (1U << sonBit));
+  profile.valid = true;
+
+  char spd1Label[12];
+  if (spd1Bit >= 0) snprintf(spd1Label, sizeof(spd1Label), "DI%d", spd1Bit + 1);
+  else snprintf(spd1Label, sizeof(spd1Label), "nenhuma");
+  Serial.printf("[MOTOR] Mapa de DIs: SON=DI%d SPD0=DI%d SPD1=%s -> "
+                "P3-06=%04X, P4-07 run=%04X stop=%04X\n",
+                sonBit + 1, spd0Bit + 1, spd1Label,
+                profile.mask, profile.runState, profile.stopState);
+  return true;
+}
+
 bool validateDirectControlProfile(bool &driveResponded) {
   uint16_t controlMode = 0;
-  uint16_t di1 = 0;
-  uint16_t di3 = 0;
-  uint16_t di4 = 0;
-  driveResponded = readHoldingRegisters(REG_CONTROL_MODE, 1, &controlMode) &&
-                   readHoldingRegisters(REG_DI1_FUNCTION, 1, &di1) &&
-                   readHoldingRegisters(REG_DI3_FUNCTION, 1, &di3) &&
-                   readHoldingRegisters(REG_DI4_FUNCTION, 1, &di4);
+  driveResponded = readHoldingRegisters(REG_CONTROL_MODE, 1, &controlMode);
   if (!driveResponded) return false;
 
-  const bool valid = controlMode == EXPECTED_CONTROL_MODE_SPEED &&
-                     di1 == EXPECTED_DI1_SON &&
-                     di3 == EXPECTED_DI3_SPD0 &&
-                     di4 == EXPECTED_DI4_SPD1;
-  if (!valid) {
-    Serial.printf("[MOTOR] Perfil recusado: P1-01=%04X P2-10=%04X P2-12=%04X P2-13=%04X\n",
-                  controlMode, di1, di3, di4);
+  if (controlMode != EXPECTED_CONTROL_MODE_SPEED) {
+    Serial.printf("[MOTOR] Perfil recusado: P1-01=%04X, esperado %04X (modo velocidade).\n",
+                  controlMode, EXPECTED_CONTROL_MODE_SPEED);
+    return false;
   }
-  return valid;
+  return discoverDiProfile(diProfile, driveResponded);
 }
 
 bool ensureRamOnlyWrites() {
@@ -585,24 +667,34 @@ bool ensureRamOnlyWrites() {
 
 bool applyMotorCommand(uint16_t rpm, bool enable) {
   if (enable && rpm == 0) return false;
+  if (!diProfile.valid) return false;
   if (!ensureRamOnlyWrites()) return false;
   uint16_t currentMask = 0;
   if (!readHoldingRegisters(REG_SOFTWARE_DI_MASK, 1, &currentMask)) return false;
-  if (currentMask != SOFTWARE_DI_MASK_SON_SPEED) {
+  if (currentMask != diProfile.mask) {
     // Pre-carrega SON=0/SPD0=1/SPD1=0 apenas na tomada de controle. Fazer isso
     // a cada troca de rpm desligaria e religaria SON entre dois setpoints.
-    if (!writeAndConfirmSingle(REG_SOFTWARE_DI_STATE, SOFTWARE_DI_STOP)) return false;
-    if (!writeAndConfirmSingle(REG_SOFTWARE_DI_MASK, SOFTWARE_DI_MASK_SON_SPEED)) return false;
+    // Enquanto P3-06 ainda esta fisico a leitura de P4-07 reflete o CN1, entao
+    // a pre-carga vai sem confirmacao e so e conferida apos a troca da mascara.
+    if (!writeSingleRegister(REG_SOFTWARE_DI_STATE, diProfile.stopState)) return false;
+    if (!writeAndConfirmSingle(REG_SOFTWARE_DI_MASK, diProfile.mask)) return false;
+    if (!writeSoftwareDiState(diProfile.stopState, diProfile.mask)) return false;
   }
   if (!writeAndConfirmInternalSpeed(enable ? rpm : 0)) return false;
-  return writeAndConfirmSingle(REG_SOFTWARE_DI_STATE,
-                               enable ? SOFTWARE_DI_RUN : SOFTWARE_DI_STOP);
+  return writeSoftwareDiState(enable ? diProfile.runState : diProfile.stopState,
+                              diProfile.mask);
 }
 
 bool forceMotorSafeStop() {
   if (!ensureRamOnlyWrites()) return false;
   const bool speedStopped = writeAndConfirmInternalSpeed(0);
-  const bool sonRemoved = writeAndConfirmSingle(REG_SOFTWARE_DI_STATE, SOFTWARE_DI_STOP);
+  // A mascara em vigor decide quais bits de P4-07 sao nossos. Com P3-06 fisico
+  // nenhum e, e a comparacao vazia diz a verdade: nao ha SON de software aqui.
+  uint16_t mask = 0;
+  const bool maskRead = readHoldingRegisters(REG_SOFTWARE_DI_MASK, 1, &mask);
+  // Com o mapa ainda desconhecido stopState e zero, que zera todas as DIs de
+  // software: e a direcao segura, pois derruba SON de qualquer jeito.
+  const bool sonRemoved = maskRead && writeSoftwareDiState(diProfile.stopState, mask);
   return speedStopped && sonRemoved;
 }
 
@@ -610,10 +702,34 @@ bool forceMotorSafeStop() {
 // pela UART antes de solicitar esta transicao, mas ainda paramos P1-09 e SON
 // enquanto o mask de software esta ativo. P3-06=0 e sempre o ultimo passo.
 bool releaseMotorToUartCn1() {
-  if (!ensureRamOnlyWrites()) return false;
-  if (!writeAndConfirmInternalSpeed(0)) return false;
-  if (!writeAndConfirmSingle(REG_SOFTWARE_DI_STATE, SOFTWARE_DI_STOP)) return false;
-  return writeAndConfirmSingle(REG_SOFTWARE_DI_MASK, SOFTWARE_DI_MASK_PHYSICAL);
+  uint16_t mask = 0;
+  if (!readHoldingRegisters(REG_SOFTWARE_DI_MASK, 1, &mask)) {
+    Serial.println(F("[MOTOR] Liberacao para UART/CN1: P3-06 ilegivel."));
+    return false;
+  }
+  // P3-06 ja fisico significa que quem comanda e o CN1. Reescrever P1-09 e
+  // P4-07 nesse estado nao libera nada e ainda mexe num drive que pertence a
+  // placa original. Sem esta saida a liberacao falhava para sempre e o Hub
+  // jamais recebia o ACK da via.
+  if (mask == SOFTWARE_DI_MASK_PHYSICAL) return true;
+
+  if (!ensureRamOnlyWrites()) {
+    Serial.println(F("[MOTOR] Liberacao para UART/CN1: falha em P2-30."));
+    return false;
+  }
+  if (!writeAndConfirmInternalSpeed(0)) {
+    Serial.println(F("[MOTOR] Liberacao para UART/CN1: falha em P1-09."));
+    return false;
+  }
+  if (!writeSoftwareDiState(diProfile.stopState, mask)) {
+    Serial.println(F("[MOTOR] Liberacao para UART/CN1: falha em P4-07."));
+    return false;
+  }
+  if (!writeAndConfirmSingle(REG_SOFTWARE_DI_MASK, SOFTWARE_DI_MASK_PHYSICAL)) {
+    Serial.println(F("[MOTOR] Liberacao para UART/CN1: falha em P3-06."));
+    return false;
+  }
+  return true;
 }
 
 void publishMotorControlStatus(bool capable, uint32_t ack, uint16_t appliedRpm,
@@ -640,9 +756,15 @@ void recoverStaleDirectControlAtBoot() {
     Serial.println(F("[MOTOR] Nao foi possivel verificar P3-06 no boot."));
     return;
   }
-  if ((mask & SOFTWARE_DI_MASK_SON_SPEED) != SOFTWARE_DI_MASK_SON_SPEED) {
+  // Qualquer bit em P3-06 so pode ter vindo de uma sessao direta anterior deste
+  // no: a instalacao original mantem todas as DIs no CN1 fisico.
+  if (mask == SOFTWARE_DI_MASK_PHYSICAL) {
     Serial.println(F("[MOTOR] P3-06 ainda fisico; driver permanece passivo."));
     return;
+  }
+  bool driveResponded = false;
+  if (!discoverDiProfile(diProfile, driveResponded)) {
+    Serial.println(F("[MOTOR] Mapa de DIs indisponivel no boot; zerando P4-07 mesmo assim."));
   }
   if (forceMotorSafeStop()) {
     Serial.println(F("[MOTOR] Controle direto antigo detectado; SON removido no boot."));
@@ -793,10 +915,12 @@ void serviceMotorControl() {
     lastControlVerifyMs = nowMs;
     uint16_t mask = 0;
     uint16_t state = 0;
+    const uint16_t expectedState =
+        requestedEnable ? diProfile.runState : diProfile.stopState;
     if (!readHoldingRegisters(REG_SOFTWARE_DI_MASK, 1, &mask) ||
         !readHoldingRegisters(REG_SOFTWARE_DI_STATE, 1, &state) ||
-        mask != SOFTWARE_DI_MASK_SON_SPEED ||
-        state != (requestedEnable ? SOFTWARE_DI_RUN : SOFTWARE_DI_STOP)) {
+        mask != diProfile.mask ||
+        (state & diProfile.mask) != (expectedState & diProfile.mask)) {
       needsApply = true; // drive reiniciou ou perdeu o modo volatil
       active = false;
       appliedRpm = 0;

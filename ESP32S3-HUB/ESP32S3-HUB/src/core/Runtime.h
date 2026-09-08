@@ -54,13 +54,33 @@ static void sendMotorByUart(int rpm) {
 
 static void refreshMotorRouteTransition() {
   if (!motorRouteTransitionPending) return;
-  const ServoSnapshot snapshot = servoDevice.snapshot(millis());
+  const uint32_t now = millis();
+  const ServoSnapshot snapshot = servoDevice.snapshot(now);
+
   if (snapshot.online && !snapshot.motorCommandPending &&
       snapshot.motorRouteAck == static_cast<int32_t>(motorControlRoute)) {
     motorRouteTransitionPending = false;
     ESP32_EVT(String("Via de rotacao confirmada: ") +
               (motorControlRoute == MotorControlRoute::Modbus
                 ? "Modbus direto" : "UART/CN1"));
+    return;
+  }
+
+  // Sem o no presente nao ha quem possa estar segurando P3-06, logo nao ha o
+  // que esperar. Um periferico ausente nunca pode calar a placa original.
+  if (!snapshot.online) {
+    motorRouteTransitionPending = false;
+    ESP32_AVISO("Via de rotacao liberada sem ACK: ESP32S3-driver ausente");
+    return;
+  }
+
+  // O no esta online mas nao confirma (por exemplo, falha ao escrever P3-06).
+  // Sem este prazo o Hub engolia todo setpoint em silencio, para sempre.
+  if ((now - motorRouteTransitionStartedMs) >= MOTOR_ROUTE_TRANSITION_TIMEOUT_MS) {
+    motorRouteTransitionPending = false;
+    ESP32_AVISO(String("Via de rotacao liberada por tempo limite: ") +
+                MOTOR_ROUTE_TRANSITION_TIMEOUT_MS +
+                String(" ms sem ACK do ESP32S3-driver"));
   }
 }
 
@@ -76,7 +96,7 @@ void processOutgoingCommands() {
     if (!servoDevice.setMotorDesired(0, false, motorControlRoute, millis())) {
       ESP32_ERRO("Falha ao enfileirar a troca da via de rotacao");
     } else {
-      motorRouteTransitionPending = true;
+      beginMotorRouteTransition(millis());
       ESP32_EVT(String("Troca da via de rotacao solicitada: ") +
                 (motorControlRoute == MotorControlRoute::Modbus
                   ? "Modbus direto" : "UART/CN1"));
@@ -87,7 +107,12 @@ void processOutgoingCommands() {
 
   // 2. MOTOR SETPOINT UPDATE
   if (flagMotorDirty) {
-    if (motorRouteTransitionPending && motorRPM > 0) {
+    // So a via UART/CN1 corre o risco de topar com P3-06 ainda em modo
+    // software. Na via Modbus o proprio setMotorDesired substitui o comando da
+    // troca por uma revisao nova que ja leva via e rotacao juntas, e o no
+    // sequencia P4-07/P3-06 sozinho; reter aqui so atrasaria o setpoint.
+    if (motorControlRoute == MotorControlRoute::UartCn1 &&
+        motorRouteTransitionPending && motorRPM > 0) {
       // Mantem o pedido pendente; ele sera aplicado depois do ACK de P3-06.
     } else if (motorControlRoute == MotorControlRoute::Modbus) {
       if (servoDevice.setMotorDesired(static_cast<uint16_t>(motorRPM),
@@ -275,6 +300,7 @@ void firmwareSetup() {
   // O modulo original precisa estar desabilitado antes de o no poder assumir
   // P3-06. Isso tambem garante um boot seguro quando a via persistida e UART.
   sendMotorByUart(0);
+  beginMotorRouteTransition(millis());
 
   startWiFi();
   syncAllSensorSettings();

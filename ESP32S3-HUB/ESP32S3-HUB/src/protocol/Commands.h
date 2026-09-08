@@ -242,7 +242,7 @@ void processJsonCommand(const String &json) {
         motorRPM = 0;
         flagMotorDirty = false;
         flagMotorRouteDirty = true;
-        motorRouteTransitionPending = true;
+        beginMotorRouteTransition(millis());
         motorRouteChangedInFrame = true;
         ESP32_EVT(String("Via do setpoint alterada para ") +
                   (motorControlRoute == MotorControlRoute::Modbus

@@ -320,6 +320,30 @@ bool writeSingleRegister(uint16_t address, uint16_t value);
 bool writeMultipleRegisters(uint16_t address, const uint16_t *values, uint16_t count);
 bool ensureTorqueMapping();
 
+// Devolve a linha a recepcao e descarta o eco da propria transmissao.
+//
+// O modulo mantem o receptor ativo mesmo com DE alto, entao tudo que o no envia
+// volta pelo RO, precedido do 0x00 que o divisor produz quando DE sobe. Sem este
+// descarte o buffer de resposta enche com o proprio quadro e a resposta do drive
+// nao encontra lugar. Era exatamente esse o defeito das escritas 06H e 10H: elas
+// duplicavam a sequencia de retorno de linha sem a limpeza que a leitura tinha,
+// e por isso reprovavam por CRC enquanto toda leitura passava. Uma funcao unica
+// impede que a divergencia volte.
+//
+// A limpeza precisa acontecer depois do eco e antes da resposta: o drive so
+// responde apos o atraso de P3-07, confirmado em 100 nesta bancada.
+void releaseBusAndDropEcho() {
+  // flush() espera o ultimo byte chegar ao periferico UART. Mantemos o driver
+  // por mais um caractere antes de voltar a recepcao, exatamente como no
+  // autoscan que fechou a bancada com o HW-097 em 2026-09-01.
+  delayMicroseconds((11UL * 1000000UL / RS485_BAUD) + 150UL);
+  digitalWrite(RS485_DE_RE_PIN, LOW);
+  delayMicroseconds(200);
+  while (rs485Serial.available() > 0) {
+    (void)rs485Serial.read();
+  }
+}
+
 bool readHoldingRegisters(uint16_t startAddress,
                           uint16_t registerCount,
                           uint16_t *registers) {
@@ -356,19 +380,7 @@ bool readHoldingRegisters(uint16_t startAddress,
   }
   rs485Serial.flush();
 
-  // flush() espera o ultimo byte chegar ao periférico UART. Mantemos o driver
-  // por mais um caractere antes de voltar a recepcao, exatamente como no
-  // autoscan que fechou a bancada com o HW-097 em 2026-09-01.
-  delayMicroseconds((11UL * 1000000UL / RS485_BAUD) + 150UL);
-  digitalWrite(RS485_DE_RE_PIN, LOW);
-
-  // Com DE e /RE em curto, o receptor fica desabilitado durante a transmissao.
-  // O divisor pode produzir bytes 0x00 nesse intervalo; descarte-os antes da
-  // resposta do drive, cujo atraso P3-07 foi confirmado em 100.
-  delayMicroseconds(200);
-  while (rs485Serial.available() > 0) {
-    (void)rs485Serial.read();
-  }
+  releaseBusAndDropEcho();
 
   uint8_t response[MAX_RESPONSE_SIZE] = {0};
   size_t received = 0;
@@ -491,10 +503,7 @@ bool writeSingleRegister(uint16_t address, uint16_t value) {
   }
   rs485Serial.flush();
 
-  delayMicroseconds((11UL * 1000000UL / RS485_BAUD) + 150UL);
-  digitalWrite(RS485_DE_RE_PIN, LOW);
-
-  delayMicroseconds(200);
+  releaseBusAndDropEcho();
 
   // A resposta normal de 06H e o eco dos mesmos 8 bytes.
   uint8_t response[8] = {0};
@@ -570,9 +579,8 @@ bool writeMultipleRegisters(uint16_t address, const uint16_t *values, uint16_t c
     return false;
   }
   rs485Serial.flush();
-  delayMicroseconds((11UL * 1000000UL / RS485_BAUD) + 150UL);
-  digitalWrite(RS485_DE_RE_PIN, LOW);
-  delayMicroseconds(200);
+
+  releaseBusAndDropEcho();
 
   uint8_t response[8] = {0};
   size_t received = 0;

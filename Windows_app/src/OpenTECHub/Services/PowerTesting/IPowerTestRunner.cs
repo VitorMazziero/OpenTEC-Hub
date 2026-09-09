@@ -23,6 +23,7 @@ public interface IPowerTestRunner : IDisposable
     string StatusMessage { get; }
     IReadOnlyList<PowerDataPoint> CurrentRunPoints { get; }
     IReadOnlyList<PowerGlobalSeriesSample> GlobalSeriesSamples { get; }
+    PowerMotorRouteCoordinator? RouteCoordinator => null;
 
     event Action? StateChanged;
     event Action<PowerDataPoint>? DataPointAdded;

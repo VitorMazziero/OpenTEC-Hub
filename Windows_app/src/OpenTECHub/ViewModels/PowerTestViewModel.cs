@@ -40,6 +40,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private long _lastPreflightTick;
     private bool _suppressConditionPersistence;
     private bool _disposed;
+    private readonly PowerMotorRouteCoordinator _routeCoordinator;
 
     public PowerTestViewModel(IPowerTestStore store, IDeviceService device, ICommandArbiter arbiter)
         : this(store, device, arbiter, null, null, null)
@@ -101,6 +102,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _klaStore = klaStore;
         MapViewModel = mapViewModel;
         TestRootDirectory = store.RootDirectory;
+        _routeCoordinator = runner?.RouteCoordinator ?? new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
         _device.TelemetryReceived += OnTelemetryReceived;
         _arbiter.OwnershipChanged += OnOwnershipChanged;
@@ -517,6 +519,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public bool CanEditPlan => CurrentTest is not null && !IsRunning && !IsTareRunning && CurrentTest.Status != PowerTestStatus.Completed;
     public bool CanStartOrContinue => CurrentTest is not null && !IsRunning && !IsTareRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
     public bool CanManageTest => CurrentTest is not null && !IsRunning && !IsTareRunning;
+    public PowerMotorRouteCoordinator RouteCoordinator => _routeCoordinator;
 
     partial void OnIsTareRunningChanged(bool value) => NotifyDocumentState();
 
@@ -2482,6 +2485,20 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 throw new InvalidOperationException("Não foi possível obter o controle da agitação para medir a tara.");
             }
 
+            _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+            if (_routeCoordinator.IsUartFallback)
+            {
+                if (TareStartRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm)
+                {
+                    throw new InvalidOperationException(
+                        $"Em modo de fallback UART, a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                        $"A rotação inicial informada ({TareStartRpm:F0} rpm) requer comunicação Modbus.");
+                }
+                targets = _routeCoordinator.AdjustTareTargets(targets);
+                _tarePointTotal = targets.Count;
+                TareProgressMessage = $"Modo de fallback UART ativo: varredura limitada a {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm.";
+            }
+
             EnsureTareDispatch(
                 CommandBuilders.ServoPollInterval(settings.CaptureServoPollMs),
                 "configurar a aquisição rápida do servo");
@@ -2503,10 +2520,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 await WaitForTarePointAsync(_tareCapture, settings, cancellation.Token);
                 if (_tareCapture.State != TareCaptureState.Converged)
                 {
-                    throw new InvalidOperationException(
-                        _tareCapture.State == TareCaptureState.SpeedTimedOut
-                            ? $"A rotação não estabilizou em {rpm:F0} rpm."
-                            : $"O patamar de {rpm:F0} rpm não atingiu o IC95 após {settings.MaxTries} tentativa(s).");
+                    var msg = _tareCapture.State == TareCaptureState.SpeedTimedOut
+                        ? (_routeCoordinator.IsUartFallback && rpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm
+                            ? $"A rotação não estabilizou em {rpm:F0} rpm: no modo de fallback UART a rotação física máxima é {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. Restabeleça a comunicação Modbus para alcançar 1000 rpm."
+                            : $"A rotação não estabilizou em {rpm:F0} rpm.")
+                        : $"O patamar de {rpm:F0} rpm não atingiu o IC95 após {settings.MaxTries} tentativa(s).";
+                    throw new InvalidOperationException(msg);
                 }
 
                 var point = _tareCapture.CreatePoint(CurrentTest);
@@ -2867,6 +2886,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
+        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        if (!_routeCoordinator.ValidateRpm(SinglePointRpm, out var rpmError))
+        {
+            ShowError(rpmError!);
+            return;
+        }
+
         try
         {
             var actuators = SinglePointFlowLpm > 0 ? new[] { ActuatorId.Agitation, ActuatorId.Aeration } : [ActuatorId.Agitation];
@@ -3160,6 +3186,15 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (Conditions.Any(c => c.GasFlowLpm is < 0 || c.GasFlowVvm is < 0))
         {
             return "A vazão de gás não pode ser negativa.";
+        }
+
+        if (_routeCoordinator.IsUartFallback)
+        {
+            var overCondition = Conditions.FirstOrDefault(c => c.AgitationRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm);
+            if (overCondition is not null)
+            {
+                return $"Em modo de fallback UART, a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. A condição de {overCondition.AgitationRpm:F0} rpm requer comunicação Modbus com o servo drive.";
+            }
         }
 
         if (!RelativeMode && (CurrentTest.Calibration is null || CurrentTest.Tare is null))

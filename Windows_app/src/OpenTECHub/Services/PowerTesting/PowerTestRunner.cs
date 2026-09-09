@@ -20,6 +20,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private readonly IPowerTestInterlock _interlock;
     private readonly TimeProvider _time;
     private readonly ITimer _watchdog;
+    private readonly PowerMotorRouteCoordinator _routeCoordinator;
 
     private readonly List<PowerDataPoint> _runPoints = [];
     private readonly List<PowerGlobalSeriesSample> _globalSamples = [];
@@ -88,8 +89,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
         _watchdog = _time.CreateTimer(
             _ => CheckWatchdog(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        _routeCoordinator = new PowerMotorRouteCoordinator(_arbiter, _device, CommandOwner.PowerAssay);
     }
 
+    public PowerMotorRouteCoordinator RouteCoordinator => _routeCoordinator;
     public PowerTestDocument? CurrentTest => _currentTest;
     public PowerRun? CurrentRun => _currentRun;
     public PowerCondition? CurrentCondition => _currentCondition;
@@ -184,6 +187,12 @@ public sealed class PowerTestRunner : IPowerTestRunner
                 reason = $"A malha de gás pertence a {gasOwner}; libere-a antes de iniciar.";
                 return false;
             }
+        }
+
+        if (!_routeCoordinator.ValidateConditions(doc, out var routeError))
+        {
+            reason = routeError;
+            return false;
         }
 
         reason = null;
@@ -626,6 +635,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
             return;
         }
 
+        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        LogEvent("MotorRoute", routeMsg);
+        if (_routeCoordinator.IsUartFallback && _commandedRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm)
+        {
+            FaultWithoutSafeCommand(
+                $"Em modo de fallback UART, a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                $"A condição de {_commandedRpm} rpm requer comunicação Modbus.");
+            return;
+        }
+
         if (actualMode == PowerGasMode.Gassed)
         {
             _arbiter.Claim(CommandOwner.PowerAssay, GassedActuators, $"Ensaio de potência (gás): {condition.ConditionId}");
@@ -901,7 +920,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
             }
             else if (PhaseElapsedSeconds >= _currentTest.Settings.MaxSpeedSettlingSeconds)
             {
-                StopForReview("A rotação medida não entrou na banda dentro do tempo limite.", PowerStopReason.Tmax);
+                var timeoutReason = _routeCoordinator.IsUartFallback && _commandedRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm
+                    ? $"A rotação medida não alcançou {_commandedRpm} rpm: no modo de fallback UART a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm."
+                    : "A rotação medida não entrou na banda dentro do tempo limite.";
+                StopForReview(timeoutReason, PowerStopReason.Tmax);
             }
             return;
         }
@@ -1335,7 +1357,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
     }
 
     private bool DispatchMotorOrFault(int rpm, string action)
-        => Dispatch(CommandBuilders.MotorSetpoint(Math.Max((int)_currentTest!.Settings.MinRpm, rpm)), action);
+    {
+        if (_routeCoordinator.IsUartFallback && rpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm)
+        {
+            FaultWithoutSafeCommand(
+                $"Em modo de fallback UART, a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                $"Comando de {rpm} rpm ({action}) requer comunicação Modbus.");
+            return false;
+        }
+        return Dispatch(CommandBuilders.MotorSetpoint(Math.Max((int)_currentTest!.Settings.MinRpm, rpm)), action);
+    }
 
     private bool Dispatch(OpenTECCommand command, string action)
     {

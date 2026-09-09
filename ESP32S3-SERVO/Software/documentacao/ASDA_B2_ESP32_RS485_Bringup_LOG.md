@@ -687,53 +687,89 @@ colateral.
 Consequência prática: a via Modbus não altera nada de permanente no drive. P2-30
 e P3-06 são voláteis, e o nó deliberadamente **não escreve** `P2-1x`.
 
-## 7. Pendência aberta — escritas Modbus com CRC inválido
+## 7. O eco da própria transmissão lido como resposta
 
-Estado ao fim da sessão: perfil aceito, controle habilitado, e `applyMotorCommand()`
-falhando nas escritas.
+Com o perfil aceito e o controle habilitado, `applyMotorCommand()` falhava em
+todas as escritas, enquanto toda leitura `03H` passava:
 
 ```text
 [MODBUS] 06H em 040E: CRC invalido na resposta.   (83x em 40 s)
 [MODBUS] 10H em 0112: CRC invalido na resposta.   (42x em 40 s)
 ```
 
-Chegam exatamente 8 bytes e o CRC não fecha. Não é exceção Modbus e não é
-ausência de resposta — o drive responde algo que não é quadro válido.
+Chegavam exatamente 8 bytes e o CRC nunca fechava. O despejo dos bytes encerrou
+a discussão:
 
-O que **está descartado**: o quadro de requisição `06H` tem os mesmos 8 bytes do
-quadro de leitura `03H`, mesmo tempo de linha e mesmo chaveamento de DE/RE. Como
-toda leitura `03H` passa (telemetria contínua, as nove DIs, P3-06, P2-30), a
-camada física, o baud, o endereço de escravo e o tempo de direção estão provados
-bons. Sobram enquadramento e conteúdo da resposta.
+```text
+06H  enviado:  01 06 04 0E 00 02 68 F8
+     recebido: 00 01 06 04 0E 00 02 68
 
-Suspeita principal, ainda não confirmada: em `writeSingleRegister()` e
-`writeMultipleRegisters()` a limpeza do buffer de recepção acontece **antes** da
-pausa de silêncio, não depois:
-
-```cpp
-while (rs485Serial.available() > 0) (void)rs485Serial.read();  // limpa
-vTaskDelay(pdMS_TO_TICKS(RTU_SILENCE_MS));                     // e só então espera
-digitalWrite(RS485_DE_RE_PIN, HIGH);                           // transmite
+10H  enviado:  01 10 01 12 00 02 04 00 00 00 00 7E EA
+     recebido: 00 01 10 01 12 00 02 E0
 ```
 
-Qualquer byte que chegue atrasado dentro desses 12 ms fica no buffer e é lido
-como o começo da próxima resposta, deslocando o quadro e quebrando o CRC. A
-ordem correta é esperar o silêncio e limpar imediatamente antes de transmitir.
+Não havia um único byte do drive ali. O que voltava era **o próprio quadro
+transmitido**, deslocado pelo `0x00` que o divisor produz quando DE sobe. O
+módulo mantém o receptor ativo durante a transmissão, e o buffer de oito bytes
+enchia com o eco antes que a resposta do drive tivesse onde caber.
 
-**Isto não é regressão desta sessão.** O caminho de escrita nunca havia sido
-exercido neste drive: o perfil era recusado antes de chegar lá, e antes disso o
-portão do Hub impedia até o comando de chegar. O defeito é latente e só ficou
-alcançável depois que os itens 1, 2 e 4 foram corrigidos.
+`readHoldingRegisters()` já limpava o buffer depois de devolver a linha à
+recepção — guarda descoberta no bring-up de 2026-09-01 e registrada em comentário
+ali mesmo. Os dois helpers de escrita nasceram depois, copiando a sequência de
+retorno de linha **sem** essa limpeza:
 
-Instrumentação já gravada para a próxima medida: os dois helpers de escrita
-despejam bytes enviados e recebidos, decodificam exceção Modbus e distinguem
-ausência de resposta, quadro curto e CRC inválido. Falta apenas a leitura.
+```text
+leitura   DE→LOW ; 200 µs ; limpa buffer ; lê resposta      funciona
+escrita   DE→LOW ; 200 µs ;              ; lê resposta      lê o eco
+```
+
+Correção: a sequência passou a viver em `releaseBusAndDropEcho()`, usada pelos
+três caminhos. Duplicação foi o que permitiu a guarda existir em uma cópia só;
+consolidar impede a terceira divergência.
+
+Um comentário no código afirmava que "com DE e /RE em curto, o receptor fica
+desabilitado durante a transmissão". Os bytes provam que **não fica** — se
+ficasse, veríamos zeros do divisor, não o quadro inteiro. O comentário descrevia
+a intenção do circuito, não o comportamento medido, e foi provavelmente por
+confiar nele que a escrita nasceu sem a guarda. Corrigido junto.
+
+### Resultado em bancada
+
+```text
+cmd_id=...331  via=Modbus,  610 rpm  ->  aplicado:  610 rpm, enable=1
+cmd_id=...332  via=Modbus, 1000 rpm  ->  aplicado: 1000 rpm, enable=1
+cmd_id=...333  via=Modbus,  260 rpm  ->  aplicado:  260 rpm, enable=1
+cmd_id=...334  via=Modbus,  400 rpm  ->  aplicado:  400 rpm, enable=1
+cmd_id=...335  via=Modbus,  730 rpm  ->  aplicado:  730 rpm, enable=1
+cmd_id=...336  via=Modbus,    0 rpm  ->  aplicado:    0 rpm, enable=0
+```
+
+Seis setpoints, cada um aplicado na primeira tentativa, incluindo o extremo de
+1000 rpm e a parada. Nenhuma linha `[MODBUS]` de erro.
+
+**Não era regressão desta sessão.** O caminho de escrita nunca havia sido
+exercido neste drive: o perfil de DIs era recusado antes de chegar lá e, antes
+disso, o portão do Hub impedia o comando de sair. O defeito era latente e só
+ficou alcançável depois de corrigidos os itens 1, 2 e 4.
+
+### Método: três hipóteses caíram diante de uma medida
+
+Antes do despejo de bytes foram levantadas, e descartadas, três explicações:
+recusa ativa do drive, exceção Modbus mal enquadrada e inversão entre a limpeza
+de RX e a pausa de silêncio. Nenhuma sobreviveu aos bytes. A inversão existe de
+fato no código, mas é inofensiva — em 12 ms de silêncio não chega byte algum — e
+corrigi-la sozinha não teria mudado nada, apenas mantido o defeito escondido.
+
+O que fechou o caso não foi raciocínio, foi instrumentar o ponto exato da falha.
+Cada rodada de log custou uma gravação e eliminou uma classe inteira de
+hipóteses; o palpite, nenhuma.
 
 ## Estado ao fim da sessão
 
 ```text
 UART/CN1   funcionando, confirmado em bancada
-Modbus     hub destravado, perfil aceito, escritas reprovando por CRC
+Modbus     funcionando, 6 setpoints de 0 a 1000 rpm aplicados sem retentativa
 Manual     P3-06 bit a bit, P3-06 volátil, P4-07 com leitura e escrita distintas
+Enlace     o módulo ecoa a própria transmissão; descartar o eco é obrigatório
 Hardware   nenhuma alteração de fiação ou de parâmetro foi necessária
 ```

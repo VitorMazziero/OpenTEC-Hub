@@ -24,6 +24,14 @@ O divisor no RO é obrigatório: o MAX485 opera em 5 V e o GPIO do ESP32-S3 não
 tolerante a 5 V. Prever 470–1000 µF mais 100 nF junto ao ESP32 e medir o rail de
 5 V durante transmissões Wi-Fi.
 
+**O módulo ecoa a própria transmissão.** Apesar de DE e /RE estarem em curto, o
+receptor permanece ativo enquanto o nó transmite, e todo quadro enviado retorna
+pelo RO precedido de um `0x00` — o glitch de quando DE sobe. Toda transação
+precisa descartar esse eco depois de devolver a linha à recepção e antes de ler
+a resposta; é o que faz `releaseBusAndDropEcho()`, usada pelos três caminhos
+Modbus. Uma escrita que pule esse descarte lê o próprio quadro de volta e falha
+por CRC, sem nunca ver a resposta do drive.
+
 Configuração: slave 1, 9600 baud, 8N2. O seletor
 `MODULO_TECNAL_ALVO` deve coincidir com `MODULO_TECNAL` do Hub; nesta implantação
 ambos estão em `2` (`ModuloTECNAL_2`).

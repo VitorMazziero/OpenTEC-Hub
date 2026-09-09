@@ -84,7 +84,7 @@ public sealed partial class RecipeEngine
     private OpenTECCommand BuildSetpoint(SetpointVariable variable, double value, double hysteresis) => variable switch
     {
         SetpointVariable.Temperature => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, value),
-        SetpointVariable.Agitation => CommandBuilders.MotorSetpoint((int)value),
+        SetpointVariable.Agitation => BuildAgitationSetpoint(value),
         // O2 setpoint writes the monitor only; it does NOT engage the deferred enrichment path.
         SetpointVariable.Oxygen => OpenTECCommand.Create().Set(CommandKeys.OxygenMonitor, value),
         SetpointVariable.Flow => CommandBuilders.FlowSetpoint(value, MaxFlow),
@@ -93,6 +93,18 @@ public sealed partial class RecipeEngine
         SetpointVariable.Ph => OpenTECCommand.Create().Set(CommandKeys.PHSetpoint, value).Set(CommandKeys.PHError, hysteresis),
         _ => OpenTECCommand.Create(),
     };
+
+    private OpenTECCommand BuildAgitationSetpoint(double value)
+    {
+        if (_routeCoordinator.IsUartFallback && value > MotorRouteCoordinator.UartFallbackMaxRpm)
+        {
+            Log(RecipeLogSeverity.Warning,
+                $"Em modo de fallback UART, a rotação de {value:F0} rpm foi limitada a {MotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                $"Restabeleça a comunicação Modbus com o servo drive para alcançar até {MotorRouteCoordinator.ModbusMaxRpm:F0} rpm.");
+            value = MotorRouteCoordinator.UartFallbackMaxRpm;
+        }
+        return CommandBuilders.MotorSetpoint((int)value);
+    }
 
     private async Task ExecuteLoopAsync(RecipeNode node, ControlLoop loop, LoopOperation operation, CancellationToken ct)
     {

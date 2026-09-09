@@ -50,10 +50,10 @@ public sealed class SafetyCoordinatorTests
         var manualAttempt = arbiter.Dispatch(CommandOwner.Manual, CommandBuilders.CoreSafeStop(50.0));
         Assert.False(manualAttempt.Accepted);
 
-        // 2. Execute global safe stop via SafetyCoordinator
         var safeFrame = CommandBuilders.CoreSafeStop(50.0);
         var pumpDisable = OpenTECCommand.Create().Set(CommandKeys.PumpComm, 0);
 
+        device.Sent.Clear();
         var result = await coordinator.ExecuteGlobalSafeStopAsync(safeFrame, pumpDisable, "emergência de ensaio");
 
         // 3. Verify safe stop succeeded and wire frames were delivered

@@ -5,7 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Control;
+using OpenTECHub.Services.KlaTesting;
+using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.PowerTesting;
+using OpenTECHub.Services.Recipes;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -155,6 +159,130 @@ public sealed class PowerMotorRouteTests
         Assert.Contains("965", errUart);
         Assert.Contains("1000", errUart);
     }
+
+    [Fact]
+    public void CascadeService_Engage_prioritizes_modbus_and_clamps_on_uart_fallback()
+    {
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var settings = new MemorySettingsService(new AppSettings
+        {
+            Cascade = new CascadeSettings { OxygenSetpointPercent = 30, AgitationMaxRpm = 1000 },
+        });
+        var store = new FakeKlaProfileStore();
+        var cascade = new CascadeService(device, arbiter, settings, store, TimeProvider.System);
+
+        device.Push(new SensorSnapshot
+        {
+            HasServoTelemetry = true,
+            ServoOnline = true,
+            ServoCommEnabled = true,
+            OxygenCalibrated = 20.0,
+        });
+
+        cascade.Engage(currentAgitationRpm: 300, currentAerationLpm: 2.0);
+
+        Assert.True(cascade.RouteCoordinator.IsModbusActive);
+        Assert.Contains("{\"motorControlMode\":1}", device.Sent);
+
+        // Under UART fallback, the coordinator clamps
+        cascade.RouteCoordinator.ActivateUartFallback("falha", out _);
+        Assert.Equal(965.0, cascade.RouteCoordinator.ClampRpm(1000.0));
+        Assert.Equal(500.0, cascade.RouteCoordinator.ClampRpm(500.0));
+    }
+
+    [Fact]
+    public async Task RecipeEngine_StartAsync_prioritizes_modbus_and_clamps_agitation_on_uart_fallback()
+    {
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var settings = new MemorySettingsService(new AppSettings());
+        var engine = new RecipeEngine(arbiter, device, settings, TimeProvider.System,
+            delay: (ts, ct) => Task.CompletedTask);
+
+        device.Push(new SensorSnapshot
+        {
+            HasServoTelemetry = true,
+            ServoOnline = true,
+            ServoCommEnabled = true,
+        });
+
+        var recipe = new RecipeDocument { Name = "Teste Motor" };
+        var start = RecipeNode.Create(NodeType.Start, id: "start");
+        var end = RecipeNode.Create(NodeType.End, id: "end");
+        recipe.Nodes.AddRange([start, end]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "end", ConnectorNames.In));
+
+        await engine.StartAsync(recipe);
+
+        Assert.True(engine.RouteCoordinator.IsModbusActive);
+        Assert.Contains("{\"motorControlMode\":1}", device.Sent);
+
+        await engine.StopAsync("teste");
+    }
+
+    [Fact]
+    public async Task KlaTestRunner_StartRunAsync_prioritizes_modbus_and_aborts_condition_over_965_on_uart_fallback()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"kla-route-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var device = new TestDeviceService();
+            var arbiter = new CommandArbiter(device, TimeProvider.System);
+            var store = new KlaTestStore(tempDir);
+            var analysis = new KlaAnalysisEngine();
+            var settings = new MemorySettingsService();
+            var runner = new KlaTestRunner(device, arbiter, store, analysis, settings, TimeProvider.System);
+
+            device.Push(new SensorSnapshot
+            {
+                HasServoTelemetry = true,
+                ServoOnline = false, // Servo offline -> should fallback to UART
+                ServoCommEnabled = true,
+                FlowmeterOnline = true,
+                OxygenCalibrated = 50.0,
+            });
+
+            var doc = new KlaTestDocument
+            {
+                Name = "Kla Test",
+                FolderName = "Kla_Test",
+                Conditions =
+                {
+                    new KlaTestCondition { ConditionId = Guid.NewGuid(), AgitationRpm = 1000, AirflowLpm = 2.0, RequestedReplicates = 1 },
+                },
+            };
+            store.SaveTestManifest(doc);
+            runner.PrepareTest(doc);
+
+            await runner.StartRunAsync(doc.Conditions[0], 1);
+
+            // Because condition was 1000 RPM and servo was offline (UART fallback), it aborts!
+            Assert.True(runner.RouteCoordinator.IsUartFallback);
+            Assert.Contains("{\"motorControlMode\":0}", device.Sent);
+            Assert.Equal(RunPhase.Aborting, runner.Phase);
+            Assert.Contains("965", runner.StatusMessage);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void PowerTareCaptureController_allows_1000_rpm_when_targetRpm_is_1000()
+    {
+        var settings = new PowerTestSettings { MinRpm = 100, MaxRpm = 900 };
+        // Even when settings.MaxRpm is 900, targetRpm = 1000 should NOT throw ArgumentOutOfRangeException
+        var controller = new PowerTareCaptureController(settings, 1000.0);
+        Assert.Equal(1000.0, controller.TargetRpm);
+        Assert.Equal(1005.0, controller.MaxAllowedRpm); // 1000 + 5
+    }
+
 
     private sealed class TestDeviceService : IDeviceService
     {

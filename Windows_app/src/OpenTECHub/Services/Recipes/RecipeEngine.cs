@@ -37,6 +37,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
     private Task _run = Task.CompletedTask;
     private DateTimeOffset _startedAt;
     private SensorSnapshot? _latest;
+    private readonly MotorRouteCoordinator _routeCoordinator;
     private bool _disposed;
 
     public RecipeEngine(
@@ -60,10 +61,13 @@ public sealed partial class RecipeEngine : IRecipeEngine
         _journal = journal;
         _delay = delay ?? ((ts, ct) => Task.Delay(ts, ct));
         _klaStore = klaStore;
+        _routeCoordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.Recipe);
 
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.OwnershipRevoked += OnOwnershipRevoked;
     }
+
+    public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
 
     public RecipeDocument? Current { get; private set; }
 
@@ -133,6 +137,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
         // Claiming every actuator is what deactivates manual control (§5.3.3 / WP4 point 3).
         ClaimAllActuators($"receita '{recipe.Name}' iniciada");
+        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        Log(RecipeLogSeverity.Info, routeMsg);
 
         if (resetLoopsBeforeStart)
         {

@@ -109,6 +109,9 @@ public interface IRecipeEngine : IDisposable
     /// </remarks>
     void SkipWait();
 
+    /// <summary>Coordinator managing Modbus priority and UART fallback for motor rotation.</summary>
+    Communication.MotorRouteCoordinator? RouteCoordinator => null;
+
     /// <summary>Completes when the current run ends (completed, stopped or failed).</summary>
     Task Completion { get; }
 

@@ -21,6 +21,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private readonly TimeProvider _time;
     private readonly ILogger<KlaTestRunner> _log;
     private readonly ITimer _watchdog;
+    private readonly MotorRouteCoordinator _routeCoordinator;
 
     private readonly object _gate = new();
     private readonly List<KlaRawDataPoint> _runPoints = [];
@@ -68,11 +69,14 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _time = time ?? TimeProvider.System;
         _log = log ?? NullLogger<KlaTestRunner>.Instance;
+        _routeCoordinator = new MotorRouteCoordinator(_arbiter, _device, CommandOwner.KlaAssay);
 
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnDeviceStateChanged;
         _watchdog = _time.CreateTimer(_ => CheckWatchdog(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
+
+    public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
 
     public KlaTestDocument? CurrentTest => _currentTest;
     public KlaTestRun? CurrentRun => _currentRun;
@@ -260,6 +264,17 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.KlaAssay)
         {
             await AbortTestAsync("Falha ao obter posse dos atuadores de agitação e aeração.");
+            return;
+        }
+
+        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        LogEvent("MotorRoute", routeMsg);
+
+        if (_routeCoordinator.IsUartFallback && condition.AgitationRpm > MotorRouteCoordinator.UartFallbackMaxRpm)
+        {
+            await AbortTestAsync(
+                $"Em modo de fallback UART, a rotação máxima é de {MotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                $"A condição de {condition.AgitationRpm:F0} rpm requer comunicação Modbus com o servo drive.");
             return;
         }
 
@@ -526,7 +541,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
             if (_phase == RunPhase.Deoxygenating)
             {
-                _arbiter.Dispatch(CommandOwner.KlaAssay, CommandBuilders.MotorSetpoint((int)rpm));
+                var clampedRpm = _routeCoordinator.ClampRpm(rpm);
+                _arbiter.Dispatch(CommandOwner.KlaAssay, CommandBuilders.MotorSetpoint((int)clampedRpm));
             }
         }
     }
@@ -931,6 +947,13 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     private void DispatchMotorOrAbort(int rpm, string action)
     {
+        if (_routeCoordinator.IsUartFallback && rpm > MotorRouteCoordinator.UartFallbackMaxRpm)
+        {
+            throw new InvalidOperationException(
+                $"Em modo de fallback UART, a rotação máxima é de {MotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                $"Comando de {rpm} rpm ({action}) requer comunicação Modbus com o servo drive.");
+        }
+
         var result = _arbiter.Dispatch(CommandOwner.KlaAssay, CommandBuilders.MotorSetpoint(rpm));
         if (!result.Accepted)
         {

@@ -119,11 +119,13 @@ public interface ICascadeService
     /// <summary>Applies a new gain schedule (WP8), rebuilding the scheduler around the base tuning.</summary>
     void ConfigureGainSchedule(GainScheduleSettings schedule);
 
-    /// <summary>
-    /// Optional predicate queried by <see cref="CanEngage"/> to verify whether an external subsystem
+    /// <summary>Optional predicate queried by <see cref="CanEngage"/> to verify whether an external subsystem
     /// (such as proportional gas coupling on the external pump) is currently claiming aeration.
     /// </summary>
     Func<bool>? ProportionalGasActivePredicate { get; set; }
+
+    /// <summary>Coordinator managing Modbus priority and UART fallback for motor rotation.</summary>
+    MotorRouteCoordinator? RouteCoordinator => null;
 }
 
 /// <inheritdoc cref="ICascadeService"/>
@@ -143,6 +145,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
     private readonly IEventJournal? _journal;
     private readonly TimeProvider _time;
     private readonly double _nominalStepSeconds;
+    private readonly MotorRouteCoordinator _routeCoordinator;
 
     private readonly CascadeTrend _trend = new();
 
@@ -179,12 +182,15 @@ public sealed class CascadeService : ICascadeService, IDisposable
         Mode = settings.Current.Cascade.Mode;
         _gainSchedule = settings.Current.GainSchedule;
         _nominalStepSeconds = Math.Max(settings.Current.Connection.DataDelayMs, 250) / 1000.0;
+        _routeCoordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.Automatic);
         _controller = Build(_configuration, Mode);
         RebuildScheduler();
 
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.OwnershipChanged += OnOwnershipChanged;
     }
+
+    public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
 
     public bool IsArmed { get; private set; }
 
@@ -441,6 +447,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _controller.Preload(effort);
 
         _arbiter.Claim(CommandOwner.Automatic, CascadeActuators, $"cascata O₂ · {ModeLabel(Mode)}");
+        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        _journal?.Add(AuditSource.Application, AuditSeverity.Information, routeMsg);
         _staleOxygenFrames = 0;
         IsEngaged = true;
         Updated?.Invoke();
@@ -614,6 +622,13 @@ public sealed class CascadeService : ICascadeService, IDisposable
         }
 
         LastActuation = _controller.Update(oxygen, dt);
+        if (_routeCoordinator.IsUartFallback && LastActuation.AgitationRpm > MotorRouteCoordinator.UartFallbackMaxRpm)
+        {
+            LastActuation = LastActuation with
+            {
+                AgitationRpm = (int)MotorRouteCoordinator.UartFallbackMaxRpm
+            };
+        }
         Terms = LastActuation.Terms;
 
         if (IsEngaged)

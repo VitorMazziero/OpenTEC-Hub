@@ -30,7 +30,7 @@ public sealed class PowerTareCaptureController
     public PowerTareCaptureController(PowerTestSettings settings, double targetRpm, double startedSeconds = 0)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (!double.IsFinite(targetRpm) || targetRpm < settings.MinRpm || targetRpm > settings.MaxRpm)
+        if (!double.IsFinite(targetRpm) || targetRpm < 15.0 || targetRpm > 1000.0)
         {
             throw new ArgumentOutOfRangeException(nameof(targetRpm));
         }
@@ -58,7 +58,7 @@ public sealed class PowerTareCaptureController
     public int Attempt { get; private set; } = 1;
     public int MaxAttempts => _settings.MaxTries;
     public double MaxAllowedTorquePercent => _settings.MaxTorquePercent;
-    public double MaxAllowedRpm => _settings.MaxRpm + _settings.SpeedToleranceRpm;
+    public double MaxAllowedRpm => Math.Max(_settings.MaxRpm, TargetRpm) + _settings.SpeedToleranceRpm;
     public int SampleCount => _capture.SampleCount;
     public double CurrentMeanTorquePercent => _capture.CurrentMeanTorquePercent;
     public double CurrentTorqueCi95Percent => _capture.CurrentTorqueCi95Percent;

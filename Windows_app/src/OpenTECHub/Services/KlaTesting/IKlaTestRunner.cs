@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Communication;
 
 namespace OpenTECHub.Services.KlaTesting;
 
@@ -11,6 +12,7 @@ public interface IKlaTestRunner : IDisposable
     KlaTestDocument? CurrentTest { get; }
     KlaTestRun? CurrentRun { get; }
     KlaTestCondition? CurrentCondition { get; }
+    MotorRouteCoordinator? RouteCoordinator => null;
     RunPhase Phase { get; }
     bool IsRunning { get; }
     bool IsInReview { get; }

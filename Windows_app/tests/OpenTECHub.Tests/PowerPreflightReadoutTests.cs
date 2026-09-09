@@ -126,6 +126,36 @@ public sealed class PowerPreflightReadoutTests : IDisposable
     }
 
     [Fact]
+    public void HasPreflightWarning_is_true_when_blocked()
+    {
+        var runner = new StubRunner { Reason = "O fluxômetro precisa estar online para ensaios com aeração." };
+        var viewModel = OpenAssay(runner);
+
+        _device.PushTelemetry(new SensorSnapshot { HasServoSample = true, ServoRpm = 0 });
+
+        Assert.False(viewModel.IsReadyToStart);
+        Assert.True(viewModel.HasPreflightWarning);
+        Assert.Equal("O fluxômetro precisa estar online para ensaios com aeração.", viewModel.PreflightMessage);
+
+        viewModel.Dispose();
+    }
+
+    [Fact]
+    public void HasPreflightWarning_is_false_when_ready()
+    {
+        var runner = new StubRunner { Reason = null };
+        var viewModel = OpenAssay(runner);
+
+        _device.PushTelemetry(new SensorSnapshot { HasServoSample = true, ServoRpm = 300, ServoTorquePct = 4 });
+
+        Assert.True(viewModel.IsReadyToStart);
+        Assert.False(viewModel.HasPreflightWarning);
+        Assert.Equal("Pronto para iniciar.", viewModel.PreflightMessage);
+
+        viewModel.Dispose();
+    }
+
+    [Fact]
     public void The_check_is_throttled_so_telemetry_does_not_re_walk_the_plan_every_sample()
     {
         var runner = new StubRunner { Reason = null };

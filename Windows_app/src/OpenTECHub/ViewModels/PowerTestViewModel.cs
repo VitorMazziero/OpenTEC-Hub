@@ -325,7 +325,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string StatusMessage { get; private set; } = "Crie ou abra um ensaio de potência.";
     [ObservableProperty] public partial string ValidationMessage { get; private set; } = "";
     [ObservableProperty] public partial string PhaseLabel { get; private set; } = "Inativo";
-    [ObservableProperty] public partial bool IsRunning { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreflightWarning))]
+    public partial bool IsRunning { get; private set; }
     [ObservableProperty] public partial bool IsInReview { get; private set; }
     [ObservableProperty] public partial bool IsPaused { get; private set; }
     [ObservableProperty] public partial bool IsWaitingManualEnergy { get; private set; }
@@ -525,11 +527,19 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     /// <summary>True when the runner's preflight passes right now (§12, §14).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreflightWarning))]
     public partial bool IsReadyToStart { get; set; }
 
     /// <summary>What the preflight says, so the operator reads it before pressing start.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreflightWarning))]
     public partial string PreflightMessage { get; set; } = "Abra ou crie um ensaio para começar.";
+
+    /// <summary>
+    /// True when there is an active warning / blocker notice preventing start.
+    /// Used by the 'Ensaio' card to display the advisory below the path string.
+    /// </summary>
+    public bool HasPreflightWarning => !IsReadyToStart && !IsRunning && !string.IsNullOrWhiteSpace(PreflightMessage);
 
     public bool CanPause => IsRunning && _runner?.Phase is PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.PausedByOperator or PowerRunPhase.PausedForMeasurement;
     public bool CanStop => IsRunning;
@@ -2450,11 +2460,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
+        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        var maxTareAllowed = _routeCoordinator.IsUartFallback
+            ? PowerMotorRouteCoordinator.UartFallbackMaxRpm
+            : PowerMotorRouteCoordinator.ModbusMaxRpm;
+
         if (!double.IsFinite(TareStartRpm) || !double.IsFinite(TareEndRpm) || !double.IsFinite(TareStepRpm) ||
-            TareStartRpm < settings.MinRpm || TareEndRpm > settings.MaxRpm ||
+            TareStartRpm < PowerMotorRouteCoordinator.MinRpm || TareEndRpm > maxTareAllowed ||
             TareEndRpm < TareStartRpm || TareStepRpm < settings.MinStepRpm)
         {
-            ShowError($"Defina a tara entre {settings.MinRpm:F0} e {settings.MaxRpm:F0} rpm, com passo mínimo de {settings.MinStepRpm:F0} rpm.");
+            ShowError($"Defina a tara entre {PowerMotorRouteCoordinator.MinRpm:F0} e {maxTareAllowed:F0} rpm, com passo mínimo de {settings.MinStepRpm:F0} rpm.");
             return;
         }
 
@@ -2464,6 +2479,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             ShowError("A faixa informada não produziu nenhum patamar de tara.");
             return;
         }
+
+        var tareSettings = settings with
+        {
+            MinRpm = Math.Min(settings.MinRpm, PowerMotorRouteCoordinator.MinRpm),
+            MaxRpm = Math.Max(settings.MaxRpm, maxTareAllowed),
+        };
 
         _tareCancellation?.Dispose();
         _tareCancellation = new CancellationTokenSource();
@@ -2485,7 +2506,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 throw new InvalidOperationException("Não foi possível obter o controle da agitação para medir a tara.");
             }
 
-            _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
             if (_routeCoordinator.IsUartFallback)
             {
                 if (TareStartRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm)
@@ -2500,7 +2520,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             }
 
             EnsureTareDispatch(
-                CommandBuilders.ServoPollInterval(settings.CaptureServoPollMs),
+                CommandBuilders.ServoPollInterval(tareSettings.CaptureServoPollMs),
                 "configurar a aquisição rápida do servo");
 
             for (var index = 0; index < targets.Count; index++)
@@ -2514,17 +2534,17 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
                 _tarePointStartedTimestamp = Stopwatch.GetTimestamp();
                 _tareLastValidSeconds = double.NaN;
-                _tareCapture = new PowerTareCaptureController(settings, rpm);
+                _tareCapture = new PowerTareCaptureController(tareSettings, rpm);
                 UpdateTareProgressMessage();
 
-                await WaitForTarePointAsync(_tareCapture, settings, cancellation.Token);
+                await WaitForTarePointAsync(_tareCapture, tareSettings, cancellation.Token);
                 if (_tareCapture.State != TareCaptureState.Converged)
                 {
                     var msg = _tareCapture.State == TareCaptureState.SpeedTimedOut
                         ? (_routeCoordinator.IsUartFallback && rpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm
                             ? $"A rotação não estabilizou em {rpm:F0} rpm: no modo de fallback UART a rotação física máxima é {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. Restabeleça a comunicação Modbus para alcançar 1000 rpm."
                             : $"A rotação não estabilizou em {rpm:F0} rpm.")
-                        : $"O patamar de {rpm:F0} rpm não atingiu o IC95 após {settings.MaxTries} tentativa(s).";
+                        : $"O patamar de {rpm:F0} rpm não atingiu o IC95 após {tareSettings.MaxTries} tentativa(s).";
                     throw new InvalidOperationException(msg);
                 }
 
@@ -2545,7 +2565,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 SchemaVersion = 2,
                 Points = points,
                 Samples = rawSamples,
-                AcquisitionSettings = settings,
+                AcquisitionSettings = tareSettings,
                 ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry()),
                 CalibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
                     CurrentTest.Calibration,

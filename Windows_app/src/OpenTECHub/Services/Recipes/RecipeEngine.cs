@@ -138,6 +138,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         // Claiming every actuator is what deactivates manual control (§5.3.3 / WP4 point 3).
         ClaimAllActuators($"receita '{recipe.Name}' iniciada");
         _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        if (!_routeCoordinator.RouteRequestAccepted) { _arbiter.Release(CommandOwner.Recipe, routeMsg); throw new InvalidOperationException(routeMsg); }
         Log(RecipeLogSeverity.Info, routeMsg);
 
         if (resetLoopsBeforeStart)

@@ -212,4 +212,7 @@
     <Geometry x:Key="IconFlagGeometry">M 5 3 V 21 M 5 4 H 18 L 14.5 8.5 L 18 13 H 5</Geometry>
     <Geometry x:Key="IconCsvGeometry">M 14 3 H 6 A 2 2 0 0 0 4 5 V 19 A 2 2 0 0 0 6 21 H 18 A 2 2 0 0 0 20 19 V 9 Z M 14 3 V 9 H 20 M 8 13 H 16 M 8 17 H 13</Geometry>
     <Geometry x:Key="IconTrashGeometry">M 4 7 H 20 M 10 11 V 17 M 14 11 V 17 M 6 7 L 7 19 A 2 2 0 0 0 9 21 H 15 A 2 2 0 0 0 17 19 L 18 7 M 9 7 V 4 A 1 1 0 0 1 10 3 H 14 A 1 1 0 0 1 15 4 V 7</Geometry>
+    <Geometry x:Key="IconMenuGeometry">M 3 6 H 21 M 3 12 H 21 M 3 18 H 21</Geometry>
+    <Geometry x:Key="IconChevronLeftGeometry">M 15 6 L 9 12 L 15 18</Geometry>
+    <Geometry x:Key="IconChevronRightGeometry">M 9 6 L 15 12 L 9 18</Geometry>
 </ResourceDictionary>

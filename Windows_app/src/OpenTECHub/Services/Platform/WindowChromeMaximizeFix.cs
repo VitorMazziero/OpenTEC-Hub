@@ -70,11 +70,46 @@ public static class WindowChromeMaximizeFix
         mmi.MaxPosition = new Point { X = work.Left - full.Left, Y = work.Top - full.Top };
         mmi.MaxSize = new Point { X = work.Right - work.Left, Y = work.Bottom - work.Top };
 
+        // Enforce MinTrackSize based on Window.MinWidth and MinHeight, scaled to physical device pixels.
+        // Handled = true bypasses DefWindowProc, so MinTrackSize must be explicitly populated here.
+        if (HwndSource.FromHwnd(hwnd)?.RootVisual is Window window)
+        {
+            var dpiX = 1.0;
+            var dpiY = 1.0;
+            var source = PresentationSource.FromVisual(window);
+            if (source?.CompositionTarget != null)
+            {
+                dpiX = source.CompositionTarget.TransformToDevice.M11;
+                dpiY = source.CompositionTarget.TransformToDevice.M22;
+            }
+            else
+            {
+                var dpi = GetDpiForWindow(hwnd);
+                if (dpi > 0)
+                {
+                    dpiX = dpi / 96.0;
+                    dpiY = dpi / 96.0;
+                }
+            }
+
+            if (window.MinWidth > 0)
+            {
+                mmi.MinTrackSize.X = (int)Math.Ceiling(window.MinWidth * dpiX);
+            }
+            if (window.MinHeight > 0)
+            {
+                mmi.MinTrackSize.Y = (int)Math.Ceiling(window.MinHeight * dpiY);
+            }
+        }
+
         // MaxTrackSize is deliberately left untouched: it bounds interactive resizing, and
         // clamping it to the work area would stop the operator dragging the window larger.
         Marshal.StructureToPtr(mmi, lParam, fDeleteOld: false);
         return true;
     }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);

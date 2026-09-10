@@ -422,7 +422,7 @@ por 10 min`.
 UART are independent; a healthy USB connection can sit in front of a dead module, and
 conflating the two tells the operator the wrong thing.
 
-### 4.2 Navigation rail — 184 px expanded, 52 px collapsed
+### 4.2 Navigation rail — 200 px expanded, 56 px collapsed
 
 `ListBox` — selection is exactly what it models. Rows are 40 px: 20 px icon, 12 px gap,
 13 px label. Selected row gets `SurfaceSelected` fill, a 3 px `Accent` left bar, and an
@@ -567,18 +567,59 @@ separated by 1 px `StrokeSubtle` dividers.
 
 ### 4.7 Responsive behaviour
 
-| Width | Layout |
+The supported size contract, and how the shell reaches it. Sizes are DIP, so a 1920 × 1080
+panel at 150 % scale is a 1280 × 720 page as far as this table is concerned.
+
+| Condition | Decision |
 |---|---|
-| **≥ 1600 px** | Nav 184 · variable rail (if enabled) · workspace · detail 460 |
-| **1400-1600 px** | Same, detail 380 |
-| **1200-1400 px** | Nav collapses to 52 px icons; variable rail auto-hides with a restore chip |
-| **< 1200 px** | Detail becomes a **bottom drawer** over the workspace, dismissible with `Esc`; KPI strip scrolls |
+| Smallest supported window | **1024 × 640 DIP**, enforced through `MinTrackSize` so a drag cannot go under it |
+| Default window | 1280 × 800, clamped to the target monitor's work area |
+| Recommended panel | 1920 × 1080 at 100 %, 125 % or 150 % |
+| Out of support | Anything leaving under 640 DIP of height — 1280 × 720 at 125 %, 1920 × 1080 at 175 % |
+| Upper bound | The current monitor's work area; no `MaxWidth` is pinned |
 
-The drawer is not a degraded mode — same ViewModel, different `ControlTemplate`, so
-behaviour is identical and only presentation changes.
+| Client width | Layout |
+|---|---|
+| **≥ 1440 DIP** | Navigation rail at 200 DIP with icons and labels |
+| **< 1440 DIP** | Rail collapses to a 56 DIP icon bar; the full menu opens as an **overlay drawer** over the workspace, closed by `Esc`, by a click outside, or by picking a destination |
 
-Minimum window 960 × 640. Window size, position, last page, rail state and KPI
-configuration all persist.
+Page-level adaptation is not a second layout. `Controls.Responsive` is an attached property
+that publishes `IsNarrow` / `IsShort` from the container's measured size, so a page declares
+its own thresholds next to the layout they govern:
+
+```xml
+<Grid x:Name="MapBody" ctl:Responsive.NarrowBelow="1200">
+    ...
+    <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True">
+```
+
+| Page | Threshold | Adaptation |
+|---|---|---|
+| Mapeamento kLa | < 1200 DIP wide | Three columns become a **Dados / Superfície / Diagnóstico** selector |
+| Determinar kLa | < 720 DIP tall | Three stacked plots become one, picked from a selector |
+| Potência | < 900 DIP of results width | Two plots become one; metrics wrap instead of compressing |
+| Receitas | < 1200 DIP wide | Library and properties panels narrow so the canvas keeps its area |
+| Calibrações | < 1100 DIP wide | The certified-points column gives ~110 DIP back to the curve |
+| Configurações | < 1000 DIP wide | The illustration is dropped, and the section list becomes a selector above the form |
+
+Nothing is deleted by a breakpoint — the section that is not on screen keeps its state and
+returns when the window grows. Crossing a threshold must never send a command, change a
+selection, or lose an edit in progress.
+
+Whatever the width, a page may scroll vertically, and a wide table may scroll horizontally
+inside its own card. **The page itself never scrolls horizontally**, so anything arranged past
+the right edge is content the operator cannot reach. `CompactLayoutTests` arranges every
+destination at 936 × 534 DIP — what the smallest window leaves once the rail, title bar and
+status bar are taken out — and fails on exactly that.
+
+Two WPF traps this layer depends on:
+
+- **A local value outranks a trigger's setter.** A width or column that adaptation has to change
+  belongs in the `Style`, never as an attribute on the element.
+- **A `UniformGrid` lays out only its visible children**, where star rows keep their bands. That
+  is why hiding two kLa plots gives the third the whole height.
+
+Window size, position, last page, rail state and KPI configuration all persist.
 
 ---
 

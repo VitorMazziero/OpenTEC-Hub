@@ -1,4 +1,4 @@
-# Decision Log
+﻿# Decision Log
 
 > One entry per decision that would otherwise be re-litigated in three months.
 > Newest last. A decision is only "Open" if it genuinely blocks work.
@@ -1222,6 +1222,29 @@ Acrescentado `ConnectionPopoverContractTests`, que prende os nomes de comando li
 - Trocar de eixo passa a ser escolher um perfil, sem repetir a varredura no ar.
 - A verificação de compatibilidade não foi afrouxada: `TareStatus` continua confrontando `ImpellerSetHash` e `CalibrationHash`, e um perfil aplicado a um conjunto diferente é rotulado como *"Tara de outro conjunto"* na hora da troca.
 - Excluir um perfil não afeta ensaios que já o aplicaram — cada um guarda a sua cópia.
+
+---
+
+### D-045 · Contrato responsivo para notebooks: 1024 × 640 DIP, drawer sobreposto e adaptação por breakpoint em XAML
+
+**Status:** Accepted and implemented · 2026-09-10
+
+**Decisão.** A janela passa a ter um contrato de tamanho explícito, e as páginas adaptam o layout por breakpoint medido no container, não no monitor:
+
+- Menor janela suportada: **1024 × 640 DIP**. `MainWindow` declara esse mínimo e `WindowChromeMaximizeFix` passa a preencher `MinTrackSize` em pixels físicos ao responder `WM_GETMINMAXINFO` — com `handled = true` o `DefWindowProc` não roda, então o mínimo declarado no WPF sozinho não segurava o arraste.
+- Abaixo de **1440 DIP** de largura de janela a navegação vira uma barra de ícones de 56 DIP, e o menu completo abre como **drawer sobreposto**, sobre o conteúdo, sem empurrar a página. `Esc`, clique fora e a troca de destino fecham o drawer; o editor de nome de sessão continua acessível dentro dele.
+- A adaptação por página é feita por `Controls.Responsive`, uma propriedade anexada que publica `IsNarrow`/`IsShort` a partir do tamanho real do container. Os limiares ficam no XAML da página, junto do layout que governam, e não em code-behinds independentes.
+- Onde três colunas ou três gráficos não cabem, o conteúdo passa a um seletor de seção — Mapeamento kLa (Dados / Superfície / Diagnóstico), gráficos de kLa (Oxigênio / Regressão / Diagnóstico) e gráficos de Potência (Torque e rotação / Np × Re). Nada é removido: a seção não exibida mantém estado e volta assim que a janela cresce.
+- Os templates dos botões de legenda (minimizar, maximizar, fechar) passam a existir uma única vez, em `Themes/Controls.xaml`.
+- Modais são limitados à área do proprietário por `DialogBounds` antes de `ShowDialog`, com margem de 16 DIP por borda.
+
+**Por quê.** Os 36 prints de 09/09 mostram a aplicação cortando cabeçalho, métricas e gráficos em janela estreita, e a página de Potência perdendo colunas inteiras. As páginas somavam larguras fixas — 938 DIP só na tabela de Controle, 1000 DIP no corpo do Mapeamento kLa, 620 DIP de altura obrigatória na pilha de gráficos de kLa — que um notebook de 1366 × 768 não tem para dar. Reduzir a fonte encolheria a interface inteira sem resolver a distribuição; redistribuir resolve.
+
+**Consequências.**
+- `CompactLayoutTests` arranja cada destino na área que a menor janela deixa (936 × 534 DIP) e falha se algo visível ficar além da borda direita ou se um texto sem elipse for truncado. Rolagem horizontal **local** de tabela continua permitida; rolagem horizontal de página, não.
+- Em WPF um valor local vence um `Setter` de `Trigger`. Larguras e colunas que a adaptação precisa mudar ficam no `Style`, nunca como atributo — o teste de largura das seções compactas existe exatamente para pegar esse erro.
+- `1280 × 720 a 125%` e `1920 × 1080 a 175%` ficam abaixo do mínimo de altura e permanecem fora do suporte declarado.
+- O contrato é um alvo de projeto verificado por medida de layout e por execução real do aplicativo; ele ainda não substitui a matriz de validação visual por escala e tema descrita no plano.
 
 ---
 

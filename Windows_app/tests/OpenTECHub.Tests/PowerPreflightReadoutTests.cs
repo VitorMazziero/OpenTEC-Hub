@@ -47,6 +47,22 @@ public sealed class PowerPreflightReadoutTests : IDisposable
     }
 
     [Fact]
+    public void Tare_library_is_loaded_on_open_and_no_tare_choice_persists()
+    {
+        _store.SaveTareProfile("eixo", new TareCurve { Points = { new TarePoint(300, 0.5, 0.05) } });
+        using var vm = OpenAssay(new StubRunner());
+        vm.SelectedTareProfile = Assert.Single(vm.TareProfiles);
+        vm.ApplyTareProfileCommand.Execute(null);
+        Assert.NotNull(_store.LoadTare("preflight"));
+        vm.UseNoTareCommand.Execute(null);
+        Assert.Null(vm.CurrentTest!.Tare);
+        Assert.Null(_store.LoadTare("preflight"));
+        Assert.Null(_store.LoadTest("preflight")!.Tare);
+        Assert.Equal("RELATIVO", vm.ResultModeLabel);
+        Assert.Single(_store.ListTareProfiles());
+    }
+
+    [Fact]
     public void Without_an_open_assay_the_readout_says_so_and_start_is_not_offered_as_ready()
     {
         var runner = new StubRunner();

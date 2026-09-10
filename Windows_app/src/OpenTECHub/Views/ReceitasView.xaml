@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             xmlns:ctl="clr-namespace:OpenTECHub.Controls"
              mc:Ignorable="d" Focusable="True"
              d:DesignHeight="900" d:DesignWidth="1600">
 
@@ -215,15 +216,28 @@
         </Border>
 
         <!-- ── Library │ Canvas │ Properties ───────────────────────────────── -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="2" x:Name="RecipeBody" ctl:Responsive.NarrowBelow="1200">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="212" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="340" />
+                <!-- The two side panels carry their own width so a compact window can shrink
+                     them without the canvas - the part the operator actually draws on -
+                     being squeezed to a third of the page. -->
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Block palette -->
             <Border Grid.Column="0" BorderThickness="0,0,1,0" BorderBrush="{DynamicResource StrokeDefaultBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="212" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=RecipeBody}" Value="True">
+                                <Setter Property="Width" Value="168" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Library}" Margin="8">
                         <ItemsControl.ItemTemplate>
@@ -537,6 +551,16 @@
 
             <!-- Properties -->
             <Border Grid.Column="2" BorderThickness="1,0,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="340" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=RecipeBody}" Value="True">
+                                <Setter Property="Width" Value="272" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <TextBlock Text="Selecione um bloco para editar suas propriedades." Margin="16" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextSecondaryBrush}"
@@ -891,12 +915,14 @@
         </Grid>
 
         <!-- ── JSON + findings ─────────────────────────────────────────────── -->
-        <Border Grid.Row="3" Height="150" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}"
+        <!-- The JSON/validation drawer is a reference view, not the workspace: it keeps a
+             capped height with its own scrolling instead of eating the canvas. -->
+        <Border Grid.Row="3" MinHeight="120" MaxHeight="190" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 Visibility="{Binding ShowJsonPanel, Converter={StaticResource BoolToVis}}">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="360" />
+                    <ColumnDefinition Width="*" MinWidth="220" />
+                    <ColumnDefinition Width="*" MaxWidth="360" MinWidth="200" />
                 </Grid.ColumnDefinitions>
                 <DockPanel Grid.Column="0">
                     <TextBlock DockPanel.Dock="Top" Text="JSON da Receita" FontSize="11" FontWeight="SemiBold"

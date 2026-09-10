@@ -268,6 +268,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         }
 
         _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        if (!_routeCoordinator.RouteRequestAccepted) { await AbortTestAsync(routeMsg); return; }
         LogEvent("MotorRoute", routeMsg);
 
         if (_routeCoordinator.IsUartFallback && condition.AgitationRpm > MotorRouteCoordinator.UartFallbackMaxRpm)

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -14,6 +14,16 @@ namespace OpenTECHub.Tests;
 /// </remarks>
 public sealed class ShellChromeTests
 {
+    /// <summary>Every window that draws its own caption, so the chrome stays one thing.</summary>
+    private static readonly string[] ChromedWindows =
+    [
+        "MainWindow.xaml",
+        Path.Combine("Views", "Dialogs", "CaptureSettingsDialog.xaml"),
+        Path.Combine("Views", "Dialogs", "ImpellerCatalogDialog.xaml"),
+        Path.Combine("Views", "Dialogs", "InputDialog.xaml"),
+        Path.Combine("Views", "Dialogs", "OxygenConfigDialog.xaml"),
+    ];
+
     private static string ReadShell(string relative)
         => File.ReadAllText(Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", relative));
 
@@ -27,9 +37,53 @@ public sealed class ShellChromeTests
         Assert.Contains("CaptionMinimizeButtonStyle", xaml, StringComparison.Ordinal);
         Assert.Contains("CaptionMaximizeButtonStyle", xaml, StringComparison.Ordinal);
         Assert.Contains("CaptionCloseButtonStyle", xaml, StringComparison.Ordinal);
+    }
 
-        // The close-hover red is a token, not a colour literal (Views carry no literals).
-        Assert.Contains("CaptionCloseHoverBrush", xaml, StringComparison.Ordinal);
+    /// <summary>
+    /// The caption templates live in Themes/Controls.xaml and nowhere else. They used to be
+    /// copy-pasted into every window, which is how the close glyph came to be drawn one way
+    /// in the shell and another in a dialog.
+    /// </summary>
+    [Fact]
+    public void Caption_button_templates_are_defined_once_for_every_window()
+    {
+        var shared = ReadShell(Path.Combine("Themes", "Controls.xaml"));
+
+        foreach (var key in new[]
+                 {
+                     "CaptionButtonBase",
+                     "CaptionMinimizeButtonStyle",
+                     "CaptionMaximizeButtonStyle",
+                     "CaptionCloseButtonStyle",
+                 })
+        {
+            Assert.Contains($"x:Key=\"{key}\"", shared, StringComparison.Ordinal);
+        }
+
+        // The close-hover red is a token, not a colour literal.
+        Assert.Contains("CaptionCloseHoverBrush", shared, StringComparison.Ordinal);
+
+        foreach (var window in ChromedWindows)
+        {
+            var xaml = ReadShell(window);
+            Assert.DoesNotContain(
+                "x:Key=\"CaptionButtonBase\"",
+                xaml,
+                StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The X used to be drawn from 0,0 to 10,10, so half of its 1 DIP stroke hung outside
+    /// the glyph box and was clipped against the frame of a maximised window.
+    /// </summary>
+    [Fact]
+    public void Close_glyph_is_drawn_inside_its_box()
+    {
+        var shared = ReadShell(Path.Combine("Themes", "Controls.xaml"));
+
+        Assert.Contains("M 0.5,0.5 L 9.5,9.5 M 0.5,9.5 L 9.5,0.5", shared, StringComparison.Ordinal);
+        Assert.DoesNotContain("M0,0 L10,10 M0,10 L10,0", shared, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -57,6 +57,25 @@ public class ConnectionManagerTests
     }
 
     [Fact]
+    public async Task Motor_route_barrier_preserves_stop_route_setpoint_order()
+    {
+        var fake = new FakeTransport { ConnectDuration = TimeSpan.FromMilliseconds(300) };
+        await using var manager = new ConnectionManager(FastOptions(), transportFactory: _ => fake);
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        await fake.StalledConnectEntered.WaitAsync(TimeSpan.FromSeconds(5));
+        manager.SendCommand(CommandBuilders.MotorSetpoint(0));
+        manager.SendCommandAfterCurrentFrame(CommandBuilders.MotorControlMode(true));
+        manager.SendCommand(CommandBuilders.MotorSetpoint(1000));
+        Assert.True(await WaitForAsync(() => { lock (fake.Writes) { return fake.Writes.Count >= 3; } }));
+        lock (fake.Writes)
+        {
+            Assert.Equal(CommandBuilders.MotorSetpoint(0).ToJson(), fake.Writes[0]);
+            Assert.Equal(CommandBuilders.MotorControlMode(true).ToJson(), fake.Writes[1]);
+            Assert.Equal(CommandBuilders.MotorSetpoint(1000).ToJson(), fake.Writes[2]);
+        }
+    }
+
+    [Fact]
     public async Task Connects_and_reports_connected()
     {
         var fake = new FakeTransport();

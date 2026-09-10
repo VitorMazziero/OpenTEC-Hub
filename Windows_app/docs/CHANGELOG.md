@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to OpenTEC-Hub. Version numbers follow
 [Semantic Versioning](https://semver.org/); the single source for the number is
@@ -9,6 +9,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Adequação responsiva para notebooks (1024 × 640 DIP).** A navegação entra em modo compacto de
+  56 DIP abaixo de 1440 DIP de largura e o menu completo abre como drawer sobreposto, sem empurrar
+  a página; `Esc`, clique fora e a troca de destino fecham. Introduzida a propriedade anexada
+  `Controls.Responsive` (`NarrowBelow`/`ShortBelow`, publicando `IsNarrow`/`IsShort`), que permite a
+  cada página adaptar-se por gatilho de XAML a partir do tamanho real do seu container. Mapeamento
+  kLa ganha seletor Dados/Superfície/Diagnóstico abaixo de 1200 DIP; os gráficos de kLa passam a um
+  por vez abaixo de 720 DIP de altura, e os de Potência, um por vez abaixo de 900 DIP. Novo
+  `DialogBounds` limita cada modal à área do proprietário antes de `ShowDialog`.
+  Ver [DECISIONS D-045](DECISIONS.md).
 - **Instalador Inno Setup, serviço de Crash Reporting e Manual do Operador (Etapa 1.10 / Fase 6).**
   Criado script de instalação `installer/OpenTECHub_Setup.iss` baseado na referência de `BlocosDeControle.iss`,
   com empacotamento self-contained win-x64 (.NET 10 embutido), leitura dinâmica de versão do binário,
@@ -97,6 +106,8 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   do grupo externo passaram a mostrar presença, não só o fluxômetro.
 
 ### Changed
+- **Versão no cabeçalho sem o metadado de build.** O cabeçalho mostra `v0.26.2-dev`; a string
+  completa do MinVer, com o hash do commit, foi para o tooltip.
 - **Faixa operacional de agitação corrigida para 15–1000 rpm.** O construtor do protocolo,
   validadores de receita, runner de potência, tela kLa, especificação da interface e testes
   usam agora o mínimo real de 15 rpm; `0` permanece reservado à desabilitação do motor.
@@ -109,6 +120,27 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   e recusa sob posse externa permanecem ativas via `IManualDispatcher`. Ver [DECISIONS D-038](DECISIONS.md).
 
 ### Fixed
+- **`CaptureSettingsDialog` lançava `XamlParseException` ao abrir os critérios de captura.** Os
+  estilos `PowerLabel` e `CompactField` eram declarados apenas em `PowerView.UserControl.Resources`;
+  a janela independente os referenciava sem ter esse escopo. Ambos passam a viver em
+  `Themes/Controls.xaml`. `PowerViewResourceContractTests` agora cobre também o diálogo e instancia
+  a janela de verdade, em vez de apenas conferir a existência da chave em algum arquivo.
+- **A janela podia ser arrastada abaixo do próprio mínimo.** `WindowChromeMaximizeFix` marca
+  `WM_GETMINMAXINFO` como tratada, o que impede o `DefWindowProc` de preencher `MinTrackSize`; o
+  handler agora o preenche a partir de `MinWidth`/`MinHeight` convertidos para pixels físicos pelo
+  DPI da janela.
+- **O X ficava ceifado com a janela maximizada.** O glifo era desenhado de 0,0 a 10,10, com metade
+  do traço de 1 DIP fora da caixa. Passa a usar coordenadas em meio pixel com `Stretch="Uniform"`,
+  e os três botões de legenda existem agora uma única vez, em `Themes/Controls.xaml`, em vez de
+  copiados em `MainWindow` e em cada diálogo.
+- **Conteúdo cortado na janela mínima.** A tabela de Controle deixa de somar 938 DIP fixos e passa a
+  distribuição proporcional com piso e teto; o corpo do Mapeamento kLa deixa de exigir três colunas;
+  as métricas de Potência quebram linha em vez de comprimir; a ilustração de Configurações cede o
+  espaço ao formulário abaixo de 1000 DIP. "Parada segura" fica em coluna `Auto`, medida antes da
+  faixa de predefinições, e não pode ser o controle empurrado para fora.
+- **`CheckTextTruncation` comparava `DesiredSize` com `ActualWidth`.** O primeiro inclui a margem e o
+  segundo não, então todo rótulo com afastamento aparecia como truncado. A margem passa a ser
+  descontada antes da comparação.
 - **Captura automatizada de telas e eliminação do erro COM 0x80004002 (Etapa 1.9).** Substituída a automação
   externa de desktop (`UIAutomationClient.dll`) por renderização em memória via `RenderTargetBitmap` operando sobre
   dispatcher STA isolado (`WpfRenderingHost`). Eliminados ciclos de binding recursivo em `RadioButton` (`UpdateRadioButtonGroup`),

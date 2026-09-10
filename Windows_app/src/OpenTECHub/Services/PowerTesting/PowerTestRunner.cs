@@ -189,12 +189,6 @@ public sealed class PowerTestRunner : IPowerTestRunner
             }
         }
 
-        if (!_routeCoordinator.ValidateConditions(doc, out var routeError))
-        {
-            reason = routeError;
-            return false;
-        }
-
         reason = null;
         return true;
     }
@@ -608,7 +602,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             GasMode = actualMode,
             CurrentPhase = PowerRunPhase.Preflight,
             StartedUtc = _time.GetUtcNow(),
-            IsRelative = doc.RelativeMode || doc.Calibration is null || doc.Tare is null,
+            IsRelative = doc.Calibration is null || doc.Tare is null,
             Tries = 1,
         };
         _store.InitializeRunFolder(doc.FolderName, _currentRun);
@@ -636,6 +630,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
 
         _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        if (!_routeCoordinator.RouteRequestAccepted) { FaultWithoutSafeCommand(routeMsg); return; }
         LogEvent("MotorRoute", routeMsg);
         if (_routeCoordinator.IsUartFallback && _commandedRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm)
         {
@@ -722,7 +717,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             GasMode = PowerGasMode.Gassed,
             CurrentPhase = PowerRunPhase.Preflight,
             StartedUtc = _time.GetUtcNow(),
-            IsRelative = doc.RelativeMode || doc.Calibration is null || doc.Tare is null,
+            IsRelative = doc.Calibration is null || doc.Tare is null,
             Tries = 1,
             ReferenceP0W = _pairedUngassedP0W,
             ReferenceP0Ci95W = _pairedUngassedP0Ci95W,
@@ -1558,10 +1553,6 @@ public sealed class PowerTestRunner : IPowerTestRunner
             throw new InvalidOperationException("Densidade e viscosidade do fluido devem ser positivas.");
         }
         ValidateSettings(doc.Settings);
-        if (!doc.RelativeMode && (doc.Calibration is null || doc.Tare is null))
-        {
-            throw new InvalidOperationException("Selecione tara e calibração ou confirme explicitamente o modo relativo.");
-        }
         if (doc.Tare is { ImpellerSetHash.Length: > 0 } tare)
         {
             var geometryHash = PowerTestFileContracts.ComputeImpellerSetHash(doc.Geometry);

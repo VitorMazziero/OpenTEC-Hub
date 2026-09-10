@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             xmlns:ctl="clr-namespace:OpenTECHub.Controls"
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1500">
 
@@ -106,17 +107,71 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" x:Name="MapBody" ctl:Responsive.NarrowBelow="1200">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Compact section selector. Hidden while the three columns fit, so a wide
+                 screen keeps the side-by-side reading it was designed for. -->
+            <StackPanel x:Name="MapTabs" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <RadioButton x:Name="MapTabData" GroupName="KlaMapSections" Style="{StaticResource CompactSectionTabStyle}"
+                             Content="Dados" ToolTip="Experimentos, metadados, domínio e âncoras" />
+                <RadioButton x:Name="MapTabSurface" GroupName="KlaMapSections" Style="{StaticResource CompactSectionTabStyle}"
+                             Content="Superfície" IsChecked="True" ToolTip="Superfície kLa, gradiente, trajetória e folga" />
+                <RadioButton x:Name="MapTabDiagnostics" GroupName="KlaMapSections" Style="{StaticResource CompactSectionTabStyle}"
+                             Content="Diagnóstico" ToolTip="Identidade do algoritmo, parâmetros, recusas e publicação" />
+            </StackPanel>
+
+            <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="*" MinWidth="360" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="320" />
+                <!-- Auto columns, with the width on the card itself: a collapsed card asks for
+                     nothing, so the section left on screen in compact mode takes the whole row
+                     instead of leaving a 300 DIP hole where its neighbour used to be. -->
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="340" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Left: experiment inventory, metadata, domain and anchors. -->
-            <Border Grid.Column="0" Style="{StaticResource KlaCard}" Padding="0">
+            <Border Grid.Column="0" Padding="0">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource KlaCard}">
+                        <Setter Property="Width" Value="300" />
+                        <Setter Property="Margin" Value="0,0,10,0" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True" />
+                                    <Condition Binding="{Binding IsChecked, ElementName=MapTabData}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Width" Value="Auto" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="Grid.ColumnSpan" Value="5" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True" />
+                                    <Condition Binding="{Binding IsChecked, ElementName=MapTabData}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="12">
@@ -258,7 +313,29 @@
             </Border>
 
             <!-- Center: actual scientific result, not a decorative chart. -->
-            <Grid Grid.Column="2">
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Grid.Column" Value="2" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True" />
+                                    <Condition Binding="{Binding IsChecked, ElementName=MapTabSurface}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Grid.Column" Value="0" />
+                                <Setter Property="Grid.ColumnSpan" Value="5" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True" />
+                                    <Condition Binding="{Binding IsChecked, ElementName=MapTabSurface}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="10" />
@@ -313,7 +390,36 @@
             </Grid>
 
             <!-- Right: algorithm identity, parameters, refusals and receipts. -->
-            <Border Grid.Column="4" Style="{StaticResource KlaCard}" Padding="0">
+            <Border Padding="0">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource KlaCard}">
+                        <!-- Column and width live in the style, never as attributes: a local
+                             value outranks a trigger setter, so an attribute here would pin
+                             the card to its wide-screen column in compact mode. -->
+                        <Setter Property="Grid.Column" Value="4" />
+                        <Setter Property="Width" Value="320" />
+                        <Setter Property="Margin" Value="10,0,0,0" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True" />
+                                    <Condition Binding="{Binding IsChecked, ElementName=MapTabDiagnostics}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Width" Value="Auto" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="Grid.Column" Value="0" />
+                                <Setter Property="Grid.ColumnSpan" Value="5" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=MapBody}" Value="True" />
+                                    <Condition Binding="{Binding IsChecked, ElementName=MapTabDiagnostics}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="12">
@@ -436,6 +542,7 @@
                     </StackPanel>
                 </ScrollViewer>
             </Border>
+            </Grid>
         </Grid>
 
         <!-- Stage actions and progress stay visible while either side rail scrolls. -->

@@ -17,6 +17,19 @@ namespace OpenTECHub.Tests;
 public sealed class PowerMotorRouteTests
 {
     [Fact]
+    public void Route_changes_are_refused_without_agitation_ownership()
+    {
+        var device = new TestDeviceService();
+        using var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Agitation], "receita");
+        var coordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
+        Assert.False(coordinator.EnsurePrimaryRoute(out _));
+        Assert.False(coordinator.RouteRequestAccepted);
+        Assert.False(coordinator.IsUartFallback);
+        Assert.Empty(device.Sent);
+    }
+
+    [Fact]
     public void IsModbusCandidate_evaluates_servo_telemetry_presence()
     {
         Assert.True(PowerMotorRouteCoordinator.IsModbusCandidate(null));
@@ -43,6 +56,7 @@ public sealed class PowerMotorRouteTests
     {
         var device = new TestDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "teste");
         var coordinator = new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
         device.Push(new SensorSnapshot
@@ -59,7 +73,7 @@ public sealed class PowerMotorRouteTests
         Assert.False(coordinator.IsUartFallback);
         Assert.Equal(1000.0, coordinator.EffectiveMaxRpm);
         Assert.Contains("{\"motorControlMode\":1}", device.Sent);
-        Assert.Contains("Modbus direto ativada", msg);
+        Assert.Contains("Modbus direto solicitada", msg);
     }
 
     [Fact]
@@ -67,6 +81,7 @@ public sealed class PowerMotorRouteTests
     {
         var device = new TestDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "teste");
         var coordinator = new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
         device.Push(new SensorSnapshot
@@ -91,6 +106,7 @@ public sealed class PowerMotorRouteTests
     {
         var device = new TestDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "teste");
         var coordinator = new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
         // Under Modbus (default candidate)
@@ -118,6 +134,7 @@ public sealed class PowerMotorRouteTests
     {
         var device = new TestDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "teste");
         var coordinator = new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
         var originalTargets = new List<double> { 100, 300, 600, 900, 1000 };
@@ -137,6 +154,7 @@ public sealed class PowerMotorRouteTests
     {
         var device = new TestDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.Agitation], "teste");
         var coordinator = new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
         var doc = new PowerTestDocument

@@ -89,6 +89,7 @@ public static class CommandActuators
             [CommandKeys.TempSetpoint] = ActuatorId.Temperature,
 
             [CommandKeys.MotorSetpoint] = ActuatorId.Agitation,
+            [CommandKeys.MotorControlMode] = ActuatorId.Agitation,
 
             [CommandKeys.OxygenMonitor] = ActuatorId.Oxygen,
 

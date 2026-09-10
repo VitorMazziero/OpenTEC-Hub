@@ -40,65 +40,6 @@
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
 
-        <!-- Custom Caption Buttons (Minimize and Close only) -->
-        <Style x:Key="CaptionButtonBase" TargetType="Button">
-            <Setter Property="Width" Value="46" />
-            <Setter Property="Height" Value="40" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-        </Style>
-
-        <Style x:Key="CaptionMinimizeButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
-            <Setter Property="ToolTip" Value="Minimizar" />
-            <Setter Property="AutomationProperties.Name" Value="Minimizar" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
-                            <Path Width="10" Height="10" Stretch="None"
-                                  VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
-                                  Data="M0,5 H10" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background"
-                                        Value="{DynamicResource SurfaceHoverBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="CaptionCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonBase}">
-            <Setter Property="ToolTip" Value="Fechar" />
-            <Setter Property="AutomationProperties.Name" Value="Fechar" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
-                            <Path x:Name="Glyph" Width="10" Height="10" Stretch="None"
-                                  VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
-                                  Data="M0,0 L10,10 M0,10 L10,0" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background"
-                                        Value="{DynamicResource CaptionCloseHoverBrush}" />
-                                <Setter TargetName="Glyph" Property="Stroke"
-                                        Value="{DynamicResource CaptionCloseGlyphBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
     <DockPanel>

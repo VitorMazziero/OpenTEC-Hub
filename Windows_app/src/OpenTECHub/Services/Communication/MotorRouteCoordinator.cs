@@ -31,6 +31,7 @@ public class MotorRouteCoordinator
     public bool IsUartFallback => ActiveRoute == MotorRoute.UartFallback;
     public double EffectiveMaxRpm => IsModbusActive ? ModbusMaxRpm : UartFallbackMaxRpm;
     public string? FallbackReason { get; protected set; }
+    public bool RouteRequestAccepted { get; private set; }
 
     public event Action<MotorRoute, string?>? RouteChanged;
 
@@ -70,6 +71,7 @@ public class MotorRouteCoordinator
     /// </summary>
     public bool EnsurePrimaryRoute(out string statusMessage)
     {
+        RouteRequestAccepted = false;
         var latest = _device.Latest;
         if (!IsModbusCandidate(latest))
         {
@@ -79,12 +81,13 @@ public class MotorRouteCoordinator
         }
 
         var cmd = CommandBuilders.MotorControlMode(viaModbus: true);
-        var result = _arbiter.Dispatch(_owner, cmd);
+        var result = _arbiter.DispatchSeparateFrame(_owner, cmd);
         if (result.Accepted)
         {
+            RouteRequestAccepted = true;
             ActiveRoute = MotorRoute.Modbus;
             FallbackReason = null;
-            statusMessage = "Rota Modbus direto ativada prioritariamente (faixa de 15 a 1000 rpm).";
+            statusMessage = "Rota Modbus direto solicitada (15 a 1000 rpm); confirmação física depende da telemetria.";
             RouteChanged?.Invoke(ActiveRoute, null);
             return true;
         }
@@ -99,13 +102,18 @@ public class MotorRouteCoordinator
     /// </summary>
     public bool ActivateUartFallback(string reason, out string statusMessage)
     {
+        var cmd = CommandBuilders.MotorControlMode(viaModbus: false);
+        var result = _arbiter.DispatchSeparateFrame(_owner, cmd);
+        RouteRequestAccepted = result.Accepted;
+        if (!result.Accepted)
+        {
+            statusMessage = "Seleção da rota UART recusada; operação não iniciada.";
+            return false;
+        }
         ActiveRoute = MotorRoute.UartFallback;
         FallbackReason = reason;
 
-        var cmd = CommandBuilders.MotorControlMode(viaModbus: false);
-        _arbiter.Dispatch(_owner, cmd);
-
-        statusMessage = $"Modo de fallback UART ativo ({reason}). A rotação máxima fica limitada a {UartFallbackMaxRpm:F0} rpm.";
+        statusMessage = $"Rota de fallback UART solicitada ({reason}). A rotação máxima fica limitada a {UartFallbackMaxRpm:F0} rpm.";
         RouteChanged?.Invoke(ActiveRoute, reason);
         return false;
     }

@@ -23,12 +23,14 @@ public sealed class PowerViewResourceContractTests
         "PowerView.xaml",
         "PowerMapView.xaml",
         "PowerImpellerComparisonView.xaml",
+        "Dialogs/CaptureSettingsDialog.xaml",
     ];
 
     [Theory]
     [InlineData("PowerView.xaml")]
     [InlineData("PowerMapView.xaml")]
     [InlineData("PowerImpellerComparisonView.xaml")]
+    [InlineData("Dialogs/CaptureSettingsDialog.xaml")]
     public void Every_referenced_resource_key_is_defined(string viewFileName)
     {
         var viewPath = Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", viewFileName);
@@ -82,6 +84,18 @@ public sealed class PowerViewResourceContractTests
 
             Assert.DoesNotContain("Content=\"Aplicar", xaml, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    [Fact]
+    public void CaptureSettingsDialog_can_be_instantiated_on_sta_thread()
+    {
+        Rendering.WpfRenderingHost.Run(() =>
+        {
+            var dialog = new Views.Dialogs.CaptureSettingsDialog(null!);
+            Assert.NotNull(dialog);
+            Assert.NotNull(dialog.FindResource("PowerLabel"));
+            Assert.NotNull(dialog.FindResource("CompactField"));
+        });
     }
 
     private static HashSet<string> CollectDefinedKeys()

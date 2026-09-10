@@ -171,6 +171,14 @@ public partial class MainWindow : Window
 
     private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
 
+    private void OnDrawerBackdropMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is ShellViewModel shell)
+        {
+            shell.IsNavDrawerOpen = false;
+        }
+    }
+
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         if (_settings is null)
@@ -210,7 +218,7 @@ public partial class MainWindow : Window
         if (DataContext is ViewModels.ShellViewModel shell)
         {
             shell.IsRailAffordable = ActualWidth >= VariableRailMinimumWidth;
-            shell.IsNavigationCompact = false;
+            shell.IsNavigationCompact = ActualWidth < 1440;
         }
     }
 
@@ -266,6 +274,12 @@ public partial class MainWindow : Window
 
         if (modifiers == ModifierKeys.None && e.Key == Key.Escape)
         {
+            if (shell.IsNavDrawerOpen)
+            {
+                shell.IsNavDrawerOpen = false;
+                e.Handled = true;
+                return;
+            }
             if (shell.IsCommandPaletteOpen)
             {
                 CloseCommandPalette(shell);

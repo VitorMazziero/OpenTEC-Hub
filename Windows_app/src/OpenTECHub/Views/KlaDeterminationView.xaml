@@ -121,7 +121,9 @@
         <!-- ── Main Area: Split View ─────────────────────────────────────────── -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="450" MinWidth="360" MaxWidth="540" />
+                <!-- 360 preferred instead of 450: on a 936 DIP page the preparation panel
+                     was taking half the width the plots need to show an axis. -->
+                <ColumnDefinition Width="360" MinWidth="320" MaxWidth="480" />
                 <ColumnDefinition Width="8" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -360,20 +362,59 @@
             </ScrollViewer>
 
             <!-- ── Right Column: Scrollable 3 Synchronized Plots ────────── -->
-            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,2,0">
-                <Grid MinHeight="620">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="1*" MinHeight="190" />
-                        <RowDefinition Height="1*" MinHeight="190" />
-                        <RowDefinition Height="1*" MinHeight="190" />
-                    </Grid.RowDefinitions>
+            <Grid Grid.Column="2" x:Name="ChartsArea" ctl:Responsive.ShortBelow="720">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Below 720 DIP of chart height, three stacked plots leave each one too
+                     short to read an axis on. One plot at a time, chosen here; the other
+                     two keep their data and come back the moment the window grows. -->
+                <StackPanel x:Name="ChartTabs" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsShort), ElementName=ChartsArea}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <RadioButton x:Name="ChartTabDo" GroupName="KlaCharts" Style="{StaticResource CompactSectionTabStyle}"
+                                 Content="Oxigênio" IsChecked="True" ToolTip="Oxigênio dissolvido no tempo" />
+                    <RadioButton x:Name="ChartTabRegression" GroupName="KlaCharts" Style="{StaticResource CompactSectionTabStyle}"
+                                 Content="Regressão" ToolTip="Regressão log-linear do ajuste de kLa" />
+                    <RadioButton x:Name="ChartTabDiagnostics" GroupName="KlaCharts" Style="{StaticResource CompactSectionTabStyle}"
+                                 Content="Diagnóstico" ToolTip="kLa instantâneo e diagnóstico do ajuste" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,2,0">
+                <!-- UniformGrid, not three star rows: it lays out only the VISIBLE children,
+                     so hiding two plots gives the third the whole height instead of leaving
+                     two empty bands behind. -->
+                <UniformGrid Columns="1">
 
                     <!-- Chart 1: DO vs Time -->
-                    <Border Grid.Row="0" Margin="0,0,0,4"
+                    <Border Margin="0,0,0,4" MinHeight="190"
                             Background="{DynamicResource SurfaceCardBrush}"
                             BorderBrush="{DynamicResource StrokeDefaultBrush}"
                             BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
                             Padding="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Path=(ctl:Responsive.IsShort), ElementName=ChartsArea}" Value="True" />
+                                            <Condition Binding="{Binding IsChecked, ElementName=ChartTabDo}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -435,11 +476,24 @@
                     </Border>
 
                     <!-- Chart 2: Log-Linear OLS Fit -->
-                    <Border Grid.Row="1" Margin="0,0,0,4"
+                    <Border Margin="0,0,0,4" MinHeight="190"
                             Background="{DynamicResource SurfaceCardBrush}"
                             BorderBrush="{DynamicResource StrokeDefaultBrush}"
                             BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
                             Padding="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Path=(ctl:Responsive.IsShort), ElementName=ChartsArea}" Value="True" />
+                                            <Condition Binding="{Binding IsChecked, ElementName=ChartTabRegression}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -489,11 +543,24 @@
                     </Border>
 
                     <!-- Chart 3: Instantaneous kLa -->
-                    <Border Grid.Row="2" Margin="0,0,0,4"
+                    <Border Margin="0,0,0,4" MinHeight="190"
                             Background="{DynamicResource SurfaceCardBrush}"
                             BorderBrush="{DynamicResource StrokeDefaultBrush}"
                             BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}"
                             Padding="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Path=(ctl:Responsive.IsShort), ElementName=ChartsArea}" Value="True" />
+                                            <Condition Binding="{Binding IsChecked, ElementName=ChartTabDiagnostics}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -518,8 +585,9 @@
                             <Border x:Name="ChartInstantKlaHost" Grid.Row="1" />
                         </Grid>
                     </Border>
-                </Grid>
-            </ScrollViewer>
+                </UniformGrid>
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
         <!-- ── Modal: Novo Teste ──────────────────────────────────────────────── -->

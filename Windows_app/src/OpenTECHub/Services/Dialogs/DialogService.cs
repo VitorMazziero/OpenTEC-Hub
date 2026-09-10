@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Windows;
+using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Views.Dialogs;
 
@@ -16,6 +17,7 @@ public sealed class DialogService : IDialogService
             Owner = Application.Current?.MainWindow,
         };
 
+        DialogBounds.ConstrainToOwner(dialog);
         return dialog.ShowDialog() == true;
     }
 
@@ -32,6 +34,7 @@ public sealed class DialogService : IDialogService
             Owner = Application.Current?.MainWindow,
         };
 
+        DialogBounds.ConstrainToOwner(dialog);
         return dialog.ShowDialog() == true;
     }
 
@@ -42,6 +45,7 @@ public sealed class DialogService : IDialogService
             Owner = Application.Current?.MainWindow,
         };
 
+        DialogBounds.ConstrainToOwner(dialog);
         if (dialog.ShowDialog() == true)
         {
             response = dialog.InputText;
@@ -59,6 +63,7 @@ public sealed class DialogService : IDialogService
             Owner = Application.Current?.MainWindow,
         };
 
+        DialogBounds.ConstrainToOwner(dialog);
         return dialog.ShowDialog() == true ? dialog.Result : RecipeStartOption.Cancel;
     }
 
@@ -74,6 +79,7 @@ public sealed class DialogService : IDialogService
             Owner = Application.Current?.MainWindow,
         };
 
+        DialogBounds.ConstrainToOwner(dialog);
         if (dialog.ShowDialog() == true)
         {
             selectedImpeller = dialog.SelectedResult;
@@ -90,6 +96,7 @@ public sealed class DialogService : IDialogService
         {
             Owner = Application.Current?.MainWindow,
         };
+        DialogBounds.ConstrainToOwner(dialog);
         dialog.ShowDialog();
     }
 }

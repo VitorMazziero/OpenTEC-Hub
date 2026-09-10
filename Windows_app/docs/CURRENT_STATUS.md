@@ -1,9 +1,9 @@
-# OpenTEC-Hub current status and stabilization audit
+﻿# OpenTEC-Hub current status and stabilization audit
 
-> **Audit date:** 2026-08-26 · **Revised:** 2026-09-05  
-> **Current version:** 0.24.0  
-> **Next release target:** 0.25.0 — safety stabilization and UI polish  
-> **Implementation base:** `feature/etapa-4.1-serial-hygiene-and-rtt` — 11 ahead / 0 behind `main`, fast-forward ready
+> **Audit date:** 2026-08-26 · **Revised:** 2026-09-10  
+> **Current version:** 0.26.2-dev (derived from git tags by MinVer)  
+> **Next release target:** 0.27.0 — responsive UI, motor routing and power WP  
+> **Implementation base:** `main` — every feature branch was merged on 2026-09-10 and `main` is now the only branch
 
 The 2026-09-05 revision audited the Etapa 4.1 delivery (serial hygiene, WMI ranking, RTT), added
 the per-shaft tare profile library, and re-ran the repository, build, format and test gates. Rows
@@ -16,12 +16,15 @@ This document is the current release-status source. The detailed build sequence 
 
 ## Executive status
 
-Branch integration is **ready but not yet performed**. The AUD-001…AUD-008, Etapa 1.9, Etapa 1.10
-and Etapa 4.1 work forms a single linear chain on
-`feature/etapa-4.1-serial-hygiene-and-rtt`, 11 commits ahead of `main` and 0 behind: the seven other
-unmerged branches are all ancestors of this branch's HEAD, so **one fast-forward integrates
-everything**. The application core is substantially built, but **0.24.0 is not yet a field-release
-candidate**.
+Branch integration is **done**. On 2026-09-10 the outstanding feature work — AUD-001…AUD-008,
+Etapa 1.9, Etapa 1.10, Etapa 4.1, the motor/Modbus routing, the power tare library and the
+responsive-UI adaptation — was consolidated into `main`, which is now the repository's only branch.
+The application core is substantially built, but this is **not yet a field-release candidate**: the
+UI adaptation still owes the visual matrix by scale and theme (step 5 of the responsive plan), and
+nothing in this cycle was exercised against connected hardware.
+
+The dated rows below were **not re-run on 2026-09-10** and still describe the 0.24.0 audit; read an
+undated claim in this document as evidence from 26/08 until this file is reconciled for the release.
 
 The P0 findings AUD-001 e AUD-002 e as P1s AUD-003 e AUD-004 estão **resolvidas (05/09/2026)**. A
 auditoria da Etapa 4.1, no mesmo dia, corrigiu cinco defeitos da entrega de enlace serial — causa de

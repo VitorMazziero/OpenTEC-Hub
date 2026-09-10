@@ -25,6 +25,9 @@
     <Color x:Key="SurfaceSunkenColor">#F3F6F9</Color>
     <Color x:Key="SurfaceHoverColor">#EDF3FA</Color>
     <Color x:Key="SurfaceSelectedColor">#EAF3FF</Color>
+    <!-- Overlay drawer scrim: a light wash is enough to separate the drawer
+         from the page without hiding the readings underneath. -->
+    <Color x:Key="OverlayScrimColor">#33101820</Color>
 
     <!-- Semantic control surfaces. These exist because the correct fill for an
          input INVERTS between themes: on a light ground a text box reads as

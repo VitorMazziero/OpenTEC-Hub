@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Script automatizado de publicacao e geracao do instalador do OpenTEC-Hub.
 
@@ -62,7 +62,9 @@ Write-Host "`n[2/3] Versao detectada no binario: $version" -ForegroundColor Cyan
 
 # Localizar compilador Inno Setup
 Write-Host "`n[3/3] Localizando compilador do Inno Setup (ISCC.exe)..." -ForegroundColor Yellow
+# This bench keeps its tooling on D:; the Program Files paths stay for a stock install.
 $isccCandidates = @(
+    "D:\Arquivos_de_Programas\Inno Setup 6\ISCC.exe",
     "C:\Program Files\Inno Setup 7\ISCC.exe",
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     "C:\Program Files\Inno Setup 6\ISCC.exe",

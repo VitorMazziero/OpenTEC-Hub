@@ -393,6 +393,11 @@ public sealed class ConnectionManager : IAsyncDisposable
 
         lock (_bufferLock)
         {
+            if (!_pending.IsEmpty)
+            {
+                _frames.Add(_pending);
+                _pending = OpenTECCommand.Create();
+            }
             _frames.Add(command);
         }
 
@@ -966,19 +971,17 @@ public sealed class ConnectionManager : IAsyncDisposable
         bool more;
         lock (_bufferLock)
         {
-            // The merging buffer drains first, then one queued frame per pass. That order
-            // is what makes "stop the profile, then stop routing" arrive as two frames in
-            // the sequence the firmware needs.
-            if (!_pending.IsEmpty)
-            {
-                payload = _pending;
-                _pending = OpenTECCommand.Create();
-            }
-            else if (_frames.Count > 0)
+            // A separate frame is a barrier: later merged setpoints must not overtake it.
+            if (_frames.Count > 0)
             {
                 payload = _frames[0];
                 _frames.RemoveAt(0);
                 sequenced = true;
+            }
+            else if (!_pending.IsEmpty)
+            {
+                payload = _pending;
+                _pending = OpenTECCommand.Create();
             }
             else
             {
@@ -1088,7 +1091,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     {
         lock (_bufferLock)
         {
-            if (sequenced)
+            if (sequenced || _frames.Count > 0)
             {
                 _frames.Insert(0, payload);
                 return;

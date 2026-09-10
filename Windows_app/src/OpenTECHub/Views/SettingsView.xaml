@@ -10,6 +10,7 @@
              d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}">
 
     <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:EqualsToVisibilityConverter x:Key="EqualsToVis" />
 
@@ -39,21 +40,25 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid x:Name="SettingsRoot" ctl:Responsive.NarrowBelow="1000">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="230" />
+            <!-- The section list is a card, not a column width: collapsing the card takes
+                 its Auto column to zero and hands the whole page to the form. -->
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- WP7 in-page navigation: one stable list, one focused form section. -->
-        <Border Grid.Row="0" Grid.Column="0"
+        <Border Grid.Row="0" Grid.Column="0" Width="230"
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 BorderThickness="0,0,1,0"
+                Visibility="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=SettingsRoot,
+                                     Converter={StaticResource BoolToVis}, ConverterParameter=Invert}"
                 Padding="8">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" Text="Configurações"
@@ -118,13 +123,49 @@
         </Border>
 
         <Grid Grid.Row="0" Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MaxWidth="520" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <ScrollViewer Grid.Column="0"
+            <!-- Below 1000 DIP the section list becomes a selector above the form. The
+                 same Sections/SelectedSection binding drives both, so switching layout
+                 never changes which section the operator is editing. -->
+            <Border Grid.Row="0" Grid.ColumnSpan="2" Padding="16,12,16,0"
+                    Visibility="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=SettingsRoot,
+                                         Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Text="Seção:" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding Sections}"
+                              SelectedItem="{Binding SelectedSection, Mode=TwoWay}"
+                              MinHeight="32" MaxWidth="360" HorizontalAlignment="Left"
+                              AutomationProperties.Name="Seções de configurações">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:SettingsSection}">
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </DockPanel>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Grid.Column="0"
                           VerticalScrollBarVisibility="Auto" Padding="18">
+                <ScrollViewer.Style>
+                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource {x:Type ScrollViewer}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=SettingsRoot}" Value="True">
+                                <!-- The illustration column is gone; the form takes the width it left. -->
+                                <Setter Property="Grid.ColumnSpan" Value="2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ScrollViewer.Style>
                 <Grid HorizontalAlignment="Stretch">
 
                 <!-- Conexão -->
@@ -414,7 +455,12 @@
             </Grid>
         </ScrollViewer>
 
-        <Viewbox Grid.Column="1" Stretch="Uniform" Margin="24,18,24,18" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- Decorative only. On a laptop the form needs this space more than the page
+             needs a picture of the vessel. -->
+        <Viewbox Grid.Row="1" Grid.Column="1" Stretch="Uniform" Margin="24,18,24,18"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                 Visibility="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=SettingsRoot,
+                                      Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
             <Canvas Width="430" Height="470">
                 <Image Canvas.Left="5" Canvas.Top="25" Width="420" Height="420"
                        Source="/OpenTECHub;component/Resources/Images/Imagem_biorreator_side.png"

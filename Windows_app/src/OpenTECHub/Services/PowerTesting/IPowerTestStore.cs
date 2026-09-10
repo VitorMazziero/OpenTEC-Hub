@@ -30,6 +30,7 @@ public interface IPowerTestStore
     void SaveConditionsTable(string testFolderName, IReadOnlyList<PowerCondition> conditions);
 
     void SaveTare(string testFolderName, TareCurve tare);
+    void ClearTare(string testFolderName) => throw new NotSupportedException("Remoção de tara indisponível neste armazenamento.");
 
     TareCurve? LoadTare(string testFolderName);
 

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -126,6 +126,27 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Application version with git hash appended via MSBuild (InformationalVersion).</summary>
     public string AppVersion { get; }
+
+    /// <summary>
+    /// The version without the build metadata - "0.26.2-dev" out of
+    /// "0.26.2-dev.14+23ce95a...". The full string is a tooltip, not header furniture: at
+    /// full length it pushed the connection chip and the window buttons off a laptop header.
+    /// </summary>
+    public string AppVersionShort => ShortenVersion(AppVersion);
+
+    internal static string ShortenVersion(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return version;
+        }
+
+        // Semver build metadata comes after '+'; MinVer also appends a commit-height
+        // identifier to the pre-release label, which carries no meaning for an operator.
+        var trimmed = version.Split('+', 2)[0];
+        var parts = trimmed.Split('.');
+        return parts.Length > 3 ? string.Join('.', parts[..3]) : trimmed;
+    }
 
     public ShellViewModel(
         IDeviceService device,
@@ -638,6 +659,26 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsNavigationCompact { get; set; }
 
+    /// <summary>
+    /// True when the overlay drawer is open in compact navigation mode.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsNavDrawerOpen { get; set; }
+
+    partial void OnIsNavigationCompactChanged(bool value)
+    {
+        if (!value)
+        {
+            IsNavDrawerOpen = false;
+        }
+    }
+
+    [RelayCommand]
+    public void ToggleNavDrawer() => IsNavDrawerOpen = !IsNavDrawerOpen;
+
+    [RelayCommand]
+    public void CloseNavDrawer() => IsNavDrawerOpen = false;
+
     // ── Liveness ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -933,6 +974,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedNavigationIdChanged(string value)
     {
+        IsNavDrawerOpen = false;
         if (!_uiLoaded || !NavigationItems.Any(item => item.Id == value))
         {
             return;

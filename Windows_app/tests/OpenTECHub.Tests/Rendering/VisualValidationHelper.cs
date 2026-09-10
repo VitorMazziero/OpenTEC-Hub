@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -34,17 +34,117 @@ public static class VisualValidationHelper
         {
             if (node is TextBlock tb && tb.IsVisible && tb.ActualWidth > 0 && tb.ActualHeight > 0)
             {
+                // DesiredSize carries the margin, ActualWidth does not, so the margin has to
+                // come off before the two are comparable - otherwise every labelled field
+                // with a 6 DIP gap reads as truncated.
+                var desiredText = tb.DesiredSize.Width - tb.Margin.Left - tb.Margin.Right;
+
                 // Only flag if no trimming is specified and desired exceeds actual width by > 1.5 DIP
-                if (tb.TextTrimming == TextTrimming.None && tb.DesiredSize.Width > tb.ActualWidth + 1.5)
+                if (tb.TextTrimming == TextTrimming.None && desiredText > tb.ActualWidth + 1.5)
                 {
                     issues.Add(
-                        $"TextBlock '{tb.Text}' truncated: desired {tb.DesiredSize.Width:F1}px > actual {tb.ActualWidth:F1}px");
+                        $"TextBlock '{tb.Text}' truncated: desired {desiredText:F1}px > actual {tb.ActualWidth:F1}px");
                 }
             }
         });
 
         return issues;
     }
+
+    /// <summary>
+    /// Scans for visible content that is arranged past the right edge of
+    /// <paramref name="root"/>, which is how a fixed-width layout loses a column on a
+    /// narrow window. Vertical overflow is not an error - the pages scroll - but
+    /// horizontal overflow is: nothing in this shell scrolls sideways by design.
+    /// </summary>
+    /// <param name="root">The arranged root whose width defines the usable area.</param>
+    /// <param name="tolerance">Slack, in DIP, for rounding and shadow bleed.</param>
+    public static List<string> CheckHorizontalOverflow(FrameworkElement root, double tolerance = 1.0)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        var issues = new List<string>();
+        var limit = root.ActualWidth + tolerance;
+        if (limit <= tolerance)
+        {
+            return issues;
+        }
+
+        Traverse(root, node =>
+        {
+            // Leaves only. Reporting a panel as well as each of its children turns one
+            // layout fault into a page of noise pointing at the same edge.
+            if (node is not FrameworkElement element
+                || ReferenceEquals(element, root)
+                || !element.IsVisible
+                || element.ActualWidth <= 0
+                || VisualTreeHelper.GetChildrenCount(element) > 0)
+            {
+                return;
+            }
+
+            Point origin;
+            try
+            {
+                origin = element.TransformToAncestor(root).Transform(new Point(0, 0));
+            }
+            catch (InvalidOperationException)
+            {
+                // Not parented to this root any more (a template swapped mid-walk).
+                return;
+            }
+
+            var right = origin.X + element.ActualWidth;
+            if (right > limit && !IsInsideHorizontallyScrollableRegion(element, root))
+            {
+                issues.Add(
+                    $"{Describe(element)} reaches {right:F0} DIP, past the {root.ActualWidth:F0} DIP edge.");
+            }
+        });
+
+        return issues;
+    }
+
+    /// <summary>
+    /// A wide table the operator can scroll sideways inside its own card is a deliberate
+    /// choice, not lost content - the plan allows local horizontal scrolling for tables
+    /// while ruling it out for the page. Only overflow with no way to reach it counts.
+    /// </summary>
+    private static bool IsInsideHorizontallyScrollableRegion(DependencyObject element, DependencyObject root)
+    {
+        var current = VisualTreeHelper.GetParent(element);
+        while (current != null && !ReferenceEquals(current, root))
+        {
+            var scrolls = current switch
+            {
+                ScrollViewer sv => sv.HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled,
+                DataGrid grid => grid.HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled,
+                _ => false,
+            };
+
+            if (scrolls)
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static string Describe(FrameworkElement element)
+    {
+        var name = string.IsNullOrEmpty(element.Name) ? element.GetType().Name : $"{element.GetType().Name} '{element.Name}'";
+        return element switch
+        {
+            TextBlock { Text.Length: > 0 } tb => $"{name} \"{Shorten(tb.Text)}\"",
+            _ => name,
+        };
+    }
+
+    private static string Shorten(string text)
+        => text.Length <= 40 ? text : text[..40] + "...";
 
     /// <summary>
     /// Validates that the bitmap contains rich graphical output rather than

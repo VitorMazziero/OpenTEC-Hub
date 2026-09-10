@@ -560,7 +560,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             if (CurrentTest?.Tare is null)
             {
-                return "Tara ausente";
+                return "Sem tara aplicada · resultado relativo";
             }
 
             var currentHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry());
@@ -574,11 +574,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 CurrentTest.MotorRatedTorqueNm);
             return string.IsNullOrEmpty(CurrentTest.Tare.CalibrationHash) ||
                    string.Equals(CurrentTest.Tare.CalibrationHash, calibrationHash, StringComparison.OrdinalIgnoreCase)
-                ? "Tara compatível"
+                ? $"Tara compatível · {CurrentTest.Tare.ProfileName ?? "curva do ensaio"}"
                 : "Tara anterior à calibração atual";
         }
     }
-    public string ResultModeLabel => RelativeMode || CurrentTest?.Calibration is null || CurrentTest?.Tare is null ? "RELATIVO" : "ABSOLUTO";
+    public string ResultModeLabel => CurrentTest?.Calibration is null || CurrentTest?.Tare is null ? "RELATIVO" : "ABSOLUTO";
     public string PrecisionBadge => "IC estatístico · não é precisão do sensor";
     public string ImpellerSetHash => Impellers.Count == 0 ? "—" : PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry())[..12];
     public string VortexWarning
@@ -779,6 +779,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             LiquidVolumeL = doc.Geometry.LiquidVolumeM3 * 1000.0;
             IsBaffled = doc.Geometry.Baffled;
             RelativeMode = doc.RelativeMode;
+            RefreshTareProfiles();
+            SelectedTareProfile = TareProfiles.FirstOrDefault(p => p.Name == doc.Tare?.ProfileName);
             MinRpm = doc.Settings.MinRpm;
             MaxRpm = doc.Settings.MaxRpm;
             StepRpm = doc.Settings.DefaultStepRpm;
@@ -2460,10 +2462,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
-        var maxTareAllowed = _routeCoordinator.IsUartFallback
-            ? PowerMotorRouteCoordinator.UartFallbackMaxRpm
-            : PowerMotorRouteCoordinator.ModbusMaxRpm;
+        var maxTareAllowed = PowerMotorRouteCoordinator.ModbusMaxRpm;
 
         if (!double.IsFinite(TareStartRpm) || !double.IsFinite(TareEndRpm) || !double.IsFinite(TareStepRpm) ||
             TareStartRpm < PowerMotorRouteCoordinator.MinRpm || TareEndRpm > maxTareAllowed ||
@@ -2505,6 +2504,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             {
                 throw new InvalidOperationException("Não foi possível obter o controle da agitação para medir a tara.");
             }
+
+            _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+            if (!_routeCoordinator.RouteRequestAccepted) { throw new InvalidOperationException(routeMsg); }
 
             if (_routeCoordinator.IsUartFallback)
             {
@@ -2791,6 +2793,23 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void UseNoTare()
+    {
+        if (!CanEditPlan || CurrentTest is null) { return; }
+        try
+        {
+            _store.ClearTare(CurrentTest.FolderName);
+            CurrentTest.Tare = null;
+            CurrentTest.RelativeMode = true;
+            SelectedTareProfile = null;
+            _store.SaveTestManifest(CurrentTest);
+            RefreshCurrentTarePoints();
+            NotifyDocumentState();
+        }
+        catch (Exception ex) { ShowError($"Não foi possível retirar a tara: {ex.Message}"); }
+    }
+
+    [RelayCommand]
     private void ApplyTareProfile()
     {
         if (CurrentTest is null)
@@ -2906,17 +2925,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
-        if (!_routeCoordinator.ValidateRpm(SinglePointRpm, out var rpmError))
-        {
-            ShowError(rpmError!);
-            return;
-        }
-
         try
         {
             var actuators = SinglePointFlowLpm > 0 ? new[] { ActuatorId.Agitation, ActuatorId.Aeration } : [ActuatorId.Agitation];
             _arbiter.Claim(CommandOwner.PowerAssay, actuators, "Ponto único de conferência");
+            _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+            if (!_routeCoordinator.RouteRequestAccepted) { throw new InvalidOperationException(routeMsg); }
+            if (!_routeCoordinator.ValidateRpm(SinglePointRpm, out var rpmError)) { throw new InvalidOperationException(rpmError); }
             _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint((int)SinglePointRpm));
             if (SinglePointFlowLpm > 0)
             {
@@ -2929,6 +2944,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            SafeParkAndReleaseAgitation("Falha no ponto único");
             ShowError($"Erro ao comandar ponto único: {ex.Message}");
         }
     }
@@ -3126,7 +3142,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         CurrentTest.Fluid = new FluidProperties { DensityKgM3 = DensityKgM3, ViscosityPaS = ViscosityPaS, TemperatureC = TemperatureC, PresetName = "Água / personalizado" };
         CurrentTest.Geometry = BuildGeometry();
         CurrentTest.Settings = BuildEditedSettings();
-        CurrentTest.RelativeMode = RelativeMode;
+        CurrentTest.RelativeMode = CurrentTest.Calibration is null || CurrentTest.Tare is null;
         CurrentTest.Conditions = Conditions.Select(c => c.Clone()).ToList();
         CurrentTest.SettingsRevision++;
         _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
@@ -3206,20 +3222,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (Conditions.Any(c => c.GasFlowLpm is < 0 || c.GasFlowVvm is < 0))
         {
             return "A vazão de gás não pode ser negativa.";
-        }
-
-        if (_routeCoordinator.IsUartFallback)
-        {
-            var overCondition = Conditions.FirstOrDefault(c => c.AgitationRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm);
-            if (overCondition is not null)
-            {
-                return $"Em modo de fallback UART, a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. A condição de {overCondition.AgitationRpm:F0} rpm requer comunicação Modbus com o servo drive.";
-            }
-        }
-
-        if (!RelativeMode && (CurrentTest.Calibration is null || CurrentTest.Tare is null))
-        {
-            return "O modo absoluto exige calibração de torque e tara compatível.";
         }
 
         return "";

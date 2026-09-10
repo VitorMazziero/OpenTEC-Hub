@@ -395,6 +395,14 @@ public sealed class PowerTestStore : IPowerTestStore
         }
     }
 
+    public void ClearTare(string testFolderName)
+    {
+        lock (_ioLock)
+        {
+            File.Delete(Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.TareFileName));
+        }
+    }
+
     public TareCurve? LoadTare(string testFolderName)
     {
         lock (_ioLock)

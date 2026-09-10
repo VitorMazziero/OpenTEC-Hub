@@ -151,16 +151,15 @@ public sealed class Wp8Tests
     }
 
     [Fact]
-    public void Navigation_does_not_collapse_to_icon_rail()
+    public void Navigation_uses_compact_rail_below_1440_pixels()
     {
         var root = TestPaths.RepositoryRoot;
         var xaml = File.ReadAllText(Path.Combine(root, "src", "OpenTECHub", "MainWindow.xaml"));
         var code = File.ReadAllText(Path.Combine(root, "src", "OpenTECHub", "MainWindow.xaml.cs"));
 
         Assert.Contains("x:Name=\"NavigationRail\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<Setter Property=\"Width\" Value=\"52\" />", xaml, StringComparison.Ordinal);
         Assert.Contains("IsNavigationCompact", xaml, StringComparison.Ordinal);
-        Assert.Contains("shell.IsNavigationCompact = false;", code, StringComparison.Ordinal);
+        Assert.Contains("shell.IsNavigationCompact = ActualWidth < 1440;", code, StringComparison.Ordinal);
     }
 
     private sealed class MemorySettingsService(AppSettings initial) : ISettingsService

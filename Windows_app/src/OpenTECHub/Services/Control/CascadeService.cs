@@ -448,6 +448,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         _arbiter.Claim(CommandOwner.Automatic, CascadeActuators, $"cascata O₂ · {ModeLabel(Mode)}");
         _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+        if (!_routeCoordinator.RouteRequestAccepted) { _arbiter.Release(CommandOwner.Automatic, routeMsg); return; }
         _journal?.Add(AuditSource.Application, AuditSeverity.Information, routeMsg);
         _staleOxygenFrames = 0;
         IsEngaged = true;

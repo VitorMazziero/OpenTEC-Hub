@@ -220,8 +220,10 @@ public sealed class PowerNavigationContractTests
 
         var validationTab = ReadTabContent(xaml, "Validação");
         Assert.Contains("SingleLineSegmentedControlStyle", xaml, StringComparison.Ordinal);
-        Assert.Contains("Rastreabilidade", validationTab, StringComparison.Ordinal);
-        Assert.Contains("Calibração estática", validationTab, StringComparison.Ordinal);
+        Assert.Contains("Tara do Eixo", validationTab, StringComparison.Ordinal);
+        Assert.Contains("Ponto Único de Conferência", validationTab, StringComparison.Ordinal);
+        Assert.Contains("Correlação de Potência Elétrica Externa", validationTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("Calibração estática", validationTab, StringComparison.Ordinal);
         Assert.Contains("Ensaio de tara no ar", validationTab, StringComparison.Ordinal);
         Assert.Contains("CurrentTarePoints", validationTab, StringComparison.Ordinal);
         Assert.Contains("PVoidCi95W", validationTab, StringComparison.Ordinal);

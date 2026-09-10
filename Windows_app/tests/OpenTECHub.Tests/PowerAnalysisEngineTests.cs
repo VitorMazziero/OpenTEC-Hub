@@ -98,11 +98,10 @@ public sealed class PowerAnalysisEngineTests
     }
 
     [Fact]
-    public void AnalyzePoint_Subtracts_Tare_And_Is_Absolute_With_Calibration()
+    public void AnalyzePoint_Subtracts_Tare_And_Is_Calibrated_With_Tare()
     {
         var input = SinglePointInput(torquePercent: 2.0, torqueCi95: 0.2, rpm: 300) with
         {
-            Calibration = new TorqueCalibration { Scale = 1.0, Offset = 0, MotorRatedTorqueNm = 1.27 },
             Tare = new TareCurve { Points = { new TarePoint(300, 0.5, 0.05) } },
         };
 
@@ -277,16 +276,13 @@ public sealed class PowerAnalysisEngineTests
     // ---- Numerical robustness (audit) -----------------------------------------------------
 
     [Fact]
-    public void AnalyzePoint_SnrFloor_Scales_With_Calibration_Scale()
+    public void AnalyzePoint_SnrFloor_Evaluates_Against_Tare_Noise()
     {
-        // σ_τ 0.62 % at 300 rpm, P_void 0. At 1.5 % torque the Scale=1 net (~0.598 W) sits
-        // between the unscaled floor (~0.742 W) and, at Scale=3, the correctly-scaled floor
-        // (~2.23 W) — so the net (~1.795 W) must read BELOW noise. Before the fix the floor was
-        // left unscaled (~0.742 W) and the point wrongly read above noise.
+        // σ_τ 0.62 % at 300 rpm, P_void 0. At 1.5 % torque the net power (~0.598 W)
+        // is compared against 3.0 * noise floor (~0.742 W), so it must read BELOW noise floor.
         var tare = new TareCurve { Points = { new TarePoint(300, 0.0, 0.62) } };
         var input = SinglePointInput(torquePercent: 1.5, torqueCi95: 0.1, rpm: 300) with
         {
-            Calibration = new TorqueCalibration { Scale = 3.0, Offset = 0, MotorRatedTorqueNm = 1.27 },
             Tare = tare,
             SnrFloorMultiple = 3.0,
         };
@@ -294,8 +290,7 @@ public sealed class PowerAnalysisEngineTests
         var result = _engine.AnalyzePoint(input);
 
         Assert.True(result.BelowNoiseFloor);
-        // Net power itself carries the Scale, confirming the two are compared in the same units.
-        Assert.Equal(3.0 * (1.5 / 100.0 * 1.27) * PowerCalc.AngularVelocity(300), result.NetPowerW, 4);
+        Assert.Equal((1.5 / 100.0 * 1.27) * PowerCalc.AngularVelocity(300), result.NetPowerW, 4);
     }
 
     [Fact]

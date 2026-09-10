@@ -18,7 +18,7 @@
 ; =====================================================================
 
 #define MyAppName "OpenTEC-Hub"
-#define MyAppPublisher "TECNAL / USP"
+#define MyAppPublisher "Vitor Mazziero UNESP"
 #define MyAppExeName "OpenTECHub.exe"
 
 ; Pasta da publicação self-contained (relativa a este .iss). Sobrescrevível com /DPublishDir.

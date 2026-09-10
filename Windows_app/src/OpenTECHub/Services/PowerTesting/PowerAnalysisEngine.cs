@@ -13,16 +13,12 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
     public PowerPointResult AnalyzePoint(PowerPointInput input)
     {
         var geometry = input.Geometry;
-        var calibration = input.Calibration;
         var fluid = input.Fluid;
         var rpm = input.MeanRpm;
-        var tNom = calibration?.MotorRatedTorqueNm ?? input.MotorRatedTorqueNm;
+        var tNom = input.MotorRatedTorqueNm;
 
-        // Affine calibration is exact on the CI half-width too, so evaluate the torque at the mean
-        // and at (mean + CI) and take the difference. Identity calibration collapses to (pct/100)·T_nom.
-        double ToNm(double percent) => calibration is { } cal
-            ? cal.Scale * (percent / 100.0 * cal.MotorRatedTorqueNm) + cal.Offset
-            : percent / 100.0 * tNom;
+        // O sistema utiliza diretamente o torque nominal do servo; a tara no ar é a calibração de base.
+        double ToNm(double percent) => percent / 100.0 * tNom;
 
         var meanTorqueNm = ToNm(input.MeanTorquePercent);
         var torqueCi95Nm = Math.Abs(ToNm(input.MeanTorquePercent + input.TorquePercentCi95) - meanTorqueNm);
@@ -40,20 +36,16 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
             : 0.0;
         var netPowerCi95W = Math.Sqrt(powerCi95W * powerCi95W + tarePowerCi95W * tarePowerCi95W);
 
-        // Absolute results need BOTH a calibration and a tare (§9); otherwise the point is relative.
-        var isRelative = calibration is null || input.Tare is null;
+        // A tara no ar é a via de calibração do sistema: desconta o atrito mecânico de selos/mancais.
+        // Com tara aplicada, o resultado é absoluto/calibrado; sem tara, o ensaio opera em modo relativo.
+        var isRelative = input.Tare is null;
 
         // The SNR gate needs the tare's σ_τ; without a tare it cannot be judged (§7.2).
         var belowNoiseFloor = false;
         if (input.Tare is { } tareForNoise)
         {
             var sigmaTauPercent = TareInterpolator.InterpolateSigmaTauPercent(tareForNoise, rpm);
-            // σ_τ is the scatter of the *reported* torque %. The calibration scales the physical
-            // torque — and hence its scatter — by |Scale|, exactly as it scaled netPowerW above.
-            // The watt-floor must carry the same factor, or a Scale≠1 calibration mis-scales the
-            // gate and can flag a real point as noise (or pass a noisy one) by that factor.
-            var calibrationScale = Math.Abs(calibration?.Scale ?? 1.0);
-            var noiseFloorW = input.SnrFloorMultiple * calibrationScale * PowerCalc.PowerNoiseFloorW(sigmaTauPercent, tNom, rpm);
+            var noiseFloorW = input.SnrFloorMultiple * PowerCalc.PowerNoiseFloorW(sigmaTauPercent, tNom, rpm);
             belowNoiseFloor = Math.Abs(netPowerW) <= noiseFloorW;
         }
 

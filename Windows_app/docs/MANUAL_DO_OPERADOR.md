@@ -205,4 +205,4 @@ Caso ocorra qualquer erro imprevisto ou falha grave no sistema:
 
 ---
 
-*OpenTEC-Hub — Desenvolvido pela TECNAL / USP. Todos os direitos reservados.*
+*OpenTEC-Hub — Desenvolvido por Vitor Mazziero UNESP. Todos os direitos reservados.*

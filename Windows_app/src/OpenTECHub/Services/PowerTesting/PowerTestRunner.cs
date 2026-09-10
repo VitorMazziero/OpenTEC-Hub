@@ -602,7 +602,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             GasMode = actualMode,
             CurrentPhase = PowerRunPhase.Preflight,
             StartedUtc = _time.GetUtcNow(),
-            IsRelative = doc.Calibration is null || doc.Tare is null,
+            IsRelative = doc.Tare is null,
             Tries = 1,
         };
         _store.InitializeRunFolder(doc.FolderName, _currentRun);
@@ -717,7 +717,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             GasMode = PowerGasMode.Gassed,
             CurrentPhase = PowerRunPhase.Preflight,
             StartedUtc = _time.GetUtcNow(),
-            IsRelative = doc.Calibration is null || doc.Tare is null,
+            IsRelative = doc.Tare is null,
             Tries = 1,
             ReferenceP0W = _pairedUngassedP0W,
             ReferenceP0Ci95W = _pairedUngassedP0Ci95W,
@@ -1515,14 +1515,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private static double? OptionalReading(double value) =>
         double.IsFinite(value) && value > SensorReadings.NotReceived ? value : null;
 
-    private static double CalibratedTorqueNm(double torquePercent, PowerTestDocument doc)
-    {
-        if (doc.Calibration is { } calibration)
-        {
-            return calibration.Scale * (torquePercent / 100.0 * calibration.MotorRatedTorqueNm) + calibration.Offset;
-        }
-        return torquePercent / 100.0 * doc.MotorRatedTorqueNm;
-    }
+    private static double CalibratedTorqueNm(double torquePercent, PowerTestDocument doc) =>
+        torquePercent / 100.0 * doc.MotorRatedTorqueNm;
 
     private static double CalibratedTorqueCiNm(
         double meanTorquePercent,

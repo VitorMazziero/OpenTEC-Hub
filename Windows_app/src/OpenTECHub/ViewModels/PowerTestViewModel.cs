@@ -471,16 +471,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     }
 
     // --- Step 8: Guided Procedures ---
-    // 8.1 Torque Calibration (1-point static)
-    [ObservableProperty] public partial bool IsCalibrationAssistantOpen { get; set; }
-    [ObservableProperty] public partial double CalibrationMassKg { get; set; } = 0.100;
-    [ObservableProperty] public partial double CalibrationLeverArmM { get; set; } = 0.050;
-    [ObservableProperty] public partial double CalibrationRatedTorqueNm { get; set; } = 1.27;
-    [ObservableProperty] public partial double CalibrationMeasuredTorquePercent { get; set; } = 3.86;
-    public double CalibrationReferenceNm => CalibrationMassKg * PowerCalc.GravityMetersPerSecondSquared * CalibrationLeverArmM;
-    public double CalibrationCalculatedScale => CalibrationMeasuredTorquePercent > 0 ? CalibrationReferenceNm / ((CalibrationMeasuredTorquePercent / 100.0) * CalibrationRatedTorqueNm) : 1.0;
-
-    // 8.2 Tare Curve Assistant (in-air sweep)
+    // 8.1 Tare Curve Assistant (in-air sweep)
     [ObservableProperty] public partial bool IsTareAssistantOpen { get; set; }
     [ObservableProperty] public partial bool IsTareRunning { get; set; }
     [ObservableProperty] public partial double TareStartRpm { get; set; } = 100.0;
@@ -553,32 +544,25 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         PowerTestStatus.Completed => "Concluído",
         _ => "Nenhum ensaio",
     };
-    public string CalibrationStatus => CurrentTest?.Calibration is null ? "Calibração ausente" : "Calibração registrada";
     public string TareStatus
     {
         get
         {
             if (CurrentTest?.Tare is null)
             {
-                return "Sem tara aplicada · resultado relativo";
+                return "Sem tara aplicada · modo relativo";
             }
 
             var currentHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry());
             if (!string.Equals(CurrentTest.Tare.ImpellerSetHash, currentHash, StringComparison.OrdinalIgnoreCase))
             {
-                return "Tara de outro conjunto";
+                return "Tara de outro conjunto de impelidores";
             }
 
-            var calibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
-                CurrentTest.Calibration,
-                CurrentTest.MotorRatedTorqueNm);
-            return string.IsNullOrEmpty(CurrentTest.Tare.CalibrationHash) ||
-                   string.Equals(CurrentTest.Tare.CalibrationHash, calibrationHash, StringComparison.OrdinalIgnoreCase)
-                ? $"Tara compatível · {CurrentTest.Tare.ProfileName ?? "curva do ensaio"}"
-                : "Tara anterior à calibração atual";
+            return $"Tara compatível · {CurrentTest.Tare.ProfileName ?? "curva do ensaio"}";
         }
     }
-    public string ResultModeLabel => CurrentTest?.Calibration is null || CurrentTest?.Tare is null ? "RELATIVO" : "ABSOLUTO";
+    public string ResultModeLabel => CurrentTest?.Tare is null ? "RELATIVO" : "CALIBRADO";
     public string PrecisionBadge => "IC estatístico · não é precisão do sensor";
     public string ImpellerSetHash => Impellers.Count == 0 ? "—" : PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry())[..12];
     public string VortexWarning
@@ -2345,64 +2329,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     // 8.1 Calibração de torque (1 ponto)
     // =========================================================================
 
-    [RelayCommand]
-    private void CalibrationInfo()
-    {
-        IsCalibrationAssistantOpen = !IsCalibrationAssistantOpen;
-        if (IsCalibrationAssistantOpen)
-        {
-            IsTareAssistantOpen = false;
-            IsSinglePointPanelOpen = false;
-            IsEnergyCorrelationOpen = false;
-            if (CurrentTorquePercent is { } livePct && Math.Abs(livePct) > 0.05)
-            {
-                CalibrationMeasuredTorquePercent = Math.Round(Math.Abs(livePct), 2);
-            }
-        }
-    }
-
-    [RelayCommand]
-    private void CloseCalibrationAssistant() => IsCalibrationAssistantOpen = false;
-
-    [RelayCommand]
-    private void ApplyCalibration()
-    {
-        if (CurrentTest is null)
-        {
-            ShowError("Crie ou abra um ensaio para registrar a calibração.");
-            return;
-        }
-        if (CalibrationMassKg <= 0 || CalibrationLeverArmM <= 0 || CalibrationMeasuredTorquePercent <= 0)
-        {
-            ShowError("Massa, braço e torque medido devem ser valores positivos.");
-            return;
-        }
-
-        try
-        {
-            var calib = PowerCalc.ComputeStaticTorqueCalibration(
-                CalibrationMassKg,
-                CalibrationLeverArmM,
-                CalibrationMeasuredTorquePercent,
-                CalibrationRatedTorqueNm);
-
-            CurrentTest.Calibration = calib;
-            _store.SaveCalibration(CurrentTest.FolderName, calib);
-            _store.SaveTestManifest(CurrentTest);
-
-            IsCalibrationAssistantOpen = false;
-            ValidationMessage = $"Calibração gravada: Escala = {calib.Scale:F4} (τ_ref = {calib.ReferenceNm:F4} N·m).";
-            OnPropertyChanged(nameof(CalibrationStatus));
-            OnPropertyChanged(nameof(ResultModeLabel));
-        }
-        catch (Exception ex)
-        {
-            ShowError($"Erro ao calibrar torque: {ex.Message}");
-        }
-    }
-
     // =========================================================================
-    // 8.2 Tara P_vazio(N) + σ_τ (varredura no ar)
+    // 8.1 Tara P_vazio(N) + σ_τ (varredura no ar)
     // =========================================================================
 
     [RelayCommand]
@@ -2411,10 +2339,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         IsTareAssistantOpen = !IsTareAssistantOpen;
         if (IsTareAssistantOpen)
         {
-            IsCalibrationAssistantOpen = false;
-            IsSinglePointPanelOpen = false;
-            IsEnergyCorrelationOpen = false;
-
             RefreshTareProfiles();
             if (string.IsNullOrWhiteSpace(TareProfileName) &&
                 CurrentTest?.Tare?.ProfileName is { Length: > 0 } filedAs)
@@ -2569,9 +2493,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 Samples = rawSamples,
                 AcquisitionSettings = tareSettings,
                 ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry()),
-                CalibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(
-                    CurrentTest.Calibration,
-                    CurrentTest.MotorRatedTorqueNm),
+                CalibrationHash = null,
                 MeasuredUtc = DateTimeOffset.UtcNow,
                 ProfileName = filed ? profileName : "",
             };
@@ -2905,7 +2827,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         IsSinglePointPanelOpen = !IsSinglePointPanelOpen;
         if (IsSinglePointPanelOpen)
         {
-            IsCalibrationAssistantOpen = false;
             IsTareAssistantOpen = false;
             IsEnergyCorrelationOpen = false;
         }
@@ -3033,7 +2954,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         IsEnergyCorrelationOpen = !IsEnergyCorrelationOpen;
         if (IsEnergyCorrelationOpen)
         {
-            IsCalibrationAssistantOpen = false;
             IsTareAssistantOpen = false;
             IsSinglePointPanelOpen = false;
             RefreshManualEnergyReadings();
@@ -3598,7 +3518,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest));
         OnPropertyChanged(nameof(CanPause)); OnPropertyChanged(nameof(CanStop)); OnPropertyChanged(nameof(CanSkipCurrent));
-        OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel)); OnPropertyChanged(nameof(CalibrationStatus));
+        OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel));
         OnPropertyChanged(nameof(TareStatus)); OnPropertyChanged(nameof(ResultModeLabel)); OnPropertyChanged(nameof(ImpellerSetHash));
         OnPropertyChanged(nameof(VortexWarning)); OnPropertyChanged(nameof(ResultsCsvPath)); OnPropertyChanged(nameof(ReferenceLiteratureNp));
         OnPropertyChanged(nameof(CanImportFromKlaMap));

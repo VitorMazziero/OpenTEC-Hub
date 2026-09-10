@@ -103,9 +103,9 @@ public sealed class PowerGuidedProceduresTests : IDisposable
     }
 
     [Fact]
-    public void ViewModel_calibration_flow_persists_calibracao_and_updates_status()
+    public void ViewModel_tare_flow_updates_status_and_result_mode()
     {
-        var doc = _store.CreateTest("Ensaio Calib", new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
+        var doc = _store.CreateTest("Ensaio Tare", new FluidProperties(), new PowerGeometry(), new PowerTestSettings());
         var device = new RecordingDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
         var vm = new PowerTestViewModel(_store, device, arbiter);
@@ -113,25 +113,23 @@ public sealed class PowerGuidedProceduresTests : IDisposable
         vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
         vm.LoadSelectedTestCommand.Execute(null);
 
-        Assert.Equal("Calibração ausente", vm.CalibrationStatus);
+        Assert.Equal("Sem tara aplicada · modo relativo", vm.TareStatus);
         Assert.Equal("RELATIVO", vm.ResultModeLabel);
 
-        vm.CalibrationInfoCommand.Execute(null);
-        Assert.True(vm.IsCalibrationAssistantOpen);
+        vm.TareMeasurementInfoCommand.Execute(null);
+        Assert.True(vm.IsTareAssistantOpen);
 
-        vm.CalibrationMassKg = 0.150;
-        vm.CalibrationLeverArmM = 0.060;
-        vm.CalibrationMeasuredTorquePercent = 5.0;
-        vm.ApplyCalibrationCommand.Execute(null);
+        // Apply a tare curve to doc
+        doc.Tare = new TareCurve
+        {
+            Points = [new TarePoint(300, 0.5, 0.05)],
+            ImpellerSetHash = PowerTestFileContracts.ComputeImpellerSetHash(doc.Geometry),
+        };
+        _store.SaveTare(doc.FolderName, doc.Tare);
+        vm.LoadSelectedTestCommand.Execute(null);
 
-        Assert.False(vm.IsCalibrationAssistantOpen);
-        Assert.Equal("Calibração registrada", vm.CalibrationStatus);
-
-        var reloaded = _store.LoadCalibration(doc.FolderName);
-        Assert.NotNull(reloaded);
-        Assert.Equal(0.150, reloaded.ReferenceMassKg);
-        Assert.Equal(0.060, reloaded.LeverArmM);
-        Assert.True(reloaded.Scale > 0);
+        Assert.Contains("Tara compatível", vm.TareStatus, StringComparison.Ordinal);
+        Assert.Equal("CALIBRADO", vm.ResultModeLabel);
     }
 
     [Fact]

@@ -3,7 +3,7 @@
 > **Versão do Documento:** 1.0 · **Versão do Software:** 0.24.0+  
 > **Data:** 05/09/2026  
 > **Público-Alvo:** Operadores de biorreatores, pesquisadores de bioprocessos e técnicos de laboratório  
-> **Compatibilidade de Hardware:** Plataforma TECNAL / USP com módulo mestre ESP32-S3 Hub e periféricos inteligentes
+> **Compatibilidade de Hardware:** Plataforma Vitor Mazziero UNESP com módulo mestre ESP32-S3 Hub e periféricos inteligentes
 
 ---
 

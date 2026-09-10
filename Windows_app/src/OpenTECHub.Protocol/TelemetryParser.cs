@@ -340,6 +340,14 @@ public sealed class TelemetryParser
             Readings.FlowControlEnabled = flowEnabled;
         }
 
+        // Hub v10 only emits this while the flowmeter is online, and a v05 node never
+        // reports it at all. Absence therefore means "unknown", not "switched off", so
+        // the last known value stands rather than defaulting to a false alarm.
+        if (TryGetBool(root, TelemetryKeys.FlowmeterReconnectWifi, out var flowReconnect))
+        {
+            Readings.FlowmeterReconnectWifi = flowReconnect;
+        }
+
         // NOT sticky: a frame without this key means no command is pending.
         Readings.FlowCommandPending =
             TryGetBool(root, TelemetryKeys.FlowCommandPending, out var pending) && pending;

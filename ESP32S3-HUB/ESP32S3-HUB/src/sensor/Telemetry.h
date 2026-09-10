@@ -141,6 +141,7 @@ void readAndBroadcastSensorData() {
   uint32_t snapFlowRevision = 0, snapFlowAck = 0, snapDeliveryCount = 0;
   unsigned long snapQueuedAt = 0;
   String snapFlowSource = "unknown";
+  bool snapFlowReconnect = true;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
     if (flowmeterCommOn && (millis() - flowmeterLastUpdate > FLOWMETER_TIMEOUT)) {
       flowmeterCommOn = false;
@@ -159,6 +160,7 @@ void readAndBroadcastSensorData() {
     snapDeliveryCount = flowCommandDeliveryCount;
     snapQueuedAt = flowCommandQueuedAt;
     snapFlowSource = flowmeterLastCommandSource;
+    snapFlowReconnect = flowmeterReconnectWifi;
     xSemaphoreGive(cmdMutex);
   }
 
@@ -189,6 +191,9 @@ void readAndBroadcastSensorData() {
     jsonResponse += ",\"Valve1\":" + String(snapValve1);
     jsonResponse += ",\"Valve2\":" + String(snapValve2);
     jsonResponse += ",\"ValveFlow\":" + String(snapValveFlow);
+    // Surfaces the node's own reconnect switch. A flowmeter with it off looks exactly
+    // like one that is merely absent, and used to have no way back except a cable.
+    jsonResponse += ",\"FlowmeterReconnectWifi\":" + String(snapFlowReconnect ? "true" : "false");
   }
 
   // Presença, roteamento e pendência de TODO dispositivo externo, sempre emitidos.

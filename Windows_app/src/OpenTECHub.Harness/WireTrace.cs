@@ -75,6 +75,7 @@ public sealed class WireTrace : IDisposable
             $"flowV={N(s.FlowVoltage)}",
             $"valves={s.FlowValve1}/{s.FlowValve2}/{s.FlowValveMain}",
             $"flowOnline={s.FlowmeterOnline}",
+            $"flowReconnect={s.FlowmeterReconnectWifi}",
             $"cmdId={s.FlowCommandId}",
             $"cmdAck={s.FlowCommandAck}",
             $"cmdDeliveries={s.FlowCommandDeliveries}",

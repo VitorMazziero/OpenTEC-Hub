@@ -1,4 +1,4 @@
-namespace OpenTECHub.Protocol;
+﻿namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// Snapshot of the most recent good value for every telemetry channel.
@@ -46,6 +46,12 @@ public sealed class SensorReadings
 
     public bool FlowmeterOnline { get; set; }
     public bool FlowControlEnabled { get; set; }
+
+    /// <summary>
+    /// The flowmeter node's own reconnect switch, mirrored by Hub v10. Defaults to true
+    /// so a v05 node, which never reports it, is not shown as having reconnection off.
+    /// </summary>
+    public bool FlowmeterReconnectWifi { get; set; } = true;
     public bool FlowCommandPending { get; set; }
     public string FlowCommandSource { get; set; } = "unknown";
 
@@ -233,6 +239,7 @@ public sealed class SensorReadings
         FlowValveMain = FlowValveMain,
         FlowmeterOnline = FlowmeterOnline,
         FlowControlEnabled = FlowControlEnabled,
+        FlowmeterReconnectWifi = FlowmeterReconnectWifi,
         FlowCommandPending = FlowCommandPending,
         FlowCommandSource = FlowCommandSource,
         FlowCommandId = FlowCommandId,
@@ -317,6 +324,7 @@ public sealed record SensorSnapshot
     public int FlowValveMain { get; init; }
     public bool FlowmeterOnline { get; init; }
     public bool FlowControlEnabled { get; init; }
+    public bool FlowmeterReconnectWifi { get; init; } = true;
     public bool FlowCommandPending { get; init; }
     public string FlowCommandSource { get; init; } = "unknown";
     public int FlowCommandId { get; init; }

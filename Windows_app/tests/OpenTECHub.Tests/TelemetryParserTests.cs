@@ -119,6 +119,26 @@ public class TelemetryParserTests
     }
 
     [Fact]
+    public void FlowmeterReconnectWifi_defaults_to_on_and_holds_when_the_key_is_absent()
+    {
+        var parser = new TelemetryParser();
+
+        // A v05 flowmeter never reports the key: absence must not read as "switched off".
+        parser.Parse("""{"FlowmeterOnline":true}""");
+        Assert.True(parser.Readings.FlowmeterReconnectWifi);
+
+        parser.Parse("""{"FlowmeterOnline":true,"FlowmeterReconnectWifi":false}""");
+        Assert.False(parser.Readings.FlowmeterReconnectWifi);
+
+        // The hub omits it while the node is offline; the last known value stands.
+        parser.Parse("""{"FlowmeterOnline":false}""");
+        Assert.False(parser.Readings.FlowmeterReconnectWifi);
+
+        parser.Parse("""{"FlowmeterOnline":true,"FlowmeterReconnectWifi":true}""");
+        Assert.True(parser.Readings.FlowmeterReconnectWifi);
+    }
+
+    [Fact]
     public void Offline_flowmeter_invalidates_values_omitted_by_hub_v7()
     {
         var parser = new TelemetryParser();

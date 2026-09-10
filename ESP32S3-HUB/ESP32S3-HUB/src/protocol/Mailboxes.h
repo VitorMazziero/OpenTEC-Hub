@@ -103,6 +103,7 @@ String buildFlowCommandLocked() {
   cmd += ",\"v2\":" + String(desiredFlowValve2);
   cmd += ",\"v_Flow\":" + String(desiredFlowValveFlow);
   if (pendingMaxFlow) cmd += ",\"max_flow\":" + String(desiredMaxFlow, 6);
+  if (pendingReconnectWifi) cmd += ",\"reconnect_wifi\":" + String(desiredReconnectWifi);
   if (pendingK1) cmd += ",\"k1\":" + String(desiredK1, 9);
   if (pendingF1) cmd += ",\"f1\":" + String(desiredF1, 9);
   if (pendingC1) cmd += ",\"c1\":" + String(desiredC1, 9);
@@ -184,6 +185,10 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   bool hasV2 = json.indexOf("\"valve_2\"") != -1;
   bool hasVFlow = json.indexOf("\"v_Flow\"") != -1;
   bool hasMax = json.indexOf("\"maxFlow\"") != -1;
+  // The node's own "keep looking for a hub" switch. It can be turned off over the
+  // flowmeter's USB serial or its private AP, and nothing here could turn it back on,
+  // so a flowmeter parked that way never returned without someone walking to it.
+  bool hasReconnect = json.indexOf("\"reconnectWifi\"") != -1;
   bool hasK1 = json.indexOf("\"k1\"") != -1;
   bool hasF1 = json.indexOf("\"f1\"") != -1;
   bool hasC1 = json.indexOf("\"c1\"") != -1;
@@ -191,7 +196,7 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   bool hasF2 = json.indexOf("\"f2\"") != -1;
   bool hasC2 = json.indexOf("\"c2\"") != -1;
 
-  if (!(hasFlow || hasV1 || hasV2 || hasVFlow || hasMax ||
+  if (!(hasFlow || hasV1 || hasV2 || hasVFlow || hasMax || hasReconnect ||
         hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2)) {
     return 0;
   }
@@ -210,6 +215,10 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
     if (hasVFlow) desiredFlowValveFlow = getValueFromJson(json, "v_Flow").toInt() != 0;
 
     if (hasMax) { desiredMaxFlow = getValueFromJson(json, "maxFlow").toFloat(); pendingMaxFlow = true; }
+    if (hasReconnect) {
+      desiredReconnectWifi = getValueFromJson(json, "reconnectWifi").toInt() != 0 ? 1 : 0;
+      pendingReconnectWifi = true;
+    }
     if (hasK1) { desiredK1 = getValueFromJson(json, "k1").toFloat(); pendingK1 = true; }
     if (hasF1) { desiredF1 = getValueFromJson(json, "f1").toFloat(); pendingF1 = true; }
     if (hasC1) { desiredC1 = getValueFromJson(json, "c1").toFloat(); pendingC1 = true; }

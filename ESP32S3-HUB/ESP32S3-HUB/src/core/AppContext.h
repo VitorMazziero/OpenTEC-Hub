@@ -256,8 +256,27 @@ unsigned long flowCommandQueuedAt = 0;
 unsigned long flowCommandAckAt = 0;
 String flowmeterLastCommandSource = "boot";
 
+// v06 tags every telemetry frame with the id of the flowmeter power-on that produced
+// it. The hub adopts the reported state whenever nothing is pending, so a silent
+// reboot used to hand it a zero setpoint as if the operator had asked for it - the gas
+// stopped and the PC displayed 0 as the requested value. A changed id means "this is a
+// different session": re-assert the desired state instead of adopting. Zero means the
+// node has not reported one yet (a v05 flowmeter never will), and a first observation
+// only records the id - re-asserting on first contact would let a lone hub reboot stomp
+// a running aeration.
+uint32_t flowmeterBootId = 0;
+
+// Mirrors the node's own reconnect_wifi flag so the operator can see a flowmeter that
+// has had its reconnection logic switched off. Without this the node just looks absent.
+bool flowmeterReconnectWifi = true;
+
 // Calibration/configuration fields remain pending only until acknowledged.
 bool pendingMaxFlow = false;
+// reconnect_wifi is the node's own "keep looking for a hub" switch. It can be turned
+// off over the node's USB serial or its private AP, and until now nothing could turn
+// it back on from here, so a flowmeter parked that way never came back on its own.
+bool pendingReconnectWifi = false;
+int desiredReconnectWifi = 1;
 bool pendingK1 = false, pendingF1 = false, pendingC1 = false;
 bool pendingK2 = false, pendingF2 = false, pendingC2 = false;
 float desiredMaxFlow = 50.0f;

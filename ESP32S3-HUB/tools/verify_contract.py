@@ -42,6 +42,7 @@ V10_KEYS = {
     "ServoMotorCommandAgeMs", "ServoMotorRequestedRpm", "ServoMotorAppliedRpm",
     "ServoMotorLeaseMs", "ServoMotorEnabled", "ServoMotorControlActive",
     "ServoMotorControlFault", "ServoMotorRouteAck", "MotorControlViaModbus",
+    "FlowmeterReconnectWifi",
 }
 
 
@@ -95,6 +96,11 @@ def verify_static_contract() -> None:
         "motor route": "motor_route",
         "break-before-make": "sendMotorByUart(0)",
         "motor applied ack": "motorCommandAck_ == motorCommandId_",
+        # A flowmeter that silently restarts must not have its zeroed state adopted as
+        # the operator's request, and its reconnect switch must be reachable from here.
+        "flowmeter boot id": "flowmeterBootId",
+        "flowmeter reboot re-assert": "rebootDetected",
+        "flowmeter reconnect command": "reconnectWifi",
     }
     missing_rules = [name for name, token in required_rules.items() if token not in source]
     assert not missing_rules, f"regras v10 ausentes: {missing_rules}"

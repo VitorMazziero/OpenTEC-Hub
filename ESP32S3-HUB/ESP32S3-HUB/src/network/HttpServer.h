@@ -181,8 +181,19 @@ void startWiFi() {
                                   ? request->getParam("command_source")->value()
                                   : "unknown";
 
+        // v06 tags each frame with the id of the flowmeter power-on that produced it.
+        // A v05 node sends none, and then this degrades to the old adopt-always behaviour.
+        uint32_t reportedBootId = request->hasParam("boot_id")
+                                    ? (uint32_t)strtoul(request->getParam("boot_id")->value().c_str(), NULL, 10)
+                                    : 0;
+        bool reportedReconnect = request->hasParam("reconnect_wifi")
+                                   ? request->getParam("reconnect_wifi")->value().toInt() != 0
+                                   : true;
+
         bool ackedNow = false;
         uint32_t ackedRevision = 0;
+        bool rebootDetected = false;
+        uint32_t rebootRevision = 0;
         if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
           flowmeterTime = newTime;
           flowmeterVoltage = newVoltage;
@@ -194,6 +205,14 @@ void startWiFi() {
           flowmeterCommOn = true;
           flowmeterLastUpdate = millis();
           flowmeterLastCommandSource = reportedSource;
+          flowmeterReconnectWifi = reportedReconnect;
+
+          // Only a CHANGE between two known ids is a restart. A first observation just
+          // records it: re-asserting on first contact would let a lone hub reboot stomp
+          // an aeration the flowmeter was legitimately running.
+          rebootDetected = reportedBootId != 0 && flowmeterBootId != 0 &&
+                           reportedBootId != flowmeterBootId;
+          if (reportedBootId != 0) flowmeterBootId = reportedBootId;
 
           if (hasAck) flowCommandAck = reportedAck;
           if (hasAck && flowCommandAwaitingAck && reportedAck == flowCommandRevision) {
@@ -201,13 +220,25 @@ void startWiFi() {
             flowCommandAckAt = millis();
             pendingFlowmeterCommand = "";
             pendingMaxFlow = false;
+            pendingReconnectWifi = false;
             pendingK1 = pendingF1 = pendingC1 = false;
             pendingK2 = pendingF2 = pendingC2 = false;
             ackedNow = true;
             ackedRevision = reportedAck;
           }
 
-          if (!flowCommandAwaitingAck) {
+          if (rebootDetected) {
+            // The node came back with its own defaults - setpoint zero, valves shut.
+            // Adopting that would silently discard the operator's last command and
+            // report the zero as if it had been asked for. Re-assert instead.
+            flowCommandRevision++;
+            if (flowCommandRevision == 0) flowCommandRevision = 1;
+            flowCommandAwaitingAck = true;
+            flowCommandDeliveryCount = 0;
+            flowCommandQueuedAt = millis();
+            pendingFlowmeterCommand = buildFlowCommandLocked();
+            rebootRevision = flowCommandRevision;
+          } else if (!flowCommandAwaitingAck) {
             desiredFlowSetpoint = flowmeterSetpoint;
             desiredFlowValve1 = flowmeterValve1;
             desiredFlowValve2 = flowmeterValve2;
@@ -218,6 +249,10 @@ void startWiFi() {
 
         if (ackedNow) {
           ESP32_EVT(String("Flow command acknowledged cmd_id=") + ackedRevision);
+        }
+        if (rebootDetected) {
+          ESP32_AVISO(String("Fluxometro reiniciou (boot_id=") + reportedBootId +
+                      "); reenviando estado desejado cmd_id=" + rebootRevision);
         }
         request->send(200, "text/plain", "Flowmeter data received");
       } else {

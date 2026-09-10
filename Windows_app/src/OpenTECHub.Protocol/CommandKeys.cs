@@ -194,6 +194,13 @@ public static class TelemetryKeys
 
     public const string FlowmeterOnline = "FlowmeterOnline";
     public const string FlowControlEnabled = "FlowControlEnabled";
+
+    /// <summary>
+    /// The flowmeter node's own "keep looking for a hub" switch, mirrored by Hub v10.
+    /// A node with it off looks exactly like one that is merely absent, which is the
+    /// hardest flowmeter fault to diagnose from here.
+    /// </summary>
+    public const string FlowmeterReconnectWifi = "FlowmeterReconnectWifi";
     public const string FlowCommandPending = "FlowCommandPending";
     public const string FlowCommandSource = "FlowCommandSource";
     public const string Valve1 = "Valve1";

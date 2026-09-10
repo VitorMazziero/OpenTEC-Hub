@@ -51,7 +51,7 @@ Um *Workspace* é uma pasta no computador onde o OpenTEC-Hub armazena todos os r
 - **Logs Operacionais (`Logs/`):** Histórico de eventos do sistema e relatórios de auditoria.
 - **Receitas de Automação (`Receitas/`):** Arquivos JSON com procedimentos operacionais padrão.
 - **Mapas e Campanhas de $k_L a$ (`Mapas/` e `Testes-kLa/`):** Ensaios de oxigenação.
-- **Ensaios de Potência (`Testes-Potencia/` e `Mapas-Potencia/`):** Curvas de $N_p$ e aeração.
+- **Ensaios de Potência (`Testes-Potencia/` e `Mapas-Potencia/`):** Curvas de $N_p$ e aeração. Dentro de cada ensaio, `Taras-Brutas/` guarda as leituras de cada varredura de tara — inclusive as que foram canceladas ou não convergiram — e `Pontos-Unicos/` guarda cada conferência de ponto único com seu manifesto. Uma conferência feita sem nenhum ensaio aberto vai para `Testes-Potencia/Pontos-Unicos/`.
 - **Configurações e Calibrações (`Configuracoes/`):** Arquivo `settings.json` com ganhos PID e dados metrológicos.
 
 ### Inicialização Padrão

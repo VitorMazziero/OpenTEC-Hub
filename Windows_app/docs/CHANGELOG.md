@@ -9,6 +9,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Todo dado bruto medido nos ensaios passa a ser gravado (D-046).** Quatro medidas que o
+  aplicativo tomava e descartava chegam ao disco: `dados-brutos.csv` e `serie-global.csv` do kLa
+  ganham `TemperatureC` e `RpmMeasured` (esquema 2, colunas anexadas ao fim, leitor tolerante ao
+  esquema 1) — a temperatura define `C*` e a correção para 20 °C, e a rotação medida é a única
+  evidência de que a agitação sustentou a condição relatada; a varredura de tara grava cada leitura
+  em `Taras-Brutas/tara-<início>.csv` enquanto corre, de modo que uma varredura cancelada ou que não
+  converge deixa de perder tudo o que mediu; e a conferência de ponto único passa a gravar
+  `Pontos-Unicos/ponto-<início>_N####_<gás>.csv` com manifesto (rotação e vazão comandadas, `T_nom`),
+  inclusive sem nenhum ensaio aberto. Leitura ausente é célula vazia, nunca zero.
+  Ver [DECISIONS D-046](DECISIONS.md).
 - **Adequação responsiva para notebooks (1024 × 640 DIP).** A navegação entra em modo compacto de
   56 DIP abaixo de 1440 DIP de largura e o menu completo abre como drawer sobreposto, sem empurrar
   a página; `Esc`, clique fora e a troca de destino fecham. Introduzida a propriedade anexada

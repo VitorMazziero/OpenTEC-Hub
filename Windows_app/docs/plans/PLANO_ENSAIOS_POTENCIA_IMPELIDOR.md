@@ -345,6 +345,8 @@ Fase 3, quando passará a receber os documentos de síntese que não pertencem a
 | `calibracao-torque.json` | escala/offset aferidos, com o torque de referência e a data |
 | corrida `NNN/dados-brutos.csv` | por condição×replicata e tentativa: todas as amostras, inclusive assentamento e pontos não contados |
 | corrida `NNN/resultado.csv` | média, `IC₉₅`, `StopReason`, análise `Np/Re`, hash dos dados brutos e leitura manual de energia (§12.3) |
+| `Taras-Brutas/tara-<início>.csv` | uma varredura de tara por arquivo, gravada amostra a amostra enquanto ela corre (§9.2) |
+| `Pontos-Unicos/ponto-<início>_N####_<gás>.csv` + `.json` | uma conferência de ponto único por arquivo, com o manifesto que a torna interpretável (§12.4) |
 
 **Autocontido, não sidecar.** Diferente do `servo-power.tsv` — que é um *sidecar*, gravado
 **ao lado** do log de uma sessão de cultivo em `SessionLogger` — o ensaio de potência é
@@ -455,7 +457,17 @@ como _relativos_ no manifesto e na interface.
 
 Uma varredura de `N` (o mesmo motor da §12) com **os impelidores montados girando no ar**
 (vaso sem líquido), gravando `P_vazio` **e** o desvio-padrão do torque `σ_τ(N)` em cada
-patamar. É um ensaio curto, guiado, gravado em `tara.json` e reutilizável. A interface deixa
+patamar. É um ensaio curto, guiado, gravado em `tara.json` e reutilizável.
+
+As leituras da varredura são anexadas a `Taras-Brutas/tara-<início>.csv` **enquanto ela corre**, e
+não ao final: uma varredura cancelada pelo operador, um patamar que não converge no `IC₉₅` ou um
+limite de torque que dispara não produzem `tara.json`, e tudo o que foi medido até ali se perdia
+junto com a lista em memória. Um arquivo por varredura — uma segunda tentativa nunca sobrescreve a
+primeira — e o arquivo é aberto **antes** de reivindicar a agitação, de modo que um armazenamento
+inacessível falha sem nada a desfazer. `tara.json` continua guardando as amostras da varredura que
+convergiu e passa a apontar o arquivo bruto em `RawSamplesFileName`.
+
+A interface deixa
 claro que a tara pertence à **montagem** (eixo+selo+acoplamento+**conjunto de impelidores**),
 não ao fluido: trocar qualquer impelidor pede nova tara — o `ImpellerSetHash` guardado na tara
 é comparado ao do ensaio e uma divergência avisa antes de aplicar uma tara alheia. O `σ_τ(N)`
@@ -665,8 +677,17 @@ Regras:
 
 Um modo sem tabela: o operador comanda uma `N` (e opcionalmente `Q_g`), o runner leva à
 condição, aplica o mesmo `SettlingTorque`, e mostra **ao vivo** `τ`, `P_líq`, `Np`/`Re` (e
-`P_G/P₀`/`Fl_G` se houver gás) — sem gravar corrida, ou gravando um ponto avulso se o operador
-pedir. Serve para conferir um impelidor novo, achar uma faixa antes de montar a varredura, ou
+`P_G/P₀`/`Fl_G` se houver gás) — sem gravar corrida, ou gravando um ponto avulso na tabela de
+condições se o operador pedir.
+
+**Não gravar corrida não é o mesmo que não gravar nada.** A conferência gira o mesmo eixo com o
+mesmo instrumento de uma corrida, então o que ela mede é dado: cada leitura vai para
+`Pontos-Unicos/ponto-<início>_N####_<gás>.csv`, no mesmo formato de `dados-brutos.csv`, com um
+manifesto irmão em JSON que registra a `N` e a `Q_g` comandadas, o `T_nom` do motor, o ensaio sob o
+qual a conferência correu e como ela terminou. O `T_nom` está lá por necessidade: a coluna de watts
+não é reconstruível a partir do percentual de torque sem ele. Com nenhum ensaio aberto — situação
+que o painel permite — o arquivo vai para `Testes-Potencia/Pontos-Unicos/`, pasta que passa a ser
+reservada como a lixeira interna e a biblioteca de taras. Serve para conferir um impelidor novo, achar uma faixa antes de montar a varredura, ou
 observar o efeito de uma mudança física na hora. Usa a mesma tara e calibração do ensaio
 aberto; sem elas, os números saem rotulados como _relativos_. Respeita as mesmas guardas de
 segurança (§14) — inclusive o mínimo de 15 rpm.

@@ -325,6 +325,25 @@ flowchart TD
 
 ---
 
+### Etapa 2.3 · Integridade do dado bruto: kLa com temperatura e rotação medida, tara ao vivo, ponto único gravado
+- **Prioridade:** P1 para os dois módulos de ensaio
+- **Status:** ✅ **CONCLUÍDO (10/09/2026)** — recibo de bancada aberto (sonda, servo e uma tara interrompida de verdade)
+- **Fonte:** [DECISIONS.md](DECISIONS.md#d-046--todo-dado-bruto-medido-é-gravado-colunas-de-kla-tara-ao-vivo-e-ponto-único)
+- **Arquivos-Chave:**
+  - `src/OpenTECHub/Services/KlaTesting/KlaTestModels.cs`, `KlaTestFileContracts.cs`, `KlaTestStore.cs`, `KlaTestRunner.cs`
+  - `src/OpenTECHub/Services/PowerTesting/PowerTestModels.cs`, `PowerTestFileContracts.cs`, `IPowerTestStore.cs`, `PowerTestStore.cs`
+  - `src/OpenTECHub/ViewModels/PowerTestViewModel.cs`
+  - `tests/OpenTECHub.Tests/RawDataIntegrityTests.cs`
+- **Problema Resolvido:** Uma auditoria do que os ensaios de fato escrevem encontrou quatro medidas tomadas e nunca gravadas. No kLa, a temperatura chegava em toda telemetria e não entrava em nenhum arquivo do ensaio — mas `C*` e a correção para 20 °C dependem dela; e a rotação **medida** nunca era registrada, de modo que o arquivo do ensaio não permitia verificar se a agitação sustentou a condição relatada. Na potência, a varredura de tara acumulava as leituras em memória e só escrevia ao final, perdendo tudo em cancelamento, patamar não convergido ou limite de torque; e a conferência de ponto único — mesmo eixo, mesmo instrumento de uma corrida — vivia apenas em `LivePoints`, cortada em 6000 pontos e descartada ao fechar o painel.
+- **Implementação Realizada:**
+  1. Esquema 2 do kLa: `TemperatureC` e `RpmMeasured` **anexadas ao fim** de `dados-brutos.csv` e `serie-global.csv`; `LoadRunRawData` lê as colunas só quando a linha as traz, então um ensaio do esquema 1 continua abrindo e sendo reanalisado sem conversão.
+  2. Leitura ausente é célula vazia, nunca zero — 0 °C e 0 rpm são estados reais e diferentes de "não medido".
+  3. `Taras-Brutas/tara-<início>.csv`, um arquivo por varredura, anexado enquanto ela corre e aberto **antes** de reivindicar a agitação; `tara.json` aponta o arquivo em `RawSamplesFileName`.
+  4. `Pontos-Unicos/ponto-<início>_N####_<gás>.csv` com manifesto JSON (`N`/`Q_g` comandadas, `T_nom`, ensaio, término). Sem ensaio aberto vai para `Testes-Potencia/Pontos-Unicos/`, pasta agora reservada como `Taras/` e a lixeira.
+  5. 12 casos em `RawDataIntegrityTests`; suíte em 1255 aprovados, 0 ignorados.
+
+---
+
 ## Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)
 
 ### Etapa 3.1 · Teto de rotação em 971,6 rpm e migração Modbus pendente de validação física
@@ -519,6 +538,7 @@ A suíte cobre estes pontos, mas eles são conferidos explicitamente porque um e
 | RTT fidedigno | USB só publica latência após confirmação real; Wi-Fi usa o POST síncrono e não é sobrescrito por linha `OK`; confirmação fora de `RoundTripCorrelationWindow` é descartada e a UI mantém `"—"` | `ConnectionManagerTests.*RTT*`, `*round_trip*` |
 | Tara por eixo | Dois perfis coexistem; regravar o mesmo eixo substitui em vez de duplicar; excluir um perfil não altera ensaios que já o aplicaram; pasta `Taras/` não vira ensaio | `PowerTestStoreTests.*Tare_Profile*` |
 | Compatibilidade de tara | `ImpellerSetHash` e `CalibrationHash` continuam confrontados; perfil de outro conjunto é rotulado, não aceito em silêncio | `PowerTestViewModel.TareStatus` |
+| Dado bruto gravado | Colunas novas do kLa no fim da linha e arquivo do esquema 1 ainda legível; leitura ausente como célula vazia; varredura de tara cancelada mantém o que mediu; ponto único gravado com e sem ensaio aberto | `RawDataIntegrityTests` |
 | Contratos de UI | Rótulos e *bindings* das abas de potência; a tela de potência não usa vocabulário de confirmar/descartar | `PowerNavigationContractTests` |
 | Ligações de comando | Todo `Command` ligado no pop-up de conexão existe na *view model*; `RefreshPortsCommand` continua assíncrono e `ListPortNames` continua sem WMI | `ConnectionPopoverContractTests` |
 

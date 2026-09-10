@@ -1246,6 +1246,32 @@ Acrescentado `ConnectionPopoverContractTests`, que prende os nomes de comando li
 - `1280 × 720 a 125%` e `1920 × 1080 a 175%` ficam abaixo do mínimo de altura e permanecem fora do suporte declarado.
 - O contrato é um alvo de projeto verificado por medida de layout e por execução real do aplicativo; ele ainda não substitui a matriz de validação visual por escala e tema descrita no plano.
 
+### D-046 · Todo dado bruto medido é gravado: colunas de kLa, tara ao vivo e ponto único
+
+**Status:** Accepted and implemented · 2026-09-10
+
+**Decisão.** Quatro medidas que o aplicativo tomava e não registrava passam a chegar ao disco:
+
+- **kLa, esquema 2.** `dados-brutos.csv` e `serie-global.csv` ganham `TemperatureC` e `RpmMeasured`, **anexadas ao fim** da linha. O leitor consome as duas colunas apenas quando a linha as traz, então um ensaio do esquema 1 continua abrindo e sendo reanalisado sem conversão.
+- **Tara.** Cada amostra aceita pelo controlador é anexada a `Taras-Brutas/tara-<início>.csv` **enquanto a varredura corre**, um arquivo por varredura. `tara.json` continua sendo escrito só quando a curva converge, e passa a apontar o arquivo bruto.
+- **Ponto único.** As leituras vão para `Pontos-Unicos/ponto-<início>_N####_<gás>.csv`, com manifesto irmão em JSON (`N` e `Q_g` comandadas, `T_nom`, ensaio, término). Sem ensaio aberto, o arquivo vai para `Testes-Potencia/Pontos-Unicos/`, pasta agora reservada como a lixeira e a biblioteca de taras.
+- **Leitura ausente é célula vazia**, nunca zero, nas quatro — a mesma convenção que o sidecar do servo já usava.
+
+**Por quê.** As três primeiras eram perda de dado irrecuperável, não falta de comodidade:
+
+- A temperatura define `C*` e é a referência da correção de kLa para 20 °C; ela chegava em toda telemetria e não era registrada em nenhum arquivo do ensaio. A rotação **medida** é a única evidência de que a agitação sustentou a condição relatada — uma corrida de kLa comanda `N` e nunca a verifica, de modo que o próprio arquivo do ensaio não permitia checar o que o vaso rodou. Recuperar as duas depois exigia cruzar o log de sessão por timestamp, quando ele estava ligado.
+- A varredura de tara acumulava tudo em memória e só escrevia ao final: cancelamento, patamar que não converge ou limite de torque que dispara descartavam a varredura inteira. É justamente o caso em que o operador mais quer olhar o que aconteceu.
+- O ponto único gira o mesmo eixo com o mesmo instrumento de uma corrida — o que ele mede é dado. Ficava em `LivePoints`, cortado em 6000 pontos e descartado ao fechar o painel.
+
+**Consequências.**
+
+- **Colunas novas vão para o fim, sempre.** Inseri-las junto das leituras a que pertencem deslocaria índices que scripts de análise já usam. O custo é um arquivo menos legível a olho nu; o benefício é que nenhum leitor existente quebra e nenhuma conversão de acervo é necessária.
+- `KlaTestDocument.SchemaVersion` passa a 2. Só o **escritor** muda com a versão: ambos os leitores aceitam os dois formatos, e é isso que mantém um ensaio antigo reanalisável.
+- Um arquivo por varredura de tara e por conferência significa que **nada é sobrescrito** — inclusive duas tentativas iniciadas dentro do mesmo segundo, que recebem sufixo próprio. A pasta cresce por acúmulo, o que é a troca desejada num acervo científico.
+- O arquivo bruto da tara é aberto **antes** de reivindicar a agitação: um armazenamento inacessível falha com nada a desfazer, em vez de parar um eixo já girando. No ponto único a escolha é a oposta e deliberada — a conferência é operação de bancada, então uma falha de gravação avisa e a captura segue sem registro, sem impedir o eixo de girar.
+- `Pontos-Unicos/` entra na mesma regra de `Taras/` e da lixeira: não aparece em `ListTests` e não pode ser tomada como nome de ensaio.
+- Cobertura em `RawDataIntegrityTests` (12 casos): as colunas e o vazio-em-vez-de-zero, o round-trip do armazenamento, a leitura de um arquivo do esquema 1, a corrida que grava temperatura e rotação medida (e a bancada sem servo, que grava só a temperatura), o round-trip da tara bruta, duas varreduras que não se sobrescrevem, a **varredura cancelada que mantém suas leituras**, e o ponto único gravado com e sem ensaio aberto.
+
 ---
 
 ## Open questions

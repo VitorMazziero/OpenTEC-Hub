@@ -1408,6 +1408,47 @@ the Phase 1 equipment asset was validated with evidence screenshots.
 
 ---
 
+### P3-06 · Nada medido é descartado: as quatro lacunas de dado bruto
+
+**Executed 2026-09-10** on `codex/dados-brutos-integridade`, from an audit of what the kLa and power
+assays actually write. Three of the four gaps were irrecoverable data loss, not missing convenience.
+
+**What was already right, and set the bar.** Both assays append one row per telemetry frame to disk
+as it arrives — per-run `dados-brutos.csv` plus the assay-wide `serie-global.csv` — across every
+phase, including the ones outside the analysis window, with retries kept as `_TentativaNN` and
+discarded samples marked `Counted=0` rather than dropped. Nothing is decimated and no smoothed
+series replaces a raw one. The gaps were the places that fell outside that discipline.
+
+**kLa columns (schema 2).** `TemperatureC` and `RpmMeasured` appended to both files. Temperature
+arrived in every frame and reached no assay file, while `C*` and the correction to 20 °C are defined
+by it; measured speed is the only evidence the agitation held the reported condition, since a run
+commands `N` and never verifies it. Appended at the end, never inserted: every column a schema-1
+file has keeps the index its readers use, and `LoadRunRawData` reads the two only when the row
+carries them, so an assay recorded before this stays openable and re-analysable with no conversion.
+Absent readings are written as empty cells — 0 °C and 0 rpm are real, different states.
+
+**Tare sweep.** Readings were accumulated in memory and written to `tara.json` only on success, so a
+cancel, a rung that misses `IC₉₅` or a torque limit discarded the whole sweep — the exact case an
+operator wants to inspect. Now every sample the controller accepts is appended to
+`Taras-Brutas/tara-<start>.csv` while the sweep runs, one file per sweep (a retry inside the same
+second still gets its own), opened *before* the agitation is claimed so an unwritable store fails
+with nothing to undo.
+
+**Single point.** The check drives the same shaft with the same instrument as a run, and its samples
+lived only in `LivePoints`, capped at 6000 and dropped when the panel closed. They now go to
+`Pontos-Unicos/ponto-<start>_N####_<gas>.csv` in the run raw-data format, with a JSON manifest
+carrying commanded `N`/`Q_g` and `T_nom` — without the rated torque the watts column cannot be
+rebuilt from the torque percentage. With no assay open the capture lands in
+`Testes-Potencia/Pontos-Unicos/`, now reserved alongside the trash folder and the tare library.
+Here a write failure warns and lets the shaft keep turning: a bench check must not be refused by
+the store.
+
+**Verification evidence:** 1255 passed, 0 skipped (1243 before; 12 new in `RawDataIntegrityTests`),
+including a cancelled sweep that produces no `tara.json` and still leaves its readings on disk, and a
+single-point capture with no assay open. See [DECISIONS D-046](../DECISIONS.md).
+
+---
+
 ### P3-05 · Post-merge integration and release audit
 
 **Audited 2026-08-26:** `main` at `846a0f5` contains both sides of the history that diverged at

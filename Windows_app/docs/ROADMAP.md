@@ -1129,6 +1129,11 @@ make while re-implementing, rather than copying forward:
 
 - [ ] Verify the WP4 audible alarm and silence timeout with the operator and the real
       control-room audio environment.
+- [ ] **Bench receipt for the assay raw-data recording ([D-046](DECISIONS.md)).** Confirm on
+      hardware that a kLa run writes a real `TemperatureC` and `RpmMeasured` in every row (and
+      leaves the speed empty on the module with no servo), that a tare sweep interrupted for a
+      real reason leaves a readable `Taras-Brutas/` file, and that a single-point check records
+      with and without an assay open.
 - [ ] Operator walkthrough of every page against the pt-BR wording, in one review.
 
 ---

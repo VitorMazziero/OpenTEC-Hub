@@ -320,12 +320,27 @@ Campos mínimos:
 - V1, V2 e `v_Flow`;
 - `FlowCommandId`, `FlowCommandAck` e `FlowCommandPending`;
 - revisão da configuração;
-- código de evento e motivo de transição.
+- código de evento e motivo de transição;
+- temperatura do meio e rotação **medida** no eixo (esquema 2).
 
 ### 6.4 Pasta de corrida
 
 `dados-brutos.csv` deverá conter toda a corrida, incluindo N₂, intertravamentos e ar. Não salvar
 somente o trecho escolhido nem somente séries suavizadas.
+
+Colunas do esquema 2: `TimestampUtc`, `RelativeSeconds`, `Phase`, `DORaw`, `DOFiltered`,
+`FlowMeasured`, `FlowSetpoint`, `AgitationSetpoint`, `Valve1`, `Valve2`, `VFlow`, `TemperatureC` e
+`RpmMeasured`. As duas últimas foram **anexadas ao fim**, e não inseridas junto das leituras a que
+pertencem, para que todo arquivo do esquema 1 mantenha cada coluna no índice que seus leitores já
+usam; o leitor as consome apenas quando a linha as traz, de modo que um ensaio gravado antes
+continua abrindo e sendo reanalisado sem conversão.
+
+`TemperatureC` existe porque `C*` e a correção de kLa para 20 °C partem dela — o ensaio media a
+temperatura o tempo todo e não a registrava em lugar nenhum. `RpmMeasured` existe porque a corrida
+**comanda** a agitação sem nunca verificá-la: sem a medida, o próprio arquivo do ensaio não permite
+checar se a condição relatada foi a condição que o vaso rodou. Leitura ausente — bancada sem servo,
+sonda que caiu — é gravada como célula vazia, nunca como zero, já que 0 °C e 0 rpm são estados reais
+e diferentes de "não medido".
 
 `analise.json` deverá conter:
 

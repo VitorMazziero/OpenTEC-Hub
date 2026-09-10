@@ -1,4 +1,6 @@
-﻿using System.IO;
+using System.IO;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -105,5 +107,126 @@ public sealed class ShellChromeTests
         Assert.Contains("OnMinimizeWindow", code, StringComparison.Ordinal);
         Assert.Contains("OnMaximizeRestoreWindow", code, StringComparison.Ordinal);
         Assert.Contains("OnCloseWindow", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellRoot_has_maximized_margin_trigger_in_xaml()
+    {
+        var xaml = ReadShell("MainWindow.xaml");
+
+        Assert.Contains("<DockPanel x:Name=\"ShellRoot\">", xaml, StringComparison.Ordinal);
+        Assert.Contains("Value=\"Maximized\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Property=\"Margin\" Value=\"8\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Maximized_window_insets_shell_root_and_keeps_close_button_on_screen()
+    {
+        Rendering.WpfRenderingHost.Run(() =>
+        {
+            var win = new MainWindow();
+            win.WindowState = WindowState.Normal;
+            win.Show();
+            win.UpdateLayout();
+
+            var shellRoot = (System.Windows.Controls.DockPanel)win.FindName("ShellRoot");
+            var topBorder = (System.Windows.Controls.Border)shellRoot.Children[0];
+            var headerDock = (System.Windows.Controls.DockPanel)topBorder.Child;
+            var captionStack = (System.Windows.Controls.StackPanel)headerDock.Children[0];
+            var closeBtn = (System.Windows.Controls.Button)captionStack.Children[2];
+
+            // Normal state: Margin must be 0 so windowed geometry is unpadded.
+            Assert.Equal(new Thickness(0), shellRoot.Margin);
+
+            // Maximize window
+            win.WindowState = WindowState.Maximized;
+            win.UpdateLayout();
+
+            // Maximized state: ShellRoot must have an 8 DIP margin compensating for
+            // Windows User32's thickframe overscan.
+            Assert.Equal(new Thickness(8), shellRoot.Margin);
+
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+            var monitor = MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */);
+            var info = new MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
+            GetMonitorInfo(monitor, ref info);
+
+            var closeScreenPt = closeBtn.PointToScreen(new Point(0, 0));
+            var closeRightEdge = closeScreenPt.X + closeBtn.ActualWidth;
+
+            // Close button right edge must be on-screen (within monitor work area).
+            Assert.True(closeRightEdge <= info.rcWork.Right + 0.5,
+                $"Close button right edge ({closeRightEdge}) exceeded work area right ({info.rcWork.Right})");
+            Assert.True(closeScreenPt.Y >= info.rcWork.Top - 0.5,
+                $"Close button top ({closeScreenPt.Y}) was clipped above work area top ({info.rcWork.Top})");
+
+            // Restore to normal: Margin must revert to 0.
+            win.WindowState = WindowState.Normal;
+            win.UpdateLayout();
+            Assert.Equal(new Thickness(0), shellRoot.Margin);
+
+            win.Close();
+        });
+    }
+
+    [Fact]
+    public void NavDrawer_in_compact_mode_overlays_from_left_edge_covering_rail()
+    {
+        Rendering.WpfRenderingHost.Run(() =>
+        {
+            var settings = Rendering.WpfRenderingHost.Services.GetRequiredService<Services.Persistence.ISettingsService>();
+            var theme = Rendering.WpfRenderingHost.Services.GetRequiredService<Services.Theme.IThemeService>();
+            var shell = Rendering.WpfRenderingHost.Services.GetRequiredService<ViewModels.ShellViewModel>();
+
+            var win = new MainWindow(settings, theme) { DataContext = shell };
+            win.Width = 1280;
+            win.Height = 800;
+            win.Show();
+            win.UpdateLayout();
+
+            Assert.True(shell.IsNavigationCompact);
+
+            var navRail = (FrameworkElement)win.FindName("NavigationRail");
+            var navDrawer = (FrameworkElement)win.FindName("NavDrawer");
+
+            // Rail is 56 DIP wide and sits at Left = 0.
+            var railPt = navRail.TransformToAncestor(win).Transform(new Point(0, 0));
+            Assert.Equal(0, railPt.X);
+            Assert.Equal(56, navRail.ActualWidth);
+
+            // Initially drawer is closed.
+            Assert.Equal(Visibility.Collapsed, navDrawer.Visibility);
+
+            // Open drawer
+            shell.IsNavDrawerOpen = true;
+            win.UpdateLayout();
+
+            Assert.Equal(Visibility.Visible, navDrawer.Visibility);
+            var drawerPt = navDrawer.TransformToAncestor(win).Transform(new Point(0, 0));
+
+            // Crucial: Drawer must start at x=0 (covering the rail), NOT at x=56 (beside the rail).
+            Assert.Equal(0, drawerPt.X);
+            Assert.True(navDrawer.ActualWidth >= navRail.ActualWidth, "Drawer width must cover the rail width");
+
+            win.Close();
+        });
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public int dwFlags;
     }
 }

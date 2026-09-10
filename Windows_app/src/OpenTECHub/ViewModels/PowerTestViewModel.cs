@@ -22,6 +22,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 {
     private readonly IPowerTestStore _store;
     private readonly IDeviceService _device;
+    /// <summary>
+    /// Nameplate torque of the ECMA-C20604ES, used when no assay is open to say otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The servo reports torque as a percentage of this figure, so it is what turns a reading
+    /// into N·m and then into watts. It is recorded in a single-point manifest for that reason:
+    /// the watts column cannot be rebuilt from the percentage without it.
+    /// </remarks>
+    private const double DefaultMotorRatedTorqueNm = 1.27;
+
     private readonly ICommandArbiter _arbiter;
     private readonly IPowerTestRunner? _runner;
     private readonly IDialogService? _dialogs;
@@ -37,6 +47,17 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private int _tarePointIndex;
     private int _tarePointTotal;
     private string? _tareFailureMessage;
+
+    /// <summary>Raw file of the sweep in progress, written as the readings arrive.</summary>
+    private string? _tareRawFileName;
+
+    /// <summary>How many of the current rung's readings are already on disk.</summary>
+    private int _tareRawWrittenCount;
+
+    /// <summary>Manifest of the single-point capture in progress, null when the panel is idle.</summary>
+    private SinglePointSession? _singlePointSession;
+    private string? _singlePointFileName;
+    private int _singlePointSampleCount;
     private long _lastPreflightTick;
     private bool _suppressConditionPersistence;
     private bool _disposed;
@@ -2437,6 +2458,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             MaxRpm = Math.Max(settings.MaxRpm, maxTareAllowed),
         };
 
+        // Opened before anything is claimed or commanded, so a store that cannot be written
+        // fails here with nothing to undo. Every reading the sweep accepts is appended to this
+        // file as it arrives, which is what leaves a cancelled or timed-out sweep with its
+        // measurements on disk instead of discarding them along with the in-memory list.
+        string tareRawFileName;
+        try
+        {
+            tareRawFileName = _store.BeginTareRawCapture(CurrentTest.FolderName, DateTimeOffset.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível abrir o arquivo de leituras brutas da tara: {ex.Message}");
+            return;
+        }
+
         _tareCancellation?.Dispose();
         _tareCancellation = new CancellationTokenSource();
         var cancellation = _tareCancellation;
@@ -2448,6 +2484,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var rawSamples = new List<TareSample>();
         _tarePointTotal = targets.Count;
         _tareFailureMessage = null;
+        _tareRawWrittenCount = 0;
+        _tareRawFileName = tareRawFileName;
 
         try
         {
@@ -2488,6 +2526,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
                 _tarePointStartedTimestamp = Stopwatch.GetTimestamp();
                 _tareLastValidSeconds = double.NaN;
+                _tareRawWrittenCount = 0;
                 _tareCapture = new PowerTareCaptureController(tareSettings, rpm);
                 UpdateTareProgressMessage();
 
@@ -2524,6 +2563,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 CalibrationHash = null,
                 MeasuredUtc = DateTimeOffset.UtcNow,
                 ProfileName = filed ? profileName : "",
+                RawSamplesFileName = _tareRawFileName ?? "",
             };
 
             CurrentTest.Tare = tare;
@@ -2536,9 +2576,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 RefreshTareProfiles();
             }
 
+            var rawNote = $" Leituras brutas em {PowerTestFileContracts.TareRawDirectoryName}/{tareRawFileName}.";
             TareProgressMessage = filed
-                ? $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}, também arquivada no perfil \"{profileName}\"."
-                : $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}.";
+                ? $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}, também arquivada no perfil \"{profileName}\".{rawNote}"
+                : $"Tara concluída e gravada: {points.Count} patamares, {rawSamples.Count} leituras válidas em {PowerTestFileContracts.TareFileName}.{rawNote}";
             ValidationMessage = TareProgressMessage;
             OnPropertyChanged(nameof(TareStatus));
             OnPropertyChanged(nameof(ResultModeLabel));
@@ -2546,18 +2587,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException)
         {
             RefreshCurrentTarePoints();
-            TareProgressMessage = _tareFailureMessage ?? "Tara cancelada. A curva válida anterior foi mantida.";
+            TareProgressMessage = (_tareFailureMessage ?? "Tara cancelada. A curva válida anterior foi mantida.") +
+                DescribeTareRawFile();
             ValidationMessage = TareProgressMessage;
         }
         catch (Exception ex)
         {
             RefreshCurrentTarePoints();
-            TareProgressMessage = $"Tara não gravada: {ex.Message} A curva válida anterior foi mantida.";
+            TareProgressMessage = $"Tara não gravada: {ex.Message} A curva válida anterior foi mantida." +
+                DescribeTareRawFile();
             ShowError(TareProgressMessage);
         }
         finally
         {
             _tareCapture = null;
+            _tareRawFileName = null;
             SafeParkAndReleaseAgitation("Tara finalizada", settings.RestoreServoPollMs);
             IsTareRunning = false;
             IsAccumulating = false;
@@ -2889,11 +2933,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             IsSinglePointActive = true;
             LivePoints.Clear();
             _tareSweepStartedTimestamp = Stopwatch.GetTimestamp();
-            ValidationMessage = $"Ponto único em curso: {SinglePointRpm:F0} rpm.";
+            BeginSinglePointRecording();
+            ValidationMessage = _singlePointFileName is null
+                ? $"Ponto único em curso: {SinglePointRpm:F0} rpm."
+                : $"Ponto único em curso: {SinglePointRpm:F0} rpm · gravando em {_singlePointFileName}.";
         }
         catch (Exception ex)
         {
             SafeParkAndReleaseAgitation("Falha no ponto único");
+            IsSinglePointActive = false;
+            CompleteSinglePointRecording($"Interrompido por falha: {ex.Message}");
             ShowError($"Erro ao comandar ponto único: {ex.Message}");
         }
     }
@@ -2910,10 +2959,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             SafeParkAndReleaseAgitation("Ponto único finalizado");
             IsSinglePointActive = false;
             _tareSweepStartedTimestamp = 0;
-            ValidationMessage = "Ponto único encerrado; eixo desocupado.";
+            var (recordedFile, recordedCount) = CompleteSinglePointRecording("Encerrado pelo operador");
+            ValidationMessage = recordedFile is null
+                ? "Ponto único encerrado; eixo desocupado."
+                : $"Ponto único encerrado; {recordedCount} leitura(s) gravadas em {recordedFile}.";
         }
         catch (Exception ex)
         {
+            CompleteSinglePointRecording($"Interrompido por falha: {ex.Message}");
             ShowError($"Erro ao parar ponto único: {ex.Message}");
         }
     }
@@ -3204,10 +3257,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             else
             {
                 tareCapture.Add(DateTimeOffset.UtcNow, elapsed, snapshot.ServoTorquePct, snapshot.ServoRpm);
+                AppendPendingTareSamples(tareCapture);
                 UpdateTareProgressMessage();
 
                 var sweepElapsed = TareSweepElapsedSeconds();
-                var torqueNm = snapshot.ServoTorquePct / 100.0 * (CurrentTest?.MotorRatedTorqueNm ?? 1.27);
+                var torqueNm = snapshot.ServoTorquePct / 100.0 * (CurrentTest?.MotorRatedTorqueNm ?? DefaultMotorRatedTorqueNm);
                 var shaftPowerW = 2.0 * Math.PI * (snapshot.ServoRpm / 60.0) * torqueNm;
                 var point = new PowerDataPoint(
                     DateTimeOffset.UtcNow,
@@ -3231,7 +3285,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         else if (IsSinglePointActive && HasValidTareSample(snapshot))
         {
             var sweepElapsed = TareSweepElapsedSeconds();
-            var torqueNm = snapshot.ServoTorquePct / 100.0 * (CurrentTest?.MotorRatedTorqueNm ?? 1.27);
+            var torqueNm = snapshot.ServoTorquePct / 100.0 * (CurrentTest?.MotorRatedTorqueNm ?? DefaultMotorRatedTorqueNm);
             var shaftPowerW = 2.0 * Math.PI * (snapshot.ServoRpm / 60.0) * torqueNm;
             var point = new PowerDataPoint(
                 DateTimeOffset.UtcNow,
@@ -3244,6 +3298,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 ValidOptional(snapshot.FlowRate),
                 true);
             LivePoints.Add(point);
+            AppendSinglePointSample(point);
             while (LivePoints.Count > 6000)
             {
                 LivePoints.RemoveAt(0);
@@ -3254,6 +3309,139 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         RecalculateLiveMetrics();
         RefreshPreflight();
     });
+
+    /// <summary>Opens the raw file for a single-point capture; failure downgrades to no recording.</summary>
+    /// <remarks>
+    /// The check itself is a bench operation, not an assay, so a store that cannot be written
+    /// must not stop the shaft from turning - the operator is told, and the capture proceeds
+    /// unrecorded rather than being refused outright.
+    /// </remarks>
+    private void BeginSinglePointRecording()
+    {
+        _singlePointSampleCount = 0;
+        var session = new SinglePointSession
+        {
+            StartedUtc = DateTimeOffset.UtcNow,
+            TargetRpm = SinglePointRpm,
+            GasFlowSetpointLpm = SinglePointFlowLpm > 0 ? SinglePointFlowLpm : null,
+            MotorRatedTorqueNm = CurrentTest?.MotorRatedTorqueNm ?? DefaultMotorRatedTorqueNm,
+            TestFolderName = CurrentTest?.FolderName ?? "",
+        };
+
+        try
+        {
+            _singlePointFileName = _store.BeginSinglePointCapture(CurrentTest?.FolderName, session);
+            _singlePointSession = session with { RawDataFileName = _singlePointFileName };
+        }
+        catch (Exception ex)
+        {
+            _singlePointFileName = null;
+            _singlePointSession = null;
+            ShowError($"Ponto único não será gravado: {ex.Message}");
+        }
+    }
+
+    /// <summary>Seals the single-point manifest and returns the file written, with its row count.</summary>
+    private (string? FileName, int SampleCount) CompleteSinglePointRecording(string stopReason)
+    {
+        if (_singlePointSession is not { } session || _singlePointFileName is null)
+        {
+            _singlePointSession = null;
+            _singlePointFileName = null;
+            return (null, 0);
+        }
+
+        var fileName = _singlePointFileName;
+        var count = _singlePointSampleCount;
+        try
+        {
+            _store.CompleteSinglePointCapture(
+                string.IsNullOrEmpty(session.TestFolderName) ? null : session.TestFolderName,
+                session with
+                {
+                    CompletedUtc = DateTimeOffset.UtcNow,
+                    SampleCount = count,
+                    StopReason = stopReason,
+                });
+        }
+        catch (Exception ex)
+        {
+            ShowError($"O ponto único foi gravado, mas seu manifesto não pôde ser fechado: {ex.Message}");
+        }
+        finally
+        {
+            _singlePointSession = null;
+            _singlePointFileName = null;
+            _singlePointSampleCount = 0;
+        }
+
+        return (fileName, count);
+    }
+
+    /// <summary>Appends one reading of a single-point capture; a write failure stops the recording, not the shaft.</summary>
+    private void AppendSinglePointSample(PowerDataPoint point)
+    {
+        if (_singlePointSession is not { } session || _singlePointFileName is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _store.AppendSinglePointSample(
+                string.IsNullOrEmpty(session.TestFolderName) ? null : session.TestFolderName,
+                _singlePointFileName,
+                point);
+            _singlePointSampleCount++;
+        }
+        catch (Exception ex)
+        {
+            _singlePointSession = null;
+            _singlePointFileName = null;
+            ShowError($"A gravação do ponto único foi interrompida: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Appends whatever readings the rung's controller accepted since the last frame.
+    /// </summary>
+    /// <remarks>
+    /// Driven off the controller's own list rather than off the incoming frame, so the file
+    /// contains exactly the samples the statistics were computed from - a frame the controller
+    /// rejected as out of order or non-finite is not silently added to the record.
+    /// </remarks>
+    private void AppendPendingTareSamples(PowerTareCaptureController capture)
+    {
+        if (_tareRawFileName is null || CurrentTest is null)
+        {
+            return;
+        }
+
+        try
+        {
+            while (_tareRawWrittenCount < capture.Samples.Count)
+            {
+                _store.AppendTareRawSample(
+                    CurrentTest.FolderName,
+                    _tareRawFileName,
+                    capture.Samples[_tareRawWrittenCount],
+                    _tarePointIndex);
+                _tareRawWrittenCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            var fileName = _tareRawFileName;
+            _tareRawFileName = null;
+            ShowError($"A gravação das leituras brutas da tara ({fileName}) foi interrompida: {ex.Message}");
+        }
+    }
+
+    /// <summary>Names the raw file kept by a sweep that did not finish, or says nothing when there is none.</summary>
+    private string DescribeTareRawFile() =>
+        _tareRawFileName is null || _tareRawWrittenCount == 0
+            ? ""
+            : $" As leituras brutas ficaram em {PowerTestFileContracts.TareRawDirectoryName}/{_tareRawFileName}.";
 
     private static bool HasValidTareSample(SensorSnapshot snapshot) =>
         snapshot.HasServoTelemetry &&
@@ -3318,7 +3506,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
         var doc = CurrentTest;
-        var tNom = doc?.Calibration?.MotorRatedTorqueNm ?? doc?.MotorRatedTorqueNm ?? 1.27;
+        var tNom = doc?.Calibration?.MotorRatedTorqueNm ?? doc?.MotorRatedTorqueNm ?? DefaultMotorRatedTorqueNm;
         var torqueNm = doc?.Calibration is { } cal ? cal.Scale * (torquePct / 100.0 * cal.MotorRatedTorqueNm) + cal.Offset : torquePct / 100.0 * tNom;
         CurrentTorqueNm = torqueNm;
         CurrentPowerW = PowerCalc.ShaftPower(torqueNm, rpm);

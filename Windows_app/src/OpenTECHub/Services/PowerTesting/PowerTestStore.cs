@@ -36,7 +36,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
         if (IsReservedFolderName(name.Trim()))
         {
-            error = "Esse nome é reservado pela pasta de ensaios (lixeira interna ou biblioteca de taras).";
+            error = "Esse nome é reservado pela pasta de ensaios (lixeira interna, biblioteca de taras ou pontos únicos).";
             return false;
         }
 
@@ -48,7 +48,8 @@ public sealed class PowerTestStore : IPowerTestStore
     /// </summary>
     private static bool IsReservedFolderName(string folderName) =>
         string.Equals(folderName, TrashDirectoryName, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(folderName, PowerTestFileContracts.TareProfilesDirectoryName, StringComparison.OrdinalIgnoreCase);
+        string.Equals(folderName, PowerTestFileContracts.TareProfilesDirectoryName, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(folderName, PowerTestFileContracts.SinglePointDirectoryName, StringComparison.OrdinalIgnoreCase);
 
     public bool TestExists(string name)
     {
@@ -561,6 +562,182 @@ public sealed class PowerTestStore : IPowerTestStore
 
             return runFolder;
         }
+    }
+
+    // ---- Raw tare readings ---------------------------------------------------
+
+    public string BeginTareRawCapture(string testFolderName, DateTimeOffset startedUtc)
+    {
+        lock (_ioLock)
+        {
+            var directory = Path.Combine(
+                _rootDirectory, testFolderName, PowerTestFileContracts.TareRawDirectoryName);
+            Directory.CreateDirectory(directory);
+
+            var fileName = PowerTestFileContracts.TareRawFileName(startedUtc);
+            var path = Path.Combine(directory, fileName);
+
+            // Two sweeps started inside the same second would otherwise share a file and
+            // interleave their rungs, which no reader could separate afterwards.
+            var attempt = 2;
+            while (File.Exists(path))
+            {
+                fileName = Path.ChangeExtension(
+                    PowerTestFileContracts.TareRawFileName(startedUtc), null) + $"_{attempt:D2}.csv";
+                path = Path.Combine(directory, fileName);
+                attempt++;
+            }
+
+            File.WriteAllText(
+                path, PowerTestFileContracts.FormatTareRawHeader() + Environment.NewLine, Encoding.UTF8);
+            return fileName;
+        }
+    }
+
+    public void AppendTareRawSample(string testFolderName, string rawFileName, TareSample sample, int pointIndex)
+    {
+        lock (_ioLock)
+        {
+            var path = GetTareRawDataPath(testFolderName, rawFileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (!File.Exists(path) || new FileInfo(path).Length == 0)
+            {
+                File.AppendAllText(
+                    path, PowerTestFileContracts.FormatTareRawHeader() + Environment.NewLine, Encoding.UTF8);
+            }
+
+            File.AppendAllText(
+                path,
+                PowerTestFileContracts.FormatTareRawRow(sample, pointIndex) + Environment.NewLine,
+                Encoding.UTF8);
+        }
+    }
+
+    public string GetTareRawDataPath(string testFolderName, string rawFileName) =>
+        Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.TareRawDirectoryName, rawFileName);
+
+    public IReadOnlyList<TareSample> LoadTareRawData(string testFolderName, string rawFileName)
+    {
+        lock (_ioLock)
+        {
+            var path = GetTareRawDataPath(testFolderName, rawFileName);
+            if (!File.Exists(path))
+            {
+                return [];
+            }
+
+            var list = new List<TareSample>();
+            var lines = File.ReadAllLines(path);
+            for (var i = 1; i < lines.Length; i++)
+            {
+                var parts = lines[i].Trim().Split(',');
+                if (parts.Length < 9 ||
+                    !DateTimeOffset.TryParse(parts[0], CultureInfo.InvariantCulture, DateTimeStyles.None, out var ts) ||
+                    !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var elapsed) ||
+                    !double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var targetRpm) ||
+                    !double.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out var rpm) ||
+                    !double.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var torque))
+                {
+                    continue;
+                }
+
+                if (!Enum.TryParse<TareCapturePhase>(parts[6], out var phase))
+                {
+                    phase = TareCapturePhase.StabilizingSpeed;
+                }
+
+                var counted = parts[7] is "1" or "True";
+                if (!int.TryParse(parts[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out var attempt))
+                {
+                    attempt = 1;
+                }
+
+                list.Add(new TareSample(ts, elapsed, targetRpm, rpm, torque, phase, counted, attempt));
+            }
+
+            return list;
+        }
+    }
+
+    // ---- Single-point checks -------------------------------------------------
+
+    public string BeginSinglePointCapture(string? testFolderName, SinglePointSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        lock (_ioLock)
+        {
+            var directory = SinglePointDirectory(testFolderName);
+            Directory.CreateDirectory(directory);
+
+            var fileName = PowerTestFileContracts.SinglePointFileName(
+                session.StartedUtc, session.TargetRpm, session.GasFlowSetpointLpm);
+            var path = Path.Combine(directory, fileName);
+            var attempt = 2;
+            while (File.Exists(path))
+            {
+                fileName = Path.ChangeExtension(
+                    PowerTestFileContracts.SinglePointFileName(
+                        session.StartedUtc, session.TargetRpm, session.GasFlowSetpointLpm), null) + $"_{attempt:D2}.csv";
+                path = Path.Combine(directory, fileName);
+                attempt++;
+            }
+
+            File.WriteAllText(
+                path, PowerTestFileContracts.FormatRawDataHeader() + Environment.NewLine, Encoding.UTF8);
+
+            // The manifest is written up front, not at the end: a capture cut short by a crash
+            // or a lost shaft still has to say what speed and flow its rows were taken under.
+            WriteSinglePointManifest(directory, session with { RawDataFileName = fileName });
+            return fileName;
+        }
+    }
+
+    public void AppendSinglePointSample(string? testFolderName, string rawFileName, PowerDataPoint point)
+    {
+        lock (_ioLock)
+        {
+            var path = GetSinglePointDataPath(testFolderName, rawFileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (!File.Exists(path) || new FileInfo(path).Length == 0)
+            {
+                File.AppendAllText(
+                    path, PowerTestFileContracts.FormatRawDataHeader() + Environment.NewLine, Encoding.UTF8);
+            }
+
+            File.AppendAllText(
+                path, PowerTestFileContracts.FormatRawDataRow(point) + Environment.NewLine, Encoding.UTF8);
+        }
+    }
+
+    public void CompleteSinglePointCapture(string? testFolderName, SinglePointSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        lock (_ioLock)
+        {
+            var directory = SinglePointDirectory(testFolderName);
+            Directory.CreateDirectory(directory);
+            WriteSinglePointManifest(directory, session);
+        }
+    }
+
+    public string GetSinglePointDataPath(string? testFolderName, string rawFileName) =>
+        Path.Combine(SinglePointDirectory(testFolderName), rawFileName);
+
+    /// <summary>
+    /// Where a single-point capture is filed: inside the assay when one is open, otherwise in
+    /// the store's own folder, so the panel records with or without an assay.
+    /// </summary>
+    private string SinglePointDirectory(string? testFolderName) =>
+        string.IsNullOrWhiteSpace(testFolderName)
+            ? Path.Combine(_rootDirectory, PowerTestFileContracts.SinglePointDirectoryName)
+            : Path.Combine(_rootDirectory, testFolderName.Trim(), PowerTestFileContracts.SinglePointDirectoryName);
+
+    private static void WriteSinglePointManifest(string directory, SinglePointSession session)
+    {
+        var manifestPath = Path.Combine(
+            directory,
+            Path.ChangeExtension(session.RawDataFileName, null) + PowerTestFileContracts.SinglePointManifestSuffix);
+        WriteAllTextAtomic(manifestPath, PowerTestFileContracts.SerializeSinglePointSession(session));
     }
 
     public string GetRunRawDataPath(string testFolderName, string runFolderName) =>

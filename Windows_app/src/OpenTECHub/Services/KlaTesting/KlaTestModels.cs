@@ -225,7 +225,15 @@ public sealed record KlaTestRunSummary
 
 public sealed class KlaTestDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    /// <summary>
+    /// 1 = original contract; 2 = <c>dados-brutos.csv</c>/<c>serie-global.csv</c> also carry
+    /// <c>TemperatureC</c> and <c>RpmMeasured</c>.
+    /// </summary>
+    /// <remarks>
+    /// Only the writer changes with the version. Both readers accept either file, so a schema-1
+    /// assay stays openable and re-analysable exactly as it was recorded.
+    /// </remarks>
+    public int SchemaVersion { get; set; } = 2;
     public Guid TestId { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
     public string FolderName { get; set; } = "";
@@ -268,6 +276,23 @@ public sealed record KlaTestSummary(
     int CompletedRunCount,
     int AcceptedRunCount);
 
+/// <summary>
+/// One telemetry frame of a kLa run, as written to <c>dados-brutos.csv</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="TemperatureC"/> and <see cref="RpmMeasured"/> are nullable and sit at the end of
+/// the record on purpose. They are <i>observations</i>, not commands: the broth temperature sets
+/// C* and is what a kLa corrected to 20 °C is corrected from, and the measured shaft speed is the
+/// only evidence that the agitation actually held the condition being reported. Both can be
+/// legitimately absent - a bench module has no servo, and a probe can drop out mid-run - and a
+/// missing reading is written as an empty cell, never as zero.
+/// </para>
+/// <para>
+/// New columns are appended after the existing ones so a file written by an older version keeps
+/// every column at the position its readers expect (see <c>KlaTestStore.LoadRunRawData</c>).
+/// </para>
+/// </remarks>
 public sealed record KlaRawDataPoint(
     DateTimeOffset TimestampUtc,
     double RelativeSeconds,
@@ -279,7 +304,9 @@ public sealed record KlaRawDataPoint(
     double AgitationSetpoint,
     bool Valve1,
     bool Valve2,
-    bool VFlow);
+    bool VFlow,
+    double? TemperatureC = null,
+    double? RpmMeasured = null);
 
 public sealed record KlaGlobalSeriesSample(
     DateTimeOffset TimestampUtc,
@@ -304,7 +331,9 @@ public sealed record KlaGlobalSeriesSample(
     bool CommandPending,
     int SettingsRevision,
     string EventCode,
-    string EventDetail);
+    string EventDetail,
+    double? TemperatureC = null,
+    double? RpmMeasured = null);
 
 public sealed record KlaTestEventLogEntry(
     DateTimeOffset TimestampUtc,

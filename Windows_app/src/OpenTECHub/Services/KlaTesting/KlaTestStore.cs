@@ -660,12 +660,27 @@ public sealed class KlaTestStore : IKlaTestStore
                 var v2 = parts[9] is "1" or "True";
                 var vFlow = parts[10] is "1" or "True";
 
-                list.Add(new KlaRawDataPoint(ts, relSec, phase, doRaw, doFilt, flowM, flowSp, rpmSp, v1, v2, vFlow));
+                // Schema 1 files stop at VFlow. Reading the two trailing columns only when the
+                // row actually carries them is what lets an assay recorded before schema 2 open
+                // unchanged, with its temperature and measured speed honestly absent.
+                var temperature = ReadOptionalCell(parts, 11);
+                var rpmMeasured = ReadOptionalCell(parts, 12);
+
+                list.Add(new KlaRawDataPoint(
+                    ts, relSec, phase, doRaw, doFilt, flowM, flowSp, rpmSp, v1, v2, vFlow, temperature, rpmMeasured));
             }
 
             return list;
         }
     }
+
+    /// <summary>Reads an optional trailing column, absent in schema 1 files and blank when unread.</summary>
+    private static double? ReadOptionalCell(string[] parts, int index) =>
+        index < parts.Length &&
+        double.TryParse(parts[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var value) &&
+        double.IsFinite(value)
+            ? value
+            : null;
 
     public void SaveRunAnalysis(string testFolderName, string runFolderName, KlaAnalysisRevision analysis)
     {

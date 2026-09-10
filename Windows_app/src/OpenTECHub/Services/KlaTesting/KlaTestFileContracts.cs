@@ -128,14 +128,22 @@ public static class KlaTestFileContracts
     public static KlaAnalysisRevision? DeserializeAnalysis(string json) =>
         JsonSerializer.Deserialize<KlaAnalysisRevision>(json, JsonOptions);
 
+    /// <summary>
+    /// Column list of <c>serie-global.csv</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>TemperatureC</c> and <c>RpmMeasured</c> were appended in schema 2. Appending, rather
+    /// than inserting them beside the readings they belong with, is what keeps every column a
+    /// v1 file already had at the index its readers use.
+    /// </remarks>
     public static string FormatGlobalSeriesHeader() =>
-        "TimestampUtc,MonotonicSeconds,TestId,RunId,ConditionId,Replicate,Phase,DORaw,DOFiltered,DOMin,DOMax,FlowMeasured,FlowSetpoint,AgitationSetpoint,Valve1,Valve2,VFlow,CommandId,CommandAck,CommandPending,SettingsRevision,EventCode,EventDetail";
+        "TimestampUtc,MonotonicSeconds,TestId,RunId,ConditionId,Replicate,Phase,DORaw,DOFiltered,DOMin,DOMax,FlowMeasured,FlowSetpoint,AgitationSetpoint,Valve1,Valve2,VFlow,CommandId,CommandAck,CommandPending,SettingsRevision,EventCode,EventDetail,TemperatureC,RpmMeasured";
 
     public static string FormatGlobalSeriesRow(KlaGlobalSeriesSample s)
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            "{0:O},{1:F3},{2},{3},{4},{5},{6},{7:F2},{8:F2},{9:F1},{10:F1},{11:F2},{12:F2},{13:F0},{14},{15},{16},{17},{18},{19},{20},{21},{22}",
+            "{0:O},{1:F3},{2},{3},{4},{5},{6},{7:F2},{8:F2},{9:F1},{10:F1},{11:F2},{12:F2},{13:F0},{14},{15},{16},{17},{18},{19},{20},{21},{22},{23},{24}",
             s.TimestampUtc,
             s.MonotonicSeconds,
             s.TestId,
@@ -158,17 +166,20 @@ public static class KlaTestFileContracts
             s.CommandPending ? 1 : 0,
             s.SettingsRevision,
             EscapeCsv(s.EventCode),
-            EscapeCsv(s.EventDetail));
+            EscapeCsv(s.EventDetail),
+            FormatOptional(s.TemperatureC, "F2"),
+            FormatOptional(s.RpmMeasured, "F1"));
     }
 
+    /// <inheritdoc cref="FormatGlobalSeriesHeader"/>
     public static string FormatRawDataHeader() =>
-        "TimestampUtc,RelativeSeconds,Phase,DORaw,DOFiltered,FlowMeasured,FlowSetpoint,AgitationSetpoint,Valve1,Valve2,VFlow";
+        "TimestampUtc,RelativeSeconds,Phase,DORaw,DOFiltered,FlowMeasured,FlowSetpoint,AgitationSetpoint,Valve1,Valve2,VFlow,TemperatureC,RpmMeasured";
 
     public static string FormatRawDataRow(KlaRawDataPoint p)
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            "{0:O},{1:F3},{2},{3:F2},{4:F2},{5:F2},{6:F2},{7:F0},{8},{9},{10}",
+            "{0:O},{1:F3},{2},{3:F2},{4:F2},{5:F2},{6:F2},{7:F0},{8},{9},{10},{11},{12}",
             p.TimestampUtc,
             p.RelativeSeconds,
             p.Phase,
@@ -179,7 +190,9 @@ public static class KlaTestFileContracts
             p.AgitationSetpoint,
             p.Valve1 ? 1 : 0,
             p.Valve2 ? 1 : 0,
-            p.VFlow ? 1 : 0);
+            p.VFlow ? 1 : 0,
+            FormatOptional(p.TemperatureC, "F2"),
+            FormatOptional(p.RpmMeasured, "F1"));
     }
 
     public static string FormatResultsSummaryHeader() =>
@@ -235,6 +248,18 @@ public static class KlaTestFileContracts
         var hash = sha.ComputeHash(bytes);
         return Convert.ToHexStringLower(hash);
     }
+
+    /// <summary>
+    /// Writes an optional reading, or an empty cell when it was never taken.
+    /// </summary>
+    /// <remarks>
+    /// The empty cell is the point: a zero here would read as a real 0 °C or a stopped shaft,
+    /// and the analysis has no way to tell that apart from an absent probe afterwards.
+    /// </remarks>
+    private static string FormatOptional(double? value, string format) =>
+        value.HasValue && double.IsFinite(value.Value)
+            ? value.Value.ToString(format, CultureInfo.InvariantCulture)
+            : "";
 
     private static string EscapeCsv(string text)
     {

@@ -593,6 +593,46 @@ public sealed record TareCurve
     /// <see cref="PowerTestFileContracts.TareProfilesDirectoryName"/>.
     /// </remarks>
     public string ProfileName { get; init; } = "";
+
+    /// <summary>
+    /// File name, inside the assay's <c>Taras-Brutas/</c>, holding every reading of this sweep.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Samples"/> keeps the same readings inside this document for a sweep that
+    /// converged; the file is the copy that also survives one that did not, and it is written
+    /// while the sweep runs rather than after it succeeds. Empty on a curve filed before the
+    /// raw file existed, or imported from a profile measured elsewhere.
+    /// </remarks>
+    public string RawSamplesFileName { get; init; } = "";
+}
+
+/// <summary>
+/// One activation of the single-point panel: the metadata its raw CSV cannot carry.
+/// </summary>
+/// <remarks>
+/// The CSV holds the readings; this holds what they were taken under - the commanded speed and
+/// flow, and the rated torque the watts column was computed with. Without the last one the
+/// power column is not reproducible, because the conversion from the servo's torque percentage
+/// is a property of the motor, not of the reading.
+/// </remarks>
+public sealed record SinglePointSession
+{
+    public int SchemaVersion { get; init; } = 1;
+    public DateTimeOffset StartedUtc { get; init; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedUtc { get; init; }
+    public double TargetRpm { get; init; }
+    public double? GasFlowSetpointLpm { get; init; }
+    public double MotorRatedTorqueNm { get; init; }
+    public int SampleCount { get; init; }
+
+    /// <summary>Assay this check was taken under, empty when the panel ran with none open.</summary>
+    public string TestFolderName { get; init; } = "";
+
+    /// <summary>Raw readings file this manifest describes.</summary>
+    public string RawDataFileName { get; init; } = "";
+
+    /// <summary>How the capture ended: stopped by the operator, or interrupted by a fault.</summary>
+    public string StopReason { get; init; } = "";
 }
 
 /// <summary>A filed tare profile as listed for the operator, without loading its samples.</summary>

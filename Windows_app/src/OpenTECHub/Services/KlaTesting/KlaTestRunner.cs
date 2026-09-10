@@ -548,6 +548,29 @@ public sealed class KlaTestRunner : IKlaTestRunner
         }
     }
 
+    /// <summary>A reading the Hub actually sent, or null when it never arrived.</summary>
+    /// <remarks>
+    /// The wire writes <see cref="SensorReadings.NotReceived"/> for a channel this module does
+    /// not carry, and that sentinel is negative precisely so it can never be mistaken for a
+    /// measurement. Mapping it to null here keeps the sentinel out of the recorded file.
+    /// </remarks>
+    private static double? OptionalReading(double value) =>
+        double.IsFinite(value) && value > SensorReadings.NotReceived ? value : null;
+
+    /// <summary>
+    /// The shaft speed the servo reported, or null on a bench without one.
+    /// </summary>
+    /// <remarks>
+    /// A kLa run commands agitation but never verifies it, so the assay's own record could not
+    /// show whether the condition it reports was the condition the vessel ran. Recording the
+    /// measurement alongside the setpoint is what makes that checkable afterwards - and null,
+    /// not zero, when this module has no servo, since 0 rpm is a real and different state.
+    /// </remarks>
+    private static double? MeasuredRpm(SensorSnapshot snapshot) =>
+        snapshot.HasServoTelemetry && snapshot.HasServoSample && snapshot.ServoOnline
+            ? OptionalReading(snapshot.ServoRpm)
+            : null;
+
     private double MaxFlow => _settings.Current.Setpoints.MaxFlowLitresPerMinute;
 
     private void OnTelemetryReceived(SensorSnapshot s)
@@ -584,6 +607,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 ? _currentTest.Settings.DegassingAgitationRpm
                 : _currentCondition?.AgitationRpm ?? 0;
 
+            var temperature = OptionalReading(s.Temperature);
+            var rpmMeasured = MeasuredRpm(s);
+
             var rawPt = new KlaRawDataPoint(
                 TimestampUtc: nowUtc,
                 RelativeSeconds: relSec,
@@ -595,7 +621,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 AgitationSetpoint: agitationSetpoint,
                 Valve1: v1,
                 Valve2: v2,
-                VFlow: vFlow);
+                VFlow: vFlow,
+                TemperatureC: temperature,
+                RpmMeasured: rpmMeasured);
 
             var capturesRunData = _phase is RunPhase.Preflight or RunPhase.ClosingAllGas or
                 RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
@@ -634,7 +662,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 CommandPending: s.FlowCommandPending,
                 SettingsRevision: _currentTest.SettingsRevision,
                 EventCode: _phase.ToString(),
-                EventDetail: _statusMessage);
+                EventDetail: _statusMessage,
+                TemperatureC: temperature,
+                RpmMeasured: rpmMeasured);
 
             _globalSamples.Add(sample);
             _store.AppendGlobalSeriesSample(_currentTest.FolderName, sample);

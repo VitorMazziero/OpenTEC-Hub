@@ -59,6 +59,28 @@ public static class PowerTestFileContracts
     public const string RunRawDataFileName = "dados-brutos.csv";
     public const string RunResultFileName = "resultado.csv";
 
+    /// <summary>
+    /// Per-sweep raw tare readings, one file per sweep inside the assay folder.
+    /// </summary>
+    /// <remarks>
+    /// A sweep that does not converge - a rung that times out, an operator who cancels, a torque
+    /// limit that trips - produces no <c>tara.json</c>, and everything it measured used to end
+    /// there. One file per sweep, written as the samples arrive, means a failed attempt is still
+    /// on disk to be looked at, and a second attempt never overwrites the first.
+    /// </remarks>
+    public const string TareRawDirectoryName = "Taras-Brutas";
+
+    /// <summary>
+    /// Ad-hoc single-point checks, one file per activation.
+    /// </summary>
+    /// <remarks>
+    /// The single-point panel drives the same shaft with the same instrument as an assay run, so
+    /// what it measures is data. It lives beside the assays rather than inside one because the
+    /// panel can be used with no assay open at all.
+    /// </remarks>
+    public const string SinglePointDirectoryName = "Pontos-Unicos";
+    public const string SinglePointManifestSuffix = ".json";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -202,6 +224,50 @@ public static class PowerTestFileContracts
 
     public static TorqueCalibration? DeserializeCalibration(string json) =>
         JsonSerializer.Deserialize<TorqueCalibration>(json, JsonOptions);
+
+    public static string SerializeSinglePointSession(SinglePointSession session) =>
+        JsonSerializer.Serialize(session, JsonOptions);
+
+    public static SinglePointSession? DeserializeSinglePointSession(string json) =>
+        JsonSerializer.Deserialize<SinglePointSession>(json, JsonOptions);
+
+    /// <summary>Base name of one tare sweep's raw file, unique per sweep by its start instant.</summary>
+    public static string TareRawFileName(DateTimeOffset startedUtc) =>
+        $"tara-{startedUtc.UtcDateTime:yyyyMMdd-HHmmss}.csv";
+
+    /// <summary>Base name of one single-point capture, carrying its speed and flow in the clear.</summary>
+    public static string SinglePointFileName(DateTimeOffset startedUtc, double targetRpm, double? gasFlowLpm)
+    {
+        var rpm = (int)Math.Round(Math.Clamp(targetRpm, 0, 9999));
+        var stamp = startedUtc.UtcDateTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        if (gasFlowLpm is not { } flow || flow <= 0)
+        {
+            return $"ponto-{stamp}_N{rpm:D4}_Seco.csv";
+        }
+
+        var qTotalHundredths = (int)Math.Round(Math.Clamp(flow, 0, 99.99) * 100);
+        return $"ponto-{stamp}_N{rpm:D4}_Q{qTotalHundredths / 100:D2}p{qTotalHundredths % 100:D2}.csv";
+    }
+
+    public static string FormatTareRawHeader() =>
+        "TimestampUtc,ElapsedSeconds,PointIndex,TargetRpm,RpmMeasured,TorquePercent,Phase,Counted,Attempt";
+
+    public static string FormatTareRawRow(TareSample sample, int pointIndex)
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0:O},{1:F3},{2},{3:F1},{4:F1},{5:F3},{6},{7},{8}",
+            sample.TimestampUtc,
+            sample.ElapsedSeconds,
+            pointIndex,
+            sample.TargetRpm,
+            sample.RpmMeasured,
+            sample.TorquePercent,
+            sample.Phase,
+            sample.Counted ? 1 : 0,
+            sample.Attempt);
+    }
 
     public static string FormatGlobalSeriesHeader() =>
         "TimestampUtc,MonotonicSeconds,TestId,RunId,ConditionId,Replicate,Phase,RpmMeasured,TorquePercent,TorqueNm,ShaftPowerW,FlowLpm,TemperatureC,RunningMeanPowerW,RunningCi95PowerW,SampleCount,SettingsRevision,EventCode,EventDetail,Attempt";

@@ -17,6 +17,24 @@ public enum AlarmId
     /// <summary>The flowmeter reports offline while flow control is enabled.</summary>
     FlowmeterOffline,
 
+    /// <summary>The flowmeter went offline with its gas path open, and is still holding it.</summary>
+    /// <remarks>
+    /// <para>
+    /// The flowmeter node is deliberately <b>fail-in-place</b>: losing the link to the Hub
+    /// does not close its valves or zero its setpoint. Its local PI loop keeps running and
+    /// the gas keeps flowing, which is the right behaviour for a live culture that would
+    /// otherwise be starved of oxygen by a Wi-Fi glitch.
+    /// </para>
+    /// <para>
+    /// The cost of that choice is this alarm. Gas is entering the reactor, nothing in the
+    /// app can stop it, and the Hub is no longer being told what the valves are doing.
+    /// Critical rather than a warning, and separate from <see cref="FlowmeterOffline"/>:
+    /// that one says a node is missing, this one says the process is still running
+    /// unattended and the operator has to walk to the bench.
+    /// </para>
+    /// </remarks>
+    UnsupervisedGasFlow,
+
     /// <summary>No accepted telemetry frame for more than three emission periods.</summary>
     FrozenData,
 

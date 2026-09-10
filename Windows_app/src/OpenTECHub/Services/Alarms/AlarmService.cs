@@ -206,6 +206,11 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.FlowmeterOffline, "Fluxômetro offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        // Same debounce as the offline alarm it rides on, and deliberately no longer: the
+        // whole point is to tell the operator that gas is still going in while nothing can
+        // stop it, and every second of on-delay is a second of that going unannounced.
+        new(AlarmId.UnsupervisedGasFlow, "Gás aberto sem supervisão", AlarmSeverity.Critical,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.FrozenData, "Dados congelados", AlarmSeverity.Critical,
             TimeSpan.Zero, TimeSpan.Zero),
         new(AlarmId.SensorAbsent, "Sensor ausente", AlarmSeverity.Warning,
@@ -273,6 +278,18 @@ public sealed class AlarmService : IAlarmService
     private ConnectionState _state = ConnectionState.Disconnected;
     private SensorSnapshot? _lastSnapshot;
     private DateTimeOffset? _lastFrameAt;
+
+    /// <summary>
+    /// Whether the gas path was open in the last frame that actually carried flow state.
+    /// </summary>
+    /// <remarks>
+    /// The Hub omits flow values once the node is absent and the parser blanks them, so by
+    /// the time the flowmeter reads offline the app can no longer see what its valves are
+    /// doing. The node is fail-in-place, so what it was doing is what it is still doing:
+    /// this is the only evidence there is, and without holding it the unsupervised-gas
+    /// alarm could never fire.
+    /// </remarks>
+    private bool _gasOpenWhenLastSeen;
     private DateTimeOffset _silencedUntil = DateTimeOffset.MinValue;
     private bool _wasAudible;
 
@@ -468,6 +485,17 @@ public sealed class AlarmService : IAlarmService
             connected && RoutingRequested(DeviceNames.Routing.Airflow) && _lastSnapshot is { FlowmeterOnline: false },
             "Fluxômetro Desconectado da Central: o Hub está acessível, mas perdeu o enlace interno."),
 
+        // Not gated on the routing switch, unlike the offline alarm above. Gas physically
+        // entering the reactor is worth announcing even if the operator has since turned
+        // the routing off — turning a switch off in the app does not close a valve on a
+        // node that is no longer listening.
+        AlarmId.UnsupervisedGasFlow => (
+            connected && _gasOpenWhenLastSeen && _lastSnapshot is { FlowmeterOnline: false },
+            "O fluxômetro perdeu o enlace com a rota de gás aberta. O nó é fail-in-place: " +
+            "mantém válvulas e setpoint no último estado, então o gás continua entrando no " +
+            "reator e nem o app nem o Hub conseguem fechá-lo. Feche a vazão no local ou " +
+            "restabeleça o enlace."),
+
         AlarmId.FrozenData => (stale,
             "Nenhum quadro de telemetria aceito por mais de três períodos de emissão."),
 
@@ -620,6 +648,10 @@ public sealed class AlarmService : IAlarmService
         {
             _lastSnapshot = null;
             _lastFrameAt = null;
+            // Same policy, for the same reason: what the valves were doing before a gap is
+            // not evidence of what they are doing after it. The first frame from a live
+            // flowmeter re-establishes this, and until then the app knows nothing.
+            _gasOpenWhenLastSeen = false;
         }
 
         Poll();
@@ -638,7 +670,29 @@ public sealed class AlarmService : IAlarmService
     {
         _lastSnapshot = snapshot;
         _lastFrameAt = _time.GetUtcNow();
+        if (snapshot.FlowmeterOnline)
+        {
+            _gasOpenWhenLastSeen = GasPathIsOpen(snapshot);
+        }
         Poll();
+    }
+
+    /// <summary>
+    /// Whether this frame shows gas actually reaching the reactor.
+    /// </summary>
+    /// <remarks>
+    /// The measured rate is used here, unlike the power assay's preflight gate. There the
+    /// question is "did someone leave a valve open", which only commanded state can answer;
+    /// here it is "is gas going in right now", and a sensor reading well above its residual
+    /// is direct evidence of that even if the valve echo has not caught up.
+    /// </remarks>
+    private static bool GasPathIsOpen(SensorSnapshot s)
+    {
+        const double flowToleranceLpm = 0.1;
+        var measuring = double.IsFinite(s.FlowRate) && s.FlowRate > flowToleranceLpm;
+        var commanded = double.IsFinite(s.FlowSetpoint) && s.FlowSetpoint > flowToleranceLpm;
+        var routed = s.FlowValveMain == 0 && (s.FlowValve1 == 1 || s.FlowValve2 == 1);
+        return measuring || commanded || routed;
     }
 
     private void OnCommandTracked(CommandLifecycleEntry entry)

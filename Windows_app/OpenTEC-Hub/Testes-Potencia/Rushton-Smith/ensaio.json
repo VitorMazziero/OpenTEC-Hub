@@ -5,7 +5,7 @@
   "folderName": "Rushton-Smith",
   "status": "Draft",
   "createdUtc": "2026-09-06T23:40:14.9186784+00:00",
-  "lastModifiedUtc": "2026-09-10T17:24:39.1253232+00:00",
+  "lastModifiedUtc": "2026-09-10T17:59:41.7389741+00:00",
   "fluid": {
     "densityKgM3": 995.65,
     "viscosityPaS": 0.000797,
@@ -70,7 +70,7 @@
     "manualEnergyCaptureEnabled": false,
     "autoAcceptRuns": false
   },
-  "settingsRevision": 7,
+  "settingsRevision": 10,
   "tare": {
     "schemaVersion": 2,
     "points": [

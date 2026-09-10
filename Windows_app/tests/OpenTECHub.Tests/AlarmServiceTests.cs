@@ -398,6 +398,81 @@ public sealed class AlarmServiceTests
         Assert.True(h.Latched(AlarmId.FlowmeterOffline));
     }
 
+    [Fact]
+    public void Gas_left_open_when_the_flowmeter_drops_raises_the_unsupervised_alarm()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Airflow, true);
+
+        // Gas confirmed flowing to the reactor: valve 1 routed, vent shut.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            FlowRate = 4.8,
+            FlowSetpoint = 5.0,
+            FlowValve1 = 1,
+            FlowValveMain = 0,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
+
+        // The node drops. The hub stops publishing flow values, so the frame carries none -
+        // the node is fail-in-place, so the gas it was passing is still passing.
+        h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+
+        Assert.True(h.Latched(AlarmId.UnsupervisedGasFlow));
+        Assert.Equal(AlarmSeverity.Critical, h.Get(AlarmId.UnsupervisedGasFlow)!.Severity);
+        Assert.Contains("fail-in-place", h.Get(AlarmId.UnsupervisedGasFlow)!.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_flowmeter_that_drops_with_the_gas_shut_raises_only_the_offline_alarm()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Airflow, true);
+
+        // Everything closed, and the residual the sensor always reads at rest.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            FlowRate = 0.05,
+            FlowSetpoint = 0.0,
+            FlowValve1 = 0,
+            FlowValve2 = 0,
+            FlowValveMain = 1,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+
+        h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+
+        Assert.True(h.Latched(AlarmId.FlowmeterOffline));
+        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
+    }
+
+    [Fact]
+    public void The_unsupervised_gas_alarm_clears_when_the_node_comes_back_closed()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Airflow, true);
+
+        h.Device.PushTelemetry(HealthyFrame() with { FlowSetpoint = 5.0, FlowRate = 4.8 });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.True(h.Latched(AlarmId.UnsupervisedGasFlow));
+
+        h.Service.Acknowledge(AlarmId.UnsupervisedGasFlow);
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            FlowRate = 0.0,
+            FlowSetpoint = 0.0,
+            FlowValveMain = 1,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+
+        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
+    }
+
     // ── External-device presence and routing ─────────────────────────────────
 
     /// <summary>

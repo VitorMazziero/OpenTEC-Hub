@@ -111,21 +111,36 @@ A fragilidade está em **transporte e recuperação**: polling caro demais, nenh
 | 3 | So alterna de hub apos 3 falhas no mesmo SSID | `wifiTask` | **aplicado** |
 | 4 | `boot_id` por energizacao; o Hub reafirma o desejado em vez de adotar o zero | ambos os lados | **aplicado** |
 | 5 | Poll de comando de 10 Hz para 4 Hz | `commandPollInterval` | **aplicado** |
-| 6 | Politica explicita de link perdido (manter estado por T min, depois fechar/zerar) | fluxometro | **pendente - decisao de processo** |
+| 6 | Politica de link perdido: **fail-in-place mantido**, com alarme no app | fluxometro + `AlarmService` | **decidido e aplicado** |
 | 7 | `reconnectWifi` aceito no contrato Hub->fluxometro, e o flag fica visivel na telemetria | `Mailboxes.h`, `HttpServer.h`, `Telemetry.h`, app | **aplicado** |
 
-## 7. O que ficou de fora, e por que
+## 7. Politica de link perdido: fail-in-place, com alarme
 
-O item 6 e o unico ponto em aberto, e nao e um bug: e uma escolha de processo que eu nao
-posso tomar sozinho. Hoje o fluxometro e *fail-in-place* - quando perde o link, o laco PI
-local continua rodando, o DAC continua escrevendo e as valvulas congelam no ultimo estado.
+Decidido em 2026-09-10: **o fluxometro continua fail-in-place**. Ao perder o enlace, o laco
+PI local segue rodando, o DAC segue escrevendo e as valvulas congelam no ultimo estado. Numa
+linha de gas de biorreator isso e o comportamento certo - a cultura continua aerada enquanto
+a rede se recupera, em vez de ser sufocada por uma falha de Wi-Fi.
 
-Numa linha de gas de biorreator isso pode ser exatamente o desejado: a cultura continua
-aerada enquanto a rede se recupera. A alternativa - fechar tudo depois de T minutos sem
-Hub - troca esse risco por outro. As duas sao defensaveis e a escolha e sua.
+O preco dessa escolha e que gas pode estar entrando no reator sem que nada no app consiga
+fecha-lo. Isso nao pode acontecer em silencio, entao entrou o alarme
+`AlarmId.UnsupervisedGasFlow` - **"Gas aberto sem supervisao"**, severidade **critica**,
+2 s de atraso de ativacao, visivel na faixa de alarmes e no diario da aba Alarmes e Eventos.
 
-Se a resposta for "manter", entao nao falta codigo, falta alarme: o app deveria avisar que
-esta soprando gas sem supervisao. Se for "fechar", falta o temporizador no fluxometro.
+Detalhes que importam na implementacao:
+
+- **O app precisa lembrar.** O Hub para de publicar vazao, setpoint e valvulas assim que o
+  no some, e o parser zera esses campos. Quando o fluxometro le offline, portanto, ja nao ha
+  como enxergar o que as valvulas estao fazendo. O `AlarmService` guarda em
+  `_gasOpenWhenLastSeen` se a rota estava aberta no ultimo quadro que ainda trazia estado de
+  vazao. Como o no e fail-in-place, o que ele estava fazendo e o que ele continua fazendo.
+- **A vazao medida conta aqui**, ao contrario do pre-voo do ensaio de potencia. La a pergunta
+  e "alguem deixou uma valvula aberta", que so o estado comandado responde; aqui e "esta
+  entrando gas agora", e uma leitura bem acima do residual e evidencia direta disso.
+- **Nao e condicionado ao interruptor de roteamento**, diferente do alarme de fluxometro
+  offline. Desligar um interruptor no app nao fecha valvula em um no que parou de ouvir.
+- **Zera na desconexao**, seguindo a politica que o proprio `AlarmService` ja aplica ao
+  `_lastSnapshot`: o que as valvulas faziam antes de uma lacuna nao e evidencia do que fazem
+  depois dela.
 
 ## 8. Como verificar em bancada
 
@@ -142,3 +157,7 @@ esta soprando gas sem supervisao. Se for "fechar", falta o temporizador no fluxo
    aos 5 L/min. Antes dessa correcao ela caia para zero em silencio.
 5. **Kill switch:** com `{"reconnectWifi":0}` o flag some do painel; com
    `{"reconnectWifi":1}` volta - agora pelo Hub, sem cabo.
+6. **Alarme de gas sem supervisao:** com 5 L/min confirmados no reator, desligue o AP do Hub
+   ou tire o fluxometro da tomada. Em ~2 s a faixa de alarmes deve mostrar
+   **"Gas aberto sem supervisao"** em vermelho, com registro na aba Alarmes e Eventos. Com a
+   rota fechada, a mesma queda deve levantar so o alarme ambar de fluxometro offline.

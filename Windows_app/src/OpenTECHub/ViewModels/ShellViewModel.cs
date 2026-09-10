@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -1274,6 +1274,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     {
         _device.ZeroSessionTime();
         ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+        _history.Clear();
+        Charts.OnHistoryReset();
     }
 
     /// <summary>
@@ -1308,6 +1310,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             _device.ZeroSessionTime();
         }
         ElapsedText = TimeSpan.Zero.ToString(@"hh\:mm\:ss");
+        _history.Clear();
+        Charts.OnHistoryReset();
 
         Events.Journal.Add(
             AuditSource.Application,

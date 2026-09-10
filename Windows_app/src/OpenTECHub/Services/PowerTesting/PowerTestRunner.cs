@@ -1547,14 +1547,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
             throw new InvalidOperationException("Densidade e viscosidade do fluido devem ser positivas.");
         }
         ValidateSettings(doc.Settings);
-        if (doc.Tare is { ImpellerSetHash.Length: > 0 } tare)
-        {
-            var geometryHash = PowerTestFileContracts.ComputeImpellerSetHash(doc.Geometry);
-            if (!string.Equals(tare.ImpellerSetHash, geometryHash, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException("A tara pertence a outro conjunto de impelidores.");
-            }
-        }
+        // A tara realizada no ar mede o atrito mecânico parasita do eixo/motor/rolamentos e pode ser
+        // reutilizada entre diferentes configurações de impelidores do ensaio sem bloquear a execução.
         if (doc.Tare is { CalibrationHash.Length: > 0 } calibratedTare)
         {
             var calibrationHash = PowerTestFileContracts.ComputeTorqueCalibrationHash(

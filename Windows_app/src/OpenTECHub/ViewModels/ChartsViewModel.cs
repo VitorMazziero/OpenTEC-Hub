@@ -291,20 +291,39 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             return series;
         }
 
-        var start = 0;
-        while (start < series.Count && series.Minutes[start] < floor)
+        var count = 0;
+        for (var i = 0; i < series.Count; i++)
         {
-            start++;
+            if (series.Minutes[i] >= floor)
+            {
+                count++;
+            }
         }
 
-        if (start == 0)
+        if (count == 0)
+        {
+            return ChannelSeries.Empty;
+        }
+
+        if (count == series.Count)
         {
             return series;
         }
 
-        return start >= series.Count
-            ? ChannelSeries.Empty
-            : new ChannelSeries(series.Minutes[start..], series.Values[start..]);
+        var minutes = new double[count];
+        var values = new double[count];
+        var idx = 0;
+        for (var i = 0; i < series.Count; i++)
+        {
+            if (series.Minutes[i] >= floor)
+            {
+                minutes[idx] = series.Minutes[i];
+                values[idx] = series.Values[i];
+                idx++;
+            }
+        }
+
+        return new ChannelSeries(minutes, values);
     }
 
     public (double Minutes, double Value)? GetValueAt(ChartChannelOption option, double minutes)
@@ -436,7 +455,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClearData()
     {
-        _viewFloorMinutes = History.LatestMinutes;
+        _viewFloorMinutes = History.Count == 0 ? 0.0 : History.LatestMinutes + 0.0001;
         OnPropertyChanged(nameof(IsDataCleared));
         LayoutChanged?.Invoke();
     }
@@ -548,6 +567,9 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             Logging = settings.Logging with { SessionLogPath = path },
         });
         _sessionLogger.Start(path);
+
+        History.Clear();
+        OnHistoryReset();
 
         if (_device?.State is Protocol.ConnectionState.Connected)
         {

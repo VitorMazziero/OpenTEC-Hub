@@ -320,19 +320,41 @@ public partial class SynopticView : UserControl
             drewData = true;
         }
 
+        var latestMinutes = viewModel.History.LatestMinutes;
+        if (series.Count > 0 && series.Minutes[^1] > latestMinutes)
+        {
+            latestMinutes = series.Minutes[^1];
+        }
+
+        double xMin, xMax;
+        if (viewModel.SelectedWindow?.Window is { } span)
+        {
+            var spanMinutes = span.TotalMinutes;
+            if (latestMinutes < spanMinutes)
+            {
+                xMin = 0.0;
+                xMax = spanMinutes;
+            }
+            else
+            {
+                xMin = Math.Max(0.0, latestMinutes - spanMinutes);
+                xMax = latestMinutes + (spanMinutes * 0.02);
+            }
+        }
+        else
+        {
+            xMin = 0.0;
+            xMax = Math.Max(5.0, latestMinutes * 1.05);
+        }
+
         if (drewData)
         {
             host.Plot.Axes.AutoScale();
-            var limits = host.Plot.Axes.GetLimits();
-            var xMin = Math.Max(0, limits.Left);
-            var xSpan = Math.Max(0.5, limits.Right - xMin);
-            var xMax = limits.Right + (xSpan * 0.05); // slight padding on right so data doesn't clip edge
             host.Plot.Axes.SetLimitsX(xMin, xMax);
         }
         else
         {
-            // Default window starting strictly at zero (no negative time)
-            host.Plot.Axes.SetLimits(0, 5, 0, 10);
+            host.Plot.Axes.SetLimits(xMin, xMax, 0, 10);
         }
 
         if (viewModel.IsCursorEnabled && viewModel.CursorMinutes is { } cursor)

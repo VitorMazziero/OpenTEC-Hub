@@ -554,12 +554,19 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             }
 
             var currentHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry());
-            if (!string.Equals(CurrentTest.Tare.ImpellerSetHash, currentHash, StringComparison.OrdinalIgnoreCase))
+            var matchesGeometry = string.Equals(CurrentTest.Tare.ImpellerSetHash, currentHash, StringComparison.OrdinalIgnoreCase);
+            var profileName = CurrentTest.Tare.ProfileName;
+
+            if (!string.IsNullOrWhiteSpace(profileName))
             {
-                return "Tara de outro conjunto de impelidores";
+                return matchesGeometry
+                    ? $"Tara compatível · {profileName}"
+                    : $"Tara no ar aplicada · {profileName}";
             }
 
-            return $"Tara compatível · {CurrentTest.Tare.ProfileName ?? "curva do ensaio"}";
+            return matchesGeometry
+                ? "Tara compatível · curva do ensaio"
+                : "Tara no ar aplicada · conjunto diferente";
         }
     }
     public string ResultModeLabel => CurrentTest?.Tare is null ? "RELATIVO" : "CALIBRADO";

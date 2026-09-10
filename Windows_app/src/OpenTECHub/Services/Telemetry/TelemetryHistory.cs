@@ -182,6 +182,18 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
 
         lock (_gate)
         {
+            if (_count > 0)
+            {
+                var previousMinutes = _minutes[(_head - 1 + capacity) % capacity];
+                // Se o tempo da telemetria recuou significativamente (ex: zeramento de sessão, reboot do ESP32, reconexão),
+                // o buffer anterior pertence a outra base temporal. Resetar o buffer impede linhas retrocedendo.
+                if (snapshot.TimeMinutes < previousMinutes - 0.2)
+                {
+                    _head = 0;
+                    _count = 0;
+                }
+            }
+
             var i = _head;
             _minutes[i] = snapshot.TimeMinutes;
 
@@ -322,15 +334,23 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
             var oldest = (_head - _count + capacity) % capacity;
             var latest = _minutes[(_head - 1 + capacity) % capacity];
 
-            // Walk forward to the first sample inside the window.
+            // Determina a janela varrendo retroativamente a partir da amostra mais recente (latest).
             var start = 0;
             if (window is { } span)
             {
                 var cutoff = latest - span.TotalMinutes;
-                while (start < _count && _minutes[(oldest + start) % capacity] < cutoff)
+                var validCount = 0;
+                while (validCount < _count)
                 {
-                    start++;
+                    var idx = (_head - 1 - validCount + capacity) % capacity;
+                    if (_minutes[idx] < cutoff)
+                    {
+                        break;
+                    }
+                    validCount++;
                 }
+
+                start = _count - validCount;
             }
 
             var available = _count - start;

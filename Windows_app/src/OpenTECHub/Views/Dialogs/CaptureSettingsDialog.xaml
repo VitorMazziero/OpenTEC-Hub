@@ -25,6 +25,7 @@
 
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
 
     </Window.Resources>
 
@@ -95,7 +96,12 @@
 
                 <TextBlock Text="Opções de Operação" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
 
-                <CheckBox Margin="0,0,0,8" Content="Leitura manual de energia após cada ponto" IsChecked="{Binding ManualEnergyCaptureEnabled}" />
+                <CheckBox Margin="0,0,0,8" Content="Aceite automático dos pontos" IsChecked="{Binding AutoAcceptRuns}"
+                          ToolTip="Aceita cada ponto capturado sem revisão e emenda direto na próxima condição, deixando o ensaio rodar sozinho até o fim da tabela. Sem isso, cada ponto para em 'Revisando' e espera o operador." />
+                <CheckBox Margin="0,0,0,8" Content="Leitura manual de energia após cada ponto"
+                          IsChecked="{Binding ManualEnergyCaptureEnabled}"
+                          IsEnabled="{Binding AutoAcceptRuns, Converter={StaticResource InverseBool}}"
+                          ToolTip="Mantém cada ponto parado à espera da leitura do wattímetro. Incompatível com o aceite automático, que por isso desabilita esta opção." />
                 <CheckBox Margin="0,0,0,8" Content="Estabilização no alívio" IsChecked="{Binding VentStabilizationEnabled}" IsEnabled="{Binding CanEditPlan}"
                           ToolTip="Estabiliza a vazão direcionada ao alívio antes de alimentar o reator" />
 

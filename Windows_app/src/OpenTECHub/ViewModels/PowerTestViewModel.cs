@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -369,6 +369,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double MaxVentStabilizationSeconds { get; set; } = 120.0;
     [ObservableProperty] public partial bool ManualEnergyCaptureEnabled { get; set; }
 
+    /// <summary>
+    /// Accept each captured point without operator review and chain straight into the next
+    /// condition. Off by default: auto-accepting a point skips the only place a bad capture
+    /// gets rejected, so it is an explicit opt-in per assay.
+    /// </summary>
+    [ObservableProperty] public partial bool AutoAcceptRuns { get; set; }
+
     [ObservableProperty] public partial PowerSweepType SelectedSweepType { get; set; } = PowerSweepType.VariableNConstantQg;
     [ObservableProperty] public partial double SweepConstantRpm { get; set; } = 300.0;
     [ObservableProperty] public partial double SweepStartQgLpm { get; set; } = 2.0;
@@ -515,6 +522,19 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public PowerMotorRouteCoordinator RouteCoordinator => _routeCoordinator;
 
     partial void OnIsTareRunningChanged(bool value) => NotifyDocumentState();
+
+    /// <summary>
+    /// Manual energy capture parks every point waiting for a wattmeter reading, which the
+    /// runner checks before auto-accept ever runs. Leaving both on would silently defeat the
+    /// unattended sequence, so enabling auto-accept clears it rather than losing to it.
+    /// </summary>
+    partial void OnAutoAcceptRunsChanged(bool value)
+    {
+        if (value)
+        {
+            ManualEnergyCaptureEnabled = false;
+        }
+    }
 
     /// <summary>True when the runner's preflight passes right now (§12, §14).</summary>
     [ObservableProperty]
@@ -793,6 +813,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             VentAgitationRpm = doc.Settings.VentAgitationRpm;
             MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
             ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
+            AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
 
             CurrentTarePoints.Clear();
             if (doc.Tare is { } tare)
@@ -3042,6 +3063,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         VentAgitationRpm = VentAgitationRpm,
         MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
         ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
+        AutoAcceptRuns = AutoAcceptRuns,
     };
 
     private bool TryPersist(out string error)

@@ -24,16 +24,52 @@ public sealed class PowerTestRunnerTests
     }
 
     [Fact]
-    public async Task Preflight_refuses_observed_gas_before_an_ungassed_point()
+    public async Task Preflight_refuses_a_gassed_condition_while_the_flowmeter_is_offline()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Gassed);
+        h.Push(0, 0);
+
+        Assert.False(h.Runner.CanStart(doc, out var reason));
+        Assert.Contains("fluxômetro precisa estar online", reason, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
+        Assert.Empty(h.Device.Sent);
+    }
+
+    [Fact]
+    public async Task Preflight_closes_the_gas_path_itself_instead_of_asking_the_operator()
     {
         using var h = new Harness();
         var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Both);
-        h.Push(0, 0, flowRate: 1.2);
+        // Gas left open from a previous point, flowmeter online: the assay must shut it, not refuse.
+        h.PushGas(0, 0, flowRate: 1.2, flowSetpoint: 5, valve1: 1, valveMain: 0);
 
-        Assert.False(h.Runner.CanStart(doc, out var reason));
-        Assert.Contains("Feche a vazão", reason, StringComparison.Ordinal);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
-        Assert.Empty(h.Device.Sent);
+        Assert.True(h.Runner.CanStart(doc, out var reason), reason);
+        await h.Runner.StartTestAsync(doc);
+
+        Assert.Contains(h.Device.Sent, sent => sent.Contains("\"flowSetpoint\":0", StringComparison.Ordinal));
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Aeration));
+    }
+
+    [Fact]
+    public void Preflight_does_not_confuse_residual_sensor_flow_with_an_open_path()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Ungassed);
+        // Every valve shut and setpoint zero, but the sensor still reads a residual rate.
+        h.PushGas(0, 0, flowRate: 0.4, flowSetpoint: 0, valve1: 0, valve2: 0, valveMain: 1);
+
+        Assert.True(h.Runner.CanStart(doc, out var reason), reason);
+    }
+
+    [Fact]
+    public void Preflight_lets_an_ungassed_point_start_while_the_flowmeter_is_offline()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Ungassed);
+        h.Push(0, 0);
+
+        Assert.True(h.Runner.CanStart(doc, out var reason), reason);
     }
 
     [Fact]
@@ -138,6 +174,52 @@ public sealed class PowerTestRunnerTests
     }
 
     [Fact]
+    public async Task Auto_accept_resumes_a_measurement_pause_without_the_operator()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings() with { AutoAcceptRuns = true });
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        h.Device.Push(new SensorSnapshot
+        {
+            HasServoTelemetry = true,
+            HasServoSample = false,
+            ServoOnline = false,
+            ServoCommEnabled = true,
+        });
+        Assert.True(h.Runner.IsPausedForMeasurement);
+
+        // Telemetry comes back: an unattended assay picks itself up instead of waiting.
+        h.Push(300, 2.0);
+
+        Assert.False(h.Runner.IsPausedForMeasurement);
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+    }
+
+    [Fact]
+    public async Task Measurement_pause_still_waits_for_the_operator_without_auto_accept()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings());
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        h.Device.Push(new SensorSnapshot
+        {
+            HasServoTelemetry = true,
+            HasServoSample = false,
+            ServoOnline = false,
+            ServoCommEnabled = true,
+        });
+        h.Push(300, 2.0);
+
+        Assert.True(h.Runner.IsPausedForMeasurement);
+    }
+
+    [Fact]
     public async Task Operator_pause_discards_partial_window_and_resume_restarts_both_gates()
     {
         using var h = new Harness();
@@ -238,19 +320,21 @@ public sealed class PowerTestRunnerTests
     }
 
     [Fact]
-    public async Task Both_condition_is_phase1_P0_and_sends_no_gas_command()
+    public async Task Both_condition_is_phase1_P0_and_shuts_the_gas_itself()
     {
         using var h = new Harness();
         var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Both);
-        h.Push(0, 0);
+        h.PushGas(0, 0, flowRate: 0, flowSetpoint: 0, valveMain: 1);
 
         await h.Runner.StartTestAsync(doc);
 
         Assert.Equal(PowerGasMode.Ungassed, h.Runner.CurrentRun!.GasMode);
         Assert.Null(h.Runner.CurrentRun.GasFlowLpm);
-        Assert.DoesNotContain(h.Device.Sent, json => json.Contains("flowSetpoint", StringComparison.Ordinal));
+        // Subphase 1 measures P0, which is only valid with the path shut, so the assay owns the
+        // aeration loop from the start and commands the close instead of asking the operator.
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"flowSetpoint\":0", StringComparison.Ordinal));
         Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
-        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Aeration));
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Aeration));
         Assert.Equal("test-hub", doc.HubFirmwareVersion);
         Assert.Equal(9, doc.HubProtocolVersion);
     }

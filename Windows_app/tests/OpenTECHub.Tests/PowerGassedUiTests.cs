@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -119,6 +119,40 @@ public sealed class PowerGassedUiTests : IDisposable
 
         Assert.Equal(2.5, fiveLiterCondition.GasFlowLpm);
         Assert.Equal(10.0, twentyLiterCondition.GasFlowLpm);
+    }
+
+    [Fact]
+    public void ViewModel_round_trips_auto_accept_and_drops_the_manual_energy_hold()
+    {
+        var impeller = PowerImpellerCatalog.Create(ImpellerType.RushtonFlatBlade);
+        impeller.DiameterM = 0.065;
+        impeller.ClearanceM = 0.065;
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            LiquidVolumeM3 = 0.010,
+            Impellers = [impeller],
+        };
+        var doc = _store.CreateTest("Ensaio Automatico", new FluidProperties(), geometry, new PowerTestSettings(), [new PowerCondition { AgitationRpm = 300 }]);
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        Assert.False(vm.AutoAcceptRuns);
+
+        vm.ManualEnergyCaptureEnabled = true;
+        vm.AutoAcceptRuns = true;
+
+        // The wattmeter hold parks every point, so it cannot coexist with an unattended run.
+        Assert.False(vm.ManualEnergyCaptureEnabled);
+
+        vm.SaveSetupCommand.Execute(null);
+        var reloaded = _store.LoadTest(doc.FolderName);
+        Assert.NotNull(reloaded);
+        Assert.True(reloaded.Settings.AutoAcceptRuns);
+        Assert.False(reloaded.Settings.ManualEnergyCaptureEnabled);
     }
 
     [Fact]

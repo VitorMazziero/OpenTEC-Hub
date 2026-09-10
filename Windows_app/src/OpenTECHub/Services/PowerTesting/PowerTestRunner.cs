@@ -126,6 +126,19 @@ public sealed class PowerTestRunner : IPowerTestRunner
     public event Action<string>? Logged;
 
     public bool CanStart(PowerTestDocument doc, out string? reason)
+        => CanStart(doc, null, out reason);
+
+    /// <summary>
+    /// Preflight for the condition that is about to run. A null condition means "whichever
+    /// one <see cref="NextPendingCondition"/> would pick", which is what the readout and
+    /// <see cref="StartTestAsync"/> ask about.
+    /// </summary>
+    /// <remarks>
+    /// The gas requirements are scoped to that one condition on purpose. Scoping them to the
+    /// whole plan made a single gassed row anywhere in the table block the ungassed P0 rows
+    /// as well, so a flowmeter dropout stopped an assay that did not need the flowmeter yet.
+    /// </remarks>
+    private bool CanStart(PowerTestDocument doc, PowerCondition? condition, out string? reason)
     {
         ArgumentNullException.ThrowIfNull(doc);
 
@@ -154,12 +167,20 @@ public sealed class PowerTestRunner : IPowerTestRunner
             return false;
         }
 
-        var needsGas = doc.Conditions.Any(c => c.GasMode == PowerGasMode.Gassed);
-        if (HasActiveGasPath(latest))
-        {
-            reason = "Feche a vazão e a rota de gás antes de medir P0.";
-            return false;
-        }
+        // "Both" runs an ungassed subphase and then a gassed one, so it needs the loop too.
+        var target = condition ?? NextPendingConditionOf(doc);
+        var needsGas = target is null
+            ? doc.Conditions.Any(c => c.GasMode is PowerGasMode.Gassed or PowerGasMode.Both)
+            : target.GasMode is PowerGasMode.Gassed or PowerGasMode.Both;
+
+        // An open gas path is NOT an operator error, and the assay no longer refuses to start
+        // over one: StartRunCore shuts it before the P0 measurement. The old refusal ("Feche a
+        // vazão e a rota de gás antes de medir P0") also counted the residual rate the sensor
+        // reads with every valve closed, which no operator action could clear.
+        //
+        // An ungassed condition still starts with the flowmeter offline, because a rig with no
+        // flowmeter at all reports exactly that and pure-agitation assays must remain runnable.
+        var mustCloseGas = HasOpenGasPath(latest);
 
         if (needsGas && (!latest.FlowmeterOnline || !double.IsFinite(latest.FlowRate)))
         {
@@ -179,7 +200,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             return false;
         }
 
-        if (needsGas)
+        if (needsGas || mustCloseGas)
         {
             var gasOwner = _arbiter.OwnerOf(ActuatorId.Aeration);
             if (gasOwner is not (CommandOwner.Manual or CommandOwner.PowerAssay))
@@ -289,7 +310,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             throw new InvalidOperationException("Já existe uma corrida de potência em execução.");
         }
-        if (!CanStart(_currentTest, out var reason))
+        if (!CanStart(_currentTest, condition, out var reason))
         {
             throw new InvalidOperationException(reason);
         }
@@ -340,6 +361,25 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
         LogEvent("MeasurementResumed", "Telemetria válida restabelecida; as duas portas foram reiniciadas.");
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Resume from <see cref="PowerRunPhase.PausedForMeasurement"/> when every precondition the
+    /// operator-driven path checks is already satisfied. Returns false without side effects when
+    /// something is still missing, so the caller falls back to waiting for the operator.
+    /// </summary>
+    private bool TryResumeAfterMeasurement()
+    {
+        try
+        {
+            ResumeAfterMeasurementAsync().GetAwaiter().GetResult();
+            LogEvent("MeasurementAutoResumed", "Retomada automática: aceite automático está ligado.");
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public Task PauseAsync()
@@ -586,7 +626,11 @@ public sealed class PowerTestRunner : IPowerTestRunner
             (int)doc.Settings.MinRpm,
             (int)doc.Settings.MaxRpm);
 
-        var needsGas = condition.GasMode == PowerGasMode.Gassed;
+        // The assay owns the aeration loop whenever gas is part of this condition ("Both" opens
+        // it in subphase 2) and also whenever the path is currently open, because shutting it
+        // before P0 is the assay's job - it is what the old preflight asked the operator to do.
+        var needsGas = condition.GasMode is PowerGasMode.Gassed or PowerGasMode.Both;
+        var ownsGas = needsGas || (_device.Latest is { } preflight && HasOpenGasPath(preflight));
         var actualMode = condition.GasMode == PowerGasMode.Both
             ? PowerGasMode.Ungassed
             : condition.GasMode;
@@ -614,10 +658,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _runStartMonotonic = GetMonotonicSeconds();
         SetPhase(PowerRunPhase.Preflight, $"Pré-voo da corrida {_currentRun.FolderName}.");
 
-        var actuators = needsGas ? GassedActuators : Phase1Actuators;
+        var actuators = ownsGas ? GassedActuators : Phase1Actuators;
         _arbiter.Claim(CommandOwner.PowerAssay, actuators, $"Ensaio de potência: {_currentRun.FolderName}");
         if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay ||
-            (needsGas && _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay))
+            (ownsGas && _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay))
         {
             FaultWithoutSafeCommand("Falha ao obter posse dos atuadores.");
             return;
@@ -652,9 +696,12 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
         else
         {
-            if (needsGas)
+            if (ownsGas)
             {
                 // max flow is constant MaxFlow
+                // This is the close the old preflight demanded from the operator. It runs for
+                // every ungassed measurement now, including the P0 subphase of a "Both" row,
+                // which is exactly where the previous `needsGas` test skipped it.
                 DispatchFlow(CommandBuilders.FlowSafeStop(MaxFlow), "fechar gás para medição P0");
             }
             SetPhase(PowerRunPhase.SettingSpeed, $"Aguardando a medida estabilizar em {_commandedRpm} rpm.");
@@ -801,6 +848,13 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
         if (_phase == PowerRunPhase.PausedForMeasurement)
         {
+            // An unattended assay must survive a telemetry blip on its own - a flowmeter that
+            // drops for a few seconds is the common case here. The partial window was already
+            // discarded when the pause began, so resuming just restarts this point cleanly.
+            if (_currentTest.Settings.AutoAcceptRuns && TryResumeAfterMeasurement())
+            {
+                return;
+            }
             _statusMessage = "Medida restabelecida. Confirme a retomada para reiniciar a captura.";
             RaiseStateChanged();
             return;
@@ -1440,7 +1494,9 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
     }
 
-    private PowerCondition? NextPendingCondition() => _currentTest?.Conditions
+    private PowerCondition? NextPendingCondition() => NextPendingConditionOf(_currentTest);
+
+    private static PowerCondition? NextPendingConditionOf(PowerTestDocument? doc) => doc?.Conditions
         .Where(condition => condition.Status != PowerConditionStatus.Skipped &&
                             condition.AcceptedReplicates < condition.RequestedReplicates)
         .OrderBy(condition => condition.OrderIndex)
@@ -1483,18 +1539,25 @@ public sealed class PowerTestRunner : IPowerTestRunner
         double.IsFinite(snapshot.ServoRpm) &&
         double.IsFinite(snapshot.ServoTorquePct);
 
-    private static bool HasActiveGasPath(SensorSnapshot snapshot)
+    /// <summary>
+    /// True when the flowmeter reports a path that is commanded open, i.e. one the assay has
+    /// to shut before P0 is meaningful.
+    /// </summary>
+    /// <remarks>
+    /// The measured rate is deliberately NOT evidence here. A fully closed path still reads a
+    /// small residual on the sensor - and the reading also decays over seconds after a close -
+    /// so counting it made a start refusal that no operator action could clear. What the valves
+    /// and the echoed setpoint say is commanded state, which is the question actually being asked.
+    /// </remarks>
+    private static bool HasOpenGasPath(SensorSnapshot snapshot)
     {
         const double flowToleranceLpm = 0.1;
-        var measuredFlowActive = double.IsFinite(snapshot.FlowRate) &&
-                                 snapshot.FlowRate > SensorReadings.NotReceived &&
-                                 Math.Abs(snapshot.FlowRate) > flowToleranceLpm;
         var setpointActive = double.IsFinite(snapshot.FlowSetpoint) &&
                              snapshot.FlowSetpoint > SensorReadings.NotReceived &&
-                             Math.Abs(snapshot.FlowSetpoint) > flowToleranceLpm;
+                             snapshot.FlowSetpoint > flowToleranceLpm;
         var routedOpen = snapshot.FlowValveMain == 0 &&
                          (snapshot.FlowValve1 == 1 || snapshot.FlowValve2 == 1);
-        return measuredFlowActive || setpointActive || routedOpen;
+        return setpointActive || routedOpen;
     }
 
     private static bool RequiresServoMeasurement(PowerRunPhase phase) => phase is

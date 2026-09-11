@@ -344,6 +344,41 @@ flowchart TD
 
 ---
 
+### Etapa 2.4 · Documentação no aplicativo e limpeza de texto dos cards
+- **Prioridade:** P1 para usabilidade de bancada
+- **Status:** ✅ **Painel, Controle e os quatro assuntos de Potência CONCLUÍDOS (10/09/2026)** — demais páginas em aberto abaixo
+- **Fonte:** [DECISIONS.md](DECISIONS.md#d-047--a-explicação-sai-do-card-e-vira-documentação-no-aplicativo)
+- **Arquivos-Chave:**
+  - `src/OpenTECHub/Services/Documentation/DocumentationCatalog.cs` (o conteúdo, como dado)
+  - `src/OpenTECHub/Controls/DocumentationBlockTemplateSelector.cs`
+  - `src/OpenTECHub/ViewModels/SettingsViewModel.cs` (seção, seleção de assunto, `SelectDocumentation`)
+  - `src/OpenTECHub/ViewModels/ShellViewModel.cs` (`OpenDocumentationCommand`)
+  - `src/OpenTECHub/Views/SettingsView.xaml`, `Views/PowerView.xaml`, `Resources/Icons/Icons.xaml`
+  - `tests/OpenTECHub.Tests/DocumentationTests.cs`, `DocumentationEvidenceTests.cs`
+- **Problema Resolvido:** As páginas imprimiam a própria explicação dentro dos cards. Na coluna de 340 DIP da página de Potência isso empurrava os controles para fora da tela, obrigava quem já sabia a reler tudo a cada visita, entregava a explicação a quem não sabia em 11 px e sem índice — e, por estar dentro do card, não era alcançável de lugar nenhum: não havia como mandar alguém "ler a página tal".
+- **Implementação Realizada:**
+  1. Seção `Documentação` em Configurações, **abaixo de Comandos do equipamento**, com ícone próprio (`IconBookGeometry`).
+  2. `DocumentationCatalog`: tópicos → seções → blocos (`Paragraph`, `Bullet`, `Field`, `Note`). O bloco `Field` carrega o rótulo exato da tela; o teste recusa campo sem rótulo.
+  3. Cada página descrita **primeiro pelo layout** (“Como a página é organizada”) e depois controle a controle.
+  4. **Painel** e **Controle** primeiro, nesta ordem. *Controle* cobre linha a linha o detalhe de cada variável interna e de cada dispositivo externo.
+  5. `OpenDocumentationCommand(topicId)` abre a seção já no assunto; os quatro cards da Validação de Potência perderam os parágrafos e ganharam o botão `?`.
+  6. Com o manual aberto, a ilustração sai e o texto ocupa as duas colunas.
+  7. Evidência visual gerada pela suíte em `docs/evidence/ui-documentation/`.
+- **Ordem das próximas páginas** (cada uma entra no catálogo e só então ganha o `?` na tela):
+  1. [x] **Painel** (`painel`)
+  2. [x] **Controle** (`controle`)
+  3. [x] Potência — tara, ponto único, correlação elétrica e mapa de kLa (os quatro cards que carregavam os parágrafos)
+  4. [ ] Determinar kLa
+  5. [ ] Mapeamento kLa
+  6. [ ] Potência — montagem e aquisição (fluido, vaso, impelidores, tabela de condições)
+  7. [ ] Mapa de Potência (modelos, comparação de impelidores, escalonamento)
+  8. [ ] Receitas
+  9. [ ] Calibrações
+  10. [ ] Históricos e Eventos
+  11. [ ] Configurações (as demais seções) e Conexão
+
+---
+
 ## Eixo 3 — Firmware ESP32-S3 Hub (v9/v10) e Nó Servo Drive (Delta ASDA-B2)
 
 ### Etapa 3.1 · Teto de rotação em 971,6 rpm e migração Modbus pendente de validação física
@@ -539,6 +574,7 @@ A suíte cobre estes pontos, mas eles são conferidos explicitamente porque um e
 | Tara por eixo | Dois perfis coexistem; regravar o mesmo eixo substitui em vez de duplicar; excluir um perfil não altera ensaios que já o aplicaram; pasta `Taras/` não vira ensaio | `PowerTestStoreTests.*Tare_Profile*` |
 | Compatibilidade de tara | `ImpellerSetHash` e `CalibrationHash` continuam confrontados; perfil de outro conjunto é rotulado, não aceito em silêncio | `PowerTestViewModel.TareStatus` |
 | Dado bruto gravado | Colunas novas do kLa no fim da linha e arquivo do esquema 1 ainda legível; leitura ausente como célula vazia; varredura de tara cancelada mantém o que mediu; ponto único gravado com e sem ensaio aberto | `RawDataIntegrityTests` |
+| Documentação e cards | Catálogo com conteúdo real, layout antes dos controles e cobertura de todas as linhas de Controle; a página de Potência **abriu mão** dos parágrafos e aponta para os assuntos; `Carregar Ensaio` no lugar de `Abrir`; cabeçalhos que cabem na coluna | `DocumentationTests` |
 | Contratos de UI | Rótulos e *bindings* das abas de potência; a tela de potência não usa vocabulário de confirmar/descartar | `PowerNavigationContractTests` |
 | Ligações de comando | Todo `Command` ligado no pop-up de conexão existe na *view model*; `RefreshPortsCommand` continua assíncrono e `ListPortNames` continua sem WMI | `ConnectionPopoverContractTests` |
 

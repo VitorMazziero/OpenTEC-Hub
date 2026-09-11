@@ -1272,6 +1272,32 @@ Acrescentado `ConnectionPopoverContractTests`, que prende os nomes de comando li
 - `Pontos-Unicos/` entra na mesma regra de `Taras/` e da lixeira: não aparece em `ListTests` e não pode ser tomada como nome de ensaio.
 - Cobertura em `RawDataIntegrityTests` (12 casos): as colunas e o vazio-em-vez-de-zero, o round-trip do armazenamento, a leitura de um arquivo do esquema 1, a corrida que grava temperatura e rotação medida (e a bancada sem servo, que grava só a temperatura), o round-trip da tara bruta, duas varreduras que não se sobrescrevem, a **varredura cancelada que mantém suas leituras**, e o ponto único gravado com e sem ensaio aberto.
 
+### D-047 · A explicação sai do card e vira documentação no aplicativo
+
+**Status:** Accepted and implemented · 2026-09-10
+
+**Decisão.** O aplicativo passa a ter um manual próprio, e as páginas param de imprimir a própria explicação:
+
+- **Nova seção `Documentação`** em Configurações, logo abaixo de *Comandos do equipamento*, com ícone próprio (`IconBookGeometry`, livro aberto — distinto de `IconFile`, que quer dizer arquivo).
+- **O conteúdo é dado, não XAML.** `DocumentationCatalog` declara tópicos, seções e blocos (parágrafo, item, **campo** e observação); a view só sabe desenhar os quatro. Documentar uma página é escrever registros.
+- **Cada página é escrita do mesmo jeito:** primeiro *como a página é organizada*, depois o que cada controle faz — nomeado exatamente como a tela o nomeia, no bloco `Field` (rótulo + o que faz).
+- **Painel e Controle primeiro**, nessa ordem, como manda o plano de implementação. *Controle* cobre linha a linha o detalhe de cada variável interna e de cada dispositivo externo.
+- **Link direto.** `ShellViewModel.OpenDocumentationCommand(topicId)` abre a seção já no assunto. Os cards da página de Potência que perderam parágrafos ganharam um botão `?` que chama esse comando.
+- **Com o manual aberto, a página inteira é dele:** a ilustração do biorreator é escondida e o formulário passa a ocupar as duas colunas.
+- **Página de Potência reorganizada:** o card `Ensaio` vira dois subcards (o ensaio aberto; a tara que ele aplica), `Abrir` vira **`Carregar Ensaio`** em linha própria e largura cheia, e os textos que estavam sendo cortados na coluna de 340 DIP foram encurtados ou passados para linhas próprias.
+
+**Por quê.** As capturas de 09/09 mostram a coluna esquerda da página de Potência com mais prosa do que controle: o card do Ponto Único gastava quatro linhas explicando para que ele serve antes de mostrar dois campos, e o da tara abria com um parágrafo de metrologia. Três consequências, todas verificáveis nas imagens: o operador que já sabe lê tudo de novo a cada visita; o que não sabe recebe a explicação em 11 px dentro de um card, sem contexto nem índice; e o texto empurra os controles para fora da tela. Some-se a isso que a explicação escrita dentro do card **não é alcançável** de nenhum outro lugar — não há como mandar alguém "ler a página tal".
+
+Os cortes eram do mesmo problema em outra forma: `Pot. Mecânica (W)` em 112 DIP fixos, sete colunas fixas somando 358 DIP numa coluna de ~300 DIP úteis, e um rótulo de estado dividindo a faixa com três botões.
+
+**Consequências.**
+
+- A explicação existe uma vez e é citável (`potencia-tara`, `controle`, …). Renomear um tópico não quebra o botão: `SelectDocumentation` cai no primeiro tópico quando o id é desconhecido, porque um `?` que não faz nada é pior do que um que erra o assunto.
+- O bloco `Field` obriga a nomear o controle. Um campo sem rótulo é recusado pelo teste, porque documentação que não usa a palavra que está na tela não é encontrável por quem está olhando para ela.
+- `DocumentationTests` guarda os dois lados: o catálogo tem conteúdo real e cobre todas as linhas da página Controle, **e** a página de Potência de fato abriu mão dos parágrafos — um card que ficasse com o texto *e* ganhasse o `?` seria a falha mais provável.
+- A evidência visual é gerada por `DocumentationEvidenceTests` a cada execução da suíte, em `docs/evidence/ui-documentation/`. Captura feita à mão envelhece sem avisar.
+- Páginas ainda não documentadas (Receitas, kLa, Mapeamentos, Históricos, Eventos, Calibrações) seguem sem `?`. A ausência é honesta: o botão só existe onde há tópico.
+
 ---
 
 ## Open questions

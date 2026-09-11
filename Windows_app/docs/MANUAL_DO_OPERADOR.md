@@ -78,6 +78,18 @@ A tela inicial exibe a barra lateral de conexão:
 
 ---
 
+## 4.1 Documentação dentro do aplicativo
+
+O programa traz o próprio manual em **Configurações → Documentação**, logo abaixo de *Comandos do
+equipamento*. Cada página é descrita primeiro pelo seu layout e depois controle a controle, com o
+nome que aparece na tela. Os botões **“?”** espalhados pelas páginas abrem direto o assunto
+correspondente.
+
+Este manual em PDF/Markdown continua sendo a referência de instalação, procedimentos e diagnóstico;
+a documentação interna é a referência de *tela*, para consulta durante a operação.
+
+---
+
 ## 5. Sinótico e Painel de Monitoramento
 
 O menu **Sinótico** exibe o diagrama animado em tempo real do biorreator:

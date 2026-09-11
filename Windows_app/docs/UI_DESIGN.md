@@ -601,6 +601,7 @@ its own thresholds next to the layout they govern:
 | Receitas | < 1200 DIP wide | Library and properties panels narrow so the canvas keeps its area |
 | Calibrações | < 1100 DIP wide | The certified-points column gives ~110 DIP back to the curve |
 | Configurações | < 1000 DIP wide | The illustration is dropped, and the section list becomes a selector above the form |
+| Configurações → Documentação | any width | The illustration is dropped and the manual spans both columns |
 
 Nothing is deleted by a breakpoint — the section that is not on screen keeps its state and
 returns when the window grows. Crossing a threshold must never send a command, change a
@@ -1663,6 +1664,7 @@ apply/revert footer across the bottom.
 | **Registro** | Session log path · `Anexar a arquivo existente` · `Novo arquivo por execução` · rotation limit · app log path + level · `Abrir pasta de dados` |
 | **Aparência** | `Tema ▾` `Sistema`/`Claro`/`Escuro` · `Mostrar barra de variáveis` · `Densidade ▾` `Confortável`/`Compacta` · `Animar fluxo no sinóptico` · `Configurar indicadores…` |
 | **Comandos do equipamento** | `Resetar variáveis do módulo` · `Reiniciar comunicações` · `Enviar comando personalizado…` — **each behind a confirmation dialog** |
+| **Documentação** | The in-app manual, one topic at a time behind an `Assunto ▾` selector. Each page is written layout-first and then control-by-control, naming controls exactly as the screen names them. Content is data (`DocumentationCatalog`), so a page is documented by writing records; the `?` buttons on the pages deep-link into it. **While it is open the illustration is dropped and the text takes both columns** — prose held to half the page is prose read at half the speed |
 | **Sobre** | Version, build, .NET runtime, protocol contract version, data folder, third-party licences, `Copiar diagnóstico` |
 
 > **The device commands must confirm.** `resetVariables` and `restart` act immediately,

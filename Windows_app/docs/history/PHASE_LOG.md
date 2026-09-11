@@ -1449,6 +1449,46 @@ single-point capture with no assay open. See [DECISIONS D-046](../DECISIONS.md).
 
 ---
 
+### P3-07 · The explanation leaves the card: an in-app manual, and a page that fits
+
+**Executed 2026-09-10**, from the operator's 09/09 captures of the Potência page and a review of
+what its cards actually contained.
+
+**What the captures showed.** The left column — 340 DIP, ~300 of them usable — was carrying more
+prose than control. The Ponto Único card spent four bullet lines explaining its purpose before
+showing two fields; the tare card opened with a paragraph of metrology. Three costs, all visible in
+the images: whoever already knows reads it again on every visit, whoever doesn't gets the
+explanation at 11 px inside a card with no index, and the controls are pushed off screen. And text
+printed inside a card is reachable from nowhere else — there is no way to tell a colleague to read
+it.
+
+**The manual.** A `Documentação` section in Configurações, below *Comandos do equipamento*, with its
+own icon. The content is data: `DocumentationCatalog` declares topics, sections and blocks, and the
+view knows how to draw four block kinds — paragraph, bullet, **field** and note. The field block
+carries the control's on-screen label, and a field without one is rejected by the test: documentation
+that does not use the word the operator is looking at is not findable by someone looking at it.
+
+**How a page is written.** Layout first — *Como a página é organizada* — then control by control.
+**Painel** and **Controle** come first, in that order, as the plan requires; Controle documents every
+row of the page, including the expanded detail of each internal variable and each external device,
+down to what `λ`, *Capturar branco*, *maxFlow* and *Reativar potenciômetro* do.
+
+**The link back.** `OpenDocumentationCommand(topicId)` opens the section already on the subject; the
+four Validação cards gave up their paragraphs and gained a `?`. An unknown id still opens the manual
+on its first page — a help button that does nothing is worse than one that lands a page off.
+
+**The clipping.** Same problem in another form. `Pot. Mecânica (W)` at 112 fixed DIP, seven fixed tare
+columns summing 358 DIP into ~300, and a status label sharing a row with three buttons. Fixed widths
+became proportional ones with short headers; the assay card became two sub-cards, and `Abrir` became
+**`Carregar Ensaio`** on a row of its own — the longer label is exactly what that shared row would
+have clipped next.
+
+**Verification evidence:** 1274 passed, 0 skipped (1255 before; 19 new across `DocumentationTests`
+and `DocumentationEvidenceTests`). The evidence folder `docs/evidence/ui-documentation/` is rendered
+by the suite from the real visual tree, not collected by hand. See [DECISIONS D-047](../DECISIONS.md).
+
+---
+
 ### P3-05 · Post-merge integration and release audit
 
 **Audited 2026-08-26:** `main` at `846a0f5` contains both sides of the history that diverged at

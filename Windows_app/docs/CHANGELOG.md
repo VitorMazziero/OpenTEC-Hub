@@ -9,6 +9,22 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Added
+- **Documentação dentro do aplicativo, e páginas sem texto solto (D-047).** Configurações ganha a
+  seção **Documentação**, abaixo de *Comandos do equipamento* e com ícone próprio: o manual do
+  programa, escrito como dado (`DocumentationCatalog`) e não como marcação. Cada página é descrita
+  primeiro pelo seu layout e depois controle a controle, com o nome que aparece na tela; **Painel** e
+  **Controle** entram primeiro, e *Controle* cobre linha a linha o detalhe de cada variável e de cada
+  dispositivo externo. Os cards da página de Potência deixaram de imprimir a própria explicação e
+  ganharam um botão “?” que abre o assunto correspondente. Com o manual aberto, a ilustração do
+  biorreator sai e o texto ocupa a página inteira. Ver [DECISIONS D-047](DECISIONS.md).
+
+### Changed
+- **Página de Potência reorganizada (D-047).** O card `Ensaio` virou dois subcards — o ensaio aberto
+  e a tara que ele aplica; **`Abrir` passou a `Carregar Ensaio`**, em linha própria e largura cheia,
+  com *Renomear* e *Excluir* na linha seguinte. Corrigidos os textos que a coluna de 340 DIP cortava:
+  “Tara do Eixo (Calibração do Sistema)” virou “Tara do eixo” com estado e ação em linhas separadas,
+  e as tabelas de correlação elétrica e de patamares da tara trocaram larguras fixas — que somavam
+  mais que a própria coluna — por larguras proporcionais com cabeçalhos curtos.
 - **Todo dado bruto medido nos ensaios passa a ser gravado (D-046).** Quatro medidas que o
   aplicativo tomava e descartava chegam ao disco: `dados-brutos.csv` e `serie-global.csv` do kLa
   ganham `TemperatureC` e `RpmMeasured` (esquema 2, colunas anexadas ao fim, leitor tolerante ao

@@ -43,9 +43,16 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
     [ObservableProperty]
     public partial Geometry RouteGeometry { get; set; } = Geometry.Empty;
 
-    /// <summary>The arrowhead triangle at the target port.</summary>
+    /// <summary>
+    /// The arrowhead triangle at the target port. Always frozen: a <see cref="PointCollection"/> is a
+    /// <see cref="System.Windows.Freezable"/>, and an unfrozen one can only be bound from the thread
+    /// that created it — the canvas template throws "DependencySource must be created on the same
+    /// thread" on every re-measure otherwise (crash storm of 2026-09-11 18:19).
+    /// </summary>
     [ObservableProperty]
-    public partial PointCollection ArrowPoints { get; set; } = new();
+    public partial PointCollection ArrowPoints { get; set; } = EmptyPoints;
+
+    private static readonly PointCollection EmptyPoints = CreateFrozen([]);
 
     private void OnEndpointMoved(object? sender, PropertyChangedEventArgs e)
     {
@@ -65,12 +72,14 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
 
         // Arrow points rightward (→) into the port on the left of the node:
         // Tip is at (tx, ty), wings are at (tx - 8, ty ± 4) so the arrow sits outside the node.
-        ArrowPoints = new PointCollection
-        {
-            new(tx - 8, ty - 4),
-            new(tx, ty),
-            new(tx - 8, ty + 4)
-        };
+        ArrowPoints = CreateFrozen([new(tx - 8, ty - 4), new(tx, ty), new(tx - 8, ty + 4)]);
+    }
+
+    private static PointCollection CreateFrozen(IEnumerable<Point> points)
+    {
+        var collection = new PointCollection(points);
+        collection.Freeze();
+        return collection;
     }
 
     /// <summary>Builds a geometry for normal (non-loop) connections using orthogonal segments.</summary>

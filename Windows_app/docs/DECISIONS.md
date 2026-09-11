@@ -1306,6 +1306,67 @@ Os cortes eram do mesmo problema em outra forma: `Pot. Mecânica (W)` em 112 DIP
 - A evidência visual é gerada por `DocumentationEvidenceTests` a cada execução da suíte, em `docs/evidence/ui-documentation/`. Captura feita à mão envelhece sem avisar.
 - Páginas ainda não documentadas (Receitas, kLa, Mapeamentos, Históricos, Eventos, Calibrações) seguem sem `?`. A ausência é honesta: o botão só existe onde há tópico.
 
+### D-048 · O I/O dos ensaios sai da thread da UI por uma fila única e ordenada
+
+**Status:** Accepted and implemented · 2026-09-11
+
+**Decisão.** Tudo o que os ensaios de potência e de kLa gravam passa a ser **formatado ou
+serializado na thread chamadora e executado por um único consumidor em segundo plano**, na ordem
+em que foi enfileirado (`Services/Persistence/BackgroundFileWriter.cs`, `System.Threading.Channels`,
+um consumidor de longa duração):
+
+- Os `Append*` (linha bruta da corrida, série global, journal, tara bruta, ponto único) enfileiram a
+  linha já formatada; os `Save*` (manifesto, tabela, resultado, resumo, análise, tara, calibração)
+  serializam no chamador — o que preserva a semântica de consistência do documento — e enfileiram
+  a escrita `.tmp` + `Move`. Um consumidor único preserva exatamente a ordenação que o
+  `lock (_ioLock)` dava; as assinaturas `void` dos stores e os runners **não mudam**.
+- Toda leitura (`Load*`, `List*`) drena a fila antes de ler, e `FlushAsync()` entra nas duas
+  interfaces para quem precisa entregar os arquivos a alguém de fora. Mover ou apagar uma pasta
+  drena e fecha primeiro.
+- O consumidor mantém um `StreamWriter` por arquivo **só enquanto há fila acumulada** e fecha tudo
+  quando a fila esvazia: um arquivo aberto para escrita impede qualquer outro processo — a
+  planilha do operador, um script, o próprio `Load*` — de abri-lo (`FileShare.Read` recusa um
+  handle de escrita existente), e era por isso que os stores abriam/fechavam por linha. O custo
+  de abrir/fechar fica, mas na thread do consumidor.
+- **O SHA-256 do dado bruto é selado sem reler o arquivo.** `PowerTestStore` alimenta um
+  `IncrementalHash` por CSV de corrida com exatamente os bytes que entrega ao escritor (BOM,
+  cabeçalho, linhas), e `SaveRunResult` sela a partir dele; `KlaTestStore.SaveRunRawData` devolve o
+  hash do conteúdo que acabou de enfileirar (preâmbulo incluído, igual ao que
+  `File.WriteAllText(…, Encoding.UTF8)` põe no disco). Um teste confirma a igualdade com o hash
+  do arquivo depois do drain.
+- **`ensaio.json` e `tara.json` deixam de embutir `tare.samples`.** As leituras da tara vão para o
+  arquivo lateral que o esquema já previa (`tare.rawSamplesFileName`, em `Taras-Brutas/`, o mesmo
+  que a D-046 grava ao vivo); o manifesto guarda só `tare.points`. Um manifesto antigo é migrado
+  uma vez ao carregar. 832 KB → ~120 KB.
+- Falha de escrita no consumidor é registrada (`ILogger`) e exposta por `WriteFailed`; os runners
+  marcam `IsStorageCompromised`, prefixam o status com "⚠ Gravação comprometida" e seguem — o
+  quadro seguinte também é dado. Sem escritor explícito, um store grava inline: é o comportamento
+  anterior e o que os testes que leem os arquivos de volta esperam.
+
+**Por quê.** Bancada de 11/09/2026: a cada quadro de telemetria (~1 Hz) a thread da UI fazia dois
+`File.AppendAllText` (abre/escreve/fecha; 1–2 ms médios, picos de 12–22 ms) e, a cada mudança de
+fase, reescrevia um `ensaio.json` **de 832 KB** — 490 KB de `tare.samples` — com `File.Move` e
+`Thread.Sleep(20)` em retentativa: 55 ms médios, picos de 330 ms, medidos nesta máquina. Era o
+engasgo "quando os documentos são salvos". A regra da §2 de `ARCHITECTURE.md` diz que nada bloqueia
+a thread da UI; os stores eram a lista dos lugares em que ela era violada.
+
+**Consequências.**
+- **Nenhuma amostra deixa de ser gravada** (D-046 preservada): muda quem grava e quando, não o
+  quê. `PowerTestRunnerTests.The_queued_store_writes_the_same_assay_files_as_the_synchronous_one`
+  roda o mesmo ensaio pelos dois caminhos e exige `dados-brutos.csv` idêntico byte a byte e
+  `serie-global.csv`, `eventos.jsonl`, `resumo-resultados.csv` e `resultado.csv` idênticos a menos
+  dos ids.
+- Um `Load*` logo após um `Save*` espera o drain — na prática instantâneo; no pior caso (mudança
+  de fase com quatro reescritas) alguns ms. É a troca certa: leituras são raras e quem lê quer o
+  arquivo mais recente.
+- Criação de pastas e os `Begin*Capture` continuam síncronos, de propósito: a D-046 exige que um
+  armazenamento inacessível falhe **antes** de reivindicar um atuador.
+- Cobertura: `BackgroundFileWriterTests` (paridade byte a byte com `File.AppendAllText`,
+  cabeçalho uma vez, ordem entre appends/reescritas/trabalho, falha reportada sem parar o
+  consumidor, modo síncrono sem arquivo aberto, selo do hash na potência e no kLa, leituras que
+  veem a fila, migração da tara) e os dois testes do runner (equivalência de arquivos; gravação
+  comprometida).
+
 ### D-049 · O `DllNotFoundException` do descarregamento do CRT no encerramento não é um crash
 
 **Status:** Accepted and implemented · 2026-09-11

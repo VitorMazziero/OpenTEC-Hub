@@ -1,6 +1,7 @@
 using System.IO;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Simulator;
 using Xunit;
@@ -163,6 +164,96 @@ public sealed class PowerTestRunnerTests
         Assert.Contains(PowerRunPhase.SettlingTorque, phases);
         Assert.Contains(PowerRunPhase.AccumulatingToTarget, phases);
         Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+    }
+
+    /// <summary>
+    /// D-048, file equivalence: the same assay driven through the synchronous store and through the
+    /// queued store leaves byte-identical raw data, global series, journal and summary.
+    /// </summary>
+    [Fact]
+    public async Task The_queued_store_writes_the_same_assay_files_as_the_synchronous_one()
+    {
+        using var queued = new BackgroundFileWriter();
+        using var a = new Harness();
+        using var b = new Harness(writer: queued);
+        var name = "runner-equivalencia";
+
+        static async Task<PowerTestDocument> Drive(Harness h, string name)
+        {
+            var geometry = new PowerGeometry
+            {
+                Impellers = [new Impeller { StageIndex = 0, DiameterM = 0.060 }],
+                VesselDiameterM = 0.20,
+                LiquidVolumeM3 = 0.010,
+            };
+            var doc = h.Store.CreateTest(name, new FluidProperties { DensityKgM3 = 998, ViscosityPaS = 0.001 }, geometry,
+                FastSettings() with { AutoAcceptRuns = true }, [new PowerCondition { AgitationRpm = 300 }, new PowerCondition { AgitationRpm = 400 }]);
+            h.Push(0, 0);
+            await h.Runner.StartTestAsync(doc);
+            var frames = 0;
+            while (h.Runner.Phase != PowerRunPhase.Completed && frames++ < 400)
+            {
+                var rpm = h.Runner.CurrentRun?.AgitationRpm ?? 15;
+                h.Push(h.Runner.Phase == PowerRunPhase.PreparingNextRun ? 15 : rpm, 2.0 + 0.001 * (frames % 7));
+            }
+            Assert.Equal(PowerRunPhase.Completed, h.Runner.Phase);
+            return doc;
+        }
+
+        var docA = await Drive(a, name);
+        var docB = await Drive(b, name);
+        await b.Store.FlushAsync();
+
+        // Ids are minted per assay; everything else — clock-driven timestamps included — must match.
+        static string Normalised(string path) => System.Text.RegularExpressions.Regex.Replace(
+            File.ReadAllText(path), "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<id>");
+
+        foreach (var file in new[] { PowerTestFileContracts.GlobalSeriesFileName, PowerTestFileContracts.EventLogFileName, PowerTestFileContracts.ResultsSummaryFileName })
+        {
+            Assert.Equal(
+                Normalised(Path.Combine(a.Store.RootDirectory, docA.FolderName, file)),
+                Normalised(Path.Combine(b.Store.RootDirectory, docB.FolderName, file)));
+        }
+        Assert.Equal(2, docA.Runs.Count);
+        foreach (var run in docA.Runs)
+        {
+            var rawA = a.Store.GetRunRawDataPath(docA.FolderName, run.FolderName);
+            var rawB = b.Store.GetRunRawDataPath(docB.FolderName, run.FolderName);
+            Assert.Equal(File.ReadAllBytes(rawA), File.ReadAllBytes(rawB));
+            var resultA = Path.Combine(Path.GetDirectoryName(rawA)!, PowerTestFileContracts.RunResultFileName);
+            var resultB = Path.Combine(Path.GetDirectoryName(rawB)!, PowerTestFileContracts.RunResultFileName);
+            Assert.Equal(Normalised(resultA), Normalised(resultB));
+        }
+    }
+
+    /// <summary>D-048: a queued write that fails does not stop the assay, but the runner says the record has a hole.</summary>
+    [Fact]
+    public async Task A_failed_queued_write_marks_the_recording_as_compromised_and_the_run_goes_on()
+    {
+        using var queued = new BackgroundFileWriter();
+        using var h = new Harness(writer: queued);
+        var doc = h.CreateDocument(FastSettings());
+        // The journal's path is taken by a directory: every append to it fails on the writer's thread.
+        var eventsPath = Path.Combine(h.Store.RootDirectory, doc.FolderName, PowerTestFileContracts.EventLogFileName);
+        File.Delete(eventsPath);
+        Directory.CreateDirectory(eventsPath);
+        var stateChanges = 0;
+        h.Runner.StateChanged += () => stateChanges++;
+        h.Push(0, 0);
+
+        await h.Runner.StartTestAsync(doc);
+        await h.Store.FlushAsync();
+        // The event is raised on the writer's thread; give the runner's handler a moment.
+        for (var i = 0; i < 50 && !h.Runner.IsStorageCompromised; i++) { await Task.Delay(20); }
+
+        Assert.True(h.Runner.IsStorageCompromised);
+        Assert.StartsWith("⚠ Gravação comprometida", h.Runner.StatusMessage, StringComparison.Ordinal);
+        Assert.True(h.Runner.IsRunning);
+        h.Push(300, 2.0);
+        h.Push(300, 2.0);
+        h.Push(300, 2.0);
+        Assert.True(h.Runner.IsRunning || h.Runner.IsInReview);
+        await h.Store.FlushAsync(); // the harness deletes its folder on dispose
     }
 
     [Fact]
@@ -945,11 +1036,11 @@ public sealed class PowerTestRunnerTests
         private readonly string _root = Path.Combine(Path.GetTempPath(), "PowerRunnerTests_" + Guid.NewGuid().ToString("N"));
         private readonly TestClock _clock = new(new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero));
 
-        public Harness(string? blockReason = null, bool useSimulator = false, DeviceModel? customSimulator = null)
+        public Harness(string? blockReason = null, bool useSimulator = false, DeviceModel? customSimulator = null, BackgroundFileWriter? writer = null)
         {
             Device = new RunnerDeviceService(customSimulator ?? (useSimulator ? new DeviceModel(randomSeed: 20260904) : null));
             Arbiter = new CommandArbiter(Device, _clock);
-            Store = new PowerTestStore(_root);
+            Store = new PowerTestStore(_root, writer);
             Runner = new PowerTestRunner(
                 Arbiter,
                 Arbiter,

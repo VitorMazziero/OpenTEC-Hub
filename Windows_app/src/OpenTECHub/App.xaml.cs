@@ -302,10 +302,13 @@ public partial class App : Application
         services.AddSingleton<IWorkspaceMigrationService, WorkspaceMigrationService>();
         services.AddSingleton<IKlaMappingEngine, KlaMappingEngine>();
         services.AddSingleton<IKlaProfileStore>(_ => new KlaProfileStore(AppPaths.KlaMappingDirectory));
-        services.AddSingleton<IKlaTestStore>(_ => new KlaTestStore(AppPaths.KlaTestsDirectory));
+        // One ordered background writer for both assay stores (D-048): saves are queued off the UI
+        // thread; the container disposes it at exit, which drains the queue.
+        services.AddSingleton(sp => new BackgroundFileWriter(logger: sp.GetRequiredService<ILogger<BackgroundFileWriter>>()));
+        services.AddSingleton<IKlaTestStore>(sp => new KlaTestStore(AppPaths.KlaTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IKlaAnalysisEngine, KlaAnalysisEngine>();
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
-        services.AddSingleton<IPowerTestStore>(_ => new PowerTestStore(AppPaths.PowerTestsDirectory));
+        services.AddSingleton<IPowerTestStore>(sp => new PowerTestStore(AppPaths.PowerTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IPowerMapStore>(_ => new PowerMapStore(AppPaths.PowerMapsDirectory));
         services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();
         services.AddSingleton<IPowerMapEngine, PowerMapEngine>();

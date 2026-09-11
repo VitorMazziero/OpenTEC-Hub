@@ -65,6 +65,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _device = device ?? throw new ArgumentNullException(nameof(device));
         _arbiter = arbiter ?? throw new ArgumentNullException(nameof(arbiter));
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _store.WriteFailed += OnStoreWriteFailed;
         _analysisEngine = analysisEngine ?? throw new ArgumentNullException(nameof(analysisEngine));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _time = time ?? TimeProvider.System;
@@ -92,6 +93,21 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public int VentFlowStableCount => _ventFlowStableCount;
     public double? VentFlowDeviation => _ventFlowDeviation;
     public string StatusMessage => _statusMessage;
+
+    /// <summary>True once a queued write of this assay's files failed (D-048); the run continues, the operator is told.</summary>
+    public bool IsStorageCompromised { get; private set; }
+
+    private void OnStoreWriteFailed(string path, Exception exception)
+    {
+        var first = !IsStorageCompromised;
+        IsStorageCompromised = true;
+        if (first)
+        {
+            _statusMessage = $"⚠ Gravação comprometida ({System.IO.Path.GetFileName(path)}: {exception.Message}). {_statusMessage}";
+            _log?.LogError(exception, "Falha ao gravar {Path} durante o ensaio de kLa", path);
+            RaiseStateChanged();
+        }
+    }
 
     public double PhaseElapsedSeconds
     {
@@ -322,10 +338,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _currentRun.CompletedUtc = _time.GetUtcNow();
             _currentRun.CurrentPhase = RunPhase.Accepted;
 
-            // Save raw data and analysis
-            _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
-            var rawPath = _store.GetRunRawDataPath(_currentTest.FolderName, _currentRun.FolderName);
-            analysis.RawDataSha256 = KlaTestFileContracts.ComputeFileSha256(rawPath);
+            // Save raw data and analysis. The store returns the hash the file will carry, so the
+            // seal does not wait for the queued write.
+            analysis.RawDataSha256 = _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
 
             _store.SaveRunAnalysis(_currentTest.FolderName, _currentRun.FolderName, analysis);
             _store.SaveRunResult(_currentTest.FolderName, _currentRun.FolderName, _currentRun, analysis);
@@ -390,9 +405,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _currentRun.CompletedUtc = _time.GetUtcNow();
             _currentRun.CurrentPhase = RunPhase.Rejected;
 
-            _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
-            var rawPath = _store.GetRunRawDataPath(_currentTest.FolderName, _currentRun.FolderName);
-            analysis.RawDataSha256 = KlaTestFileContracts.ComputeFileSha256(rawPath);
+            analysis.RawDataSha256 = _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
 
             _store.SaveRunAnalysis(_currentTest.FolderName, _currentRun.FolderName, analysis);
             _store.SaveRunResult(_currentTest.FolderName, _currentRun.FolderName, _currentRun, analysis);
@@ -1168,6 +1181,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _disposed = true;
 
         _device.TelemetryReceived -= OnTelemetryReceived;
+        _store.WriteFailed -= OnStoreWriteFailed;
         _device.StateChanged -= OnDeviceStateChanged;
         _watchdog.Dispose();
     }

@@ -75,6 +75,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnConnectionStateChanged;
         _arbiter.OwnershipRevoked += OnOwnershipRevoked;
+        _store.WriteFailed += OnStoreWriteFailed;
 
         if (_device.Latest is { } latest)
         {
@@ -109,6 +110,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
     public double CurrentTorqueCiTargetPercent => _capture?.CurrentTargetTorqueCi95Percent ?? 0.0;
     public int CurrentAttempt => _currentRun?.Tries ?? 0;
     public string StatusMessage => _statusMessage;
+
 
     public double PhaseElapsedSeconds => _phaseStartMonotonic > 0
         ? Math.Max(0, GetMonotonicSeconds() - _phaseStartMonotonic)
@@ -1766,5 +1768,33 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnConnectionStateChanged;
         _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+        _store.WriteFailed -= OnStoreWriteFailed;
+    }
+
+    public bool IsStorageCompromised { get; private set; }
+
+    /// <summary>
+    /// Raised on the writer's thread. A write that failed is a hole in the record: the flag is
+    /// set once, the message names the first file, and the journal gets an entry — which may
+    /// itself fail, in which case the log line is the evidence.
+    /// </summary>
+    private void OnStoreWriteFailed(string path, Exception exception)
+    {
+        var first = !IsStorageCompromised;
+        IsStorageCompromised = true;
+        if (first)
+        {
+            var name = System.IO.Path.GetFileName(path);
+            _statusMessage = $"⚠ Gravação comprometida ({name}: {exception.Message}). {_statusMessage}";
+            try
+            {
+                LogEvent("StorageWriteFailed", $"{path}: {exception.GetType().Name}: {exception.Message}");
+            }
+            catch
+            {
+                // The journal is on the same storage.
+            }
+            RaiseStateChanged();
+        }
     }
 }

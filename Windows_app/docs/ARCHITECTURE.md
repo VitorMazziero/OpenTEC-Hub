@@ -55,6 +55,14 @@ Nothing blocks the UI thread. A synchronous file read in `App.OnStartup` is a bu
 not a shortcut — the 2 s cold-start budget in [ROADMAP.md](ROADMAP.md#non-functional-targets)
 has no room for one.
 
+- **Assay I/O goes through one ordered queue** ([D-048](DECISIONS.md)). `PowerTestStore` and
+  `KlaTestStore` format or serialise on the caller and hand the bytes to a shared
+  `BackgroundFileWriter` — one consumer, enqueue order, so the ordering a `lock` gave the
+  synchronous writes is kept. Reads flush the queue first. The stores' `void Save*`/`Append*`
+  signatures did not change; the runners did not change. A store built without a writer writes
+  inline (tests). What stays synchronous, on purpose: folder creation and the "begin capture"
+  openers — a storage that cannot be opened must fail before an actuator is claimed (D-046).
+
 ---
 
 ## 3. Directory layout

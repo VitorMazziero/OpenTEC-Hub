@@ -9,6 +9,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **O I/O dos ensaios saiu da thread da UI (§B, D-048).** Dois `File.AppendAllText` por quadro e,
+  a cada mudança de fase, a reescrita de um `ensaio.json` de 832 KB (55 ms médios, picos de
+  330 ms) rodavam na thread da UI. `PowerTestStore` e `KlaTestStore` passam a formatar/serializar no
+  chamador e a enfileirar a escrita num `BackgroundFileWriter` — um consumidor, ordem de
+  enfileiramento, leituras drenam antes, `FlushAsync()` nas interfaces. O SHA-256 do dado bruto é
+  selado de um hash incremental alimentado com os mesmos bytes, sem reler o arquivo. `ensaio.json`
+  e `tara.json` deixam de embutir `tare.samples` (que já vivem em `Taras-Brutas/`): 832 KB →
+  ~120 KB, com migração única ao carregar. Falha de escrita marca o ensaio como "⚠ Gravação
+  comprometida" sem pará-lo. Um teste roda o mesmo ensaio pelos dois caminhos e exige arquivos
+  idênticos.
 - **As grades da página de Potência deixaram de ser reconstruídas a cada quadro (§A).** Cada
   quadro de telemetria (~1 Hz) fazia `Conditions.Clear()` + 42 clones e `Results.Clear()` + 41
   linhas — **duas vezes**, porque `DataPointAdded` e `StateChanged` chamavam a mesma rotina — e o

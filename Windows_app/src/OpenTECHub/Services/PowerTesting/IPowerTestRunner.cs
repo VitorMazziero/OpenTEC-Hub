@@ -25,6 +25,12 @@ public interface IPowerTestRunner : IDisposable
     IReadOnlyList<PowerGlobalSeriesSample> GlobalSeriesSamples { get; }
     PowerMotorRouteCoordinator? RouteCoordinator => null;
 
+    /// <summary>
+    /// True once a queued write of this assay's files failed (D-048). The runner keeps going —
+    /// the next frame is data too — but the operator must know the record has a hole.
+    /// </summary>
+    bool IsStorageCompromised => false;
+
     event Action? StateChanged;
     event Action<PowerDataPoint>? DataPointAdded;
     event Action<PowerRun>? RunStarted;

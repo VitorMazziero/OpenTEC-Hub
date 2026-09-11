@@ -9,6 +9,19 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **As grades da página de Potência deixaram de ser reconstruídas a cada quadro (§A).** Cada
+  quadro de telemetria (~1 Hz) fazia `Conditions.Clear()` + 42 clones e `Results.Clear()` + 41
+  linhas — **duas vezes**, porque `DataPointAdded` e `StateChanged` chamavam a mesma rotina — e o
+  `DataGrid` recebia um `Reset` que destruía os contêineres de linha, o hover, a rolagem e a
+  seleção duas vezes por segundo. `UpdateRunnerState` foi dividido em uma parte **por amostra**
+  (flags, rótulos, IC95, progresso, chip de gás) e uma parte **estrutural** (grades, estado do
+  documento, pré-voo) que só roda quando muda uma chave: fase, corrida, réplicas aceitas ou
+  concluídas, condições, revisão de ajustes, status. As grades passam a ser atualizadas **no
+  lugar**, por `ConditionId`/`RunId` (`PowerCondition.CopyRuntimeStateFrom`; linhas de resultado
+  substituídas só quando o conteúdo muda), preservando `SelectedCondition` e `SelectedResultRow`.
+  `DetectFlooding` saiu do caminho de refresh e roda ao aceitar uma corrida e ao abrir o ensaio; o
+  mapa de kLa vinculado passa a ser lido do disco fora da thread da UI. No runner, um quadro de
+  telemetria levanta `StateChanged` **no máximo uma vez**, depois de todas as mutações do quadro.
 - **Os critérios de parada não sobreviviam ao fechar o aplicativo (§K).** A janela *Critérios de
   Parada e Opções de Captura* só editava campos do ViewModel; os valores só chegavam ao
   `ensaio.json` por *Salvar setup*, *Iniciar* ou por uma edição posterior na tabela. O operador

@@ -522,8 +522,36 @@ public sealed class PowerCondition : INotifyPropertyChanged
         set { if (_status != value) { _status = value; OnPropertyChanged(); } }
     }
 
-    public bool HasReplicateDisagreement { get; set; }
-    public string? ReproducibilityWarning { get; set; }
+    private bool _hasReplicateDisagreement;
+    public bool HasReplicateDisagreement
+    {
+        get => _hasReplicateDisagreement;
+        set { if (_hasReplicateDisagreement != value) { _hasReplicateDisagreement = value; OnPropertyChanged(); } }
+    }
+
+    private string? _reproducibilityWarning;
+    public string? ReproducibilityWarning
+    {
+        get => _reproducibilityWarning;
+        set { if (!string.Equals(_reproducibilityWarning, value, StringComparison.Ordinal)) { _reproducibilityWarning = value; OnPropertyChanged(); } }
+    }
+
+    /// <summary>
+    /// Copies the fields the runner owns during an assay — status, counters, replicate agreement —
+    /// onto this row without touching the plan (rpm, gas, replicates requested). The page keeps its
+    /// own row objects across telemetry frames, so hover, selection and a cell being edited survive.
+    /// Each setter notifies only on change, so an unchanged row raises nothing.
+    /// </summary>
+    public void CopyRuntimeStateFrom(PowerCondition source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        CompletedReplicates = source.CompletedReplicates;
+        AcceptedReplicates = source.AcceptedReplicates;
+        RejectedReplicates = source.RejectedReplicates;
+        Status = source.Status;
+        HasReplicateDisagreement = source.HasReplicateDisagreement;
+        ReproducibilityWarning = source.ReproducibilityWarning;
+    }
 
     public PowerCondition Clone() => new()
     {

@@ -352,6 +352,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public partial bool IsRunning { get; private set; }
     [ObservableProperty] public partial bool IsInReview { get; private set; }
 
+    /// <summary>The condition the runner is executing, for the plan grid to follow; null when idle.</summary>
+    [ObservableProperty] public partial Guid? CurrentConditionId { get; private set; }
+
     /// <summary>
     /// True while the run under review captured samples. A run that stopped before capturing —
     /// vent, valve or speed time-out — is not a result to review: the strip offers only
@@ -895,6 +898,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             SelectedImpeller = Impellers.FirstOrDefault();
             SelectedCondition = Conditions.FirstOrDefault();
             LivePoints.Clear();
+            Results.Clear();
+            _structureKey = null;
+            DetectFloodingIfMissing();
             RebuildResults();
             _runner?.PrepareTest(doc);
             ValidationMessage = "";
@@ -904,6 +910,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             RecalculateLiveMetrics();
             _linkedKlaDocument = null;
             _linkedKlaSurface = null;
+            _linkedKlaLoad = null;
             UpdateKlaEfficiencyComparison();
         }
         finally
@@ -1565,6 +1572,51 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    private Task? _linkedKlaLoad;
+
+    private async Task LoadLinkedKlaMapAsync(Guid mapId)
+    {
+        KlaExperimentDocument? document = null;
+        KlaSurface? surface = null;
+        try
+        {
+            var store = _klaStore!;
+            var experiments = await Task.Run(() => store.LoadExperimentsAsync()).ConfigureAwait(true);
+            document = experiments.FirstOrDefault(e => e.Snapshot.Id == mapId);
+            if (document is not null)
+            {
+                try
+                {
+                    surface = await Task.Run(() => new KlaMappingEngine().Reconstruct(document.Snapshot)).ConfigureAwait(true);
+                }
+                catch
+                {
+                    surface = null;
+                }
+            }
+        }
+        catch
+        {
+            // Best effort: the summary says the file was not found.
+        }
+
+        if (_disposed)
+        {
+            return;
+        }
+
+        RunOnUi(() =>
+        {
+            if (CurrentTest?.LinkedMap?.MapId != mapId)
+            {
+                return;
+            }
+            _linkedKlaDocument = document;
+            _linkedKlaSurface = surface;
+            UpdateKlaEfficiencyComparison();
+        });
+    }
+
     public void UpdateKlaEfficiencyComparison()
     {
         if (CurrentTest?.LinkedMap is null)
@@ -1580,34 +1632,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         HasLinkedKlaMap = true;
         LinkedKlaMapName = CurrentTest.LinkedMap.MapName;
 
-        if (_linkedKlaDocument is null && _klaStore is not null)
+        if (_linkedKlaDocument is null && _klaStore is not null && _linkedKlaLoad is null)
         {
-            try
-            {
-                var experiments = _klaStore.LoadExperimentsAsync().GetAwaiter().GetResult();
-                _linkedKlaDocument = experiments.FirstOrDefault(e => e.Snapshot.Id == CurrentTest.LinkedMap.MapId);
-                if (_linkedKlaDocument is not null)
-                {
-                    try
-                    {
-                        var engine = new KlaMappingEngine();
-                        _linkedKlaSurface = engine.Reconstruct(_linkedKlaDocument.Snapshot);
-                    }
-                    catch
-                    {
-                        _linkedKlaSurface = null;
-                    }
-                }
-            }
-            catch
-            {
-                // Best effort
-            }
+            // The map is read from disk and its surface reconstructed off the UI thread; the
+            // comparison is recomputed when it lands. Used to block the first refresh after opening
+            // an assay with a linked map.
+            _linkedKlaLoad = LoadLinkedKlaMapAsync(CurrentTest.LinkedMap.MapId);
+            ControlRegionSummary = $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado · carregando…";
+            return;
         }
 
         if (_linkedKlaDocument is null)
         {
-            ControlRegionSummary = $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado, mas arquivo não encontrado.";
+            ControlRegionSummary = _linkedKlaLoad is { IsCompleted: false }
+                ? $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado · carregando…"
+                : $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado, mas arquivo não encontrado.";
             return;
         }
 
@@ -3724,6 +3763,41 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     /// </summary>
     private void OnRunStarted(PowerRun run) => RunOnUi(LivePoints.Clear);
 
+    /// <summary>
+    /// What the last structural refresh saw. A telemetry frame only refreshes the read-outs; the
+    /// grids, the document-state notifications and the preflight are refreshed when one of these
+    /// changes — a phase, a run, a replicate accepted or rejected, a plan or settings revision.
+    /// Bench of 2026-09-11: refreshing the grids on every frame rebuilt the plan table twice a
+    /// second, so no row container, hover state or cell edit ever survived.
+    /// </summary>
+    private readonly record struct RunnerStructureKey(
+        PowerRunPhase Phase,
+        bool IsRunning,
+        bool IsInReview,
+        Guid? RunId,
+        int RunCount,
+        int AcceptedReplicates,
+        int CompletedReplicates,
+        int SkippedConditions,
+        int ConditionCount,
+        int SettingsRevision,
+        PowerTestStatus Status);
+
+    private RunnerStructureKey? _structureKey;
+
+    private RunnerStructureKey StructureKeyOf(IPowerTestRunner runner, PowerTestDocument? doc) => new(
+        runner.Phase,
+        runner.IsRunning,
+        runner.IsInReview,
+        runner.CurrentRun?.RunId,
+        doc?.Runs.Count ?? 0,
+        doc?.Conditions.Sum(c => c.AcceptedReplicates) ?? 0,
+        doc?.Conditions.Sum(c => c.CompletedReplicates) ?? 0,
+        doc?.Conditions.Count(c => c.Status == PowerConditionStatus.Skipped) ?? 0,
+        doc?.Conditions.Count ?? 0,
+        doc?.SettingsRevision ?? 0,
+        doc?.Status ?? PowerTestStatus.Draft);
+
     private void UpdateRunnerState()
     {
         if (_runner is null)
@@ -3731,14 +3805,35 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (_runner.CurrentTest is { } runnerDoc)
+        var documentChanged = false;
+        if (_runner.CurrentTest is { } runnerDoc && !ReferenceEquals(CurrentTest, runnerDoc))
         {
             CurrentTest = runnerDoc;
+            documentChanged = true;
         }
 
         if (_runner.Phase == PowerRunPhase.PreparingNextRun && LivePoints.Count > 0)
         {
             LivePoints.Clear();
+        }
+
+        UpdateRunnerLiveState();
+
+        var key = StructureKeyOf(_runner, _runner.CurrentTest);
+        if (documentChanged || _structureKey != key)
+        {
+            var acceptedChanged = _structureKey?.AcceptedReplicates != key.AcceptedReplicates;
+            _structureKey = key;
+            UpdateRunnerStructure(acceptedChanged);
+        }
+    }
+
+    /// <summary>Per-sample: flags, labels, the CI gauge, sequence progress and the gas-loop chip. No grids.</summary>
+    private void UpdateRunnerLiveState()
+    {
+        if (_runner is null)
+        {
+            return;
         }
 
         IsRunning = _runner.IsRunning;
@@ -3758,9 +3853,25 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var target = _runner.CurrentTorqueCiTargetPercent;
         CiProgressPercent = current <= 0 ? 0 : Math.Clamp(target / current * 100.0, 0, 100);
         CiLabel = current > 0 ? $"IC95 ±{current:F4}% · alvo ≤ {target:F4}% · tentativa {_runner.CurrentAttempt}" : "IC95 — · aguardando acumulação";
+        CurrentConditionId = _runner.IsRunning ? _runner.CurrentCondition?.ConditionId : null;
         UpdateSequenceProgress();
+        UpdateGasLoopStatus();
+    }
+
+    /// <summary>Structural: the results and plan grids (updated in place), document state, preflight.</summary>
+    private void UpdateRunnerStructure(bool acceptedChanged)
+    {
+        if (_runner is null)
+        {
+            return;
+        }
+
         if (_runner.CurrentTest is not null)
         {
+            if (acceptedChanged)
+            {
+                DetectFloodingIfMissing();
+            }
             RebuildResults();
         }
 
@@ -3770,10 +3881,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             RefreshConditionRows();
         }
-        UpdateGasLoopStatus();
         NotifyDocumentState();
     }
 
+    /// <summary>
+    /// The runner raises <c>DataPointAdded</c> and then <c>StateChanged</c> in the same frame, so
+    /// the point only goes to the chart here; everything else is refreshed by the state change.
+    /// </summary>
     private void OnDataPointAdded(PowerDataPoint point) => RunOnUi(() =>
     {
         LivePoints.Add(point);
@@ -3781,15 +3895,40 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             LivePoints.RemoveAt(0);
         }
-
-        UpdateRunnerState();
     });
 
+    /// <summary>
+    /// Runs the automatic flooding detection once there are enough runs and no result yet. Called
+    /// when a run is accepted and when an assay is opened — not on every refresh, because it
+    /// writes <c>flooding.json</c> and the manifest.
+    /// </summary>
+    private void DetectFloodingIfMissing()
+    {
+        if (CurrentTest is null || CurrentTest.Flooding is not null || CurrentTest.Runs.Count < 3)
+        {
+            return;
+        }
+
+        var flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
+        if (flooding is not null)
+        {
+            CurrentTest.Flooding = flooding;
+            _store.SaveFlooding(CurrentTest.FolderName, flooding);
+            _store.SaveTestManifest(CurrentTest);
+        }
+    }
+
+    /// <summary>
+    /// Brings <see cref="Results"/> in line with the document's runs <em>in place</em>: rows are
+    /// matched by <c>RunId</c>, replaced only when their content changed, moved when the order
+    /// changed, and only then added or removed. A <c>Reset</c> would drop the grid's containers
+    /// and the operator's selection on every call.
+    /// </summary>
     private void RebuildResults()
     {
-        Results.Clear();
         if (CurrentTest is null)
         {
+            Results.Clear();
             FloodingResult = null;
             HasFloodingPoint = false;
             FloodingCoordinates = "";
@@ -3798,23 +3937,50 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
+        var selectedRunId = SelectedResultRow?.RunId;
+        var index = 0;
         foreach (var run in CurrentTest.Runs.OrderBy(r => r.StartedUtc))
         {
-            Results.Add(PowerResultRow.From(run));
+            var row = PowerResultRow.From(run);
+            var existingIndex = -1;
+            for (var i = index; i < Results.Count; i++)
+            {
+                if (Results[i].RunId == run.RunId)
+                {
+                    existingIndex = i;
+                    break;
+                }
+            }
+
+            if (existingIndex < 0)
+            {
+                Results.Insert(index, row);
+            }
+            else
+            {
+                if (existingIndex != index)
+                {
+                    Results.Move(existingIndex, index);
+                }
+                if (!Results[index].Equals(row))
+                {
+                    Results[index] = row;
+                }
+            }
+            index++;
+        }
+
+        while (Results.Count > index)
+        {
+            Results.RemoveAt(Results.Count - 1);
+        }
+
+        if (selectedRunId is { } id && SelectedResultRow?.RunId != id || selectedRunId is { } && !Results.Contains(SelectedResultRow!))
+        {
+            SelectedResultRow = Results.FirstOrDefault(r => r.RunId == selectedRunId);
         }
 
         var flooding = CurrentTest.Flooding;
-        if (flooding is null && CurrentTest.Runs.Count >= 3)
-        {
-            flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
-            if (flooding is not null)
-            {
-                CurrentTest.Flooding = flooding;
-                _store.SaveFlooding(CurrentTest.FolderName, flooding);
-                _store.SaveTestManifest(CurrentTest);
-            }
-        }
-
         FloodingResult = flooding;
         HasFloodingPoint = flooding is not null;
         if (flooding is not null)
@@ -3847,6 +4013,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         EtaLabel = done > 0 && total > done ? $"ETA {FormatDuration(elapsed / done * (total - done))}" : total > 0 && done >= total ? "Sequência concluída" : "ETA —";
     }
 
+    /// <summary>
+    /// Brings the plan grid in line with the document's conditions <em>in place</em>: rows are
+    /// matched by <c>ConditionId</c> and receive the runner-owned fields (status, counters); rows
+    /// are moved, added or removed only when the plan itself changed. The row objects — and with
+    /// them the grid's containers, hover, scroll position and selection — survive every frame.
+    /// Copying into a row raises its <c>PropertyChanged</c>, so persistence is suppressed: these
+    /// values come from the document, they are not edits.
+    /// </summary>
     private void RefreshConditionRows()
     {
         if (CurrentTest is null)
@@ -3855,13 +4029,51 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         var selectedId = SelectedCondition?.ConditionId;
-        Conditions.Clear();
-        foreach (var condition in CurrentTest.Conditions.OrderBy(c => c.OrderIndex))
+        _suppressConditionPersistence = true;
+        try
         {
-            Conditions.Add(condition.Clone());
+            var index = 0;
+            foreach (var condition in CurrentTest.Conditions.OrderBy(c => c.OrderIndex))
+            {
+                var existingIndex = -1;
+                for (var i = index; i < Conditions.Count; i++)
+                {
+                    if (Conditions[i].ConditionId == condition.ConditionId)
+                    {
+                        existingIndex = i;
+                        break;
+                    }
+                }
+
+                if (existingIndex < 0)
+                {
+                    Conditions.Insert(index, condition.Clone());
+                }
+                else
+                {
+                    if (existingIndex != index)
+                    {
+                        Conditions.Move(existingIndex, index);
+                    }
+                    Conditions[index].CopyRuntimeStateFrom(condition);
+                }
+                index++;
+            }
+
+            while (Conditions.Count > index)
+            {
+                Conditions.RemoveAt(Conditions.Count - 1);
+            }
+        }
+        finally
+        {
+            _suppressConditionPersistence = false;
         }
 
-        SelectedCondition = Conditions.FirstOrDefault(c => c.ConditionId == selectedId) ?? Conditions.FirstOrDefault();
+        if (SelectedCondition is null || !Conditions.Contains(SelectedCondition))
+        {
+            SelectedCondition = Conditions.FirstOrDefault(c => c.ConditionId == selectedId) ?? Conditions.FirstOrDefault();
+        }
     }
 
     private void OnOwnershipChanged(OwnershipTransfer _) => RunOnUi(OnOwnershipTransferred);

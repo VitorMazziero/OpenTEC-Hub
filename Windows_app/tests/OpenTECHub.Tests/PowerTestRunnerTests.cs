@@ -125,6 +125,46 @@ public sealed class PowerTestRunnerTests
         Assert.Empty(h.Device.Sent);
     }
 
+    /// <summary>
+    /// Every telemetry frame the page refreshes on <c>StateChanged</c>; a frame that raised it two
+    /// or three times (SetPhase + the explicit raise) cost two or three refreshes on the UI thread.
+    /// Frames with a valid servo measurement raise it exactly once, after all of the frame's
+    /// mutations; a frame without one raises nothing unless it paused the run.
+    /// </summary>
+    [Fact]
+    public async Task A_telemetry_frame_raises_StateChanged_at_most_once_and_after_the_data_point()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings());
+        var raisesInFrame = 0;
+        var order = new List<string>();
+        h.Runner.StateChanged += () => { raisesInFrame++; order.Add("state"); };
+        h.Runner.DataPointAdded += _ => order.Add("point");
+        h.Push(0, 0);
+
+        await h.Runner.StartTestAsync(doc);
+        var phases = new List<PowerRunPhase>();
+        var frames = 0;
+        while (h.Runner.Phase is PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget && frames < 500)
+        {
+            raisesInFrame = 0;
+            order.Clear();
+            h.Push(300, 2.0);
+            frames++;
+            phases.Add(h.Runner.Phase);
+            Assert.True(raisesInFrame <= 1, $"frame {frames} ({h.Runner.Phase}) raised StateChanged {raisesInFrame} times");
+            Assert.Equal(1, raisesInFrame);
+            if (order.Contains("point"))
+            {
+                Assert.Equal("state", order[^1]);
+            }
+        }
+
+        Assert.Contains(PowerRunPhase.SettlingTorque, phases);
+        Assert.Contains(PowerRunPhase.AccumulatingToTarget, phases);
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+    }
+
     [Fact]
     public async Task Setting_speed_uses_measured_rpm_and_never_commands_zero()
     {

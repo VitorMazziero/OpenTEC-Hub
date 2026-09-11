@@ -831,7 +831,36 @@ public sealed class PowerTestRunner : IPowerTestRunner
         return flowOk && v1Ok && v2Ok && vFlowOk && ackOk;
     }
 
+    /// <summary>
+    /// One telemetry frame raises <see cref="StateChanged"/> <em>at most once</em>, after every
+    /// mutation of the frame. A frame used to raise it up to three times (a <c>SetPhase</c>, a
+    /// <c>DataPointAdded</c> re-entering the page, and the explicit raise at the end), and each
+    /// raise cost the page a full refresh on the UI thread. Raises outside a frame — operator
+    /// commands, the watchdog — are immediate as before.
+    /// </summary>
     private void OnTelemetryReceived(SensorSnapshot snapshot)
+    {
+        _inTelemetryFrame = true;
+        _stateChangePending = false;
+        try
+        {
+            ProcessTelemetryFrame(snapshot);
+        }
+        finally
+        {
+            _inTelemetryFrame = false;
+            if (_stateChangePending)
+            {
+                _stateChangePending = false;
+                StateChanged?.Invoke();
+            }
+        }
+    }
+
+    private bool _inTelemetryFrame;
+    private bool _stateChangePending;
+
+    private void ProcessTelemetryFrame(SensorSnapshot snapshot)
     {
         var now = GetMonotonicSeconds();
         _lastTelemetryMonotonic = now;
@@ -847,10 +876,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _lastValidServoMonotonic = now;
         _currentRpm = snapshot.ServoRpm;
         _currentTorquePercent = snapshot.ServoTorquePct;
+        RaiseStateChanged();
 
         if (_currentTest is null)
         {
-            RaiseStateChanged();
             return;
         }
 
@@ -1715,7 +1744,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     private double GetMonotonicSeconds() => (double)_time.GetTimestamp() / _time.TimestampFrequency;
 
-    private void RaiseStateChanged() => StateChanged?.Invoke();
+    private void RaiseStateChanged()
+    {
+        if (_inTelemetryFrame)
+        {
+            _stateChangePending = true;
+            return;
+        }
+
+        StateChanged?.Invoke();
+    }
 
     public void Dispose()
     {

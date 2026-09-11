@@ -537,7 +537,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
 
     /// <summary>§E: the diagnostic series are recomputed every few reoxygenation points, not on every frame.</summary>
     [Fact]
-    public void Live_derived_series_are_recomputed_every_few_points_not_every_frame()
+    public void Live_derived_series_are_recomputed_every_few_points_not_every_frame() => OnUiThread(() =>
     {
         _vm.NewTestName = "Ensaio Derivadas";
         _vm.CreateNewTest();
@@ -574,6 +574,23 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(0, resets);
         _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, 5, RunPhase.Reoxygenating, 15, 15, 4, 4, 300, false, false, true));
         Assert.Equal(1, resets);
+    });
+
+    /// <summary>
+    /// The ViewModel marshals runner events through <c>Application.Current.Dispatcher</c> when one
+    /// exists — which it does once another test has started the WPF host. Running the body on that
+    /// dispatcher keeps the delivery synchronous either way.
+    /// </summary>
+    private static void OnUiThread(Action body)
+    {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(body);
+        }
+        else
+        {
+            body();
+        }
     }
 
     /// <summary>§E: refreshing the matrix keeps the row objects (no Reset) and does not re-read analyses it already has.</summary>

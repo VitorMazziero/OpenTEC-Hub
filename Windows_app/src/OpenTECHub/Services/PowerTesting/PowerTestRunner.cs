@@ -123,6 +123,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     public event Action? StateChanged;
     public event Action<PowerDataPoint>? DataPointAdded;
+    public event Action<PowerRun>? RunStarted;
     public event Action<string>? Logged;
 
     public bool CanStart(PowerTestDocument doc, out string? reason)
@@ -656,6 +657,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             : null;
         _capture = new PowerCaptureController(doc.Settings, sigma);
         _runStartMonotonic = GetMonotonicSeconds();
+        RunStarted?.Invoke(_currentRun);
         SetPhase(PowerRunPhase.Preflight, $"Pré-voo da corrida {_currentRun.FolderName}.");
 
         var actuators = ownsGas ? GassedActuators : Phase1Actuators;
@@ -784,6 +786,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
         _capture = new PowerCaptureController(doc.Settings, sigma);
         _runStartMonotonic = GetMonotonicSeconds();
+        RunStarted?.Invoke(_currentRun);
         StartGassedSequence(condition.GasFlowLpm ?? 0.0);
     }
 

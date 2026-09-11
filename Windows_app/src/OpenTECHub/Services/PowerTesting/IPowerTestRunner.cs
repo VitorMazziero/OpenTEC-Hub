@@ -27,6 +27,7 @@ public interface IPowerTestRunner : IDisposable
 
     event Action? StateChanged;
     event Action<PowerDataPoint>? DataPointAdded;
+    event Action<PowerRun>? RunStarted;
     event Action<string>? Logged;
 
     bool CanStart(PowerTestDocument doc, out string? reason);

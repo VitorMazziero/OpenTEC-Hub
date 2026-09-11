@@ -289,6 +289,7 @@ public sealed class PowerPreflightReadoutTests : IDisposable
 
         public event Action? StateChanged;
         public event Action<PowerDataPoint>? DataPointAdded;
+        public event Action<PowerRun>? RunStarted;
         public event Action<string>? Logged;
 
         public void PrepareTest(PowerTestDocument doc) => CurrentTest = doc;

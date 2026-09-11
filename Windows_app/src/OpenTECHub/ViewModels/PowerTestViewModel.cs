@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -131,6 +131,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             _runner.StateChanged += OnRunnerStateChanged;
             _runner.DataPointAdded += OnDataPointAdded;
+            _runner.RunStarted += OnRunStarted;
         }
 
         RefreshOwnership();
@@ -3565,6 +3566,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void OnRunnerStateChanged() => RunOnUi(UpdateRunnerState);
 
+    /// <summary>
+    /// The live chart shows one run at a time. The runner announces every run it starts —
+    /// including the gassed subphase of a <c>Both</c> condition, which is its own
+    /// <see cref="PowerRun"/> with its own folder — so this is the single place that clears it.
+    /// </summary>
+    private void OnRunStarted(PowerRun run) => RunOnUi(LivePoints.Clear);
+
     private void UpdateRunnerState()
     {
         if (_runner is null)
@@ -3575,6 +3583,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (_runner.CurrentTest is { } runnerDoc)
         {
             CurrentTest = runnerDoc;
+        }
+
+        if (_runner.Phase == PowerRunPhase.PreparingNextRun && LivePoints.Count > 0)
+        {
+            LivePoints.Clear();
         }
 
         IsRunning = _runner.IsRunning;
@@ -3850,7 +3863,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _flowConfiguredConditions.Clear();
         _device.TelemetryReceived -= OnTelemetryReceived;
         _arbiter.OwnershipChanged -= OnOwnershipChanged;
-        if (_runner is not null) { _runner.StateChanged -= OnRunnerStateChanged; _runner.DataPointAdded -= OnDataPointAdded; }
+        if (_runner is not null) { _runner.StateChanged -= OnRunnerStateChanged; _runner.DataPointAdded -= OnDataPointAdded; _runner.RunStarted -= OnRunStarted; }
     }
 }
 

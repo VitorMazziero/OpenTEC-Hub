@@ -84,6 +84,39 @@ public sealed class PowerUiRefreshTests : IDisposable
         Assert.Equal(PowerConditionStatus.InProgress, vm.Conditions[1].Status);
     }
 
+    /// <summary>§N: during the assay the plan grid is read-only, not disabled — selecting a row to see
+    /// where the sequence is must never write the plan.</summary>
+    [Fact]
+    public void Selecting_a_condition_while_running_does_not_persist_the_plan()
+    {
+        var runner = new FrameStubRunner();
+        var (vm, doc) = Build(runner);
+        runner.PrepareTest(doc);
+        runner.Phase = PowerRunPhase.AccumulatingToTarget;
+        runner.IsRunning = true;
+        runner.CurrentCondition = doc.Conditions[0];
+        runner.RaiseStateChanged();
+        Assert.False(vm.CanEditPlan);
+        var folder = Path.Combine(_store.RootDirectory, doc.FolderName);
+        var manifestBefore = File.ReadAllText(Path.Combine(folder, PowerTestFileContracts.TestManifestFileName));
+        var tableBefore = File.ReadAllText(Path.Combine(folder, PowerTestFileContracts.ConditionTableFileName));
+
+        vm.SelectedCondition = vm.Conditions[2];
+        vm.SelectedCondition = vm.Conditions[1];
+        runner.RaiseStateChanged();
+
+        Assert.Same(vm.Conditions[1], vm.SelectedCondition);
+        Assert.Equal(doc.Conditions[0].ConditionId, vm.CurrentConditionId);
+        Assert.Equal(manifestBefore, File.ReadAllText(Path.Combine(folder, PowerTestFileContracts.TestManifestFileName)));
+        Assert.Equal(tableBefore, File.ReadAllText(Path.Combine(folder, PowerTestFileContracts.ConditionTableFileName)));
+
+        runner.IsRunning = false;
+        runner.Phase = PowerRunPhase.Idle;
+        runner.CurrentCondition = null;
+        runner.RaiseStateChanged();
+        Assert.Null(vm.CurrentConditionId);
+    }
+
     [Fact]
     public void Runner_owned_fields_are_copied_onto_the_existing_rows_without_replacing_them()
     {

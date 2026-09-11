@@ -25,6 +25,12 @@ public partial class PowerView : UserControl
 
     private PowerTestViewModel? ViewModel => DataContext as PowerTestViewModel;
 
+    /// <summary>The plan grid follows the condition in progress unless the operator scrolled it within this window.</summary>
+    private static readonly TimeSpan OperatorScrollHold = TimeSpan.FromSeconds(5);
+    private DateTime _lastOperatorScrollUtc = DateTime.MinValue;
+    private bool _autoScrolling;
+    private PowerTestViewModel? _observedViewModel;
+
     public PowerView()
     {
         InitializeComponent();
@@ -35,6 +41,73 @@ public partial class PowerView : UserControl
         _redrawTimer.Tick += (_, _) => RedrawPlots();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_observedViewModel is not null)
+        {
+            _observedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        _observedViewModel = ViewModel;
+        if (_observedViewModel is not null)
+        {
+            _observedViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PowerTestViewModel.CurrentConditionId))
+        {
+            FollowCurrentCondition();
+        }
+    }
+
+    /// <summary>
+    /// Scrolls the row in progress into view — without touching the selection, which is the
+    /// operator's — and only if the operator has not scrolled the grid in the last few seconds.
+    /// </summary>
+    private void FollowCurrentCondition()
+    {
+        if (ViewModel is not { CurrentConditionId: { } id } vm || !IsLoaded)
+        {
+            return;
+        }
+
+        if (DateTime.UtcNow - _lastOperatorScrollUtc < OperatorScrollHold)
+        {
+            return;
+        }
+
+        var row = vm.Conditions.FirstOrDefault(c => c.ConditionId == id);
+        if (row is null)
+        {
+            return;
+        }
+
+        _autoScrolling = true;
+        try
+        {
+            ConditionsGrid.ScrollIntoView(row);
+        }
+        finally
+        {
+            _autoScrolling = false;
+        }
+    }
+
+    private void OnConditionsGridScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        // Extent-only changes (rows added, layout) are not operator scrolls.
+        if (_autoScrolling || (e.VerticalChange == 0 && e.HorizontalChange == 0))
+        {
+            return;
+        }
+
+        _lastOperatorScrollUtc = DateTime.UtcNow;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

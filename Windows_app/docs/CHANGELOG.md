@@ -22,6 +22,14 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   `DetectFlooding` saiu do caminho de refresh e roda ao aceitar uma corrida e ao abrir o ensaio; o
   mapa de kLa vinculado passa a ser lido do disco fora da thread da UI. No runner, um quadro de
   telemetria levanta `StateChanged` **no máximo uma vez**, depois de todas as mutações do quadro.
+- **A tabela de condições pode ser navegada durante o ensaio (§N).** O card inteiro ficava em
+  `IsEnabled=CanEditPlan`: com o ensaio em curso o grid ficava cinza — sem rolagem, sem seleção,
+  sem tooltip. O grid passa a ser **somente leitura** (não desabilitado) enquanto o plano está
+  travado; os botões `+ − ↑ ↓ Pular/repor` continuam desabilitados. A linha em curso ganha
+  destaque (`AccentSubtleBrush`, negrito) e o grid **acompanha a condição em curso**
+  (`CurrentConditionId` → `ScrollIntoView`) sem mexer na seleção — que é do operador — e só se o
+  operador não rolou a tabela nos últimos 5 s. Depende da §A: com a grade resetando a cada quadro,
+  nem rolagem nem seleção sobreviveriam.
 - **Os critérios de parada não sobreviviam ao fechar o aplicativo (§K).** A janela *Critérios de
   Parada e Opções de Captura* só editava campos do ViewModel; os valores só chegavam ao
   `ensaio.json` por *Salvar setup*, *Iniciar* ou por uma edição posterior na tabela. O operador

@@ -401,9 +401,24 @@
                         <StackPanel>
                             <TextBlock Text="Condições do ensaio" FontSize="15" FontWeight="SemiBold" />
                             <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                       Text="Sequência de pontos planejados para o ensaio. Edite as células ou use os botões abaixo; as alterações são salvas automaticamente." />
-                            <DataGrid Margin="0,7,0,5" Height="220" ItemsSource="{Binding Conditions}" SelectedItem="{Binding SelectedCondition}"
-                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" IsEnabled="{Binding CanEditPlan}" HorizontalScrollBarVisibility="Auto">
+                                       Text="Sequência de pontos planejados para o ensaio. Edite as células ou use os botões abaixo; as alterações são salvas automaticamente. Durante o ensaio a tabela fica somente leitura e acompanha a condição em curso." />
+                            <!-- Navigable during the assay: read-only, not disabled, so the operator can scroll and select
+                                 to see where the sequence is. Selection alone never persists (§N). -->
+                            <DataGrid x:Name="ConditionsGrid" Margin="0,7,0,5" Height="220" ItemsSource="{Binding Conditions}" SelectedItem="{Binding SelectedCondition}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False"
+                                      IsReadOnly="{Binding CanEditPlan, Converter={StaticResource InverseBool}}"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      ScrollViewer.ScrollChanged="OnConditionsGridScrollChanged">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Status}" Value="{x:Static power:PowerConditionStatus.InProgress}">
+                                                <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="Auto" MinWidth="34" IsReadOnly="True">
                                         <DataGridTextColumn.ElementStyle>

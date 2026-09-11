@@ -320,6 +320,7 @@ public sealed class PowerTestStoreTests : IDisposable
             GasMode = run.GasMode,
             Phase = PowerRunPhase.Accepted,
             StopReason = run.StopReason,
+            SampleCount = run.SampleCount,
             NetPowerW = run.NetPowerW,
             Analysis = run.Analysis,
         });

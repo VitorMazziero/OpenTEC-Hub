@@ -184,7 +184,70 @@ public sealed class PowerTestStore : IPowerTestStore
             doc.Tare = LoadTare(folderName) ?? doc.Tare;
             doc.Calibration = LoadCalibration(folderName) ?? doc.Calibration;
 
+            DemoteAcceptedRunsWithoutCapture(folderName, folderPath, manifestPath, doc);
+
             return doc;
+        }
+    }
+
+    /// <summary>
+    /// Manifests written before D-050 may hold runs accepted with no capture (n = 0, P = 0 W) —
+    /// the bench of 2026-09-11 had two. They are demoted to <c>Rejected</c> once, on load, the
+    /// condition is reopened so the sequence returns to it, the summary is regenerated and the
+    /// migration is journalled. Runs stay in the manifest: nothing measured is discarded.
+    /// </summary>
+    private void DemoteAcceptedRunsWithoutCapture(string folderName, string folderPath, string manifestPath, PowerTestDocument doc)
+    {
+        var demoted = new List<PowerRunSummary>();
+        for (var i = 0; i < doc.Runs.Count; i++)
+        {
+            var run = doc.Runs[i];
+            if (run.Phase == PowerRunPhase.Accepted && PowerTestFileContracts.IsRunWithoutCapture(run))
+            {
+                doc.Runs[i] = run with { Phase = PowerRunPhase.Rejected };
+                demoted.Add(run);
+            }
+        }
+
+        if (demoted.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var condition in doc.Conditions)
+        {
+            if (demoted.All(r => r.ConditionId != condition.ConditionId))
+            {
+                continue;
+            }
+
+            condition.AcceptedReplicates = doc.Runs.Count(r => r.ConditionId == condition.ConditionId && r.Phase == PowerRunPhase.Accepted);
+            condition.RejectedReplicates = doc.Runs.Count(r => r.ConditionId == condition.ConditionId && r.Phase == PowerRunPhase.Rejected);
+            if (condition.Status == PowerConditionStatus.Completed && condition.AcceptedReplicates < condition.RequestedReplicates)
+            {
+                condition.Status = PowerConditionStatus.Pending;
+            }
+        }
+
+        if (doc.Status == PowerTestStatus.Completed && doc.Conditions.Any(c => c.Status == PowerConditionStatus.Pending))
+        {
+            doc.Status = PowerTestStatus.Interrupted;
+            doc.InterruptionReason = "Corridas aceitas sem captura foram rejeitadas na migração; condições reabertas.";
+        }
+
+        doc.LastModifiedUtc = DateTimeOffset.UtcNow;
+        WriteAllTextAtomic(manifestPath, PowerTestFileContracts.SerializeTestDocument(doc));
+        WriteAllTextAtomic(
+            Path.Combine(folderPath, PowerTestFileContracts.ConditionTableFileName),
+            PowerTestFileContracts.SerializeConditionTable(doc.Conditions));
+        UpdateResultsSummaryCore(folderName, doc);
+        foreach (var run in demoted)
+        {
+            var reason = $"sem captura (migração): {run.FolderName} estava aceita com n = {run.SampleCount}";
+            File.AppendAllText(
+                Path.Combine(folderPath, PowerTestFileContracts.EventLogFileName),
+                PowerTestFileContracts.FormatEventLogLine(new PowerTestEventLogEntry(DateTimeOffset.UtcNow, "RunRejected", reason)) + Environment.NewLine,
+                Encoding.UTF8);
         }
     }
 
@@ -878,82 +941,88 @@ public sealed class PowerTestStore : IPowerTestStore
         ArgumentNullException.ThrowIfNull(doc);
         lock (_ioLock)
         {
-            var rows = new List<string> { PowerTestFileContracts.FormatResultsSummaryHeader() };
-            foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
+            UpdateResultsSummaryCore(testFolderName, doc);
+        }
+    }
+
+    private void UpdateResultsSummaryCore(string testFolderName, PowerTestDocument doc)
+    {
+        var rows = new List<string> { PowerTestFileContracts.FormatResultsSummaryHeader() };
+        foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
+        {
+            var accepted = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            !PowerTestFileContracts.IsRunWithoutCapture(r) &&
+                            r.NetPowerW is { } value && double.IsFinite(value))
+                .Select(r => r.NetPowerW!.Value)
+                .ToArray();
+            double? mean = accepted.Length > 0 ? accepted.Average() : null;
+            double? standardDeviation = null;
+            if (accepted.Length > 1 && mean is { } average)
             {
-                var accepted = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.NetPowerW is { } value && double.IsFinite(value))
-                    .Select(r => r.NetPowerW!.Value)
-                    .ToArray();
-                double? mean = accepted.Length > 0 ? accepted.Average() : null;
-                double? standardDeviation = null;
-                if (accepted.Length > 1 && mean is { } average)
-                {
-                    standardDeviation = Math.Sqrt(
-                        accepted.Sum(value => Math.Pow(value - average, 2)) / (accepted.Length - 1));
-                }
-
-                var npValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyPowerNumber))
-                    .Select(r => r.Analysis!.AssemblyPowerNumber)
-                    .ToArray();
-                var reValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyReynoldsNumber))
-                    .Select(r => r.Analysis!.AssemblyReynoldsNumber)
-                    .ToArray();
-                double? meanNp = npValues.Length > 0 ? npValues.Average() : null;
-                double? standardDeviationNp = null;
-                if (npValues.Length > 1 && meanNp is { } averageNp)
-                {
-                    standardDeviationNp = Math.Sqrt(
-                        npValues.Sum(value => Math.Pow(value - averageNp, 2)) / (npValues.Length - 1));
-                }
-                double? meanRe = reValues.Length > 0 ? reValues.Average() : null;
-
-                var ratioValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.PowerRatio is { } ratio && double.IsFinite(ratio))
-                    .Select(r => r.PowerRatio!.Value)
-                    .ToArray();
-                double? meanRatio = ratioValues.Length > 0 ? ratioValues.Average() : null;
-                double? stdDevRatio = null;
-                if (ratioValues.Length > 1 && meanRatio is { } avgRatio)
-                {
-                    stdDevRatio = Math.Sqrt(ratioValues.Sum(v => Math.Pow(v - avgRatio, 2)) / (ratioValues.Length - 1));
-                }
-
-                var flGValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.GasFlowNumber is { } flg && double.IsFinite(flg))
-                    .Select(r => r.GasFlowNumber!.Value)
-                    .ToArray();
-                double? meanFlG = flGValues.Length > 0 ? flGValues.Average() : null;
-
-                var frValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.FroudeNumber is { } fr && double.IsFinite(fr))
-                    .Select(r => r.FroudeNumber!.Value)
-                    .ToArray();
-                double? meanFr = frValues.Length > 0 ? frValues.Average() : null;
-
-                rows.Add(PowerTestFileContracts.FormatResultsSummaryRow(
-                    condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe,
-                    meanRatio, stdDevRatio, meanFlG, meanFr));
+                standardDeviation = Math.Sqrt(
+                    accepted.Sum(value => Math.Pow(value - average, 2)) / (accepted.Length - 1));
             }
 
-            WriteAllTextAtomic(
-                Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.ResultsSummaryFileName),
-                string.Join(Environment.NewLine, rows) + Environment.NewLine);
+            var npValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyPowerNumber))
+                .Select(r => r.Analysis!.AssemblyPowerNumber)
+                .ToArray();
+            var reValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyReynoldsNumber))
+                .Select(r => r.Analysis!.AssemblyReynoldsNumber)
+                .ToArray();
+            double? meanNp = npValues.Length > 0 ? npValues.Average() : null;
+            double? standardDeviationNp = null;
+            if (npValues.Length > 1 && meanNp is { } averageNp)
+            {
+                standardDeviationNp = Math.Sqrt(
+                    npValues.Sum(value => Math.Pow(value - averageNp, 2)) / (npValues.Length - 1));
+            }
+            double? meanRe = reValues.Length > 0 ? reValues.Average() : null;
+
+            var ratioValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.PowerRatio is { } ratio && double.IsFinite(ratio))
+                .Select(r => r.PowerRatio!.Value)
+                .ToArray();
+            double? meanRatio = ratioValues.Length > 0 ? ratioValues.Average() : null;
+            double? stdDevRatio = null;
+            if (ratioValues.Length > 1 && meanRatio is { } avgRatio)
+            {
+                stdDevRatio = Math.Sqrt(ratioValues.Sum(v => Math.Pow(v - avgRatio, 2)) / (ratioValues.Length - 1));
+            }
+
+            var flGValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.GasFlowNumber is { } flg && double.IsFinite(flg))
+                .Select(r => r.GasFlowNumber!.Value)
+                .ToArray();
+            double? meanFlG = flGValues.Length > 0 ? flGValues.Average() : null;
+
+            var frValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.FroudeNumber is { } fr && double.IsFinite(fr))
+                .Select(r => r.FroudeNumber!.Value)
+                .ToArray();
+            double? meanFr = frValues.Length > 0 ? frValues.Average() : null;
+
+            rows.Add(PowerTestFileContracts.FormatResultsSummaryRow(
+                condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe,
+                meanRatio, stdDevRatio, meanFlG, meanFr));
         }
+
+        WriteAllTextAtomic(
+            Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.ResultsSummaryFileName),
+            string.Join(Environment.NewLine, rows) + Environment.NewLine);
     }
 
     private static void WriteAllTextAtomic(string path, string contents)

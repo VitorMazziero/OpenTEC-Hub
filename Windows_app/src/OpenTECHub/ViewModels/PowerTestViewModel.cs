@@ -351,6 +351,19 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasPreflightWarning))]
     public partial bool IsRunning { get; private set; }
     [ObservableProperty] public partial bool IsInReview { get; private set; }
+
+    /// <summary>
+    /// True while the run under review captured samples. A run that stopped before capturing —
+    /// vent, valve or speed time-out — is not a result to review: the strip offers only
+    /// <c>Repetir</c> and <c>Rejeitar</c> (D-050).
+    /// </summary>
+    [ObservableProperty] public partial bool ReviewHasCapture { get; private set; }
+
+    public bool CanAcceptRun => IsInReview && ReviewHasCapture;
+    public bool IsReviewingUnperformedRun => IsInReview && !ReviewHasCapture;
+
+    /// <summary>"Sem captura — {motivo}", for the strip shown in place of the accept button.</summary>
+    [ObservableProperty] public partial string ReviewNoCaptureText { get; private set; } = "";
     [ObservableProperty] public partial bool IsPaused { get; private set; }
     [ObservableProperty] public partial bool IsWaitingManualEnergy { get; private set; }
     [ObservableProperty] public partial bool IsAccumulating { get; private set; }
@@ -2310,6 +2323,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         var newPhase = run.Phase == PowerRunPhase.Accepted ? PowerRunPhase.Rejected : PowerRunPhase.Accepted;
+        if (newPhase == PowerRunPhase.Accepted && PowerTestFileContracts.IsRunWithoutCapture(run))
+        {
+            ShowError(PowerTestRunner.NoCaptureMessage);
+            return;
+        }
         var updatedRun = run with { Phase = newPhase };
         var idx = CurrentTest.Runs.IndexOf(run);
         CurrentTest.Runs[idx] = updatedRun;
@@ -3725,6 +3743,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         IsRunning = _runner.IsRunning;
         IsInReview = _runner.IsInReview;
+        ReviewHasCapture = _runner.CurrentRun is { } reviewed && PowerTestRunner.HasCapture(reviewed);
+        ReviewNoCaptureText = IsInReview && !ReviewHasCapture ? $"Sem captura — {_runner.StatusMessage}" : "";
+        OnPropertyChanged(nameof(CanAcceptRun));
+        OnPropertyChanged(nameof(IsReviewingUnperformedRun));
         IsPaused = _runner.IsPausedByOperator || _runner.IsPausedForMeasurement;
         IsWaitingManualEnergy = _runner.Phase == PowerRunPhase.HoldingForManualEnergy;
         IsAccumulating = _runner.Phase == PowerRunPhase.AccumulatingToTarget;

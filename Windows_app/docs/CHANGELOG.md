@@ -20,6 +20,13 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   a próxima `VentStabilizing` já usa o limite novo. O `X` e `Esc` descartam, perguntando antes se
   houver diferença; ao sair do aplicativo com setup não salvo, a janela principal pergunta
   *Salvar o setup do ensaio antes de sair?*.
+- **Corrida sem captura não pode mais ser aceita (§J, D-050).** Um ponto que parou para revisão por
+  tempo limite (alívio, válvula, rotação) chegava à faixa de revisão com *Aceitar* disponível; no
+  IsojetB-Combijet duas corridas foram aceitas com n = 0 e P = 0 W, entraram no resumo e fecharam
+  as condições. O runner recusa o aceite sem captura, a faixa vira **Corrida não realizada — Sem
+  captura: {motivo}** só com *Repetir* e *Rejeitar*, *Alternar Aceite* aplica a mesma regra, e ao
+  carregar um ensaio antigo as corridas aceitas sem captura são rebaixadas para rejeitadas, as
+  condições reabertas e a migração registrada em `eventos.jsonl`.
 - **Padrão de `MaxVentStabilizationSeconds`: 120 → 500 s.** Medido em 11/09: ao abrir o alívio a
   vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, entrando em ±0,2 L/min só após 110–170 s. O
   diálogo avisa quando o operador põe menos de ~150 s (~3τ), e o texto de *Aceite automático* passa

@@ -859,11 +859,26 @@
                                     <Button Content="Exportar CSV" Click="ExportCsv_Click" Padding="10,4" IsEnabled="{Binding HasActiveTest}" />
                                 </StackPanel>
                             </Grid>
-                            <StackPanel Grid.Row="1" Margin="0,7,0,7" Orientation="Horizontal" Visibility="{Binding IsInReview, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Grid.Row="1" Margin="0,7,0,7" Orientation="Horizontal" Visibility="{Binding CanAcceptRun, Converter={StaticResource BoolToVis}}">
                                 <Button Content="Aceitar" Style="{StaticResource AccentButtonStyle}" Command="{Binding AcceptRunCommand}" Margin="0,0,6,0" />
                                 <Button Content="Rejeitar" Command="{Binding RejectRunCommand}" Margin="0,0,6,0" />
                                 <Button Content="Repetir" Command="{Binding RepeatRunCommand}" />
                             </StackPanel>
+                            <!-- A run that stopped before capturing is not a result: no accept, no P/IC95/Np (D-050). -->
+                            <Border Grid.Row="1" Margin="0,7,0,7" Padding="10,8" Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
+                                    Visibility="{Binding IsReviewingUnperformedRun, Converter={StaticResource BoolToVis}}">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                                        <Button Content="Repetir" Style="{StaticResource AccentButtonStyle}" Command="{Binding RepeatRunCommand}" Margin="0,0,6,0" />
+                                        <Button Content="Rejeitar" Command="{Binding RejectRunCommand}" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Corrida não realizada" FontWeight="SemiBold" Foreground="{DynamicResource StateWarningTextBrush}" />
+                                        <TextBlock Text="{Binding ReviewNoCaptureText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
                             <Border Grid.Row="1" Margin="0,7,0,7" Style="{StaticResource PowerCard}" Padding="10" Visibility="{Binding IsWaitingManualEnergy, Converter={StaticResource BoolToVis}}">
                                 <Grid>
                                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>

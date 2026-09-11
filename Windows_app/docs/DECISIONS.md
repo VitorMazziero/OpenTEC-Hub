@@ -1336,6 +1336,47 @@ a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
   `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
   `f08ba27`. Um `XamlParseException` continua sendo um crash.
 
+### D-050 · Corrida sem captura nunca é aceitável; falha de sequência não é revisão de resultado
+
+**Status:** Accepted and implemented · 2026-09-11
+
+**Decisão.** Uma corrida de potência que parou para revisão **antes de capturar** — tempo limite do
+alívio, de confirmação de válvula ou de rotação — não tem resultado, e por isso não pode ser aceita:
+
+- `PowerTestRunner.AcceptRunAsync`/`AcceptRunCore` recusam (`InvalidOperationException`, "Corrida sem
+  captura: repita ou rejeite") quando `SampleCount == 0` ou `NetPowerW` não é finito. O aceite
+  automático nunca chega aqui: só é consultado após uma captura bem-sucedida.
+- A faixa de revisão muda de natureza: com captura, *Aceitar · Rejeitar · Repetir*; sem captura, o
+  título é **Corrida não realizada**, o texto é *Sem captura — {motivo}*, não há P/IC95/Np e só
+  existem **Repetir** e **Rejeitar**. Confirmado com o operador: "não deve aparecer para eu aceitar
+  nada, pois não se conseguiu fazer o teste".
+- *Alternar Aceite* na tabela de pontos aplica a mesma regra ao ir para `Accepted`.
+- **Migração ao carregar.** Um manifesto anterior a esta decisão pode trazer corridas `Accepted`
+  com `sampleCount = 0` e `netPowerW = 0`: `PowerTestStore.LoadTest` as rebaixa para `Rejected` uma
+  vez, recalcula `AcceptedReplicates`/`RejectedReplicates`, reabre a condição (`Completed →
+  Pending`), volta um ensaio `Completed` para `Interrupted` se alguma condição reabriu, regrava
+  manifesto e tabela, regenera `resumo-resultados.csv` e registra um `RunRejected` "sem captura
+  (migração)" por corrida em `eventos.jsonl`. A corrida fica no manifesto: nada medido é apagado.
+- `resumo-resultados.csv` exclui linhas sem captura mesmo que um manifesto as traga.
+
+**Por quê.** Ensaio IsojetB-Combijet, 2026-09-11: com `MaxVentStabilizationSeconds = 120`, três
+estabilizações a 200 rpm expiraram com zero amostras e foram para revisão. Em duas o operador clicou
+*Aceitar*: as corridas ficaram `Accepted` com `n = 0` e `P = 0 W`, entraram no resumo e marcaram as
+condições como `Completed` — a sequência pularia por cima delas. O runner só verificava a fase
+`Reviewing`; a faixa oferecia *Aceitar* sem condição. Uma falha de sequência era apresentada como um
+resultado a revisar, e a interface convidava a aceitar um ponto falso.
+
+**Consequências.**
+- O predicado de "fantasma" para linhas de resumo é **sem amostras e sem potência utilizável**
+  (`IsRunWithoutCapture`): as duas condições, porque uma linha de manifesto antigo que nunca gravou
+  `sampleCount` mas carrega potência medida não pode ser confundida com uma corrida não realizada.
+  No runner, sobre a corrida viva, o predicado é o estrito (`HasCapture`: amostras > 0 e P finita).
+- Em modo autônomo, a política de falha de sequência (§I do plano de 11/09) decide entre parar para
+  revisão e repetir/pular — mas nunca aceitar.
+- Cobertura: `PowerRunWithoutCaptureTests` (predicados, faixa sem *Aceitar*, *Alternar Aceite*
+  recusado, migração com reabertura e journal único, manifesto limpo intocado) e
+  `PowerTestRunnerTests.A_run_that_timed_out_before_capturing_cannot_be_accepted_only_rejected_or_repeated`.
+
 ---
 
 ## Open questions

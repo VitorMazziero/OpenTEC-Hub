@@ -498,9 +498,22 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             throw new InvalidOperationException("Nenhuma corrida está aguardando aceite.");
         }
+        if (!HasCapture(_currentRun))
+        {
+            throw new InvalidOperationException(NoCaptureMessage);
+        }
         AcceptRunCore(autoAdvance: false);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// A run that stopped for review before capturing anything — vent, valve or speed time-out —
+    /// has no result to accept. Bench of 2026-09-11: two such runs were accepted with n = 0 and
+    /// P = 0 W, entered the summary and marked their conditions complete (D-050).
+    /// </summary>
+    public const string NoCaptureMessage = "Corrida sem captura: repita ou rejeite.";
+
+    public static bool HasCapture(PowerRun run) => run.SampleCount > 0 && double.IsFinite(run.NetPowerW);
 
     public Task RejectRunAsync(string reason)
     {
@@ -1154,6 +1167,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
     {
         var run = _currentRun!;
         var condition = _currentCondition!;
+        if (!HasCapture(run))
+        {
+            throw new InvalidOperationException(NoCaptureMessage);
+        }
         run.CurrentPhase = PowerRunPhase.Accepted;
         run.CompletedUtc ??= _time.GetUtcNow();
         condition.CompletedReplicates++;

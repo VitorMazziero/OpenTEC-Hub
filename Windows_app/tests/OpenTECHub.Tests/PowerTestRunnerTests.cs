@@ -623,6 +623,44 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(PowerStopReason.Tmax, h.Runner.CurrentRun!.StopReason);
     }
 
+    /// <summary>D-050: a vent time-out reaches review with n = 0; that run has no result to accept.</summary>
+    [Fact]
+    public async Task A_run_that_timed_out_before_capturing_cannot_be_accepted_only_rejected_or_repeated()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.1,
+            VentFlowStableSamples = 5,
+            MaxVentStabilizationSeconds = 2.0,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 5.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+        await h.Runner.StartTestAsync(doc);
+        for (var i = 0; i < 10; i++)
+        {
+            h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+        Assert.Equal(0, h.Runner.CurrentRun!.SampleCount);
+        Assert.False(PowerTestRunner.HasCapture(h.Runner.CurrentRun));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.AcceptRunAsync());
+        Assert.Equal(PowerTestRunner.NoCaptureMessage, ex.Message);
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+        Assert.Equal(0, doc.Conditions[0].AcceptedReplicates);
+        Assert.DoesNotContain(doc.Runs, r => r.Phase == PowerRunPhase.Accepted);
+
+        await h.Runner.RejectRunAsync("sem captura");
+        Assert.Equal(PowerRunPhase.Rejected, h.Runner.Phase);
+        Assert.Equal(1, doc.Conditions[0].RejectedReplicates);
+        Assert.Equal(PowerConditionStatus.Pending, doc.Conditions[0].Status);
+    }
+
     [Fact]
     public async Task Both_condition_sequences_P0_ungassed_first_then_PG_gassed_with_paired_reference()
     {

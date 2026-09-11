@@ -1,3 +1,5 @@
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -5,9 +7,12 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using OpenTECHub.Controls;
+using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Services.Theme;
 using OpenTECHub.ViewModels;
 using ScottPlot;
+using ScottPlot.Plottables;
 using ScottPlot.WPF;
 
 using MediaColor = System.Windows.Media.Color;
@@ -21,7 +26,18 @@ public partial class PowerView : UserControl
     private readonly WpfPlot _livePlot = new();
     private readonly WpfPlot _npPlot = new();
     private readonly WpfPlot _pgPlot = new();
-    private readonly DispatcherTimer _redrawTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    /// <summary>
+    /// Charts redraw only while the page is on screen and only when their data moved (§C). The
+    /// live chart is incremental: two <see cref="DataLogger"/>s receive each new point as the
+    /// ViewModel adds it, instead of the plot being cleared and rebuilt from 6000 points a second.
+    /// </summary>
+    private readonly VisibleRedrawTimer _redraw;
+    private DataLogger? _liveTorque;
+    private DataLogger? _liveRpm;
+    private bool _liveNeedsRebuild = true;
+    private bool _resultsDirty = true;
+    private bool _liveDirty = true;
 
     private PowerTestViewModel? ViewModel => DataContext as PowerTestViewModel;
 
@@ -38,7 +54,7 @@ public partial class PowerView : UserControl
         NpChartHost.Child = _npPlot;
         PgChartHost.Child = _pgPlot;
         _pgPlot.MouseDown += OnPgPlotMouseDown;
-        _redrawTimer.Tick += (_, _) => RedrawPlots();
+        _redraw = new VisibleRedrawTimer(this, TimeSpan.FromSeconds(1), RedrawPlots);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         DataContextChanged += OnDataContextChanged;
@@ -49,21 +65,80 @@ public partial class PowerView : UserControl
         if (_observedViewModel is not null)
         {
             _observedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _observedViewModel.LivePoints.CollectionChanged -= OnLivePointsChanged;
+            _observedViewModel.Results.CollectionChanged -= OnResultsChanged;
         }
 
         _observedViewModel = ViewModel;
         if (_observedViewModel is not null)
         {
             _observedViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _observedViewModel.LivePoints.CollectionChanged += OnLivePointsChanged;
+            _observedViewModel.Results.CollectionChanged += OnResultsChanged;
+        }
+
+        _liveNeedsRebuild = true;
+        MarkLiveDirty();
+        MarkResultsDirty();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(PowerTestViewModel.CurrentConditionId):
+                FollowCurrentCondition();
+                break;
+            case nameof(PowerTestViewModel.ShowFloodingChart):
+            case nameof(PowerTestViewModel.ReferenceLiteratureNp):
+            case nameof(PowerTestViewModel.FloodingResult):
+            case nameof(PowerTestViewModel.HasFloodingPoint):
+            case nameof(PowerTestViewModel.CurrentTest):
+                MarkResultsDirty();
+                break;
         }
     }
 
-    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    /// <summary>
+    /// New points go straight into the loggers; a reset (new run) clears them; a trim at the
+    /// 6000-point cap — an edge the logger cannot express — schedules a full rebuild.
+    /// </summary>
+    private void OnLivePointsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(PowerTestViewModel.CurrentConditionId))
+        if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems is not null && !_liveNeedsRebuild && _liveTorque is not null && _liveRpm is not null)
         {
-            FollowCurrentCondition();
+            foreach (PowerDataPoint point in e.NewItems)
+            {
+                _liveTorque.Add(point.RelativeSeconds, point.TorquePercent);
+                _liveRpm.Add(point.RelativeSeconds, point.RpmMeasured);
+            }
         }
+        else if (e.Action == NotifyCollectionChangedAction.Reset && _liveTorque is not null && _liveRpm is not null)
+        {
+            _liveTorque.Clear();
+            _liveRpm.Clear();
+            _liveNeedsRebuild = false;
+        }
+        else
+        {
+            _liveNeedsRebuild = true;
+        }
+
+        MarkLiveDirty();
+    }
+
+    private void OnResultsChanged(object? sender, NotifyCollectionChangedEventArgs e) => MarkResultsDirty();
+
+    private void MarkLiveDirty()
+    {
+        _liveDirty = true;
+        _redraw.MarkDirty();
+    }
+
+    private void MarkResultsDirty()
+    {
+        _resultsDirty = true;
+        _redraw.MarkDirty();
     }
 
     /// <summary>
@@ -114,8 +189,7 @@ public partial class PowerView : UserControl
     {
         SubscribeToThemeChanges();
         ApplyThemeToPlots();
-        RedrawPlots();
-        _redrawTimer.Start();
+        _redraw.Invalidate();
 
         // The kLa maps live in a sibling workspace root that can change between visits, so the
         // picker is filled on entry rather than once at construction.
@@ -127,7 +201,6 @@ public partial class PowerView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        _redrawTimer.Stop();
         UnsubscribeFromThemeChanges();
     }
 
@@ -160,7 +233,10 @@ public partial class PowerView : UserControl
         }
 
         ApplyThemeToPlots();
-        RedrawPlots();
+        _liveNeedsRebuild = true;
+        _liveDirty = true;
+        _resultsDirty = true;
+        _redraw.Invalidate();
     });
 
     private void ApplyThemeToPlots()
@@ -207,39 +283,52 @@ public partial class PowerView : UserControl
             return;
         }
 
-        RedrawLive(vm);
-        if (!vm.ShowFloodingChart)
+        if (_liveDirty)
         {
-            RedrawNp(vm);
+            _liveDirty = false;
+            RedrawLive(vm);
         }
-        else
+
+        if (_resultsDirty)
         {
-            RedrawPg(vm);
+            _resultsDirty = false;
+            if (!vm.ShowFloodingChart)
+            {
+                RedrawNp(vm);
+            }
+            else
+            {
+                RedrawPg(vm);
+            }
         }
     }
 
     private void RedrawLive(PowerTestViewModel vm)
     {
         var plot = _livePlot.Plot;
-        plot.Clear();
-        var points = vm.LivePoints.ToArray();
-        if (points.Length > 0)
+        if (_liveNeedsRebuild || _liveTorque is null || _liveRpm is null)
         {
-            var xs = points.Select(p => p.RelativeSeconds).ToArray();
-            var torque = points.Select(p => p.TorquePercent).ToArray();
-            var rpm = points.Select(p => p.RpmMeasured).ToArray();
-            var torqueLine = plot.Add.Scatter(xs, torque);
-            torqueLine.Color = PlotColor.FromHex("#3B82F6");
-            torqueLine.LineWidth = 1.8f;
-            torqueLine.MarkerSize = 0;
-            var rpmLine = plot.Add.Scatter(xs, rpm);
-            rpmLine.Color = PlotColor.FromHex("#10B981");
-            rpmLine.LineWidth = 1.4f;
-            rpmLine.MarkerSize = 0;
-            rpmLine.Axes.YAxis = plot.Axes.Right;
-            plot.Axes.AutoScale();
+            plot.Clear();
+            _liveTorque = plot.Add.DataLogger();
+            _liveTorque.Color = PlotColor.FromHex("#3B82F6");
+            _liveTorque.LineWidth = 1.8f;
+            _liveTorque.MarkerSize = 0;
+            _liveTorque.ViewFull();
+            _liveRpm = plot.Add.DataLogger();
+            _liveRpm.Color = PlotColor.FromHex("#10B981");
+            _liveRpm.LineWidth = 1.4f;
+            _liveRpm.MarkerSize = 0;
+            _liveRpm.Axes.YAxis = plot.Axes.Right;
+            _liveRpm.ViewFull();
+            foreach (var point in vm.LivePoints)
+            {
+                _liveTorque.Add(point.RelativeSeconds, point.TorquePercent);
+                _liveRpm.Add(point.RelativeSeconds, point.RpmMeasured);
+            }
+            _liveNeedsRebuild = false;
+            ApplyThemeToLiveAfterClear(plot);
         }
-        ApplyThemeToLiveAfterClear(plot);
+
         _livePlot.Refresh();
     }
 

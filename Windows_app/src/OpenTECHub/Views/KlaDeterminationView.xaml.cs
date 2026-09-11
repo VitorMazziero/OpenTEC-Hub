@@ -1,12 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using ScottPlot;
+using ScottPlot.Plottables;
 using ScottPlot.WPF;
+using OpenTECHub.Controls;
 using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Theme;
 using OpenTECHub.ViewModels;
@@ -22,7 +26,21 @@ public partial class KlaDeterminationView : UserControl
     private readonly WpfPlot _plotDo = new();
     private readonly WpfPlot _plotLogLinear = new();
     private readonly WpfPlot _plotInstantKla = new();
-    private readonly DispatcherTimer _redrawTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    /// <summary>
+    /// Charts redraw only while the page is on screen and only when their data moved (§C). The DO
+    /// chart is incremental: raw and filtered DO live in two <see cref="DataLogger"/>s fed as the
+    /// ViewModel adds points; only the review overlays (thresholds, windows, C*, fitted curve) are
+    /// rebuilt on a redraw.
+    /// </summary>
+    private readonly VisibleRedrawTimer _redraw;
+    private DataLogger? _doRaw;
+    private DataLogger? _doFiltered;
+    private readonly List<IPlottable> _doOverlays = [];
+    private bool _doNeedsRebuild = true;
+    private bool _doDirty = true;
+    private bool _derivedDirty = true;
+    private KlaDeterminationViewModel? _observed;
 
     private KlaDeterminationViewModel? ViewModel => DataContext as KlaDeterminationViewModel;
 
@@ -34,20 +52,95 @@ public partial class KlaDeterminationView : UserControl
         ChartLogLinearHost.Child = _plotLogLinear;
         ChartInstantKlaHost.Child = _plotInstantKla;
 
-        _redrawTimer.Tick += (_, _) => RedrawPlots();
+        _redraw = new VisibleRedrawTimer(this, TimeSpan.FromSeconds(1), RedrawPlots);
+        DataContextChanged += OnDataContextChanged;
 
         Loaded += (_, _) =>
         {
             SubscribeToThemeChanges();
             ApplyThemeToPlots();
-            _redrawTimer.Start();
+            _redraw.Invalidate();
         };
 
         Unloaded += (_, _) =>
         {
-            _redrawTimer.Stop();
             UnsubscribeFromThemeChanges();
         };
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_observed is not null)
+        {
+            _observed.PropertyChanged -= OnViewModelPropertyChanged;
+            _observed.LivePoints.CollectionChanged -= OnLivePointsChanged;
+            _observed.LogLinearSeries.CollectionChanged -= OnDerivedSeriesChanged;
+            _observed.InstantaneousKlaSeries.CollectionChanged -= OnDerivedSeriesChanged;
+        }
+
+        _observed = ViewModel;
+        if (_observed is not null)
+        {
+            _observed.PropertyChanged += OnViewModelPropertyChanged;
+            _observed.LivePoints.CollectionChanged += OnLivePointsChanged;
+            _observed.LogLinearSeries.CollectionChanged += OnDerivedSeriesChanged;
+            _observed.InstantaneousKlaSeries.CollectionChanged += OnDerivedSeriesChanged;
+        }
+
+        _doNeedsRebuild = true;
+        _doDirty = true;
+        _derivedDirty = true;
+        _redraw.MarkDirty();
+    }
+
+    /// <summary>
+    /// The three charts read the review window, the thresholds and the current analysis; any of
+    /// those moving (operator dragging the window, a recompute) means a redraw. Naming them by
+    /// prefix is deliberate: a new <c>Review*</c>/<c>Setting*</c> property is covered without
+    /// remembering to list it here.
+    /// </summary>
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        var name = e.PropertyName ?? "";
+        if (name.StartsWith("Review", StringComparison.Ordinal) ||
+            name.StartsWith("Setting", StringComparison.Ordinal) ||
+            name is nameof(KlaDeterminationViewModel.IsReviewOpen) or nameof(KlaDeterminationViewModel.CurrentAnalysis))
+        {
+            _doDirty = true;
+            _derivedDirty = true;
+            _redraw.MarkDirty();
+        }
+    }
+
+    private void OnLivePointsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems is not null && !_doNeedsRebuild && _doRaw is not null && _doFiltered is not null)
+        {
+            foreach (KlaRawDataPoint point in e.NewItems)
+            {
+                _doRaw.Add(point.RelativeSeconds, point.DORaw);
+                _doFiltered.Add(point.RelativeSeconds, point.DOFiltered);
+            }
+        }
+        else if (e.Action == NotifyCollectionChangedAction.Reset && _doRaw is not null && _doFiltered is not null)
+        {
+            _doRaw.Clear();
+            _doFiltered.Clear();
+            _doNeedsRebuild = false;
+        }
+        else
+        {
+            _doNeedsRebuild = true;
+        }
+
+        _doDirty = true;
+        _redraw.MarkDirty();
+    }
+
+    private void OnDerivedSeriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        _derivedDirty = true;
+        _redraw.MarkDirty();
     }
 
     private void SubscribeToThemeChanges()
@@ -75,7 +168,10 @@ public partial class KlaDeterminationView : UserControl
             if (IsLoaded)
             {
                 ApplyThemeToPlots();
-                RedrawPlots();
+                _doNeedsRebuild = true;
+                _doDirty = true;
+                _derivedDirty = true;
+                _redraw.Invalidate();
             }
         });
 
@@ -145,42 +241,64 @@ public partial class KlaDeterminationView : UserControl
             return;
         }
 
-        RedrawDoPlot(vm);
-        RedrawLogLinearPlot(vm);
-        RedrawInstantKlaPlot(vm);
+        if (_doDirty)
+        {
+            _doDirty = false;
+            RedrawDoPlot(vm);
+        }
+
+        if (_derivedDirty)
+        {
+            _derivedDirty = false;
+            RedrawLogLinearPlot(vm);
+            RedrawInstantKlaPlot(vm);
+        }
     }
 
     private void RedrawDoPlot(KlaDeterminationViewModel vm)
     {
         var plot = _plotDo.Plot;
-        plot.Clear();
 
-        var points = vm.LivePoints.ToList();
-        if (points.Count > 0)
+        if (_doNeedsRebuild || _doRaw is null || _doFiltered is null)
         {
-            var xs = points.Select(p => p.RelativeSeconds).ToArray();
-            var ysRaw = points.Select(p => p.DORaw).ToArray();
-            var ysFilt = points.Select(p => p.DOFiltered).ToArray();
-
-            var scatterRaw = plot.Add.Scatter(xs, ysRaw);
-            scatterRaw.Color = PlotColor.FromHex("#3B82F6").WithAlpha(0.4);
-            scatterRaw.LineWidth = 1;
-            scatterRaw.MarkerSize = 0;
-
-            var scatterFilt = plot.Add.Scatter(xs, ysFilt);
-            scatterFilt.Color = PlotColor.FromHex("#2563EB");
-            scatterFilt.LineWidth = 2;
-            scatterFilt.MarkerSize = 0;
+            plot.Clear();
+            _doOverlays.Clear();
+            _doRaw = plot.Add.DataLogger();
+            _doRaw.Color = PlotColor.FromHex("#3B82F6").WithAlpha(0.4);
+            _doRaw.LineWidth = 1;
+            _doRaw.MarkerSize = 0;
+            _doRaw.ManageAxisLimits = false;
+            _doFiltered = plot.Add.DataLogger();
+            _doFiltered.Color = PlotColor.FromHex("#2563EB");
+            _doFiltered.LineWidth = 2;
+            _doFiltered.MarkerSize = 0;
+            _doFiltered.ManageAxisLimits = false;
+            foreach (var point in vm.LivePoints)
+            {
+                _doRaw.Add(point.RelativeSeconds, point.DORaw);
+                _doFiltered.Add(point.RelativeSeconds, point.DOFiltered);
+            }
+            _doNeedsRebuild = false;
         }
+
+        // The loggers stay; only the overlays are rebuilt.
+        foreach (var overlay in _doOverlays)
+        {
+            plot.Remove(overlay);
+        }
+        _doOverlays.Clear();
+        var points = vm.LivePoints;
 
         // Horizontal threshold lines
         var lineMin = plot.Add.HorizontalLine(vm.SettingDOMin);
         lineMin.Color = PlotColor.FromHex("#EF4444");
         lineMin.LinePattern = LinePattern.Dashed;
+        _doOverlays.Add(lineMin);
 
         var lineMax = plot.Add.HorizontalLine(vm.SettingDOMax);
         lineMax.Color = PlotColor.FromHex("#10B981");
         lineMax.LinePattern = LinePattern.Dashed;
+        _doOverlays.Add(lineMax);
 
         if (vm.IsReviewOpen)
         {
@@ -190,10 +308,12 @@ public partial class KlaDeterminationView : UserControl
                 var vStart = plot.Add.VerticalLine(vm.ReviewTStart);
                 vStart.Color = PlotColor.FromHex("#F59E0B");
                 vStart.LinePattern = LinePattern.Dashed;
+                _doOverlays.Add(vStart);
 
                 var vEnd = plot.Add.VerticalLine(vm.ReviewTEnd);
                 vEnd.Color = PlotColor.FromHex("#F59E0B");
                 vEnd.LinePattern = LinePattern.Dashed;
+                _doOverlays.Add(vEnd);
             }
 
             // C* region vertical lines (Cyan)
@@ -202,10 +322,12 @@ public partial class KlaDeterminationView : UserControl
                 var vCeqStart = plot.Add.VerticalLine(vm.ReviewCeqTStart);
                 vCeqStart.Color = PlotColor.FromHex("#06B6D4");
                 vCeqStart.LinePattern = LinePattern.Dotted;
+                _doOverlays.Add(vCeqStart);
 
                 var vCeqEnd = plot.Add.VerticalLine(vm.ReviewCeqTEnd);
                 vCeqEnd.Color = PlotColor.FromHex("#06B6D4");
                 vCeqEnd.LinePattern = LinePattern.Dotted;
+                _doOverlays.Add(vCeqEnd);
             }
 
             // C* (Ceq) horizontal asymptote line
@@ -214,13 +336,14 @@ public partial class KlaDeterminationView : UserControl
                 var hCeq = plot.Add.HorizontalLine(vm.ReviewCeq);
                 hCeq.Color = PlotColor.FromHex("#10B981").WithAlpha(0.6);
                 hCeq.LinePattern = LinePattern.Dashed;
+                _doOverlays.Add(hCeq);
             }
 
             // Pink dashed fitted exponential series: C(t) = Ceq - exp(beta0 + beta1 * t)
             if (vm.CurrentAnalysis is { } analysis && analysis.SlopeBeta1 < 0 && vm.ReviewTStart < vm.ReviewTEnd)
             {
                 var expStart = vm.ReviewTStart;
-                var maxTime = points.Count > 0 ? points.Last().RelativeSeconds : vm.ReviewTEnd;
+                var maxTime = points.Count > 0 ? points[^1].RelativeSeconds : vm.ReviewTEnd;
                 var expEnd = Math.Max(maxTime, vm.ReviewTEnd);
                 const int steps = 80;
                 var dt = (expEnd - expStart) / steps;
@@ -243,6 +366,7 @@ public partial class KlaDeterminationView : UserControl
                     expScatter.LineWidth = 2.2f;
                     expScatter.LinePattern = LinePattern.Dashed;
                     expScatter.MarkerSize = 0;
+                    _doOverlays.Add(expScatter);
                 }
             }
         }

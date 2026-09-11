@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using OpenTECHub.Protocol;
@@ -255,28 +256,66 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         StateChanged?.Invoke(change);
     });
 
+    /// <summary>
+    /// Telemetry is published at <see cref="DispatcherPriority.Background"/> (§D, D-048): below
+    /// <c>Input</c> and <c>Render</c>, so a frame's ~25 subscribers never run ahead of a pending
+    /// click, hover or layout. It used to go at <c>DataBind</c>, which is above both — the frame
+    /// was processed first and the window answered the mouse only when it was done. The runners'
+    /// watchdogs are 1 s; the few milliseconds this can add are nothing to them.
+    /// </summary>
     private void OnTelemetryReceived(SensorSnapshot snapshot) => ToUi(() =>
     {
         Latest = snapshot;
         TelemetryReceived?.Invoke(snapshot);
-    });
+    }, DispatcherPriority.Background);
 
-    private void OnDeviceLogReceived(string line) => ToUi(() => DeviceLogReceived?.Invoke(line));
+    private void OnDeviceLogReceived(string line) => QueueLine(isRaw: false, line);
 
-    private void OnRawTelemetryReceived(string line) => ToUi(() => RawTelemetryReceived?.Invoke(line));
+    private void OnRawTelemetryReceived(string line) => QueueLine(isRaw: true, line);
 
     private void OnCommandSent(string json) => ToUi(() => CommandSent?.Invoke(json));
 
     private void OnSessionTimeZeroed(double offsetMinutes)
         => ToUi(() => SessionTimeZeroed?.Invoke(offsetMinutes));
 
+    // Raw and log lines of one frame are batched into a single dispatcher item rather than one
+    // per line; the subscribers still see them one at a time, in arrival order.
+    private readonly ConcurrentQueue<(bool IsRaw, string Line)> _pendingLines = new();
+    private int _lineDrainScheduled;
+
+    private void QueueLine(bool isRaw, string line)
+    {
+        _pendingLines.Enqueue((isRaw, line));
+        if (Interlocked.Exchange(ref _lineDrainScheduled, 1) == 0)
+        {
+            ToUi(DrainLines, DispatcherPriority.Background);
+        }
+    }
+
+    private void DrainLines()
+    {
+        Interlocked.Exchange(ref _lineDrainScheduled, 0);
+        while (_pendingLines.TryDequeue(out var item))
+        {
+            if (item.IsRaw)
+            {
+                RawTelemetryReceived?.Invoke(item.Line);
+            }
+            else
+            {
+                DeviceLogReceived?.Invoke(item.Line);
+            }
+        }
+    }
+
     /// <remarks>
     /// <see cref="Dispatcher.BeginInvoke(Delegate, object[])"/> rather than
     /// <c>Invoke</c>: the protocol worker must never block waiting on the UI thread.
     /// Telemetry is a stream of the latest truth, so a frame dropped during a busy
-    /// render is not worth stalling the link for.
+    /// render is not worth stalling the link for. State and command echoes go at
+    /// <see cref="DispatcherPriority.Normal"/>; the telemetry stream at <c>Background</c>.
     /// </remarks>
-    private void ToUi(Action action)
+    private void ToUi(Action action, DispatcherPriority priority = DispatcherPriority.Normal)
     {
         if (_dispatcher.CheckAccess())
         {
@@ -284,7 +323,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
             return;
         }
 
-        _dispatcher.BeginInvoke(action, DispatcherPriority.DataBind);
+        _dispatcher.BeginInvoke(action, priority);
     }
 
     public async ValueTask DisposeAsync()

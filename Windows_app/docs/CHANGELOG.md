@@ -9,6 +9,19 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Gráficos só redesenham visíveis e só quando mudaram (§C).** `DeferredPageHost` esconde uma
+  página colapsando-a e nunca a descarrega, então o timer iniciado em `Loaded` seguia redesenhando
+  gráficos invisíveis a sessão inteira — até nove por segundo numa sessão que visitou Sinóptico,
+  Potência e kLa. `Controls/VisibleRedrawTimer` roda só com a página carregada **e** visível,
+  em `DispatcherPriority.Background`, e só desenha quando alguém marcou os dados como alterados
+  (coleções, propriedades `Review*`/`Setting*`, tema). Ao voltar a uma página o redesenho é
+  imediato. O gráfico ao vivo da Potência (torque/rotação) e o de OD do kLa (bruto/filtrado) viram
+  `DataLogger`s alimentados ponto a ponto, em vez de `Clear()` + cópia de até 6000 pontos por
+  segundo; no kLa só as sobreposições da revisão são reconstruídas.
+- **Telemetria despachada em `DispatcherPriority.Background` (§D).** Estava em `DataBind`, acima
+  de `Input` e `Render`: o quadro era processado antes de qualquer clique ou hover pendente.
+  `StateChanged`/`CommandSent` continuam em `Normal`; linhas brutas e de log do mesmo quadro vão
+  num único item de despacho.
 - **O I/O dos ensaios saiu da thread da UI (§B, D-048).** Dois `File.AppendAllText` por quadro e,
   a cada mudança de fase, a reescrita de um `ensaio.json` de 832 KB (55 ms médios, picos de
   330 ms) rodavam na thread da UI. `PowerTestStore` e `KlaTestStore` passam a formatar/serializar no

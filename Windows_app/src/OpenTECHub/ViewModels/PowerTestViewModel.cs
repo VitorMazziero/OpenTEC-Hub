@@ -418,6 +418,17 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public const double VentTimeoutShortThresholdSeconds = 150.0;
 
     public bool IsVentTimeoutShort => VentStabilizationEnabled && MaxVentStabilizationSeconds < VentTimeoutShortThresholdSeconds;
+
+    /// <summary>Stability way out of the vent phase (§I.2): spread of the last N readings and the allowed offset.</summary>
+    [ObservableProperty] public partial double VentFlowStabilityStdDevLpm { get; set; } = 0.05;
+    [ObservableProperty] public partial double VentFlowStabilityMaxErrorLpm { get; set; } = 0.3;
+
+    /// <summary>
+    /// <see cref="UnattendedFailurePolicy.RetryThenSkip"/> as a switch: with auto-accept, a vent,
+    /// valve or speed time-out rejects the run, retries the condition once and then skips it,
+    /// instead of parking the assay for review (§I.1). Limits still stop.
+    /// </summary>
+    [ObservableProperty] public partial bool RetryThenSkipOnSequenceFailure { get; set; }
     [ObservableProperty] public partial bool ManualEnergyCaptureEnabled { get; set; }
 
     /// <summary>
@@ -851,8 +862,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         VentFlowStableSamples = settings.VentFlowStableSamples;
         VentAgitationRpm = settings.VentAgitationRpm;
         MaxVentStabilizationSeconds = settings.MaxVentStabilizationSeconds;
+        VentFlowStabilityStdDevLpm = settings.VentFlowStabilityStdDevLpm;
+        VentFlowStabilityMaxErrorLpm = settings.VentFlowStabilityMaxErrorLpm;
         ManualEnergyCaptureEnabled = settings.ManualEnergyCaptureEnabled;
         AutoAcceptRuns = settings.AutoAcceptRuns;
+        RetryThenSkipOnSequenceFailure = settings.UnattendedFailurePolicy == UnattendedFailurePolicy.RetryThenSkip;
     }
 
     private void LoadDocument(PowerTestDocument doc)
@@ -3295,8 +3309,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         VentFlowStableSamples = VentFlowStableSamples,
         VentAgitationRpm = VentAgitationRpm,
         MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
+        VentFlowStabilityStdDevLpm = VentFlowStabilityStdDevLpm,
+        VentFlowStabilityMaxErrorLpm = VentFlowStabilityMaxErrorLpm,
         ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
         AutoAcceptRuns = AutoAcceptRuns,
+        UnattendedFailurePolicy = RetryThenSkipOnSequenceFailure ? UnattendedFailurePolicy.RetryThenSkip : UnattendedFailurePolicy.StopForReview,
     };
 
     private bool TryPersist(out string error)
@@ -3414,6 +3431,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             if (MaxVentStabilizationSeconds <= 0 || !double.IsFinite(MaxVentStabilizationSeconds))
             {
                 return "Tempo limite de alívio deve ser positivo.";
+            }
+            if (VentFlowStabilityStdDevLpm < 0 || !double.IsFinite(VentFlowStabilityStdDevLpm) ||
+                VentFlowStabilityMaxErrorLpm < 0 || !double.IsFinite(VentFlowStabilityMaxErrorLpm))
+            {
+                return "Critério de estabilidade do alívio (σ e |erro|) não pode ser negativo.";
             }
         }
 

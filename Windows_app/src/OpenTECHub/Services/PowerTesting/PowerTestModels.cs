@@ -104,6 +104,20 @@ public enum PowerConditionStatus
     Skipped,
 }
 
+/// <summary>
+/// What an unattended assay (<see cref="PowerTestSettings.AutoAcceptRuns"/>) does when a run fails
+/// its <em>sequence</em> — vent, valve or speed time-out — before capturing anything (§I of the
+/// 2026-09-11 plan). A torque or speed limit is safety, not sequence, and always stops.
+/// </summary>
+public enum UnattendedFailurePolicy
+{
+    /// <summary>Park and wait for the operator (the behaviour before this setting existed).</summary>
+    StopForReview,
+
+    /// <summary>Reject the run, try the same condition once more, and if it fails again mark it skipped and go on.</summary>
+    RetryThenSkip,
+}
+
 /// <summary>Why a capture ended (§12.1). Only <see cref="Target"/> is a clean stop.</summary>
 public enum PowerStopReason
 {
@@ -281,6 +295,21 @@ public sealed record PowerTestSettings
     /// 500 s covers >3τ with margin for the flow controller's steady offset.
     /// </summary>
     public double MaxVentStabilizationSeconds { get; init; } = 500.0;
+
+    /// <summary>
+    /// Second way out of the vent phase: the flow is <em>stable</em> — the standard deviation of the
+    /// last <see cref="VentFlowStableSamples"/> readings is below this — and within
+    /// <see cref="VentFlowStabilityMaxErrorLpm"/> of the target, even if outside the tolerance band.
+    /// The bench controller settles at +0.07…+0.10 L/min, on the edge of a 0.1 band, and the 55
+    /// stabilisations of the Rushton-Smith assay spent ~150 s each waiting for the reading to "fall"
+    /// inside it (~2.3 h of a 9 h assay). What matters is that the flow has settled: the final
+    /// value is measured again in the reactor.
+    /// </summary>
+    public double VentFlowStabilityStdDevLpm { get; init; } = 0.05;
+    public double VentFlowStabilityMaxErrorLpm { get; init; } = 0.3;
+
+    /// <summary>See <see cref="UnattendedFailurePolicy"/>. Consulted only with <see cref="AutoAcceptRuns"/>.</summary>
+    public UnattendedFailurePolicy UnattendedFailurePolicy { get; init; } = UnattendedFailurePolicy.StopForReview;
 
     /// <summary>Hold each captured point for a manual mains-wattmeter reading (§4.8, §12.3).</summary>
     public bool ManualEnergyCaptureEnabled { get; init; }

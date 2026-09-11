@@ -544,7 +544,10 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         var resets = 0;
         _vm.InstantaneousKlaSeries.CollectionChanged += (_, e) =>
         {
-            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset) resets++;
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                resets++;
+            }
         };
 
         for (var i = 0; i < 3; i++)

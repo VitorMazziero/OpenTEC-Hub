@@ -9,6 +9,21 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Política de falha de sequência em modo autônomo e critério de estabilidade do alívio (§I).**
+  No Rushton-Smith um único tempo limite de alívio na primeira condição com gás parou um ensaio
+  autônomo de 9 h em "Revisando" — o aceite automático só é consultado após uma captura. Novo
+  `PowerTestSettings.UnattendedFailurePolicy`: `StopForReview` (padrão, comportamento anterior) ou
+  `RetryThenSkip` — com aceite automático, um tempo limite de alívio, válvula ou rotação rejeita a
+  corrida com o motivo, repete a condição **uma** vez e, se falhar de novo, marca a condição como
+  pulada e segue; limite de torque/rotação continua parando sempre. Nada aqui aceita ponto (D-050).
+  No diálogo, a caixa fica abaixo de *Aceite automático* e só habilita com ele. E as 55
+  estabilizações do Rushton convergiram em +0,07…+0,10 L/min, na borda da banda, gastando ~150 s
+  cada (~2,3 h do ensaio) esperando a leitura "cair" para dentro: o alívio passa a ter uma segunda
+  saída, por **estabilidade** — desvio-padrão das últimas N leituras ≤ `VentFlowStabilityStdDevLpm`
+  (0,05) e |média − alvo| ≤ `VentFlowStabilityMaxErrorLpm` (0,3) — porque o que importa é a vazão
+  ter assentado; ela é medida de novo no reator. O status mostra "estabilizando há X s · offset
+  +0,08 · σ 0,008". Item de bancada, fora do app: o controlador de vazão não regula para baixo na
+  primeira abertura após `FlowSafeStop` (travou em 3,36 L/min por 7 min com alvo 2,00).
 - **kLa: séries de diagnóstico a cada 5 pontos, análises em cache, matriz no lugar (§E).**
   `OnDataPointAdded` fazia `LivePoints.Where(Reoxygenating).ToList()` sobre todos os pontos e
   recalculava a suavização O(n·janela) e a OLS a **cada quadro**; passa a guardar o índice do

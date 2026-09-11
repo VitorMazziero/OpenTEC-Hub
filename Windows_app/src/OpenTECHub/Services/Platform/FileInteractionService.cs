@@ -23,6 +23,7 @@ public sealed class FileInteractionService : IFileInteractionService
             DefaultExt = extension,
             AddExtension = true,
             OverwritePrompt = true,
+            RestoreDirectory = true,
         };
 
         return dialog.ShowDialog(Application.Current?.MainWindow) == true
@@ -40,6 +41,7 @@ public sealed class FileInteractionService : IFileInteractionService
             AddExtension = true,
             CheckFileExists = true,
             Multiselect = false,
+            RestoreDirectory = true,
         };
 
         return dialog.ShowDialog(Application.Current?.MainWindow) == true

@@ -412,6 +412,7 @@ public partial class SynopticView : UserControl
             DefaultExt = ".csv",
             AddExtension = true,
             OverwritePrompt = true,
+            RestoreDirectory = true,
         };
 
         if (dialog.ShowDialog(Window.GetWindow(this)) == true)

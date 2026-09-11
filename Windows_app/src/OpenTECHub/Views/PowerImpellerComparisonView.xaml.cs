@@ -320,6 +320,7 @@ public partial class PowerImpellerComparisonView : UserControl
             Title = "Exportar comparação de impelidores",
             Filter = "CSV (*.csv)|*.csv",
             FileName = viewModel.SuggestedCsvFileName,
+            RestoreDirectory = true,
         };
 
         if (dialog.ShowDialog() != true)

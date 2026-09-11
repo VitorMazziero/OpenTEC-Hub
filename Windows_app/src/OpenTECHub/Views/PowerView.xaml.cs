@@ -357,6 +357,7 @@ public partial class PowerView : UserControl
             FileName = Path.GetFileName(vm.ResultsCsvPath),
             AddExtension = true,
             DefaultExt = ".csv",
+            RestoreDirectory = true,
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true)
         {

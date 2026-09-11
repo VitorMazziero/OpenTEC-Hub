@@ -441,6 +441,12 @@ public partial class App : Application
     private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         var ex = e.ExceptionObject as Exception ?? new InvalidOperationException($"Unhandled domain exception: {e.ExceptionObject}");
+        if (CrashReporter.IsShutdownCrtUnloadException(ex))
+        {
+            Log.Warning("Exceção inofensiva de descarregamento CRT/WPF suprimida durante o encerramento do processo.");
+            return;
+        }
+
         CrashReporter.GenerateAndSaveReport(ex, "AppDomain.CurrentDomain.UnhandledException", isTerminating: e.IsTerminating);
     }
 

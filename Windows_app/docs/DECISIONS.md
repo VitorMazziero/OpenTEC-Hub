@@ -1306,6 +1306,36 @@ Os cortes eram do mesmo problema em outra forma: `Pot. Mecânica (W)` em 112 DIP
 - A evidência visual é gerada por `DocumentationEvidenceTests` a cada execução da suíte, em `docs/evidence/ui-documentation/`. Captura feita à mão envelhece sem avisar.
 - Páginas ainda não documentadas (Receitas, kLa, Mapeamentos, Históricos, Eventos, Calibrações) seguem sem `?`. A ausência é honesta: o botão só existe onde há tópico.
 
+### D-049 · O `DllNotFoundException` do descarregamento do CRT no encerramento não é um crash
+
+**Status:** Accepted and implemented · 2026-09-11
+
+**Decisão.** `CrashReporter.IsShutdownCrtUnloadException` reconhece a exceção que o .NET levanta ao
+descarregar os assemblies C++/CLI do WPF (`DirectWriteForwarder`, `System.Printing`) **depois** de o
+`vcruntime` já ter sido descarregado, e o `App.OnDomainUnhandledException` e o próprio
+`GenerateAndSaveReport` a suprimem: uma linha de aviso no log, nenhum relatório, nenhuma janela de
+pânico. A assinatura exige as **duas** coisas — um `DllNotFoundException` (direto ou como causa) **e**
+quadros de teardown na pilha (`SingletonDomainUnload`, `ModuleUninitializer`,
+`__scrt_uninitialize_type_info`, `__std_type_info_destroy_list`, `_app_exit_callback`). Um
+`DllNotFoundException` real, com a pilha de quem o provocou, continua gerando relatório.
+
+**Por quê.** O relatório `Logs/Crash/crash_20260911_103551_35c1e6.log` é o caso: o operador fechou o
+aplicativo normalmente e recebeu a janela de pânico com
+`__std_type_info_destroy_list → __scrt_uninitialize_type_info → _app_exit_callback →
+SingletonDomainUnload`. É um defeito conhecido do encerramento do WPF quando há uma cópia nativa do
+CRT no processo — aqui a que o SkiaSharp/ScottPlot traz — e acontece **depois** de todo o estado
+do aplicativo já estar salvo. Mostrar um relatório de pânico ali é alarme falso, e um alarme falso
+a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
+
+**Consequências.**
+- A supressão é uma assinatura estreita e explícita, não um `catch` genérico: dois testes em
+  `CrashReporterTests` verificam que a pilha de teardown é suprimida e que um `DllNotFoundException`
+  comum e um `InvalidOperationException` não são. O teste sobrescreve `StackTrace` para fabricar a
+  pilha, porque ela não é reproduzível em processo de teste.
+- Os relatórios `crash_20260909_233817` e `crash_20260910_000426` **não** são este caso: eram
+  `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
+  `f08ba27`. Um `XamlParseException` continua sendo um crash.
+
 ---
 
 ## Open questions

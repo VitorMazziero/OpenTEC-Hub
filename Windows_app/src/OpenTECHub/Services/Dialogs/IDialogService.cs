@@ -51,7 +51,9 @@ public interface IDialogService
     }
 
     /// <summary>
-    /// Displays the capture settings dialog for power tests.
+    /// Displays the capture settings dialog for power tests. Returns true when the operator closed
+    /// it with <c>Concluir</c> (the edited criteria are to be persisted) and false when they
+    /// discarded the changes.
     /// </summary>
-    void ShowCaptureSettings(ViewModels.PowerTestViewModel viewModel) { }
+    bool ShowCaptureSettings(ViewModels.PowerTestViewModel viewModel) => false;
 }

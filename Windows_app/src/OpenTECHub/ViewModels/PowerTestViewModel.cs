@@ -383,12 +383,25 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double StationarityWindowSeconds { get; set; } = 20.0;
     [ObservableProperty] public partial double StationaritySlopeTolerance { get; set; } = 0.5;
     [ObservableProperty] public partial int StationarityRequiredSamples { get; set; } = 5;
-    [ObservableProperty] public partial bool VentStabilizationEnabled { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVentTimeoutShort))]
+    public partial bool VentStabilizationEnabled { get; set; }
     [ObservableProperty] public partial PowerVentValve SelectedVentValve { get; set; } = PowerVentValve.Valve2;
     [ObservableProperty] public partial double VentFlowToleranceLpm { get; set; } = 0.2;
     [ObservableProperty] public partial int VentFlowStableSamples { get; set; } = 5;
     [ObservableProperty] public partial double VentAgitationRpm { get; set; } = 15.0;
-    [ObservableProperty] public partial double MaxVentStabilizationSeconds { get; set; } = 120.0;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVentTimeoutShort))]
+    public partial double MaxVentStabilizationSeconds { get; set; } = 500.0;
+
+    /// <summary>
+    /// Bench of 2026-09-11: the vent flow overshoots to ~2.3× the target and decays with τ ≈ 45 s,
+    /// so it takes ~110–170 s to enter the tolerance band. A time-out under ~3τ expires before the
+    /// flow has settled and sends the run to review with nothing captured.
+    /// </summary>
+    public const double VentTimeoutShortThresholdSeconds = 150.0;
+
+    public bool IsVentTimeoutShort => VentStabilizationEnabled && MaxVentStabilizationSeconds < VentTimeoutShortThresholdSeconds;
     [ObservableProperty] public partial bool ManualEnergyCaptureEnabled { get; set; }
 
     /// <summary>
@@ -799,6 +812,33 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Mirrors a <see cref="PowerTestSettings"/> into the editable fields (the inverse of <see cref="BuildEditedSettings"/>).</summary>
+    private void LoadSettingsFields(PowerTestSettings settings)
+    {
+        MinRpm = settings.MinRpm;
+        MaxRpm = settings.MaxRpm;
+        StepRpm = settings.DefaultStepRpm;
+        MinFlowLpm = settings.MinFlowLpm;
+        MaxFlowLpm = settings.MaxFlowLpm;
+        StepFlowLpm = settings.DefaultStepFlowLpm;
+        RelativeCiPercent = settings.RelativeCiFraction * 100.0;
+        CiFloorSigmaMultiple = settings.CiFloorSigmaMultiple;
+        MinimumSamples = settings.MinSamples;
+        MaxCaptureSeconds = settings.MaxCaptureSeconds;
+        MaxTries = settings.MaxTries;
+        StationarityWindowSeconds = settings.StationarityWindowSeconds;
+        StationaritySlopeTolerance = settings.StationaritySlopeTolerancePercentPerSecond;
+        StationarityRequiredSamples = settings.StationarityRequiredSamples;
+        VentStabilizationEnabled = settings.VentStabilizationEnabled;
+        SelectedVentValve = settings.SelectedVentValve;
+        VentFlowToleranceLpm = settings.VentFlowToleranceLpm;
+        VentFlowStableSamples = settings.VentFlowStableSamples;
+        VentAgitationRpm = settings.VentAgitationRpm;
+        MaxVentStabilizationSeconds = settings.MaxVentStabilizationSeconds;
+        ManualEnergyCaptureEnabled = settings.ManualEnergyCaptureEnabled;
+        AutoAcceptRuns = settings.AutoAcceptRuns;
+    }
+
     private void LoadDocument(PowerTestDocument doc)
     {
         _isLoadingTest = true;
@@ -814,28 +854,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             RelativeMode = doc.RelativeMode;
             RefreshTareProfiles();
             SelectedTareProfile = TareProfiles.FirstOrDefault(p => p.Name == doc.Tare?.ProfileName);
-            MinRpm = doc.Settings.MinRpm;
-            MaxRpm = doc.Settings.MaxRpm;
-            StepRpm = doc.Settings.DefaultStepRpm;
-            MinFlowLpm = doc.Settings.MinFlowLpm;
-            MaxFlowLpm = doc.Settings.MaxFlowLpm;
-            StepFlowLpm = doc.Settings.DefaultStepFlowLpm;
-            RelativeCiPercent = doc.Settings.RelativeCiFraction * 100.0;
-            CiFloorSigmaMultiple = doc.Settings.CiFloorSigmaMultiple;
-            MinimumSamples = doc.Settings.MinSamples;
-            MaxCaptureSeconds = doc.Settings.MaxCaptureSeconds;
-            MaxTries = doc.Settings.MaxTries;
-            StationarityWindowSeconds = doc.Settings.StationarityWindowSeconds;
-            StationaritySlopeTolerance = doc.Settings.StationaritySlopeTolerancePercentPerSecond;
-            StationarityRequiredSamples = doc.Settings.StationarityRequiredSamples;
-            VentStabilizationEnabled = doc.Settings.VentStabilizationEnabled;
-            SelectedVentValve = doc.Settings.SelectedVentValve;
-            VentFlowToleranceLpm = doc.Settings.VentFlowToleranceLpm;
-            VentFlowStableSamples = doc.Settings.VentFlowStableSamples;
-            VentAgitationRpm = doc.Settings.VentAgitationRpm;
-            MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
-            ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
-            AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
+            LoadSettingsFields(doc.Settings);
 
             CurrentTarePoints.Clear();
             if (doc.Tare is { } tare)
@@ -1091,7 +1110,110 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenCaptureSettings()
     {
-        _dialogs?.ShowCaptureSettings(this);
+        if (_dialogs is null)
+        {
+            return;
+        }
+
+        if (_dialogs.ShowCaptureSettings(this))
+        {
+            PersistCaptureSettings();
+        }
+        else if (CurrentTest is { } doc)
+        {
+            LoadSettingsFields(doc.Settings);
+        }
+    }
+
+    /// <summary>True when the criteria edited on the page differ from what the open assay holds.</summary>
+    public bool HasUnsavedCaptureSettings => CurrentTest is { } doc && BuildEditedSettings() != doc.Settings;
+
+    /// <summary>
+    /// True when anything <c>Salvar setup</c> would write differs from the open assay — the
+    /// criteria, the fluid or the geometry. The conditions table is not included because every
+    /// edit to it already persists itself.
+    /// </summary>
+    public bool HasUnsavedSetup => CurrentTest is { } doc && !_isLoadingTest &&
+        (BuildEditedSettings() != doc.Settings ||
+         doc.Fluid.DensityKgM3 != DensityKgM3 || doc.Fluid.ViscosityPaS != ViscosityPaS || doc.Fluid.TemperatureC != TemperatureC ||
+         PowerTestFileContracts.Fingerprint(BuildGeometry()) != PowerTestFileContracts.Fingerprint(doc.Geometry));
+
+    /// <summary>
+    /// Commits the criteria alone — not the conditions, fluid or geometry, which stay behind
+    /// <see cref="CanEditPlan"/>. Works with the assay stopped <em>or running</em>: the runner reads
+    /// <c>Settings</c> from this same document at every phase, so a longer vent time-out applies to
+    /// the next <c>VentStabilizing</c>. (A capture already in progress keeps the statistical gates it
+    /// started with.) The change is journalled field by field in <c>eventos.jsonl</c>.
+    /// </summary>
+    public bool PersistCaptureSettings()
+    {
+        if (CurrentTest is not { } doc)
+        {
+            return false;
+        }
+
+        var error = ValidateCaptureSettings();
+        if (error.Length > 0)
+        {
+            ShowError(error);
+            return false;
+        }
+
+        var settings = BuildEditedSettings();
+        if (settings == doc.Settings)
+        {
+            return true;
+        }
+
+        try
+        {
+            var diff = PowerTestSettingsDiff.Describe(doc.Settings, settings);
+            doc.SettingsRevision++;
+            doc.Settings = settings;
+            doc.LastModifiedUtc = DateTimeOffset.UtcNow;
+            _store.SaveTestManifest(doc);
+            _store.AppendEventLog(doc.FolderName, new PowerTestEventLogEntry(
+                DateTimeOffset.UtcNow, "SettingsChanged",
+                $"Critérios alterados pelo operador (revisão {doc.SettingsRevision}).", diff));
+            ValidationMessage = $"Critérios salvos (revisão {doc.SettingsRevision}).";
+            StatusMessage = ValidationMessage;
+            _lastPreflightTick = 0;
+            RefreshPreflight();
+            NotifyDocumentState();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível salvar os critérios: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Saves what the operator left unsaved before the application exits: the whole setup when the
+    /// assay is idle, only the criteria when it is running (the rest is locked while it runs).
+    /// </summary>
+    public bool TrySaveSetupForExit(out string error)
+    {
+        error = "";
+        if (CurrentTest is null)
+        {
+            return true;
+        }
+
+        if (IsRunning || IsTareRunning || CurrentTest.Status == PowerTestStatus.Completed)
+        {
+            return PersistCaptureSettings();
+        }
+
+        if (!TryPersist(out error))
+        {
+            return false;
+        }
+
+        RefreshTests();
+        NotifyDocumentState();
+        return true;
     }
 
     [RelayCommand]
@@ -3177,6 +3299,37 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return "Cadastre ao menos um impelidor com D positivo, pás e folga válidos.";
         }
 
+        if (ValidateCaptureSettings() is { Length: > 0 } settingsError)
+        {
+            return settingsError;
+        }
+
+        if (Conditions.Count == 0)
+        {
+            return "Inclua ao menos uma condição.";
+        }
+
+        if (Conditions.Any(c => !double.IsFinite(c.AgitationRpm) || c.AgitationRpm < MinRpm || c.AgitationRpm > MaxRpm || c.RequestedReplicates < 1))
+        {
+            return $"Cada condição deve ficar entre {MinRpm:F0} e {MaxRpm:F0} rpm e ter ao menos uma réplica.";
+        }
+
+        if (Conditions.Any(c => c.FlowUnit == FlowInputUnit.Vvm && c.GasFlowVvm.HasValue) && LiquidVolumeL <= 0)
+        {
+            return "Informe o volume de trabalho para converter vvm em L/min.";
+        }
+
+        if (Conditions.Any(c => c.GasFlowLpm is < 0 || c.GasFlowVvm is < 0))
+        {
+            return "A vazão de gás não pode ser negativa.";
+        }
+
+        return "";
+    }
+
+    /// <summary>The checks that concern only <see cref="PowerTestSettings"/> — what the criteria dialog edits.</summary>
+    private string ValidateCaptureSettings()
+    {
         if (!FinitePositive(MinRpm) || !FinitePositive(MaxRpm) || MinRpm < 15 || MaxRpm > 1000 || MinRpm > MaxRpm || StepRpm < 5)
         {
             return "Faixa de rotação inválida: 15–1000 rpm e passo mínimo de 5 rpm.";
@@ -3205,26 +3358,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             {
                 return "Tempo limite de alívio deve ser positivo.";
             }
-        }
-
-        if (Conditions.Count == 0)
-        {
-            return "Inclua ao menos uma condição.";
-        }
-
-        if (Conditions.Any(c => !double.IsFinite(c.AgitationRpm) || c.AgitationRpm < MinRpm || c.AgitationRpm > MaxRpm || c.RequestedReplicates < 1))
-        {
-            return $"Cada condição deve ficar entre {MinRpm:F0} e {MaxRpm:F0} rpm e ter ao menos uma réplica.";
-        }
-
-        if (Conditions.Any(c => c.FlowUnit == FlowInputUnit.Vvm && c.GasFlowVvm.HasValue) && LiquidVolumeL <= 0)
-        {
-            return "Informe o volume de trabalho para converter vvm em L/min.";
-        }
-
-        if (Conditions.Any(c => c.GasFlowLpm is < 0 || c.GasFlowVvm is < 0))
-        {
-            return "A vazão de gás não pode ser negativa.";
         }
 
         return "";

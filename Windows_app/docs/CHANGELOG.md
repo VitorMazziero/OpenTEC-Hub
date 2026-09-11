@@ -8,6 +8,36 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Os critérios de parada não sobreviviam ao fechar o aplicativo (§K).** A janela *Critérios de
+  Parada e Opções de Captura* só editava campos do ViewModel; os valores só chegavam ao
+  `ensaio.json` por *Salvar setup*, *Iniciar* ou por uma edição posterior na tabela. O operador
+  ajustou o tempo limite do alívio, fechou o aplicativo normalmente e o ensaio voltou com os
+  padrões de fábrica — três estabilizações a 200 rpm expiraram aos 120 s. Agora **Concluir
+  persiste**: `SettingsRevision` sobe, o manifesto é regravado e `eventos.jsonl` recebe um
+  `SettingsChanged` com o diff campo a campo (`MaxVentStabilizationSeconds: 120 → 500`). Funciona
+  com o ensaio parado **ou em curso** — o runner lê `Settings` do mesmo documento a cada fase, então
+  a próxima `VentStabilizing` já usa o limite novo. O `X` e `Esc` descartam, perguntando antes se
+  houver diferença; ao sair do aplicativo com setup não salvo, a janela principal pergunta
+  *Salvar o setup do ensaio antes de sair?*.
+- **Padrão de `MaxVentStabilizationSeconds`: 120 → 500 s.** Medido em 11/09: ao abrir o alívio a
+  vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, entrando em ±0,2 L/min só após 110–170 s. O
+  diálogo avisa quando o operador põe menos de ~150 s (~3τ), e o texto de *Aceite automático* passa
+  a dizer o que ele **não** cobre: falhas de sequência continuam parando para revisão.
+- **Tempestade de `XamlParseException` na página de Receitas** (39 relatórios em 4 s às 18:19 de
+  11/09): `RecipeConnectionViewModel.ArrowPoints` era um `PointCollection` sem `Freeze()`, e um
+  `Freezable` não congelado só pode ser ligado pela thread que o criou — o template do canvas
+  falhava a cada `Measure`. Passa a ser sempre congelado, como `RouteGeometry` já era.
+- **Relatório de pânico falso ao fechar o aplicativo (D-049).** O `DllNotFoundException` que o
+  WPF levanta ao descarregar o `DirectWriteForwarder` depois do `vcruntime` é reconhecido pela
+  pilha de teardown e suprimido com um aviso no log; um `DllNotFoundException` real continua gerando
+  relatório.
+- **Gráfico ao vivo de Potência limpo por corrida.** O runner anuncia `RunStarted` e o ViewModel
+  limpa `LivePoints` ali e em `PreparingNextRun` — inclusive na subfase gaseada de uma condição
+  *Both*, que é uma corrida própria.
+- **Diálogos de arquivo com `RestoreDirectory`.** Escolher uma pasta na exportação deixava de mudar
+  o diretório corrente do processo.
+
 ### Added
 - **Documentação dentro do aplicativo, e páginas sem texto solto (D-047).** Configurações ganha a
   seção **Documentação**, abaixo de *Comandos do equipamento* e com ícone próprio: o manual do

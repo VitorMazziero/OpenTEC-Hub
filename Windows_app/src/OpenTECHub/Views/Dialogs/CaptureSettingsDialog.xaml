@@ -59,7 +59,7 @@
                 BorderThickness="0,1,0,0">
             <Button Content="Concluir" MinWidth="95" Padding="14,6" HorizontalAlignment="Right"
                     Style="{StaticResource AccentButtonStyle}"
-                    IsDefault="True" IsCancel="True" Click="OnCloseClick" />
+                    IsDefault="True" Click="OnCloseClick" />
         </Border>
 
         <!-- Main Content -->
@@ -97,7 +97,7 @@
                 <TextBlock Text="Opções de Operação" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
 
                 <CheckBox Margin="0,0,0,8" Content="Aceite automático dos pontos" IsChecked="{Binding AutoAcceptRuns}"
-                          ToolTip="Aceita cada ponto capturado sem revisão e emenda direto na próxima condição, deixando o ensaio rodar sozinho até o fim da tabela. Sem isso, cada ponto para em 'Revisando' e espera o operador." />
+                          ToolTip="Aceita cada ponto capturado sem revisão e emenda direto na próxima condição, deixando o ensaio rodar sozinho até o fim da tabela. Sem isso, cada ponto para em 'Revisando' e espera o operador. Falhas de sequência (alívio, válvulas, rotação, limites) continuam parando para revisão." />
                 <CheckBox Margin="0,0,0,8" Content="Leitura manual de energia após cada ponto"
                           IsChecked="{Binding ManualEnergyCaptureEnabled}"
                           IsEnabled="{Binding AutoAcceptRuns, Converter={StaticResource InverseBool}}"
@@ -141,6 +141,11 @@
                                 <TextBox Style="{StaticResource CompactField}" Text="{Binding MaxVentStabilizationSeconds, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                         </Grid>
+                        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource StateWarningTextBrush}"
+                                   Visibility="{Binding IsVentTimeoutShort, Converter={StaticResource BoolToVis}}"
+                                   Text="Abaixo de ~150 s o alívio tende a expirar: ao abrir, a vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, levando 110–170 s para entrar na banda (bancada de 11/09/2026)." />
                     </StackPanel>
                 </Border>
             </StackPanel>

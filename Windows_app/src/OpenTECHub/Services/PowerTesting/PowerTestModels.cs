@@ -274,7 +274,13 @@ public sealed record PowerTestSettings
     public double VentFlowToleranceLpm { get; init; } = 0.2;
     public int VentFlowStableSamples { get; init; } = 5;
     public double VentAgitationRpm { get; init; } = 15.0;
-    public double MaxVentStabilizationSeconds { get; init; } = 120.0;
+
+    /// <summary>
+    /// Bench of 2026-09-11: opening the vent overshoots to ~2.3× the target and decays with
+    /// τ ≈ 45 s, so ±0.2 L/min is reached after ~110–170 s. 120 s expired three times in a row;
+    /// 500 s covers >3τ with margin for the flow controller's steady offset.
+    /// </summary>
+    public double MaxVentStabilizationSeconds { get; init; } = 500.0;
 
     /// <summary>Hold each captured point for a manual mains-wattmeter reading (§4.8, §12.3).</summary>
     public bool ManualEnergyCaptureEnabled { get; init; }

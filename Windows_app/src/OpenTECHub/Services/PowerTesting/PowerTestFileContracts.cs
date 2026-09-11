@@ -89,6 +89,12 @@ public static class PowerTestFileContracts
         Converters = { new JsonStringEnumConverter() },
     };
 
+    /// <summary>
+    /// The persisted form of a model object, for equality checks on classes that have none
+    /// (geometry, conditions). Two objects that would write the same JSON are the same setup.
+    /// </summary>
+    public static string Fingerprint<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
+
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "CON", "PRN", "AUX", "NUL",

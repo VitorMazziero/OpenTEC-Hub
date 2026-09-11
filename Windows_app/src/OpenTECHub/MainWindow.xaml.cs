@@ -179,8 +179,46 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Criteria typed into the capture-settings dialog and Montagem fields only reach the assay on
+    /// disk through <c>Salvar setup</c>; closing the application with them unsaved used to lose them
+    /// silently (bench of 2026-09-11). Returns false when the operator cancels the exit.
+    /// </summary>
+    private bool ConfirmUnsavedAssaySetup()
+    {
+        if (DataContext is not ShellViewModel { PowerTest: { } power } || !power.HasUnsavedSetup)
+        {
+            return true;
+        }
+
+        var answer = MessageBox.Show(this,
+            "O setup do ensaio de potência tem alterações não salvas.\n\nSalvar o setup do ensaio antes de sair?",
+            "Ensaio de potência", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        switch (answer)
+        {
+            case MessageBoxResult.Yes:
+                if (!power.TrySaveSetupForExit(out var error))
+                {
+                    MessageBox.Show(this, $"Não foi possível salvar o setup: {error}", "Ensaio de potência",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return false;
+                }
+                return true;
+            case MessageBoxResult.No:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        if (!ConfirmUnsavedAssaySetup())
+        {
+            e.Cancel = true;
+            return;
+        }
+
         if (_settings is null)
         {
             return;

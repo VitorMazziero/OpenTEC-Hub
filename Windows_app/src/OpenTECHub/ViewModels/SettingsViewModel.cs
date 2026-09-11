@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Dialogs;
+using OpenTECHub.Services.Documentation;
 using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Platform;
@@ -89,8 +90,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("logging", "Aparência", "Trend"),
             new("backup", "Backup e dados", "File"),
             new("device", "Comandos do equipamento", "Gear"),
+            new(DocumentationSectionId, "Documentação", "Book"),
         ];
         SelectedSection = Sections[0];
+        DocumentationTopics = DocumentationCatalog.Topics;
+        SelectedDocumentationTopic = DocumentationTopics[0];
 
         TemperatureUnitOptions =
         [
@@ -184,12 +188,50 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<SettingsSection> Sections { get; }
 
+    // ---- Documentation -----------------------------------------------
+    // The in-app manual. It lives in Settings because it is the one destination that is
+    // always reachable and never part of a running procedure - a page an operator can
+    // open mid-assay without touching the assay.
+
+    /// <summary>Id of the documentation section, used by the deep links from other pages.</summary>
+    public const string DocumentationSectionId = "documentation";
+
+    public IReadOnlyList<DocumentationTopic> DocumentationTopics { get; }
+
+    [ObservableProperty]
+    public partial DocumentationTopic SelectedDocumentationTopic { get; set; }
+
+    /// <summary>
+    /// Opens the documentation on <paramref name="topicId"/>, or on its first page when the
+    /// id is unknown.
+    /// </summary>
+    /// <remarks>
+    /// Unknown never means "do nothing": a help button whose topic was renamed must still
+    /// land the operator in the manual, not fail silently on the page they were reading.
+    /// </remarks>
+    public void SelectDocumentation(string? topicId)
+    {
+        SelectedDocumentationTopic = DocumentationCatalog.Find(topicId) ?? DocumentationTopics[0];
+        SelectedSection = Sections.First(section => section.Id == DocumentationSectionId);
+    }
+
     public IReadOnlyList<SettingOption<TemperatureUnitPreference>> TemperatureUnitOptions { get; }
 
     public IReadOnlyList<SettingOption<PressureUnitPreference>> PressureUnitOptions { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDocumentationSelected))]
     public partial SettingsSection SelectedSection { get; set; }
+
+    /// <summary>
+    /// True while the manual is open, which is the one section that wants the whole page.
+    /// </summary>
+    /// <remarks>
+    /// Every other section is a form of short fields, so the decorative vessel beside it costs
+    /// nothing. Documentation is prose: the same picture would hold the text to half the width
+    /// and roughly double the scrolling, for no gain.
+    /// </remarks>
+    public bool IsDocumentationSelected => SelectedSection?.Id == DocumentationSectionId;
 
     // ---- Connection --------------------------------------------------
 

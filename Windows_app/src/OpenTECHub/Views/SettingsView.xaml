@@ -33,6 +33,50 @@
             <Setter Property="Padding" Value="18" />
         </Style>
 
+        <!-- Documentação: um DataTemplate por tipo de bloco. O catálogo decide o que é
+             parágrafo, item ou observação; a view só sabe desenhar os três. -->
+        <DataTemplate x:Key="DocParagraphTemplate">
+            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,0,0,8"
+                       Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="19" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="DocBulletTemplate">
+            <Grid Margin="2,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="•" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="19" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DocNoteTemplate">
+            <Border Margin="0,2,0,10" Padding="10,7"
+                    Background="{DynamicResource SurfaceSunkenBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
+                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontWeight="Medium"
+                           Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="19" />
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DocFieldTemplate">
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,7" LineHeight="19"
+                       Foreground="{DynamicResource TextPrimaryBrush}">
+                <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" />
+                <Run Text=" — " Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Run Text="{Binding Text, Mode=OneWay}" />
+            </TextBlock>
+        </DataTemplate>
+
+        <ctl:DocumentationBlockTemplateSelector x:Key="DocBlockSelector"
+                                                ParagraphTemplate="{StaticResource DocParagraphTemplate}"
+                                                BulletTemplate="{StaticResource DocBulletTemplate}"
+                                                FieldTemplate="{StaticResource DocFieldTemplate}"
+                                                NoteTemplate="{StaticResource DocNoteTemplate}" />
+
         <Style x:Key="NumericBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="FontFamily" Value="{DynamicResource FontNumeric}" />
             <Setter Property="Width" Value="190" />
@@ -161,6 +205,11 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=SettingsRoot}" Value="True">
                                 <!-- The illustration column is gone; the form takes the width it left. -->
+                                <Setter Property="Grid.ColumnSpan" Value="2" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsDocumentationSelected}" Value="True">
+                                <!-- Same reason at any width: the manual is prose, and prose
+                                     held to half the page is prose read twice as slowly. -->
                                 <Setter Property="Grid.ColumnSpan" Value="2" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -452,12 +501,58 @@
                                 Command="{Binding RestoreDefaultsCommand}" />
                     </StackPanel>
                 </Border>
+
+                <!-- Documentação: o manual dentro do aplicativo. As páginas deixaram de
+                     imprimir a própria explicação; ela é escrita uma vez, aqui, e cada
+                     card aponta para o tópico que lhe corresponde. -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=documentation}">
+                    <StackPanel>
+                        <TextBlock Text="Documentação" Style="{StaticResource SectionHeading}" />
+                        <TextBlock Text="O manual do aplicativo, página por página. Os botões “?” espalhados pelo programa abrem direto o assunto correspondente."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <TextBlock Text="Assunto" Style="{StaticResource FieldLabel}" />
+                        <ComboBox ItemsSource="{Binding DocumentationTopics}"
+                                  SelectedItem="{Binding SelectedDocumentationTopic, Mode=TwoWay}"
+                                  DisplayMemberPath="Title"
+                                  HorizontalAlignment="Left" MinWidth="320"
+                                  AutomationProperties.Name="Assunto da documentação" />
+
+                        <Border Margin="0,14,0,0" Padding="0,12,0,0"
+                                BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel DataContext="{Binding SelectedDocumentationTopic}">
+                                <TextBlock Text="{Binding Title}" FontSize="{DynamicResource FontSizeSubtitle}"
+                                           FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionTextStyle}"
+                                           TextWrapping="Wrap" Margin="0,4,0,14" />
+
+                                <ItemsControl ItemsSource="{Binding Sections}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,16">
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" Margin="0,0,0,7" />
+                                                <ItemsControl ItemsSource="{Binding Blocks}"
+                                                              ItemTemplateSelector="{StaticResource DocBlockSelector}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
             </Grid>
         </ScrollViewer>
 
         <!-- Decorative only. On a laptop the form needs this space more than the page
-             needs a picture of the vessel. -->
-        <Viewbox Grid.Row="1" Grid.Column="1" Stretch="Uniform" Margin="24,18,24,18"
+             needs a picture of the vessel - and the manual needs it at any width. -->
+        <ContentControl Grid.Row="1" Grid.Column="1"
+                        Visibility="{Binding IsDocumentationSelected,
+                                     Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+        <Viewbox Stretch="Uniform" Margin="24,18,24,18"
                  HorizontalAlignment="Center" VerticalAlignment="Center"
                  Visibility="{Binding Path=(ctl:Responsive.IsNarrow), ElementName=SettingsRoot,
                                       Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
@@ -469,6 +564,7 @@
                        AutomationProperties.Name="Biorreator OpenTEC" />
             </Canvas>
         </Viewbox>
+        </ContentControl>
     </Grid>
 
         <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="16,12"

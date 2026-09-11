@@ -181,6 +181,13 @@
         M 13 2.5 V 7.5 H 18
     </Geometry>
 
+    <!-- Documentação: um livro aberto. Distinto do documento único (IconFile), que
+         quer dizer "arquivo"; aqui a ideia é manual, texto que se lê. -->
+    <Geometry x:Key="IconBookGeometry">
+        M 12 6.5 C 10 4.8 7.5 4.3 4 4.5 V 18 C 7.5 17.8 10 18.3 12 20 C 14 18.3 16.5 17.8 20 18 V 4.5 C 16.5 4.3 14 4.8 12 6.5 Z
+        M 12 6.5 V 20
+    </Geometry>
+
     <Geometry x:Key="IconFolderGeometry">
         M 3 4.5 C 3 3.7 3.7 3 4.5 3 H 9.5 L 11.5 5.5 H 19.5 C 20.3 5.5 21 6.2 21 7 V 18.5 C 21 19.3 20.3 20 19.5 20 H 4.5 C 3.7 20 3 19.3 3 18.5 Z
     </Geometry>

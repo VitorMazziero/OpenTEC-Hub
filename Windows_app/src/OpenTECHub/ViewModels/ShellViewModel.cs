@@ -962,6 +962,21 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         SelectedNavigationId = "calibrations";
     }
 
+    /// <summary>
+    /// Opens the in-app manual on <paramref name="topicId"/>.
+    /// </summary>
+    /// <remarks>
+    /// The help buttons on the pages call this. A screen no longer prints its own explanation,
+    /// so the path from "what is this card for" to the answer has to be one click, and it has to
+    /// land on the right page of the manual rather than on its front door.
+    /// </remarks>
+    [RelayCommand]
+    private void OpenDocumentation(string topicId)
+    {
+        Settings.SelectDocumentation(topicId);
+        SelectedNavigationId = "settings";
+    }
+
     /// <summary>Opens a Controle table row in the process-first dashboard.</summary>
     [RelayCommand]
     private void OpenVariableFromControl(ProcessVariableViewModel variable)

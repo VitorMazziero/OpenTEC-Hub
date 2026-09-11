@@ -22,6 +22,29 @@
             <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
             <Setter Property="Padding" Value="12" />
         </Style>
+        <!-- Subdivisão de um card: um assunto por moldura, em vez de uma pilha de
+             rótulos soltos. A coluna tem ~300 DIP úteis, então tudo aqui dentro é
+             largura fluida - nada de linha com rótulo e botões disputando a mesma faixa. -->
+        <Style x:Key="PowerSubCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+            <Setter Property="Padding" Value="9" />
+        </Style>
+
+        <!-- Atalho para a documentação. A explicação que ficava impressa no card mora
+             em Configurações -> Documentação; o card guarda só o caminho até ela. -->
+        <Style x:Key="DocHelpButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Content" Value="?" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="ToolTip" Value="Abrir a documentação desta seção" />
+        </Style>
+
         <Style x:Key="PowerMetric" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />
             <Setter Property="FontSize" Value="15" />
@@ -185,33 +208,49 @@
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
                             <TextBlock Text="Ensaio" FontSize="15" FontWeight="SemiBold" />
-                            <ComboBox Margin="0,8,0,5" ItemsSource="{Binding Tests}" SelectedItem="{Binding SelectedTest}"
-                                      DisplayMemberPath="Name" ToolTip="Ensaios autocontidos em Testes-Potencia" />
-                            <Grid Margin="0,4,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock VerticalAlignment="Center" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
-                                           ToolTip="Rascunhos e ensaios interrompidos podem ter sua tabela editada enquanto estão parados" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button Content="Abrir" Command="{Binding LoadSelectedTestCommand}" Padding="8,3" Margin="0,0,4,0"
-                                            ToolTip="Carrega o ensaio escolhido acima: fluido, geometria, tabela de condições e pontos já medidos" />
-                                    <Button Content="Renomear" Command="{Binding RenameTestCommand}"
-                                            IsEnabled="{Binding CanManageTest}" Padding="8,3" Margin="0,0,4,0" ToolTip="Renomeia o ensaio aberto e sua pasta" />
-                                    <Button Content="Excluir" Command="{Binding DeleteTestCommand}"
-                                            IsEnabled="{Binding CanManageTest}" Padding="8,3" Style="{StaticResource DangerButtonStyle}"
-                                            ToolTip="Move o ensaio aberto para a lixeira interna" />
-                                </StackPanel>
-                            </Grid>
-                            <TextBlock Margin="0,6,0,0" Text="{Binding TestRootDirectory}" Style="{StaticResource CaptionTextStyle}"
-                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding TestRootDirectory}" />
 
-                            <StackPanel Margin="0,8,0,0" IsEnabled="{Binding CanEditPlan}">
-                                <TextBlock Text="Tara do ensaio" FontWeight="SemiBold" />
-                                <ComboBox Margin="0,4,0,4" ItemsSource="{Binding TareProfiles}" SelectedItem="{Binding SelectedTareProfile}" DisplayMemberPath="Name" />
-                                <Button Content="Usar tara selecionada" Command="{Binding ApplyTareProfileCommand}" Padding="8,3" />
-                                <Button Content="Sem tara (relativo)" Command="{Binding UseNoTareCommand}" Padding="8,3" Margin="0,4,0,0" />
-                                <TextBlock Margin="0,4,0,0" Text="{Binding TareStatus}" TextWrapping="Wrap" />
-                                <TextBlock Text="Sem tara aplicada, o ensaio opera em modo relativo." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-                            </StackPanel>
+                            <!-- Subcard 1: qual ensaio está aberto e o que se pode fazer com ele -->
+                            <Border Style="{StaticResource PowerSubCard}" Margin="0,7,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Ensaio aberto" Style="{StaticResource PowerLabel}" />
+                                    <ComboBox Margin="0,3,0,0" ItemsSource="{Binding Tests}" SelectedItem="{Binding SelectedTest}"
+                                              DisplayMemberPath="Name" ToolTip="Ensaios autocontidos em Testes-Potencia" />
+                                    <Button Content="Carregar Ensaio" Margin="0,6,0,0" Padding="8,4"
+                                            HorizontalAlignment="Stretch"
+                                            Command="{Binding LoadSelectedTestCommand}"
+                                            ToolTip="Carrega o ensaio escolhido acima: fluido, geometria, tabela de condições e pontos já medidos" />
+                                    <Grid Margin="0,5,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Renomear" Command="{Binding RenameTestCommand}"
+                                                IsEnabled="{Binding CanManageTest}" Padding="8,3" ToolTip="Renomeia o ensaio aberto e sua pasta" />
+                                        <Button Grid.Column="2" Content="Excluir" Command="{Binding DeleteTestCommand}"
+                                                IsEnabled="{Binding CanManageTest}" Padding="8,3" Style="{StaticResource DangerButtonStyle}"
+                                                ToolTip="Move o ensaio aberto para a lixeira interna" />
+                                    </Grid>
+                                    <TextBlock Margin="0,7,0,0" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               ToolTip="Rascunhos e ensaios interrompidos podem ter sua tabela editada enquanto estão parados" />
+                                    <TextBlock Margin="0,2,0,0" Text="{Binding TestRootDirectory}" Style="{StaticResource CaptionTextStyle}"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding TestRootDirectory}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Subcard 2: a tara que este ensaio aplica -->
+                            <Border Style="{StaticResource PowerSubCard}" Margin="0,6,0,0" IsEnabled="{Binding CanEditPlan}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <TextBlock Text="Tara do ensaio" Style="{StaticResource PowerLabel}" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
+                                                Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="potencia-tara" />
+                                    </Grid>
+                                    <ComboBox Margin="0,3,0,0" ItemsSource="{Binding TareProfiles}" SelectedItem="{Binding SelectedTareProfile}" DisplayMemberPath="Name" />
+                                    <Button Content="Usar tara selecionada" Command="{Binding ApplyTareProfileCommand}" Padding="8,3" Margin="0,6,0,0" />
+                                    <Button Content="Sem tara (relativo)" Command="{Binding UseNoTareCommand}" Padding="8,3" Margin="0,5,0,0" />
+                                    <TextBlock Margin="0,7,0,0" Text="{Binding TareStatus}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Border>
 
                             <!-- Aviso de preflight: aparece quando necessário (qualquer aviso de bloqueio) embaixo da string do path -->
                             <Border Margin="0,6,0,0" Padding="8,4" CornerRadius="4"
@@ -390,23 +429,26 @@
                     <!-- Card 1: Tara do Eixo (Calibração do Sistema) -->
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Tara do Eixo (Calibração do Sistema)" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock Margin="0,4,0,6" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                       Text="A tara no ar é a calibração de referência do sistema: quantifica o atrito mecânico de selos, mancais e o ruído basal de torque (στ) em cada rotação com o vaso seco. O software desconta essa potência de vazio (P_vazio) para determinar a potência líquida dissipada no fluido." />
-
-                            <Grid Margin="0,4,0,6">
+                            <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding TareStatus}" FontWeight="SemiBold" VerticalAlignment="Center"
-                                           ToolTip="Status de compatibilidade da tara com o conjunto de impelidores do ensaio." />
-                                <Button Grid.Column="1" Content="Medir nova tara" Padding="8,4" Command="{Binding TareMeasurementInfoCommand}"
-                                        ToolTip="Abre os controles de varredura estatística no ar com vaso seco" />
+                                <TextBlock Text="Tara do eixo" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
+                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="potencia-tara" />
                             </Grid>
+
+                            <!-- Estado e ação em linhas próprias: na coluna de 340 DIP os dois
+                                 lado a lado cortavam o texto do estado. -->
+                            <TextBlock Margin="0,7,0,0" Text="{Binding TareStatus}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       ToolTip="Status de compatibilidade da tara com o conjunto de impelidores do ensaio." />
+                            <Button Margin="0,6,0,6" Content="Medir nova tara" Padding="8,4" HorizontalAlignment="Stretch"
+                                    Command="{Binding TareMeasurementInfoCommand}"
+                                    ToolTip="Abre os controles de varredura estatística no ar com vaso seco" />
 
                             <!-- Assistente de varredura no ar -->
                             <Border Visibility="{Binding IsTareAssistantOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,4,0,6">
                                 <StackPanel>
-                                    <TextBlock Text="Ensaio de tara no ar (P_vazio + στ)" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                    <TextBlock Text="Com o vaso seco, cada rotação passa por estabilização e coleta até atingir o IC95. As leituras e desvios ficam registrados na curva de tara." Style="{StaticResource PowerLabel}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Varredura no ar · vaso seco" FontWeight="SemiBold" Margin="0,0,0,4" />
                                     <Grid Margin="0,4,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0"><TextBlock Text="N ini" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStartRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
@@ -415,15 +457,18 @@
                                     </Grid>
 
                                     <TextBlock Margin="0,6,0,4" Text="{Binding TareProgressMessage}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-                                    <DataGrid Height="140" Margin="0,3,0,4" ItemsSource="{Binding CurrentTarePoints}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                                    <!-- Larguras proporcionais, não fixas: sete colunas fixas somavam mais
+                                         que a coluna inteira e o operador lia cabeçalho cortado. -->
+                                    <DataGrid Height="140" Margin="0,3,0,4" ItemsSource="{Binding CurrentTarePoints}" AutoGenerateColumns="False"
+                                              CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="N alvo" Binding="{Binding Rpm, StringFormat={}{0:F0}}" Width="52" />
-                                            <DataGridTextColumn Header="N média" Binding="{Binding MeanRpmMeasured, StringFormat={}{0:F1}}" Width="58" />
-                                            <DataGridTextColumn Header="P vazio" Binding="{Binding PVoidW, StringFormat={}{0:F3}}" Width="58" />
-                                            <DataGridTextColumn Header="±IC95 W" Binding="{Binding PVoidCi95W, StringFormat={}{0:F3}}" Width="58" />
-                                            <DataGridTextColumn Header="στ %" Binding="{Binding SigmaTauPercent, StringFormat={}{0:F4}}" Width="52" />
-                                            <DataGridTextColumn Header="n" Binding="{Binding SampleCount}" Width="38" />
-                                            <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="42" />
+                                            <DataGridTextColumn Header="N" Binding="{Binding Rpm, StringFormat={}{0:F0}}" Width="*" MinWidth="34" />
+                                            <DataGridTextColumn Header="N méd" Binding="{Binding MeanRpmMeasured, StringFormat={}{0:F1}}" Width="*" MinWidth="44" />
+                                            <DataGridTextColumn Header="P₀ (W)" Binding="{Binding PVoidW, StringFormat={}{0:F3}}" Width="*" MinWidth="48" />
+                                            <DataGridTextColumn Header="±IC95" Binding="{Binding PVoidCi95W, StringFormat={}{0:F3}}" Width="*" MinWidth="46" />
+                                            <DataGridTextColumn Header="στ %" Binding="{Binding SigmaTauPercent, StringFormat={}{0:F3}}" Width="*" MinWidth="40" />
+                                            <DataGridTextColumn Header="n" Binding="{Binding SampleCount}" Width="Auto" MinWidth="26" />
+                                            <DataGridTextColumn Header="Tent" Binding="{Binding Attempts}" Width="Auto" MinWidth="30" />
                                         </DataGrid.Columns>
                                     </DataGrid>
                                     <Grid Margin="0,4,0,0">
@@ -438,8 +483,7 @@
                             <!-- Biblioteca de taras: uma curva por eixo, compartilhada entre ensaios -->
                             <Border Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="7" Margin="0,4,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Perfis de tara por eixo" FontWeight="SemiBold" />
-                                    <TextBlock Text="Cada eixo tem a sua tara. Selecione um perfil salvo ou crie uma nova tara arquivando a curva medida." Style="{StaticResource PowerLabel}" TextWrapping="Wrap" Margin="0,2,0,5" />
+                                    <TextBlock Text="Perfis de tara por eixo" FontWeight="SemiBold" Margin="0,0,0,5" />
 
                                     <!-- Perfil existente na biblioteca -->
                                     <TextBlock Text="Perfil existente:" Style="{StaticResource PowerLabel}" Margin="0,2,0,2" />
@@ -472,16 +516,15 @@
                     <!-- Card 2: Ponto Único de Conferência -->
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Ponto Único de Conferência" FontSize="15" FontWeight="SemiBold" />
-                            <Border Margin="0,6,0,7" Padding="8,6" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1">
-                                <StackPanel>
-                                    <TextBlock Text="Para que serve o Ponto Único?" FontWeight="SemiBold" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,3" />
-                                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
-                                               Text="• Conferência manual rápida do acionamento antes de iniciar o ensaio;&#x0a;• Inspeção pré-ensaio: verificar ausência de vibrações anormais, vazamentos e vórtice;&#x0a;• Operação avulsa e conferência instantânea de leitura de torque e potência;&#x0a;• Inclusão de condição avulsa testada diretamente na tabela do ensaio." />
-                                </StackPanel>
-                            </Border>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Ponto único" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
+                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="potencia-ponto-unico" />
+                            </Grid>
 
-                            <Grid Margin="0,2,0,0">
+                            <Grid Margin="0,7,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0"><TextBlock Text="N (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
                                 <StackPanel Grid.Column="2"><TextBlock Text="Qg (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
@@ -498,16 +541,22 @@
                     <!-- Card 3: Correlação de Potência Elétrica Externa -->
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Correlação de Potência Elétrica Externa" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock Margin="0,4,0,6" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                       Text="Correlaciona a potência mecânica do eixo (calculada pelo servo) com medições manuais de potência elétrica ativa obtidas por wattímetro externo de bancada na tomada do motor." />
-                            <TextBlock Text="{Binding EnergyCorrelationSummary}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Correlação elétrica" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
+                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="potencia-correlacao-eletrica" />
+                            </Grid>
+                            <TextBlock Text="{Binding EnergyCorrelationSummary}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,6,0,6" />
+                            <!-- Cabeçalhos curtos e larguras proporcionais: "Pot. Mecânica (W)" em
+                                 112 DIP fixos não cabia na coluna e chegava cortado ao operador. -->
                             <DataGrid Height="125" ItemsSource="{Binding ManualEnergyReadings}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm, StringFormat={}{0:F0}}" Width="52" />
-                                    <DataGridTextColumn Header="Pot. Mecânica (W)" Binding="{Binding PowerMechanicalWAtReading, StringFormat={}{0:F1}}" Width="112" />
-                                    <DataGridTextColumn Header="Pot. Elétrica (W)" Binding="{Binding PowerElectricalW, StringFormat={}{0:F1}}" Width="108" />
-                                    <DataGridTextColumn Header="Instrumento" Binding="{Binding Instrument}" Width="*" />
+                                    <DataGridTextColumn Header="N" Binding="{Binding Rpm, StringFormat={}{0:F0}}" Width="Auto" MinWidth="34" />
+                                    <DataGridTextColumn Header="P mec (W)" Binding="{Binding PowerMechanicalWAtReading, StringFormat={}{0:F1}}" Width="*" MinWidth="66" />
+                                    <DataGridTextColumn Header="P elét (W)" Binding="{Binding PowerElectricalW, StringFormat={}{0:F1}}" Width="*" MinWidth="66" />
+                                    <DataGridTextColumn Header="Instrumento" Binding="{Binding Instrument}" Width="*" MinWidth="72" />
                                 </DataGrid.Columns>
                             </DataGrid>
                         </StackPanel>
@@ -516,9 +565,13 @@
                     <!-- Importação de mapa de kLa e Avaliação de Eficiência -->
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Mapa de kLa e Eficiência" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                       Text="Vincule um mapa de kLa ao ensaio de potência (a tabela de condições é preservada). A eficiência kLa/(P/V) é calculada na região de controle (intersecção das condições)." />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Mapa de kLa e eficiência" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
+                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="potencia-mapa-kla" />
+                            </Grid>
                             <Grid Margin="0,7,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />

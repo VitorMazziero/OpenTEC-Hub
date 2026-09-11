@@ -71,6 +71,10 @@
                 <Button Content="Copiar" Margin="14,0,0,0" Command="{Binding CopySelectedCommand}" />
                 <Button Content="Exportar" Margin="8,0,0,0" Command="{Binding ExportVisibleCommand}" />
                 <Button Content="Limpar visualização" Margin="8,0,0,0" Command="{Binding ClearViewCommand}" />
+                <Button Content="?" Width="26" Margin="8,0,0,0" Padding="0,4" FontWeight="SemiBold"
+                        ToolTip="Abrir a documentação desta página"
+                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="eventos" />
             </WrapPanel>
         </Border>
 

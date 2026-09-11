@@ -346,7 +346,7 @@ flowchart TD
 
 ### Etapa 2.4 · Documentação no aplicativo e limpeza de texto dos cards
 - **Prioridade:** P1 para usabilidade de bancada
-- **Status:** ✅ **Painel, Controle, Receitas (três assuntos), Determinar kLa, Mapeamento kLa e os quatro assuntos de Potência CONCLUÍDOS (10/09/2026)** — demais páginas em aberto abaixo
+- **Status:** ✅ **Treze assuntos entregues (10/09/2026)**: Painel, Controle, Receitas (3), Determinar kLa, Mapeamento kLa, Potência, Mapa de Potência, Calibrações, Históricos, Eventos, Integração e os quatro cards de validação de Potência. Falta apenas Configurações/Conexão
 - **Fonte:** [DECISIONS.md](DECISIONS.md#d-047--a-explicação-sai-do-card-e-vira-documentação-no-aplicativo)
 - **Arquivos-Chave:**
   - `src/OpenTECHub/Services/Documentation/DocumentationCatalog.cs` (o conteúdo, como dado)
@@ -370,14 +370,15 @@ flowchart TD
   3. [x] Potência — tara, ponto único, correlação elétrica e mapa de kLa (os quatro cards que carregavam os parágrafos)
   4. [x] **Receitas** (`receitas`) — conceito e possibilidades, página parte por parte, montagem, salvar/JSON, execução e o bloqueio do controle manual, famílias de blocos
   5. [x] **Receitas · Blocos** (`receitas-blocos`) — os dezenove blocos, com o que muda por contexto
-  6. [x] **Receitas · Cascata de O₂** (`receitas-cascata`) — PID, quatro modos de atuação, faixas, janelas, anti-windup e predefinições
+  6. [x] **Receitas · Controle de O₂** (`receitas-controle-o2`) — PID, os quatro **métodos de atuação** (Cascata é um deles), faixas, janelas, anti-windup e predefinições
   7. [x] **Determinar kLa** (`kla-determinacao`) — o método, as fases da corrida, a matriz, revisão e aceite, limiares, os três gráficos e o que fica gravado
   8. [x] **Mapeamento kLa** (`kla-mapeamento`) — pontos → superfície → gradiente → trajetória de máxima folga → publicação, com o diagnóstico científico campo a campo
-  9. [ ] Potência — montagem e aquisição (fluido, vaso, impelidores, tabela de condições)
-  10. [ ] Mapa de Potência (modelos, comparação de impelidores, escalonamento)
-  11. [ ] Calibrações
-  12. [ ] Históricos e Eventos
-  13. [ ] Configurações (as demais seções) e Conexão
+  9. [x] **Potência** (`potencia`) — o ensaio, as equações (P, Np, Re, Fl_G, Fr, flooding de Nienow), as três abas e a parada adaptativa
+  10. [x] **Mapa de Potência** (`potencia-mapa`) — superfície, van't Riet ajustado, eficiência e escalonamento
+  11. [x] **Calibrações** (`calibracoes`) — as quatro abas, o critério de aquisição e o que é escrito no equipamento
+  12. [x] **Históricos** (`historicos`) e **Eventos** (`eventos`)
+  13. [x] **Integração** (`integracao-kla-potencia`) — a cadeia kLa → mapa → potência → Controle de O₂ pelo mapa
+  14. [ ] Configurações (as demais seções) e Conexão
 
 ---
 
@@ -576,6 +577,7 @@ A suíte cobre estes pontos, mas eles são conferidos explicitamente porque um e
 | Tara por eixo | Dois perfis coexistem; regravar o mesmo eixo substitui em vez de duplicar; excluir um perfil não altera ensaios que já o aplicaram; pasta `Taras/` não vira ensaio | `PowerTestStoreTests.*Tare_Profile*` |
 | Compatibilidade de tara | `ImpellerSetHash` e `CalibrationHash` continuam confrontados; perfil de outro conjunto é rotulado, não aceito em silêncio | `PowerTestViewModel.TareStatus` |
 | Dado bruto gravado | Colunas novas do kLa no fim da linha e arquivo do esquema 1 ainda legível; leitura ausente como célula vazia; varredura de tara cancelada mantém o que mediu; ponto único gravado com e sem ensaio aberto | `RawDataIntegrityTests` |
+| Equações e vocabulário | Toda fórmula tem legenda; kLa, Potência, Mapa de Potência, Controle de O₂ e Integração trazem pelo menos uma; **"Cascata" é método, não bloco** — nenhum assunto chama o bloco de "bloco Cascata" | `DocumentationTests` |
 | Documentação e cards | Catálogo com conteúdo real, layout antes dos controles e cobertura de todas as linhas de Controle; a página de Potência **abriu mão** dos parágrafos e aponta para os assuntos; `Carregar Ensaio` no lugar de `Abrir`; cabeçalhos que cabem na coluna | `DocumentationTests` |
 | Receitas documentadas | **Todo bloco do `RecipeNodeCatalog` tem verbete** — um bloco novo lá sem verbete aqui falha o teste; a cascata cobre PID, os quatro modos e o anti-windup; o bloqueio do controle manual durante a execução está escrito; o card da cascata cresce com o seu selo e as portas descem junto | `DocumentationTests` |
 | Contratos de UI | Rótulos e *bindings* das abas de potência; a tela de potência não usa vocabulário de confirmar/descartar | `PowerNavigationContractTests` |

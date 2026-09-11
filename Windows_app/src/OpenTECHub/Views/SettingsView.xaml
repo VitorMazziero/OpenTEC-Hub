@@ -68,10 +68,28 @@
                        Foreground="{DynamicResource TextPrimaryBrush}" />
         </DataTemplate>
 
+        <DataTemplate x:Key="DocFormulaTemplate">
+            <Border Margin="0,4,0,12" Padding="14,10"
+                    Background="{DynamicResource SurfaceSunkenBrush}"
+                    BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
+                    HorizontalAlignment="Left">
+                <StackPanel>
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                               FontFamily="{DynamicResource FontNumeric}" FontSize="14"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock ctl:InlineMarkup.Text="{Binding Caption}" TextWrapping="Wrap"
+                               Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}"
+                               Visibility="{Binding HasCaption, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <ctl:DocumentationBlockTemplateSelector x:Key="DocBlockSelector"
                                                 ParagraphTemplate="{StaticResource DocParagraphTemplate}"
                                                 BulletTemplate="{StaticResource DocBulletTemplate}"
                                                 FieldTemplate="{StaticResource DocFieldTemplate}"
+                                                FormulaTemplate="{StaticResource DocFormulaTemplate}"
                                                 NoteTemplate="{StaticResource DocNoteTemplate}" />
 
         <Style x:Key="NumericBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">

@@ -14,7 +14,9 @@ tela já corrigida é pior do que nenhuma, então nada aqui é copiado à mão.
 | `documentacao-controle.png` | O mesmo, assunto **Controle** |
 | `documentacao-receitas.png` | O assunto **Receitas**: conceito, possibilidades e a página parte por parte |
 | `documentacao-receitas-blocos.png` | O assunto **Receitas · Blocos**, um verbete por bloco |
-| `documentacao-receitas-cascata.png` | O assunto **Receitas · Cascata de O₂**, com PID e modos de atuação |
+| `documentacao-receitas-controle-o2.png` | O assunto **Receitas · Controle de O₂**, com o PID e os quatro métodos de atuação |
+| `documentacao-potencia.png` | O assunto **Potência**, com as equações do ensaio |
+| `documentacao-integracao.png` | O assunto **Integração**: kLa → mapa → potência → Controle de O₂ |
 | `receitas-bloco-cascata.png` | O card da cascata no canvas: selo **SAI AO ESTABILIZAR** no lugar do parágrafo, e os quatro rótulos de porta livres |
 | `documentacao-kla-determinacao.png` | O assunto **Determinar kLa** |
 | `documentacao-kla-mapeamento.png` | O assunto **Mapeamento kLa** |

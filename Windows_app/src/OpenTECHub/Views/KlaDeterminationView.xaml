@@ -56,7 +56,7 @@
                 <!-- Left: Title & Active Test info -->
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Determinação de kLa" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="Determinação de kLa" FontSize="14.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
                         <Border Margin="10,0,0,0" Background="{DynamicResource AccentSubtleBrush}"
                                 BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="8,2" VerticalAlignment="Center">
@@ -78,28 +78,28 @@
 
                 <!-- Middle: Telemetry & Timers -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border Margin="8,0" Padding="10,4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
+                    <Border Margin="5,0" Padding="8,3" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="OD Dissolvido" Style="{StaticResource KlaHeaderLabel}" />
                             <TextBlock Text="{Binding CurrentDO, StringFormat={}{0:F1} %}" Style="{StaticResource KlaHeaderValue}" Foreground="{DynamicResource AccentBrush}" />
                         </StackPanel>
                     </Border>
 
-                    <Border Margin="8,0" Padding="10,4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
+                    <Border Margin="5,0" Padding="8,3" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="Vazão Atual" Style="{StaticResource KlaHeaderLabel}" />
                             <TextBlock Text="{Binding CurrentFlow, StringFormat={}{0:F2} L/min}" Style="{StaticResource KlaHeaderValue}" />
                         </StackPanel>
                     </Border>
 
-                    <Border Margin="8,0" Padding="10,4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
+                    <Border Margin="5,0" Padding="8,3" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="Tempo da Fase" Style="{StaticResource KlaHeaderLabel}" />
                             <TextBlock Text="{Binding FormattedPhaseTime}" Style="{StaticResource KlaHeaderValue}" />
                         </StackPanel>
                     </Border>
 
-                    <Border Margin="8,0" Padding="10,4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
+                    <Border Margin="5,0" Padding="8,3" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="Tempo Total" Style="{StaticResource KlaHeaderLabel}" />
                             <TextBlock Text="{Binding FormattedTotalTime}" Style="{StaticResource KlaHeaderValue}" />
@@ -108,13 +108,23 @@
                 </StackPanel>
 
                 <!-- Right: Action Buttons -->
+                <!-- Tipografia menor e menos respiro entre os botões: a faixa central é a
+                     que perde primeiro quando o cabeçalho não cabe, e eram as leituras que
+                     chegavam cortadas ("D Dissolvido", "Tempo Tota"). -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Novo Teste" Margin="3,0" Style="{StaticResource AccentButtonStyle}" Command="{Binding OpenCreateDialogCommand}" />
-                    <Button Content="Importar Teste" Margin="3,0" Command="{Binding OpenLoadTestDialogCommand}" ToolTip="Carregar ensaio salvo para visualização e reanálise de curvas" />
-                    <Button Content="Parar e Revisar" Margin="3,0" Command="{Binding StopRunCommand}" IsEnabled="{Binding IsRunning}" />
-                    <Button Content="Concluir Teste" Margin="3,0" Command="{Binding CompleteTestCommand}" IsEnabled="{Binding HasActiveTest}" />
-                    <Button Content="Abortar" Margin="3,0" Command="{Binding AbortTestCommand}" IsEnabled="{Binding HasActiveTest}" />
-                    <Button Content="?" Width="30" Margin="8,0,0,0" Padding="0,4" FontWeight="SemiBold"
+                    <StackPanel.Resources>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="FontSize" Value="11.5" />
+                            <Setter Property="Padding" Value="9,4" />
+                            <Setter Property="Margin" Value="2,0" />
+                        </Style>
+                    </StackPanel.Resources>
+                    <Button Content="Novo Teste" Style="{StaticResource AccentButtonStyle}" FontSize="11.5" Padding="9,4" Margin="2,0" Command="{Binding OpenCreateDialogCommand}" />
+                    <Button Content="Importar Teste" Command="{Binding OpenLoadTestDialogCommand}" ToolTip="Carregar ensaio salvo para visualização e reanálise de curvas" />
+                    <Button Content="Parar e Revisar" Command="{Binding StopRunCommand}" IsEnabled="{Binding IsRunning}" />
+                    <Button Content="Concluir Teste" Command="{Binding CompleteTestCommand}" IsEnabled="{Binding HasActiveTest}" />
+                    <Button Content="Abortar" Command="{Binding AbortTestCommand}" IsEnabled="{Binding HasActiveTest}" />
+                    <Button Content="?" Width="26" Margin="6,0,0,0" Padding="0,4" FontWeight="SemiBold"
                             ToolTip="Abrir a documentação desta página"
                             Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="kla-determinacao" />
@@ -127,7 +137,7 @@
             <Grid.ColumnDefinitions>
                 <!-- 360 preferred instead of 450: on a 936 DIP page the preparation panel
                      was taking half the width the plots need to show an axis. -->
-                <ColumnDefinition Width="360" MinWidth="320" MaxWidth="480" />
+                <ColumnDefinition Width="390" MinWidth="320" MaxWidth="480" />
                 <ColumnDefinition Width="8" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -251,35 +261,59 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <!-- Row 0: Região Linear (s): [ Start ] – [ End ] | Botão Recalcular -->
-                                <DockPanel Grid.Row="0" Margin="0,0,0,6">
-                                    <Button DockPanel.Dock="Right" Content="Recalcular"
-                                            Height="30" Padding="14,4" FontSize="11.5" FontWeight="SemiBold"
-                                            Command="{Binding RecomputeReviewAnalysisCommand}" />
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Região Linear (s):" Style="{StaticResource KlaHeaderLabel}" Width="100" VerticalAlignment="Center" FontSize="11" />
-                                        <TextBox Text="{Binding ReviewTStart, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}" Width="58" Height="30" Padding="4,3" FontSize="11.5" TextAlignment="Center" />
-                                        <TextBlock Text="–" Margin="6,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="Bold" />
-                                        <TextBox Text="{Binding ReviewTEnd, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}" Width="58" Height="30" Padding="4,3" FontSize="11.5" TextAlignment="Center" />
-                                    </StackPanel>
-                                </DockPanel>
+                                <!-- Uma grade, não dois DockPanels: as duas linhas passam a dividir
+                                     as mesmas colunas, então os campos de início e fim ficam alinhados
+                                     entre si e o que sobra vai inteiro para a coluna da direita. -->
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" MinWidth="58" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" MinWidth="58" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                                <!-- Row 1: Região C* (s): [ Start ] – [ End ] | Ceq (%): [x] [ Ceq ] -->
-                                <DockPanel Grid.Row="1">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Ceq (%):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11" />
-                                        <CheckBox IsChecked="{Binding ReviewCeqIsManual}" ToolTip="Ajuste manual de Ceq" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                        <TextBox Text="{Binding ReviewCeq, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ReviewCeqIsManual}" Width="60" Height="30" Padding="4,3" FontSize="11.5" TextAlignment="Center" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Região C* (s):" Style="{StaticResource KlaHeaderLabel}" Width="100" VerticalAlignment="Center" FontSize="11" />
-                                        <TextBox Text="{Binding ReviewCeqTStart, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}" Width="58" Height="30" Padding="4,3" FontSize="11.5" TextAlignment="Center" />
-                                        <TextBlock Text="–" Margin="6,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="Bold" />
-                                        <TextBox Text="{Binding ReviewCeqTEnd, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}" Width="58" Height="30" Padding="4,3" FontSize="11.5" TextAlignment="Center" />
-                                    </StackPanel>
-                                </DockPanel>
+                                <!-- Linha 0: Região Linear (s): [ início ] – [ fim ] | Recalcular -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Região Linear (s):" Style="{StaticResource KlaHeaderLabel}"
+                                           VerticalAlignment="Center" FontSize="11" Margin="0,0,8,6" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
+                                         Text="{Binding ReviewTStart, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="30" Padding="6,3" FontSize="11.5" TextAlignment="Center" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="–" Margin="6,0,6,6" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="Bold" />
+                                <TextBox Grid.Row="0" Grid.Column="3" Margin="0,0,0,6"
+                                         Text="{Binding ReviewTEnd, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="30" Padding="6,3" FontSize="11.5" TextAlignment="Center" />
+                                <Button Grid.Row="0" Grid.Column="4" Content="Recalcular" Margin="10,0,0,6"
+                                        Height="30" Padding="16,4" FontSize="11.5" FontWeight="SemiBold"
+                                        Command="{Binding RecomputeReviewAnalysisCommand}" />
+
+                                <!-- Linha 1: Região C* (s): [ início ] – [ fim ] | Ceq (%) [ valor ] [x] -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Região C* (s):" Style="{StaticResource KlaHeaderLabel}"
+                                           VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0" />
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                         Text="{Binding ReviewCeqTStart, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="30" Padding="6,3" FontSize="11.5" TextAlignment="Center" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="–" Margin="6,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="Bold" />
+                                <TextBox Grid.Row="1" Grid.Column="3"
+                                         Text="{Binding ReviewCeqTEnd, StringFormat={}{0:F1}, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="30" Padding="6,3" FontSize="11.5" TextAlignment="Center" />
+                                <!-- Ceq em linha própria: disputando a coluna com "Recalcular" ele
+                                     encolhia os campos de início e fim das duas linhas de cima. -->
+                                <StackPanel Grid.Row="2" Grid.ColumnSpan="5" Orientation="Horizontal"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,6,0,0">
+                                    <TextBlock Text="Ceq (%)" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
+                                    <TextBox Text="{Binding ReviewCeq, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}"
+                                             IsEnabled="{Binding ReviewCeqIsManual}" Width="64" Height="30" Padding="4,3" FontSize="11.5" TextAlignment="Center" />
+                                    <!-- A caixa fica depois do campo: ela liga o campo, e ler "valor →
+                                         manual" é a ordem em que a decisão acontece. -->
+                                    <CheckBox IsChecked="{Binding ReviewCeqIsManual}" VerticalAlignment="Center" Margin="8,0,2,0"
+                                              ToolTip="Fixar C* manualmente em vez de estimá-lo pela cauda" />
+                                    <TextBlock Text="manual" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" FontSize="11" />
+                                </StackPanel>
                             </Grid>
 
                             <!-- Métricas Científicas em Grande Destaque (Fontes Ampliadas) -->

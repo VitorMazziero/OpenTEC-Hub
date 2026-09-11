@@ -100,6 +100,17 @@
                     <!-- Linha superior: Título, Seletor de abas e Badges contextuais -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Potência" FontSize="17" FontWeight="Bold" VerticalAlignment="Center" />
+                        <!-- O assunto acompanha a aba: a página abriga dois destinos. -->
+                        <Button Content="?" Width="22" Height="22" Padding="0" Margin="8,0,0,0" FontWeight="SemiBold"
+                                VerticalAlignment="Center" ToolTip="Abrir a documentação desta página"
+                                Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="potencia"
+                                Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="?" Width="22" Height="22" Padding="0" Margin="8,0,0,0" FontWeight="SemiBold"
+                                VerticalAlignment="Center" ToolTip="Abrir a documentação do Mapa de Potência"
+                                Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="potencia-mapa"
+                                Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
 
                         <!-- Seletor de abas: Mapeamento de Potência | Modelos e Ajustes -->
                         <Border Margin="14,0,10,0" Padding="2"

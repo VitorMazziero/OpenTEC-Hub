@@ -446,12 +446,12 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// Which page of the manual this block's help button opens.
     /// </summary>
     /// <remarks>
-    /// The cascade gets its own topic because it is the only block that contains a controller:
-    /// its PID, its four actuation modes and its windows need more room than a list entry, and
-    /// explaining it among the other eighteen would bury it.
+    /// Controle de O₂ gets its own topic because it is the only block that contains a controller:
+    /// its PID, its four actuation methods — Cascata being one of them — and its windows need
+    /// more room than a list entry, and explaining it among the other eighteen would bury it.
     /// </remarks>
     public string DocumentationTopicId =>
-        Type == NodeType.CascadeControl ? "receitas-cascata" : "receitas-blocos";
+        Type == NodeType.CascadeControl ? "receitas-controle-o2" : "receitas-blocos";
 
     /// <summary>Chip shown on a block that the cascade reads rather than executes.</summary>
     public string LoopConditionBadge => "CONDIÇÃO DE SAÍDA";

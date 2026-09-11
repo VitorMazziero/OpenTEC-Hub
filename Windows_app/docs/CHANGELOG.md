@@ -27,6 +27,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   teste exige verbete para cada bloco declarado no catálogo. O manual passa a interpretar
   `**negrito**` inline.
 
+- **As páginas restantes documentadas, com equações (D-047).** Entram **Potência** (P = τ·ω, Np, Re,
+  Fl_G, Fr, a fronteira de Nienow e a parada adaptativa de duas portas), **Mapa de Potência**
+  (superfície, van't Riet `kLa = K·(P/V)^α·(v_s)^β`, eficiência e escalonamento), **Calibrações**,
+  **Históricos**, **Eventos** e um assunto de **Integração** que percorre a cadeia inteira:
+  Determinar kLa → Mapeamento kLa → Potência (η = kLa/(P/V)) → Controle de O₂ no método Mapa. O
+  manual passa a renderizar equações como equações, cada uma com a legenda que lê os símbolos.
 - **Determinar kLa e Mapeamento kLa documentados (D-047).** O ensaio de gassing-out — o método, as
   fases de cada corrida, a matriz de réplicas, a revisão que transforma a curva em número (região
   linear, região C*, R², RMSE, sensibilidade a C*) e o que fica gravado — e o mapeamento, da tabela
@@ -34,6 +40,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   página **nunca envia comandos**.
 
 ### Changed
+- **“Cascata” passa a nomear só o método (D-047).** O bloco chama-se **Controle de O₂** e tem quatro
+  métodos de atuação — Agitação, Aeração, Cascata (percentuais) e Mapa (trajetória kLa). O assunto do
+  manual foi renomeado para `Receitas · Controle de O₂` (`receitas-controle-o2`), e um teste recusa
+  qualquer texto que volte a chamar o bloco de "bloco Cascata".
+- **Card de Revisão e Aceite reorganizado (D-047).** Ceq ganhou linha própria com a caixa **à direita
+  do campo** — disputando a coluna com *Recalcular*, ele encolhia os campos de início e fim até
+  cortarem "100.0". A barra superior da página perdeu alguns pontos de tipografia e de respiro entre
+  botões, que era o que empurrava as leituras do meio ("D Dissolvido", "Tempo Tota"). Em Mapeamento
+  kLa, "Ajuste científico" virou **"Ajuste"**, e o estado `Para revisar` virou **`Revisão`**.
 - **Cards de kLa que não cabiam na coluna (D-047).** Em Determinar kLa: o botão **Executar
   Sequência** chegava cortado porque o título era declarado antes dele no `DockPanel`; as colunas da
   matriz somavam 318 DIP numa faixa de ~310 e comiam a coluna de ações; e os três pares rótulo/campo

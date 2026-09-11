@@ -23,6 +23,16 @@ public enum DocumentationBlockKind
     /// </remarks>
     Field,
 
+    /// <summary>
+    /// An equation, set apart from the prose and rendered in the numeric face.
+    /// </summary>
+    /// <remarks>
+    /// The assays are described by a handful of equations, and prose that talks around them
+    /// costs the reader more than the equation itself. <see cref="DocumentationBlock.Label"/>
+    /// carries the caption — what the symbols mean — so the formula line stays the formula.
+    /// </remarks>
+    Formula,
+
     /// <summary>A short emphasised line — a caution, a consequence, a rule.</summary>
     Note,
 }
@@ -45,6 +55,12 @@ public sealed record DocumentationBlock(DocumentationBlockKind Kind, string Text
     public string Markup => Kind == DocumentationBlockKind.Field && Label.Length > 0
         ? $"**{Label}** — {Text}"
         : Text;
+
+    /// <summary>The caption under a formula, empty for every other kind.</summary>
+    public string Caption => Kind == DocumentationBlockKind.Formula ? Label : "";
+
+    /// <summary>True when the caption is worth a line of its own.</summary>
+    public bool HasCaption => Caption.Length > 0;
 }
 
 /// <summary>A titled group of blocks inside a topic.</summary>
@@ -92,9 +108,15 @@ public static class DocumentationCatalog
     public const string ControlTopicId = "controle";
     public const string RecipesTopicId = "receitas";
     public const string RecipeBlocksTopicId = "receitas-blocos";
-    public const string RecipeCascadeTopicId = "receitas-cascata";
+    public const string RecipeOxygenTopicId = "receitas-controle-o2";
     public const string KlaDeterminationTopicId = "kla-determinacao";
     public const string KlaMappingTopicId = "kla-mapeamento";
+    public const string PowerTopicId = "potencia";
+    public const string PowerMapTopicId = "potencia-mapa";
+    public const string CalibrationTopicId = "calibracoes";
+    public const string HistoryTopicId = "historicos";
+    public const string EventsTopicId = "eventos";
+    public const string IntegrationTopicId = "integracao-kla-potencia";
     public const string PowerTareTopicId = "potencia-tara";
     public const string PowerSinglePointTopicId = "potencia-ponto-unico";
     public const string PowerElectricalTopicId = "potencia-correlacao-eletrica";
@@ -118,6 +140,10 @@ public static class DocumentationCatalog
     private static DocumentationBlock F(string label, string text) => new(DocumentationBlockKind.Field, text, label);
 
     private static DocumentationBlock N(string text) => new(DocumentationBlockKind.Note, text);
+
+    /// <summary>An equation and the caption that reads it.</summary>
+    private static DocumentationBlock Eq(string formula, string caption = "") =>
+        new(DocumentationBlockKind.Formula, formula, caption);
 
     private static IReadOnlyList<DocumentationTopic> Build() =>
     [
@@ -243,7 +269,7 @@ public static class DocumentationCatalog
                     B("Todo caminho começa num único bloco Início e precisa chegar a pelo menos um Fim. A validação recusa a receita se isso não for verdade."),
                     B("Um bloco só é alcançado quando o anterior termina. Um Temporizador termina quando o tempo passa; um Monitorar Variável, quando a condição se confirma; um bloco de comando, assim que o equipamento confirma."),
                     B("Para abrir caminhos paralelos, ligue a mesma saída a mais de um bloco. Para juntá-los de volta, use **Sincronizar (E)**, que espera todos, ou **Qualquer (OU)**, que segue com o primeiro que chegar."),
-                    B("Ciclos só são permitidos dentro do laço de uma cascata. Um ciclo em qualquer outro lugar é erro de validação, não uma repetição."),
+                    B("Ciclos só são permitidos dentro do laço do bloco Controle de O₂. Um ciclo em qualquer outro lugar é erro de validação, não uma repetição."),
                 ]),
                 new DocumentationSection("A página, parte por parte", [
                     F("Barra superior", "Salvar, Carregar, Excluir bloco, desfazer/refazer e o painel de JSON & Validação. À direita, os comandos de execução."),
@@ -300,7 +326,7 @@ public static class DocumentationCatalog
             [
                 new DocumentationSection("Como ler esta página", [
                     P("Cada entrada abaixo traz o nome do bloco como ele aparece na biblioteca e o que ele faz. Onde um campo só existe em certas condições, isso está dito — o painel de propriedades esconde o que não se aplica, em vez de mostrar campo inerte."),
-                    N("Dois blocos mudam de significado quando ligados à **Condição de Saída** de uma cascata. Isso está descrito no assunto Receitas · Cascata e repetido aqui, em cada um deles."),
+                    N("Dois blocos mudam de significado quando ligados à **Condição de Saída** do bloco Controle de O₂. Isso está descrito no assunto Receitas · Controle de O₂ e repetido aqui, em cada um deles."),
                 ]),
                 new DocumentationSection("Fluxo", [
                     F("Início", "O ponto de entrada. Exatamente um por receita, e só tem porta de saída."),
@@ -309,14 +335,14 @@ public static class DocumentationCatalog
                 new DocumentationSection("Gatilhos — os blocos que esperam", [
                     F("Temporizador", "Espera uma duração fixa e segue. Campos: **Duração** e **Unidade** (segundos, minutos ou horas)."),
                     F("Monitorar Variável", "Segura a receita até que uma variável medida satisfaça uma comparação. Campos: **Variável**, **Condição** (≥, ≤, =, …), **Valor alvo**, **Intervalo de polling**, **Confirmações consecutivas** e **Tempo limite** (0 = sem limite). As confirmações consecutivas são o que evita que um único pico de ruído libere a etapa."),
-                    F("Monitorar Variável · no laço da cascata", "Ligado à Condição de Saída de uma cascata, ele deixa de ser etapa e passa a ser lido a cada iteração do PID: o campo **Intervalo de polling** desaparece, porque quem define a cadência é a cascata."),
+                    F("Monitorar Variável · no laço do Controle de O₂", "Ligado à Condição de Saída do bloco, ele deixa de ser etapa e passa a ser lido a cada iteração do PID: o campo **Intervalo de polling** desaparece, porque quem define a cadência é o controlador."),
                     F("Intervenção Manual", "Para a receita em standby até alguém liberar. O botão no próprio bloco alterna entre **BLOQUEAR** e **PASSAR**, e pode ser trocado ao vivo durante a execução — é o bloco do “só continue quando eu autorizar”."),
-                    F("Intervenção Manual · no laço da cascata", "Ligada à Condição de Saída, vira a chave **Manter Rodando / Sair do Loop**: o operador decide, durante a corrida, quando o controle de O₂ termina."),
+                    F("Intervenção Manual · no laço do Controle de O₂", "Ligada à Condição de Saída, vira a chave **Manter Rodando / Sair do Loop**: o operador decide, durante a corrida, quando o controle de O₂ termina."),
                 ]),
                 new DocumentationSection("Lógica — juntar caminhos", [
                     F("Sincronizar (E)", "Junção que espera **todos** os caminhos que chegam nele. Use quando duas preparações paralelas precisam estar ambas prontas."),
                     F("Qualquer (OU)", "Junção que segue com o **primeiro** caminho a chegar. Use para “o que acontecer antes”: a temperatura estabilizar ou o tempo limite vencer."),
-                    F("Controle de O₂", "O laço de controle de oxigênio dissolvido. Tem assunto próprio — veja Receitas · Cascata."),
+                    F("Controle de O₂", "O laço de controle de oxigênio dissolvido, com quatro métodos de atuação — Cascata é um deles. Tem assunto próprio: Receitas · Controle de O₂."),
                 ]),
                 new DocumentationSection("Ações — comandar o módulo", [
                     F("Definir Ponto de Ajuste", "Escreve um setpoint em unidades de engenharia. Campos: **Variável** e **Valor**. Com a variável pH aparece também **Histerese**, que não faz sentido para as demais."),
@@ -345,13 +371,14 @@ public static class DocumentationCatalog
 
         // ════════════════════════════════════════════════ Receitas · cascata
         new DocumentationTopic(
-            RecipeCascadeTopicId,
-            "Receitas · Cascata de O₂",
-            "O único bloco que contém um controlador: como o PID funciona, os quatro modos de atuação e todos os ajustes.",
+            RecipeOxygenTopicId,
+            "Receitas · Controle de O₂",
+            "O único bloco que contém um controlador: o laço, os quatro métodos de atuação — Cascata é um deles — e todos os ajustes.",
             [
                 new DocumentationSection("O que este bloco é", [
                     P("O **Controle de O₂** é o núcleo científico do aplicativo: um laço fechado que mantém o oxigênio dissolvido num setpoint atuando sobre agitação e aeração. Ele é a mesma malha que a página Controle expõe na linha Oxigênio — a diferença é que aqui ela entra como etapa de um procedimento, com os seus ganhos e faixas gravados na receita."),
                     P("Enquanto o bloco roda, a receita fica dentro dele: o controlador recalcula a cada intervalo definido e comanda os atuadores até que a condição de saída se cumpra. Só então a receita segue pela porta **Saída**."),
+                    N("**Cascata** é um dos quatro **métodos de atuação** deste bloco, não o nome do bloco. Os outros três são Agitação, Aeração e Mapa — cada um decide de outra forma como a saída do controlador vira rotação e vazão."),
                     B("Ver também o assunto **Controle**, seção de detalhe do Oxigênio, para a mesma malha vista do lado da operação manual."),
                 ]),
                 new DocumentationSection("As quatro portas", [
@@ -360,10 +387,18 @@ public static class DocumentationCatalog
                     F("Retorno da Condição", "Fecha o laço: é por onde a resposta daquele bloco volta ao controlador, a cada iteração."),
                     F("Saída", "Por onde a receita continua depois que o laço encerra."),
                     N("Sem nada ligado à Condição de Saída o bloco exibe **SAI AO ESTABILIZAR**: o laço encerra sozinho quando o oxigênio fica dentro de ±2 % do setpoint por três leituras. É um padrão conveniente, não uma regra do processo — quando o critério de parada importa, declare-o."),
-                    N("O bloco ligado à Condição de Saída **não é executado como etapa**: a cascata o lê a cada iteração. Enquanto for falso, o controle continua; quando ficar verdadeiro, o laço encerra. A mesma peça no fluxo normal significaria o oposto — esperar até ser verdade para então seguir."),
+                    N("O bloco ligado à Condição de Saída **não é executado como etapa**: o controlador o lê a cada iteração. Enquanto for falso, o controle continua; quando ficar verdadeiro, o laço encerra. A mesma peça no fluxo normal significaria o oposto — esperar até ser verdade para então seguir."),
                 ]),
                 new DocumentationSection("Como o controlador funciona", [
-                    P("São dois laços encadeados. O **laço externo** observa a trajetória do oxigênio e prevê onde ele estará daqui a um horizonte; o **laço interno** é um PID que corrige a diferença entre essa previsão e o setpoint. Prever, em vez de reagir ao erro atual, é o que permite acompanhar a demanda crescente de um cultivo sem oscilar."),
+                    P("São dois laços encadeados. O **laço externo** observa a trajetória do oxigênio e prevê onde ele estará daqui a um horizonte; o **laço interno** é um PID na forma de velocidade que corrige a diferença entre a taxa pedida e a taxa medida. Prever, em vez de reagir ao erro atual, é o que permite acompanhar a demanda crescente de um cultivo sem oscilar."),
+                    Eq("DOT_pred = DOT + (dDOT/dt)_pred · t_pred",
+                       "A previsão: a leitura atual mais a tendência estimada, projetada pelo horizonte."),
+                    Eq("(dDOT/dt)_set = K_DOT · (SP − DOT_pred)",
+                       "O laço externo: o erro previsto vira uma **taxa desejada** de subida ou descida do oxigênio."),
+                    Eq("e = (dDOT/dt)_set − (dDOT/dt)_med",
+                       "O erro do laço interno é entre **taxas**, não entre concentrações."),
+                    Eq("ΔOutput = Kp·Δe + Ki·e·Δt + Kd·Δ²e/Δt   →   Output ← Output + ΔOutput",
+                       "PID na forma de velocidade: ele calcula o **incremento** do esforço, e o esforço acumulado fica limitado a 0–100 %. É o que dá partida sem solavanco quando o laço assume uma condição já em andamento."),
                     F("SP de O₂ (%)", "O alvo de oxigênio dissolvido, em saturação relativa."),
                     F("Intervalo de cálculo do PID (s)", "De quanto em quanto tempo o controlador recalcula. Mais curto responde mais rápido e amplifica ruído; mais longo suaviza e atrasa."),
                     F("K_DOT (laço externo)", "O ganho sobre a taxa de variação do oxigênio — quanto a tendência observada pesa na correção."),
@@ -376,17 +411,21 @@ public static class DocumentationCatalog
                 ]),
                 new DocumentationSection("Anti-windup", [
                     P("Enquanto o atuador está saturado — a agitação já no máximo, por exemplo — o termo integral continuaria somando um erro que ele não consegue corrigir, e o controle ficaria lento para voltar quando a saturação passasse. Os três campos abaixo são o que impede isso."),
+                    Eq("I = clamp( Σ e(t)·Δt  sobre a janela ,  I_min ,  I_max )",
+                       "O integrador só enxerga a janela recente, e o que ele acumula é limitado pelas duas pontas."),
                     F("I_min · I_max", "Os limites do termo integral. Ele não cresce além deles."),
                     F("Janela do integrador (s)", "Por quanto tempo o acúmulo de erro é considerado. O que é mais antigo que a janela deixa de pesar."),
                 ]),
                 new DocumentationSection("Os quatro modos de atuação", [
                     F("Agitação", "Só a rotação atua. Use quando a aeração está fixa por outro motivo — um ensaio a vazão constante, por exemplo."),
                     F("Aeração", "Só a vazão de gás atua. Use quando a rotação não pode variar, como num estudo de cisalhamento."),
-                    F("Cascata (percentuais)", "Os dois atuam, cada um numa janela da saída do controlador. É o modo padrão: a agitação cobre a parte baixa da demanda, a aeração entra depois, e a faixa em que as duas se sobrepõem é a transição suave entre elas."),
+                    F("Cascata (percentuais)", "Os dois atuam, cada um numa janela da saída do controlador. É o método padrão: a agitação cobre a parte baixa da demanda, a aeração entra depois, e a faixa em que as duas se sobrepõem é a transição suave entre elas."),
                     F("Mapa (trajetória kLa)", "A saída do controlador é convertida em um par (rotação, vazão) lido de uma trajetória publicada por um mapa de kLa. Aqui o controlador não escolhe percentuais: ele anda sobre um caminho medido, com **ID do Mapa kLa** apontando qual."),
                 ]),
                 new DocumentationSection("Faixas, janelas e ganhos relativos", [
                     P("Três grupos de campos descrevem, nessa ordem, onde o controlador pode atuar, como ele divide a sua saída entre os atuadores e quanto cada atuador rende."),
+                    Eq("N = N_min + (Output − a_N)/(b_N − a_N) · (N_max − N_min),   a_N ≤ Output ≤ b_N",
+                       "No método Cascata cada atuador percorre a sua faixa física dentro da **sua janela** [a, b] da saída. Fora da janela ele fica parado na ponta correspondente."),
                     F("N_min · N_max (rpm)", "Os limites físicos da agitação neste ensaio. O controlador nunca comanda fora deles."),
                     F("Q_min · Q_max (vvm)", "Os limites físicos da aeração, na mesma lógica."),
                     F("Faixa da Agitação (% do output)", "**Início** e **Fim**: o trecho da saída do controlador em que a agitação varia. Com 0–40 %, a agitação percorre N_min→N_max nos primeiros 40 % da demanda."),
@@ -409,7 +448,14 @@ public static class DocumentationCatalog
             [
                 new DocumentationSection("O que a página faz", [
                     P("Esta página mede o **coeficiente volumétrico de transferência de oxigênio (kLa)** pelo método dinâmico de gassing-out, em meio abiótico. O ensaio tira o oxigênio do líquido com nitrogênio, devolve ar e observa a velocidade com que o oxigênio volta: quanto mais rápido, maior o kLa daquela condição de rotação e vazão."),
-                    P("A cada corrida o aplicativo ajusta `ln(C* − C)` contra o tempo. Num sistema de primeira ordem essa reta tem inclinação `−kLa`, e é dela que o número sai — com R², RMSE e intervalo de confiança, porque uma inclinação sem incerteza não é uma medida."),
+                    P("O balanço de oxigênio no líquido, sem consumo, é de primeira ordem:"),
+                    Eq("dC/dt = kLa · (C* − C)",
+                       "**C** é o oxigênio dissolvido medido, **C\\*** o valor de equilíbrio com o ar e **kLa** o que se quer medir."),
+                    Eq("C(t) = C* − (C* − C₀) · e^(−kLa·t)",
+                       "A solução: a reoxigenação é uma exponencial que satura em C*."),
+                    Eq("ln(C* − C) = ln(C* − C₀) − kLa · t",
+                       "Linearizada, vira uma reta cuja **inclinação é −kLa**. O ajuste é por mínimos quadrados ordinários no trecho escolhido, e o kLa em h⁻¹ é `−3600 · β₁`."),
+                    P("O número sai com R², RMSE e intervalo de confiança, porque uma inclinação sem incerteza não é uma medida."),
                     N("O ensaio é **abiótico**: não há consumo de oxigênio por células. Rodar com cultivo dentro invalida a hipótese do ajuste, não apenas o valor."),
                 ]),
                 new DocumentationSection("Como a página é organizada", [
@@ -439,6 +485,8 @@ public static class DocumentationCatalog
                     P("É aqui que a curva vira número. O ajuste automático propõe uma região; você confere e, se quiser, corrige."),
                     F("Região Linear (s)", "O trecho da reoxigenação usado no ajuste log-linear. Encurtar pela esquerda descarta o transiente inicial; encurtar pela direita descarta a saturação."),
                     F("Região C* (s)", "O trecho da cauda usado para estimar a concentração de equilíbrio."),
+                    Eq("C(t) = C_eq − A · e^(−κ·t)",
+                       "O C* é estimado ajustando esta exponencial à cauda — busca em κ com C_eq e A resolvidos por mínimos quadrados. Marcar **Ceq** fixa o valor em vez de estimá-lo."),
                     F("Ceq (%)", "Fixa o C* manualmente, em vez de estimá-lo. A caixa ao lado liga o modo manual."),
                     F("Recalcular", "Refaz o ajuste com as regiões e o C* que estão na tela."),
                     F("kLa Estimado · IC 95%", "O resultado e o seu intervalo de confiança."),
@@ -525,7 +573,211 @@ public static class DocumentationCatalog
                     F("Publicar para controle", "Torna o perfil disponível para a cascata de oxigênio. Antes disso, **Disponibilidade para controle** diz *não publicado*, e nenhuma cascata pode consumi-lo."),
                     F("Última publicação", "Quando o perfil em uso foi publicado — o que distingue o mapa que está na tela do que está sendo usado."),
                     F("Arquivo no disco · Copiar caminho · Abrir pasta · Exportar…", "Onde o experimento está gravado e como levá-lo para outro lugar."),
-                    B("Na receita, o bloco Controle de O₂ no modo *Mapa (trajetória kLa)* é quem consome o perfil publicado — veja o assunto Receitas · Cascata de O₂."),
+                    B("Na receita, o bloco Controle de O₂ no método *Mapa (trajetória kLa)* é quem consome o perfil publicado — veja o assunto Receitas · Controle de O₂."),
+                ]),
+            ]),
+
+        // ══════════════════════════════════════════════════════════ Potência
+        new DocumentationTopic(
+            PowerTopicId,
+            "Potência",
+            "O ensaio de potência de impelidor: o que é medido, as equações, as três abas e a parada adaptativa.",
+            [
+                new DocumentationSection("O que a página faz", [
+                    P("Esta página mede quanta potência o impelidor entrega ao fluido em cada condição de rotação e vazão, a partir da **telemetria de torque do servo** — não de um wattímetro. Com a potência e a geometria, ela calcula os números adimensionais que descrevem a agitação."),
+                    Eq("P = τ · ω = τ · 2πN/60",
+                       "Potência de eixo a partir do torque medido **τ** (N·m) e da rotação **N** (rpm)."),
+                    Eq("P_líq = P − P₀(N)",
+                       "A potência que chega ao fluido é a de eixo menos a **potência de vazio** da montagem naquela rotação, que é o que a tara mede."),
+                    Eq("Np = P_líq / (ρ · n³ · D⁵)",
+                       "Número de potência, com **n** em rev/s, **ρ** a densidade e **D** o diâmetro do impelidor. É a grandeza que compara impelidores entre escalas."),
+                    Eq("Re = ρ · n · D² / μ",
+                       "Reynolds do impelidor. Acima de ~10⁴ o regime é turbulento e o Np tende a um platô — é esse platô que um ensaio bem feito mostra."),
+                    N("Sem tara aplicada o ensaio roda em **modo relativo**: as comparações entre condições continuam válidas, mas os Np não são absolutos."),
+                ]),
+                new DocumentationSection("Com gás: os números que aparecem", [
+                    Eq("Fl_G = Q_g / (n · D³)",
+                       "Número de aeração: quanto gás passa por revolução do impelidor."),
+                    Eq("Fr = n² · D / g",
+                       "Froude: a razão entre inércia e gravidade no impelidor."),
+                    Eq("Fl_G,inund = 30 · (D/T)^3,5 · Fr",
+                       "Fronteira de inundação (**flooding**) de Nienow: acima dela o gás domina e o impelidor deixa de dispersá-lo. **T** é o diâmetro do vaso."),
+                    Eq("P_G/P₀ = potência gaseificada ÷ potência sem gás, na mesma rotação",
+                       "A queda de potência causada pelo gás. É o que a coluna PG/P₀ reporta."),
+                ]),
+                new DocumentationSection("Como a página é organizada", [
+                    F("Cabeçalho", "Estado do ensaio, o selo RELATIVO ou ABSOLUTO conforme haja tara, e as ações: Novo, Salvar setup, Iniciar/continuar, Pausar, Pular e Parar e revisar."),
+                    F("Aba Montagem", "O que descreve o experimento: o ensaio aberto, a tara aplicada, fluido e vaso (ρ, μ, temperatura, diâmetro do vaso, volume de trabalho, chicanas) e os impelidores no eixo, com o catálogo de modelos."),
+                    F("Aba Aquisição", "Como as condições são geradas e capturadas: faixas de agitação e de vazão, a tabela de condições e os parâmetros de captura."),
+                    F("Aba Validação", "Tara do eixo, ponto único, correlação elétrica e o vínculo com um mapa de kLa — cada um com o seu próprio assunto no manual."),
+                    F("Direita", "As leituras ao vivo, a precisão adaptativa, o progresso da sequência, os dois gráficos (torque e rotação; Np × Re ou PG/P₀ × Fl_G) e a tabela de pontos capturados."),
+                ]),
+                new DocumentationSection("A parada adaptativa", [
+                    P("Cada ponto é capturado por um critério estatístico de duas portas, e não por um tempo fixo:"),
+                    B("**Estacionariedade** — o torque precisa parar de derivar antes de a média começar a valer."),
+                    B("**Precisão** — as amostras se acumulam até o intervalo de confiança de 95 % ficar abaixo do alvo: o maior entre uma fração relativa da média e um piso proporcional ao ruído στ medido na tara."),
+                    N("É por isso que dois pontos do mesmo ensaio levam tempos diferentes: o que eles têm em comum é a **incerteza**, não a duração."),
+                    F("Precisão adaptativa", "A barra do topo mostra o IC95 corrente contra o alvo, e é onde se vê um ponto que não converge."),
+                    F("Pontos capturados", "Uma linha por ponto aceito: rotação, torque líquido, potência líquida, Np, Re, IC95, e — com gás — Qg, Fl_G, Fr, PG, P₀ de referência e PG/P₀ ± IC."),
+                ]),
+                new DocumentationSection("O que fica gravado", [
+                    B("Cada ensaio é uma pasta em `Testes-Potencia/`, com `ensaio.json` (fluido, geometria, calibração, tara), `tabela-condicoes.json`, `serie-global.csv` e uma pasta por corrida."),
+                    B("Cada corrida grava `dados-brutos.csv` com **todas** as amostras — inclusive as de assentamento, marcadas como não contadas — e `resultado.csv` com a média, o IC95, o motivo de parada e o hash dos brutos."),
+                    B("Varreduras de tara ficam em `Taras-Brutas/` e conferências de ponto único em `Pontos-Unicos/`, cada uma com o seu arquivo."),
+                ]),
+            ]),
+
+        // ═════════════════════════════════════════════════ Mapa de Potência
+        new DocumentationTopic(
+            PowerMapTopicId,
+            "Mapa de Potência",
+            "A superfície de potência sobre (N, Qg), o ajuste de van't Riet, a comparação de impelidores e o escalonamento.",
+            [
+                new DocumentationSection("O que a página faz", [
+                    P("O mapa de potência faz pelos ensaios de potência o que o mapeamento de kLa faz pelos de oxigenação: transforma pontos medidos numa **superfície contínua** sobre o plano (vazão de gás, agitação), com a fronteira de inundação desenhada por cima."),
+                    P("Com um mapa de kLa vinculado, ele também ajusta a correlação clássica que liga oxigenação a potência:"),
+                    Eq("kLa = K · (P/V)^α · (v_s)^β",
+                       "Van't Riet. **P/V** é a potência volumétrica (W/m³) e **v_s** a velocidade superficial do gás (m/s). O ajuste é por mínimos quadrados multivariável em logaritmos, e os expoentes ajustados são o resultado — não valores de literatura assumidos."),
+                    Eq("η = kLa / (P/V)",
+                       "Eficiência de oxigenação: quanto kLa cada watt por metro cúbico compra. É o critério que separa dois impelidores que entregam o mesmo kLa."),
+                ]),
+                new DocumentationSection("As três abas", [
+                    F("Mapeamento de Potência", "A superfície e os seus controles: novo mapa, salvar, reconstruir superfície, excluir. As camadas do gráfico ligam e desligam — pontos experimentais, isolinhas, fronteira teórica de Nienow, fronteira experimental de flooding e escala automática de cor."),
+                    F("Modelos e Ajustes", "Onde se vincula um mapa de kLa e se ajusta o modelo de van't Riet, com os expoentes, a qualidade do ajuste e a paridade entre kLa medido e previsto."),
+                    F("Comparação e escalonamento", "Comparação de impelidores medidos no mesmo vaso e a calculadora de escalonamento."),
+                ]),
+                new DocumentationSection("Escalonamento", [
+                    P("A calculadora responde: para obter certo kLa numa escala, que potência volumétrica é necessária, dada a correlação ajustada?"),
+                    Eq("P/V = [ kLa_alvo / (K · v_s^β) ]^(1/α)",
+                       "Invertendo van't Riet. O resultado é uma **potência volumétrica**, não uma rotação."),
+                    N("Um critério isolado não determina N e Q_g: a mesma P/V pode ser obtida por infinitas combinações. Sem uma regra de gás declarada, o cálculo é **recusado** em vez de escolher uma combinação por conta própria."),
+                ]),
+                new DocumentationSection("Regras que o mapa respeita", [
+                    B("Fora do fecho convexo dos pontos medidos a superfície é indefinida; nada é extrapolado em silêncio."),
+                    B("As isolinhas são desenhadas por marching squares próprio, que respeita as regiões indefinidas em vez de pintar sobre elas."),
+                    B("A fronteira de Nienow é **teórica**; a fronteira experimental de flooding vem dos pontos em que o ensaio observou a inundação. As duas podem discordar, e é informativo quando discordam."),
+                    F("Exportar P/V para o mapa kLa", "Leva a potência volumétrica calculada aqui para o lado da oxigenação, fechando o par kLa ↔ P/V na mesma condição."),
+                ]),
+            ]),
+
+        // ══════════════════════════════════════════════════════ Calibrações
+        new DocumentationTopic(
+            CalibrationTopicId,
+            "Calibrações",
+            "Os procedimentos guiados de pH, oxigênio, vazão de ar e biomassa: como um ponto é aceito e o que é escrito no equipamento.",
+            [
+                new DocumentationSection("Como a página é organizada", [
+                    P("Uma aba por sensor — **pH**, **Oxigênio**, **Vazão de ar** e **Sensor de Biomassa** — e todas com a mesma anatomia: a leitura ao vivo à esquerda, o procedimento no centro e a curva vigente para comparação."),
+                    F("Leitura ao vivo", "O valor bruto do conversor (Raw ADC), o valor já calibrado e o desvio-padrão recente. É o σ que diz se a leitura está estável o bastante para virar um ponto de calibração."),
+                    F("Curva vigente", "Os coeficientes que o aplicativo está usando agora, para comparar com o que o procedimento vai propor."),
+                ]),
+                new DocumentationSection("O procedimento, passo a passo", [
+                    F("Dois pontos · Um ponto (só intercepto)", "Dois pontos ajustam ganho e deslocamento; um ponto corrige apenas o deslocamento, preservando o ganho aferido antes. Use um ponto para a conferência diária e dois para a calibração de verdade."),
+                    F("Referência", "O valor conhecido do padrão ou tampão em que a sonda está mergulhada."),
+                    F("Critério de aquisição (raw ADC)", "Janela e média final: quantas leituras entram e qual estabilidade é exigida antes de o ponto poder ser confirmado."),
+                    F("Iniciar · Confirmar · Cancelar", "Iniciar abre a coleta do ponto; Confirmar fecha o ponto quando o critério é satisfeito; Cancelar descarta o procedimento sem tocar em nada."),
+                    F("Aplicar no app", "Escreve a curva proposta. Só depois disso a leitura calibrada muda."),
+                    Eq("valor = a · raw + b",
+                       "A forma de duas das curvas — pH e oxigênio. Com dois pontos, **a** e **b** saem do par; com um ponto, só **b** é recalculado."),
+                    N("A vazão de ar não é uma reta: o fluxômetro usa polinômios por segmento, e a calibração escreve os coeficientes no próprio nó. Por isso a aba de vazão fala em curva, não em ganho e deslocamento."),
+                ]),
+                new DocumentationSection("Onde a calibração aparece depois", [
+                    B("Na página Controle, o detalhe de cada variável traz o atalho direto para a sua aba aqui."),
+                    B("O ensaio de kLa grava DO bruto **e** calibrado, então uma recalibração no meio de uma campanha é visível no arquivo em vez de ficar implícita."),
+                    B("A calibração de torque do ensaio de potência é outra coisa e vive na página de Potência: ela converte percentual de torque do servo em N·m."),
+                ]),
+            ]),
+
+        // ═════════════════════════════════════════════════════ Históricos
+        new DocumentationTopic(
+            HistoryTopicId,
+            "Históricos",
+            "O inventário das sessões gravadas: conferir o formato, recarregar nos gráficos e exportar.",
+            [
+                new DocumentationSection("O que a página mostra", [
+                    P("Todo arquivo de sessão gravado em `Sessoes/`, com o que se precisa saber antes de abrir: **Arquivo**, **Data**, **Duração**, **Linhas**, **Tamanho** e por qual **Conexão** foi gravado."),
+                    F("Pesquisar sessões", "Filtra a lista pelo nome do arquivo."),
+                    F("Atualizar · Abrir pasta", "Relê o diretório e abre a pasta no Explorer."),
+                ]),
+                new DocumentationSection("Verificação do formato", [
+                    P("Ao selecionar uma sessão, o painel lateral confere se o arquivo segue o contrato esperado e mostra a **primeira** e a **última** linha como elas estão em disco."),
+                    N("É a forma rápida de descobrir que um arquivo foi editado fora do aplicativo, ou que uma sessão terminou truncada por queda de energia — antes de gastar tempo analisando a curva errada."),
+                ]),
+                new DocumentationSection("O que fazer com uma sessão", [
+                    F("Carregar no Gráficos", "Abre a sessão escolhida na página de gráficos, para navegar pela curva inteira."),
+                    F("Exportar CSV", "Converte a sessão para CSV, para levar a outra ferramenta de análise."),
+                    B("Os ensaios de kLa e de potência **não** aparecem aqui: eles são autocontidos nas suas próprias pastas, com os seus próprios arquivos brutos."),
+                ]),
+            ]),
+
+        // ════════════════════════════════════════════════════════ Eventos
+        new DocumentationTopic(
+            EventsTopicId,
+            "Eventos",
+            "O registro de auditoria: o que aconteceu, quem causou, e o controle da gravação da sessão.",
+            [
+                new DocumentationSection("A lista de eventos", [
+                    P("Cada linha é um acontecimento com **Hora**, **Fonte**, **Severidade** e **Mensagem**. É aqui que ficam as trocas de posse de atuador, os alarmes, os comandos recusados, as fases de ensaio e as anotações feitas pela bandeira do Painel."),
+                    F("Pesquisar eventos", "Filtra por texto em qualquer coluna."),
+                    F("Seguir novas entradas", "Mantém a lista rolando com o que chega. Desligue para examinar um trecho sem perdê-lo de vista."),
+                    F("Pausar", "Congela a lista sem interromper o registro."),
+                    F("Copiar · Exportar", "Copia a seleção ou exporta o que está visível, respeitando o filtro."),
+                    F("Limpar visualização", "Limpa apenas a tela. O arquivo de eventos não é alterado — a mensagem no rodapé diz exatamente isso."),
+                ]),
+                new DocumentationSection("Dados brutos", [
+                    P("O painel inferior mostra o quadro **como ele chegou pelo enlace**, byte a byte. Serve para diagnosticar o que a tela interpretada não consegue mostrar: um campo ausente, um valor fora de faixa, um quadro parcial."),
+                ]),
+                new DocumentationSection("Gravação da sessão", [
+                    F("Iniciar / parar", "Liga e desliga a gravação da sessão. Ela começa sozinha com o aplicativo, então parar é uma decisão consciente."),
+                    F("Novo arquivo", "Fecha o arquivo atual e abre outro — o mesmo efeito de Nova Etapa no Painel."),
+                    F("Abrir pasta", "Abre o diretório onde a sessão está sendo escrita."),
+                    B("O rodapé mostra o caminho em uso, quantas linhas já foram gravadas e o tamanho do arquivo."),
+                ]),
+            ]),
+
+        // ══════════════════════════════════ Integração kLa · potência · O₂
+        new DocumentationTopic(
+            IntegrationTopicId,
+            "Integração: kLa, potência e controle de O₂",
+            "Como as quatro páginas se encadeiam: medir kLa, mapear, cruzar com potência e controlar o oxigênio pelo mapa.",
+            [
+                new DocumentationSection("A cadeia inteira, em uma linha", [
+                    P("**Determinar kLa** mede → **Mapeamento kLa** interpola e publica → **Potência** mede o custo → **Mapa de Potência** cruza os dois → **Controle de O₂ no método Mapa** usa o resultado para controlar o cultivo."),
+                    P("Cada seta é uma importação explícita, nunca automática: nada entra num ensaio sem que alguém mande entrar, e cada etapa registra de onde o número veio."),
+                ]),
+                new DocumentationSection("1 · Medir o kLa de cada condição", [
+                    P("Na página **Determinar kLa**, a matriz de condições define os pares (N, Qg) e quantas réplicas cada um terá. Cada réplica aceita vira um kLa com incerteza."),
+                    B("O que sai daqui: um ensaio em `Testes-kLa/` com as réplicas aceitas e os seus ajustes."),
+                    N("Réplicas existem para que a média tenha desvio: um mapa construído sobre pontos sem réplica é um mapa sem barra de erro."),
+                ]),
+                new DocumentationSection("2 · Transformar pontos em superfície", [
+                    P("Em **Mapeamento kLa**, o botão **Importar de Teste…** traz as médias das réplicas aceitas daquele ensaio para a tabela de pontos — é a ponte entre as duas páginas, e evita digitar número."),
+                    B("Estimar superfície ajusta a interpolação contínua; Calcular trajetória integra o caminho de maior subida de kLa com maior folga aos limites."),
+                    B("Publicar para controle é o que torna o perfil consumível. Antes disso ele existe, mas nenhum controlador o enxerga."),
+                ]),
+                new DocumentationSection("3 · Medir o que aquele kLa custa", [
+                    P("Na página **Potência**, o mesmo conjunto de condições é medido do ponto de vista mecânico: quanta potência o impelidor entrega em cada (N, Qg)."),
+                    B("O card **Mapa de kLa e eficiência**, na aba Validação, vincula o mapa de kLa ao ensaio de potência e calcula a eficiência na região onde as duas campanhas se sobrepõem."),
+                    Eq("η = kLa / (P/V)    [h⁻¹ / (W/m³)]",
+                       "O cruzamento: oxigenação por unidade de potência volumétrica. É o número que responde “vale a pena subir a rotação?”."),
+                    N("A região de controle é a **intersecção** das duas campanhas. Fora dela, um dos dois lados está extrapolando, e o aplicativo diz qual."),
+                ]),
+                new DocumentationSection("4 · Ajustar o modelo e escalonar", [
+                    P("Em **Mapa de Potência → Modelos e Ajustes**, o par (kLa, P/V) de cada condição alimenta o ajuste de van't Riet, `kLa = K·(P/V)^α·(v_s)^β`. Os expoentes saem dos **seus** dados."),
+                    B("Com o modelo ajustado, a calculadora de escalonamento responde qual P/V é necessária para um kLa alvo em outra escala."),
+                    B("A comparação de impelidores usa o mesmo par para responder qual conjunto entrega mais kLa pelo mesmo watt."),
+                ]),
+                new DocumentationSection("5 · Controlar o cultivo pelo mapa", [
+                    P("Fechando o ciclo: numa receita, o bloco **Controle de O₂** no método **Mapa (trajetória kLa)** deixa de escolher percentuais de atuação e passa a andar sobre a trajetória publicada no passo 2."),
+                    B("A saída do controlador vira uma posição ao longo do caminho medido, e dela saem a rotação e a vazão — um par que já se sabe atingível e distante dos limites."),
+                    B("O mesmo laço, visto da operação manual, é a linha Oxigênio da página Controle."),
+                    N("O elo é o **perfil publicado**, e por isso o mapa registra a data da publicação e os hashes da superfície e da trajetória: um cultivo controlado por mapa pode dizer exatamente qual revisão o guiou."),
+                ]),
+                new DocumentationSection("O que cada página guarda desse caminho", [
+                    F("Testes-kLa/", "As curvas brutas e as análises que produziram cada kLa."),
+                    F("Mapas/", "O experimento de mapeamento, com pontos, superfície, trajetória e o estado de publicação."),
+                    F("Testes-Potencia/", "As corridas de potência, a tara usada e o vínculo com o mapa de kLa."),
+                    F("Mapas-Potencia/", "A superfície de potência, o modelo de van't Riet ajustado e as comparações."),
                 ]),
             ]),
 

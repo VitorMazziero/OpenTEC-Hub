@@ -95,8 +95,9 @@ public sealed class DocumentationTests
                     Assert.False(string.IsNullOrWhiteSpace(block.Text));
 
                     // A field without its on-screen name documents nothing an operator can
-                    // find; a non-field with a label would render a dangling dash.
-                    if (block.Kind == DocumentationBlockKind.Field)
+                    // find, and a formula without a caption leaves its symbols undefined. The
+                    // other kinds carry no label at all, or they would render a dangling dash.
+                    if (block.Kind is DocumentationBlockKind.Field or DocumentationBlockKind.Formula)
                     {
                         Assert.False(string.IsNullOrWhiteSpace(block.Label));
                     }
@@ -185,7 +186,7 @@ public sealed class DocumentationTests
     public void Every_block_in_the_catalog_is_documented()
     {
         var blocks = DocumentationCatalog.Find(DocumentationCatalog.RecipeBlocksTopicId)!;
-        var cascade = DocumentationCatalog.Find(DocumentationCatalog.RecipeCascadeTopicId)!;
+        var cascade = DocumentationCatalog.Find(DocumentationCatalog.RecipeOxygenTopicId)!;
         var documented = blocks.Sections
             .SelectMany(s => s.Blocks)
             .Where(b => b.Kind == DocumentationBlockKind.Field)
@@ -205,9 +206,9 @@ public sealed class DocumentationTests
     }
 
     [Fact]
-    public void The_cascade_topic_goes_deeper_than_the_block_list()
+    public void The_oxygen_control_topic_goes_deeper_than_the_block_list()
     {
-        var cascade = DocumentationCatalog.Find(DocumentationCatalog.RecipeCascadeTopicId)!;
+        var cascade = DocumentationCatalog.Find(DocumentationCatalog.RecipeOxygenTopicId)!;
         var text = Flatten(cascade);
 
         foreach (var term in new[] { "Kp", "Ki", "Kd", "K_DOT", "t_pred", "Anti-windup", "I_min", "I_max" })
@@ -223,7 +224,10 @@ public sealed class DocumentationTests
 
         // And the link back to the same loop seen from the Controle page.
         Assert.Contains("Controle", text, StringComparison.Ordinal);
-        Assert.True(cascade.Sections.Count >= 6, "A cascata precisa de mais fôlego que um item de lista.");
+        Assert.True(cascade.Sections.Count >= 6, "O Controle de O₂ precisa de mais fôlego que um item de lista.");
+
+        // "Cascata" é um dos métodos, não o nome do bloco.
+        Assert.Equal("Receitas · Controle de O₂", cascade.Title);
     }
 
     [Fact]
@@ -234,7 +238,7 @@ public sealed class DocumentationTests
 
         // The two blocks that change meaning inside a cascade loop, and the fields that appear
         // only for one choice of another field.
-        Assert.Contains("no laço da cascata", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no laço do Controle de O₂", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Manter Rodando", text, StringComparison.Ordinal);
         Assert.Contains("Histerese", text, StringComparison.Ordinal);
         Assert.Contains("enviar perfil", text, StringComparison.OrdinalIgnoreCase);
@@ -272,7 +276,7 @@ public sealed class DocumentationTests
         var cascade = new RecipeNodeViewModel(RecipeNode.Create(NodeType.CascadeControl));
         var timer = new RecipeNodeViewModel(RecipeNode.Create(NodeType.Timer));
 
-        Assert.Equal(DocumentationCatalog.RecipeCascadeTopicId, cascade.DocumentationTopicId);
+        Assert.Equal(DocumentationCatalog.RecipeOxygenTopicId, cascade.DocumentationTopicId);
         Assert.Equal(DocumentationCatalog.RecipeBlocksTopicId, timer.DocumentationTopicId);
         Assert.NotNull(DocumentationCatalog.Find(cascade.DocumentationTopicId));
         Assert.NotNull(DocumentationCatalog.Find(timer.DocumentationTopicId));
@@ -348,6 +352,109 @@ public sealed class DocumentationTests
 
         var mapping = ReadProjectFile(Path.Combine("Views", "KlaMappingView.xaml"));
         Assert.DoesNotContain("<WrapPanel Margin=\"0,7,0,0\">", mapping, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_remaining_pages_are_documented_and_point_at_the_manual()
+    {
+        var pages = new (string TopicId, string View, string[] Terms)[]
+        {
+            (DocumentationCatalog.PowerTopicId, "PowerView.xaml", ["Np", "Re", "tara", "parada adaptativa", "IC95"]),
+            // O Mapa de Potência é uma aba da página de Potência: o atalho mora no mesmo XAML.
+            (DocumentationCatalog.PowerMapTopicId, "PowerView.xaml", ["van't Riet", "flooding", "escalonamento", "eficiência"]),
+            (DocumentationCatalog.CalibrationTopicId, "CalibrationView.xaml", ["Dois pontos", "Raw ADC", "Aplicar no app"]),
+            (DocumentationCatalog.HistoryTopicId, "HistoricalView.xaml", ["Sessoes", "Exportar CSV", "formato"]),
+            (DocumentationCatalog.EventsTopicId, "EventsView.xaml", ["Severidade", "Dados brutos", "Limpar visualização"]),
+        };
+
+        foreach (var (topicId, view, terms) in pages)
+        {
+            var topic = DocumentationCatalog.Find(topicId);
+            Assert.NotNull(topic);
+
+            var text = Flatten(topic!);
+            foreach (var term in terms)
+            {
+                Assert.Contains(term, text, StringComparison.OrdinalIgnoreCase);
+            }
+
+            var xaml = ReadProjectFile(Path.Combine("Views", view));
+            Assert.Contains($"CommandParameter=\"{topicId}\"", xaml, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void The_equations_are_written_as_equations()
+    {
+        // Prose that talks around dC/dt costs the reader more than the equation does.
+        foreach (var topicId in new[]
+                 {
+                     DocumentationCatalog.KlaDeterminationTopicId,
+                     DocumentationCatalog.PowerTopicId,
+                     DocumentationCatalog.PowerMapTopicId,
+                     DocumentationCatalog.RecipeOxygenTopicId,
+                     DocumentationCatalog.IntegrationTopicId,
+                 })
+        {
+            var topic = DocumentationCatalog.Find(topicId)!;
+            Assert.Contains(
+                topic.Sections.SelectMany(s => s.Blocks),
+                b => b.Kind == DocumentationBlockKind.Formula);
+        }
+
+        // Each formula reads: the equation itself, and a caption that says what the symbols are.
+        foreach (var block in DocumentationCatalog.Topics
+                     .SelectMany(t => t.Sections)
+                     .SelectMany(s => s.Blocks)
+                     .Where(b => b.Kind == DocumentationBlockKind.Formula))
+        {
+            Assert.False(string.IsNullOrWhiteSpace(block.Text));
+            Assert.True(block.HasCaption, $"Fórmula sem legenda: {block.Text}");
+        }
+
+        var kla = Flatten(DocumentationCatalog.Find(DocumentationCatalog.KlaDeterminationTopicId)!);
+        Assert.Contains("dC/dt = kLa", kla, StringComparison.Ordinal);
+
+        var power = Flatten(DocumentationCatalog.Find(DocumentationCatalog.PowerTopicId)!);
+        Assert.Contains("Np = P_líq", power, StringComparison.Ordinal);
+        Assert.Contains("Re = ρ", power, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_chain_between_the_four_pages_is_documented_as_one_topic()
+    {
+        var topic = DocumentationCatalog.Find(DocumentationCatalog.IntegrationTopicId)!;
+        var text = Flatten(topic);
+
+        foreach (var step in new[]
+                 {
+                     "Determinar kLa", "Mapeamento kLa", "Importar de Teste", "Publicar para controle",
+                     "Potência", "van't Riet", "Controle de O₂", "Mapa (trajetória kLa)",
+                 })
+        {
+            Assert.Contains(step, text, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Contains("η = kLa / (P/V)", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Cascata_names_a_method_not_the_block()
+    {
+        var oxygen = DocumentationCatalog.Find(DocumentationCatalog.RecipeOxygenTopicId)!;
+
+        Assert.Equal("Receitas · Controle de O₂", oxygen.Title);
+        Assert.DoesNotContain("Cascata", oxygen.Title, StringComparison.Ordinal);
+
+        var text = Flatten(oxygen);
+        Assert.Contains("Cascata (percentuais)", text, StringComparison.Ordinal);
+        Assert.Contains("métodos de atuação", text, StringComparison.OrdinalIgnoreCase);
+
+        // And no topic still calls the block "a cascata".
+        foreach (var topic in DocumentationCatalog.Topics)
+        {
+            Assert.DoesNotContain("bloco Cascata", Flatten(topic), StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]

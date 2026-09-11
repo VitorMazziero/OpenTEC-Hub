@@ -110,7 +110,7 @@
                                Foreground="{DynamicResource TextPrimaryBrush}" />
                 </Border>
                 <TextBlock Margin="0,4,0,0" HorizontalAlignment="Right"
-                           Text="Ajuste científico · nunca envia comandos"
+                           Text="Ajuste · nunca envia comandos"
                            Style="{StaticResource CaptionTextStyle}" />
             </StackPanel>
         </Grid>

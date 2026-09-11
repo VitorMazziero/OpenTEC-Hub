@@ -56,6 +56,10 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
+                <Button Content="?" Width="26" Margin="8,0,0,0" Padding="0,4" FontWeight="SemiBold"
+                        ToolTip="Abrir a documentação desta página"
+                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="historicos" />
                 <Button Content="Atualizar" Margin="8,0,0,0" Command="{Binding RefreshCommand}" />
                 <Button Content="Abrir pasta" Margin="8,0,0,0" Command="{Binding OpenFolderCommand}" />
                 <Button Content="Carregar no Gráficos" Margin="16,0,0,0"

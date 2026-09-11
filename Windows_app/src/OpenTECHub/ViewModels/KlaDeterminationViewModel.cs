@@ -117,7 +117,7 @@ public sealed partial class KlaMatrixRowViewModel : ObservableObject
     {
         RunPhase.Accepted => "Concluído",
         RunPhase.Rejected => "Rejeitado",
-        RunPhase.Reviewing => "Para revisar",
+        RunPhase.Reviewing => "Revisão",
         _ => Status switch
         {
             ConditionStatus.Pending => "Pendente",

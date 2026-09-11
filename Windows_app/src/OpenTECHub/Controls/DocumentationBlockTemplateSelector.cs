@@ -23,12 +23,15 @@ public sealed class DocumentationBlockTemplateSelector : DataTemplateSelector
 
     public DataTemplate? NoteTemplate { get; set; }
 
+    public DataTemplate? FormulaTemplate { get; set; }
+
     public override DataTemplate? SelectTemplate(object? item, DependencyObject container) =>
         item is DocumentationBlock block
             ? block.Kind switch
             {
                 DocumentationBlockKind.Bullet => BulletTemplate,
                 DocumentationBlockKind.Field => FieldTemplate,
+                DocumentationBlockKind.Formula => FormulaTemplate,
                 DocumentationBlockKind.Note => NoteTemplate,
                 _ => ParagraphTemplate,
             }

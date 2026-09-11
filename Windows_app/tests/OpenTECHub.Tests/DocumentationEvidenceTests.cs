@@ -99,9 +99,11 @@ public sealed class DocumentationEvidenceTests
     [InlineData(DocumentationCatalog.ControlTopicId, "documentacao-controle.png")]
     [InlineData(DocumentationCatalog.RecipesTopicId, "documentacao-receitas.png")]
     [InlineData(DocumentationCatalog.RecipeBlocksTopicId, "documentacao-receitas-blocos.png")]
-    [InlineData(DocumentationCatalog.RecipeCascadeTopicId, "documentacao-receitas-cascata.png")]
+    [InlineData(DocumentationCatalog.RecipeOxygenTopicId, "documentacao-receitas-controle-o2.png")]
     [InlineData(DocumentationCatalog.KlaDeterminationTopicId, "documentacao-kla-determinacao.png")]
     [InlineData(DocumentationCatalog.KlaMappingTopicId, "documentacao-kla-mapeamento.png")]
+    [InlineData(DocumentationCatalog.PowerTopicId, "documentacao-potencia.png")]
+    [InlineData(DocumentationCatalog.IntegrationTopicId, "documentacao-integracao.png")]
     [InlineData(DocumentationCatalog.PowerTareTopicId, "documentacao-potencia-tara.png")]
     public void Capture_the_documentation_section_for_a_topic(string topicId, string fileName)
     {

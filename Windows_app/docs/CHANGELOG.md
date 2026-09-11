@@ -9,6 +9,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **kLa: séries de diagnóstico a cada 5 pontos, análises em cache, matriz no lugar (§E).**
+  `OnDataPointAdded` fazia `LivePoints.Where(Reoxygenating).ToList()` sobre todos os pontos e
+  recalculava a suavização O(n·janela) e a OLS a **cada quadro**; passa a guardar o índice do
+  primeiro ponto de reoxigenação e a recomputar a cada 5 pontos (a revisão recomputa exato).
+  `RefreshConditionsList` relia **todos** os `analise.json` do disco a cada aceite — centenas de
+  ms com 20–40 corridas; as análises ficam em cache válido apenas para a instância do sumário
+  que as originou (o runner substitui o sumário ao mudar o desfecho; um recarregamento cria
+  instâncias novas), e `MatrixRows` é atualizada no lugar por (condição, réplica) em vez de
+  `Clear()`. O recálculo síncrono da revisão foi mantido: é uma vez por corrida e os testes
+  dependem dele ser síncrono.
 - **Gráficos só redesenham visíveis e só quando mudaram (§C).** `DeferredPageHost` esconde uma
   página colapsando-a e nunca a descarrega, então o timer iniciado em `Loaded` seguia redesenhando
   gráficos invisíveis a sessão inteira — até nove por segundo numa sessão que visitou Sinóptico,

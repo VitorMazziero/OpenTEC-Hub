@@ -258,6 +258,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         _runner.StateChanged += OnRunnerStateChanged;
         _runner.DataPointAdded += OnDataPointAdded;
+        LivePoints.CollectionChanged += OnLivePointsCollectionChanged;
         _runner.Logged += OnRunnerLogged;
 
         RefreshTestsList();
@@ -1752,6 +1753,23 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         UpdateUiState();
     }
 
+    /// <summary>
+    /// Index of the first reoxygenation point in <see cref="LivePoints"/>, or -1. Kept so the live
+    /// diagnostic series are built from a slice rather than a <c>Where</c> over every point on every
+    /// frame (§E). Reset whenever the chart is cleared.
+    /// </summary>
+    private int _reoxygenationStart = -1;
+    private int _reoxygenationCount;
+    private int _derivedSeriesComputedAt;
+
+    /// <summary>
+    /// The instantaneous-kLa and log-linear series are diagnostics: recomputing them (an O(n·window)
+    /// smoothing and an OLS) on every frame was work repeated ~1 Hz for a chart drawn once a
+    /// second. They are refreshed every this many reoxygenation points during the run; the review
+    /// recomputes them exactly.
+    /// </summary>
+    private const int DerivedSeriesRecomputeEvery = 5;
+
     private void OnDataPointAdded(KlaRawDataPoint point)
     {
         if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
@@ -1760,26 +1778,70 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
         LivePoints.Add(point);
-        if (point.Phase == RunPhase.Reoxygenating)
+        if (point.Phase != RunPhase.Reoxygenating)
         {
-            var recovery = LivePoints.Where(p => p.Phase == RunPhase.Reoxygenating).ToList();
-            if (recovery.Count >= 5)
-            {
-                var times = recovery.Select(p => p.RelativeSeconds).ToList();
-                var values = recovery.Select(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw).ToList();
-                var ceq = CurrentTest?.Settings.DefaultCeqPercent ?? 100;
-                InstantaneousKlaSeries.Clear();
-                foreach (var item in _analysisEngine.CalculateInstantaneousKlaSeries(times, values, ceq, SettingSmoothingWindow))
-                {
-                    InstantaneousKlaSeries.Add(item);
-                }
+            return;
+        }
 
-                LogLinearSeries.Clear();
-                foreach (var item in _analysisEngine.ComputeLogLinearPoints(times, values, ceq, times[0], times[^1]))
-                {
-                    LogLinearSeries.Add(item);
-                }
+        if (_reoxygenationStart < 0)
+        {
+            _reoxygenationStart = LivePoints.Count - 1;
+        }
+        _reoxygenationCount++;
+
+        if (_reoxygenationCount >= 5 && _reoxygenationCount - _derivedSeriesComputedAt >= DerivedSeriesRecomputeEvery)
+        {
+            _derivedSeriesComputedAt = _reoxygenationCount;
+            RecomputeLiveDerivedSeries();
+        }
+    }
+
+    private void RecomputeLiveDerivedSeries()
+    {
+        if (_reoxygenationStart < 0)
+        {
+            return;
+        }
+
+        var times = new List<double>(LivePoints.Count - _reoxygenationStart);
+        var values = new List<double>(times.Capacity);
+        for (var i = _reoxygenationStart; i < LivePoints.Count; i++)
+        {
+            var p = LivePoints[i];
+            if (p.Phase != RunPhase.Reoxygenating)
+            {
+                continue;
             }
+            times.Add(p.RelativeSeconds);
+            values.Add(p.DOFiltered > 0 ? p.DOFiltered : p.DORaw);
+        }
+
+        if (times.Count < 5)
+        {
+            return;
+        }
+
+        var ceq = CurrentTest?.Settings.DefaultCeqPercent ?? 100;
+        InstantaneousKlaSeries.Clear();
+        foreach (var item in _analysisEngine.CalculateInstantaneousKlaSeries(times, values, ceq, SettingSmoothingWindow))
+        {
+            InstantaneousKlaSeries.Add(item);
+        }
+
+        LogLinearSeries.Clear();
+        foreach (var item in _analysisEngine.ComputeLogLinearPoints(times, values, ceq, times[0], times[^1]))
+        {
+            LogLinearSeries.Add(item);
+        }
+    }
+
+    private void OnLivePointsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+        {
+            _reoxygenationStart = -1;
+            _reoxygenationCount = 0;
+            _derivedSeriesComputedAt = 0;
         }
     }
 
@@ -1887,6 +1949,32 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
     }
 
+    /// <summary>
+    /// <c>analise.json</c> of each run, keyed by run id and valid only for the summary instance it
+    /// was read for: the runner replaces a run's summary when its outcome changes, and a reload
+    /// from disk builds new instances, so a stale entry can never be served. Before this cache
+    /// every refresh re-read every run's analysis from disk — with 20–40 runs, hundreds of ms on
+    /// the UI thread at each accept (§E).
+    /// </summary>
+    private readonly Dictionary<Guid, (KlaTestRunSummary Source, KlaAnalysisRevision? Analysis)> _analysisCache = new();
+
+    private KlaAnalysisRevision? LoadRunAnalysisCached(string testFolderName, KlaTestRunSummary run)
+    {
+        if (_analysisCache.TryGetValue(run.RunId, out var cached) && ReferenceEquals(cached.Source, run))
+        {
+            return cached.Analysis;
+        }
+
+        var analysis = _store.LoadRunAnalysis(testFolderName, run.FolderName);
+        _analysisCache[run.RunId] = (run, analysis);
+        return analysis;
+    }
+
+    /// <summary>
+    /// Brings <see cref="MatrixRows"/> in line with the plan <em>in place</em>: rows are matched by
+    /// condition and replicate and updated; they are inserted, moved or removed only when the plan
+    /// itself changed, so the grid keeps its containers and selection across refreshes.
+    /// </summary>
     public void RefreshConditionsList()
     {
         foreach (var c in Conditions)
@@ -1894,32 +1982,56 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             c.NotifyChanged();
         }
 
-        MatrixRows.Clear();
         if (CurrentTest is null)
         {
+            MatrixRows.Clear();
+            _analysisCache.Clear();
             return;
         }
 
+        var index = 0;
         var rowIndex = 1;
         foreach (var cond in CurrentTest.Conditions)
         {
             var requestedReps = Math.Max(1, cond.RequestedReplicates);
             for (var rep = 1; rep <= requestedReps; rep++)
             {
-                var row = new KlaMatrixRowViewModel(cond, rep)
+                var existingIndex = -1;
+                for (var i = index; i < MatrixRows.Count; i++)
                 {
-                    OrderIndex = rowIndex++,
-                };
+                    if (MatrixRows[i].ConditionId == cond.ConditionId && MatrixRows[i].ReplicateIndex == rep && ReferenceEquals(MatrixRows[i].Condition, cond))
+                    {
+                        existingIndex = i;
+                        break;
+                    }
+                }
+
+                KlaMatrixRowViewModel row;
+                if (existingIndex < 0)
+                {
+                    row = new KlaMatrixRowViewModel(cond, rep);
+                    MatrixRows.Insert(index, row);
+                }
+                else
+                {
+                    if (existingIndex != index)
+                    {
+                        MatrixRows.Move(existingIndex, index);
+                    }
+                    row = MatrixRows[index];
+                }
+                row.OrderIndex = rowIndex++;
+                index++;
 
                 // Find matching run in CurrentTest.Runs
                 var run = FindBestRun(CurrentTest.Runs, cond.ConditionId, rep)
                        ?? (requestedReps == 1 ? FindBestRun(CurrentTest.Runs, cond.ConditionId, null) : null);
 
+                row.RunFolderName = run?.FolderName;
+                row.LoadedRunPhase = run?.Phase;
                 if (run is not null)
                 {
-                    row.RunFolderName = run.FolderName;
-                    row.LoadedRunPhase = run.Phase;
-                    var analysis = _store.LoadRunAnalysis(CurrentTest.FolderName, run.FolderName);
+                    var analysis = LoadRunAnalysisCached(CurrentTest.FolderName, run);
                     if (analysis is not null && analysis.Quality != DecisionQuality.Inconclusive)
                     {
                         row.KlaPerHour = analysis.KlaPerHour;
@@ -1932,26 +2044,30 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                         row.AnalysisR2 = run.AnalysisR2;
                         row.Status = ConditionStatus.Completed;
                     }
-                    else if (run.Phase == RunPhase.Accepted)
+                    else
                     {
-                        row.Status = ConditionStatus.Completed;
+                        row.KlaPerHour = null;
+                        row.AnalysisR2 = null;
+                        row.Status = run.Phase == RunPhase.Accepted ? ConditionStatus.Completed : ConditionStatus.Pending;
                     }
-                }
-                else if (cond.Status == ConditionStatus.Completed)
-                {
-                    row.Status = ConditionStatus.Completed;
-                }
-                else if (cond.Status == ConditionStatus.InProgress)
-                {
-                    row.Status = rep <= cond.CompletedReplicates ? ConditionStatus.Completed : ConditionStatus.InProgress;
                 }
                 else
                 {
-                    row.Status = ConditionStatus.Pending;
+                    row.KlaPerHour = null;
+                    row.AnalysisR2 = null;
+                    row.Status = cond.Status switch
+                    {
+                        ConditionStatus.Completed => ConditionStatus.Completed,
+                        ConditionStatus.InProgress => rep <= cond.CompletedReplicates ? ConditionStatus.Completed : ConditionStatus.InProgress,
+                        _ => ConditionStatus.Pending,
+                    };
                 }
-
-                MatrixRows.Add(row);
             }
+        }
+
+        while (MatrixRows.Count > index)
+        {
+            MatrixRows.RemoveAt(MatrixRows.Count - 1);
         }
     }
 

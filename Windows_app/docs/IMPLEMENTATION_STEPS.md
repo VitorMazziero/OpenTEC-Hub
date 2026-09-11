@@ -346,7 +346,7 @@ flowchart TD
 
 ### Etapa 2.4 · Documentação no aplicativo e limpeza de texto dos cards
 - **Prioridade:** P1 para usabilidade de bancada
-- **Status:** ✅ **Painel, Controle e os quatro assuntos de Potência CONCLUÍDOS (10/09/2026)** — demais páginas em aberto abaixo
+- **Status:** ✅ **Painel, Controle, Receitas (três assuntos) e os quatro assuntos de Potência CONCLUÍDOS (10/09/2026)** — demais páginas em aberto abaixo
 - **Fonte:** [DECISIONS.md](DECISIONS.md#d-047--a-explicação-sai-do-card-e-vira-documentação-no-aplicativo)
 - **Arquivos-Chave:**
   - `src/OpenTECHub/Services/Documentation/DocumentationCatalog.cs` (o conteúdo, como dado)
@@ -368,14 +368,16 @@ flowchart TD
   1. [x] **Painel** (`painel`)
   2. [x] **Controle** (`controle`)
   3. [x] Potência — tara, ponto único, correlação elétrica e mapa de kLa (os quatro cards que carregavam os parágrafos)
-  4. [ ] Determinar kLa
-  5. [ ] Mapeamento kLa
-  6. [ ] Potência — montagem e aquisição (fluido, vaso, impelidores, tabela de condições)
-  7. [ ] Mapa de Potência (modelos, comparação de impelidores, escalonamento)
-  8. [ ] Receitas
-  9. [ ] Calibrações
-  10. [ ] Históricos e Eventos
-  11. [ ] Configurações (as demais seções) e Conexão
+  4. [x] **Receitas** (`receitas`) — conceito e possibilidades, página parte por parte, montagem, salvar/JSON, execução e o bloqueio do controle manual, famílias de blocos
+  5. [x] **Receitas · Blocos** (`receitas-blocos`) — os dezenove blocos, com o que muda por contexto
+  6. [x] **Receitas · Cascata de O₂** (`receitas-cascata`) — PID, quatro modos de atuação, faixas, janelas, anti-windup e predefinições
+  7. [ ] Determinar kLa
+  8. [ ] Mapeamento kLa
+  9. [ ] Potência — montagem e aquisição (fluido, vaso, impelidores, tabela de condições)
+  10. [ ] Mapa de Potência (modelos, comparação de impelidores, escalonamento)
+  11. [ ] Calibrações
+  12. [ ] Históricos e Eventos
+  13. [ ] Configurações (as demais seções) e Conexão
 
 ---
 
@@ -575,6 +577,7 @@ A suíte cobre estes pontos, mas eles são conferidos explicitamente porque um e
 | Compatibilidade de tara | `ImpellerSetHash` e `CalibrationHash` continuam confrontados; perfil de outro conjunto é rotulado, não aceito em silêncio | `PowerTestViewModel.TareStatus` |
 | Dado bruto gravado | Colunas novas do kLa no fim da linha e arquivo do esquema 1 ainda legível; leitura ausente como célula vazia; varredura de tara cancelada mantém o que mediu; ponto único gravado com e sem ensaio aberto | `RawDataIntegrityTests` |
 | Documentação e cards | Catálogo com conteúdo real, layout antes dos controles e cobertura de todas as linhas de Controle; a página de Potência **abriu mão** dos parágrafos e aponta para os assuntos; `Carregar Ensaio` no lugar de `Abrir`; cabeçalhos que cabem na coluna | `DocumentationTests` |
+| Receitas documentadas | **Todo bloco do `RecipeNodeCatalog` tem verbete** — um bloco novo lá sem verbete aqui falha o teste; a cascata cobre PID, os quatro modos e o anti-windup; o bloqueio do controle manual durante a execução está escrito; o card da cascata cresce com o seu selo e as portas descem junto | `DocumentationTests` |
 | Contratos de UI | Rótulos e *bindings* das abas de potência; a tela de potência não usa vocabulário de confirmar/descartar | `PowerNavigationContractTests` |
 | Ligações de comando | Todo `Command` ligado no pop-up de conexão existe na *view model*; `RefreshPortsCommand` continua assíncrono e `ListPortNames` continua sem WMI | `ConnectionPopoverContractTests` |
 

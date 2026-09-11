@@ -33,7 +33,19 @@ public enum DocumentationBlockKind
 /// <param name="Kind">How it is drawn.</param>
 /// <param name="Text">The body. For <see cref="DocumentationBlockKind.Field"/>, what the control does.</param>
 /// <param name="Label">The control's on-screen name. Only meaningful for a field.</param>
-public sealed record DocumentationBlock(DocumentationBlockKind Kind, string Text, string Label = "");
+public sealed record DocumentationBlock(DocumentationBlockKind Kind, string Text, string Label = "")
+{
+    /// <summary>
+    /// The line as the manual renders it, with <c>**</c> marking the words that carry weight.
+    /// </summary>
+    /// <remarks>
+    /// A field is its own label plus what it does, so the label is emphasised here rather than in
+    /// the view — which keeps every block kind a single string the renderer treats identically.
+    /// </remarks>
+    public string Markup => Kind == DocumentationBlockKind.Field && Label.Length > 0
+        ? $"**{Label}** — {Text}"
+        : Text;
+}
 
 /// <summary>A titled group of blocks inside a topic.</summary>
 public sealed record DocumentationSection(string Title, IReadOnlyList<DocumentationBlock> Blocks);
@@ -78,6 +90,9 @@ public static class DocumentationCatalog
     // ---- Topic ids, referenced by the deep links on the pages -------------------
     public const string DashboardTopicId = "painel";
     public const string ControlTopicId = "controle";
+    public const string RecipesTopicId = "receitas";
+    public const string RecipeBlocksTopicId = "receitas-blocos";
+    public const string RecipeCascadeTopicId = "receitas-cascata";
     public const string PowerTareTopicId = "potencia-tara";
     public const string PowerSinglePointTopicId = "potencia-ponto-unico";
     public const string PowerElectricalTopicId = "potencia-correlacao-eletrica";
@@ -203,6 +218,184 @@ public static class DocumentationCatalog
                     F("Carregar", "Traz os valores da predefinição para a coluna Novo Setpoint. Eles ainda precisam ser enviados, linha a linha — carregar não comanda nada."),
                     F("Salvar como…", "Grava o conjunto atual de setpoints como uma nova predefinição."),
                     N("Parada segura revoga a posse de qualquer receita, cascata ou ensaio em andamento e corta os atuadores: rotação a zero, aquecimento desligado, vazão a zero e bombas paradas. A ação fica registrada no log de eventos."),
+                ]),
+            ]),
+
+        // ═══════════════════════════════════════════════════════════ Receitas
+        new DocumentationTopic(
+            RecipesTopicId,
+            "Receitas",
+            "O que dá para automatizar, como montar e salvar uma receita, e o que acontece com o controle manual enquanto ela roda.",
+            [
+                new DocumentationSection("O que dá para fazer com isto", [
+                    P("Uma receita é um procedimento que o aplicativo executa sozinho: você desenha o que deve acontecer, em que ordem e sob que condições, e o programa comanda o reator no seu lugar. O limite é o que se consegue descrever com blocos — alguns exemplos do que a bancada já permite montar:"),
+                    B("Uma partida completa: aquecer até 30 °C, esperar estabilizar, ligar a agitação, abrir a aeração e só então iniciar o controle de oxigênio."),
+                    B("Uma batelada alimentada: manter o oxigênio em cascata enquanto a bomba externa dosa um perfil exponencial por seis horas, com o gás proporcional acompanhando o volume dosado."),
+                    B("Um degrau de condição no meio do cultivo: registrar um evento, trocar rotação e vazão de uma vez, abrir uma janela de aquisição de dados e devolver a condição anterior ao fim dela."),
+                    B("Um ensaio noturno com guarda humana: rodar a sequência até um ponto, parar numa Intervenção Manual e esperar alguém liberar na manhã seguinte."),
+                    B("Uma resposta a evento: esperar a absorbância cruzar um limiar e, a partir daí, iniciar a indução — dosar, mudar temperatura e anotar o instante no registro."),
+                    N("O que a receita **não** faz é inventar segurança: ela usa os mesmos limites de faixa, o mesmo árbitro e a mesma parada segura da operação manual. Um comando que a página Controle recusaria, a receita também recusa."),
+                ]),
+                new DocumentationSection("O conceito: blocos, conexões e fluxo", [
+                    P("Cada bloco é uma etapa. A ligação entre a **Saída** de um bloco e a **Entrada** do próximo diz o que vem depois do quê — é o fluxo que a receita percorre, um bloco de cada vez, a partir do **Início** até um **Fim**."),
+                    B("Todo caminho começa num único bloco Início e precisa chegar a pelo menos um Fim. A validação recusa a receita se isso não for verdade."),
+                    B("Um bloco só é alcançado quando o anterior termina. Um Temporizador termina quando o tempo passa; um Monitorar Variável, quando a condição se confirma; um bloco de comando, assim que o equipamento confirma."),
+                    B("Para abrir caminhos paralelos, ligue a mesma saída a mais de um bloco. Para juntá-los de volta, use **Sincronizar (E)**, que espera todos, ou **Qualquer (OU)**, que segue com o primeiro que chegar."),
+                    B("Ciclos só são permitidos dentro do laço de uma cascata. Um ciclo em qualquer outro lugar é erro de validação, não uma repetição."),
+                ]),
+                new DocumentationSection("A página, parte por parte", [
+                    F("Barra superior", "Salvar, Carregar, Excluir bloco, desfazer/refazer e o painel de JSON & Validação. À direita, os comandos de execução."),
+                    F("Minhas Receitas", "A biblioteca de receitas salvas no workspace: abrir, duplicar e excluir."),
+                    F("Abas", "Uma receita por aba. Dá para manter várias abertas e alternar sem perder o desenho de nenhuma."),
+                    F("Biblioteca de blocos", "À esquerda, os blocos disponíveis agrupados por família. Clique para adicionar ao canvas."),
+                    F("Canvas", "Onde a receita é montada. Arraste para mover blocos, use a roda para aproximar e afastar, arraste o fundo para deslocar a vista."),
+                    F("Propriedades do Bloco", "À direita: os campos do bloco selecionado. O que aparece aqui muda conforme o bloco e conforme as escolhas feitas nele."),
+                    F("JSON & Validação", "O painel inferior: o JSON da receita como será salvo e a lista de erros e avisos. Clique num apontamento para centralizar o bloco correspondente."),
+                ]),
+                new DocumentationSection("Montar, ligar e editar", [
+                    B("Adicionar: clique no bloco na biblioteca. Ele entra no canvas já com os valores padrão."),
+                    B("Ligar: clique no ponto de saída de um bloco e depois no ponto de entrada do outro. Os pontos compatíveis acendem enquanto a ligação está em curso."),
+                    B("Selecionar e excluir: clique no bloco (ou na conexão) e use Excluir bloco, ou a tecla Delete."),
+                    B("Desfazer e refazer: Ctrl+Z e Ctrl+Y, ou os botões da barra. Valem para posição, parâmetros, ligações e exclusões."),
+                    B("Blocos com listas — Múltiplos Pontos de Ajuste e Múltiplos Controles — têm **+ Adicionar** no painel de propriedades: cada linha é um par variável/valor enviado no mesmo comando."),
+                ]),
+                new DocumentationSection("Salvar, carregar e o JSON", [
+                    P("Uma receita é um arquivo JSON versionado em `Receitas/`, no workspace. É ele que a biblioteca lista e o que o aplicativo lê de volta."),
+                    F("Salvar", "Grava a receita da aba atual na biblioteca. O nome da aba é o nome do arquivo."),
+                    F("Carregar", "Abre a biblioteca Minhas Receitas para escolher uma receita salva."),
+                    F("JSON da Receita", "Mostra exatamente o que será gravado: blocos, parâmetros, conexões e posições. Serve para conferir, comparar duas receitas ou anexar a um registro de experimento."),
+                    F("Validação", "Erros impedem a execução; avisos não. “Bloco inacessível a partir do Início” é aviso — o bloco existe mas nunca será alcançado; “Não há caminho do Início até um Fim” é erro."),
+                    N("O formato é versionado e tolerante na leitura: uma receita gravada por uma versão anterior continua abrindo."),
+                ]),
+                new DocumentationSection("Executar: o que muda no equipamento", [
+                    P("**Iniciar uma receita desativa o controle manual.** Ao começar, a receita reivindica todos os atuadores no árbitro de comandos, e enquanto ela estiver rodando os campos da página Controle que dependem deles ficam travados. Não é um bloqueio de tela: um comando manual enviado nesse intervalo é recusado pelo árbitro, e não chega ao equipamento."),
+                    F("▶ Iniciar", "Pergunta antes como começar: **zerando as malhas** (envia uma parada segura e parte do repouso) ou **preservando** o estado atual do processo. Zerar é o começo limpo de uma partida; preservar é o certo quando a receita entra no meio de um cultivo em andamento."),
+                    F("⏸ Pausar / Retomar", "Congela o avanço entre blocos. O que já foi comandado permanece: pausar não desliga aquecimento, agitação nem dosagem."),
+                    F("⏹ Parar", "Encerra a receita e devolve a posse dos atuadores ao controle manual."),
+                    F("⏭ Pular bloco", "Só faz sentido quando a receita está esperando — num Temporizador, num Monitorar Variável ou numa Intervenção Manual. Encerra a espera e segue para o próximo bloco."),
+                    F("Faixa de execução", "Enquanto roda, a barra mostra o bloco atual e o motivo da espera; no canvas, o bloco em execução fica realçado e os concluídos ficam marcados."),
+                    N("Perda de enlace ou de realimentação faz **aborto seguro**: o árbitro devolve a posse ao modo manual e a receita para, em vez de seguir comandando às cegas. O motivo fica no registro de eventos."),
+                    N("A Parada segura global, no rodapé da página Controle, revoga a posse da receita a qualquer momento — é o caminho para interromper tudo sem procurar o botão certo."),
+                ]),
+                new DocumentationSection("As famílias de blocos", [
+                    P("A biblioteca é agrupada por família, e a cor do cabeçalho de cada bloco no canvas repete o grupo — dá para ler a receita de longe pela cor."),
+                    F("Fluxo", "Início e Fim: onde a receita começa e onde termina."),
+                    F("Gatilhos", "Temporizador, Monitorar Variável e Intervenção Manual: os blocos que **esperam** alguma coisa."),
+                    F("Lógica", "Sincronizar (E), Qualquer (OU) e Controle de O₂: junções de caminhos e o laço de controle."),
+                    F("Ações", "Definir Ponto de Ajuste, Múltiplos Pontos de Ajuste, Controle de Malha e Múltiplos Controles: os blocos que **comandam** o módulo."),
+                    F("Bombas", "Bomba pH, Bomba Antiespuma e Bomba Nutrientes: as bombas de dosagem internas ao módulo."),
+                    F("Dispositivos Externos", "Bomba Externa, Absorbância e Agitador de Frasco: os nós que conversam com o Hub por Wi-Fi e que, por isso, podem estar ausentes."),
+                    F("Utilitários", "Aquisição de Dados, Registrar Evento e Zerar Variáveis: o que anota e o que limpa, sem tocar no processo."),
+                    B("Cada bloco tem a sua definição e o seu uso no assunto **Receitas · Blocos**; a cascata, por ser o único que contém um controlador, tem assunto próprio."),
+                ]),
+            ]),
+
+        // ══════════════════════════════════════════════════ Receitas · blocos
+        new DocumentationTopic(
+            RecipeBlocksTopicId,
+            "Receitas · Blocos",
+            "Os dezenove blocos, um a um: o que cada um faz, o que se ajusta nele e o que muda conforme o contexto.",
+            [
+                new DocumentationSection("Como ler esta página", [
+                    P("Cada entrada abaixo traz o nome do bloco como ele aparece na biblioteca e o que ele faz. Onde um campo só existe em certas condições, isso está dito — o painel de propriedades esconde o que não se aplica, em vez de mostrar campo inerte."),
+                    N("Dois blocos mudam de significado quando ligados à **Condição de Saída** de uma cascata. Isso está descrito no assunto Receitas · Cascata e repetido aqui, em cada um deles."),
+                ]),
+                new DocumentationSection("Fluxo", [
+                    F("Início", "O ponto de entrada. Exatamente um por receita, e só tem porta de saída."),
+                    F("Fim", "Encerramento bem-sucedido. Pelo menos um por receita; pode haver vários, um por caminho."),
+                ]),
+                new DocumentationSection("Gatilhos — os blocos que esperam", [
+                    F("Temporizador", "Espera uma duração fixa e segue. Campos: **Duração** e **Unidade** (segundos, minutos ou horas)."),
+                    F("Monitorar Variável", "Segura a receita até que uma variável medida satisfaça uma comparação. Campos: **Variável**, **Condição** (≥, ≤, =, …), **Valor alvo**, **Intervalo de polling**, **Confirmações consecutivas** e **Tempo limite** (0 = sem limite). As confirmações consecutivas são o que evita que um único pico de ruído libere a etapa."),
+                    F("Monitorar Variável · no laço da cascata", "Ligado à Condição de Saída de uma cascata, ele deixa de ser etapa e passa a ser lido a cada iteração do PID: o campo **Intervalo de polling** desaparece, porque quem define a cadência é a cascata."),
+                    F("Intervenção Manual", "Para a receita em standby até alguém liberar. O botão no próprio bloco alterna entre **BLOQUEAR** e **PASSAR**, e pode ser trocado ao vivo durante a execução — é o bloco do “só continue quando eu autorizar”."),
+                    F("Intervenção Manual · no laço da cascata", "Ligada à Condição de Saída, vira a chave **Manter Rodando / Sair do Loop**: o operador decide, durante a corrida, quando o controle de O₂ termina."),
+                ]),
+                new DocumentationSection("Lógica — juntar caminhos", [
+                    F("Sincronizar (E)", "Junção que espera **todos** os caminhos que chegam nele. Use quando duas preparações paralelas precisam estar ambas prontas."),
+                    F("Qualquer (OU)", "Junção que segue com o **primeiro** caminho a chegar. Use para “o que acontecer antes”: a temperatura estabilizar ou o tempo limite vencer."),
+                    F("Controle de O₂", "O laço de controle de oxigênio dissolvido. Tem assunto próprio — veja Receitas · Cascata."),
+                ]),
+                new DocumentationSection("Ações — comandar o módulo", [
+                    F("Definir Ponto de Ajuste", "Escreve um setpoint em unidades de engenharia. Campos: **Variável** e **Valor**. Com a variável pH aparece também **Histerese**, que não faz sentido para as demais."),
+                    F("Múltiplos Pontos de Ajuste", "O mesmo, para vários setpoints enviados como um único comando. Cada linha da lista tem Variável, Valor e, para pH, Histerese. Enviar junto importa: as mudanças chegam ao equipamento no mesmo quadro, não em sequência."),
+                    F("Controle de Malha", "Liga ou desliga uma malha. Campos: **Malha** e **Operação** (habilitar ou desabilitar)."),
+                    F("Múltiplos Controles", "Liga e desliga várias malhas num comando só, uma linha por malha."),
+                ]),
+                new DocumentationSection("Bombas — dosagem interna ao módulo", [
+                    F("Bomba pH", "Campos: **Bomba alvo** (ácido ou base), **Operação**, **Intensidade (%)**, **Tempo ligada (s)**, **Tempo desligada (s)** e **Ação manual** (ligar ou desligar). Tempo ligada e tempo desligada são o pulso de dosagem e a espera de mistura antes da próxima leitura valer."),
+                    F("Bomba Antiespuma", "Os mesmos campos, sem a escolha de bomba alvo."),
+                    F("Bomba Nutrientes", "Campos: **Operação**, **Tempo dosagem ligada**, **Tempo dosagem desligada**, **Volume a dosar (mL)** e **Ação manual**. É a bomba que o sensor de distância usa como atuador de antiespuma quando a automação por espuma está ativa."),
+                    N("Em todas as três, **Operação** decide o que os demais campos significam: em acionamento manual vale a Ação manual; em dosagem por ciclo valem os tempos."),
+                ]),
+                new DocumentationSection("Dispositivos externos — os nós atrás do Hub", [
+                    F("Bomba Externa", "Campos: **Ação** — ativar roteamento, enviar perfil ou parar. Só com *enviar perfil* aparecem **Perfil** (um dos cinco modos do firmware), **Início** e **Fim** (min), **λ** e **φ**, cujo significado muda conforme o perfil escolhido. **Coeficientes p0..pN**, **Tempos dos segmentos** e **Vazões dos segmentos** descrevem os perfis por partes."),
+                    F("Absorbância", "Campos: **Ação** — ativar roteamento, capturar branco, iniciar, parar ou gravar limiares. Só com *limiares* aparecem **Limiar baixo**, **alto** e **ótimo**, em contagens."),
+                    F("Agitador de Frasco", "Campos: **Ação** (acionar ou parar) e, ao acionar, **Intensidade (%)** e **Sentido**. **Modo automático** entrega o agitador à automação por espuma."),
+                    N("Estes três podem **esperar** pelo dispositivo: se o nó não confirmar, a receita segura o bloco e avisa, em vez de dar o comando por entregue. É a diferença deles para as bombas internas, que não podem estar ausentes sozinhas."),
+                ]),
+                new DocumentationSection("Utilitários — anotar e limpar", [
+                    F("Aquisição de Dados", "Marca uma janela rotulada no registro da sessão. Campos: **Modo** e, no modo de tempo fixo, **Duração** e **Unidade**. Serve para separar no arquivo o trecho que corresponde a uma fase do experimento."),
+                    F("Registrar Evento", "Escreve uma **Mensagem** em Eventos, com o instante. É o que transforma “às 14h20 eu induzi” numa linha rastreável."),
+                    F("Zerar Variáveis", "Zera as variáveis de processo do módulo. Pede confirmação, porque destrói estado acumulado."),
+                ]),
+            ]),
+
+        // ════════════════════════════════════════════════ Receitas · cascata
+        new DocumentationTopic(
+            RecipeCascadeTopicId,
+            "Receitas · Cascata de O₂",
+            "O único bloco que contém um controlador: como o PID funciona, os quatro modos de atuação e todos os ajustes.",
+            [
+                new DocumentationSection("O que este bloco é", [
+                    P("O **Controle de O₂** é o núcleo científico do aplicativo: um laço fechado que mantém o oxigênio dissolvido num setpoint atuando sobre agitação e aeração. Ele é a mesma malha que a página Controle expõe na linha Oxigênio — a diferença é que aqui ela entra como etapa de um procedimento, com os seus ganhos e faixas gravados na receita."),
+                    P("Enquanto o bloco roda, a receita fica dentro dele: o controlador recalcula a cada intervalo definido e comanda os atuadores até que a condição de saída se cumpra. Só então a receita segue pela porta **Saída**."),
+                    B("Ver também o assunto **Controle**, seção de detalhe do Oxigênio, para a mesma malha vista do lado da operação manual."),
+                ]),
+                new DocumentationSection("As quatro portas", [
+                    F("Entrada", "Por onde a receita chega ao bloco."),
+                    F("Condição de Saída", "Liga ao bloco que **decide quando o laço termina**: um Monitorar Variável, um Temporizador ou uma Intervenção Manual."),
+                    F("Retorno da Condição", "Fecha o laço: é por onde a resposta daquele bloco volta ao controlador, a cada iteração."),
+                    F("Saída", "Por onde a receita continua depois que o laço encerra."),
+                    N("Sem nada ligado à Condição de Saída o bloco exibe **SAI AO ESTABILIZAR**: o laço encerra sozinho quando o oxigênio fica dentro de ±2 % do setpoint por três leituras. É um padrão conveniente, não uma regra do processo — quando o critério de parada importa, declare-o."),
+                    N("O bloco ligado à Condição de Saída **não é executado como etapa**: a cascata o lê a cada iteração. Enquanto for falso, o controle continua; quando ficar verdadeiro, o laço encerra. A mesma peça no fluxo normal significaria o oposto — esperar até ser verdade para então seguir."),
+                ]),
+                new DocumentationSection("Como o controlador funciona", [
+                    P("São dois laços encadeados. O **laço externo** observa a trajetória do oxigênio e prevê onde ele estará daqui a um horizonte; o **laço interno** é um PID que corrige a diferença entre essa previsão e o setpoint. Prever, em vez de reagir ao erro atual, é o que permite acompanhar a demanda crescente de um cultivo sem oscilar."),
+                    F("SP de O₂ (%)", "O alvo de oxigênio dissolvido, em saturação relativa."),
+                    F("Intervalo de cálculo do PID (s)", "De quanto em quanto tempo o controlador recalcula. Mais curto responde mais rápido e amplifica ruído; mais longo suaviza e atrasa."),
+                    F("K_DOT (laço externo)", "O ganho sobre a taxa de variação do oxigênio — quanto a tendência observada pesa na correção."),
+                    F("Kp · Ki · Kd", "Os ganhos do PID interno: proporcional ao erro, ao acúmulo do erro e à sua taxa."),
+                    F("Horizonte t_pred (s)", "Quão longe à frente a previsão olha. É o parâmetro que dá ao laço a antecipação; um horizonte muito longo antecipa demais e responde a algo que ainda não aconteceu."),
+                    F("Janela do preditor (amostras)", "Quantas leituras entram na estimativa da trajetória."),
+                    F("τ_D do filtro (s)", "A constante do filtro da derivada. Derivada sem filtro é ruído amplificado."),
+                    F("Método (estimativa de taxa)", "Como a taxa de variação é estimada: mínimos quadrados sobre a janela, ou média móvel. Mínimos quadrados é o padrão e é o método do manuscrito."),
+                    F("Janela da média (amostras)", "O tamanho da janela usada por esse método."),
+                ]),
+                new DocumentationSection("Anti-windup", [
+                    P("Enquanto o atuador está saturado — a agitação já no máximo, por exemplo — o termo integral continuaria somando um erro que ele não consegue corrigir, e o controle ficaria lento para voltar quando a saturação passasse. Os três campos abaixo são o que impede isso."),
+                    F("I_min · I_max", "Os limites do termo integral. Ele não cresce além deles."),
+                    F("Janela do integrador (s)", "Por quanto tempo o acúmulo de erro é considerado. O que é mais antigo que a janela deixa de pesar."),
+                ]),
+                new DocumentationSection("Os quatro modos de atuação", [
+                    F("Agitação", "Só a rotação atua. Use quando a aeração está fixa por outro motivo — um ensaio a vazão constante, por exemplo."),
+                    F("Aeração", "Só a vazão de gás atua. Use quando a rotação não pode variar, como num estudo de cisalhamento."),
+                    F("Cascata (percentuais)", "Os dois atuam, cada um numa janela da saída do controlador. É o modo padrão: a agitação cobre a parte baixa da demanda, a aeração entra depois, e a faixa em que as duas se sobrepõem é a transição suave entre elas."),
+                    F("Mapa (trajetória kLa)", "A saída do controlador é convertida em um par (rotação, vazão) lido de uma trajetória publicada por um mapa de kLa. Aqui o controlador não escolhe percentuais: ele anda sobre um caminho medido, com **ID do Mapa kLa** apontando qual."),
+                ]),
+                new DocumentationSection("Faixas, janelas e ganhos relativos", [
+                    P("Três grupos de campos descrevem, nessa ordem, onde o controlador pode atuar, como ele divide a sua saída entre os atuadores e quanto cada atuador rende."),
+                    F("N_min · N_max (rpm)", "Os limites físicos da agitação neste ensaio. O controlador nunca comanda fora deles."),
+                    F("Q_min · Q_max (vvm)", "Os limites físicos da aeração, na mesma lógica."),
+                    F("Faixa da Agitação (% do output)", "**Início** e **Fim**: o trecho da saída do controlador em que a agitação varia. Com 0–40 %, a agitação percorre N_min→N_max nos primeiros 40 % da demanda."),
+                    F("Faixa da Aeração (% do output)", "O mesmo para a vazão. Com 30–70 %, a aeração começa a subir antes de a agitação terminar — e essa sobreposição de 30 a 40 % é onde os dois atuam juntos, mostrada no diagrama do painel."),
+                    F("Agitação e Aeração (ganho relativo)", "Quanto de oxigenação cada atuador entrega por unidade da sua faixa. São eles que dizem ao controlador que, nesta montagem, aeração rende mais que agitação — ou o contrário."),
+                    N("As janelas não precisam somar 100 % nem ser disjuntas. Sobreposição é transição suave; um vão entre elas é uma faixa de demanda em que nenhum atuador se move, e isso o controlador não corrige por conta própria."),
+                ]),
+                new DocumentationSection("Predefinições de oxigênio", [
+                    F("Predefinição Salva · Carregar", "Traz para o bloco um conjunto inteiro de ganhos, faixas e limites já validado. É como se reaproveita a sintonia de um cultivo no seguinte."),
+                    F("Salvar como…", "Grava a sintonia atual do bloco sob um nome, para os próximos ensaios."),
+                    N("A predefinição guarda a sintonia, não o setpoint do experimento: confira o SP de O₂ depois de carregar uma."),
                 ]),
             ]),
 

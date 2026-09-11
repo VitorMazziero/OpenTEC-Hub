@@ -1483,6 +1483,21 @@ became proportional ones with short headers; the assay card became two sub-cards
 **`Carregar Ensaio`** on a row of its own — the longer label is exactly what that shared row would
 have clipped next.
 
+**Receitas, in the same pass.** The page the operator called "not intuitive" got three topics rather
+than one. `receitas` opens with what can be automated — five worked examples from this bench — before
+it explains a single control, because the block canvas means nothing until you believe it can do
+something you want. `receitas-blocos` is one entry per block, and a test reads `RecipeNodeCatalog` to
+demand one: a block added there without an entry here fails the suite instead of reaching an operator
+unexplained. `receitas-cascata` is separate because it is the only block containing a controller —
+PID, prediction horizon, anti-windup, the four actuation modes and the output windows need more room
+than a list item, and the same manual says so from the Controle side too.
+
+**And the cascade card stopped writing over its own ports.** The note it printed when nothing was
+wired to Condição de Saída ran across "Entrada", "Condição de Saída" and "Retorno da Condição". It is
+now a **SAI AO ESTABILIZAR** chip with the sentence in its tooltip, and card height and port offsets
+share one origin: they were two expressions computing the same number, which is precisely why growing
+the content moved the text over the ports instead of moving the ports down.
+
 **Verification evidence:** 1274 passed, 0 skipped (1255 before; 19 new across `DocumentationTests`
 and `DocumentationEvidenceTests`). The evidence folder `docs/evidence/ui-documentation/` is rendered
 by the suite from the real visual tree, not collected by hand. See [DECISIONS D-047](../DECISIONS.md).

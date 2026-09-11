@@ -93,6 +93,11 @@
                     <Button Content="↶" ToolTip="Desfazer (Ctrl+Z)" Command="{Binding UndoCommand}" Margin="8,0,0,0" Padding="10,6" />
                     <Button Content="↷" ToolTip="Refazer (Ctrl+Y)" Command="{Binding RedoCommand}" Margin="4,0,0,0" Padding="10,6" />
                     <ToggleButton Content="📋 JSON &amp; Validação" IsChecked="{Binding ShowJsonPanel, Mode=TwoWay}" Margin="12,0,0,0" Padding="10,6" ToolTip="Exibir ou ocultar o painel inferior de JSON e Validação" />
+                    <!-- A página é a menos óbvia do programa; o caminho até o manual fica na barra. -->
+                    <Button Content="?" Width="30" Padding="0,6" Margin="8,0,0,0" FontWeight="SemiBold"
+                            ToolTip="Abrir a documentação de Receitas"
+                            Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="receitas" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -396,11 +401,23 @@
                                                        Visibility="{Binding ShowSummary, Converter={StaticResource BoolToVis}}"
                                                        TextWrapping="Wrap" LineHeight="16" Foreground="{DynamicResource TextSecondaryBrush}" />
 
-                                            <!-- A cascade with an empty Condição de Saída exits on settling. -->
-                                            <TextBlock Text="{Binding CascadeNoConditionHint}" FontSize="10" TextWrapping="Wrap"
-                                                       Visibility="{Binding IsCascadeWithoutExitCondition, Converter={StaticResource BoolToVis}}"
-                                                       Margin="12,0,12,8" LineHeight="13"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <!-- A cascade with an empty Condição de Saída exits on settling. Chip,
+                                                 not prose: the paragraph that used to be here ran over the port
+                                                 labels. The sentence is the tooltip, and the manual has it in full. -->
+                                            <Border Visibility="{Binding IsCascadeWithoutExitCondition, Converter={StaticResource BoolToVis}}"
+                                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                                    BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1"
+                                                    CornerRadius="3" Margin="12,0,12,8" Padding="6,2"
+                                                    HorizontalAlignment="Left" ToolTipService.ShowDuration="30000"
+                                                    ToolTip="{Binding CascadeNoConditionHint}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#x2139;" FontSize="10" Margin="0,0,4,0"
+                                                               VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                    <TextBlock Text="{Binding CascadeNoConditionBadge}" FontSize="9"
+                                                               FontWeight="Bold" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                </StackPanel>
+                                            </Border>
 
                                             <!-- Intervenção Manual button & explanation -->
                                             <StackPanel Visibility="{Binding IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="10,8,10,0">
@@ -568,10 +585,21 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding SelectedTab.HasNodeSelected, Converter={StaticResource BoolToVis}}">
                         <StackPanel Margin="16">
-                            <TextBlock Text="{Binding SelectedTab.SelectedNode.Title}" FontSize="15" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                            <TextBlock Text="Propriedades do Bloco" FontSize="11"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,12" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SelectedTab.SelectedNode.Title}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
+                                    <TextBlock Text="Propriedades do Bloco" FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,12" />
+                                </StackPanel>
+                                <!-- A cascata tem assunto próprio: é o único bloco que contém um
+                                     controlador, e explicá-lo junto dos outros dezoito seria enterrá-lo. -->
+                                <Button Grid.Column="1" Content="?" Width="22" Height="22" Padding="0" FontWeight="SemiBold"
+                                        VerticalAlignment="Top" ToolTip="Abrir a documentação deste bloco"
+                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding SelectedTab.SelectedNode.DocumentationTopicId}" />
+                            </Grid>
 
                             <!-- Intervenção Manual properties button & explanation -->
                             <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">

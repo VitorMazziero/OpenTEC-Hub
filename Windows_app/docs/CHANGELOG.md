@@ -17,8 +17,22 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   dispositivo externo. Os cards da página de Potência deixaram de imprimir a própria explicação e
   ganharam um botão “?” que abre o assunto correspondente. Com o manual aberto, a ilustração do
   biorreator sai e o texto ocupa a página inteira. Ver [DECISIONS D-047](DECISIONS.md).
+- **Receitas documentadas em três assuntos (D-047).** `Receitas` traz o conceito, o que dá para
+  automatizar, a página parte por parte, montagem, salvamento e JSON, e — o que não pode ser
+  descoberto por surpresa — que **iniciar uma receita desativa o controle manual**, porque ela
+  reivindica todos os atuadores no árbitro. `Receitas · Blocos` tem um verbete por bloco, incluindo
+  o que muda conforme o contexto (um Monitorar Variável no laço da cascata perde o polling; uma
+  Intervenção Manual vira a chave Manter Rodando / Sair do Loop). `Receitas · Cascata de O₂` cobre o
+  PID, o horizonte de predição, o anti-windup, os quatro modos de atuação e as janelas de saída. Um
+  teste exige verbete para cada bloco declarado no catálogo. O manual passa a interpretar
+  `**negrito**` inline.
 
 ### Changed
+- **O bloco de cascata deixou de escrever por cima das próprias portas (D-047).** O parágrafo que o
+  card imprimia quando nada estava ligado à Condição de Saída virou o selo **SAI AO ESTABILIZAR**,
+  com a frase na dica de contexto e completa no manual. A altura do card e a posição das portas
+  passaram a ter uma origem única — eram duas contas para o mesmo número, e é por isso que crescer o
+  conteúdo movia o texto sobre as portas em vez de mover as portas.
 - **Página de Potência reorganizada (D-047).** O card `Ensaio` virou dois subcards — o ensaio aberto
   e a tara que ele aplica; **`Abrir` passou a `Carregar Ensaio`**, em linha própria e largura cheia,
   com *Renomear* e *Excluir* na linha seguinte. Corrigidos os textos que a coluna de 340 DIP cortava:

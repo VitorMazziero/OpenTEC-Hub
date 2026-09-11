@@ -12,6 +12,10 @@ tela já corrigida é pior do que nenhuma, então nada aqui é copiado à mão.
 |---|---|
 | `documentacao-painel.png` | Configurações → Documentação, assunto **Painel**, ocupando a página inteira |
 | `documentacao-controle.png` | O mesmo, assunto **Controle** |
+| `documentacao-receitas.png` | O assunto **Receitas**: conceito, possibilidades e a página parte por parte |
+| `documentacao-receitas-blocos.png` | O assunto **Receitas · Blocos**, um verbete por bloco |
+| `documentacao-receitas-cascata.png` | O assunto **Receitas · Cascata de O₂**, com PID e modos de atuação |
+| `receitas-bloco-cascata.png` | O card da cascata no canvas: selo **SAI AO ESTABILIZAR** no lugar do parágrafo, e os quatro rótulos de porta livres |
 | `documentacao-potencia-tara.png` | O destino de um botão “?” da página de Potência |
 | `potencia-montagem.png` | Aba Montagem com o card **Ensaio** dividido em subcards e o botão **Carregar Ensaio** |
 | `potencia-validacao.png` | Aba Validação sem os parágrafos explicativos, com a tabela de correlação legível |

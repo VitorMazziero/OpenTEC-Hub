@@ -69,6 +69,9 @@ public sealed class DocumentationEvidenceTests
     [Theory]
     [InlineData(DocumentationCatalog.DashboardTopicId, "documentacao-painel.png")]
     [InlineData(DocumentationCatalog.ControlTopicId, "documentacao-controle.png")]
+    [InlineData(DocumentationCatalog.RecipesTopicId, "documentacao-receitas.png")]
+    [InlineData(DocumentationCatalog.RecipeBlocksTopicId, "documentacao-receitas-blocos.png")]
+    [InlineData(DocumentationCatalog.RecipeCascadeTopicId, "documentacao-receitas-cascata.png")]
     [InlineData(DocumentationCatalog.PowerTareTopicId, "documentacao-potencia-tara.png")]
     public void Capture_the_documentation_section_for_a_topic(string topicId, string fileName)
     {
@@ -82,6 +85,24 @@ public sealed class DocumentationEvidenceTests
 
             Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
             Save(bitmap, fileName);
+        });
+    }
+
+    [Fact]
+    public void Capture_a_cascade_block_whose_note_no_longer_covers_its_ports()
+    {
+        WpfRenderingHost.Run(() =>
+        {
+            var shell = WpfRenderingHost.Services.GetRequiredService<ShellViewModel>();
+            var recipes = shell.Receitas;
+            recipes.NewRecipeCommand.Execute(null);
+            recipes.SelectedTab!.AddBlock(OpenTECHub.Services.Recipes.NodeType.CascadeControl, 320, 240);
+
+            var view = new ReceitasView { DataContext = recipes };
+            var bitmap = WpfRenderingHost.RenderElement(view, 1280, 800);
+
+            Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
+            Save(bitmap, "receitas-bloco-cascata.png");
         });
     }
 

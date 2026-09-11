@@ -36,7 +36,7 @@
         <!-- Documentação: um DataTemplate por tipo de bloco. O catálogo decide o que é
              parágrafo, item ou observação; a view só sabe desenhar os três. -->
         <DataTemplate x:Key="DocParagraphTemplate">
-            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,0,0,8"
+            <TextBlock ctl:InlineMarkup.Text="{Binding Markup}" TextWrapping="Wrap" Margin="0,0,0,8"
                        Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="19" />
         </DataTemplate>
 
@@ -47,7 +47,7 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="•" Foreground="{DynamicResource TextSecondaryBrush}" />
-                <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap"
+                <TextBlock Grid.Column="1" ctl:InlineMarkup.Text="{Binding Markup}" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="19" />
             </Grid>
         </DataTemplate>
@@ -57,18 +57,15 @@
                     Background="{DynamicResource SurfaceSunkenBrush}"
                     BorderBrush="{DynamicResource StrokeDefaultBrush}"
                     BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
-                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontWeight="Medium"
+                <TextBlock ctl:InlineMarkup.Text="{Binding Markup}" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="19" />
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="DocFieldTemplate">
-            <TextBlock TextWrapping="Wrap" Margin="0,0,0,7" LineHeight="19"
-                       Foreground="{DynamicResource TextPrimaryBrush}">
-                <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" />
-                <Run Text=" — " Foreground="{DynamicResource TextSecondaryBrush}" />
-                <Run Text="{Binding Text, Mode=OneWay}" />
-            </TextBlock>
+            <TextBlock ctl:InlineMarkup.Text="{Binding Markup}" TextWrapping="Wrap"
+                       Margin="0,0,0,7" LineHeight="19"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
         </DataTemplate>
 
         <ctl:DocumentationBlockTemplateSelector x:Key="DocBlockSelector"

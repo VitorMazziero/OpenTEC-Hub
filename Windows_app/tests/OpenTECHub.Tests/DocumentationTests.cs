@@ -4,6 +4,7 @@ using System.Linq;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Documentation;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Recipes;
 using OpenTECHub.Services.Theme;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -21,6 +22,12 @@ namespace OpenTECHub.Tests;
 /// </remarks>
 public sealed class DocumentationTests
 {
+    /// <summary>Every word of a topic — section titles included — as one searchable string.</summary>
+    private static string Flatten(DocumentationTopic topic) => string.Join(
+        Environment.NewLine,
+        topic.Sections.SelectMany(section =>
+            new[] { section.Title }.Concat(section.Blocks.Select(b => b.Label + " " + b.Text))));
+
     private static SettingsViewModel CreateSettings() => new(
         new MemorySettingsService(new AppSettings()),
         new NullThemeService(),
@@ -152,6 +159,136 @@ public sealed class DocumentationTests
         {
             Assert.Contains(labels, label => label.Contains(row, StringComparison.Ordinal));
         }
+    }
+
+    [Fact]
+    public void Recipes_documentation_covers_concept_authoring_execution_and_json()
+    {
+        var topic = DocumentationCatalog.Find(DocumentationCatalog.RecipesTopicId)!;
+        var titles = topic.Sections.Select(s => s.Title).ToList();
+        var text = Flatten(topic);
+
+        // The page is the least obvious in the program, so the manual opens with what it is for
+        // before it opens with how to use it.
+        Assert.Contains("Salvar", text, StringComparison.Ordinal);
+        Assert.Contains("JSON", text, StringComparison.Ordinal);
+        Assert.Contains("Iniciar", text, StringComparison.Ordinal);
+        Assert.Contains("Parar", text, StringComparison.Ordinal);
+
+        // Running a recipe taking the actuators away from manual control is the single fact an
+        // operator must not discover by surprise.
+        Assert.Contains("desativa o controle manual", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(titles, t => t.Contains("famílias de blocos", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Every_block_in_the_catalog_is_documented()
+    {
+        var blocks = DocumentationCatalog.Find(DocumentationCatalog.RecipeBlocksTopicId)!;
+        var cascade = DocumentationCatalog.Find(DocumentationCatalog.RecipeCascadeTopicId)!;
+        var documented = blocks.Sections
+            .SelectMany(s => s.Blocks)
+            .Where(b => b.Kind == DocumentationBlockKind.Field)
+            .Select(b => b.Label)
+            .Concat([cascade.Title])
+            .ToList();
+
+        // Straight from the catalog the page itself builds its library from: a block added there
+        // and left undocumented fails here rather than reaching an operator unexplained.
+        foreach (var definition in RecipeNodeCatalog.All)
+        {
+            Assert.Contains(
+                documented,
+                label => label.Contains(definition.Title, StringComparison.Ordinal)
+                         || definition.Title.Contains(label, StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void The_cascade_topic_goes_deeper_than_the_block_list()
+    {
+        var cascade = DocumentationCatalog.Find(DocumentationCatalog.RecipeCascadeTopicId)!;
+        var text = Flatten(cascade);
+
+        foreach (var term in new[] { "Kp", "Ki", "Kd", "K_DOT", "t_pred", "Anti-windup", "I_min", "I_max" })
+        {
+            Assert.Contains(term, text, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // All four actuation modes, named as the picker names them.
+        foreach (var mode in new[] { "Agitação", "Aeração", "Cascata (percentuais)", "Mapa (trajetória kLa)" })
+        {
+            Assert.Contains(mode, text, StringComparison.Ordinal);
+        }
+
+        // And the link back to the same loop seen from the Controle page.
+        Assert.Contains("Controle", text, StringComparison.Ordinal);
+        Assert.True(cascade.Sections.Count >= 6, "A cascata precisa de mais fôlego que um item de lista.");
+    }
+
+    [Fact]
+    public void Context_dependent_block_behaviour_is_written_down()
+    {
+        var blocks = DocumentationCatalog.Find(DocumentationCatalog.RecipeBlocksTopicId)!;
+        var text = Flatten(blocks);
+
+        // The two blocks that change meaning inside a cascade loop, and the fields that appear
+        // only for one choice of another field.
+        Assert.Contains("no laço da cascata", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Manter Rodando", text, StringComparison.Ordinal);
+        Assert.Contains("Histerese", text, StringComparison.Ordinal);
+        Assert.Contains("enviar perfil", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void The_cascade_card_keeps_its_note_clear_of_the_port_labels()
+    {
+        var node = new RecipeNodeViewModel(RecipeNode.Create(NodeType.CascadeControl));
+
+        var withCondition = node.Height;
+        var portsWithCondition = node.Ports.Select(p => p.OffsetY).ToList();
+
+        // With nothing wired to Condição de Saída the card shows the settling chip, and the card
+        // has to grow by it: leaving the ports put is exactly how the old paragraph ended up
+        // printed over "Entrada" and "Saída".
+        node.IsCascadeWithoutExitCondition = true;
+
+        Assert.True(node.Height > withCondition);
+        Assert.All(
+            node.Ports.Select(p => p.OffsetY).Zip(portsWithCondition),
+            pair => Assert.True(pair.First > pair.Second));
+
+        // Every port still sits inside the card.
+        Assert.All(node.Ports, port => Assert.True(port.OffsetY < node.Height));
+
+        // And the note itself is a chip now, with the sentence in the tooltip.
+        Assert.Equal("SAI AO ESTABILIZAR", node.CascadeNoConditionBadge);
+        Assert.Contains("±2 %", node.CascadeNoConditionHint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_block_help_button_points_at_the_right_topic()
+    {
+        var cascade = new RecipeNodeViewModel(RecipeNode.Create(NodeType.CascadeControl));
+        var timer = new RecipeNodeViewModel(RecipeNode.Create(NodeType.Timer));
+
+        Assert.Equal(DocumentationCatalog.RecipeCascadeTopicId, cascade.DocumentationTopicId);
+        Assert.Equal(DocumentationCatalog.RecipeBlocksTopicId, timer.DocumentationTopicId);
+        Assert.NotNull(DocumentationCatalog.Find(cascade.DocumentationTopicId));
+        Assert.NotNull(DocumentationCatalog.Find(timer.DocumentationTopicId));
+    }
+
+    [Fact]
+    public void The_recipes_page_points_at_the_manual()
+    {
+        var xaml = ReadProjectFile(Path.Combine("Views", "ReceitasView.xaml"));
+
+        Assert.Contains("CommandParameter=\"receitas\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectedNode.DocumentationTopicId", xaml, StringComparison.Ordinal);
+
+        // The paragraph that ran over the ports is gone from the card.
+        Assert.DoesNotContain("Text=\"{Binding CascadeNoConditionHint}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CascadeNoConditionBadge", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

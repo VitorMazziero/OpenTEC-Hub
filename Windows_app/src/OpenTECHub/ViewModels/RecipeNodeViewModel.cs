@@ -358,13 +358,24 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Where the cascade's port column starts, measured from the top of the card.
+    /// </summary>
+    /// <remarks>
+    /// One origin for the card height and for every port offset. They were two constants
+    /// computing the same number, which is why growing the card's content moved the text over
+    /// the ports instead of moving the ports down.
+    /// </remarks>
+    private double CascadePortTopOffset =>
+        HeaderHeight + 12 + (2 * 18) + 12 + (IsCascadeWithoutExitCondition ? 26 : 0);
+
     public double Height
     {
         get
         {
             if (Type == NodeType.CascadeControl)
             {
-                return HeaderHeight + 12 + 2 * 18 + 12 + 48 + 16;
+                return CascadePortTopOffset + 48 + 16;
             }
 
             if (Type is NodeType.Start or NodeType.End or NodeType.And or NodeType.Or)
@@ -421,7 +432,26 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     /// <summary>True for a cascade whose Condição de Saída port is empty — it exits on settling.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Height))]
     public partial bool IsCascadeWithoutExitCondition { get; set; }
+
+    partial void OnIsCascadeWithoutExitConditionChanged(bool value)
+    {
+        // The chip is part of the card's height, so the ports below it move with it. Leaving
+        // them put is exactly the overlap this is fixing.
+        UpdatePortOffsets();
+    }
+
+    /// <summary>
+    /// Which page of the manual this block's help button opens.
+    /// </summary>
+    /// <remarks>
+    /// The cascade gets its own topic because it is the only block that contains a controller:
+    /// its PID, its four actuation modes and its windows need more room than a list entry, and
+    /// explaining it among the other eighteen would bury it.
+    /// </remarks>
+    public string DocumentationTopicId =>
+        Type == NodeType.CascadeControl ? "receitas-cascata" : "receitas-blocos";
 
     /// <summary>Chip shown on a block that the cascade reads rather than executes.</summary>
     public string LoopConditionBadge => "CONDIÇÃO DE SAÍDA";
@@ -435,7 +465,15 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         + "Enquanto for falso o controle de O₂ continua; quando ficar verdadeiro o loop encerra "
         + "e a receita segue pela Saída da cascata.";
 
-    /// <summary>Note shown on a cascade with nothing wired to its Condição de Saída.</summary>
+    /// <summary>Chip shown on a cascade with nothing wired to its Condição de Saída.</summary>
+    /// <remarks>
+    /// A chip, not a paragraph. Three lines of prose printed inside a 234 px card ran straight
+    /// over the port labels below it, so the block said what it does by hiding where to wire it.
+    /// The sentence lives in the tooltip and, in full, in the manual.
+    /// </remarks>
+    public string CascadeNoConditionBadge => "SAI AO ESTABILIZAR";
+
+    /// <summary>Tooltip of that chip: what "settling" means, and how to decide it yourself.</summary>
     public string CascadeNoConditionHint =>
         "Sem condição de saída: o loop encerra sozinho ao estabilizar (±2 % do SP por 3 leituras). "
         + "Ligue um Monitorar Variável, Temporizador ou Intervenção Manual à Condição de Saída "
@@ -914,7 +952,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     {
         if (Type == NodeType.CascadeControl)
         {
-            var topOffset = HeaderHeight + 12 + 2 * 18 + 12;
+            var topOffset = CascadePortTopOffset;
             foreach (var port in Ports)
             {
                 if (port.Port.Name == ConnectorNames.In)

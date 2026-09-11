@@ -88,12 +88,20 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="Mapeamento kLa" FontSize="{DynamicResource FontSizeTitle}"
-                           FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Mapeamento kLa" FontSize="{DynamicResource FontSizeTitle}"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Content="?" Width="22" Height="22" Padding="0" Margin="10,0,0,0" FontWeight="SemiBold"
+                            VerticalAlignment="Center" ToolTip="Abrir a documentação desta página"
+                            Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="kla-mapeamento" />
+                </StackPanel>
                 <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="Dados experimentais → superfície contínua → gradiente normalizado → máxima folga → perfil publicado"
                            Text="Dados experimentais → superfície contínua → gradiente normalizado → máxima folga → perfil publicado" />
             </StackPanel>
-            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right" Margin="12,0,2,0">
                 <Border Background="{DynamicResource AccentSubtleBrush}"
                         BorderBrush="{DynamicResource AccentBorderBrush}"
                         BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
@@ -283,7 +291,7 @@
                                 <DataGridTextColumn Header="kLa (h⁻¹)" Width="*"
                                     SortMemberPath="KlaValue"
                                     Binding="{Binding Kla, UpdateSourceTrigger=PropertyChanged}" />
-                                <DataGridTemplateColumn Header="" Width="34">
+                                <DataGridTemplateColumn Header="" Width="26">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="×" Padding="4,1"
@@ -296,15 +304,17 @@
                                 </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
-                        <WrapPanel Margin="0,7,0,0">
-                            <Button Content="+ Ponto" Padding="8,4" Command="{Binding AddAnchorCommand}" />
-                            <Button Content="Desenho 3²" Margin="6,0,0,0" Padding="8,4"
+                        <!-- 2x2 declarado, não quebra de linha por acaso: os quatro botões nunca
+                             couberam numa fileira desta coluna, e o WrapPanel os deixava desalinhados. -->
+                        <UniformGrid Columns="2" Rows="2" Margin="0,7,0,0">
+                            <Button Content="+ Ponto" Padding="8,4" Margin="0,0,3,3" Command="{Binding AddAnchorCommand}" />
+                            <Button Content="Desenho 3²" Margin="3,0,0,3" Padding="8,4"
                                     Command="{Binding CreateFactorialDesignCommand}" />
-                            <Button Content="Importar de Teste..." Margin="6,0,0,0" Padding="8,4"
+                            <Button Content="Importar de Teste..." Margin="0,3,3,0" Padding="8,4"
                                     Command="{Binding OpenImportFromTestDialogCommand}" ToolTip="Importar médias de replicatas aceitas de um teste de kLa" />
-                            <Button Content="Ordenar" Margin="6,0,0,0" Padding="8,4"
+                            <Button Content="Ordenar" Margin="3,3,0,0" Padding="8,4"
                                     Command="{Binding SortAnchorsCommand}" ToolTip="Ordenar por N e depois Qg" />
-                        </WrapPanel>
+                        </UniformGrid>
                         <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
                                    Text="O desenho 3² cria apenas coordenadas; kLa permanece em branco."
                                    Style="{StaticResource CaptionTextStyle}" />
@@ -531,14 +541,26 @@
                         <TextBox Text="{Binding ExperimentFilePath, Mode=OneWay}" IsReadOnly="True"
                                  FontSize="11" FontFamily="{DynamicResource FontMono}"
                                  TextWrapping="Wrap" />
-                        <WrapPanel Margin="0,6,0,0">
-                            <Button Content="Copiar caminho" Padding="8,4"
+                        <!-- Os três não cabem lado a lado nos 320 DIP da coluna: "Exportar"
+                             chegava cortado pela borda do card. Duas linhas, declaradas. -->
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Button Grid.Row="0" Grid.Column="0" Content="Copiar caminho" Padding="8,4"
                                     Command="{Binding CopyFilePathCommand}" />
-                            <Button Content="Abrir pasta" Margin="6,0,0,0" Padding="8,4"
+                            <Button Grid.Row="0" Grid.Column="2" Content="Abrir pasta" Padding="8,4"
                                     Command="{Binding OpenFolderCommand}" />
-                            <Button Content="Exportar..." Margin="6,0,0,0" Padding="8,4"
+                            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,6,0,0"
+                                    Content="Exportar..." Padding="8,4"
                                     Command="{Binding ExportExperimentCommand}" />
-                        </WrapPanel>
+                        </Grid>
                     </StackPanel>
                 </ScrollViewer>
             </Border>

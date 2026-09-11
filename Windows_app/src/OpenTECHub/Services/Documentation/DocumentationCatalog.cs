@@ -93,6 +93,8 @@ public static class DocumentationCatalog
     public const string RecipesTopicId = "receitas";
     public const string RecipeBlocksTopicId = "receitas-blocos";
     public const string RecipeCascadeTopicId = "receitas-cascata";
+    public const string KlaDeterminationTopicId = "kla-determinacao";
+    public const string KlaMappingTopicId = "kla-mapeamento";
     public const string PowerTareTopicId = "potencia-tara";
     public const string PowerSinglePointTopicId = "potencia-ponto-unico";
     public const string PowerElectricalTopicId = "potencia-correlacao-eletrica";
@@ -396,6 +398,134 @@ public static class DocumentationCatalog
                     F("Predefinição Salva · Carregar", "Traz para o bloco um conjunto inteiro de ganhos, faixas e limites já validado. É como se reaproveita a sintonia de um cultivo no seguinte."),
                     F("Salvar como…", "Grava a sintonia atual do bloco sob um nome, para os próximos ensaios."),
                     N("A predefinição guarda a sintonia, não o setpoint do experimento: confira o SP de O₂ depois de carregar uma."),
+                ]),
+            ]),
+
+        // ═══════════════════════════════════════════════════ Determinar kLa
+        new DocumentationTopic(
+            KlaDeterminationTopicId,
+            "Determinar kLa",
+            "O ensaio de gassing-out: como a corrida acontece, o que cada card controla e como a curva vira um kLa aceito.",
+            [
+                new DocumentationSection("O que a página faz", [
+                    P("Esta página mede o **coeficiente volumétrico de transferência de oxigênio (kLa)** pelo método dinâmico de gassing-out, em meio abiótico. O ensaio tira o oxigênio do líquido com nitrogênio, devolve ar e observa a velocidade com que o oxigênio volta: quanto mais rápido, maior o kLa daquela condição de rotação e vazão."),
+                    P("A cada corrida o aplicativo ajusta `ln(C* − C)` contra o tempo. Num sistema de primeira ordem essa reta tem inclinação `−kLa`, e é dela que o número sai — com R², RMSE e intervalo de confiança, porque uma inclinação sem incerteza não é uma medida."),
+                    N("O ensaio é **abiótico**: não há consumo de oxigênio por células. Rodar com cultivo dentro invalida a hipótese do ajuste, não apenas o valor."),
+                ]),
+                new DocumentationSection("Como a página é organizada", [
+                    F("Cabeçalho", "Estado do ensaio, as leituras ao vivo (OD dissolvido, vazão atual, tempo da fase e tempo total) e as ações de ensaio: Novo Teste, Importar Teste, Parar e Revisar, Concluir Teste e Abortar."),
+                    F("Coluna esquerda", "A preparação e a decisão: a matriz de condições, o card de revisão e aceite, e os limiares de operação."),
+                    F("Coluna direita", "Os três gráficos da corrida. Em janela estreita eles viram um seletor — Oxigênio, Regressão e Diagnóstico — em vez de encolherem até não mostrarem eixo."),
+                ]),
+                new DocumentationSection("Matriz de condições", [
+                    P("Uma linha por **replicata**, não por condição: três réplicas de 300 rpm e 2 L/min são três linhas, e cada uma vira uma corrida com a sua própria curva e o seu próprio arquivo."),
+                    F("N (rpm) · Q (L/min) · Reps · +", "Inclui uma condição na matriz, com a quantidade de réplicas pedidas."),
+                    F("Status", "Onde aquela réplica está: pendente, em andamento, aceita ou rejeitada."),
+                    F("kLa", "O valor aceito daquela réplica, quando já houver um."),
+                    F("Ações", "O ícone de tendência recarrega a curva e os resultados daquela corrida para revisão; a lixeira remove a condição da matriz, com confirmação."),
+                    F("Executar Sequência", "Roda a matriz sozinha. A caixa de diálogo deixa escolher entre executar **apenas as pendentes** — as que ainda não têm réplica aceita — ou a matriz inteira."),
+                ]),
+                new DocumentationSection("Como uma corrida acontece", [
+                    P("Cada corrida segue a mesma sequência de fases, e o cabeçalho mostra em qual delas o ensaio está:"),
+                    B("**Fechar gases** — o ensaio confirma pelo fluxômetro que tudo está fechado antes de começar. Sem essa confirmação nada avança."),
+                    B("**Abrir N₂ e desoxigenar** — o nitrogênio entra com a rotação de desgaseificação até o oxigênio cair abaixo do limiar de desligamento."),
+                    B("**Fechar N₂ e esperar estabilizar** — o gás é cortado e o ensaio espera a leitura parar de cair, medindo a derivada do sinal. É o que garante que o `t₀` não pegue a sonda ainda em queda."),
+                    B("**Alívio (opcional)** — quando a montagem tem válvula de alívio, a vazão é estabilizada fora do vaso antes de entrar, para que o pulso inicial do fluxômetro não contamine o começo da curva."),
+                    B("**Abrir ar e reoxigenar** — a curva que interessa. Termina quando o oxigênio atinge o limiar superior."),
+                    B("**Parar e revisar** — as válvulas fecham e a corrida espera a sua decisão."),
+                    N("Fluxômetro offline, leitura de oxigênio inválida ou telemetria parada abortam a corrida em vez de continuar medindo às cegas."),
+                ]),
+                new DocumentationSection("Revisão e aceite", [
+                    P("É aqui que a curva vira número. O ajuste automático propõe uma região; você confere e, se quiser, corrige."),
+                    F("Região Linear (s)", "O trecho da reoxigenação usado no ajuste log-linear. Encurtar pela esquerda descarta o transiente inicial; encurtar pela direita descarta a saturação."),
+                    F("Região C* (s)", "O trecho da cauda usado para estimar a concentração de equilíbrio."),
+                    F("Ceq (%)", "Fixa o C* manualmente, em vez de estimá-lo. A caixa ao lado liga o modo manual."),
+                    F("Recalcular", "Refaz o ajuste com as regiões e o C* que estão na tela."),
+                    F("kLa Estimado · IC 95%", "O resultado e o seu intervalo de confiança."),
+                    F("R² · RMSE · Sensib.", "A qualidade do ajuste e quanto o kLa mudaria se o C* fosse outro. Sensibilidade alta quer dizer que o número depende mais da escolha de C* do que da curva."),
+                    F("Aceitar Corrida", "Grava a análise como revisão daquela réplica e marca a matriz."),
+                    F("Rejeitar", "Registra a corrida como inconclusiva, com motivo. Os dados brutos continuam em disco."),
+                    F("Repetir", "Roda de novo a mesma condição; a tentativa anterior é preservada numa pasta própria."),
+                    F("Aceite Automático", "Aceita sozinho as corridas que passam nos critérios. Útil para uma matriz longa sem operador presente — e a razão para conferir os limiares antes."),
+                    N("Reanalisar uma corrida cria uma **nova revisão**, não sobrescreve a anterior: o histórico de análises fica no arquivo do ensaio."),
+                ]),
+                new DocumentationSection("Limiares de operação", [
+                    F("Desligar N₂ (%)", "O oxigênio abaixo do qual o nitrogênio é cortado — o piso da curva."),
+                    F("DO Máx (%)", "O oxigênio em que a reoxigenação termina — o teto da curva."),
+                    F("Rot. N₂ (rpm)", "A rotação usada durante a desgaseificação, que não precisa ser a da condição."),
+                    F("Engrenagem", "Abre os **parâmetros avançados**: tempos máximos de desoxigenação e reoxigenação, a espera após desligar o N₂ (atraso mínimo, janela da derivada, confirmações consecutivas, espera máxima), a estabilização no alívio e os padrões da análise automática (suavização e Ceq inicial). Alterações válidas valem ao vivo."),
+                ]),
+                new DocumentationSection("Os três gráficos", [
+                    F("Oxigênio Dissolvido", "A corrida como ela acontece: OD bruto e filtrado, as linhas de DO mín e DO máx e o ajuste exponencial correspondente ao kLa estimado."),
+                    F("Regressão Log-Linear", "`ln(C* − C)` contra o tempo, com a reta de mínimos quadrados. É o gráfico em que um ajuste ruim aparece como curvatura — algo que o R² sozinho não conta."),
+                    F("kLa Instantâneo Diagnóstico", "O kLa calculado ponto a ponto e o valor final. Um kLa instantâneo que deriva ao longo da janela indica região linear mal escolhida."),
+                ]),
+                new DocumentationSection("O que fica gravado", [
+                    P("Cada ensaio é uma pasta autocontida em `Testes-kLa/`, e cada réplica tem a sua."),
+                    B("`dados-brutos.csv` da corrida: todo quadro recebido, em todas as fases — inclusive N₂ e intertravamentos — com temperatura e rotação medida."),
+                    B("`serie-global.csv`: o ensaio inteiro, do início ao fim, mesmo entre corridas."),
+                    B("`analise.json` com as revisões e o hash dos dados brutos, `resultado.csv` por corrida e `resumo-resultados.csv` por condição."),
+                    F("Importar Teste", "Abre um ensaio salvo para visualizar e reanalisar as curvas, sem tocar no equipamento."),
+                    F("Concluir Teste · Abortar", "Encerram o ensaio: o primeiro o marca como concluído; o segundo interrompe e fecha os gases com segurança."),
+                ]),
+            ]),
+
+        // ══════════════════════════════════════════════════ Mapeamento kLa
+        new DocumentationTopic(
+            KlaMappingTopicId,
+            "Mapeamento kLa",
+            "Dos pontos medidos à trajetória publicada: a superfície contínua, o gradiente, a folga aos limites e o que a cascata consome.",
+            [
+                new DocumentationSection("O que a página faz", [
+                    P("O mapeamento transforma os kLa medidos em pontos isolados numa **superfície contínua** sobre o plano (vazão de ar, agitação), e sobre ela calcula o caminho que a cascata deve percorrer para aumentar o kLa mantendo-se o mais longe possível dos limites dos atuadores."),
+                    P("A cadeia é a do artigo, e a página a exibe no subtítulo: dados experimentais → superfície contínua → gradiente normalizado → máxima folga → perfil publicado."),
+                    N("**Esta página nunca envia comandos.** Ela é ajuste científico; o que ela produz só chega ao reator quando uma cascata configurada no modo *Mapa* consome o perfil publicado."),
+                ]),
+                new DocumentationSection("Como a página é organizada", [
+                    F("Coluna esquerda — Dados", "Experimentos, identificação, domínio dos atuadores e a tabela de pontos medidos."),
+                    F("Centro — Superfície", "O mapa de kLa com o gradiente e a trajetória, e abaixo dele a classificação por folga média aos limites."),
+                    F("Coluna direita — Diagnóstico", "Identidade do algoritmo, parâmetros numéricos, diagnóstico científico, recusas e o estado de publicação."),
+                    F("Rodapé", "Salvar experimento, Estimar superfície, Calcular trajetória, Cancelar e Publicar para controle."),
+                    B("Abaixo de 1200 DIP as três colunas viram um seletor Dados / Superfície / Diagnóstico. Nada é removido: a seção fora da tela mantém o estado."),
+                ]),
+                new DocumentationSection("Experimento e domínio", [
+                    F("Novo experimento · Criar", "Cada experimento é um arquivo próprio em `Mapas/`, com os seus pontos e a sua superfície."),
+                    F("Duplicar · Excluir · Importar…", "Reaproveitar um experimento como base, removê-lo ou trazer um arquivo de fora."),
+                    F("Nome · Caldo / meio · Ensaio / lote · Notas", "A identificação que torna o mapa citável depois. O meio importa: kLa medido em água não descreve um caldo viscoso."),
+                    F("Qg mín. / máx. · N mín. / máx.", "O **domínio dos atuadores**: os limites dentro dos quais a superfície é construída e a trajetória pode andar. São os limites do equipamento e do ensaio, não da matemática."),
+                ]),
+                new DocumentationSection("Pontos medidos", [
+                    F("Tabela N · Qg · kLa", "Os pontos experimentais. Cada linha é uma condição medida e o seu kLa; o × remove a linha."),
+                    F("+ Ponto", "Acrescenta uma linha em branco para digitar."),
+                    F("Desenho 3²", "Gera as nove coordenadas de um fatorial 3×3 dentro do domínio. Cria **apenas as coordenadas**: o kLa de cada uma continua em branco até ser medido."),
+                    F("Importar de Teste…", "Traz as médias das réplicas aceitas de um ensaio da página Determinar kLa. É o caminho normal — medir lá, mapear aqui, sem digitar número."),
+                    F("Ordenar", "Ordena por N e depois por Qg, o que torna a tabela conferível a olho."),
+                    N("A superfície só é definida dentro do fecho convexo dos pontos. Fora dele nada é extrapolado em silêncio — a região aparece indefinida."),
+                ]),
+                new DocumentationSection("Superfície, gradiente e trajetória", [
+                    F("Estimar superfície", "Ajusta a superfície contínua aos pontos medidos. O painel de diagnóstico passa a mostrar faixa, resíduos e cobertura."),
+                    F("Calcular trajetória", "Integra o caminho de subida sobre a superfície, escolhendo a condição inicial de maior folga aos limites."),
+                    F("Mapa de superfície", "As cores são o kLa; os traços cinza, o gradiente normalizado — a direção de maior aumento em cada ponto; a linha azul, a trajetória; o ponto laranja, a condição inicial escolhida."),
+                    F("Classificação por folga média", "O segundo mapa varre condições iniciais e mostra a folga média aos limites de cada uma. A crista clara é o conjunto de partidas que ficam longe das bordas por mais tempo — e o ponto azul é a escolhida."),
+                    F("Referência · Prévia rápida", "Referência restaura os parâmetros numéricos do artigo; a prévia calcula numa malha grosseira, para ver o efeito de uma mudança sem esperar o cálculo completo."),
+                ]),
+                new DocumentationSection("Diagnóstico científico", [
+                    P("A coluna direita existe para que o mapa possa ser defendido, não apenas exibido."),
+                    F("Identidade do algoritmo", "O método exato: interpolação Clough–Tocher em malha 300×300, preenchimento por vizinho mais próximo, suavização gaussiana, spline bicúbica, integração RK45 e a malha de folga 150×150. **Parâmetros de referência: True** quer dizer que nada foi alterado em relação ao artigo."),
+                    F("Faixa da superfície", "Os kLa mínimo e máximo que a superfície assume no domínio."),
+                    F("Resíduos nos pontos medidos", "RMSE e maior desvio entre a superfície e os pontos que a geraram. É a primeira coisa a olhar: resíduo grande é superfície que não descreve os próprios dados."),
+                    F("Cobertura do domínio", "Quanto do domínio a superfície define, e quantos nós dependeram do vizinho mais próximo em vez da interpolação."),
+                    F("Condição inicial selecionada", "O ponto de partida da trajetória, em unidades normalizadas e físicas."),
+                    F("Folga média normalizada", "A folga da trajetória escolhida e a melhor avaliada. Iguais significam que a escolha foi a melhor disponível."),
+                    F("Relação de alocação", "A faixa de kLa que a trajetória percorre, o seu comprimento e quantos pontos ela tem."),
+                    F("Superfície · Trajetória (hashes)", "Identificam esta revisão exata. É o que um resultado cita para dizer qual mapa o gerou."),
+                    F("Recusas e avisos", "O que o cálculo se recusou a fazer — e por quê. Silêncio aqui é diferente de ausência de problema: significa que nada foi recusado."),
+                ]),
+                new DocumentationSection("Publicar e arquivar", [
+                    F("Publicar para controle", "Torna o perfil disponível para a cascata de oxigênio. Antes disso, **Disponibilidade para controle** diz *não publicado*, e nenhuma cascata pode consumi-lo."),
+                    F("Última publicação", "Quando o perfil em uso foi publicado — o que distingue o mapa que está na tela do que está sendo usado."),
+                    F("Arquivo no disco · Copiar caminho · Abrir pasta · Exportar…", "Onde o experimento está gravado e como levá-lo para outro lugar."),
+                    B("Na receita, o bloco Controle de O₂ no modo *Mapa (trajetória kLa)* é quem consome o perfil publicado — veja o assunto Receitas · Cascata de O₂."),
                 ]),
             ]),
 

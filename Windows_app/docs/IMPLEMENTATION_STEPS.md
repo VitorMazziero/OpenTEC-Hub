@@ -346,7 +346,7 @@ flowchart TD
 
 ### Etapa 2.4 · Documentação no aplicativo e limpeza de texto dos cards
 - **Prioridade:** P1 para usabilidade de bancada
-- **Status:** ✅ **Painel, Controle, Receitas (três assuntos) e os quatro assuntos de Potência CONCLUÍDOS (10/09/2026)** — demais páginas em aberto abaixo
+- **Status:** ✅ **Painel, Controle, Receitas (três assuntos), Determinar kLa, Mapeamento kLa e os quatro assuntos de Potência CONCLUÍDOS (10/09/2026)** — demais páginas em aberto abaixo
 - **Fonte:** [DECISIONS.md](DECISIONS.md#d-047--a-explicação-sai-do-card-e-vira-documentação-no-aplicativo)
 - **Arquivos-Chave:**
   - `src/OpenTECHub/Services/Documentation/DocumentationCatalog.cs` (o conteúdo, como dado)
@@ -371,8 +371,8 @@ flowchart TD
   4. [x] **Receitas** (`receitas`) — conceito e possibilidades, página parte por parte, montagem, salvar/JSON, execução e o bloqueio do controle manual, famílias de blocos
   5. [x] **Receitas · Blocos** (`receitas-blocos`) — os dezenove blocos, com o que muda por contexto
   6. [x] **Receitas · Cascata de O₂** (`receitas-cascata`) — PID, quatro modos de atuação, faixas, janelas, anti-windup e predefinições
-  7. [ ] Determinar kLa
-  8. [ ] Mapeamento kLa
+  7. [x] **Determinar kLa** (`kla-determinacao`) — o método, as fases da corrida, a matriz, revisão e aceite, limiares, os três gráficos e o que fica gravado
+  8. [x] **Mapeamento kLa** (`kla-mapeamento`) — pontos → superfície → gradiente → trajetória de máxima folga → publicação, com o diagnóstico científico campo a campo
   9. [ ] Potência — montagem e aquisição (fluido, vaso, impelidores, tabela de condições)
   10. [ ] Mapa de Potência (modelos, comparação de impelidores, escalonamento)
   11. [ ] Calibrações

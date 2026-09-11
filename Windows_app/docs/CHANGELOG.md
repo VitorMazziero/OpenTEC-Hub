@@ -27,7 +27,21 @@ All notable changes to OpenTEC-Hub. Version numbers follow
   teste exige verbete para cada bloco declarado no catálogo. O manual passa a interpretar
   `**negrito**` inline.
 
+- **Determinar kLa e Mapeamento kLa documentados (D-047).** O ensaio de gassing-out — o método, as
+  fases de cada corrida, a matriz de réplicas, a revisão que transforma a curva em número (região
+  linear, região C*, R², RMSE, sensibilidade a C*) e o que fica gravado — e o mapeamento, da tabela
+  de pontos à trajetória publicada, com o diagnóstico científico campo a campo e o lembrete de que a
+  página **nunca envia comandos**.
+
 ### Changed
+- **Cards de kLa que não cabiam na coluna (D-047).** Em Determinar kLa: o botão **Executar
+  Sequência** chegava cortado porque o título era declarado antes dele no `DockPanel`; as colunas da
+  matriz somavam 318 DIP numa faixa de ~310 e comiam a coluna de ações; e os três pares rótulo/campo
+  de **Limiares de Operação** e da inclusão manual deixavam os últimos campos sem largura. Rótulo em
+  cima do campo, larguras que somam menos que a coluna, e o botão declarado primeiro. Em Mapeamento
+  kLa: os quatro botões da tabela de pontos viraram uma grade 2×2 declarada em vez de quebra de linha
+  por acaso, e os três botões de arquivo passaram a duas linhas — "Exportar" chegava cortado pela
+  borda do card.
 - **O bloco de cascata deixou de escrever por cima das próprias portas (D-047).** O parágrafo que o
   card imprimia quando nada estava ligado à Condição de Saída virou o selo **SAI AO ESTABILIZAR**,
   com a frase na dica de contexto e completa no manual. A altura do card e a posição das portas

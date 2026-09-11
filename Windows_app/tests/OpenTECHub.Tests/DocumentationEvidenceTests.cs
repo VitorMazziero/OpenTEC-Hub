@@ -66,12 +66,42 @@ public sealed class DocumentationEvidenceTests
         });
     }
 
+    [Fact]
+    public void Capture_the_kla_determination_page_with_its_uncropped_cards()
+    {
+        WpfRenderingHost.Run(() =>
+        {
+            var shell = WpfRenderingHost.Services.GetRequiredService<ShellViewModel>();
+            var view = new KlaDeterminationView { DataContext = shell.KlaDetermination };
+            var bitmap = WpfRenderingHost.RenderElement(view, 1280, 860);
+
+            Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
+            Save(bitmap, "kla-determinacao.png");
+        });
+    }
+
+    [Fact]
+    public void Capture_the_kla_mapping_page_with_its_deliberate_button_grid()
+    {
+        WpfRenderingHost.Run(() =>
+        {
+            var shell = WpfRenderingHost.Services.GetRequiredService<ShellViewModel>();
+            var view = new KlaMappingView { DataContext = shell.KlaMapping };
+            var bitmap = WpfRenderingHost.RenderElement(view, 1280, 860);
+
+            Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
+            Save(bitmap, "kla-mapeamento.png");
+        });
+    }
+
     [Theory]
     [InlineData(DocumentationCatalog.DashboardTopicId, "documentacao-painel.png")]
     [InlineData(DocumentationCatalog.ControlTopicId, "documentacao-controle.png")]
     [InlineData(DocumentationCatalog.RecipesTopicId, "documentacao-receitas.png")]
     [InlineData(DocumentationCatalog.RecipeBlocksTopicId, "documentacao-receitas-blocos.png")]
     [InlineData(DocumentationCatalog.RecipeCascadeTopicId, "documentacao-receitas-cascata.png")]
+    [InlineData(DocumentationCatalog.KlaDeterminationTopicId, "documentacao-kla-determinacao.png")]
+    [InlineData(DocumentationCatalog.KlaMappingTopicId, "documentacao-kla-mapeamento.png")]
     [InlineData(DocumentationCatalog.PowerTareTopicId, "documentacao-potencia-tara.png")]
     public void Capture_the_documentation_section_for_a_topic(string topicId, string fileName)
     {

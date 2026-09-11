@@ -114,6 +114,10 @@
                     <Button Content="Parar e Revisar" Margin="3,0" Command="{Binding StopRunCommand}" IsEnabled="{Binding IsRunning}" />
                     <Button Content="Concluir Teste" Margin="3,0" Command="{Binding CompleteTestCommand}" IsEnabled="{Binding HasActiveTest}" />
                     <Button Content="Abortar" Margin="3,0" Command="{Binding AbortTestCommand}" IsEnabled="{Binding HasActiveTest}" />
+                    <Button Content="?" Width="30" Margin="8,0,0,0" Padding="0,4" FontWeight="SemiBold"
+                            ToolTip="Abrir a documentação desta página"
+                            Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="kla-determinacao" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -134,13 +138,19 @@
                     <!-- 1. Matriz de Condições Experimentais -->
                     <Border Style="{StaticResource KlaCard}" Margin="0,0,0,10" Padding="14,10">
                         <StackPanel>
+                            <!-- O botão vem antes do título no DockPanel: num painel de 360 DIP
+                                 quem é declarado primeiro reserva o seu espaço, e era o botão que
+                                 chegava cortado ("Executar Sequê"). O título cede e usa elipse. -->
                             <DockPanel Margin="0,0,0,8">
-                                <TextBlock Text="Matriz de Condições Experimentais" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
-                                <Button DockPanel.Dock="Right" Content="Executar Sequência" HorizontalAlignment="Right"
-                                        Height="32" Padding="14,4" FontSize="12" FontWeight="SemiBold"
+                                <Button DockPanel.Dock="Right" Content="Executar Sequência"
+                                        Height="32" Padding="12,4" FontSize="12" FontWeight="SemiBold"
                                         Style="{StaticResource AccentButtonStyle}"
                                         Command="{Binding OpenStartSequenceDialogCommand}"
                                         IsEnabled="{Binding CanStartSequence}" />
+                                <TextBlock Text="Matriz de Condições" FontWeight="SemiBold" FontSize="13"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="Matriz de condições experimentais: uma linha por replicata" />
                             </DockPanel>
 
                             <!-- Condition Table with individual replicate rows -->
@@ -149,12 +159,14 @@
                                       Height="140" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                       BorderThickness="1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="28" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="62" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="Q (L/min)" Binding="{Binding AirflowLpm, StringFormat={}{0:F2}}" Width="68" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="Status" Binding="{Binding DisplayStatus}" Width="90" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="kLa (h⁻¹)" Binding="{Binding DisplayKla}" Width="70" IsReadOnly="True" />
-                                    <DataGridTemplateColumn Header="Ações" Width="*">
+                                    <!-- Larguras somando menos que a coluna: as antigas somavam 318 DIP
+                                         numa faixa de ~310, e a coluna de ações chegava cortada. -->
+                                    <DataGridTextColumn Header="#" Binding="{Binding OrderIndex}" Width="24" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="N" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="44" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Q" Binding="{Binding AirflowLpm, StringFormat={}{0:F2}}" Width="48" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding DisplayStatus}" Width="*" MinWidth="58" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="kLa" Binding="{Binding DisplayKla}" Width="56" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Ações" Width="66">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -182,25 +194,37 @@
                             </DataGrid>
 
                             <!-- Integrated Manual Add Row (Inline Labels & Tight Alignment) -->
-                            <DockPanel Margin="0,8,0,0">
-                                <Button DockPanel.Dock="Right" Width="30" Height="30" Padding="0" VerticalAlignment="Center"
+                            <!-- Rótulo em cima do campo: lado a lado, três pares mais o botão
+                                 somavam mais que a coluna e o último campo ficava sem largura. -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="52" />
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="N (rpm)" Style="{StaticResource KlaHeaderLabel}" FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding NewConditionRpm, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Q (L/min)" Style="{StaticResource KlaHeaderLabel}" FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding NewConditionFlow, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Reps" Style="{StaticResource KlaHeaderLabel}" FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding NewConditionReplicates, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" />
+                                </StackPanel>
+                                <Button Grid.Column="6" Width="30" Height="30" Padding="0" VerticalAlignment="Bottom"
                                         Command="{Binding AddManualConditionCommand}" IsEnabled="{Binding CanStartSequence}"
                                         Style="{StaticResource AccentButtonStyle}"
                                         ToolTip="Adicionar condição manual à matriz">
                                     <ctl:Icon Key="Plus" Size="14" Stroke="{DynamicResource TextOnAccentBrush}" />
                                 </Button>
-
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="N (rpm):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
-                                    <TextBox Text="{Binding NewConditionRpm, UpdateSourceTrigger=PropertyChanged}" Width="65" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" Margin="0,0,14,0" />
-
-                                    <TextBlock Text="Q (L/min):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
-                                    <TextBox Text="{Binding NewConditionFlow, UpdateSourceTrigger=PropertyChanged}" Width="55" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" Margin="0,0,14,0" />
-
-                                    <TextBlock Text="Reps:" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5" />
-                                    <TextBox Text="{Binding NewConditionReplicates, UpdateSourceTrigger=PropertyChanged}" Width="48" Height="30" Padding="4,3" TextAlignment="Center" FontSize="11.5" Margin="0,0,8,0" />
-                                </StackPanel>
-                            </DockPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -335,26 +359,29 @@
                                 </Button>
                             </DockPanel>
 
-                            <!-- DO Mín, DO Máx, Rot. N2 (1 Linha Compacta) -->
+                            <!-- Três pares rótulo/campo em uma linha deixavam cada campo com o que
+                                 sobrava do rótulo — alguns com zero. Rótulo em cima, campos iguais. -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaLbl1" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaLbl2" />
+                                    <ColumnDefinition Width="8" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaLbl3" />
+                                    <ColumnDefinition Width="8" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="KlaBtnCol" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Desligar N₂ (%):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
-                                <TextBox Grid.Column="1" Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" Margin="0,0,8,0" />
-
-                                <TextBlock Grid.Column="2" Text="DO Máx (%):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
-                                <TextBox Grid.Column="3" Text="{Binding SettingDOMax, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" Margin="0,0,8,0" />
-
-                                <TextBlock Grid.Column="4" Text="Rot. N₂ (rpm):" Style="{StaticResource KlaHeaderLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" />
-                                <TextBox Grid.Column="5" Grid.ColumnSpan="2" Text="{Binding SettingDegassingAgitation, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" FontSize="11.5" />
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Desligar N₂ (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding SettingDOMin, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" TextAlignment="Center" FontSize="11.5" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="DO Máx (%)" Style="{StaticResource KlaHeaderLabel}" FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding SettingDOMax, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" TextAlignment="Center" FontSize="11.5" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Rot. N₂ (rpm)" Style="{StaticResource KlaHeaderLabel}" FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding SettingDegassingAgitation, UpdateSourceTrigger=PropertyChanged}" Height="30" Padding="6,3" TextAlignment="Center" FontSize="11.5" />
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Border>

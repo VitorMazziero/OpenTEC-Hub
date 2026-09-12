@@ -364,3 +364,52 @@ const unsigned long AGITATOR_TIMEOUT = 3000;
 
 bool servoCommOn = true;  // NVS mirror; ServoDevice is the synchronized runtime owner.
 
+// ---------- Device Registry (Auto-Discovery & Presence) ----------
+enum ExternalDeviceId {
+  DEV_DISTANCE = 0,
+  DEV_AGITATOR,
+  DEV_PUMP,
+  DEV_FLOWMETER,
+  DEV_BIOMASS,
+  DEV_COUNT
+};
+
+struct DeviceNodeEntry {
+  const char* name;
+  IPAddress ip;
+  char mac[18];
+  char version[16];
+  unsigned long lastHelloMs;
+  unsigned long lastDataMs;
+  bool registered;
+};
+
+DeviceNodeEntry g_deviceRegistry[DEV_COUNT] = {
+  { "distance",  IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "agitator",  IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "pump",      IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "flowmeter", IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "biomass",   IPAddress(0, 0, 0, 0), "", "", 0, 0, false }
+};
+
+inline void recordDeviceActivity(ExternalDeviceId devId, const IPAddress& ip, unsigned long nowMs, bool isHello, const char* ver = nullptr, const char* mac = nullptr) {
+  if (devId >= DEV_COUNT) return;
+  DeviceNodeEntry& entry = g_deviceRegistry[devId];
+  if (ip != IPAddress(0, 0, 0, 0)) {
+    entry.ip = ip;
+  }
+  if (isHello) {
+    entry.lastHelloMs = nowMs;
+    entry.registered = true;
+    if (ver && ver[0] != '\0') {
+      strncpy(entry.version, ver, sizeof(entry.version) - 1);
+      entry.version[sizeof(entry.version) - 1] = '\0';
+    }
+    if (mac && mac[0] != '\0') {
+      strncpy(entry.mac, mac, sizeof(entry.mac) - 1);
+      entry.mac[sizeof(entry.mac) - 1] = '\0';
+    }
+  } else {
+    entry.lastDataMs = nowMs;
+  }
+}

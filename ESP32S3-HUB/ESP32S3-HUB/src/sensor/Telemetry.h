@@ -54,7 +54,13 @@ void readAndBroadcastSensorData() {
   String snapAgitatorSource = "unknown";
   unsigned long snapDistanceUpdate = 0, snapBiomassUpdate = 0, snapBiomassSampleUpdate = 0;
   unsigned long snapPumpUpdate = 0, snapAgitatorUpdate = 0;
+  IPAddress snapDistIp, snapAgitIp, snapPumpIp, snapFlowIp, snapBioIp;
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    snapDistIp = g_deviceRegistry[DEV_DISTANCE].ip;
+    snapAgitIp = g_deviceRegistry[DEV_AGITATOR].ip;
+    snapPumpIp = g_deviceRegistry[DEV_PUMP].ip;
+    snapFlowIp = g_deviceRegistry[DEV_FLOWMETER].ip;
+    snapBioIp  = g_deviceRegistry[DEV_BIOMASS].ip;
     snapDistanceComm = distanceSensorCommOn;
     snapDistanceValue = distanceSensorValue;
     snapDistanceUpdate = distanceSensorLastUpdate;
@@ -277,6 +283,12 @@ void readAndBroadcastSensorData() {
     jsonResponse += ",\"ServoCommOk\":" + String(servoSnapshot.sample.commOk);
     jsonResponse += ",\"ServoCommErr\":" + String(servoSnapshot.sample.commErr);
   }
+
+  jsonResponse += ",\"DistanceIP\":\"" + snapDistIp.toString() + "\"";
+  jsonResponse += ",\"AgitatorIP\":\"" + snapAgitIp.toString() + "\"";
+  jsonResponse += ",\"PumpIP\":\"" + snapPumpIp.toString() + "\"";
+  jsonResponse += ",\"FlowmeterIP\":\"" + snapFlowIp.toString() + "\"";
+  jsonResponse += ",\"BiomassIP\":\"" + snapBioIp.toString() + "\"";
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";

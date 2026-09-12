@@ -154,6 +154,7 @@ void startWiFi() {
           distanceSensorTime = request->getParam("time")->value().toFloat();
         }
         distanceSensorLastUpdate = millis();
+        recordDeviceActivity(DEV_DISTANCE, request->client()->remoteIP(), distanceSensorLastUpdate, false);
         acceptedDistance = distanceSensorValue;
         xSemaphoreGive(stateMutex);
       }
@@ -248,6 +249,11 @@ void startWiFi() {
           xSemaphoreGive(cmdMutex);
         }
 
+        if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+          recordDeviceActivity(DEV_FLOWMETER, request->client()->remoteIP(), millis(), false);
+          xSemaphoreGive(stateMutex);
+        }
+
         if (ackedNow) {
           ESP32_EVT(String("Flow command acknowledged cmd_id=") + ackedRevision);
         }
@@ -269,6 +275,7 @@ void startWiFi() {
         // that it has already applied.
         if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
           biomassLastUpdate = millis();
+          recordDeviceActivity(DEV_BIOMASS, request->client()->remoteIP(), biomassLastUpdate, false);
           xSemaphoreGive(stateMutex);
         }
         ackReliable(biomassBox, readAckParam(request), "Biomass");
@@ -303,6 +310,7 @@ void startWiFi() {
       // Check for the minimal required parameters
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
         pumpLastUpdate = millis();
+        recordDeviceActivity(DEV_PUMP, request->client()->remoteIP(), pumpLastUpdate, false);
         xSemaphoreGive(stateMutex);
       }
       ackReliable(pumpBox, readAckParam(request), "Pump");
@@ -344,6 +352,7 @@ void startWiFi() {
         if (request->hasParam("pot")) agitatorPotActive = request->getParam("pot")->value().toInt() != 0;
         if (request->hasParam("src")) agitatorSource    = request->getParam("src")->value();
         agitatorLastUpdate = millis();
+        recordDeviceActivity(DEV_AGITATOR, request->client()->remoteIP(), agitatorLastUpdate, false);
         xSemaphoreGive(stateMutex);
       }
       ackReliable(agitatorBox, readAckParam(request), "Agitator");
@@ -428,8 +437,79 @@ void startWiFi() {
 
     server.on("/agitatorHello", HTTP_GET, [](AsyncWebServerRequest *request) {
       IPAddress rip = request->client()->remoteIP();
+      unsigned long now = millis();
+      if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        recordDeviceActivity(DEV_AGITATOR, rip, now, true, "rev-h", "");
+        xSemaphoreGive(stateMutex);
+      }
       String msg = String("{\"hello\":\"agitator\",\"ip\":\"") + rip.toString() + "\"}";
       request->send(200, "application/json", msg);
+    });
+
+    server.on("/nodeHello", HTTP_GET, [](AsyncWebServerRequest *request) {
+      if (!request->hasParam("dev")) {
+        request->send(400, "application/json", "{\"error\":\"Missing 'dev' parameter\"}");
+        return;
+      }
+      String devName = request->getParam("dev")->value();
+      String ver = request->hasParam("ver") ? request->getParam("ver")->value() : "";
+      String mac = request->hasParam("mac") ? request->getParam("mac")->value() : "";
+      IPAddress clientIp = request->client()->remoteIP();
+      unsigned long now = millis();
+
+      ExternalDeviceId devId = DEV_COUNT;
+      if (devName == "distance") devId = DEV_DISTANCE;
+      else if (devName == "agitator") devId = DEV_AGITATOR;
+      else if (devName == "pump") devId = DEV_PUMP;
+      else if (devName == "flowmeter") devId = DEV_FLOWMETER;
+      else if (devName == "biomass") devId = DEV_BIOMASS;
+
+      if (devId != DEV_COUNT) {
+        if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+          recordDeviceActivity(devId, clientIp, now, true, ver.c_str(), mac.c_str());
+          xSemaphoreGive(stateMutex);
+        }
+        char resp[192];
+        snprintf(resp, sizeof(resp),
+                 "{\"status\":\"ok\",\"registered\":\"%s\",\"assigned_ip\":\"%s\",\"hub_time_ms\":%lu}",
+                 devName.c_str(), clientIp.toString().c_str(), now);
+        request->send(200, "application/json", resp);
+      } else {
+        request->send(400, "application/json", "{\"error\":\"Unknown device type\"}");
+      }
+    });
+
+    server.on("/nodes", HTTP_GET, [](AsyncWebServerRequest *request) {
+      char resp[768];
+      int offset = 0;
+      offset += snprintf(resp + offset, sizeof(resp) - offset, "{\"nodes\":[");
+      unsigned long now = millis();
+      if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        for (int i = 0; i < DEV_COUNT; i++) {
+          const DeviceNodeEntry& e = g_deviceRegistry[i];
+          unsigned long lastSeen = e.lastDataMs > e.lastHelloMs ? e.lastDataMs : e.lastHelloMs;
+          unsigned long ageMs = (lastSeen > 0 && now >= lastSeen) ? (now - lastSeen) : 999999;
+          bool isOnline = false;
+          if (i == DEV_DISTANCE) isOnline = (distanceSensorCommOn && (now - distanceSensorLastUpdate <= DISTANCE_PRESENCE_TIMEOUT));
+          else if (i == DEV_AGITATOR) isOnline = (agitatorLastUpdate > 0 && (now - agitatorLastUpdate <= AGITATOR_TIMEOUT));
+          else if (i == DEV_PUMP) isOnline = (pumpCommOn && pumpLastUpdate > 0 && (now - pumpLastUpdate <= PUMP_TIMEOUT));
+          else if (i == DEV_FLOWMETER) isOnline = (flowmeterCommOn && (now - flowmeterLastUpdate <= FLOWMETER_TIMEOUT));
+          else if (i == DEV_BIOMASS) isOnline = (biomassLastUpdate > 0 && (now - biomassLastUpdate <= BIOMASS_TIMEOUT));
+
+          offset += snprintf(resp + offset, sizeof(resp) - offset,
+                             "%s{\"dev\":\"%s\",\"ip\":\"%s\",\"mac\":\"%s\",\"version\":\"%s\",\"online\":%s,\"age_ms\":%lu}",
+                             (i > 0) ? "," : "",
+                             e.name,
+                             e.ip.toString().c_str(),
+                             e.mac,
+                             e.version,
+                             isOnline ? "true" : "false",
+                             ageMs);
+        }
+        xSemaphoreGive(stateMutex);
+      }
+      snprintf(resp + offset, sizeof(resp) - offset, "]}");
+      request->send(200, "application/json", resp);
     });
 
     server.on("/agitatorCommand", HTTP_GET, [](AsyncWebServerRequest *request) {

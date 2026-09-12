@@ -1177,7 +1177,8 @@ A funcionalidade estará concluída quando:
 1. um usuário criar um teste apenas informando seu nome;
 2. a pasta correspondente surgir em `Testes-kLa`;
 3. a tabela puder ser manual ou importada de um mapa;
-4. V1 ou V2 puder ser usada para N₂;
+4. ~~V1 ou V2 puder ser usada para N₂~~ — superado pelo arranjo A/B/C (adendo abaixo): o N₂ entra
+   por B, que está na entrada configurada em Configurações › Gás e válvulas;
 5. todas as fases aguardarem confirmação física;
 6. a curva completa, incluindo N₂, for preservada;
 7. o usuário selecionar a região e obter kLa log-linear reprodutível;
@@ -1186,3 +1187,40 @@ A funcionalidade estará concluída quando:
 10. o perfil ativo não mudar sem novo cálculo e publicação;
 11. backup, restauração e reinício preservarem os dados;
 12. não houver Torch, rede neural, TCN, `.pth`, recibo ou troca manual de mangueira.
+
+---
+
+## Adendo (12/09/2026) — Arranjo A/B/C e a máquina de estados atual
+
+Este plano descrevia a corrida com "fechar N₂ → esperar estabilizar → alívio opcional → abrir ar".
+O arranjo físico de válvulas de 12/09/2026 (`sistema_valvulas_ensaios_potencia_kLa.md`,
+`2026-09-12-plano-valvulas-abc-ensaios.md`, [D-053](../DECISIONS.md)) substituiu essa sequência.
+O que vale hoje:
+
+- **Válvulas com papel fixo.** A = ar ao reator (aspersor); B = linha de N₂; C = descarga/purga de ar.
+  B e C estão no **mesmo canal elétrico** (abrem e fecham juntas). O fluxômetro tem duas entradas,
+  1 e 2; qual delas aciona A é configuração do app (padrão: entrada 2 → A, entrada 1 → B + C).
+- **Fases** (`RunPhase`): `Preflight → ClosingAllGas → OpeningNitrogen → Deoxygenating →
+  PrestagingAir → SwitchingToReactor → Reoxygenating → StoppingRun → Reviewing`. Saíram
+  `ClosingNitrogen`, `WaitingForDOStability`, `OpeningVent`, `StabilizingVentFlow`, `OpeningAir`.
+- **Desoxigenação**: `FlowRoute(0, VentAndNitrogen)` — B/C aberta com setpoint 0 (só N₂), rotação
+  de desgaseificação. Se o DO inicial já estiver no piso, a fase é pulada.
+- **Pré-estabilização do ar por C** (`PrestagingAir`): ao atingir `DOMin + AirPrestageLeadPercent`,
+  a vazão Q da condição é pedida **na mesma rota B/C** — o pulso do fluxômetro e o assentamento
+  saem por C enquanto o N₂ segue entrando por B. A fase só termina quando, **ao mesmo tempo**,
+  (a) a vazão está na banda por N quadros ou assentada (`FlowSettling`, critério comum ao ensaio de
+  potência) e (b) o DO está ≤ `DOMin` com derivada plana por `StabilityRequiredSamples`. Teto
+  `MaxPrestageSeconds` → revisão sem captura.
+- **Comutação em uma frame** (`SwitchingToReactor`): `FlowRoute(Q, Reactor)` com a rotação da
+  condição — `valve_1` e `valve_2` no mesmo JSON, nenhum estado intermediário no fio. **`t = 0` é a
+  confirmação desse eco**; a corrida grava `SwitchRelativeSeconds`, `SwitchFlowRateLpm` e
+  `SwitchDoPercent`. `RelativeSeconds` do CSV continua contando do início da corrida (arquivo e
+  gráfico monótonos; o ajuste log-linear é invariante ao offset).
+- **Pré-voo**: "Confirmo que o N₂ está aberto na fonte" — `NitrogenSourceConfirmedUtc` no manifesto.
+- **Proveniência**: `gasRig` em `teste.json`; manifesto sem `gasRig` é anterior ao arranjo e abre
+  só para revisão.
+- **Settings** que saíram: `VentStabilizationEnabled`, `SelectedNitrogenValve`/`SelectedVentValve`
+  (ficam como legado de leitura), `VentAgitationRpm`, `PostNitrogenMinimumDelaySeconds`,
+  `MaxPostNitrogenStabilizationSeconds`. Entraram: `AirPrestageLeadPercent`, `PrestageFlow*`,
+  `MaxPrestageSeconds`.
+

@@ -535,8 +535,11 @@ para a leitura do wattímetro.
 - **Gás:** reaproveita a tabela de estados e o intertravamento da §10 do plano de kLa —
   `flowSetpoint` + `V1`/`V2`/`v_Flow`, troca sempre por "fechar → confirmar → novo estado →
   confirmar", com a confirmação exigindo `FlowCommandPending==false`,
-  `FlowCommandAck==FlowCommandId`, setpoint dentro da tolerância e fluxômetro online. Só as
-  linhas de **alívio** dependem da montagem opcional (§13).
+  `FlowCommandAck==FlowCommandId`, setpoint dentro da tolerância e fluxômetro online.
+  **Adendo 12/09/2026 (arranjo A/B/C, [D-053](../DECISIONS.md)):** o ar entra pelo roteador
+  `GasRouting` — toda condição gaseificada sobe a vazão na saída B/C (o ar sai pela descarga C; a
+  linha B fica pinçada ou desconectada neste ensaio) e comuta para o reator (A) numa única frame
+  (§13). Não há mais "abrir A direto".
 - **Rotação:** `motorSetpoint` como referência (o firmware 9.1 aplica a inversa do CN1);
   o app lê `ServoRpm` e só captura quando a **medida** entra na banda do alvo. Nunca comanda
   0 (§2.6).
@@ -694,7 +697,16 @@ segurança (§14) — inclusive o mínimo de 15 rpm.
 
 ---
 
-## 13. Estabilização no alívio (montagem opcional)
+## 13. Pré-estabilização por C (obrigatória desde 12/09/2026)
+
+> **Adendo 12/09/2026.** Esta seção nasceu como "estabilização no alívio (montagem opcional)".
+> Com o arranjo A/B/C ([D-053](../DECISIONS.md)) ela deixou de ser opcional: a descarga é a
+> válvula **C**, que compartilha o canal elétrico com B (N₂ — pinçada ou desconectada neste
+> ensaio), e **toda** condição gaseificada passa por `PrestagingFlow` antes de `OpeningGas`.
+> `VentStabilizationEnabled` e `SelectedVentValve` saíram das configurações; `Vent*` virou
+> `Prestage*`; a saída pela banda ou por estabilidade (`FlowSettling`) e o `RetryThenSkip`
+> continuam. Não há guarda de N₂ nem confirmação de fonte: o cilindro nunca é aberto neste ensaio
+> (garantia física; a sonda de DO nem é conectada). O texto original segue como histórico.
 
 Reaproveita a §11.2 do plano de kLa, sem a parte de OD. Ao abrir o fluxômetro no setpoint, o
 medidor entrega um pulso acima da vazão pedida e leva segundos para assentar; num ensaio de

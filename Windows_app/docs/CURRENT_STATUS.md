@@ -56,6 +56,16 @@ e por serial em USB. Suíte: **1497 aprovados**; contratos do Hub: 72; firmware 
 `v10`/`3.8`), medir o quadro com todos os ecos e o heap do Hub com a tarefa `NodeDiag`
 (`ROADMAP.md` › Field readiness).
 
+**12/09/2026 — arranjo de válvulas A/B/C nos ensaios, executado** ([D-053](DECISIONS.md),
+[P3-11](history/PHASE_LOG.md), plano `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md`, nove
+etapas, um commit cada). Válvulas com papel fixo (A ar ao reator, B N₂, C purga; B e C no mesmo
+MOSFET), roteador único `GasRouting`, ligação em Configurações › Gás e válvulas (com o fluxograma) e
+como proveniência nos manifestos; kLa com pré-estabilização do ar por C durante o N₂ e `t = 0` na
+comutação em uma frame; potência com pré-estabilização por C obrigatória; Controle por entrada
+acionada (1/2) sem intertravamento em operação livre; alarmes *Gás sem destino* e *A e B/C abertas*;
+simulador como arranjo físico. Suíte: **1597 aprovados**. **Pendente de bancada:** §7.3 do plano
+(`ROADMAP.md` › Field readiness).
+
 The remaining work is concentrated in:
 
 1. completing remaining control findings (AUD-005: foco e limiares de biomassa);

@@ -8,6 +8,32 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Changed — arranjo de válvulas A/B/C nos ensaios (plano `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md`, [D-053](DECISIONS.md), [P3-11](history/PHASE_LOG.md))
+- **Breaking para o arranjo antigo (não há bancada com ele).** As válvulas têm papel fixo — **A** ar
+  ao reator, **B** linha de N₂, **C** purga de ar — e B e C estão no mesmo canal elétrico. Todo comando
+  de gás passa pelo roteador `GasRouting`; a ligação (qual entrada do fluxômetro aciona A; padrão 2)
+  é **Configurações › Gás e válvulas**, com o fluxograma e a descrição do setup, e vai como
+  proveniência a `teste.json`, `ensaio.json`, ao sidecar servo (`# gas_rig:`) e aos pontos da
+  calibração de vazão. Manifestos sem `gasRig` abrem só para revisão.
+- **Controle › Vazão de Ar.** Seletor *Fechado / Entrada 1 / Entrada 2* com o que cada entrada
+  aciona; telemetria com os nomes do hardware e o par no fio; **Avançado** com as entradas cruas e
+  *Fechar linha (v_Flow)*, sem bloqueio — as duas acionadas e a linha morta só avisam. Painel de
+  detalhe mostra o destino observado; o sinótico mostra "→ A / → B/C / fechado" no cartão de vazão.
+- **kLa.** Fases `OpeningNitrogen → Deoxygenating → PrestagingAir → SwitchingToReactor →
+  Reoxygenating`: ar pré-estabilizado por C com o N₂ ainda aberto, comutação numa frame, **`t = 0`
+  na confirmação** (`SwitchRelativeSeconds/FlowRateLpm/DoPercent`). DO já no piso pula o N₂.
+  Pré-voo "N₂ aberto na fonte" gravado. Saem `VentStabilizationEnabled`, `SelectedNitrogenValve`,
+  `SelectedVentValve`, `VentAgitationRpm`, `PostNitrogen*`; entram `AirPrestageLeadPercent`,
+  `PrestageFlow*`, `MaxPrestageSeconds`.
+- **Potência.** Toda condição gaseificada passa por `PrestagingFlow` (C) e comuta para A numa frame;
+  `Vent*` → `Prestage*`; sem guarda de N₂ (o cilindro nunca é aberto). Chip da malha de gás lê o fio
+  pelo mesmo intérprete — fim do "Alívio Estabilizando" preso.
+- **Alarmes.** *Gás sem destino* (crítico, 3 s) e *A e B/C abertas* (aviso); jornal com uma linha por
+  mudança da rota observada.
+- **Simulador.** `--rig a-on-1|a-on-2`, `--nitrogen-source open|closed`: ar oxigena só por A, N₂ só
+  por B/C com a fonte aberta, linha morta com pressão subindo, degrau do aspersor em C→A.
+- **Corrigido.** "Repetir corrida" no kLa desenhava a replicata sobre a curva rejeitada.
+
 ### Added — configuração dos nós pelo Hub (Hub 10.2, nós `v11`/`3.9`, plano `docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md`, [D-052](DECISIONS.md))
 - **Fio.** 25 chaves de comando camelCase que o Hub traduz para cada nó (`PROTOCOL.md` §3.7) e 17 ecos
   no quadro agregado (§2.0.3), estritamente não-sticky: chave ausente é "aguardando eco do nó" e o

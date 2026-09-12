@@ -148,6 +148,19 @@ O menu **Sinótico** exibe o diagrama animado em tempo real do biorreator:
 
 A página **Controle** permite atuar diretamente sobre cada periférico e malha do equipamento.
 
+### Vazão de Ar e as válvulas A, B e C
+As válvulas do arranjo de gás têm papel fixo: **A** leva ar ao reator (aspersor), **B** é a linha de
+N₂ (ou nada, quando pinçada) e **C** é a purga de ar. B e C abrem e fecham juntas — estão no mesmo
+canal elétrico — e o fluxômetro tem duas entradas, 1 e 2; qual delas aciona A é configuração
+(**Configurações › Gás e válvulas**, padrão: entrada 2 → A, entrada 1 → B + C). Na gaveta **Vazão de
+Ar** o operador escolhe a **entrada acionada**: *Fechado*, *Entrada 1 · B + C* ou *Entrada 2 · A*
+(os rótulos seguem a ligação configurada). Abaixo, *Telemetria* mostra o que o fluxômetro está
+fazendo com os mesmos nomes — *Reator (A)*, *Descarga + N₂ (B/C)*, *Fechado* — e denuncia dois
+estados anômalos: *Gás sem destino* (setpoint acima de zero sem entrada aberta) e *A e B/C abertas*.
+O expansor **Avançado** dá as entradas 1 e 2 uma a uma e *Fechar linha (v_Flow)*, para bancada:
+qualquer combinação é enviada; as anômalas só geram aviso na tela e, se persistirem 3 s no eco, o
+alarme correspondente.
+
 ### Árbitro de Comandos e Dono de Atuação
 Para evitar conflitos catastróficos em que um operador envie um comando que contrarie uma automação em andamento, o sistema possui um **Árbitro de Comandos** com três níveis de posse:
 1. **Manual (`Manual`):** O operador humano tem posse dos controles na tela.
@@ -233,6 +246,11 @@ O menu **Calibração** fornece assistentes passo a passo para garantir a rastre
    O valor é gravado na NVS do sensor e sobrevive a reinícios; **Restaurar padrões** volta ao de
    fábrica.
 
+### D'. Calibração de vazão de ar: por onde sai o ar
+Durante a calibração da curva do fluxômetro o ar sai pela **descarga C** (a entrada B + C é
+acionada) — mantenha o N₂ fechado na fonte. Marque *Calibrar pelo reator (A)* para soprar pelo
+aspersor. O arranjo e a rota ficam gravados com os pontos.
+
 ### E. Calibração da bomba externa (peristáltica do Hub)
 1. Em **Calibrações → Bomba externa**, leia os coeficientes vigentes (ecoados pelo nó): a bomba
    aplica `Q [mL/min] = slope · S + intercept`, onde **S é a velocidade interna 0–1000** (o firmware a
@@ -251,13 +269,25 @@ O menu **Calibração** fornece assistentes passo a passo para garantir a rastre
 ## 8. Ensaios Especiais
 
 ### A. Determinação Abiótica de $k_L a$ (Gassing-Out Dinâmico)
-O módulo **Determinação de kLa** automatiza o ensaio de transferência de oxigênio gás-líquido:
+O módulo **Determinação de kLa** automatiza o ensaio de transferência de oxigênio gás-líquido no
+arranjo A/B/C (§6): a linha B vai ao cilindro de N₂.
 1. **Configuração da Campanha:** Defina as condições de ensaio na matriz (combinações de vazão de ar em L/min e agitação em rpm) e o número de réplicas.
-2. **Execução Automática:**
-   - O sistema aciona a desoxigenação com $N_2$ até atingir o limite inferior configurado (ex.: $< 5\%$).
-   - Aguarda o tempo de estabilização pós-nitrogênio baseado na derivada da curva de oxigênio (garantindo ausência de microbolhas residuais).
-   - Comuta para injeção de ar (com estabilização prévia de vazão na linha de alívio para evitar transientes na reoxigenação).
-   - Registra a subida da curva de oxigênio dissolvido em alta frequência.
+2. **Pré-voo:** ao iniciar a sequência, confirme **"N₂ aberto na fonte"** — a fonte é manual e o app
+   não a enxerga; a confirmação vai ao manifesto e ao jornal. A linha *Arranjo: A na entrada 2 ·
+   B/C na entrada 1* mostra a ligação em uso.
+3. **Execução Automática** (as fases aparecem no cabeçalho):
+   - *Fechando todas as válvulas* — o intertravamento confirma tudo fechado pelo fluxômetro.
+   - *Abrindo N₂ (B/C)* e *Desoxigenando* — o N₂ entra por B (setpoint zero, só nitrogênio) com a
+     rotação de desgaseificação até o DO chegar ao piso (DO mínimo mais a antecipação, se
+     configurada). Se o DO já estiver no piso ao iniciar, esta fase é pulada.
+   - *Ar por C · estabilizando* — a vazão do ensaio é pedida **na mesma saída B/C**: o ar sai pela
+     purga C enquanto o N₂ segue entrando por B. O ensaio espera a vazão assentar **e** o piso de DO
+     ficar plano (derivada), os dois ao mesmo tempo. Nada entra no reator ainda.
+   - *Comutando para o reator (A)* — uma única frame fecha B/C e abre A com o setpoint já
+     assentado. A confirmação pelo fluxômetro é o **t = 0**; a vazão e o DO desse instante ficam
+     gravados na corrida.
+   - *Reoxigenando* — registra a subida do DO em alta frequência até o limiar superior; fecha tudo e
+     abre a revisão.
 3. **Análise Log-Linear e Aceite:**
    - O algoritmo OLS calcula automaticamente a inclinação da curva $\ln(C^* - C_L)$ vs tempo, estimando $k_L a$ ($h^{-1}$), $R^2$, resíduos e intervalos de confiança de 95%.
    - Se o modo **Aceite Automático** estiver ativo, o runner avança sozinho para a próxima condição experimental da sequência.
@@ -267,6 +297,14 @@ O módulo **Potência** realiza a caracterização hidrodinâmica mecânica do v
 1. **Tara Mecânica:** Realiza a curva de torque em vazio (sem líquido) em várias rotações para descontar atrito de mancais e selos mecânicos.
 2. **Ensaio Não Gaseificado ($N_p \times Re$):** Mede o torque estático e dinâmico com o volume de líquido nominal, determinando o Número de Potência $N_p$ característico do impelidor.
 3. **Ensaio Gaseificado ($P_G / P_0$ e Flooding):** Varia a vazão de gás e rotação, mapeando a perda de potência por cavitação de bolhas e detectando o limite de inundação (*flooding*) do impelidor.
+   No arranjo A/B/C (§6) a linha B fica **pinçada ou desconectada** — só ar; o cilindro de N₂ nunca é
+   aberto. Toda condição gaseificada passa por **Ar por C · estabilizando**: a vazão é pedida na
+   saída B/C, o pulso de partida do fluxômetro sai pela purga C, e só a vazão assentada (na banda por
+   N leituras ou pelo critério de estabilidade) é comutada para o reator (A) numa única frame; a
+   captura começa depois da confirmação e da rotação da condição. Os parâmetros ficam em
+   *Parâmetros de captura › Pré-estabilização por C* (tolerância, amostras, σ e |erro|, rotação em C,
+   teto — 500 s por padrão). O chip **Malha de gás** mostra *Fechado · Reator (A) · Descarga + N₂
+   (B/C) · Ar por C · estabilizando · Gás sem destino · A e B/C abertas*.
 
 ---
 

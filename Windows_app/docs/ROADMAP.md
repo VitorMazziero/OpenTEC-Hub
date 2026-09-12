@@ -1149,10 +1149,19 @@ make while re-implementing, rather than copying forward:
       `docs/evidence/ui-hitches-2026-09-12.md` (target: none during capture); watch a
       `RetryThenSkip` sequence failure and a stability exit from the vent phase.
 - [ ] **Flow controller does not regulate downward on the first vent opening after a safe-stop**
-      (§I.4 of the plan): **instrumented — the tuning is now exposed.** Controle › Vazão de Ar ›
+      (§I.4 of the plan; the vent is now **C**, the B/C output — [D-053](DECISIONS.md)): **instrumented — the tuning is now exposed.** Controle › Vazão de Ar ›
       *Sintonia do controlador* edits `kp_flow`/`ki_flow`/`ff_*`/`ramp_rate` on the node with echoes
       ([D-052](DECISIONS.md)). Reproduce by hand — safe-stop → 2.0 L/min on the vent → does it stick
       at ~3.4 L/min? — then retune from the app and record what closed it. Still a controller item.
+- [ ] **Bench receipt for the A/B/C valve rig**
+      (`docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md` §7.3, [D-053](DECISIONS.md),
+      [PHASE_LOG P3-11](history/PHASE_LOG.md)): confirm MOSFET 1 → B and C, MOSFET 2 → A (or record
+      the inverse in Configurações › Gás e válvulas) and what GPIO 5 (`v_Flow`) drives; Controle
+      *Entrada 2 · A* with 2 L/min bubbles at the sparger with C closed, *Entrada 1 · B + C* goes out
+      of C; a gassed power condition through `PrestagingFlow` with the pulse on C and the sparger-head
+      transient after the switch measured into `docs/evidence/`; a kLa run with the N₂ still flowing
+      during the pre-stage, the one-frame switch, `t = 0` matching `SwitchedToReactor` in the journal,
+      and the kLa compared with the old rig at one condition.
 - [ ] **Bench receipt for node configuration through the Hub**
       (`docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md` §7.3, [D-052](DECISIONS.md),
       [PHASE_LOG P3-10](history/PHASE_LOG.md)): reflash Hub `10.2.0-dev` and the four nodes

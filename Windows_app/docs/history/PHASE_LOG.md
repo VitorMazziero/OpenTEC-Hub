@@ -1504,6 +1504,35 @@ by the suite from the real visual tree, not collected by hand. See [DECISIONS D-
 
 ---
 
+### P3-11 · The A/B/C valve rig: gas routed by intention, one-frame switch, `t = 0` at the switch
+
+**Executed 2026-09-12**, from `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md`, nine stages in the
+plan's order — routing domain, every producer through the router, the simulator as the physical rig,
+the kLa runner, the power runner, Controle, alarms, Configurações, docs — one commit per stage
+(`cee570a`, `6efa2cf`, `b342908`, `20d5864`, `0b60ba2`, `07a2986`, `0996e82`, `ce1fed7`, this one),
+the suite from 1497 to 1597 green, [D-053](../DECISIONS.md).
+
+What changed for the operator: the app names valves by what they are — **A** air to the reactor,
+**B** the N₂ line, **C** the air purge — and B and C share one MOSFET input, so what one picks in
+Controle is the flowmeter **input** to energise (1 or 2), with the label saying what hangs on it.
+Every command of gas in the app goes through `GasRouting` and the wiring is one setting
+(Configurações › Gás e válvulas, with the bench flowchart). The kLa run strips through B, raises the
+assay airflow on the same B/C output while the N₂ is still flowing, waits for the flow **and** the
+DO floor to be still, and switches to A in one frame — the confirmed echo is `t = 0`. The power run
+pre-stages every gassed condition on C the same way. Free operation keeps no interlock (user's
+decision): Avançado sends anything, the alarms *Gás sem destino* and *A e B/C abertas* say so.
+
+Three decisions the user made along the way and the code follows: the selector is by input, not by
+"destination", because the valves' roles never change; DO already at the floor skips the N₂ phase
+but never the pre-stage ("low **and** stable"); no N₂ guard and no source confirmation on the power
+assay, where the cylinder is never opened. Two things found while doing it: "Repetir corrida" in the
+kLa review was drawing the replicate on top of the rejected curve (`9e495ef`), and the power page's
+gas chip was stuck on "Alívio Estabilizando" whenever the shutoff was closed — both fixed by reading
+the wire through the same interpreter.
+
+Bench receipt pending — plan §7.3: what GPIO 5 (`v_Flow`) actually drives, the pulse on C, the
+sparger-head transient after `t = 0`, and a kLa compared with the old rig at one condition.
+
 ### P3-10 · Node configuration through the Hub: offset, tuning, calibration, acquisition, health
 
 **Executed 2026-09-12**, from `docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md`, nine

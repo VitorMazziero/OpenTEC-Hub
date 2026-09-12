@@ -417,8 +417,8 @@ is **preferred** — it reduces round trips on the shared UART.
 | Pressure | `pressureReference` | 1-380; `0` = disabled |
 | Flowmeter v05 via Hub v7 | `flowSetpoint` | L/min, clamped to `maxFlow` |
 | | `maxFlow` | L/min ceiling |
-| | `valve_1`, `valve_2` | `0`/`1` — auxiliary / nitrogen valves |
-| | `v_Flow` | **Main gas-path shutoff, active high: `1` closes the path.** `1` whenever `flowSetpoint == 0`; may also be `1` with a nonzero setpoint |
+| | `valve_1`, `valve_2` | `0`/`1` — the flowmeter's two MOSFET **inputs 1 and 2**. What each input drives is app configuration (`GasRigConfiguration`, Configurações › Gás e válvulas), not protocol: on the default wiring input 2 drives **A** (air to the reactor) and input 1 drives **B + C** together (N₂ line and air purge, one channel). The app never sends a setpoint above zero with both at `0` from an assay or automation (`CommandBuilders.FlowRoute`); Controle › Avançado can. |
+| | `v_Flow` | **Line shutoff, active high: `1` closes the line** (GPIO 5 on the node). It does not route: assumption that it drives none of A/B/C — bench receipt pending (`docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md` §7.3). `1` whenever `flowSetpoint == 0`; may also be `1` with a nonzero setpoint |
 
 > **`v_Flow` closes the gas path when it is 1**, which is the opposite of what "flow" in the
 > name suggests and is easy to get backwards. It is a physical shutoff, not a vent: the v05
@@ -431,8 +431,17 @@ is **preferred** — it reduces round trips on the shared UART.
 > how the operator's main shutoff on Controle works without erasing what was staged.
 >
 > Disabling the flow subsystem sends `flowSetpoint:0, v_Flow:1, valve_1:0, valve_2:0` — both
-> valves are deliberately forced closed on disable rather than preserving the operator's manual
-> selection, because leaving a nitrogen valve open on a safe-stop is a hazard.
+> inputs are deliberately forced closed on disable rather than preserving the operator's manual
+> selection, because leaving the N₂ line (B) open on a safe-stop is a hazard.
+>
+> **A/B/C rig (2026-09-12, [D-053](DECISIONS.md)).** The wire did not change; who decides what each
+> input receives did. `GasRouting.Resolve(route, rig)` maps an intention — `Closed`, `Reactor`
+> (A), `VentAndNitrogen` (B + C) — to the pair, and `GasRouting.Interpret` reads a frame back into
+> `Closed / Reactor / VentAndNitrogen / DeadEnd / BothOpen`. The kLa runner strips through B, pre-stages
+> the assay airflow on the same B/C output (air out of C, N₂ still in) and switches to A in **one
+> frame** — `valve_1` and `valve_2` in the same JSON, which the node applies in one cycle — so no
+> intermediate state is ever on the wire; the confirmed echo of that frame is `t = 0`. The power
+> runner does the same pre-stage on C for every gassed condition.
 
 > **`flowmeterComm` is the Hub's loop-enabled flag, not part of the v05 command.** The Hub v7
 > builds and delivers the v05 mailbox from `flowSetpoint`/valves regardless of it, so it never
@@ -584,8 +593,9 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > The disable frame formerly carried `speed:0` for byte-parity with v.6, but it has been removed
 > to prevent the pump firmware from interpreting it as an armed speed command. The proportional-gas coupling
 > `Q_g = (V₀ + PumpVol/1000)·vvm` is not a pump key at all: it computes an **aeration** setpoint and is
-> sent as a flow frame through the command arbiter (owned as `Aeration`). OpenTEC-Hub closes both gas
-> valves on that frame rather than reproducing v.6's stray `valve_2:1`-at-zero-flow behaviour.
+> sent as a flow frame through the command arbiter (owned as `Aeration`). OpenTEC-Hub routes that frame
+> to the reactor (A, `valve_2:1` on the default wiring) rather than reproducing v.6's stray
+> `valve_2:1`-at-zero-flow behaviour.
 
 ### 3.6 System
 
@@ -641,12 +651,17 @@ pH safe-stop       {"pHSetpoint":0.0,"pHError":0.17,"pHOperation":5.0,"pHMix":20
 Motor setpoint     {"motorSetpoint":790}
 Valve state at 0   {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}
 Flow safe-stop     {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}
-Flow cal setpoint  {"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
+Reactor (A), A on 2   {"flowSetpoint":3.0,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}
+B + C, A on 2         {"flowSetpoint":3.0,"maxFlow":50.0,"valve_1":1,"valve_2":0,"v_Flow":0}
+N2 only (B/C, sp 0)   {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":0,"v_Flow":1}
+Reactor (A), A on 1   {"flowSetpoint":3.0,"maxFlow":50.0,"valve_1":1,"valve_2":0,"v_Flow":0}
+B + C, A on 1         {"flowSetpoint":3.0,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}
+Flow cal setpoint  {"flowSetpoint":1.5,"valve_1":1,"valve_2":0,"v_Flow":0}      (through C on the default wiring)
 Flow cal curve     {"maxFlow":50.0,"a1":-1.2E-05,"b1":0.00034,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
 Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
 Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
                    ... plus the dosing, agitator and pump-profile fragments, then {"pumpComm":0} on the next frame
-kLa combined       {"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}
+Cascade combined   {"flowSetpoint":2.5,"valve_1":0,"valve_2":1,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}   (air to A)
 biomass enable     {"biomassComm":1}
 biomass blank      {"blank":1}
 biomass start/stop {"start":1}   /   {"stop":1}

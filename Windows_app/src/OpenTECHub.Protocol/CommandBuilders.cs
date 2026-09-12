@@ -120,7 +120,7 @@ public static class CommandBuilders
     /// </summary>
     /// <remarks>
     /// Flow uses the full safe-stop shape rather than a zero setpoint alone, so both
-    /// gas valves close and the inverted vent flag is asserted. Keeping the whole stop
+    /// gas inputs close and the line shutoff (`v_Flow`, active high) is asserted. Keeping the whole stop
     /// here makes the destructive-confirmation preview byte-identical to what is sent.
     /// </remarks>
     public static OpenTECCommand CoreSafeStop(double maxFlow)
@@ -582,7 +582,7 @@ public static class CommandBuilders
 
     /// <summary>
     /// Flow setpoint shape used while acquiring a calibration point in v.6.
-    /// Both optional gas valves are closed and the inverted vent flag is derived.
+    /// Legacy overload: blows through C on the default wiring; the line shutoff follows the setpoint.
     /// </summary>
     public static OpenTECCommand FlowCalibrationSetpoint(double setpoint)
         => FlowCalibrationSetpoint(setpoint, setpoint > 0.0 ? GasRoute.VentAndNitrogen : GasRoute.Closed, GasRigConfiguration.Default);

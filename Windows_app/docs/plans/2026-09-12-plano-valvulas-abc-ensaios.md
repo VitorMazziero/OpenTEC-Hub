@@ -1,13 +1,26 @@
 # Plano — Sistema fixo de válvulas A/B/C nos ensaios de potência e de kLa: o que muda na lógica e na interface do app
 
 **Data:** 2026-09-12
-**Origem:** `docs/plans/sistema_valvulas_ensaios_potencia_kLa_v2 (rascunho).md` e `valvulas.png`
+**Origem:** `docs/plans/sistema_valvulas_ensaios_potencia_kLa.md` (promovido do rascunho `v2` na Etapa 9) e `valvulas.png`
 (descrição física do arranjo, §3 "Arquitetura de acionamento elétrico") e as correções do usuário
 no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 aciona B e C juntas**
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1 a 8 concluídas em 12/09/2026.** Etapa 8 (Configurações):
+**Estado:** **concluído — as nove etapas executadas em 12/09/2026**, um commit por etapa
+(`cee570a`, `6efa2cf`, `b342908`, `20d5864`, `0b60ba2`, `07a2986`, `0996e82`, `ce1fed7` e o commit de
+documentação), [D-053](../DECISIONS.md), [P3-11](../history/PHASE_LOG.md). Suíte final: 1597. Fica
+**pendente só o recibo de bancada (§7.3)**, listado em `ROADMAP.md › Field readiness`. Etapa 9
+(documentação): `PROTOCOL.md` §3.1 (entradas 1 e 2; `v_Flow` = fechamento de linha, GPIO 5, sem
+rotear) e §4 (golden strings `Reactor`/`B + C` nas duas ligações, calibração por C, cascata para A);
+comentários de `CommandBuilders`; adendo "Arranjo A/B/C" no plano de kLa e adendos §11/§13 no de
+potência; D-053; P3-11; `CHANGELOG` (Changed, breaking para o arranjo antigo); `ROADMAP` (recibo
+§7.3; nota "a descarga agora é C" no item §I.4); `CURRENT_STATUS`; manual §6 (Vazão de Ar e as
+válvulas A, B e C), §7.D' (calibração por C), §8.A e §8.B reescritos; documento físico promovido a
+`sistema_valvulas_ensaios_potencia_kLa.md` com a nota do padrão configurável, `valvulas.png`
+commitado. **Desvio:** o passo 4 da Etapa 5 (guarda de N₂) e o passo 5 (confirmação "N₂ fechado")
+não existem, por decisão do usuário; os itens §7.2.2 e §7.3.4 (guarda) ficam sem objeto.
+Etapa 8 (Configurações):
 seção **Gás e válvulas** (`SettingsViewModel.GasRigSectionId = "gas"`) com a imagem do fluxograma
 (`docs/UI_design_guides/valvulas-abc.png` → recurso WPF `Resources/Images/valvulas-abc.png`,
 clique amplia), a descrição do setup em texto, o seletor "Válvula A ligada na entrada" 1|2
@@ -628,7 +641,7 @@ Configurações › Gás e válvulas), testes `WorkspaceDirectoryTests`/`Setting
   referência a este plano e a nota de que a ligação (MOSFET 1 → B+C, MOSFET 2 → A) é o padrão
   configurável do app.
 **Commit.** `docs: arranjo de valvulas A/B/C (PROTOCOL 3.1, D-053, P3-11, planos de kLa e potencia, manual)`.
-**Esforço.** M.
+**Esforço.** M. **Executada em 12/09/2026** — ver Estado.
 
 ---
 

@@ -1397,6 +1397,54 @@ a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
   `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
   `f08ba27`. Um `XamlParseException` continua sendo um crash.
 
+### D-053 · Roteamento de gás por intenção com nomes do hardware; B e C no mesmo MOSFET; pré-estabilização por C obrigatória; `t = 0` na comutação; N₂ na fonte confirmado pelo operador; setpoint > 0 exige destino
+
+**Status:** Accepted and implemented · 2026-09-12 · plano `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md` · documento físico `docs/plans/sistema_valvulas_ensaios_potencia_kLa.md` · [P3-11](history/PHASE_LOG.md)
+
+**Contexto.** O arranjo físico de válvulas dos ensaios passou a ser fixo: depois do fluxômetro, um T
+leva à válvula **A** (ar ao reator, pelo aspersor) e à válvula **C** (descarga/purga de ar); a válvula
+**B** é a linha de N₂ e está **no mesmo canal elétrico que C** — abrem e fecham juntas. O fluxômetro
+tem duas entradas de MOSFET, 1 e 2; a ligação padrão é MOSFET 1 → B + C e MOSFET 2 → A. O app até
+então falava em "válvula auxiliar" e "válvula de N₂" por pino, escolhidas por ensaio, e o runner de
+kLa fazia "fechar N₂ → esperar → abrir ar", com uma estabilização no alívio opcional.
+
+**Decisão.**
+1. **Um roteador único** (`OpenTECHub.Protocol.GasRouting`): os produtores de comando de gás — runners
+   de kLa e potência, receitas, cascata, gás proporcional da bomba, ponto único, calibração de vazão,
+   painel de detalhe — pedem uma **intenção** (`Closed`, `Reactor` = A, `VentAndNitrogen` = B + C) e o
+   roteador resolve o par `valve_1`/`valve_2` pela ligação em `AppSettings.GasRig`. O fio não muda.
+   A telemetria é lida de volta pelo mesmo intérprete (`Closed / Reator (A) / Descarga + N₂ (B/C) /
+   Gás sem destino / A e B/C abertas`), com os nomes do hardware em toda página.
+2. **Setpoint > 0 exige destino** no builder (`FlowRoute` recusa `Closed` com vazão) — para ensaios e
+   automação. **Operação livre não tem intertravamento** (decisão do usuário): em Controle › Avançado
+   qualquer combinação é enviada; "as duas acionadas" e "linha sem saída" são avisos, e a telemetria
+   denuncia (alarmes *Gás sem destino* após 3 s e *A e B/C abertas*).
+3. **A comutação B/C → A é uma frame só** (`valve_1` e `valve_2` no mesmo JSON); nunca há estado
+   intermediário no fio.
+4. **kLa:** N₂ por B (B/C, setpoint 0) → ao atingir o piso, a vazão do ensaio é pedida **na mesma
+   rota** (ar sai por C, N₂ continua) → só com vazão **e** piso de DO assentados a frame `Reactor` sai
+   → **a confirmação do eco é `t = 0`**. DO já no piso ao iniciar → sem fase de N₂, mas a
+   pré-estabilização continua ("baixo **e** estável"). Pré-voo: "Confirmo que o N₂ está aberto na
+   fonte", gravado no manifesto e no jornal.
+5. **Potência:** toda condição gaseificada sobe a vazão por C e comuta para A numa frame; sem guarda
+   de N₂ e sem confirmação de fonte — a linha B fica pinçada ou desconectada e o cilindro nunca é
+   aberto (garantia física).
+6. **A ligação é configuração, não código** (Configurações › Gás e válvulas, com o fluxograma e a
+   descrição do setup) e é **proveniência**: `gasRig` em `teste.json`/`ensaio.json`, `# gas_rig:` no
+   sidecar servo, arranjo e rota nos pontos de calibração. Um manifesto sem `gasRig` é anterior ao
+   arranjo: abre só para revisão; um ensaio iniciado noutro arranjo não é continuado.
+7. **O simulador é o arranjo físico** (`DeviceModel.GasRig`, `NitrogenSourceOpen`): ar oxigena só por
+   A, N₂ desoxigena só por B/C com a fonte aberta, linha morta com pressão subindo, degrau de carga
+   do aspersor na comutação C→A. É o que exercita as máquinas de estado sem bancada
+   (`KlaRunnerSimulatorTests`, E2E de potência).
+
+**Consequências.** `VentStabilizationEnabled`, `SelectedNitrogenValve`/`SelectedVentValve`,
+`PowerVentValve`, `VentAgitationRpm`, `PostNitrogen*` saíram das configurações (campos de válvula ficam
+como legado de leitura); `Vent*` virou `Prestage*`; `RelativeSeconds` do CSV de kLa continua do início
+da corrida e o `t = 0` vai explícito (`SwitchRelativeSeconds/FlowRateLpm/DoPercent`). Pendente de
+bancada: §7.3 do plano (o que o GPIO 5 aciona; pulso na descarga; transiente após `t = 0`; comparação
+do kLa com o arranjo antigo).
+
 ### D-052 · Configuração dos nós só pelo Hub; eco obrigatório antes de campo editável; diagnóstico por proxy com tarefa própria
 
 **Status:** Accepted and implemented · 2026-09-12 · plano `docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md` · [P3-10](history/PHASE_LOG.md)

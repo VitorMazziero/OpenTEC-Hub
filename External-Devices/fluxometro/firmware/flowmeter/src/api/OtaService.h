@@ -6,6 +6,48 @@ void setupOTA() {
     request->send(200, "text/html", otaPage);
   });
 
+  server.on("/diag", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char json[320];
+    snprintf(json, sizeof(json),
+             "{\"device\":\"flowmeter\",\"version\":\"v10\",\"uptime_s\":%lu,"
+             "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
+             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+             "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
+             static_cast<unsigned long>(millis() / 1000),
+             static_cast<unsigned int>(ESP.getFreeHeap()),
+             WiFi.status(),
+             WiFi.SSID().c_str(),
+             WiFi.RSSI(),
+             WiFi.localIP().toString().c_str(),
+             WiFi.macAddress().c_str(),
+             g_hubFailStreak,
+             otaInProgress ? "true" : "false",
+             readFlowRate,
+             flowSetpoint);
+    request->send(200, "application/json", json);
+  });
+
+  server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char json[320];
+    snprintf(json, sizeof(json),
+             "{\"device\":\"flowmeter\",\"version\":\"v10\",\"uptime_s\":%lu,"
+             "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
+             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+             "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
+             static_cast<unsigned long>(millis() / 1000),
+             static_cast<unsigned int>(ESP.getFreeHeap()),
+             WiFi.status(),
+             WiFi.SSID().c_str(),
+             WiFi.RSSI(),
+             WiFi.localIP().toString().c_str(),
+             WiFi.macAddress().c_str(),
+             g_hubFailStreak,
+             otaInProgress ? "true" : "false",
+             readFlowRate,
+             flowSetpoint);
+    request->send(200, "application/json", json);
+  });
+
   server.on("/update", HTTP_POST,
     // Completion: runs once, after the final upload chunk.
     [](AsyncWebServerRequest *request) {

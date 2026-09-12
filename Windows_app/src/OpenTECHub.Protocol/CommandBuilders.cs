@@ -46,6 +46,38 @@ public static class CommandBuilders
     }
 
     /// <summary>
+    /// Enables flow control at <paramref name="setpoint"/> L/min with the gas sent where
+    /// <paramref name="route"/> says, on the rig wired as <paramref name="rig"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The A/B/C rig has no default path: with both outputs off and a setpoint above zero the
+    /// controller pushes into a dead-ended line. So a setpoint above zero <b>requires a
+    /// destination</b>, and <see cref="GasRoute.Closed"/> with one throws rather than build the
+    /// frame. Every producer of a gas command goes through here; nobody writes
+    /// <c>valve_1</c>/<c>valve_2</c> by hand.
+    /// </para>
+    /// <para>
+    /// Built on <see cref="FlowSetpoint"/>, so the wire shape (key order, <c>v_Flow</c> derived
+    /// from the setpoint) is byte-identical to before.
+    /// </para>
+    /// </remarks>
+    public static OpenTECCommand FlowRoute(double setpoint, double maxFlow, GasRoute route, GasRigConfiguration rig)
+    {
+        ArgumentNullException.ThrowIfNull(rig);
+
+        if (route == GasRoute.Closed && setpoint > 0.0)
+        {
+            throw new ArgumentException(
+                "Um setpoint de vazão acima de zero exige um destino para o gás (Reator ou Descarga + N₂); " +
+                "com A e B/C fechadas a linha fica sem saída.", nameof(route));
+        }
+
+        var (valve1, valve2) = GasRouting.Resolve(route, rig);
+        return FlowSetpoint(setpoint, maxFlow, valve1, valve2);
+    }
+
+    /// <summary>
     /// Records the flow loop as enabled or disabled on the Hub.
     /// </summary>
     /// <remarks>

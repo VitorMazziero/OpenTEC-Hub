@@ -59,6 +59,9 @@ public sealed record AppSettings
     /// <summary>Staged flask-agitator parameters (WP7). Restoring them never sends a command.</summary>
     public FlaskAgitatorSettings FlaskAgitator { get; init; } = new();
 
+    /// <summary>How the A/B/C gas valves are wired to the flowmeter's two outputs. Absent = the documented default.</summary>
+    public GasRigSettings GasRig { get; init; } = new();
+
     /// <summary>Staged biomass thresholds (Phase 3 WP1). The sensor enable is never persisted.</summary>
     public BiomassControlSettings BiomassControl { get; init; } = new();
 
@@ -360,6 +363,23 @@ public sealed record FoamControlSettings
 /// <remarks>
 /// Restoring these parameters never sends a command automatically; the operator must explicitly apply.
 /// </remarks>
+/// <summary>
+/// Wiring of the gas rig: which flowmeter output drives valve A; B and C share the other.
+/// </summary>
+/// <remarks>
+/// The default is the physical document's (MOSFET 2 → A, MOSFET 1 → B+C), so a settings file
+/// written before this record existed migrates to it silently — that <i>is</i> the bench's
+/// wiring. Changing it is a Configurações decision, never a side effect of a command.
+/// </remarks>
+public sealed record GasRigSettings
+{
+    public GasInput AirInletInput { get; init; } = GasRigConfiguration.Default.AirInletInput;
+
+    public GasRigConfiguration ToConfiguration() => new(AirInletInput);
+
+    public static GasRigSettings From(GasRigConfiguration rig) => new() { AirInletInput = rig.AirInletInput };
+}
+
 public sealed record FlowControlSettings
 {
     public double Kp { get; init; } = 0.8;

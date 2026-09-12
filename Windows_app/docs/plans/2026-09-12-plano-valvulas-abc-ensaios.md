@@ -7,8 +7,10 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** proposto. Independente dos dois planos anteriores de 12/09 (identidade dos nós e
-configuração dos nós); compartilha com o segundo a sintonia do fluxômetro (§8).
+**Estado:** em execução — **Etapa 1 concluída em 12/09/2026** (`GasRouting.cs`,
+`CommandBuilders.FlowRoute`, `AppSettings.GasRig`; 33 testes em `GasRoutingTests`; suíte 1544).
+Nenhum produtor usa o roteador ainda (Etapa 2). Independente dos dois planos anteriores de 12/09
+(identidade dos nós e configuração dos nós); compartilha com o segundo a sintonia do fluxômetro (§8).
 **Pré-leitura:** `docs/PROTOCOL.md` §3.1 (`valve_1`, `valve_2`, `v_Flow`), §4 (golden strings);
 `docs/plans/PLANO_IMPLEMENTACAO_TESTES_KLA.md`; `docs/plans/PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md`
 §11–§13; `docs/DECISIONS.md` D-015 (árbitro), D-050; `Services/KlaTesting/KlaTestRunner.cs`,

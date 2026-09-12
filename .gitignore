@@ -25,12 +25,35 @@ tools/wifi-test/
 **/build/
 **/.dart_tool/
 **/ephemeral/
+**/.gradle/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/local.properties
+*.iml
 
 # Arduino & C++ build output
 tools/.bin/
+External-Devices/tools/.arduino-user/
+External-Devices/tools/.build/
+External-Devices/tools/arduino-cli.local.yaml
 *.bin
 *.elf
 *.map
+
+# External-device imported toolchain output
+External-Devices/**/*.o
+External-Devices/**/*.a
+External-Devices/**/*.d
+External-Devices/**/*.dep
+External-Devices/**/*.axf
+External-Devices/**/*.hex
+External-Devices/**/*.iex
+External-Devices/**/*.lnp
+External-Devices/**/*.lst
+External-Devices/**/*.Administrator
+External-Devices/**/*.dbgconf
+External-Devices/**/runs/
+External-Devices/**/test_runs/
 
 # Python caches
 __pycache__/

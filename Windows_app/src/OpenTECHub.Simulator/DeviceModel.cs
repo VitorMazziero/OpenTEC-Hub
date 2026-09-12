@@ -1,3 +1,4 @@
+using OpenTECHub.Protocol;
 namespace OpenTECHub.Simulator;
 
 /// <summary>Fault-injection modes, switchable while running.</summary>
@@ -83,6 +84,12 @@ public enum Scenario
     /// tracker and the Eventos entries without touching a board.
     /// </remarks>
     NodeRenumber,
+
+    /// <summary>
+    /// The operator forgot the nitrogen at the source: B is on the same output as C, so every
+    /// vent (C) opening also strips oxygen. What the power assay's N₂ guard exists to catch.
+    /// </summary>
+    NitrogenLeftOpen,
 }
 
 /// <summary>
@@ -496,11 +503,32 @@ public sealed class DeviceModel
     /// </remarks>
     public bool AgitatorPotActive { get; set; } = true;
 
-    public bool VentValveOpen { get; set; } = true;
+    /// <summary>
+    /// <c>v_Flow</c> as echoed (<c>ValveFlow</c>): the active-high main shutoff, 1 = line
+    /// closed. It is not a vent — the vent is C, on one of the two valve outputs.
+    /// </summary>
+    public bool MainLineClosed { get; set; } = true;
 
     public int Valve1 { get; set; }
 
     public int Valve2 { get; set; }
+
+    /// <summary>How A, B and C are wired to the two outputs. The physical document's default: A on 2, B/C on 1.</summary>
+    public GasRigConfiguration GasRig { get; set; } = GasRigConfiguration.Default;
+
+    /// <summary>
+    /// The manual valve on the N₂ line upstream of B. Open by default — the kLa's normal
+    /// state; a power assay expects it shut, and <see cref="Scenario.NitrogenLeftOpen"/> is the
+    /// case where it was not.
+    /// </summary>
+    public bool NitrogenSourceOpen { get; set; } = true;
+
+    /// <summary>What the two outputs and the setpoint amount to on this rig.</summary>
+    public ObservedGasRoute ObservedRoute => GasRouting.Interpret(Valve1 == 1, Valve2 == 1, FlowSetpoint, GasRig);
+
+    /// <summary>True when nitrogen is actually reaching the broth: B open and the source open.</summary>
+    public bool NitrogenFlowing
+        => ObservedRoute == ObservedGasRoute.VentAndNitrogen && (NitrogenSourceOpen || Scenario == Scenario.NitrogenLeftOpen);
 
     public int DataDelayMs { get; set; } = 2000;
 
@@ -513,11 +541,11 @@ public sealed class DeviceModel
 
     public bool FlowCommandPending { get; set; }
 
-    public int SelectedVentValve { get; set; } = 2;
-
     private double _flowAckTimer;
     private double _previousFlowSetpoint;
     private double _flowPulseTimer;
+    private double _reactorHeadTimer;
+    private ObservedGasRoute _previousRoute = ObservedGasRoute.Closed;
 
     /// <summary>True while the ESP32 can reach the sensor module over its internal UART.</summary>
     public bool SensorModuleOnline => Scenario != Scenario.NoModule;
@@ -647,44 +675,11 @@ public sealed class DeviceModel
         DrainServoQueue(dt);
     }
 
-    public bool IsReliefPurging()
-    {
-        if (SelectedVentValve == 2 && Valve2 == 1 && Valve1 == 0)
-        {
-            return true;
-        }
-        if (SelectedVentValve == 1 && Valve1 == 1 && Valve2 == 0)
-        {
-            return true;
-        }
-        if (VentValveOpen && Valve1 == 0 && Valve2 == 0 && FlowSetpoint <= 0)
-        {
-            return true;
-        }
-        return false;
-    }
-
-    public bool IsReactorValveClosed()
-    {
-        if (SelectedVentValve == 2 && Valve1 == 0 && Valve2 == 1)
-        {
-            return true;
-        }
-        if (SelectedVentValve == 1 && Valve2 == 0 && Valve1 == 1)
-        {
-            return true;
-        }
-        return false;
-    }
-
-    public double ReadReactorFlow()
-    {
-        if (IsReliefPurging() || IsReactorValveClosed())
-        {
-            return 0.0;
-        }
-        return _flow;
-    }
+    /// <summary>
+    /// Air actually reaching the sparger: only on the reactor route. Vented gas (C), nitrogen (B)
+    /// and a dead-ended line put nothing through the vessel.
+    /// </summary>
+    public double ReadReactorFlow() => ObservedRoute == ObservedGasRoute.Reactor ? _flow : 0.0;
 
     private double CalculateSteadyServoTorquePercent(double rpm, double flowLpm)
     {
@@ -904,12 +899,36 @@ public sealed class DeviceModel
             _flowPulseTimer = Math.Max(0.0, _flowPulseTimer - dt);
         }
 
-        var target = Math.Clamp(FlowSetpoint, 0.0, MaxFlow);
+        // Switching into the reactor adds the sparger's head: the controller dips and recovers.
+        var route = ObservedRoute;
+        if (route == ObservedGasRoute.Reactor && _previousRoute != ObservedGasRoute.Reactor && FlowSetpoint > 0)
+        {
+            _reactorHeadTimer = _servoPowerModel.ReactorHeadStepDurationSeconds;
+        }
+        _previousRoute = route;
+        if (_reactorHeadTimer > 0)
+        {
+            _reactorHeadTimer = Math.Max(0.0, _reactorHeadTimer - dt);
+        }
+
+        // A dead-ended line (setpoint above zero, both outputs shut) passes nothing: the meter
+        // reads ~0 while the head-space pressure climbs. The observable failure of the rig.
+        var deadEnd = route == ObservedGasRoute.DeadEnd;
+        var target = deadEnd ? 0.0 : Math.Clamp(FlowSetpoint, 0.0, MaxFlow);
         _flow += (target - _flow) * (dt / flowTau);
 
-        var restriction = VentValveOpen ? 0.35 : 1.6;
-        var targetPressure = _flow * restriction * 2.0;
-        _pressure += (targetPressure - _pressure) * (dt / 8.0);
+        double targetPressure;
+        if (deadEnd)
+        {
+            targetPressure = _servoPowerModel.DeadEndPressureKpa;
+        }
+        else
+        {
+            // The main shutoff (v_Flow) is the line's restriction; the sparger adds a little on A.
+            var restriction = MainLineClosed ? 1.6 : route == ObservedGasRoute.Reactor ? 0.45 : 0.35;
+            targetPressure = _flow * restriction * 2.0;
+        }
+        _pressure += (targetPressure - _pressure) * (dt / (deadEnd ? 4.0 : 8.0));
     }
 
     private void StepOxygen(double dt)
@@ -917,13 +936,26 @@ public sealed class DeviceModel
         const double saturation = 100.0;
 
         CurrentPhase = Profile.GetPhase(_elapsedSimulationSeconds);
-        var kLa = KlaSource.Evaluate(MotorRpm, _flow);
+
+        // The rig decides what the broth sees. Air transfers oxygen only on the reactor route
+        // (A); on B/C the vented air does nothing and, if the source is open, nitrogen strips
+        // the broth towards zero at the kLa the same sparger would give that gas flow; on a
+        // closed or dead-ended line only surface aeration at flow 0 remains.
+        var reactorFlow = ReadReactorFlow();
+        var kLa = KlaSource.Evaluate(MotorRpm, reactorFlow);
         CurrentKLa = kLa;
 
         var uptake = _biomass * CurrentPhase.SpecificOurPerAu;
         CurrentOur = uptake;
 
-        _oxygenTrue += ((kLa * (saturation - _oxygenTrue)) - uptake) * dt;
+        var transfer = kLa * (saturation - _oxygenTrue);
+        if (NitrogenFlowing)
+        {
+            // Stripping: the gas phase carries no oxygen, so the driving force is −C.
+            transfer -= KlaSource.Evaluate(MotorRpm, _servoPowerModel.NitrogenFlowLpm) * _oxygenTrue;
+        }
+
+        _oxygenTrue += (transfer - uptake) * dt;
         _oxygenTrue = Math.Clamp(_oxygenTrue, 0.0, saturation);
 
         // Feed the delay line and read out whatever is old enough to have arrived.
@@ -1001,12 +1033,21 @@ public sealed class DeviceModel
     public double ReadFlow()
     {
         var overshoot = 0.0;
-        if (_flowPulseTimer > 0 && _servoPowerModel.VentFlowPulseDurationSeconds > 0 && FlowSetpoint > 0)
+        if (_flowPulseTimer > 0 && _servoPowerModel.VentFlowPulseDurationSeconds > 0 && FlowSetpoint > 0
+            && ObservedRoute != ObservedGasRoute.DeadEnd)
         {
             var fraction = _flowPulseTimer / _servoPowerModel.VentFlowPulseDurationSeconds;
             overshoot = fraction * (FlowSetpoint + _servoPowerModel.VentFlowPulseMagnitude);
         }
-        return Math.Max(0.0, Perturb(_flow + overshoot, 0.02));
+
+        var headDip = 0.0;
+        if (_reactorHeadTimer > 0 && _servoPowerModel.ReactorHeadStepDurationSeconds > 0)
+        {
+            var fraction = _reactorHeadTimer / _servoPowerModel.ReactorHeadStepDurationSeconds;
+            headDip = fraction * _servoPowerModel.ReactorHeadStepFraction * FlowSetpoint;
+        }
+
+        return Math.Max(0.0, Perturb(_flow + overshoot - headDip, 0.02));
     }
 
     public double ReadPressure() => Math.Max(0.0, Perturb(_pressure, 0.1));

@@ -75,7 +75,7 @@ public static class WireCodec
             }
             AppendInt(buffer, "Valve1", model.Valve1);
             AppendInt(buffer, "Valve2", model.Valve2);
-            AppendInt(buffer, "ValveFlow", model.VentValveOpen ? 1 : 0);
+            AppendInt(buffer, "ValveFlow", model.MainLineClosed ? 1 : 0);
             AppendInt(buffer, "FlowCommandId", model.FlowCommandId);
             AppendInt(buffer, "FlowCommandAck", model.FlowCommandAck);
             AppendInt(buffer, "FlowCommandDeliveries", model.FlowCommandDeliveries);
@@ -445,10 +445,10 @@ public static class WireCodec
             model.NoteFlowCommand();
         }
 
-        // v_Flow is inverted: 1 means the vent is open because flow is zero.
+        // v_Flow is the active-high main shutoff: 1 = line closed (PROTOCOL §3.1).
         if (TryDouble(root, CommandKeys.V_Flow, out var vent))
         {
-            model.VentValveOpen = vent != 0;
+            model.MainLineClosed = vent != 0;
         }
 
         if (TryDouble(root, CommandKeys.Valve1, out var valve1) || TryDouble(root, "Valve1", out valve1))

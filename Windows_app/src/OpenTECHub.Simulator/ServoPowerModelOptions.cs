@@ -51,6 +51,26 @@ public sealed record ServoPowerModelOptions
 
     public double VentFlowPulseDurationSeconds { get; init; } = 3.5;
 
+    /// <summary>
+    /// Fraction of the setpoint the measured flow dips by when the route switches from the
+    /// vent (C) to the reactor (A): the sparger adds head that the vent line did not have, and
+    /// the controller takes a few seconds to recover it. The plan's default (§8) is 0.15; the
+    /// bench decides the real number.
+    /// </summary>
+    public double ReactorHeadStepFraction { get; init; } = 0.15;
+
+    /// <summary>Seconds for the sparger head transient to decay.</summary>
+    public double ReactorHeadStepDurationSeconds { get; init; } = 4.0;
+
+    /// <summary>
+    /// Nitrogen flow into the vessel when B is open and the source is open, in L/min. The N₂
+    /// line joins downstream of the flowmeter (physical document §2), so it is never metered.
+    /// </summary>
+    public double NitrogenFlowLpm { get; init; } = 2.0;
+
+    /// <summary>Head-space pressure a dead-ended line settles at, in kPa.</summary>
+    public double DeadEndPressureKpa { get; init; } = 60.0;
+
     public IReadOnlyList<ServoImpellerStage> Impellers { get; init; } =
     [
         // Two small Rushton stages. Their combined tare preserves the measured empty-shaft

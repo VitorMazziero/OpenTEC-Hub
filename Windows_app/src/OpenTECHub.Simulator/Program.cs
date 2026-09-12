@@ -1,5 +1,6 @@
 using System.Globalization;
 using OpenTECHub.Simulator;
+using OpenTECHub.Protocol;
 
 // ---------------------------------------------------------------------------
 // OpenTEC device simulator.
@@ -87,6 +88,8 @@ if (mode == "headless")
         headlessModel.Scenario = s;
     }
 
+    ApplyRigOptions(headlessModel);
+
     return HeadlessRunner.Run(headlessModel, durationSeconds, stepSeconds, outputPath);
 }
 
@@ -114,6 +117,8 @@ if (args.Contains("--all-nodes"))
 {
     model.EnableAllExternalNodes();
 }
+
+ApplyRigOptions(model);
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
@@ -318,6 +323,33 @@ double ParseDuration(string text)
     return 3600.0; // default 1h
 }
 
+// --rig a-on-1|a-on-2 (default a-on-2: MOSFET 2 → A, MOSFET 1 → B+C, the physical document);
+// --nitrogen-source open|closed (default open — the kLa's normal state).
+void ApplyRigOptions(DeviceModel target)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] == "--rig")
+        {
+            target.GasRig = args[i + 1].Replace("_", "-").ToLowerInvariant() switch
+            {
+                "a-on-1" or "1" => new GasRigConfiguration(GasInput.Input1),
+                "a-on-2" or "2" => new GasRigConfiguration(GasInput.Input2),
+                var other => throw new ArgumentException($"--rig: '{other}' não é a-on-1 nem a-on-2."),
+            };
+        }
+        else if (args[i] == "--nitrogen-source")
+        {
+            target.NitrogenSourceOpen = args[i + 1].ToLowerInvariant() switch
+            {
+                "open" or "aberta" => true,
+                "closed" or "fechada" => false,
+                var other => throw new ArgumentException($"--nitrogen-source: '{other}' não é open nem closed."),
+            };
+        }
+    }
+}
+
 bool TryReadScenario(out Scenario scenario)
 {
     scenario = Scenario.Normal;
@@ -356,6 +388,8 @@ static void PrintUsage()
           --output <path.csv>   (headless only) write CSV output to file (default stdout)
           --no-module           start with the sensor module offline
           --all-nodes           start with every external-node route enabled (bench-test dry run)
+          --rig a-on-1|a-on-2   which flowmeter output drives valve A; B/C share the other (default a-on-2)
+          --nitrogen-source open|closed  manual N2 valve upstream of B (default open)
           --quiet               no per-frame console echo
         """);
 
@@ -373,4 +407,5 @@ static void PrintScenarios() => Console.WriteLine("""
           noise       heavy measurement noise
           drift       slow calibration drift
           garbage     malformed frames, to test the parse-failure path
+          nitrogen-left-open  N2 source open during a power assay: every vent (C) opening strips DO
         """);

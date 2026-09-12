@@ -94,7 +94,8 @@ public sealed class PowerServoSimulatorTests
         Advance(model, 60.0);
         var ungassed = model.ServoTorquePct;
 
-        Assert.True(WireCodec.ApplyCommand(model, """{"flowSetpoint":5}""", out _));
+        // A/B/C rig: gas needs a destination — A is valve_2 on the default wiring (plan §1.3.1).
+        Assert.True(WireCodec.ApplyCommand(model, """{"flowSetpoint":5,"valve_2":1}""", out _));
         model.Tick(1.0);
         var transient = model.ServoTorquePct;
         Advance(model, 90.0);
@@ -162,8 +163,9 @@ public sealed class PowerServoSimulatorTests
 
     // ---- Gas, relief valve and flooding dynamics (Phase 2 Step 3) --------
 
+    /// <summary>A/B/C rig, default wiring: C (vent) shares valve_1 with B; A (reactor) is valve_2.</summary>
     [Fact]
-    public void Relief_valve_purges_gas_externally_without_dropping_reactor_torque()
+    public void Vent_C_purges_gas_externally_without_dropping_reactor_torque()
     {
         var options = ServoPowerModelOptions.Default with
         {
@@ -175,14 +177,14 @@ public sealed class PowerServoSimulatorTests
             clock: new AcceleratedClock(), randomSeed: 10, servoPowerModel: options)
         {
             MotorRpm = 600,
-            SelectedVentValve = 2, // Valve2 is relief
+            NitrogenSourceOpen = false,
         };
 
         Advance(model, 10.0);
         var ungassedTorque = model.ServoTorquePct;
 
-        // Open relief valve (Valve2=1) and close reactor (Valve1=0), command 5 L/min
-        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":5.0,\"Valve1\":0,\"Valve2\":1}", out _);
+        // Open C (B/C output = valve_1 on the default wiring), keep A shut, command 5 L/min
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":5.0,\"Valve1\":1,\"Valve2\":0}", out _);
         Advance(model, 10.0);
 
         // Gas is flowing through flowmeter
@@ -194,7 +196,7 @@ public sealed class PowerServoSimulatorTests
     }
 
     [Fact]
-    public void Switching_from_relief_to_reactor_delivers_flow_and_reduces_power()
+    public void Switching_from_C_to_A_delivers_flow_and_reduces_power()
     {
         var options = ServoPowerModelOptions.Default with
         {
@@ -207,16 +209,16 @@ public sealed class PowerServoSimulatorTests
             clock: new AcceleratedClock(), randomSeed: 11, servoPowerModel: options)
         {
             MotorRpm = 600,
-            SelectedVentValve = 2,
+            NitrogenSourceOpen = false,
         };
 
-        // 1. Settle in relief
-        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":5.0,\"Valve1\":0,\"Valve2\":1}", out _);
+        // 1. Settle on the vent (C = valve_1)
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":5.0,\"Valve1\":1,\"Valve2\":0}", out _);
         Advance(model, 10.0);
         var ungassedTorque = model.ServoTorquePct;
 
-        // 2. Switchover: close relief (Valve2=0), open reactor (Valve1=1)
-        WireCodec.ApplyCommand(model, "{\"Valve1\":1,\"Valve2\":0}", out _);
+        // 2. One-frame switchover: close B/C (valve_1=0), open A (valve_2=1)
+        WireCodec.ApplyCommand(model, "{\"Valve1\":0,\"Valve2\":1}", out _);
         Advance(model, 10.0);
 
         // Gas enters reactor
@@ -240,7 +242,8 @@ public sealed class PowerServoSimulatorTests
             clock: new AcceleratedClock(), randomSeed: 12, servoPowerModel: options);
 
         // Command gas flow directly
-        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":4.0}", out _);
+        // A/B/C rig: the start-up pulse is exercised on the vent (C = valve_1, default wiring).
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":4.0,\"Valve1\":1}", out _);
         model.Tick(0.1);
 
         // Immediate read shows pulse overshoot
@@ -299,8 +302,8 @@ public sealed class PowerServoSimulatorTests
         Advance(model, 10.0);
         var ungassedTorque = model.ServoTorquePct;
 
-        // Moderate aeration (below flooding): torque drops
-        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":1.0,\"Valve1\":1,\"Valve2\":0}", out _);
+        // Moderate aeration (below flooding) through A = valve_2 on the default wiring: torque drops
+        WireCodec.ApplyCommand(model, "{\"flowSetpoint\":1.0,\"Valve1\":0,\"Valve2\":1}", out _);
         Advance(model, 10.0);
         var moderateTorque = model.ServoTorquePct;
         Assert.True(moderateTorque < ungassedTorque);

@@ -7,7 +7,16 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1 e 2 concluídas em 12/09/2026.** Etapa 1 (`cee570a`):
+**Estado:** em execução — **Etapas 1, 2 e 3 concluídas em 12/09/2026.** Etapa 3 (simulador):
+`DeviceModel.GasRig` (`--rig a-on-1|a-on-2`), `NitrogenSourceOpen` (`--nitrogen-source
+open|closed`, padrão aberta), `ObservedRoute` pelo `GasRouting.Interpret`; ar oxigena só por A, N₂
+desoxigena só por B/C **e** com a fonte aberta (cenário `nitrogen-left-open` força a fonte aberta —
+e, como B e C ficam fechadas quando A está aberta, ele só age com B/C aberta: pré-estabilização por
+C, nunca a fase de reator); linha morta = vazão ~0 e pressão subindo a `DeadEndPressureKpa`;
+degrau de carga do aspersor na comutação C→A (`ReactorHeadStepFraction` 0,15 por 4 s);
+`IsReliefPurging`/`IsReactorValveClosed`/`SelectedVentValve` removidos; `VentValveOpen` virou
+`MainLineClosed` (v_Flow é o fechamento de linha). 8 testes em `SimulatorGasRigTests`; suíte 1558.
+Etapas 1 e 2: Etapa 1 (`cee570a`):
 `GasRouting.cs`, `CommandBuilders.FlowRoute`, `AppSettings.GasRig`; 33 testes. Etapa 2: os doze
 produtores passam pelo roteador (runners de kLa e Potência com `RouteFrame`, receitas, cascata via
 `CascadeController.BuildCommand(result, rig)`, gás proporcional da bomba, ponto único, calibração
@@ -172,8 +181,12 @@ app anota a tradução: `valve_1=0 (B/C) valve_2=1 (A)`.
 
 - **Setpoint > 0 exige destino.** `CommandBuilders.FlowRoute(...)` recusa `Closed` com setpoint > 0
   (`ArgumentException`); nenhum produtor consegue montar uma linha morta por engano.
-- **As duas abertas nunca são comandadas.** O roteador não tem essa saída; os toggles crus da página
-  Controle (Avançado) validam antes de enviar.
+- **As duas abertas nunca são comandadas por um ensaio ou automação.** O roteador não tem essa
+  saída. **Operação livre não tem restrição (decisão do usuário, 12/09/2026):** os toggles crus da
+  página Controle (Avançado) abrem e fecham qualquer entrada, em qualquer combinação, sem bloqueio —
+  a tela só **avisa** ("as duas abertas", "sem destino") e a telemetria denuncia (Etapa 7). A troca
+  ON/OFF numa frame só e a recusa de linha morta valem para os runners, receitas, cascata e demais
+  produtores automáticos, que passam pelo roteador.
 - **Observado ≠ comandado é alarme.** Um eco com setpoint > 0 e as duas entradas em 0 por mais de
   3 s levanta o alarme *Gás sem destino* (Etapa 7); `BothOpen` observado levanta *A e B/C abertas*
   (aviso). Ambos aparecem no chip da malha de gás.
@@ -433,8 +446,9 @@ alarme de roteamento), `Views/SynopticView.xaml`/`ShellViewModel.cs` (tag da lin
 2. XAML da gaveta: um `SegmentedControl` **Destino do gás** com os três estados, `Telemetria:
    {ObservedRouteText}` abaixo, e a linha "Arranjo: A na entrada 2 · B/C na entrada 1". `Expander`
    **Avançado** com os dois toggles crus (*Entrada 1 (B/C)* / *Entrada 2 (A)* — rótulos derivados
-   da configuração) e *Fechar linha (v_Flow)*, com validação "as duas abertas" e "sem destino"
-   antes de enviar; tooltip explica que é para bancada.
+   da configuração) e *Fechar linha (v_Flow)*, **sem bloqueio**: qualquer combinação é enviada
+   (operação livre, §3.3); "as duas abertas" e "sem destino" aparecem como aviso em texto ao lado,
+   nunca como recusa. Tooltip explica que é para bancada.
 3. Painel de detalhe (setpoint de vazão): usa `BuildSetpointPreservingRoute` (Etapa 2); o texto de
    estado ao lado do setpoint mostra `ObservedRouteText`.
 4. Sinótico: a tag da linha de gás mostra *Reator (A)* / *Descarga + N₂ (B/C)* / *Fechado*; estado
@@ -443,8 +457,8 @@ alarme de roteamento), `Views/SynopticView.xaml`/`ShellViewModel.cs` (tag da lin
    (o alarme de "Hub × app" compara rotas).
 6. `DocumentationCatalog` (Controle › gaveta Vazão de Ar): reescrever o campo "Vazão de Ar" com o
    destino do gás e o Avançado.
-**Testes.** Frame por destino nas duas ligações; erro de validação; Avançado recusa as duas abertas
-e a linha morta; `ObservedRouteText` para os cinco estados; contratos de rótulo (`Destino do gás`,
+**Testes.** Frame por destino nas duas ligações; erro de validação no seletor de destino; Avançado
+**envia** as duas abertas e a linha morta e mostra o aviso; `ObservedRouteText` para os cinco estados; contratos de rótulo (`Destino do gás`,
 `Reator (A)`, `Descarga + N₂ (B/C)`); layout compacto.
 **Pronto.** Suíte verde; no simulador, alternar o destino muda a rota observada no quadro seguinte.
 **Commit.** `feat(controle): destino do gas (A / B+C / fechado) no lugar dos toggles de valvula`.

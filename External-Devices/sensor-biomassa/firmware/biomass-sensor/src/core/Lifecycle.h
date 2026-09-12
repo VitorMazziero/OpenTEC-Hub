@@ -65,6 +65,8 @@ void firmwareSetup() {
   // Configure and start Web Server
   server.on("/",             HTTP_GET,  handleRoot);
   server.on("/readData",     HTTP_GET,  handleReadData);
+  server.on("/diag",         HTTP_GET,  handleDiag);
+  server.on("/status",       HTTP_GET,  handleDiag);
   server.on("/api/data",     HTTP_GET,  handleReadData);
   server.on("/api/status",   HTTP_GET,  handleStatus);
   server.on("/api/history",  HTTP_GET,  handleHistory);

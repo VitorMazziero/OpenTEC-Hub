@@ -320,6 +320,7 @@ void     setHubEnabled(bool enabled);
 void     handleOtaPage();
 void     handleOtaUploadDone();
 void     handleOtaChunk();
+void     handleDiag();
 
 // CRC32 Helper
 // NOTE: this is a byte sum, not a real CRC32. It is kept exactly as-is

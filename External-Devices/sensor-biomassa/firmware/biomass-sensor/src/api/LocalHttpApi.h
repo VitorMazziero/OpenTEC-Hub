@@ -20,6 +20,29 @@ void handleStatus() {
   sendJson(buildStatusJson());
 }
 
+void handleDiag() {
+  char json[320];
+  snprintf(json, sizeof(json),
+           "{\"device\":\"biomass-sensor\",\"version\":\"%s\",\"uptime_s\":%lu,"
+           "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
+           "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+           "\"state\":%d,\"absorbance\":%.3f,\"raw\":%u}",
+           FW_VERSION,
+           static_cast<unsigned long>(millis() / 1000),
+           static_cast<unsigned int>(ESP.getFreeHeap()),
+           WiFi.status(),
+           WiFi.SSID().c_str(),
+           WiFi.RSSI(),
+           WiFi.localIP().toString().c_str(),
+           WiFi.macAddress().c_str(),
+           g_hubFailStreak,
+           g_otaInProgress ? "true" : "false",
+           static_cast<int>(g_state),
+           g_lastAbsorbance,
+           g_lastAlsRaw);
+  sendJson(json);
+}
+
 void handleHistory() {
   uint32_t since = 0;
   if (server.hasArg("since")) {

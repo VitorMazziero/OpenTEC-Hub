@@ -1,25 +1,25 @@
-# External-device hardware and evidence assets are intentionally kept out of
-# ordinary Git object storage. Source code and Markdown remain normal text.
-External-Devices/**/*.SLDPRT filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.SLDASM filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.EASM filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.STEP filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.step filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.stp filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.STL filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.stl filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.IGS filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.igs filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.SAT filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.x_t filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.prt filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.FCStd filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.chitubox filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.pm5s filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.cxdlpv4 filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.pwscene filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.3mf filter=lfs diff=lfs merge=lfs -text
-External-Devices/**/*.gcode filter=lfs diff=lfs merge=lfs -text
+# Hardware CAD and external binary assets are intentionally kept out of
+# ordinary Git object storage via Git LFS. Source code and Markdown remain normal text.
+**/*.SLDPRT filter=lfs diff=lfs merge=lfs -text
+**/*.SLDASM filter=lfs diff=lfs merge=lfs -text
+**/*.EASM filter=lfs diff=lfs merge=lfs -text
+**/*.STEP filter=lfs diff=lfs merge=lfs -text
+**/*.step filter=lfs diff=lfs merge=lfs -text
+**/*.stp filter=lfs diff=lfs merge=lfs -text
+**/*.STL filter=lfs diff=lfs merge=lfs -text
+**/*.stl filter=lfs diff=lfs merge=lfs -text
+**/*.IGS filter=lfs diff=lfs merge=lfs -text
+**/*.igs filter=lfs diff=lfs merge=lfs -text
+**/*.SAT filter=lfs diff=lfs merge=lfs -text
+**/*.x_t filter=lfs diff=lfs merge=lfs -text
+**/*.prt filter=lfs diff=lfs merge=lfs -text
+**/*.FCStd filter=lfs diff=lfs merge=lfs -text
+**/*.chitubox filter=lfs diff=lfs merge=lfs -text
+**/*.pm5s filter=lfs diff=lfs merge=lfs -text
+**/*.cxdlpv4 filter=lfs diff=lfs merge=lfs -text
+**/*.pwscene filter=lfs diff=lfs merge=lfs -text
+**/*.3mf filter=lfs diff=lfs merge=lfs -text
+**/*.gcode filter=lfs diff=lfs merge=lfs -text
 External-Devices/**/*.png filter=lfs diff=lfs merge=lfs -text
 External-Devices/**/*.jpg filter=lfs diff=lfs merge=lfs -text
 External-Devices/**/*.JPG filter=lfs diff=lfs merge=lfs -text

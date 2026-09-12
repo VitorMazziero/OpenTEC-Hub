@@ -222,18 +222,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             SettingSmoothingWindow = klaSettings.SmoothingWindowSize;
             SettingMaxDegassingMinutes = klaSettings.MaxDegassingTimeMinutes;
             SettingMaxReoxygenationMinutes = klaSettings.MaxReoxygenationTimeMinutes;
-            SettingPostNitrogenMinimumDelaySeconds = klaSettings.PostNitrogenMinimumDelaySeconds;
             SettingStabilityDerivativeSpanSeconds = klaSettings.StabilityDerivativeSpanSeconds;
             SettingStabilityDerivativeThreshold = klaSettings.StabilityDerivativeThresholdPercentPerSecond;
             SettingStabilityRequiredSamples = klaSettings.StabilityRequiredSamples;
-            SettingMaxPostNitrogenStabilizationSeconds = klaSettings.MaxPostNitrogenStabilizationSeconds;
-            UseVentStabilization = klaSettings.VentStabilizationEnabled;
-            SettingVentAgitationRpm = klaSettings.VentAgitationRpm;
-            SettingVentFlowTolerance = klaSettings.VentFlowToleranceLpm;
-            SettingVentFlowStableSamples = klaSettings.VentFlowStableSamples;
-            SettingMaxVentStabilizationSeconds = klaSettings.MaxVentStabilizationSeconds;
-            SelectedVentValve = settings.Current.KlaVentValve;
-            SelectedN2Valve = settings.Current.KlaNitrogenValve;
+            SettingAirPrestageLeadPercent = klaSettings.AirPrestageLeadPercent;
+            SettingPrestageFlowTolerance = klaSettings.PrestageFlowToleranceLpm;
+            SettingPrestageFlowStableSamples = klaSettings.PrestageFlowStableSamples;
+            SettingMaxPrestageSeconds = klaSettings.MaxPrestageSeconds;
             SettingDefaultCeq = klaSettings.DefaultCeqPercent;
             AutoAcceptRuns = klaSettings.AutoAcceptRuns;
             SettingAutoLinearStartPercent = klaSettings.AutoLinearStartPercent;
@@ -302,9 +297,6 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private string _newTestName = "";
 
     [ObservableProperty]
-    private NitrogenValve _selectedN2Valve = NitrogenValve.Valve1;
-
-    [ObservableProperty]
     private double _settingDOMin = 15.0;
 
     [ObservableProperty]
@@ -323,9 +315,6 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     private double _settingMaxReoxygenationMinutes = 60;
 
     [ObservableProperty]
-    private double _settingPostNitrogenMinimumDelaySeconds = 5;
-
-    [ObservableProperty]
     private double _settingStabilityDerivativeSpanSeconds = 6;
 
     [ObservableProperty]
@@ -334,26 +323,22 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private int _settingStabilityRequiredSamples = 5;
 
+    /// <summary>DO points above DOMin at which the air is pre-staged through C (0 = at the floor).</summary>
     [ObservableProperty]
-    private double _settingMaxPostNitrogenStabilizationSeconds = 120;
+    private double _settingAirPrestageLeadPercent;
 
     [ObservableProperty]
-    private bool _useVentStabilization;
+    private double _settingPrestageFlowTolerance = 0.2;
 
     [ObservableProperty]
-    private NitrogenValve _selectedVentValve = NitrogenValve.Valve2;
+    private int _settingPrestageFlowStableSamples = 5;
 
     [ObservableProperty]
-    private double _settingVentAgitationRpm = 50;
+    private double _settingMaxPrestageSeconds = 180;
 
+    /// <summary>Preflight: the operator's word that the N₂ is open at the source. Reset each time the dialog opens.</summary>
     [ObservableProperty]
-    private double _settingVentFlowTolerance = 0.2;
-
-    [ObservableProperty]
-    private int _settingVentFlowStableSamples = 5;
-
-    [ObservableProperty]
-    private double _settingMaxVentStabilizationSeconds = 120;
+    private bool _nitrogenSourceConfirmed;
 
     [ObservableProperty]
     private double _settingDefaultCeq = 100;
@@ -621,40 +606,40 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public bool HasActiveTest => CurrentTest is not null;
     public bool IsRunning => _runner.IsRunning;
     public bool IsIdle => !IsRunning && !IsReviewOpen;
-    public bool CanStartSequence => HasActiveTest && IsIdle;
-    public bool CanChangeNitrogenValve => !IsRunning;
-    public bool CanChangeVentValve => !IsRunning;
+    public bool CanStartSequence => HasActiveTest && IsIdle && !IsLegacyRigTest;
 
-    /// <summary>
-    /// The vent and the N₂ line cannot share a flowmeter output: venting through the nitrogen
-    /// valve would open the N₂ line while the runner believed it was dumping air.
-    /// </summary>
-    public bool HasVentValveConflict => UseVentStabilization && SelectedVentValve == SelectedN2Valve;
+    /// <summary>An assay recorded before the A/B/C rig: reviewable, never continued (plan §3.5).</summary>
+    public bool IsLegacyRigTest => CurrentTest?.IsLegacyRig == true;
+    public string LegacyRigMessage => IsLegacyRigTest
+        ? "Montagem anterior ao arranjo A/B/C — só leitura. Crie um ensaio novo para continuar no arranjo atual."
+        : "";
+
+    /// <summary>The wiring in force, from Configurações › Gás e válvulas — shown, never edited here.</summary>
+    public string GasRigDescription =>
+        $"Arranjo: {_settings.Current.GasRig.ToConfiguration().Describe()} (Configurações › Gás e válvulas)";
+
     public string DisplayDODerivative => _runner.CurrentDODerivative.HasValue
         ? $"{_runner.CurrentDODerivative.Value:+0.000;-0.000;0.000} %/s"
         : "—";
     public string DisplayStabilityProgress => CurrentTest is null
         ? "—"
         : $"{_runner.StabilityConfirmationCount}/{CurrentTest.Settings.StabilityRequiredSamples}";
-    public string DisplayVentFlowDeviation => _runner.VentFlowDeviation.HasValue
-        ? $"{_runner.VentFlowDeviation.Value:+0.00;-0.00;0.00} L/min"
+    public string DisplayPrestageFlowDeviation => _runner.PrestageFlowDeviation.HasValue
+        ? $"{_runner.PrestageFlowDeviation.Value:+0.00;-0.00;0.00} L/min"
         : "—";
-    public string DisplayVentFlowProgress => CurrentTest is null
+    public string DisplayPrestageFlowProgress => CurrentTest is null
         ? "—"
-        : $"{_runner.VentFlowStableCount}/{CurrentTest.Settings.VentFlowStableSamples}";
+        : $"{_runner.PrestageFlowStableCount}/{CurrentTest.Settings.PrestageFlowStableSamples}";
     public string DisplayPhase => Phase switch
     {
         RunPhase.Idle => "Inativo",
         RunPhase.Preflight => "Pré-voo",
         RunPhase.ClosingAllGas => "Fechando todas as válvulas",
-        RunPhase.OpeningNitrogen => "Abrindo N₂",
-        RunPhase.Deoxygenating => "Desoxigenando (N₂)",
-        RunPhase.ClosingNitrogen => "Fechando N₂",
-        RunPhase.WaitingForDOStability => "Estabilizando após N₂",
-        RunPhase.OpeningVent => "Abrindo Alívio",
-        RunPhase.StabilizingVentFlow => "Estabilizando Vazão (Alívio)",
-        RunPhase.OpeningAir => "Abrindo Ar",
-        RunPhase.Reoxygenating => "Reoxigenando (Ar)",
+        RunPhase.OpeningNitrogen => "Abrindo N₂ (B/C)",
+        RunPhase.Deoxygenating => "Desoxigenando",
+        RunPhase.PrestagingAir => "Ar por C · estabilizando",
+        RunPhase.SwitchingToReactor => "Comutando para o reator (A)",
+        RunPhase.Reoxygenating => "Reoxigenando",
         RunPhase.StoppingRun => "Fechando válvulas da corrida",
         RunPhase.Reviewing => "Em Revisão",
         RunPhase.Accepted => "Corrida Aceita",
@@ -775,13 +760,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             (mapRef, initialConditions) = KlaMapImportHelper.ImportConditionsFromMap(SelectedMapForImport, 1);
         }
 
-        var doc = _store.CreateTest(NewTestName, settings, SelectedN2Valve, mapRef, initialConditions, SelectedVentValve);
-        _settings.Update(s => s with
-        {
-            KlaTest = settings,
-            KlaNitrogenValve = SelectedN2Valve,
-            KlaVentValve = SelectedVentValve
-        });
+        var doc = _store.CreateTest(NewTestName, settings, mapRef, initialConditions);
+        _settings.Update(s => s with { KlaTest = settings });
         IsCreateDialogOpen = false;
 
         LoadTest(doc.FolderName);
@@ -830,26 +810,28 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             SettingSmoothingWindow = doc.Settings.SmoothingWindowSize;
             SettingMaxDegassingMinutes = doc.Settings.MaxDegassingTimeMinutes;
             SettingMaxReoxygenationMinutes = doc.Settings.MaxReoxygenationTimeMinutes;
-            SettingPostNitrogenMinimumDelaySeconds = doc.Settings.PostNitrogenMinimumDelaySeconds;
             SettingStabilityDerivativeSpanSeconds = doc.Settings.StabilityDerivativeSpanSeconds;
             SettingStabilityDerivativeThreshold = doc.Settings.StabilityDerivativeThresholdPercentPerSecond;
             SettingStabilityRequiredSamples = doc.Settings.StabilityRequiredSamples;
-            SettingMaxPostNitrogenStabilizationSeconds = doc.Settings.MaxPostNitrogenStabilizationSeconds;
-            UseVentStabilization = doc.Settings.VentStabilizationEnabled;
-            SettingVentAgitationRpm = doc.Settings.VentAgitationRpm;
-            SettingVentFlowTolerance = doc.Settings.VentFlowToleranceLpm;
-            SettingVentFlowStableSamples = doc.Settings.VentFlowStableSamples;
-            SettingMaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
-            SelectedVentValve = doc.SelectedVentValve;
+            SettingAirPrestageLeadPercent = doc.Settings.AirPrestageLeadPercent;
+            SettingPrestageFlowTolerance = doc.Settings.PrestageFlowToleranceLpm;
+            SettingPrestageFlowStableSamples = doc.Settings.PrestageFlowStableSamples;
+            SettingMaxPrestageSeconds = doc.Settings.MaxPrestageSeconds;
             SettingDefaultCeq = doc.Settings.DefaultCeqPercent;
             AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
             SettingAutoLinearStartPercent = doc.Settings.AutoLinearStartPercent;
             SettingAutoLinearEndPercent = doc.Settings.AutoLinearEndPercent;
-            SelectedN2Valve = doc.SelectedNitrogenValve;
         }
         finally
         {
             _isLoadingSettings = false;
+        }
+        OnPropertyChanged(nameof(IsLegacyRigTest));
+        OnPropertyChanged(nameof(LegacyRigMessage));
+        OnPropertyChanged(nameof(GasRigDescription));
+        if (doc.IsLegacyRig)
+        {
+            StatusMessage = LegacyRigMessage;
         }
 
         Conditions.Clear();
@@ -1153,6 +1135,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             UpdateSequencePreview(2);
         }
 
+        NitrogenSourceConfirmed = CurrentTest.NitrogenSourceConfirmedUtc is not null;
+        OnPropertyChanged(nameof(GasRigDescription));
         IsStartSequenceDialogOpen = true;
     }
 
@@ -1203,6 +1187,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
+        if (!NitrogenSourceConfirmed)
+        {
+            StatusMessage = "Confirme que o N₂ está aberto na fonte antes de iniciar.";
+            return;
+        }
+        RecordNitrogenSourceConfirmation();
+
         _activeSequenceQueue = SequencePreviewQueue.Select(c => c.Model).ToList();
         IsStartSequenceDialogOpen = false;
 
@@ -1227,6 +1218,10 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
+        if (!EnsureNitrogenSourceConfirmed())
+        {
+            return;
+        }
         UpdateSequencePreview(IsSequenceModePending ? 0 : (IsSequenceModeFromSelected ? 1 : 2));
         await ConfirmStartSequenceAsync();
     }
@@ -1240,6 +1235,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         var cond = row.Model;
+        if (!EnsureNitrogenSourceConfirmed())
+        {
+            return;
+        }
+
         _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
         var nextRep = cond.CompletedReplicates + 1;
 
@@ -1248,6 +1248,45 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         LogLinearSeries.Clear();
 
         await _runner.StartRunAsync(cond, nextRep);
+    }
+
+    /// <summary>
+    /// Preflight outside the sequence dialog (a row's ▶, the direct start): asks once per test
+    /// and records the answer. The dialog path has its own checkbox and never nests a prompt.
+    /// </summary>
+    private bool EnsureNitrogenSourceConfirmed()
+    {
+        if (CurrentTest is null)
+        {
+            return false;
+        }
+        if (CurrentTest.NitrogenSourceConfirmedUtc is not null || NitrogenSourceConfirmed)
+        {
+            RecordNitrogenSourceConfirmation();
+            return true;
+        }
+        if (!_dialogs.Confirm(
+                "Pré-voo: N₂ na fonte",
+                "A desoxigenação entra pela válvula B (saída B/C), mas a fonte de N₂ é manual e o app não a enxerga. Confirme que o N₂ está aberto na fonte.",
+                "Confirmo", "Cancelar"))
+        {
+            return false;
+        }
+        NitrogenSourceConfirmed = true;
+        RecordNitrogenSourceConfirmation();
+        return true;
+    }
+
+    /// <summary>Writes the preflight confirmation to the manifest once; the runner logs it with each run.</summary>
+    private void RecordNitrogenSourceConfirmation()
+    {
+        if (CurrentTest is null || CurrentTest.NitrogenSourceConfirmedUtc is not null)
+        {
+            return;
+        }
+
+        CurrentTest.NitrogenSourceConfirmedUtc = DateTimeOffset.UtcNow;
+        _store.SaveTestManifest(CurrentTest);
     }
 
     [RelayCommand]
@@ -1271,17 +1310,11 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         CurrentTest.Settings = newSettings;
-        CurrentTest.SelectedNitrogenValve = SelectedN2Valve;
-        CurrentTest.SelectedVentValve = SelectedVentValve;
         _runner.UpdateLiveSettings(newSettings);
         _store.SaveTestManifest(CurrentTest);
-        _settings.Update(s => s with
-        {
-            KlaTest = newSettings,
-            KlaNitrogenValve = SelectedN2Valve,
-            KlaVentValve = SelectedVentValve
-        });
+        _settings.Update(s => s with { KlaTest = newSettings });
         OnPropertyChanged(nameof(DisplayStabilityProgress));
+        OnPropertyChanged(nameof(DisplayPrestageFlowProgress));
     }
 
     partial void OnSettingDOMinChanged(double value) => AutoApplyLiveSettings();
@@ -1290,20 +1323,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     partial void OnSettingSmoothingWindowChanged(int value) => AutoApplyLiveSettings();
     partial void OnSettingMaxDegassingMinutesChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingMaxReoxygenationMinutesChanged(double value) => AutoApplyLiveSettings();
-    partial void OnSettingPostNitrogenMinimumDelaySecondsChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingStabilityDerivativeSpanSecondsChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingStabilityDerivativeThresholdChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingStabilityRequiredSamplesChanged(int value) => AutoApplyLiveSettings();
-    partial void OnSettingMaxPostNitrogenStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
-    partial void OnUseVentStabilizationChanged(bool value)
-    {
-        OnPropertyChanged(nameof(HasVentValveConflict));
-        AutoApplyLiveSettings();
-    }
-    partial void OnSettingVentAgitationRpmChanged(double value) => AutoApplyLiveSettings();
-    partial void OnSettingVentFlowToleranceChanged(double value) => AutoApplyLiveSettings();
-    partial void OnSettingVentFlowStableSamplesChanged(int value) => AutoApplyLiveSettings();
-    partial void OnSettingMaxVentStabilizationSecondsChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingAirPrestageLeadPercentChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingPrestageFlowToleranceChanged(double value) => AutoApplyLiveSettings();
+    partial void OnSettingPrestageFlowStableSamplesChanged(int value) => AutoApplyLiveSettings();
+    partial void OnSettingMaxPrestageSecondsChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingDefaultCeqChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingAutoLinearStartPercentChanged(double value) => AutoApplyLiveSettings();
     partial void OnSettingAutoLinearEndPercentChanged(double value) => AutoApplyLiveSettings();
@@ -1320,12 +1346,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
-        _settings.Update(s => s with
-        {
-            KlaTest = newSettings,
-            KlaNitrogenValve = SelectedN2Valve,
-            KlaVentValve = SelectedVentValve
-        });
+        _settings.Update(s => s with { KlaTest = newSettings });
 
         if (CurrentTest is not null)
         {
@@ -1340,34 +1361,6 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             CurrentTest.Settings = CurrentTest.Settings with { AutoAcceptRuns = value };
             _runner.UpdateLiveSettings(CurrentTest.Settings);
             _store.SaveTestManifest(CurrentTest);
-        }
-    }
-
-    partial void OnSelectedVentValveChanged(NitrogenValve value)
-    {
-        OnPropertyChanged(nameof(HasVentValveConflict));
-        if (!_isLoadingSettings)
-        {
-            _settings.Update(s => s with { KlaVentValve = value });
-            if (CurrentTest is not null && !IsRunning)
-            {
-                CurrentTest.SelectedVentValve = value;
-                _store.SaveTestManifest(CurrentTest);
-            }
-        }
-    }
-
-    partial void OnSelectedN2ValveChanged(NitrogenValve value)
-    {
-        OnPropertyChanged(nameof(HasVentValveConflict));
-        if (!_isLoadingSettings)
-        {
-            _settings.Update(s => s with { KlaNitrogenValve = value });
-            if (CurrentTest is not null && !IsRunning)
-            {
-                CurrentTest.SelectedNitrogenValve = value;
-                _store.SaveTestManifest(CurrentTest);
-            }
         }
     }
 
@@ -1389,31 +1382,24 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             error = "Rotação, tempos máximos e janela ímpar de suavização (1–101) devem ser válidos.";
             return false;
         }
-        if (!double.IsFinite(SettingPostNitrogenMinimumDelaySeconds) || SettingPostNitrogenMinimumDelaySeconds < 0 ||
-            !double.IsFinite(SettingStabilityDerivativeSpanSeconds) || SettingStabilityDerivativeSpanSeconds <= 0 ||
+        if (!double.IsFinite(SettingStabilityDerivativeSpanSeconds) || SettingStabilityDerivativeSpanSeconds <= 0 ||
             !double.IsFinite(SettingStabilityDerivativeThreshold) || SettingStabilityDerivativeThreshold <= 0 ||
-            SettingStabilityRequiredSamples is < 1 or > 100 ||
-            !double.IsFinite(SettingMaxPostNitrogenStabilizationSeconds) ||
-            SettingMaxPostNitrogenStabilizationSeconds <= SettingPostNitrogenMinimumDelaySeconds)
+            SettingStabilityRequiredSamples is < 1 or > 100)
         {
-            error = "Revise atraso, janela, limiar, confirmações e tempo máximo da estabilização pós-N₂.";
+            error = "Revise janela, limiar e confirmações da estabilidade da sonda no piso.";
             return false;
         }
-        if (!double.IsFinite(SettingVentFlowTolerance) || SettingVentFlowTolerance <= 0 || SettingVentFlowTolerance > 10 ||
-            SettingVentFlowStableSamples is < 1 or > 100 ||
-            !double.IsFinite(SettingMaxVentStabilizationSeconds) || SettingMaxVentStabilizationSeconds <= 0)
+        if (!double.IsFinite(SettingAirPrestageLeadPercent) || SettingAirPrestageLeadPercent < 0 ||
+            SettingDOMin + SettingAirPrestageLeadPercent >= SettingDOMax)
         {
-            error = "Revise tolerância de vazão, confirmações e tempo máximo da estabilização no alívio.";
+            error = "A antecipação da pré-estabilização deve ser ≥ 0 e, somada ao DO mínimo, ficar abaixo do DO final.";
             return false;
         }
-        if (!double.IsFinite(SettingVentAgitationRpm) || SettingVentAgitationRpm is < 15 or > 1000)
+        if (!double.IsFinite(SettingPrestageFlowTolerance) || SettingPrestageFlowTolerance <= 0 || SettingPrestageFlowTolerance > 10 ||
+            SettingPrestageFlowStableSamples is < 1 or > 100 ||
+            !double.IsFinite(SettingMaxPrestageSeconds) || SettingMaxPrestageSeconds <= 0)
         {
-            error = "A rotação durante o alívio deve ficar entre 15 e 1000 rpm.";
-            return false;
-        }
-        if (UseVentStabilization && SelectedVentValve == SelectedN2Valve)
-        {
-            error = "A válvula de alívio deve ser diferente da válvula do N₂.";
+            error = "Revise tolerância de vazão, confirmações e tempo máximo da pré-estabilização do ar por C.";
             return false;
         }
         if (!double.IsFinite(SettingDefaultCeq) || SettingDefaultCeq <= SettingDOMax || SettingDefaultCeq > 200 ||
@@ -1433,16 +1419,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             SmoothingWindowSize = SettingSmoothingWindow,
             MaxDegassingTimeMinutes = SettingMaxDegassingMinutes,
             MaxReoxygenationTimeMinutes = SettingMaxReoxygenationMinutes,
-            PostNitrogenMinimumDelaySeconds = SettingPostNitrogenMinimumDelaySeconds,
             StabilityDerivativeSpanSeconds = SettingStabilityDerivativeSpanSeconds,
             StabilityDerivativeThresholdPercentPerSecond = SettingStabilityDerivativeThreshold,
             StabilityRequiredSamples = SettingStabilityRequiredSamples,
-            MaxPostNitrogenStabilizationSeconds = SettingMaxPostNitrogenStabilizationSeconds,
-            VentStabilizationEnabled = UseVentStabilization,
-            VentAgitationRpm = SettingVentAgitationRpm,
-            VentFlowToleranceLpm = SettingVentFlowTolerance,
-            VentFlowStableSamples = SettingVentFlowStableSamples,
-            MaxVentStabilizationSeconds = SettingMaxVentStabilizationSeconds,
+            AirPrestageLeadPercent = SettingAirPrestageLeadPercent,
+            PrestageFlowToleranceLpm = SettingPrestageFlowTolerance,
+            PrestageFlowStableSamples = SettingPrestageFlowStableSamples,
+            MaxPrestageSeconds = SettingMaxPrestageSeconds,
             DefaultCeqPercent = SettingDefaultCeq,
             AutoAcceptRuns = AutoAcceptRuns,
             AutoLinearStartPercent = SettingAutoLinearStartPercent,
@@ -1471,12 +1454,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             StatusMessage = error;
             return;
         }
-        _settings.Update(s => s with
-        {
-            KlaTest = settings,
-            KlaNitrogenValve = SelectedN2Valve,
-            KlaVentValve = SelectedVentValve
-        });
+        _settings.Update(s => s with { KlaTest = settings });
         ApplyLiveSettings();
         IsAdvancedSettingsDialogOpen = false;
     }
@@ -1742,8 +1720,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         CurrentCondition = _runner.CurrentCondition;
         OnPropertyChanged(nameof(DisplayDODerivative));
         OnPropertyChanged(nameof(DisplayStabilityProgress));
-        OnPropertyChanged(nameof(DisplayVentFlowDeviation));
-        OnPropertyChanged(nameof(DisplayVentFlowProgress));
+        OnPropertyChanged(nameof(DisplayPrestageFlowDeviation));
+        OnPropertyChanged(nameof(DisplayPrestageFlowProgress));
 
         if (_runner.IsInReview && !IsReviewOpen)
         {
@@ -2089,8 +2067,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(CanStartSequence));
-        OnPropertyChanged(nameof(CanChangeNitrogenValve));
-        OnPropertyChanged(nameof(CanChangeVentValve));
+        OnPropertyChanged(nameof(IsLegacyRigTest));
+        OnPropertyChanged(nameof(LegacyRigMessage));
         OnPropertyChanged(nameof(DisplayPhase));
         OnPropertyChanged(nameof(FormattedTotalTime));
         OnPropertyChanged(nameof(FormattedPhaseTime));

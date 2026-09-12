@@ -150,7 +150,7 @@ public class NodeProvenanceTests : IDisposable
     public void The_kla_manifest_round_trips_hub_and_nodes()
     {
         var store = new KlaTestStore(AppPaths.KlaTestsDirectory);
-        var doc = store.CreateTest("Proveniencia kLa", new KlaTestSettings(), NitrogenValve.Valve2,
+        var doc = store.CreateTest("Proveniencia kLa", new KlaTestSettings(),
             initialConditions: [new KlaTestCondition { AgitationRpm = 300, AirflowLpm = 2.0, RequestedReplicates = 1 }]);
         doc.HubFirmwareVersion = "10.1.0-dev";
         doc.HubProtocolVersion = 10;

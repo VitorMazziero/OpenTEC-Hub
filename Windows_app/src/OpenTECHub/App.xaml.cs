@@ -345,7 +345,8 @@ public partial class App : Application
             services.AddSingleton<KlaPlaybackDeviceService>(sp => new KlaPlaybackDeviceService(
                 playback,
                 sp.GetRequiredService<ILogger<KlaPlaybackDeviceService>>(),
-                Dispatcher.CurrentDispatcher));
+                Dispatcher.CurrentDispatcher,
+                sp.GetRequiredService<Func<GasRigConfiguration>>()));
         }
 
         services.AddSingleton(TimeProvider.System);

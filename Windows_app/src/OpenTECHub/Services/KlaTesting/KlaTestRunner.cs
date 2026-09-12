@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.Services.KlaTesting;
@@ -43,15 +44,17 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private (double Flow, bool V1, bool V2, bool VFlow) _targetGasState;
     private int _lastFlowCommandId;
     private int _minimumExpectedFlowCommandId;
-    private bool _openAirAfterClosing;
+    private bool _startAtFloor;
+    private bool _prestageConfirmed;
     private bool _completeAfterClosing;
     private bool _abortAfterClosing;
     private string _terminalReason = "";
     private bool _disposed;
     private double? _currentDODerivative;
     private int _stabilityConfirmationCount;
-    private int _ventFlowStableCount;
-    private double? _ventFlowDeviation;
+    private int _prestageFlowStableCount;
+    private double? _prestageFlowDeviation;
+    private readonly List<double> _prestageFlowWindow = [];
 
     public KlaTestRunner(
         IDeviceService device,
@@ -90,8 +93,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public double CurrentFlowMeasured => _currentFlowMeasured;
     public double? CurrentDODerivative => _currentDODerivative;
     public int StabilityConfirmationCount => _stabilityConfirmationCount;
-    public int VentFlowStableCount => _ventFlowStableCount;
-    public double? VentFlowDeviation => _ventFlowDeviation;
+    public int PrestageFlowStableCount => _prestageFlowStableCount;
+    public double? PrestageFlowDeviation => _prestageFlowDeviation;
     public string StatusMessage => _statusMessage;
 
     /// <summary>True once a queued write of this assay's files failed (D-048); the run continues, the operator is told.</summary>
@@ -192,6 +195,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _currentTest = doc;
             _currentTest.Status = KlaTestStatus.Running;
             _currentTest.StartedUtc ??= _time.GetUtcNow();
+            _currentTest.GasRig ??= GasRigSettings.From(Rig);
             RecordProvenance(_currentTest);
             _store.SaveTestManifest(_currentTest);
 
@@ -200,7 +204,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _statusMessage = $"Teste '{doc.Name}' ativo. Selecione uma condição para iniciar a corrida.";
         }
 
-        LogEvent("TestStarted", $"Teste '{doc.Name}' iniciado.");
+        LogEvent("TestStarted", $"Teste '{doc.Name}' iniciado. Arranjo: {_currentTest.GasRig.ToConfiguration().Describe()}.");
         RaiseStateChanged();
         return Task.CompletedTask;
     }
@@ -230,15 +234,30 @@ public sealed class KlaTestRunner : IKlaTestRunner
             throw new InvalidOperationException("Leitura de oxigênio inválida.");
         }
         ValidateSettings(_currentTest.Settings);
-        if (_currentTest.Settings.VentStabilizationEnabled &&
-            _currentTest.SelectedVentValve == _currentTest.SelectedNitrogenValve)
+        if (_currentTest.IsLegacyRig)
         {
             throw new InvalidOperationException(
-                "A válvula de alívio deve ser diferente da válvula do N₂.");
+                "Montagem anterior ao arranjo A/B/C — este ensaio é só leitura. Crie um ensaio novo para o arranjo atual.");
+        }
+        var rig = Rig;
+        if (_currentTest.GasRig is { } recordedRig && recordedRig.ToConfiguration() != rig)
+        {
+            throw new InvalidOperationException(
+                $"O arranjo configurado ({rig.Describe()}) difere do gravado neste ensaio ({recordedRig.ToConfiguration().Describe()}). " +
+                "Ajuste Configurações › Gás e válvulas ou crie um ensaio novo.");
         }
         if (condition.AgitationRpm <= 0 || condition.AirflowLpm <= 0 || replicateNumber < 1)
         {
             throw new InvalidOperationException("Condição inválida: rotação, vazão e replicata devem ser positivas.");
+        }
+
+        // A run that begins at the floor never opens the N₂; every other run does, and the
+        // source is the operator's hand — the preflight confirmation is the only evidence.
+        var startAtFloor = _currentDO <= _currentTest.Settings.DOMinPercent + Math.Max(0.0, _currentTest.Settings.AirPrestageLeadPercent);
+        if (!startAtFloor && _currentTest.NitrogenSourceConfirmedUtc is null)
+        {
+            throw new InvalidOperationException(
+                "Confirme no pré-voo que o N₂ está aberto na fonte antes de iniciar a desoxigenação.");
         }
 
         lock (_gate)
@@ -254,9 +273,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
             _currentCondition = condition;
             condition.Status = ConditionStatus.InProgress;
+            _currentTest.GasRig ??= GasRigSettings.From(rig);
 
             _runPoints.Clear();
             ResetStabilityDetection();
+            _startAtFloor = startAtFloor;
 
             _currentRun = new KlaTestRun
             {
@@ -265,8 +286,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 ReplicateNumber = replicateNumber,
                 AgitationRpm = condition.AgitationRpm,
                 AirflowLpm = condition.AirflowLpm,
-                NitrogenValve = _currentTest.SelectedNitrogenValve,
-                VentValve = _currentTest.SelectedVentValve,
+                SkippedNitrogen = startAtFloor,
                 CurrentPhase = RunPhase.Preflight,
                 StartedUtc = _time.GetUtcNow(),
             };
@@ -281,7 +301,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _store.SaveTestManifest(_currentTest);
         }
 
-        LogEvent("RunStarted", $"Iniciando corrida {_currentRun.FolderName} (N={condition.AgitationRpm} rpm, Q={condition.AirflowLpm} L/min, Rep={replicateNumber}).");
+        LogEvent(
+            "RunStarted",
+            $"Iniciando corrida {_currentRun.FolderName} (N={condition.AgitationRpm} rpm, Q={condition.AirflowLpm} L/min, Rep={replicateNumber}). " +
+            $"Arranjo: {rig.Describe()}. DO inicial {_currentDO:F1}%" +
+            (startAtFloor ? " — já no piso, sem fase de N₂." : $" — N₂ aberto na fonte confirmado em {_currentTest.NitrogenSourceConfirmedUtc:HH:mm:ss} UTC."));
         RaiseStateChanged();
 
         // 1. Claim ownership of Agitation and Aeration
@@ -310,18 +334,14 @@ public sealed class KlaTestRunner : IKlaTestRunner
         }
 
         // 2. Initial Gas State: Close all gases first
-        var initialDo = _currentDO;
-
-        _openAirAfterClosing = initialDo <= _currentTest.Settings.DOMinPercent;
         SetPhase(RunPhase.ClosingAllGas, "Intertravamento: fechando todas as válvulas...");
         DispatchFlowOrAbort(CommandBuilders.FlowSafeStop(MaxFlow), "fechar todas as válvulas");
     }
 
     public Task StopRunAndReviewAsync(string reason = "Parada pelo operador")
     {
-        if (_phase is not (RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
-            RunPhase.OpeningVent or RunPhase.StabilizingVentFlow or
-            RunPhase.Reoxygenating or RunPhase.OpeningAir or RunPhase.OpeningNitrogen))
+        if (_phase is not (RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir or
+            RunPhase.SwitchingToReactor or RunPhase.Reoxygenating))
         {
             return Task.CompletedTask;
         }
@@ -382,6 +402,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 AnalysisR2 = analysis.AnalysisR2,
                 StartedUtc = _currentRun.StartedUtc,
                 CompletedUtc = _currentRun.CompletedUtc,
+                SwitchRelativeSeconds = _currentRun.SwitchRelativeSeconds,
+                SwitchFlowRateLpm = _currentRun.SwitchFlowRateLpm,
+                SwitchDoPercent = _currentRun.SwitchDoPercent,
             });
 
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
@@ -442,6 +465,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 AnalysisR2 = null,
                 StartedUtc = _currentRun.StartedUtc,
                 CompletedUtc = _currentRun.CompletedUtc,
+                SwitchRelativeSeconds = _currentRun.SwitchRelativeSeconds,
+                SwitchFlowRateLpm = _currentRun.SwitchFlowRateLpm,
+                SwitchDoPercent = _currentRun.SwitchDoPercent,
             });
 
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
@@ -542,9 +568,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _store.SaveTestManifest(_currentTest);
 
             // React immediately if thresholds crossed
-            if (_phase == RunPhase.Deoxygenating && _currentDO <= settings.DOMinPercent)
+            if (_phase == RunPhase.Deoxygenating && _currentDO <= PrestageTriggerPercent)
             {
-                TransitionToReoxygenation();
+                BeginAirPrestage();
             }
             else if (_phase == RunPhase.Reoxygenating && _currentDO >= settings.DOMaxPercent)
             {
@@ -567,7 +593,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _currentTest.Settings = _currentTest.Settings with { DegassingAgitationRpm = rpm };
             _store.SaveTestManifest(_currentTest);
 
-            if (_phase == RunPhase.Deoxygenating)
+            if (_phase is RunPhase.Deoxygenating or RunPhase.PrestagingAir)
             {
                 var clampedRpm = _routeCoordinator.ClampRpm(rpm);
                 _arbiter.Dispatch(CommandOwner.KlaAssay, CommandBuilders.MotorSetpoint((int)clampedRpm));
@@ -644,8 +670,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             var v1 = s.FlowValve1 != 0;
             var v2 = s.FlowValve2 != 0;
             var vFlow = s.FlowValveMain != 0;
-            var agitationSetpoint = _phase is RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or
-                RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability
+            var agitationSetpoint = _phase is RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir
                 ? _currentTest.Settings.DegassingAgitationRpm
                 : _currentCondition?.AgitationRpm ?? 0;
 
@@ -668,9 +693,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 RpmMeasured: rpmMeasured);
 
             var capturesRunData = _phase is RunPhase.Preflight or RunPhase.ClosingAllGas or
-                RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.ClosingNitrogen or RunPhase.WaitingForDOStability or
-                RunPhase.OpeningVent or RunPhase.StabilizingVentFlow or
-                RunPhase.OpeningAir or RunPhase.Reoxygenating or RunPhase.StoppingRun or RunPhase.Aborting;
+                RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir or
+                RunPhase.SwitchingToReactor or RunPhase.Reoxygenating or RunPhase.StoppingRun or RunPhase.Aborting;
             if (capturesRunData)
             {
                 _runPoints.Add(rawPt);
@@ -714,9 +738,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
             // Phase State Transitions
             if (_phase == RunPhase.ClosingAllGas && IsGasStateConfirmed(s, (0, false, false, true)))
             {
-                if (_openAirAfterClosing)
+                if (_startAtFloor)
                 {
-                    BeginAirAdmission();
+                    BeginAirPrestage();
                 }
                 else
                 {
@@ -735,29 +759,17 @@ public sealed class KlaTestRunner : IKlaTestRunner
             {
                 SetPhase(RunPhase.Deoxygenating, $"Desoxigenação com N₂ em andamento (DO = {s.OxygenCalibrated:F1}%)...");
             }
-            else if (_phase == RunPhase.OpeningAir && IsGasStateConfirmed(s, _targetGasState))
+            else if (_phase == RunPhase.PrestagingAir)
             {
-                SetPhase(RunPhase.Reoxygenating, $"Reoxigenação com Ar em andamento (DO = {s.OxygenCalibrated:F1}%)...");
+                EvaluateAirPrestage(s, monoSec);
             }
-            else if (_phase == RunPhase.ClosingNitrogen && IsGasStateConfirmed(s, _targetGasState))
+            else if (_phase == RunPhase.SwitchingToReactor && IsGasStateConfirmed(s, _targetGasState))
             {
-                BeginPostNitrogenStabilityWait();
+                ConfirmSwitchToReactor(s, relSec);
             }
-            else if (_phase == RunPhase.WaitingForDOStability)
+            else if (_phase == RunPhase.Deoxygenating && s.OxygenCalibrated <= PrestageTriggerPercent)
             {
-                EvaluatePostNitrogenStability(monoSec, s.OxygenCalibrated);
-            }
-            else if (_phase == RunPhase.OpeningVent && IsGasStateConfirmed(s, _targetGasState))
-            {
-                BeginVentFlowStabilization();
-            }
-            else if (_phase == RunPhase.StabilizingVentFlow)
-            {
-                EvaluateVentFlowStability(s.FlowRate);
-            }
-            else if (_phase == RunPhase.Deoxygenating && s.OxygenCalibrated <= _currentTest.Settings.DOMinPercent)
-            {
-                TransitionToReoxygenation();
+                BeginAirPrestage();
             }
             else if (_phase == RunPhase.Reoxygenating && s.OxygenCalibrated >= _currentTest.Settings.DOMaxPercent)
             {
@@ -766,71 +778,6 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
             RaiseStateChanged();
         }
-    }
-
-    private void TransitionToReoxygenation()
-    {
-        LogEvent("DOMinReached", $"DO atingiu {_currentDO:F1}% (limiar {_currentTest?.Settings.DOMinPercent:F1}%). Fechando N₂...");
-
-        _targetGasState = (0.0, false, false, true);
-        SetPhase(RunPhase.ClosingNitrogen, "Fechando N₂...");
-
-        _openAirAfterClosing = true;
-        DispatchFlowOrAbort(CommandBuilders.FlowSafeStop(MaxFlow), "fechar nitrogênio");
-    }
-
-    private void BeginPostNitrogenStabilityWait()
-    {
-        ResetStabilityDetection();
-        LogEvent("NitrogenClosed", "N₂ fechado e confirmado. Aguardando dissipação do gás residual e estabilização da sonda.");
-        SetPhase(RunPhase.WaitingForDOStability, "N₂ desligado · aguardando atraso mínimo e estabilidade de dDO/dt...");
-    }
-
-    private void EvaluatePostNitrogenStability(double monotonicSeconds, double dissolvedOxygen)
-    {
-        var settings = _currentTest!.Settings;
-        _stabilityWindow.Add((monotonicSeconds, dissolvedOxygen));
-
-        var span = settings.StabilityDerivativeSpanSeconds;
-        var oldestUseful = monotonicSeconds - Math.Max(30.0, span * 2.0);
-        _stabilityWindow.RemoveAll(p => p.Time < oldestUseful);
-
-        var derivativePoints = _stabilityWindow.Where(p => p.Time >= monotonicSeconds - span).ToList();
-        _currentDODerivative = TryCalculateSlope(derivativePoints, span);
-
-        var minimumDelayRemaining = Math.Max(0, settings.PostNitrogenMinimumDelaySeconds - PhaseElapsedSeconds);
-        if (minimumDelayRemaining > 0)
-        {
-            _stabilityConfirmationCount = 0;
-            _statusMessage = $"N₂ fechado · atraso de dissipação: {minimumDelayRemaining:F1} s restantes";
-            return;
-        }
-
-        if (!_currentDODerivative.HasValue)
-        {
-            _stabilityConfirmationCount = 0;
-            _statusMessage = $"N₂ fechado · formando janela de derivada ({span:F1} s)...";
-            return;
-        }
-
-        var threshold = settings.StabilityDerivativeThresholdPercentPerSecond;
-        if (Math.Abs(_currentDODerivative.Value) <= threshold)
-        {
-            _stabilityConfirmationCount++;
-        }
-        else
-        {
-            _stabilityConfirmationCount = 0;
-        }
-
-        _statusMessage = $"N₂ fechado · dDO/dt = {_currentDODerivative.Value:+0.000;-0.000;0.000} %/s · estabilidade {_stabilityConfirmationCount}/{settings.StabilityRequiredSamples}";
-        if (_stabilityConfirmationCount < settings.StabilityRequiredSamples)
-        {
-            return;
-        }
-
-        LogEvent("DOStable", $"DO estabilizado após N₂: dDO/dt={_currentDODerivative.Value:F4} %/s, {settings.StabilityRequiredSamples} confirmações.");
-        BeginAirAdmission();
     }
 
     private static double? TryCalculateSlope(IReadOnlyList<(double Time, double DO)> points, double requestedSpan)
@@ -856,8 +803,10 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _stabilityWindow.Clear();
         _currentDODerivative = null;
         _stabilityConfirmationCount = 0;
-        _ventFlowStableCount = 0;
-        _ventFlowDeviation = null;
+        _prestageFlowStableCount = 0;
+        _prestageFlowDeviation = null;
+        _prestageFlowWindow.Clear();
+        _prestageConfirmed = false;
     }
 
     private bool IsGasStateConfirmed(SensorSnapshot s, (double Flow, bool V1, bool V2, bool VFlow) target)
@@ -885,110 +834,127 @@ public sealed class KlaTestRunner : IKlaTestRunner
     }
 
     /// <summary>
-    /// True when this test routes the flowmeter's start-up pulse through the vent (C) before
-    /// switching to the reactor. On the A/B/C rig the vent shares its output with the N₂
-    /// valve, so there is no "wrong valve" to collide with any more — the legacy
-    /// <c>SelectedVentValve</c>/<c>SelectedNitrogenValve</c> fields are ignored for routing.
+    /// Entry point for every path that reaches the DO floor: the assay airflow is requested on the
+    /// <em>same</em> B/C route, so the meter's start-up pulse and its settling go out of C while
+    /// the N₂ keeps stripping. Nothing enters the reactor until the flow and the floor are both
+    /// still. A run that starts at the floor comes here straight from the interlock.
     /// </summary>
-    private bool ShouldVentBeforeAir()
-        => _currentTest is not null && _currentTest.Settings.VentStabilizationEnabled;
-
-    /// <summary>
-    /// Entry point for every path that admits air. Without the vent line the flowmeter opens
-    /// straight into the vessel; with it, the flow is first raised and settled outside the
-    /// vessel so the run starts at its declared airflow instead of on the meter's pulse.
-    /// </summary>
-    /// <remarks>
-    /// The condition's rotation is commanded only when the vent closes. Holding the assay
-    /// rotation through the vent wait would re-oxygenate the broth by surface aeration while no
-    /// gas is being sparged, so the vent wait runs at its own low rotation instead.
-    /// </remarks>
-    private void BeginAirAdmission()
-    {
-        if (ShouldVentBeforeAir())
-        {
-            OpenVent();
-            return;
-        }
-
-        OpenAir();
-    }
-
-    private void OpenVent()
+    private void BeginAirPrestage()
     {
         var targetFlow = _currentCondition!.AirflowLpm;
-        _ventFlowStableCount = 0;
-        _ventFlowDeviation = null;
-        if (_currentRun is not null)
-        {
-            _currentRun.UsedVentStabilization = true;
-        }
-
+        ResetStabilityDetection();
         var frame = RouteFrame(targetFlow, GasRoute.VentAndNitrogen);
-        SetPhase(
-            RunPhase.OpeningVent,
-            $"Abrindo descarga (C) a {_currentTest!.Settings.VentAgitationRpm:F0} rpm, " +
-            $"levando o fluxômetro a {targetFlow:F2} L/min...");
-        DispatchMotorOrAbort((int)_currentTest.Settings.VentAgitationRpm, "ajustar agitação durante a descarga");
-        DispatchFlowOrAbort(frame, "abrir a descarga (C)");
+        LogEvent(
+            "AirPrestageStarted",
+            (_startAtFloor
+                ? $"DO já no piso ({_currentDO:F1}% ≤ {_currentTest!.Settings.DOMinPercent:F1}%): sem fase de N₂. "
+                : $"DO atingiu {_currentDO:F1}% (gatilho {PrestageTriggerPercent:F1}%). ") +
+            $"Pedindo {targetFlow:F2} L/min por C com o N₂ ainda aberto; o reator só recebe ar com a vazão e o piso assentados.");
+        SetPhase(RunPhase.PrestagingAir, $"Ar por C a {targetFlow:F2} L/min · aguardando o eco do fluxômetro...");
+        DispatchMotorOrAbort((int)_currentTest!.Settings.DegassingAgitationRpm, "manter a agitação de desoxigenação");
+        DispatchFlowOrAbort(frame, "pré-estabilizar o ar por C");
     }
 
-    private void BeginVentFlowStabilization()
-    {
-        _ventFlowStableCount = 0;
-        _ventFlowDeviation = null;
-        LogEvent(
-            "VentOpened",
-            "Alívio aberto e confirmado. O gás sai pelo alívio até a vazão assentar em " +
-            $"{_currentCondition!.AirflowLpm:F2} ± {_currentTest!.Settings.VentFlowToleranceLpm:F2} L/min.");
-        SetPhase(RunPhase.StabilizingVentFlow, "Alívio aberto · aguardando a vazão assentar...");
-    }
+    /// <summary>DO at which the air is pre-staged: the floor plus the configured lead.</summary>
+    private double PrestageTriggerPercent =>
+        _currentTest!.Settings.DOMinPercent + Math.Max(0.0, _currentTest.Settings.AirPrestageLeadPercent);
 
     /// <summary>
-    /// Holds the run outside the vessel until the measured flow sits within tolerance of the
-    /// requested airflow for the configured number of consecutive readings. Only then is the
-    /// vent closed, which is the instant the assay actually starts.
+    /// Holds the run on C until two independent things are still at the same time: the measured
+    /// flow (inside the band for N frames, or settled per <see cref="FlowSettling"/>) and the DO
+    /// floor (at or below <c>DOMin</c> with a flat derivative for the configured confirmations).
+    /// Only then is the one-frame switch to A commanded.
     /// </summary>
-    private void EvaluateVentFlowStability(double measuredFlow)
+    private void EvaluateAirPrestage(SensorSnapshot s, double monotonicSeconds)
     {
         var settings = _currentTest!.Settings;
         var targetFlow = _currentCondition!.AirflowLpm;
-        var deviation = measuredFlow - targetFlow;
-        _ventFlowDeviation = deviation;
 
-        if (Math.Abs(deviation) <= settings.VentFlowToleranceLpm)
+        if (!_prestageConfirmed)
         {
-            _ventFlowStableCount++;
-        }
-        else
-        {
-            _ventFlowStableCount = 0;
+            if (!IsGasStateConfirmed(s, _targetGasState))
+            {
+                _statusMessage = $"Ar por C a {targetFlow:F2} L/min · aguardando o eco do fluxômetro...";
+                return;
+            }
+
+            _prestageConfirmed = true;
+            LogEvent("AirPrestaged", $"B/C confirmada com {targetFlow:F2} L/min: o ar sai por C enquanto o N₂ segura o piso.");
         }
 
+        // (a) Flow: in band for N consecutive frames, or settled near the target.
+        var deviation = s.FlowRate - targetFlow;
+        _prestageFlowDeviation = deviation;
+        _prestageFlowStableCount = Math.Abs(deviation) <= settings.PrestageFlowToleranceLpm ? _prestageFlowStableCount + 1 : 0;
+        FlowSettling.Push(_prestageFlowWindow, s.FlowRate, settings.PrestageFlowStableSamples);
+        var settled = FlowSettling.HasSettled(
+            _prestageFlowWindow, targetFlow, settings.PrestageFlowStableSamples,
+            settings.PrestageFlowStabilityStdDevLpm, settings.PrestageFlowStabilityMaxErrorLpm, out var spread);
+        var flowReady = _prestageFlowStableCount >= settings.PrestageFlowStableSamples || settled;
+
+        // (b) DO floor: at or below DOMin with a flat derivative, for the configured confirmations.
+        _stabilityWindow.Add((monotonicSeconds, s.OxygenCalibrated));
+        var span = settings.StabilityDerivativeSpanSeconds;
+        _stabilityWindow.RemoveAll(pt => pt.Time < monotonicSeconds - Math.Max(30.0, span * 2.0));
+        // A hair of slack on the window edge: a frame exactly one span old must count, and the
+        // monotonic seconds are a double built from ticks.
+        var oldest = monotonicSeconds - span - 0.01;
+        _currentDODerivative = TryCalculateSlope(_stabilityWindow.Where(pt => pt.Time >= oldest).ToList(), span);
+        var atFloor = s.OxygenCalibrated <= settings.DOMinPercent;
+        var flat = _currentDODerivative.HasValue &&
+                   Math.Abs(_currentDODerivative.Value) <= settings.StabilityDerivativeThresholdPercentPerSecond;
+        _stabilityConfirmationCount = atFloor && flat ? _stabilityConfirmationCount + 1 : 0;
+        var doReady = _stabilityConfirmationCount >= settings.StabilityRequiredSamples;
+
+        var derivativeText = _currentDODerivative.HasValue ? $"{_currentDODerivative.Value:+0.000;-0.000;0.000} %/s" : "janela…";
         _statusMessage =
-            $"Alívio aberto · {measuredFlow:F2} L/min (alvo {targetFlow:F2} ± {settings.VentFlowToleranceLpm:F2}) · " +
-            $"estabilidade {_ventFlowStableCount}/{settings.VentFlowStableSamples}";
-        if (_ventFlowStableCount < settings.VentFlowStableSamples)
+            $"Ar por C a {targetFlow:F2} L/min ({deviation:+0.00;-0.00;0.00}) · DO {s.OxygenCalibrated:F1}% (dDO/dt {derivativeText}) · " +
+            $"vazão {_prestageFlowStableCount}/{settings.PrestageFlowStableSamples}" + (settled ? " (assentada)" : "") +
+            $" · sonda {_stabilityConfirmationCount}/{settings.StabilityRequiredSamples}";
+
+        if (!flowReady || !doReady)
         {
             return;
         }
 
+        var how = _prestageFlowStableCount >= settings.PrestageFlowStableSamples
+            ? "dentro da banda"
+            : $"assentada (σ {spread:F3} L/min)";
         LogEvent(
-            "VentFlowStable",
-            $"Vazão estabilizada em {measuredFlow:F2} L/min após {_ventFlowStableCount} confirmações. " +
-            "Fechando o alívio e iniciando a reoxigenação.");
-        OpenAir(fromVent: true);
+            "PrestageStable",
+            $"Vazão {s.FlowRate:F2} L/min {how} e DO no piso ({s.OxygenCalibrated:F1}%, dDO/dt {derivativeText}). " +
+            "Fechando B/C e abrindo A em uma frame.");
+        SwitchToReactor();
     }
 
-    private void OpenAir(bool fromVent = false)
+    /// <summary>
+    /// The only frame that ever moves gas into the reactor: B/C off and A on in one JSON, with
+    /// the setpoint the meter already holds. The condition's rotation arrives with it.
+    /// </summary>
+    private void SwitchToReactor()
     {
         var targetFlow = _currentCondition!.AirflowLpm;
         var frame = RouteFrame(targetFlow, GasRoute.Reactor);
-        SetPhase(
-            RunPhase.OpeningAir,
-            fromVent ? "Fechando B/C e abrindo A: ar ao reator..." : "Abrindo ar ao reator (A)...");
+        SetPhase(RunPhase.SwitchingToReactor, $"Comutando para o reator — {GasRouting.Describe(GasRoute.Reactor, Rig)}...");
         DispatchMotorOrAbort((int)_currentCondition.AgitationRpm, "ajustar agitação de reoxigenação");
         DispatchFlowOrAbort(frame, "abrir ar ao reator (A)");
+    }
+
+    /// <summary>The flowmeter echoed A open and B/C closed: this frame is <c>t = 0</c>.</summary>
+    private void ConfirmSwitchToReactor(SensorSnapshot s, double relativeSeconds)
+    {
+        if (_currentRun is not null)
+        {
+            _currentRun.SwitchRelativeSeconds = relativeSeconds;
+            _currentRun.SwitchFlowRateLpm = s.FlowRate;
+            _currentRun.SwitchDoPercent = s.OxygenCalibrated;
+        }
+
+        LogEvent(
+            "SwitchedToReactor",
+            $"A confirmada aberta, B/C fechadas: t = 0 aos {relativeSeconds:F1} s da corrida, " +
+            $"vazão {s.FlowRate:F2} L/min, DO inicial {s.OxygenCalibrated:F1}%.");
+        SetPhase(RunPhase.Reoxygenating, $"Reoxigenação com ar em andamento (DO = {s.OxygenCalibrated:F1}%)...");
     }
 
     private void DispatchFlowOrAbort(OpenTECCommand command, string action)
@@ -1041,26 +1007,22 @@ public sealed class KlaTestRunner : IKlaTestRunner
             throw new ArgumentOutOfRangeException(nameof(settings), "Os tempos máximos devem ser positivos.");
         }
 
-        if (!double.IsFinite(settings.PostNitrogenMinimumDelaySeconds) || settings.PostNitrogenMinimumDelaySeconds < 0 ||
-            !double.IsFinite(settings.StabilityDerivativeSpanSeconds) || settings.StabilityDerivativeSpanSeconds <= 0 ||
+        if (!double.IsFinite(settings.StabilityDerivativeSpanSeconds) || settings.StabilityDerivativeSpanSeconds <= 0 ||
             !double.IsFinite(settings.StabilityDerivativeThresholdPercentPerSecond) || settings.StabilityDerivativeThresholdPercentPerSecond <= 0 ||
-            settings.StabilityRequiredSamples is < 1 or > 100 ||
-            !double.IsFinite(settings.MaxPostNitrogenStabilizationSeconds) || settings.MaxPostNitrogenStabilizationSeconds <= 0)
+            settings.StabilityRequiredSamples is < 1 or > 100)
         {
-            throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilização pós-N₂ são inválidos.");
+            throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilidade da sonda no piso são inválidos.");
         }
 
-        if (settings.MaxPostNitrogenStabilizationSeconds <= settings.PostNitrogenMinimumDelaySeconds)
+        if (!double.IsFinite(settings.AirPrestageLeadPercent) || settings.AirPrestageLeadPercent < 0 ||
+            settings.DOMinPercent + settings.AirPrestageLeadPercent >= settings.DOMaxPercent ||
+            !double.IsFinite(settings.PrestageFlowToleranceLpm) || settings.PrestageFlowToleranceLpm <= 0 ||
+            settings.PrestageFlowStableSamples is < 1 or > 100 ||
+            !double.IsFinite(settings.PrestageFlowStabilityStdDevLpm) || settings.PrestageFlowStabilityStdDevLpm < 0 ||
+            !double.IsFinite(settings.PrestageFlowStabilityMaxErrorLpm) || settings.PrestageFlowStabilityMaxErrorLpm < 0 ||
+            !double.IsFinite(settings.MaxPrestageSeconds) || settings.MaxPrestageSeconds <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(settings), "O tempo máximo pós-N₂ deve ser maior que o atraso mínimo.");
-        }
-
-        if (!double.IsFinite(settings.VentFlowToleranceLpm) || settings.VentFlowToleranceLpm <= 0 ||
-            settings.VentFlowStableSamples is < 1 or > 100 ||
-            !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0 ||
-            !double.IsFinite(settings.VentAgitationRpm) || settings.VentAgitationRpm is < 15 or > 1000)
-        {
-            throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros de estabilização no alívio são inválidos.");
+            throw new ArgumentOutOfRangeException(nameof(settings), "Os parâmetros da pré-estabilização do ar por C são inválidos.");
         }
     }
 
@@ -1072,7 +1034,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         }
     }
 
-    private void CheckWatchdog()
+    internal void CheckWatchdog()
     {
         if (!IsRunning || _phase == RunPhase.Reviewing)
         {
@@ -1084,8 +1046,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _ = AbortTestAsync("Telemetria ficou desatualizada por mais de 5 segundos.");
             return;
         }
-        if ((_phase is RunPhase.ClosingAllGas or RunPhase.OpeningNitrogen or RunPhase.ClosingNitrogen or RunPhase.OpeningVent or RunPhase.OpeningAir or RunPhase.StoppingRun or RunPhase.Aborting) &&
-            PhaseElapsedSeconds > 10)
+        var awaitingEcho = _phase is RunPhase.ClosingAllGas or RunPhase.OpeningNitrogen or RunPhase.SwitchingToReactor or
+            RunPhase.StoppingRun or RunPhase.Aborting || (_phase == RunPhase.PrestagingAir && !_prestageConfirmed);
+        if (awaitingEcho && PhaseElapsedSeconds > 10)
         {
             if (_phase == RunPhase.Aborting)
             {
@@ -1108,15 +1071,10 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             _ = StopRunAndReviewAsync("Tempo máximo de reoxigenação excedido");
         }
-        else if (_phase == RunPhase.WaitingForDOStability &&
-                 PhaseElapsedSeconds > _currentTest.Settings.MaxPostNitrogenStabilizationSeconds)
+        else if (_phase == RunPhase.PrestagingAir && PhaseElapsedSeconds > _currentTest.Settings.MaxPrestageSeconds)
         {
-            _ = StopRunAndReviewAsync("DO não estabilizou dentro do tempo máximo pós-N₂");
-        }
-        else if (_phase == RunPhase.StabilizingVentFlow &&
-                 PhaseElapsedSeconds > _currentTest.Settings.MaxVentStabilizationSeconds)
-        {
-            _ = StopRunAndReviewAsync("A vazão não estabilizou no alívio dentro do tempo máximo");
+            _ = StopRunAndReviewAsync(
+                $"A pré-estabilização do ar por C não concluiu em {_currentTest.Settings.MaxPrestageSeconds:F0} s (vazão ou piso de DO sem assentar)");
         }
     }
 

@@ -25,10 +25,8 @@ public interface IKlaTestStore
     KlaTestDocument CreateTest(
         string name,
         KlaTestSettings settings,
-        NitrogenValve n2Valve,
         KlaMapReference? linkedMap = null,
-        IReadOnlyList<KlaTestCondition>? initialConditions = null,
-        NitrogenValve ventValve = NitrogenValve.Valve2);
+        IReadOnlyList<KlaTestCondition>? initialConditions = null);
 
     void SaveTestManifest(KlaTestDocument doc);
 

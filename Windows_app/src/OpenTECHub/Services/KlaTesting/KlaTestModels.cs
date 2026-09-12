@@ -11,6 +11,12 @@ public enum KlaTestStatus
     Completed,
 }
 
+/// <summary>
+/// Phases of one kLa run on the A/B/C rig. Gas goes in through A (air to the reactor) or
+/// through the shared B/C output (N₂ into the vessel, air out of the vent); there is no
+/// "N₂ off, wait" step any more: the air is pre-staged through C while the nitrogen is still
+/// stripping, and the single frame that closes B/C and opens A is <c>t = 0</c>.
+/// </summary>
 public enum RunPhase
 {
     Idle,
@@ -18,11 +24,12 @@ public enum RunPhase
     ClosingAllGas,
     OpeningNitrogen,
     Deoxygenating,
-    ClosingNitrogen,
-    WaitingForDOStability,
-    OpeningVent,
-    StabilizingVentFlow,
-    OpeningAir,
+
+    /// <summary>B/C open with the assay airflow: the meter settles on C while N₂ keeps the floor.</summary>
+    PrestagingAir,
+
+    /// <summary>One frame on the wire — B/C closed, A open — awaiting the flowmeter's echo.</summary>
+    SwitchingToReactor,
     Reoxygenating,
     StoppingRun,
     Reviewing,
@@ -35,9 +42,9 @@ public enum RunPhase
 }
 
 /// <summary>
-/// One of the flowmeter's two auxiliary valve outputs. Which gas line each output
-/// carries is wiring, not protocol: a test declares one output as the N₂ inlet and,
-/// optionally, the other as the vent that dumps the start-up flow pulse to atmosphere.
+/// One of the flowmeter's two auxiliary valve outputs. Legacy: assays recorded before the
+/// A/B/C rig declared which output carried the N₂ line and which the vent. Kept so those
+/// manifests still open; routing now comes from <see cref="Persistence.GasRigSettings"/>.
 /// </summary>
 public enum NitrogenValve
 {
@@ -82,33 +89,42 @@ public sealed record KlaTestSettings
     public int SmoothingWindowSize { get; init; } = 5;
     public double MaxDegassingTimeMinutes { get; init; } = 30.0;
     public double MaxReoxygenationTimeMinutes { get; init; } = 60.0;
-    public double PostNitrogenMinimumDelaySeconds { get; init; } = 5.0;
+
+    /// <summary>
+    /// Probe-stability criterion, applied to the DO floor during <see cref="RunPhase.PrestagingAir"/>:
+    /// the slope of DO over <see cref="StabilityDerivativeSpanSeconds"/> must stay within
+    /// <see cref="StabilityDerivativeThresholdPercentPerSecond"/> for <see cref="StabilityRequiredSamples"/>
+    /// consecutive frames.
+    /// </summary>
     public double StabilityDerivativeSpanSeconds { get; init; } = 6.0;
     public double StabilityDerivativeThresholdPercentPerSecond { get; init; } = 0.05;
     public int StabilityRequiredSamples { get; init; } = 5;
-    public double MaxPostNitrogenStabilizationSeconds { get; init; } = 120.0;
 
     /// <summary>
-    /// Route the start-up flow pulse through the vent valve instead of the vessel. Off by
-    /// default: the vent line is a secondary bench setup, not part of the standard rig.
+    /// How early the air is pre-staged through C, in DO percentage points above
+    /// <see cref="DOMinPercent"/>. 0 = start pre-staging when the floor is reached; larger values
+    /// let the meter settle while the last few percent are still being stripped.
     /// </summary>
-    public bool VentStabilizationEnabled { get; init; }
+    public double AirPrestageLeadPercent { get; init; } = 0.0;
+
+    /// <summary>Measured flow must sit this close to the requested airflow while it settles on C.</summary>
+    public double PrestageFlowToleranceLpm { get; init; } = 0.2;
+
+    /// <summary>Consecutive in-tolerance readings required before the switch to A.</summary>
+    public int PrestageFlowStableSamples { get; init; } = 5;
 
     /// <summary>
-    /// Agitation held while the gas leaves through the vent. Deliberately low — the vessel has
-    /// no gas at this point, so the assay rotation would re-oxygenate the broth through surface
-    /// aeration and spoil C₀. The condition's rotation is commanded when the vent closes.
+    /// Second way out of the flow wait: the flow is <em>stable</em> — the standard deviation of the
+    /// last <see cref="PrestageFlowStableSamples"/> readings is below this — and within
+    /// <see cref="PrestageFlowStabilityMaxErrorLpm"/> of the target, even if outside the tolerance
+    /// band. The same criterion the power assay uses (<c>FlowSettling</c>): the controller's steady
+    /// offset must not hold the run hostage when the reading has clearly settled.
     /// </summary>
-    public double VentAgitationRpm { get; init; } = 50.0;
+    public double PrestageFlowStabilityStdDevLpm { get; init; } = 0.05;
+    public double PrestageFlowStabilityMaxErrorLpm { get; init; } = 0.3;
 
-    /// <summary>Measured flow must sit this close to the requested airflow before the vent closes.</summary>
-    public double VentFlowToleranceLpm { get; init; } = 0.2;
-
-    /// <summary>Consecutive in-tolerance readings required before the vent closes.</summary>
-    public int VentFlowStableSamples { get; init; } = 5;
-
-    /// <summary>Ceiling on the vent wait. Exceeding it stops the run instead of admitting an unstable flow.</summary>
-    public double MaxVentStabilizationSeconds { get; init; } = 120.0;
+    /// <summary>Ceiling on the pre-staging wait. Exceeding it stops the run for review instead of switching an unsettled line.</summary>
+    public double MaxPrestageSeconds { get; init; } = 180.0;
 
     public double DefaultCeqPercent { get; init; } = 100.0;
     public bool AutoAcceptRuns { get; init; } = false;
@@ -192,11 +208,20 @@ public sealed class KlaTestRun
     public string FolderName { get; set; } = "";
     public double AgitationRpm { get; set; }
     public double AirflowLpm { get; set; }
-    public NitrogenValve NitrogenValve { get; set; } = NitrogenValve.Valve1;
-    public NitrogenValve VentValve { get; set; } = NitrogenValve.Valve2;
 
-    /// <summary>True when this run reached its airflow through the vent before admitting gas.</summary>
-    public bool UsedVentStabilization { get; set; }
+    /// <summary>True when the run started at the DO floor and skipped the nitrogen phase.</summary>
+    public bool SkippedNitrogen { get; set; }
+
+    /// <summary>
+    /// The assay's <c>t = 0</c>: the frame in which the flowmeter confirmed B/C closed and A open.
+    /// <see cref="KlaRawDataPoint.RelativeSeconds"/> keeps counting from the run's start so the
+    /// file and the live chart stay monotonic; this is where the reoxygenation begins on that axis.
+    /// </summary>
+    public double? SwitchRelativeSeconds { get; set; }
+
+    /// <summary>Flow and DO at the switch: what the reactor actually received at <c>t = 0</c>.</summary>
+    public double? SwitchFlowRateLpm { get; set; }
+    public double? SwitchDoPercent { get; set; }
 
     public RunPhase CurrentPhase { get; set; } = RunPhase.Idle;
     public DateTimeOffset StartedUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -221,6 +246,11 @@ public sealed record KlaTestRunSummary
     public double? AnalysisR2 { get; init; }
     public DateTimeOffset StartedUtc { get; init; }
     public DateTimeOffset? CompletedUtc { get; init; }
+
+    /// <summary>Provenance of <c>t = 0</c>: flow and DO in the frame that confirmed the switch to A.</summary>
+    public double? SwitchRelativeSeconds { get; init; }
+    public double? SwitchFlowRateLpm { get; init; }
+    public double? SwitchDoPercent { get; init; }
 }
 
 public sealed class KlaTestDocument
@@ -244,14 +274,30 @@ public sealed class KlaTestDocument
     public DateTimeOffset? CompletedUtc { get; set; }
     public string Nature { get; set; } = "Abiotico";
     public KlaMapReference? LinkedMap { get; set; }
-    public NitrogenValve SelectedNitrogenValve { get; set; } = NitrogenValve.Valve1;
 
     /// <summary>
-    /// Flowmeter output wired to the relief/vent valve downstream of the meter. Only used when
-    /// <see cref="KlaTestSettings.VentStabilizationEnabled"/> is set, and it must differ from
-    /// <see cref="SelectedNitrogenValve"/>.
+    /// The A/B/C wiring this assay ran on, recorded when it started. Null on a manifest written
+    /// before the rig existed: such an assay opens for review but cannot be continued
+    /// (<see cref="IsLegacyRig"/>).
     /// </summary>
+    public Persistence.GasRigSettings? GasRig { get; set; }
+
+    /// <summary>When the operator confirmed the N₂ open at the source (preflight); goes to the journal.</summary>
+    public DateTimeOffset? NitrogenSourceConfirmedUtc { get; set; }
+
+    /// <summary>Legacy (pre-A/B/C): which output carried the N₂ line. Read for display only.</summary>
+    public NitrogenValve SelectedNitrogenValve { get; set; } = NitrogenValve.Valve1;
+
+    /// <summary>Legacy (pre-A/B/C): which output carried the vent. Read for display only.</summary>
     public NitrogenValve SelectedVentValve { get; set; } = NitrogenValve.Valve2;
+
+    /// <summary>
+    /// An assay that already ran without a recorded rig was stripped and re-aerated on a
+    /// different plumbing; its runs are reviewable, but a new run on the A/B/C rig would not be
+    /// a replicate of them. A draft that never started has nothing to protect.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsLegacyRig => GasRig is null && Status != KlaTestStatus.Draft;
 
     public KlaTestSettings Settings { get; set; } = new();
     public int SettingsRevision { get; set; } = 1;

@@ -21,8 +21,8 @@ public interface IKlaTestRunner : IDisposable
     double CurrentFlowMeasured { get; }
     double? CurrentDODerivative { get; }
     int StabilityConfirmationCount { get; }
-    int VentFlowStableCount { get; }
-    double? VentFlowDeviation { get; }
+    int PrestageFlowStableCount { get; }
+    double? PrestageFlowDeviation { get; }
     double PhaseElapsedSeconds { get; }
     double TotalElapsedSeconds { get; }
     string StatusMessage { get; }

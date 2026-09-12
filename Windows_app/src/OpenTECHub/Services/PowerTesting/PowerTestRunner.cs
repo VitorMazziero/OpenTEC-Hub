@@ -1,5 +1,6 @@
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Control;
 
 namespace OpenTECHub.Services.PowerTesting;
 
@@ -995,11 +996,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             // Second way out: the flow has settled (low spread over the last N readings) close to
             // the target, even if it sits just outside the tolerance band — the bench controller's
             // steady offset. The reactor phase measures the flow again anyway.
-            _ventFlowWindow.Add(snapshot.FlowRate);
-            while (_ventFlowWindow.Count > Math.Max(2, settings.VentFlowStableSamples))
-            {
-                _ventFlowWindow.RemoveAt(0);
-            }
+            FlowSettling.Push(_ventFlowWindow, snapshot.FlowRate, settings.VentFlowStableSamples);
             var settled = VentFlowHasSettled(_ventFlowWindow, targetFlow, settings, out var spread);
 
             var offsetText = dev >= 0 ? $"+{dev:F2}" : $"{dev:F2}";
@@ -1368,22 +1365,17 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     /// <summary>
     /// The vent flow has settled when the spread of the last window is small and the mean sits
-    /// within the stability error of the target. Pure, so the criterion is testable on its own.
+    /// within the stability error of the target — <see cref="FlowSettling.HasSettled"/>, shared
+    /// with the kLa runner's pre-staging on C.
     /// </summary>
     internal static bool VentFlowHasSettled(IReadOnlyList<double> window, double targetFlow, PowerTestSettings settings, out double standardDeviation)
-    {
-        standardDeviation = double.NaN;
-        var required = Math.Max(2, settings.VentFlowStableSamples);
-        if (window.Count < required || settings.VentFlowStabilityStdDevLpm <= 0)
-        {
-            return false;
-        }
-
-        var mean = window.Average();
-        standardDeviation = Math.Sqrt(window.Sum(v => (v - mean) * (v - mean)) / (window.Count - 1));
-        return standardDeviation <= settings.VentFlowStabilityStdDevLpm &&
-               Math.Abs(mean - targetFlow) <= settings.VentFlowStabilityMaxErrorLpm;
-    }
+        => FlowSettling.HasSettled(
+            window,
+            targetFlow,
+            settings.VentFlowStableSamples,
+            settings.VentFlowStabilityStdDevLpm,
+            settings.VentFlowStabilityMaxErrorLpm,
+            out standardDeviation);
 
     private void PauseForMeasurement(string reason)
     {

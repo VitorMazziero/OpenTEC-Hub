@@ -266,6 +266,7 @@ public sealed class PowerMotorRouteTests
             {
                 Name = "Kla Test",
                 FolderName = "Kla_Test",
+                NitrogenSourceConfirmedUtc = DateTimeOffset.UtcNow, // preflight: DO 50% needs the N₂
                 Conditions =
                 {
                     new KlaTestCondition { ConditionId = Guid.NewGuid(), AgitationRpm = 1000, AirflowLpm = 2.0, RequestedReplicates = 1 },

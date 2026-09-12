@@ -73,14 +73,14 @@ public sealed class KlaTestStoreTests : IDisposable
         var doc = _store.CreateTest(
             "Campanha 1",
             new KlaTestSettings { DOMinPercent = 10.0, DOMaxPercent = 85.0 },
-            NitrogenValve.Valve2,
             new KlaMapReference { MapId = Guid.NewGuid(), MapName = "Mapa A" },
             initialConditions);
 
         Assert.NotNull(doc);
         Assert.Equal("Campanha 1", doc.Name);
         Assert.Equal(2, doc.Conditions.Count);
-        Assert.Equal(NitrogenValve.Valve2, doc.SelectedNitrogenValve);
+        Assert.Null(doc.GasRig);
+        Assert.False(doc.IsLegacyRig);
 
         var testDir = Path.Combine(_store.RootDirectory, "Campanha 1");
         Assert.True(Directory.Exists(testDir));
@@ -101,7 +101,7 @@ public sealed class KlaTestStoreTests : IDisposable
     [Fact]
     public void RunFolder_RawData_And_Analysis_RoundTrip()
     {
-        var doc = _store.CreateTest("Campanha 2", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = _store.CreateTest("Campanha 2", new KlaTestSettings());
         var cond = new KlaTestCondition { AgitationRpm = 400, AirflowLpm = 3.5, RequestedReplicates = 2 };
         doc.Conditions.Add(cond);
         _store.SaveConditionsTable(doc.FolderName, doc.Conditions);
@@ -113,7 +113,6 @@ public sealed class KlaTestStoreTests : IDisposable
             ReplicateNumber = 1,
             AgitationRpm = cond.AgitationRpm,
             AirflowLpm = cond.AirflowLpm,
-            NitrogenValve = NitrogenValve.Valve1,
         };
 
         var runFolderName = _store.InitializeRunFolder(doc.FolderName, run);
@@ -160,7 +159,7 @@ public sealed class KlaTestStoreTests : IDisposable
     [Fact]
     public void UpdateResultsSummary_Calculates_Mean_StdDev_Correctly()
     {
-        var doc = _store.CreateTest("Campanha 3", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = _store.CreateTest("Campanha 3", new KlaTestSettings());
         var cond = new KlaTestCondition { AgitationRpm = 500, AirflowLpm = 5.0, RequestedReplicates = 3 };
         doc.Conditions.Add(cond);
 
@@ -221,7 +220,7 @@ public sealed class KlaTestStoreTests : IDisposable
     {
         var sourceRoot = Path.Combine(_testRoot, "origem-externa");
         var sourceStore = new KlaTestStore(sourceRoot);
-        var sourceDoc = sourceStore.CreateTest("Rotina Completa", new KlaTestSettings(), NitrogenValve.Valve2);
+        var sourceDoc = sourceStore.CreateTest("Rotina Completa", new KlaTestSettings());
         var condition = new KlaTestCondition { AgitationRpm = 550, AirflowLpm = 4.25, RequestedReplicates = 1 };
         sourceDoc.Conditions.Add(condition);
         sourceStore.SaveConditionsTable(sourceDoc.FolderName, sourceDoc.Conditions);

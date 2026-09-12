@@ -23,6 +23,9 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
 {
     private readonly KlaPlaybackOptions _options;
     private readonly ILogger<KlaPlaybackDeviceService> _log;
+
+    /// <summary>The A/B/C wiring, so the replay reads a command the way the rig would.</summary>
+    private readonly Func<GasRigConfiguration> _gasRig;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _timer;
     private readonly List<KlaPlaybackSample> _samples;
@@ -44,10 +47,12 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
     public KlaPlaybackDeviceService(
         KlaPlaybackOptions options,
         ILogger<KlaPlaybackDeviceService> log,
-        Dispatcher? dispatcher = null)
+        Dispatcher? dispatcher = null,
+        Func<GasRigConfiguration>? gasRig = null)
     {
         _options = options;
         _log = log;
+        _gasRig = gasRig ?? (static () => GasRigConfiguration.Default);
         _dispatcher = dispatcher ?? Dispatcher.CurrentDispatcher;
         _samples = LoadSamples(options.FilePath);
         if (_samples.Count < 5)
@@ -120,7 +125,7 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
         _commandsSent++;
         CommandSent?.Invoke(command.ToJson());
 
-        var wasNitrogenOpen = _valve1 || _valve2;
+        var wasNitrogenOpen = GasRouting.Interpret(_valve1, _valve2, _flowSetpoint, _gasRig()) == ObservedGasRoute.VentAndNitrogen;
         var touchesFlow = command.Contains(CommandKeys.FlowSetpoint) || command.Contains(CommandKeys.Valve1) ||
                           command.Contains(CommandKeys.Valve2) || command.Contains(CommandKeys.V_Flow);
         if (TryDouble(command, CommandKeys.FlowSetpoint, out var flow))
@@ -149,20 +154,22 @@ public sealed class KlaPlaybackDeviceService : IDeviceService, IDisposable
             _flowCommandPending = true;
             PublishCurrentSample();
 
-            if ((_valve1 || _valve2) && _flowSetpoint <= 0.001)
+            var route = GasRouting.Interpret(_valve1, _valve2, _flowSetpoint, _gasRig());
+            if (route == ObservedGasRoute.VentAndNitrogen && _flowSetpoint <= 0.001)
             {
+                // N₂ through B: the recorded stripping segment plays.
                 _coastStopIndex = null;
                 SeekNextDescendingSegment();
                 _playing = true;
             }
-            else if ((_valve1 || _valve2) && _flowSetpoint > 0.001)
+            else if (route == ObservedGasRoute.VentAndNitrogen)
             {
-                // Alívio aberto: o gás sai antes do reator. A curva experimental fica
-                // parada enquanto a vazão assenta, como acontece na bancada.
+                // Air pre-staged through C with the N₂ still open: nothing reaches the reactor,
+                // so the recorded curve holds at the floor while the meter settles — as on the bench.
                 _coastStopIndex = null;
                 _playing = false;
             }
-            else if (_flowSetpoint > 0.001)
+            else if (route == ObservedGasRoute.Reactor)
             {
                 _coastStopIndex = null;
                 SeekNextAscendingSegment();

@@ -109,7 +109,7 @@ public sealed class RawDataIntegrityTests : IDisposable
     public void Kla_store_round_trips_the_new_columns()
     {
         var store = new KlaTestStore(AppPaths.KlaTestsDirectory);
-        var doc = store.CreateTest("Ensaio Colunas", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = store.CreateTest("Ensaio Colunas", new KlaTestSettings());
         var run = new KlaTestRun { TestId = doc.TestId, AgitationRpm = 450, AirflowLpm = 3.0 };
         var runFolder = store.InitializeRunFolder(doc.FolderName, run);
 
@@ -132,7 +132,7 @@ public sealed class RawDataIntegrityTests : IDisposable
     public void Kla_store_still_reads_a_file_written_before_the_new_columns()
     {
         var store = new KlaTestStore(AppPaths.KlaTestsDirectory);
-        var doc = store.CreateTest("Ensaio Legado", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = store.CreateTest("Ensaio Legado", new KlaTestSettings());
         var run = new KlaTestRun { TestId = doc.TestId, AgitationRpm = 300, AirflowLpm = 1.5 };
         var runFolder = store.InitializeRunFolder(doc.FolderName, run);
 
@@ -165,7 +165,8 @@ public sealed class RawDataIntegrityTests : IDisposable
         device.PushState(ConnectionState.Connected);
         device.PushTelemetry(RunningFrame(temperature: 30.5, servoRpm: 448.0));
 
-        var doc = store.CreateTest("Ensaio Telemetria", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = store.CreateTest("Ensaio Telemetria", new KlaTestSettings());
+        doc.NitrogenSourceConfirmedUtc = DateTimeOffset.UtcNow;
         var condition = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3.0, RequestedReplicates = 1 };
         doc.Conditions.Add(condition);
         store.SaveConditionsTable(doc.FolderName, doc.Conditions);
@@ -205,7 +206,8 @@ public sealed class RawDataIntegrityTests : IDisposable
         };
         device.PushTelemetry(noServo);
 
-        var doc = store.CreateTest("Ensaio Sem Servo", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = store.CreateTest("Ensaio Sem Servo", new KlaTestSettings());
+        doc.NitrogenSourceConfirmedUtc = DateTimeOffset.UtcNow;
         var condition = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3.0, RequestedReplicates = 1 };
         doc.Conditions.Add(condition);
         store.SaveConditionsTable(doc.FolderName, doc.Conditions);

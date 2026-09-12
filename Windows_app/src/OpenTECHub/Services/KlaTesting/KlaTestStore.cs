@@ -405,10 +405,8 @@ public sealed class KlaTestStore : IKlaTestStore
     public KlaTestDocument CreateTest(
         string name,
         KlaTestSettings settings,
-        NitrogenValve n2Valve,
         KlaMapReference? linkedMap = null,
-        IReadOnlyList<KlaTestCondition>? initialConditions = null,
-        NitrogenValve ventValve = NitrogenValve.Valve2)
+        IReadOnlyList<KlaTestCondition>? initialConditions = null)
     {
         if (!ValidateTestName(name, out var error))
         {
@@ -446,8 +444,6 @@ public sealed class KlaTestStore : IKlaTestStore
                 LastModifiedUtc = DateTimeOffset.UtcNow,
                 Nature = "Abiotico",
                 LinkedMap = linkedMap,
-                SelectedNitrogenValve = n2Valve,
-                SelectedVentValve = ventValve,
                 Settings = settings,
                 SettingsRevision = 1,
                 AppVersion = typeof(KlaTestStore).Assembly.GetName().Version?.ToString() ?? "desconhecida",

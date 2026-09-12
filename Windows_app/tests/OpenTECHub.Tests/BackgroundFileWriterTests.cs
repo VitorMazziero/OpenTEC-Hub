@@ -212,7 +212,7 @@ public sealed class BackgroundFileWriterTests : IDisposable
     {
         using var writer = new BackgroundFileWriter();
         var store = new KlaTestStore(Path.Combine(_root, "Testes-kLa"), writer);
-        var doc = store.CreateTest("Fila kLa", new KlaTestSettings(), NitrogenValve.Valve1,
+        var doc = store.CreateTest("Fila kLa", new KlaTestSettings(),
             initialConditions: [new KlaTestCondition { AgitationRpm = 300, AirflowLpm = 2 }]);
         var run = new KlaTestRun { ConditionId = doc.Conditions[0].ConditionId, ReplicateNumber = 1, AgitationRpm = 300, AirflowLpm = 2 };
         var folder = store.InitializeRunFolder(doc.FolderName, run);

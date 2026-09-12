@@ -72,7 +72,6 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _vm.NewTestName = "Ensaio Aeracao 2026";
         _vm.SettingDOMin = 15.0;
         _vm.SettingDOMax = 80.0;
-        _vm.SelectedN2Valve = NitrogenValve.Valve1;
 
         _vm.CreateNewTest();
 
@@ -95,56 +94,88 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     }
 
     /// <summary>
-    /// The vent line is bench wiring, so it travels with the test manifest rather than with the
-    /// application settings, and a shared output is refused before it can be saved.
+    /// The pre-staging parameters travel with the test manifest, and an out-of-range lead is
+    /// refused before it can be saved (plan §5, Etapa 4).
     /// </summary>
     [Fact]
-    public void Vent_Configuration_Persists_With_The_Test_And_Refuses_A_Shared_Valve()
+    public void Prestage_Configuration_Persists_With_The_Test_And_Refuses_A_Lead_Above_DOMax()
     {
-        _vm.NewTestName = "Ensaio Alivio VM";
-        _vm.SelectedN2Valve = NitrogenValve.Valve1;
-        _vm.SelectedVentValve = NitrogenValve.Valve2;
-        _vm.UseVentStabilization = true;
-        _vm.SettingVentFlowTolerance = 0.25;
-        _vm.SettingVentFlowStableSamples = 4;
-        _vm.SettingMaxVentStabilizationSeconds = 90;
+        _vm.NewTestName = "Ensaio Prestage VM";
+        _vm.SettingDOMin = 10.0;
+        _vm.SettingDOMax = 85.0;
+        _vm.SettingAirPrestageLeadPercent = 3.0;
+        _vm.SettingPrestageFlowTolerance = 0.25;
+        _vm.SettingPrestageFlowStableSamples = 4;
+        _vm.SettingMaxPrestageSeconds = 90;
 
         _vm.CreateNewTest();
 
         Assert.NotNull(_vm.CurrentTest);
-        Assert.False(_vm.HasVentValveConflict);
+        Assert.Contains("A na entrada 2", _vm.GasRigDescription, StringComparison.Ordinal);
 
         var reloaded = _store.LoadTest(_vm.CurrentTest.FolderName);
         Assert.NotNull(reloaded);
-        Assert.Equal(NitrogenValve.Valve2, reloaded.SelectedVentValve);
-        Assert.True(reloaded.Settings.VentStabilizationEnabled);
-        Assert.Equal(0.25, reloaded.Settings.VentFlowToleranceLpm);
-        Assert.Equal(4, reloaded.Settings.VentFlowStableSamples);
-        Assert.Equal(90, reloaded.Settings.MaxVentStabilizationSeconds);
+        Assert.Equal(3.0, reloaded.Settings.AirPrestageLeadPercent);
+        Assert.Equal(0.25, reloaded.Settings.PrestageFlowToleranceLpm);
+        Assert.Equal(4, reloaded.Settings.PrestageFlowStableSamples);
+        Assert.Equal(90, reloaded.Settings.MaxPrestageSeconds);
 
-        // Pointing the vent at the nitrogen output is reported and blocks the save.
-        _vm.SelectedVentValve = NitrogenValve.Valve1;
-        Assert.True(_vm.HasVentValveConflict);
-
+        // A lead that would pre-stage above the end-of-run DO is refused and blocks the save.
+        _vm.SettingAirPrestageLeadPercent = 80.0;
         _vm.OpenAdvancedSettingsDialog();
         _vm.SaveAdvancedSettings();
-        Assert.Contains("alívio", _vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("antecipação", _vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.True(_vm.IsAdvancedSettingsDialogOpen);
     }
 
-    /// <summary>
-    /// A test created without the vent line keeps the detour off, so the standard rig is
-    /// unaffected by the option existing.
-    /// </summary>
+    /// <summary>A manifest without a recorded rig opens for review and refuses a new sequence (plan §3.5).</summary>
     [Fact]
-    public void Vent_Stabilization_Is_Off_By_Default()
+    public void Legacy_Manifest_Without_GasRig_Is_Read_Only()
     {
-        _vm.NewTestName = "Ensaio Sem Alivio";
-        _vm.CreateNewTest();
+        var doc = _store.CreateTest("Ensaio Legado VM", new KlaTestSettings());
+        doc.Status = KlaTestStatus.Interrupted;
+        doc.StartedUtc = DateTimeOffset.UtcNow;
+        doc.Conditions.Add(new KlaTestCondition { AgitationRpm = 300, AirflowLpm = 2.0 });
+        _store.SaveConditionsTable(doc.FolderName, doc.Conditions);
+        _store.SaveTestManifest(doc);
 
+        _vm.LoadTest(doc.FolderName);
+
+        Assert.True(_vm.IsLegacyRigTest);
+        Assert.False(_vm.CanStartSequence);
+        Assert.Contains("A/B/C", _vm.LegacyRigMessage, StringComparison.Ordinal);
+
+        // A draft never started has nothing to protect.
+        _vm.NewTestName = "Ensaio Novo VM";
+        _vm.CreateNewTest();
+        Assert.False(_vm.IsLegacyRigTest);
+    }
+
+    /// <summary>The sequence does not start until the operator confirms the N₂ open at the source; the confirmation is persisted.</summary>
+    [Fact]
+    public async Task StartSequence_Requires_The_Nitrogen_Source_Confirmation_And_Records_It()
+    {
+        _vm.NewTestName = "Ensaio Preflight N2";
+        _vm.CreateNewTest();
+        _vm.NewConditionRpm = 300;
+        _vm.NewConditionFlow = 2.0;
+        _vm.AddManualCondition();
+
+        _vm.OpenStartSequenceDialog();
+        Assert.False(_vm.NitrogenSourceConfirmed);
+
+        await _vm.ConfirmStartSequenceAsync();
+        Assert.True(_vm.IsStartSequenceDialogOpen);
+        Assert.Null(_runner.CurrentCondition);
+        Assert.Contains("N₂", _vm.StatusMessage, StringComparison.Ordinal);
+
+        _vm.NitrogenSourceConfirmed = true;
+        await _vm.ConfirmStartSequenceAsync();
+        Assert.False(_vm.IsStartSequenceDialogOpen);
+        Assert.NotNull(_runner.CurrentCondition);
         Assert.NotNull(_vm.CurrentTest);
-        Assert.False(_vm.UseVentStabilization);
-        Assert.False(_vm.CurrentTest.Settings.VentStabilizationEnabled);
+        Assert.NotNull(_vm.CurrentTest.NitrogenSourceConfirmedUtc);
+        Assert.NotNull(_store.LoadTest(_vm.CurrentTest.FolderName)?.NitrogenSourceConfirmedUtc);
     }
 
     [Fact]
@@ -194,7 +225,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     public void KlaMappingViewModel_Imports_Accepted_Replicates_From_Test()
     {
         // 1. Create test and add an accepted run
-        var doc = _store.CreateTest("Ensaio Integracao", new KlaTestSettings(), NitrogenValve.Valve1);
+        var doc = _store.CreateTest("Ensaio Integracao", new KlaTestSettings());
         var cond = new KlaTestCondition
         {
             ConditionId = Guid.NewGuid(),
@@ -432,11 +463,10 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _vm.SettingSmoothingWindow = 9;
         _vm.SettingMaxDegassingMinutes = 45;
         _vm.SettingMaxReoxygenationMinutes = 75;
-        _vm.SettingPostNitrogenMinimumDelaySeconds = 8;
         _vm.SettingStabilityDerivativeSpanSeconds = 10;
         _vm.SettingStabilityDerivativeThreshold = 0.03;
         _vm.SettingStabilityRequiredSamples = 7;
-        _vm.SettingMaxPostNitrogenStabilizationSeconds = 180;
+        _vm.SettingMaxPrestageSeconds = 180;
         _vm.SettingDefaultCeq = 102;
 
         _vm.SaveAdvancedSettings();
@@ -446,11 +476,10 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(9, _vm.CurrentTest.Settings.SmoothingWindowSize);
         Assert.Equal(45, _vm.CurrentTest.Settings.MaxDegassingTimeMinutes);
         Assert.Equal(75, _vm.CurrentTest.Settings.MaxReoxygenationTimeMinutes);
-        Assert.Equal(8, _vm.CurrentTest.Settings.PostNitrogenMinimumDelaySeconds);
         Assert.Equal(10, _vm.CurrentTest.Settings.StabilityDerivativeSpanSeconds);
         Assert.Equal(0.03, _vm.CurrentTest.Settings.StabilityDerivativeThresholdPercentPerSecond);
         Assert.Equal(7, _vm.CurrentTest.Settings.StabilityRequiredSamples);
-        Assert.Equal(180, _vm.CurrentTest.Settings.MaxPostNitrogenStabilizationSeconds);
+        Assert.Equal(180, _vm.CurrentTest.Settings.MaxPrestageSeconds);
         Assert.Equal(102, _vm.CurrentTest.Settings.DefaultCeqPercent);
     }
 
@@ -778,7 +807,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(3, _vm.SequencePreviewQueue.Count);
         Assert.Equal(300, _vm.SequencePreviewQueue[0].AgitationRpm);
 
-        // Confirm
+        // Confirm (preflight: N₂ open at the source)
+        _vm.NitrogenSourceConfirmed = true;
         await _vm.ConfirmStartSequenceAsync();
         Assert.False(_vm.IsStartSequenceDialogOpen);
         Assert.NotNull(_runner.CurrentCondition);
@@ -800,8 +830,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public double CurrentFlowMeasured { get; set; }
         public double? CurrentDODerivative { get; set; }
         public int StabilityConfirmationCount { get; set; }
-        public int VentFlowStableCount { get; set; }
-        public double? VentFlowDeviation { get; set; }
+        public int PrestageFlowStableCount { get; set; }
+        public double? PrestageFlowDeviation { get; set; }
         public string StatusMessage { get; set; } = "Pronto";
 
         public IReadOnlyList<KlaRawDataPoint> CurrentRunPoints => [];

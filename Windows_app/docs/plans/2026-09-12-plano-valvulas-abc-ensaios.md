@@ -7,7 +7,32 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1, 2 e 3 concluídas em 12/09/2026.** Etapa 3 (simulador):
+**Estado:** em execução — **Etapas 1, 2, 3 e 4 concluídas em 12/09/2026.** Etapa 4 (runner de
+kLa): fases `OpeningNitrogen → Deoxygenating → PrestagingAir → SwitchingToReactor → Reoxygenating`
+(saíram `ClosingNitrogen`, `WaitingForDOStability`, `OpeningVent`, `StabilizingVentFlow`,
+`OpeningAir`); `BeginAirPrestage` pede Q na **mesma** rota B/C ao atingir `DOMin + AirPrestageLeadPercent`;
+`EvaluateAirPrestage` exige ao mesmo tempo (a) vazão na banda por N quadros **ou** assentada
+(`FlowSettling`, helper comum com o runner de potência — `PrestageFlowStabilityStdDevLpm`/`MaxErrorLpm`)
+e (b) `DO ≤ DOMin` com dDO/dt plano por `StabilityRequiredSamples`; `SwitchToReactor` manda A on /
+B/C off numa frame com a rotação da condição; a confirmação pelo eco é `t = 0`. **Decisões do
+usuário (12/09):** DO já baixo no início → sem fase de N₂ e sem exigir a confirmação da fonte, mas
+a pré-estabilização por C continua obrigatória ("baixo **e** estável": vazão e derivada do DO
+assentadas antes de entrar no reator). Preflight "Confirmo que o N₂ está aberto na fonte" no
+diálogo da sequência (checkbox) e nos inícios diretos (diálogo de confirmação);
+`KlaTestDocument.NitrogenSourceConfirmedUtc` no manifesto e no `RunStarted` do jornal.
+`KlaTestDocument.GasRig` gravado ao iniciar; `IsLegacyRig = GasRig null && Status != Draft` →
+banner "montagem anterior ao arranjo A/B/C — só leitura" e `StartRunAsync` recusa (também recusa
+se o arranjo em Configurações difere do gravado). **Desvios:** (1) `RelativeSeconds` continua
+contando do início da corrida (arquivo e gráfico ao vivo monótonos; o ajuste log-linear é
+invariante ao offset) e o `t = 0` vai explícito em `KlaTestRun/KlaTestRunSummary.SwitchRelativeSeconds`,
+`SwitchFlowRateLpm`, `SwitchDoPercent`; (2) `KlaTestStore.CreateTest` perdeu os parâmetros de
+válvula e `AppSettings.KlaNitrogenValve/KlaVentValve` saíram (o arranjo é `AppSettings.GasRig`);
+(3) `KlaPlaybackDeviceService` lê a rota por `GasRouting.Interpret` (`Func<GasRigConfiguration>`
+no `App`). Testes: `KlaTestRunnerTests` reescritos (11), `FlowSettlingTests`, VM +3, e
+**`KlaRunnerSimulatorTests`** (runner fechado no simulador da Etapa 3 via `WireCodec` +
+`TelemetryParser`: N₂ desce o DO, ar assenta em C, uma frame abre A, reoxigena até `DOMax`; fonte
+fechada → teto da desoxigenação aborta) — substitui a checagem manual do §7.2. Suíte 1573.
+Etapa 3 (simulador):
 `DeviceModel.GasRig` (`--rig a-on-1|a-on-2`), `NitrogenSourceOpen` (`--nitrogen-source
 open|closed`, padrão aberta), `ObservedRoute` pelo `GasRouting.Interpret`; ar oxigena só por A, N₂
 desoxigena só por B/C **e** com a fonte aberta (cenário `nitrogen-left-open` força a fonte aberta —
@@ -390,7 +415,7 @@ citavam `WaitingForDOStability`/`OpeningVent`.
 **Pronto.** Suíte verde; simulador `--scenario normal` completa uma corrida com kLa plausível;
 `--scenario nitrogen-left-open` não se aplica (kLa exige fonte aberta).
 **Commit.** `feat(kla): pre-estabilizacao do ar por C durante o N2 e t=0 na comutacao A/(B+C)`.
-**Esforço.** G (um período e meio).
+**Esforço.** G (um período e meio). **Executada em 12/09/2026** — ver Estado no cabeçalho.
 
 ### Etapa 5 — Runner de potência: estabilização por C obrigatória e comutação em uma frame
 

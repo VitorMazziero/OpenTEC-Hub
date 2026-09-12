@@ -7,7 +7,25 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1 a 5 concluídas em 12/09/2026.** Etapa 5 (runner de
+**Estado:** em execução — **Etapas 1 a 6 concluídas em 12/09/2026.** Etapa 6 (Controle):
+**decisão do usuário (12/09):** o seletor é por **entrada acionada, 1 ou 2**, não por "destino"
+— os papéis das válvulas são fixos (A = ar ao reator, B = N₂ ou nada, C = purga de ar) e a
+tela diz o que cada entrada aciona: *Fechado* · *Entrada 1 · B + C (N₂ ou nada · purga de ar)* ·
+*Entrada 2 · A (ar ao reator)* (rótulos `Input1Choice/Input2Choice` derivados do arranjo). A frase
+"Escolha um destino para o ar (A ou B/C)" não existe. `FlowControlViewModel`: `RequestedRoute`
+(derivado do par estagiado; null com as duas), `IsInput1Requested/IsInput2Requested/IsRouteClosed`,
+`SelectRoute`, `ObservedRoute/ObservedRouteText/IsObservedRouteAnomalous/WireText`
+(`GasRouting.Interpret`/`DescribeWire` sobre o eco), `RouteWarningFor(flowEnabled, setpoint)`,
+`Input1Label/Input2Label`, `RigDescription`, e reação a `ISettingsService.Changed`
+(`NotifyRigChanged`). **Avançado** com as entradas 1 e 2 cruas e *Fechar linha (v_Flow)*, **sem
+bloqueio**: `TryBuildRequested` envia as duas acionadas e a linha morta; `ControlViewModel.FlowRouteWarning`
+só avisa. Painel de detalhe (aba Saída): linha "Destino do gás" = `ObservedRouteText` (anômalo em
+vermelho). Sinótico: `Flow.SecondaryText` "→ A" / "→ B/C" / "fechado" / "sem destino" /
+"A e B/C" com `IsSecondaryAlert` (novo em `ProcessVariableViewModel`). Predefinição padrão passa
+a acionar A (`Valve2Open`, entrada 2). `DocumentationCatalog` reescrito. **Passo 5 não se
+aplica:** não existe alarme "Hub × app" por válvula (o de roteamento compara `flowComm`).
+Testes: `GasRouteUiTests` (5), anchors em `ControlWorkspaceContractTests`. Suíte 1586.
+Etapa 5 (runner de
 potência): toda condição gaseificada passa por `PrestagingFlow` (ex-`VentStabilizing`) — Q na
 saída B/C com `PrestageAgitationRpm`, saída pela banda **ou** por `FlowSettling`, uma frame
 `Reactor` com o setpoint preservado → `OpeningGas` confirma → captura; P0/ungassed continua em
@@ -508,7 +526,7 @@ alarme de roteamento), `Views/SynopticView.xaml`/`ShellViewModel.cs` (tag da lin
 `Reator (A)`, `Descarga + N₂ (B/C)`); layout compacto.
 **Pronto.** Suíte verde; no simulador, alternar o destino muda a rota observada no quadro seguinte.
 **Commit.** `feat(controle): destino do gas (A / B+C / fechado) no lugar dos toggles de valvula`.
-**Esforço.** M.
+**Esforço.** M. **Executada em 12/09/2026** — seletor por entrada (1 / 2), ver Estado.
 
 ### Etapa 7 — Segurança e alarmes
 
@@ -541,10 +559,18 @@ que a usa e gravada em cada ensaio.
 Configurações › Gás e válvulas), testes `WorkspaceDirectoryTests`/`SettingsViewModelTests`,
 `NodeProvenanceTests` (estender), `DocumentationTests`.
 **Passos.**
-1. Seção **Gás e válvulas**: desenho em texto do arranjo (fluxômetro → T → A → T → aspersor; C na
-   descarga; B no N₂), seletor **"Válvula A ligada na entrada"** `1 | 2`, linha calculada "B e C
-   ligadas na entrada {outra}", padrão `2`, botão *Restaurar padrão*. Mudar exige que nenhum
-   ensaio esteja em execução (bloqueio com motivo).
+1. Seção **Gás e válvulas**: a **imagem do fluxograma das válvulas** fornecida pelo usuário
+   (`docs/plans/valvulas.png`, 1448×1086 — entra no app como recurso WPF
+   `Resources/Images/valvulas-abc.png`, linkada do `docs/` como os logos, e é copiada para
+   `docs/UI_design_guides/` como referência) exibida na página com largura limitada e clique para
+   ampliar, acompanhada de uma **descrição do setup** em texto (decisão do usuário, 12/09/2026):
+   fluxômetro → T → **A** (ar ao reator, via aspersor) e **C** (descarga/purga de ar) ·
+   **B** = linha de N₂, no mesmo canal elétrico que C (abrem e fecham juntas) · o arranjo é o mesmo
+   nos dois ensaios; o que muda é o que está ligado em B — pinçada/desconectada no ensaio de
+   potência, na linha de N₂ no kLa · MOSFET 1 → B+C, MOSFET 2 → A (padrão). Abaixo: seletor
+   **"Válvula A ligada na entrada"** `1 | 2`, linha calculada "B e C ligadas na entrada {outra}",
+   padrão `2`, botão *Restaurar padrão*. Mudar exige que nenhum ensaio esteja em execução
+   (bloqueio com motivo).
 2. Ao mudar: `GasRig` persiste; `FlowControlViewModel` e os runners releem na próxima corrida; o
    jornal registra "Arranjo de válvulas: A → entrada 1" (quando invertido).
 3. Proveniência: `GasRig` em `teste.json`, `ensaio.json`, recibos de calibração; `# gas_rig:` no

@@ -235,6 +235,19 @@ public sealed class ControlWorkspaceContractTests
 
         Assert.DoesNotContain("Modo automático pelo potenciômetro", xaml, StringComparison.Ordinal);
         Assert.Contains("Automação por espuma", xaml, StringComparison.Ordinal);
+
+        // A/B/C rig (plan Etapa 6): the flow drawer picks the energised input, names the
+        // valves' fixed roles, and keeps the raw pins under Avançado — the old per-gas
+        // toggles ("Válvula de N₂") are gone.
+        Assert.Contains("Válvulas do fluxômetro", xaml, StringComparison.Ordinal);
+        Assert.Contains("A = ar ao reator · B = N₂ ou nada · C = purga de ar", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsInput1Requested, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsInput2Requested, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Avançado\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Fechar linha (v_Flow)", xaml, StringComparison.Ordinal);
+        Assert.Contains("{Binding ObservedRouteText, Mode=OneWay}", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Válvula de N₂", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Válvula auxiliar", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource AppSliderStyle}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Contagens brutas de integração", xaml, StringComparison.Ordinal);
     }

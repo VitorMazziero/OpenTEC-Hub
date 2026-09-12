@@ -672,8 +672,9 @@ public sealed record SetpointPreset
         FlowLitresPerMinute = 1.0,
         MaxFlowLitresPerMinute = 50.0,
         FlowEnabled = true,
-        Valve1Open = true,
-        Valve2Open = false,
+        // A cultivation aerates the reactor: A, which is input 2 on the default A/B/C wiring.
+        Valve1Open = false,
+        Valve2Open = true,
         PressureKilopascal = 101.3,
         PressureEnabled = true,
         PHControl = new PHControlSettings

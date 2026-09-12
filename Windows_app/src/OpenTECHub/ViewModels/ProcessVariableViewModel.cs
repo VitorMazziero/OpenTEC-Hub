@@ -187,6 +187,10 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     [ObservableProperty]
     public partial string? SecondaryLabel { get; set; }
 
+    /// <summary>True when the second reading names something wrong (the flow tile's gas route with no destination, or both open).</summary>
+    [ObservableProperty]
+    public partial bool IsSecondaryAlert { get; set; }
+
     /// <summary>True while there is a second reading worth the space it takes.</summary>
     public bool HasSecondaryReading => !string.IsNullOrEmpty(SecondaryText);
 

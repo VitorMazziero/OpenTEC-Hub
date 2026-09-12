@@ -1472,6 +1472,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Flow.Setpoint = snapshot.FlowSetpoint >= 0 ? snapshot.FlowSetpoint : null;
         FlowControl.UpdateTelemetry(snapshot);
 
+        // The gas destination on the flow tile, in the rig's words: where the air is going is
+        // as much a reading as how much of it there is. Short forms, the tile is 85 px wide.
+        Flow.SecondaryText = FlowControl.ObservedRoute switch
+        {
+            ObservedGasRoute.Reactor => "→ A",
+            ObservedGasRoute.VentAndNitrogen => "→ B/C",
+            ObservedGasRoute.Closed => "fechado",
+            ObservedGasRoute.DeadEnd => "sem destino",
+            ObservedGasRoute.BothOpen => "A e B/C",
+            _ => null,
+        };
+        Flow.IsSecondaryAlert = FlowControl.IsObservedRouteAnomalous;
+
         IsSensorModuleOffline = !snapshot.SensorCommOk;
 
         _lastFrameAt = DateTimeOffset.Now;

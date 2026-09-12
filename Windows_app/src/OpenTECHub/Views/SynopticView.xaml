@@ -53,8 +53,21 @@
                                    VerticalAlignment="Bottom" FontSize="11"
                                    FontFamily="{DynamicResource FontNumeric}"
                                    Typography.NumeralAlignment="Tabular"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   Visibility="{Binding HasSecondaryReading, Converter={StaticResource BoolToVis}}" />
+                                   Visibility="{Binding HasSecondaryReading, Converter={StaticResource BoolToVis}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                    <Style.Triggers>
+                                        <!-- The flow tile's second reading is the gas destination; a dead end or
+                                             both inputs open is an anomaly the operator must see from here. -->
+                                        <DataTrigger Binding="{Binding IsSecondaryAlert}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource StateAlarmTextBrush}" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                         <TextBlock Text="{Binding SecondaryLabel}" Margin="2,0,0,2"
                                    VerticalAlignment="Bottom" FontSize="9"
                                    Foreground="{DynamicResource TextMutedBrush}"

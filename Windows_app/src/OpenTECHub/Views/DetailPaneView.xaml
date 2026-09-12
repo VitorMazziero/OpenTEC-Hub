@@ -77,10 +77,33 @@
                                Text="{Binding Variable.FormattedSetpoint}" />
                 </Grid>
 
+                <!-- The observed gas destination, in the hardware's names (plan A/B/C §3.2). A
+                     setpoint sent from here keeps whatever route the meter is on. -->
+                <Grid Margin="0,4,0,0" DataContext="{Binding DataContext.FlowControl, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Destino do gás" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Column="1" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold"
+                               Text="{Binding ObservedRouteText}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsObservedRouteAnomalous}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource StateAlarmTextBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
                 <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
                            Margin="0,12,0,0"
                            Foreground="{DynamicResource TextMutedBrush}"
-                           Text="Estado das válvulas e do vent fica em Controle, junto do resto do caminho de gás." />
+                           Text="O destino (A / B+C / fechado) e a linha (v_Flow) mudam em Controle, na gaveta Vazão de Ar." />
             </StackPanel>
         </DataTemplate>
     </UserControl.Resources>

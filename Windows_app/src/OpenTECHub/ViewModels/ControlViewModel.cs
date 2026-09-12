@@ -424,6 +424,24 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     private bool FlowStateDirty => _flowSubsystem.HasPendingChange || FlowControl.HasPendingChange;
 
+    /// <summary>
+    /// The word beside the gas-destination controls when the staged state is one no assay
+    /// would command: both inputs open, or a setpoint with nowhere to go. A warning, never a
+    /// refusal — free operation sends it (plan §3.3).
+    /// </summary>
+    public string? FlowRouteWarning
+    {
+        get
+        {
+            var setpoint = 0.0;
+            if (_flowSubsystem.IsEnabled && !_flowSubsystem.TryGetStagedValue(out setpoint))
+            {
+                setpoint = 0.0;
+            }
+            return FlowControl.RouteWarningFor(_flowSubsystem.IsEnabled, setpoint);
+        }
+    }
+
     public string? FlowRequestError
     {
         get
@@ -1142,6 +1160,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DirtyCount));
         OnPropertyChanged(nameof(ApplyAllLabel));
         OnPropertyChanged(nameof(FlowRequestError));
+        OnPropertyChanged(nameof(FlowRouteWarning));
         OnPropertyChanged(nameof(CanApplyAll));
         OnPropertyChanged(nameof(CanApplyFlowState));
         OnPropertyChanged(nameof(CanActuate));

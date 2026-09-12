@@ -1244,21 +1244,25 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- Left: Valves & Flow Configuration -->
+                                        <!-- Left: gas destination, then the raw inputs under Avançado -->
                                         <StackPanel Grid.Column="0" DataContext="{Binding FlowControl}" Margin="0,0,16,0">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.1*" />
-                                                    <ColumnDefinition Width="1.1*" />
-                                                    <ColumnDefinition Width="1.5*" />
-                                                    <ColumnDefinition Width="1.1*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="Válvula auxiliar" FontWeight="SemiBold" />
-                                                    <ToggleButton Margin="0,6,0,0" IsChecked="{Binding RequestedValve1, Mode=TwoWay}">
-                                                        <ToggleButton.Style>
-                                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <!-- The operator commands a destination, not a pin (plan A/B/C §3.2). -->
+                                                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                                    <TextBlock Text="Válvulas do fluxômetro" FontWeight="SemiBold" />
+                                                    <TextBlock Text="A = ar ao reator · B = N₂ ou nada · C = purga de ar. Escolha a entrada acionada."
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               Margin="0,2,0,0" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                                                ToolTip="Os papéis das válvulas são fixos; o que muda é qual entrada do fluxômetro está acionada. B e C abrem juntas na mesma entrada.">
+                                                        <StackPanel.Resources>
+                                                            <Style TargetType="RadioButton" BasedOn="{StaticResource CompactSectionTabStyle}">
                                                                 <Setter Property="IsEnabled" Value="False" />
                                                                 <Style.Triggers>
                                                                     <MultiDataTrigger>
@@ -1270,64 +1274,41 @@
                                                                     </MultiDataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
-                                                        </ToggleButton.Style>
-                                                    </ToggleButton>
-                                                    <TextBlock Text="{Binding Valve1ActualText, StringFormat='Telemetria: {0}'}"
+                                                        </StackPanel.Resources>
+                                                        <RadioButton Content="Fechado" GroupName="GasRoute" IsChecked="{Binding IsRouteClosed, Mode=TwoWay}" />
+                                                        <RadioButton Content="{Binding Input1Choice}" GroupName="GasRoute" IsChecked="{Binding IsInput1Requested, Mode=TwoWay}" />
+                                                        <RadioButton Content="{Binding Input2Choice}" GroupName="GasRoute" IsChecked="{Binding IsInput2Requested, Mode=TwoWay}" />
+                                                    </StackPanel>
+                                                    <TextBlock Margin="0,6,0,0" Style="{StaticResource CaptionTextStyle}">
+                                                        <Run Text="Telemetria: " Foreground="{DynamicResource TextMutedBrush}" />
+                                                        <Run Text="{Binding ObservedRouteText, Mode=OneWay}" FontWeight="SemiBold">
+                                                            <Run.Style>
+                                                                <Style TargetType="Run">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsObservedRouteAnomalous}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource StateAlarmTextBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Run.Style>
+                                                        </Run>
+                                                        <Run Text=" · " Foreground="{DynamicResource TextMutedBrush}" />
+                                                        <Run Text="{Binding WireText, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding RigDescription, StringFormat='{}{0} (Configurações › Gás e válvulas)'}"
                                                                Style="{StaticResource CaptionTextStyle}"
                                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                               Margin="0,2,0,0" />
+                                                    <TextBlock Text="{Binding DataContext.FlowRouteWarning, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                               Visibility="{Binding DataContext.FlowRouteWarning, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToVis}}"
+                                                               Foreground="{DynamicResource StateWarningTextBrush}"
+                                                               FontSize="{DynamicResource FontSizeCaption}"
+                                                               TextWrapping="Wrap"
                                                                Margin="0,4,0,0" />
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1">
-                                                    <TextBlock Text="Válvula de N₂" FontWeight="SemiBold" />
-                                                    <ToggleButton Margin="0,6,0,0" IsChecked="{Binding RequestedValve2, Mode=TwoWay}">
-                                                        <ToggleButton.Style>
-                                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
-                                                                <Setter Property="IsEnabled" Value="False" />
-                                                                <Style.Triggers>
-                                                                    <MultiDataTrigger>
-                                                                        <MultiDataTrigger.Conditions>
-                                                                            <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                                                                            <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
-                                                                        </MultiDataTrigger.Conditions>
-                                                                        <Setter Property="IsEnabled" Value="True" />
-                                                                    </MultiDataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </ToggleButton.Style>
-                                                    </ToggleButton>
-                                                    <TextBlock Text="{Binding Valve2ActualText, StringFormat='Telemetria: {0}'}"
-                                                               Style="{StaticResource CaptionTextStyle}"
-                                                               Foreground="{DynamicResource TextMutedBrush}"
-                                                               Margin="0,4,0,0" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="2">
-                                                    <TextBlock Text="Válvula de fechamento" FontWeight="SemiBold" />
-                                                    <ToggleButton Margin="0,6,0,0"
-                                                                  IsChecked="{Binding RequestedMainValveClosed, Mode=TwoWay}">
-                                                        <ToggleButton.Style>
-                                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
-                                                                <Setter Property="IsEnabled" Value="False" />
-                                                                <Style.Triggers>
-                                                                    <MultiDataTrigger>
-                                                                        <MultiDataTrigger.Conditions>
-                                                                            <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                                                                            <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
-                                                                        </MultiDataTrigger.Conditions>
-                                                                        <Setter Property="IsEnabled" Value="True" />
-                                                                    </MultiDataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </ToggleButton.Style>
-                                                    </ToggleButton>
-                                                    <TextBlock Text="{Binding MainValveActualText, StringFormat='Telemetria: {0}'}"
-                                                               Style="{StaticResource CaptionTextStyle}"
-                                                               Foreground="{DynamicResource TextMutedBrush}"
-                                                               Margin="0,4,0,0" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="3">
                                                     <TextBlock Text="maxFlow" FontWeight="SemiBold" />
                                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                                         <TextBox Width="80"
@@ -1347,6 +1328,61 @@
                                                                Margin="0,4,0,0" />
                                                 </StackPanel>
                                             </Grid>
+
+                                            <!-- Avançado: the two inputs and the line shutoff, raw. Free operation has no
+                                                 interlock (plan §3.3): any combination is sent; the warning above is the
+                                                 only word about it. -->
+                                            <Expander Header="Avançado" Margin="0,10,0,0" IsExpanded="False"
+                                                      ToolTip="Bancada: as entradas 1 e 2 uma a uma e o fechamento da linha. Qualquer combinação é enviada — as duas acionadas ou a linha sem saída só geram aviso.">
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="1.3*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.Resources>
+                                                        <Style x:Key="RawInputToggle" TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding DataContext.FlowSubsystem.IsEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                                        <Condition Binding="{Binding CanSendFlowCommands}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="IsEnabled" Value="True" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Resources>
+
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{Binding Input1Label}" FontWeight="SemiBold" />
+                                                        <ToggleButton Margin="0,6,0,0" Style="{StaticResource RawInputToggle}" IsChecked="{Binding RequestedValve1, Mode=TwoWay}" />
+                                                        <TextBlock Text="{Binding Valve1ActualText, StringFormat='Telemetria: {0}'}"
+                                                                   Style="{StaticResource CaptionTextStyle}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   Margin="0,4,0,0" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding Input2Label}" FontWeight="SemiBold" />
+                                                        <ToggleButton Margin="0,6,0,0" Style="{StaticResource RawInputToggle}" IsChecked="{Binding RequestedValve2, Mode=TwoWay}" />
+                                                        <TextBlock Text="{Binding Valve2ActualText, StringFormat='Telemetria: {0}'}"
+                                                                   Style="{StaticResource CaptionTextStyle}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   Margin="0,4,0,0" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Fechar linha (v_Flow)" FontWeight="SemiBold" />
+                                                        <ToggleButton Margin="0,6,0,0" Style="{StaticResource RawInputToggle}" IsChecked="{Binding RequestedMainValveClosed, Mode=TwoWay}" />
+                                                        <TextBlock Text="{Binding MainValveActualText, StringFormat='Telemetria: {0}'}"
+                                                                   Style="{StaticResource CaptionTextStyle}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   Margin="0,4,0,0" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Expander>
 
                                             <!-- Sintonia do controlador (Hub 10.2 / Nó v11) -->
                                             <Expander Header="Sintonia do controlador" Margin="0,10,0,0" IsExpanded="False"

@@ -41,6 +41,10 @@ public sealed partial class FlowControlViewModel : ObservableObject
 
         _dispatcher = dispatcher;
         _settings = settings;
+        if (_settings is not null)
+        {
+            _settings.Changed += OnSettingsChanged;
+        }
         Status = new ExternalDeviceStatus("Fluxômetro", "do fluxômetro", timeProvider) { NodeKind = NodeFirmwareCatalog.Flowmeter };
 
         _appliedMaxFlow = initialMaxFlow;
@@ -56,10 +60,38 @@ public sealed partial class FlowControlViewModel : ObservableObject
         _dispatcher = dispatcher;
         if (settings is not null)
         {
-            _settings = settings;
+            if (!ReferenceEquals(settings, _settings))
+            {
+                if (_settings is not null)
+                {
+                    _settings.Changed -= OnSettingsChanged;
+                }
+                _settings = settings;
+                _settings.Changed += OnSettingsChanged;
+            }
             LoadTuning(_settings.Current.FlowControl);
             RefreshTuningState();
+            NotifyRigChanged();
         }
+    }
+
+    /// <summary>Configurações › Gás e válvulas may have moved A to the other input: re-read every derived text.</summary>
+    private void OnSettingsChanged(AppSettings _) => NotifyRigChanged();
+
+    /// <summary>The wiring changed in Configurações: every text derived from it re-reads.</summary>
+    public void NotifyRigChanged()
+    {
+        OnPropertyChanged(nameof(RequestedRoute));
+        OnPropertyChanged(nameof(RequestedRouteText));
+        OnPropertyChanged(nameof(IsRouteClosed));
+        OnPropertyChanged(nameof(IsRouteReactor));
+        OnPropertyChanged(nameof(IsRouteVentAndNitrogen));
+        OnPropertyChanged(nameof(Input1Label));
+        OnPropertyChanged(nameof(Input2Label));
+        OnPropertyChanged(nameof(Input1Choice));
+        OnPropertyChanged(nameof(Input2Choice));
+        OnPropertyChanged(nameof(RigDescription));
+        NotifyObservedRoute();
     }
 
     /// <summary>
@@ -75,15 +107,171 @@ public sealed partial class FlowControlViewModel : ObservableObject
     /// </remarks>
     public ExternalDeviceStatus Status { get; }
 
-    /// <summary>Auxiliary valve requested by the operator.</summary>
+    /// <summary>
+    /// Flowmeter input 1, as staged. On the A/B/C rig an input is a destination, not a gas:
+    /// see <see cref="RequestedRoute"/> for what the pair means. Raw here for Avançado, which
+    /// may stage any combination — free operation has no interlock (plan §3.3).
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPendingChange))]
+    [NotifyPropertyChangedFor(nameof(RequestedRoute))]
+    [NotifyPropertyChangedFor(nameof(RequestedRouteText))]
+    [NotifyPropertyChangedFor(nameof(IsRouteClosed))]
+    [NotifyPropertyChangedFor(nameof(IsRouteReactor))]
+    [NotifyPropertyChangedFor(nameof(IsRouteVentAndNitrogen))]
+    [NotifyPropertyChangedFor(nameof(IsBothRequested))]
+    [NotifyPropertyChangedFor(nameof(IsInput1Requested))]
+    [NotifyPropertyChangedFor(nameof(IsInput2Requested))]
     public partial bool RequestedValve1 { get; set; }
 
-    /// <summary>Nitrogen valve requested by the operator.</summary>
+    /// <summary>Flowmeter input 2, as staged. See <see cref="RequestedValve1"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPendingChange))]
+    [NotifyPropertyChangedFor(nameof(RequestedRoute))]
+    [NotifyPropertyChangedFor(nameof(RequestedRouteText))]
+    [NotifyPropertyChangedFor(nameof(IsRouteClosed))]
+    [NotifyPropertyChangedFor(nameof(IsRouteReactor))]
+    [NotifyPropertyChangedFor(nameof(IsRouteVentAndNitrogen))]
+    [NotifyPropertyChangedFor(nameof(IsBothRequested))]
+    [NotifyPropertyChangedFor(nameof(IsInput1Requested))]
+    [NotifyPropertyChangedFor(nameof(IsInput2Requested))]
     public partial bool RequestedValve2 { get; set; }
+
+    // ── Gas destination (A / B+C / closed) over the two staged inputs ────────
+
+    /// <summary>
+    /// The destination the staged pair means on the configured wiring, or null when both
+    /// inputs are staged open — a state the selector has no button for and Avançado can
+    /// still send.
+    /// </summary>
+    public GasRoute? RequestedRoute => (RequestedValve1, RequestedValve2) switch
+    {
+        (false, false) => GasRoute.Closed,
+        (true, true) => null,
+        var (v1, v2) => GasRouting.Resolve(GasRoute.Reactor, Rig) == (v1, v2) ? GasRoute.Reactor : GasRoute.VentAndNitrogen,
+    };
+
+    /// <summary>The selector's text: the hardware's names, or the anomaly when both are staged.</summary>
+    public string RequestedRouteText => RequestedRoute is { } route
+        ? GasRouting.Describe(route)
+        : GasRouting.Describe(ObservedGasRoute.BothOpen);
+
+    public bool IsBothRequested => RequestedValve1 && RequestedValve2;
+
+    public bool IsRouteClosed
+    {
+        get => RequestedRoute == GasRoute.Closed;
+        set { if (value) { SelectRoute(GasRoute.Closed); } }
+    }
+
+    public bool IsRouteReactor
+    {
+        get => RequestedRoute == GasRoute.Reactor;
+        set { if (value) { SelectRoute(GasRoute.Reactor); } }
+    }
+
+    public bool IsRouteVentAndNitrogen
+    {
+        get => RequestedRoute == GasRoute.VentAndNitrogen;
+        set { if (value) { SelectRoute(GasRoute.VentAndNitrogen); } }
+    }
+
+    // The selector is worded by input, not by gas: the valves' roles never change (A = air to
+    // the reactor, B = N₂ or nothing, C = air purge) — what the operator picks is which
+    // flowmeter input is energised, 1 or 2, and the label says what hangs on it.
+
+    /// <summary>Input 1 energised alone (whatever hangs on it on the configured wiring).</summary>
+    public bool IsInput1Requested
+    {
+        get => RequestedValve1 && !RequestedValve2;
+        set { if (value) { SelectInputs(true, false); } }
+    }
+
+    /// <summary>Input 2 energised alone.</summary>
+    public bool IsInput2Requested
+    {
+        get => RequestedValve2 && !RequestedValve1;
+        set { if (value) { SelectInputs(false, true); } }
+    }
+
+    private void SelectInputs(bool v1, bool v2)
+    {
+        _suppressRefresh = true;
+        RequestedValve1 = v1;
+        RequestedValve2 = v2;
+        _suppressRefresh = false;
+        RefreshDerivedState();
+    }
+
+    /// <summary>What each input drives, for the selector: "Entrada 2 · A (ar ao reator)".</summary>
+    public string Input1Choice => "Entrada 1 · " + RoleOf(GasInput.Input1);
+    public string Input2Choice => "Entrada 2 · " + RoleOf(GasInput.Input2);
+
+    private string RoleOf(GasInput input) => Rig.AirInletInput == input
+        ? "A (ar ao reator)"
+        : "B + C (N₂ ou nada · purga de ar)";
+
+    /// <summary>Stages a destination: the pair of inputs it resolves to on the configured wiring.</summary>
+    public void SelectRoute(GasRoute route)
+    {
+        var (v1, v2) = GasRouting.Resolve(route, Rig);
+        _suppressRefresh = true;
+        RequestedValve1 = v1;
+        RequestedValve2 = v2;
+        _suppressRefresh = false;
+        RefreshDerivedState();
+    }
+
+    /// <summary>
+    /// Free operation sends anything; this is the word of warning beside it (plan §3.3). Null
+    /// when the staged pair is a plain destination.
+    /// </summary>
+    public string? RouteWarningFor(bool flowEnabled, double setpoint)
+    {
+        if (IsBothRequested)
+        {
+            return "Entradas 1 e 2 acionadas ao mesmo tempo: A e B + C abertas juntas, o ar se divide entre o reator e a purga.";
+        }
+
+        if (RequestedRoute == GasRoute.Closed && flowEnabled && setpoint > 0.0 && !RequestedMainValveClosed)
+        {
+            return "Gás sem destino: setpoint acima de zero com as entradas 1 e 2 fechadas — a linha fica sem saída.";
+        }
+
+        return null;
+    }
+
+    /// <summary>Labels for the raw inputs in Avançado, derived from the wiring.</summary>
+    public string Input1Label => Rig.AirInletInput == GasInput.Input1 ? "Entrada 1 (A)" : "Entrada 1 (B + C)";
+    public string Input2Label => Rig.AirInletInput == GasInput.Input2 ? "Entrada 2 (A)" : "Entrada 2 (B + C)";
+
+    /// <summary>The wiring in force, from Configurações › Gás e válvulas.</summary>
+    public string RigDescription => $"Arranjo: {Rig.Describe()}";
+
+    // ── Observed route, from the echo ────────────────────────────────────────
+
+    private double _observedSetpoint;
+
+    /// <summary>What the flowmeter reports it is doing, read as a destination; null before the first frame.</summary>
+    public ObservedGasRoute? ObservedRoute => ActualValve1 is { } v1 && ActualValve2 is { } v2
+        ? GasRouting.Interpret(v1, v2, _observedSetpoint, Rig)
+        : null;
+
+    public string ObservedRouteText => ObservedRoute is { } observed ? GasRouting.Describe(observed) : "—";
+
+    /// <summary>Dead end or both open: the telemetry itself says something is wrong.</summary>
+    public bool IsObservedRouteAnomalous => ObservedRoute is { } observed && !GasRouting.IsNominal(observed);
+
+    /// <summary>The raw pair with its meaning, e.g. <c>valve_1=0 (B/C) · valve_2=1 (A)</c>.</summary>
+    public string WireText => ActualValve1 is { } v1 && ActualValve2 is { } v2 ? GasRouting.DescribeWire(v1, v2, Rig) : "—";
+
+    private void NotifyObservedRoute()
+    {
+        OnPropertyChanged(nameof(ObservedRoute));
+        OnPropertyChanged(nameof(ObservedRouteText));
+        OnPropertyChanged(nameof(IsObservedRouteAnomalous));
+        OnPropertyChanged(nameof(WireText));
+    }
 
     /// <summary>
     /// Main physical shutoff. Closing it stops gas without erasing the staged flow setpoint.
@@ -488,9 +676,11 @@ public sealed partial class FlowControlViewModel : ObservableObject
             snapshot.FlowCommandPending,
             snapshot.FlowControlEnabled,
             snapshot.FlowmeterNode);
+        _observedSetpoint = double.IsFinite(snapshot.FlowSetpoint) && snapshot.FlowSetpoint > 0 ? snapshot.FlowSetpoint : 0.0;
         ActualValve1 = ToState(snapshot.FlowValve1);
         ActualValve2 = ToState(snapshot.FlowValve2);
         ActualVentValve = ToState(snapshot.FlowValveMain);
+        NotifyObservedRoute();
 
         AppliedKpText = snapshot.FlowKp is { } kp ? FormatTuning(kp) : "—";
         AppliedKiText = snapshot.FlowKi is { } ki ? FormatTuning(ki) : "—";

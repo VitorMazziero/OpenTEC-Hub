@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Update.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 #include "../api/LocalHttpApi.h"
 #include "../config/BoardConfig.h"
@@ -10,6 +11,10 @@
 #include "../protocol/ConfigCodec.h"
 #include "../sensor/DistanceSensor.h"
 #include "AppContext.h"
+
+namespace {
+constexpr uint32_t WDT_TIMEOUT_S = 15;
+}
 
 void firmwareSetup() {
   Serial.begin(115200);
@@ -39,9 +44,22 @@ void firmwareSetup() {
   Serial.println("[NET] Web server started. AP: 192.168.5.1");
   g_wifiNextActionMs = 0;
   checkWifi();
+
+  esp_task_wdt_config_t twdt_config = {
+      .timeout_ms     = WDT_TIMEOUT_S * 1000,
+      .idle_core_mask = 0,
+      .trigger_panic  = true
+  };
+  esp_err_t err = esp_task_wdt_init(&twdt_config);
+  if (err == ESP_ERR_INVALID_STATE) {
+    esp_task_wdt_reconfigure(&twdt_config);
+  }
+  esp_task_wdt_add(NULL);
+  Serial.println("[WDT] Task Watchdog inicializado (15s).");
 }
 
 void firmwareLoop() {
+  esp_task_wdt_reset();
   const unsigned long now = millis();
   serviceLocalHttpApi();
 

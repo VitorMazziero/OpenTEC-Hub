@@ -1,0 +1,102 @@
+#include "FirmwareApp.h"
+
+#include <Arduino.h>
+#include <WiFi.h>
+
+#include "../api/LocalHttpApi.h"
+#include "../config/BoardConfig.h"
+#include "../network/NetworkManager.h"
+#include "../protocol/ConfigCodec.h"
+#include "../sensor/DistanceSensor.h"
+#include "AppContext.h"
+
+void firmwareSetup() {
+  Serial.begin(115200);
+  delay(300);
+  Serial.println();
+  Serial.println(BoardConfig::FirmwareTag);
+
+  i2cInit();
+  i2cScanOnce("[BOOT]");
+  if (!sensorInit()) {
+    Serial.println("[BOOT] Sensor init failed; will try again after cooldown.");
+  }
+
+  Serial.println("[NET] Setting mode to WIFI_AP_STA...");
+  WiFi.mode(WIFI_AP_STA);
+  const IPAddress apIp(192, 168, 5, 1);
+  Serial.printf("[NET] Configuring AP on subnet %s\n", apIp.toString().c_str());
+  WiFi.softAPConfig(apIp, apIp, IPAddress(255, 255, 255, 0));
+  Serial.printf("[NET] Starting AP: %s\n", BoardConfig::AccessPointSsid);
+  if (WiFi.softAP(BoardConfig::AccessPointSsid)) {
+    Serial.printf("[NET] AP IP: %s\n", WiFi.softAPIP().toString().c_str());
+  } else {
+    Serial.println("[NET] AP Start Failed!");
+  }
+
+  setupLocalHttpApi();
+  Serial.println("[NET] Web server started. AP: 192.168.5.1");
+  g_wifiNextActionMs = 0;
+  checkWifi();
+}
+
+void firmwareLoop() {
+  const unsigned long now = millis();
+  serviceLocalHttpApi();
+
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    if (!command.isEmpty() && command.startsWith("{")) {
+      Serial.println("[CMD] Received: " + command);
+      processConfigUpdate(command);
+    }
+  }
+
+  checkWifi();
+  if (now - lastSampleMs >= SAMPLE_PERIOD_MS) {
+    lastSampleMs = now;
+
+    int mm = -1;
+    if (readSingleShot(mm)) {
+      failStreak = 0;
+      if (mm > 0 && mm < 4000) {
+        lastGoodRawMm = mm;
+      }
+    } else {
+      ++failStreak;
+      maybeRecover();
+    }
+
+    float distance = -1.0f;
+    if (mm > 0) {
+      distance = static_cast<float>(mm) - BoardConfig::OffsetMm;
+      if (distance < 0) {
+        distance = 0;
+      }
+    }
+
+    const float seconds = now / 1000.0f;
+    Serial.printf("{\"time\":%.1f,\"distance\":%.0f}\n", seconds, distance);
+    g_lastValidDistance = distance;
+    g_lastSampleTimeSec = seconds;
+
+    if (WiFi.status() == WL_CONNECTED && now - lastSendMs >= SEND_PERIOD_MS) {
+      lastSendMs = now;
+      char url[128];
+      snprintf(url, sizeof(url), "%s?distance=%d&time=%.1f",
+               sensorHubURL.c_str(), static_cast<int>(distance), seconds);
+      Serial.print("HTTP GET: ");
+      Serial.println(url);
+      int code;
+      String body;
+      if (httpGet(url, code, body)) {
+        Serial.printf("Response: %d\n", code);
+      } else {
+        Serial.printf("HTTP error: %d \"%s\"\n", code, body.c_str());
+      }
+    }
+  }
+
+  delay(1);
+}

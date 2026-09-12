@@ -101,6 +101,12 @@ void firmwareLoop() {
     handleSerialInput();
 
     checkWifi();
+
+    static unsigned long lastHelloCheckMs = 0;
+    if (WiFi.status() == WL_CONNECTED && (!g_hubAnnounced || now - lastHelloCheckMs >= 30000)) {
+        lastHelloCheckMs = now;
+        sendHubHello();
+    }
     
     unsigned long pollInterval = HUB_POLL_PERIOD_MS;
     if (g_hubFailStreak > 0) {

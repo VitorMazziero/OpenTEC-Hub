@@ -28,6 +28,8 @@ static const char* HUB_SSID_A = "ModuloTECNAL_1";
 static const char* HUB_SSID_B = "ModuloTECNAL_2";
 String sensorHubDataURL = "http://192.168.4.1/pumpData";
 String sensorHubCommandURL = "http://192.168.4.1/pumpCommand";
+String sensorHubHelloURL = "http://192.168.4.1/nodeHello";
+bool g_hubAnnounced = false;
 
 // AP
 static const char* AP_SSID = "FeedPump";
@@ -214,6 +216,7 @@ float pwmDutyToMlmin(int duty);
 // Networking
 bool httpGet(const String& url, int& code, String& body);
 void sendDataToHub();
+void sendHubHello();
 void handleReadData();
 void handleDiag();
 void handleCommand();

@@ -10,6 +10,7 @@
 #include "../network/NetworkManager.h"
 #include "../protocol/ConfigCodec.h"
 #include "../sensor/DistanceSensor.h"
+#include "../storage/NvsConfig.h"
 #include "AppContext.h"
 
 namespace {
@@ -22,6 +23,8 @@ void firmwareSetup() {
   delay(300);
   Serial.println();
   Serial.println(BoardConfig::FirmwareTag);
+
+  loadNvsConfig();
 
   i2cInit();
   i2cScanOnce("[BOOT]");
@@ -128,7 +131,7 @@ void firmwareLoop() {
 
     float distance = -1.0f;
     if (mm > 0) {
-      distance = static_cast<float>(mm) - BoardConfig::OffsetMm;
+      distance = static_cast<float>(mm) - g_offsetMm;
       if (distance < 0) {
         distance = 0;
       }

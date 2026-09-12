@@ -24,6 +24,7 @@ int L3_XSHUT = 20;
 int lastGoodRawMm = -1;
 float g_lastValidDistance = -1.0f;
 float g_lastSampleTimeSec = 0.0f;
+float g_offsetMm = BoardConfig::OffsetMm;
 
 String g_lastKnownSsid;
 WifiReconnectState g_wifiState = WF_IDLE;

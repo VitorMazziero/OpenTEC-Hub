@@ -1,6 +1,8 @@
 #include "ConfigCodec.h"
 
+#include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
+#include "../storage/NvsConfig.h"
 
 const char* findJsonValueStart(const char* json, const char* key) {
   if (!json || !key) return nullptr;
@@ -30,8 +32,34 @@ long getJsonValue(const char* json, const char* key) {
   return result;
 }
 
+bool getJsonFloat(const char* json, const char* key, float& outVal) {
+  const char* val = findJsonValueStart(json, key);
+  if (!val || *val == '"') return false;
+  char* endPtr = nullptr;
+  float result = strtof(val, &endPtr);
+  if (endPtr == val) return false;
+  outVal = result;
+  return true;
+}
+
 void processConfigUpdate(const char* payload) {
   if (!payload) return;
+
+  if (getJsonValue(payload, "reset_nvs") == 1) {
+    resetNvsConfig();
+    SAMPLE_PERIOD_MS = 1000;
+    SEND_PERIOD_MS = 1000;
+    COOLDOWN_SOFT_MS = 15000;
+    COOLDOWN_BUS_MS = 15000;
+    COOLDOWN_XSHUT_MS = 30000;
+    L1_SOFT_REINIT = 5;
+    L2_BUS_CLEAR = 10;
+    L3_XSHUT = 20;
+    g_offsetMm = BoardConfig::OffsetMm;
+    Serial.println("[CMD] Reset NVS e restaurou parametros padroes.");
+    return;
+  }
+
   bool updated = false;
   long value = getJsonValue(payload, "sample_period");
   if (value > 0) {
@@ -89,17 +117,28 @@ void processConfigUpdate(const char* payload) {
     Serial.printf("Set L3_XSHUT = %d\n", static_cast<int>(value));
   }
 
-  if (!updated) {
+  float offsetVal = 0.0f;
+  if (getJsonFloat(payload, "offset_mm", offsetVal)) {
+    if (offsetVal >= 0.0f) {
+      g_offsetMm = offsetVal;
+      updated = true;
+      Serial.printf("Set g_offsetMm = %.2f\n", offsetVal);
+    }
+  }
+
+  if (updated) {
+    saveNvsConfig();
+  } else {
     Serial.println("Failed to parse any valid keys from payload.");
   }
 }
 
 String getConfigAsJson() {
-  char buf[256];
+  char buf[320];
   snprintf(buf, sizeof(buf),
            "{\"sample_period\":%lu,\"send_period\":%lu,\"cooldown_soft\":%lu,"
            "\"cooldown_bus\":%lu,\"cooldown_xshut\":%lu,\"l1_reinit\":%d,"
-           "\"l2_clear\":%d,\"l3_xshut\":%d}",
+           "\"l2_clear\":%d,\"l3_xshut\":%d,\"offset_mm\":%.2f}",
            SAMPLE_PERIOD_MS,
            SEND_PERIOD_MS,
            COOLDOWN_SOFT_MS,
@@ -107,6 +146,8 @@ String getConfigAsJson() {
            COOLDOWN_XSHUT_MS,
            L1_SOFT_REINIT,
            L2_BUS_CLEAR,
-           L3_XSHUT);
+           L3_XSHUT,
+           g_offsetMm);
   return String(buf);
 }
+

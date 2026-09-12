@@ -28,6 +28,7 @@ extern int L3_XSHUT;
 extern int lastGoodRawMm;
 extern float g_lastValidDistance;
 extern float g_lastSampleTimeSec;
+extern float g_offsetMm;
 
 extern String g_lastKnownSsid;
 extern WifiReconnectState g_wifiState;

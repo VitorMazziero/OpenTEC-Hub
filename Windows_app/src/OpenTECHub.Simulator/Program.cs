@@ -110,6 +110,11 @@ if (TryReadScenario(out var startScenario))
     model.Scenario = startScenario;
 }
 
+if (args.Contains("--all-nodes"))
+{
+    model.EnableAllExternalNodes();
+}
+
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
 {
@@ -350,6 +355,7 @@ static void PrintUsage()
           --step <sec>          (headless only) integration step dt (default 0.2s)
           --output <path.csv>   (headless only) write CSV output to file (default stdout)
           --no-module           start with the sensor module offline
+          --all-nodes           start with every external-node route enabled (bench-test dry run)
           --quiet               no per-frame console echo
         """);
 

@@ -66,6 +66,9 @@ switch (mode)
     case "wifi-test":
         return await RunWiFiTestAsync(target, loggerFactory).ConfigureAwait(false);
 
+    case "bench-test":
+        return await RunBenchTestAsync(target, args, loggerFactory).ConfigureAwait(false);
+
     default:
         PrintUsage();
         return 1;
@@ -107,6 +110,40 @@ static async Task<int> RunWiFiTestAsync(string? target, ILoggerFactory loggerFac
     }
 }
 
+static async Task<int> RunBenchTestAsync(string? target, string[] args, ILoggerFactory loggerFactory)
+{
+    if (target is null)
+    {
+        Console.WriteLine("bench-test needs a target: COMx or an IPv4 address.");
+        return 1;
+    }
+
+    string Option(string name, string fallback)
+    {
+        var i = Array.IndexOf(args, name);
+        return i >= 0 && i < args.Length - 1 ? args[i + 1] : fallback;
+    }
+
+    var outDir = Option("--out", Path.Combine(
+        Directory.GetCurrentDirectory(), "docs", "evidence", "bench",
+        DateTimeOffset.Now.ToString("yyyy-MM-dd_HH-mm", CultureInfo.InvariantCulture)));
+
+    var options = new BenchOptions
+    {
+        Target = target,
+        ExpectedHubVersion = Option("--expect-hub", "10.2.0-dev"),
+        Suites = new HashSet<string>(Option("--suites", "B1,B2,B3,B5").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), StringComparer.OrdinalIgnoreCase),
+        SoakMinutes = int.TryParse(Option("--soak-min", "0"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var soak) ? soak : 0,
+        OutputDirectory = outDir,
+        ResetHub = args.Contains("--reset-hub"),
+        Pump = args.Contains("--pump"),
+    };
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    return await new BenchTestSuite(options, loggerFactory).RunAsync(cts.Token).ConfigureAwait(false);
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("""
@@ -119,6 +156,11 @@ static void PrintUsage()
                                             writes a report to a temp folder
           opentec-harness reset-test [COM3]  determine what reboots the board on
                                             connect, and whether the settle is needed
+          opentec-harness bench-test <COMx|ip> [--expect-hub 10.2.0-dev] [--suites B1,B2,B3,B5]
+                                            [--soak-min 30] [--out <dir>] [--reset-hub] [--pump]
+                                            UNATTENDED bench receipt for Hub 10.2 + nodes
+                                            (docs/processes/TESTES_AUTOMATICOS_BANCADA.md);
+                                            writes report.md + CSVs to --out
 
         Options:
           --for <seconds>   run headless for a fixed period (no stdin)

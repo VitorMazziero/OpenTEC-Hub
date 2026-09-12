@@ -44,6 +44,12 @@ public static class WireCodec
         var buffer = new StringBuilder(320);
         buffer.Append('{');
 
+        // The Hub opens every frame with its own version (Telemetry.h); a legacy Hub has neither key.
+        if (model.Scenario != Scenario.LegacyHub)
+        {
+            buffer.Append("\"HubFirmwareVersion\":\"").Append(DeviceModel.HubFirmwareVersion).Append("\",");
+            buffer.Append("\"HubProtocolVersion\":").Append(DeviceModel.HubProtocolVersion.ToString(CultureInfo.InvariantCulture)).Append(',');
+        }
         Append(buffer, "Time", model.UptimeSeconds, 1);
         Append(buffer, "Tempval", online ? model.ReadTemperature() : -1.0, 2);
 
@@ -60,6 +66,13 @@ public static class WireCodec
         if (online)
         {
             Append(buffer, "BiomassAbs", model.ReadBiomass(), 4);
+            if (model.ExternalNodesOnline && model.BiomassEnabled)
+            {
+                // Telemetry.h emits Raw/IT/PWM beside Abs whenever the last biomass push was valid.
+                AppendInt(buffer, "BiomassRaw", (int)(model.ReadBiomass() * 65535.0 / 4.0));
+                AppendInt(buffer, "BiomassIT", model.BiomassIntegrationTimeMs);
+                Append(buffer, "BiomassPWM", model.BiomassPwmPercent, 1);
+            }
             AppendInt(buffer, "Valve1", model.Valve1);
             AppendInt(buffer, "Valve2", model.Valve2);
             AppendInt(buffer, "ValveFlow", model.VentValveOpen ? 1 : 0);
@@ -118,7 +131,7 @@ public static class WireCodec
 
         AppendBool(buffer, "BiomassOnline", present && model.BiomassEnabled);
         AppendBool(buffer, "BiomassCommEnabled", model.RoutingEcho(model.BiomassEnabled));
-        AppendBool(buffer, "BiomassCommandPending", false);
+        AppendBool(buffer, "BiomassCommandPending", model.ConsumeBiomassCommandPending());
         if (present && model.BiomassEnabled && model.Scenario != Scenario.LegacyHub)
         {
             AppendInt(buffer, "BiomassGear", model.BiomassGear);
@@ -530,6 +543,7 @@ public static class WireCodec
 
         if (TryDouble(root, CommandKeys.BiomassIt, out var bioIt))
         {
+            model.BiomassCommandPending = true;
             model.BiomassIntegrationTimeMs = (int)bioIt switch
             {
                 0 => 25,
@@ -543,18 +557,22 @@ public static class WireCodec
         }
         if (TryDouble(root, CommandKeys.BiomassPwm, out var bioPwm))
         {
+            model.BiomassCommandPending = true;
             model.BiomassPwmPercent = bioPwm;
         }
         if (TryDouble(root, CommandKeys.BiomassGear, out var bioGear))
         {
+            model.BiomassCommandPending = true;
             model.BiomassGear = (int)bioGear;
         }
         if (TryDouble(root, CommandKeys.BiomassEma, out var bioEma))
         {
+            model.BiomassCommandPending = true;
             model.BiomassEma = bioEma;
         }
         if (TryDouble(root, CommandKeys.BiomassProbePeriodMs, out var bioProbeMs))
         {
+            model.BiomassCommandPending = true;
             model.BiomassProbePeriodMs = (int)bioProbeMs;
         }
 

@@ -228,6 +228,21 @@ public sealed class DeviceModel
         return pending;
     }
 
+    private bool _biomassCommandPending;
+
+    /// <summary>One frame of <c>BiomassCommandPending:true</c> after each biomass command, like the Hub's mailbox.</summary>
+    public bool BiomassCommandPending
+    {
+        get => _biomassCommandPending;
+        set => _biomassCommandPending = value;
+    }
+    public bool ConsumeBiomassCommandPending()
+    {
+        var pending = _biomassCommandPending;
+        _biomassCommandPending = false;
+        return pending;
+    }
+
     public double FlowKp { get; set; } = 0.8;
     public double FlowKi { get; set; } = 0.05;
     public double FlowFfGain { get; set; } = 0.0;
@@ -281,6 +296,19 @@ public sealed class DeviceModel
 
     /// <summary>False under <see cref="Scenario.LegacyHub"/>: a Hub from before the identity keys.</summary>
     public bool PublishesNodeIdentity => Scenario != Scenario.LegacyHub;
+
+    /// <summary>What the simulated Hub calls itself; the wire keys are absent under <see cref="Scenario.LegacyHub"/>.</summary>
+    public const string HubFirmwareVersion = "10.2.0-dev";
+    public const int HubProtocolVersion = 10;
+
+    /// <summary>Enables every external-node route at once (bench dry runs).</summary>
+    public void EnableAllExternalNodes()
+    {
+        FlowmeterEnabled = true;
+        BiomassEnabled = true;
+        PumpEnabled = true;
+        DistanceSensorEnabled = true;
+    }
 
     /// <summary>
     /// The node has sent its <c>/nodeHello</c>: it is answering the Hub and the operator has

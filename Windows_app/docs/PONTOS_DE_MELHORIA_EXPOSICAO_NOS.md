@@ -61,14 +61,24 @@
 
 ## 3. Sensor de Biomassa e Bomba Peristáltica
 
-### 3.1 Semântica de `set_it` e `set_pwm` no Firmware da Biomassa (`CommandCodec.h`)
-- **Situação identificada (Etapa 3):** No firmware ativo da biomassa, o comando `set_it` exige `index` (0–3) e `code` (0–5) para editar a tabela de marchas, enquanto o fio do app/Hub envia `{"command":"set_it","value":N}`.
-- **Recomendação para a Etapa 4:** No firmware `v11` da biomassa, estender `processJsonCommand` para aceitar `value` diretamente quando `index` não for fornecido, aplicando o tempo de integração ou duty cycle correspondente à operação corrente.
+### 3.1 Semântica de `set_it`, `set_pwm`, `set_gear`, `ema` e `probe_period` na Biomassa (`CommandCodec.h`)
+- **Situação identificada (Etapa 3):** No firmware anterior da biomassa, `set_it` exigia `index` (0–3) e `code` (0–5), `set_pwm` exigia `index` e `value`, e `set_gear` exigia ambos `it` e `pwm`. No entanto, o Hub e o aplicativo enviam formas mais compactas baseadas em `value` ou índice linear.
+- **Resolução aplicada na Etapa 4 (v11):**
+  - `set_gear`: aceita tanto o par `{"it": i, "pwm": j}` quanto o índice linear direto `{"value": N}` ou `{"gear": N}` ($0 \le N \le 31$, onde $\text{gear} = \text{IT} \times 8 + \text{PWM}$).
+  - `set_pwm`: aceita `{"value": V}` diretamente (aplicando ao nível de PWM corrente quando `index` é omitido).
+  - `set_it`: aceita `{"code": C}` ou `{"value": C}` diretamente (aplicando ao slot de IT corrente quando `index` é omitido).
+  - `probe_period`: quando enviado com `{"value": ms}`, atualiza com segurança o período de amostragem respeitando o limite térmico do LED (`minSafeRefreshMs`); quando enviado sem valor em `IDLE`, dispara a rotina de diagnóstico de tempo de conversão do sensor.
+  - `ema`: aceita tanto o comando explícito `{"command":"ema","value":0.8}` quanto o parâmetro de nível superior `{"ema":0.8}`.
 
 ### 3.2 Padronização de Nomenclatura nas Chaves da Bomba
 - **Situação identificada:** O firmware da bomba espera `pumpSlope` e `pumpIntercept` para calibração, mas `pid_kp`, `pid_ki`, `pid_kd` para PID.
 - **Resolução no Hub (Etapa 3):** O Hub faz a ponte traduzindo `pumpPid*` $\rightarrow$ `pid_*` e mantendo `pumpSlope`/`pumpIntercept` como *pass-through*.
 - **Oportunidade futura:** Em versões posteriores da bomba, permitir que todas as chaves aceitem o prefixo `pump_` de forma consistente.
+
+### 3.3 Verificação de Headroom dos Nós Externos após Inclusão dos Ecos (Etapa 4)
+- **Fluxômetro v11:** O firmware utiliza 1 141 407 B de flash (87%), restando **169 313 B livres** (> 169 KB), superando com folga o limite de segurança mínimo estabelecido de 160 KB.
+- **Bomba peristáltica 3.9:** Utiliza 1 095 067 B (83%) de flash e 55 060 B (16%) de RAM estática. Headroom livre de 215 KB.
+- **Sensor de biomassa v11:** Utiliza 1 129 728 B (86%) de flash e 69 984 B (21%) de RAM estática. Headroom livre de 181 KB.
 
 ---
 
@@ -80,7 +90,10 @@
 | Validação [-50, 200] mm no nó | Nó Distância | Consistência | Alta | **Aplicado na Etapa 2** |
 | Whitelist e tradução de chaves (Bomba/Fluxômetro/Biomassa) | Hub | Comunicação | Alta | **Aplicado na Etapa 3** |
 | Regra "um command por revisão" na biomassa | Hub / App | Confiabilidade | Alta | **Aplicado no Hub (Etapa 3); regra para App (Etapa 7)** |
-| Suporte a `value` direto em `set_it`/`set_pwm` | Nó Biomassa | Protocolo | Alta | **Requisito para a Etapa 4** |
+| Suporte a `value` direto em `set_it`/`set_pwm`/`set_gear` | Nó Biomassa | Protocolo | Alta | **Aplicado na Etapa 4** |
+| Eco de `kp`/`ki`/`ramp` no push do fluxômetro (v11) | Nó Fluxômetro | Telemetria / Malha | Alta | **Aplicado na Etapa 4** |
+| Eco de `slope`/`intercept` no push da bomba (3.9) | Nó Bomba | Telemetria / Calibração | Alta | **Aplicado na Etapa 4** |
+| Eco de `gear`/`ema`/`probe_ms` no push da biomassa (v11)| Nó Biomassa | Telemetria / Óptica | Alta | **Aplicado na Etapa 4** |
 | Botão explícito de envio (sem auto-save) | App UI | Hardware (Flash NVS) | Alta | Regra para a Etapa 6 |
 | Medição Content-Length `/readData` | Hub / Infra | Confiabilidade | Média | Executar na bancada da Etapa 4/7 |
 | FreeRTOS multi-core no sensor | Nó Distância | Desempenho | Baixa | Diferido no ROADMAP |

@@ -31,9 +31,9 @@ Require 'Hub routes' $hub @('/distance', '/flowData', '/flowCommand', '/biomassD
 Require 'Hub reliability' $hub @('cmd_id', 'ack_cmd_id', 'takeReliable', 'ackReliable')
 
 Require 'Distance node' $distance @('/distance', 'distance=', '&time=', '/nodeHello', '&offset=', '&ack_cmd_id=', 'processConfigUpdate(body')
-Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
-Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
-Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', 'cmd_id', 'ack_cmd_id', '&idle=', '/nodeHello')
+Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', '&slope=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
+Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', '&kp=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
+Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', '&gear=', 'cmd_id', 'ack_cmd_id', '&idle=', '/nodeHello')
 Require 'Agitator node' $agitator @('/agitatorHello', '/nodeHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
 
 Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")', 'hasParam("offset")', 'hasParam("sample_ms")', 'hasParam("send_ms")')

@@ -303,6 +303,7 @@ void firmwareSetup() {
   beginMotorRouteTransition(millis());
 
   startWiFi();
+  startNodeDiagTask();
   syncAllSensorSettings();
 
   ESP32_EVT("Inicialização concluída");

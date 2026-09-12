@@ -593,6 +593,13 @@ void startWiFi() {
       request->send(200, "application/json", resp);
     });
 
+    // Cached only: outbound HTTP lives exclusively in NodeDiagTask so a slow or dead
+    // node can never block the Hub's AsyncWebServer callback.
+    server.on("/nodeDiag", HTTP_GET, [](AsyncWebServerRequest *request) {
+      String only = request->hasParam("dev") ? request->getParam("dev")->value() : "";
+      request->send(200, "application/json", buildNodeDiagDocument(only));
+    });
+
     server.on("/agitatorCommand", HTTP_GET, [](AsyncWebServerRequest *request) {
       request->send(200, "application/json", takeReliable(agitatorBox));
     });

@@ -256,6 +256,39 @@ Regra de emissão:
 | `BiomassEma` | float (%.3f) | `BiomassOnline` e `biomassEchoSeen` | Fator alfa do filtro EMA aplicado |
 | `BiomassProbePeriodMs` | uint32 | `BiomassOnline` e `biomassEchoSeen` | Período de amostragem em ms |
 
+## Diagnóstico dos nós: `/nodeDiag` e serial `nodeDiag` (10.2)
+
+O Hub mantém um cache com o `GET /diag` de cada nó registrado (corpo até 511 B, código
+HTTP e instante da coleta). A coleta vive **só** na tarefa `NodeDiag` (núcleo 1, pilha
+6144 B, prioridade 1): a cada 30 s percorre os nós com `registered` e IP ≠ `0.0.0.0`,
+`HTTPClient` com timeout de 500 ms e 200 ms entre nós. Nenhum handler HTTP nem o laço
+serial faz requisição de saída — eles só leem o cache.
+
+`GET /nodeDiag[?dev=<nome>]` →
+
+```json
+{"hub_time_ms":91234,"nodes":[
+  {"dev":"pump","code":200,"age_ms":1200,
+   "diag":{"uptime_s":812,"free_heap":211000,"rssi":-58,"hub_fail_streak":0,"ota":false,"flow":1.25,"vol":12.4,"mode":2}}
+]}
+```
+
+- `code` é o código HTTP do último `GET /diag` (`0` = nunca coletado: nó nunca registrado
+  ou sem IP); `age_ms` é `hub_time_ms − fetchedMs` ou `999999` quando nunca coletado.
+- `diag` é o corpo do nó **tal qual**; `null` quando `code ≠ 200`, quando o corpo foi
+  truncado em 511 B (não termina em `}`) ou quando ainda não houve coleta. O conteúdo é
+  o `/diag` de cada firmware (`uptime_s`, `free_heap`, `rssi`, `hub_fail_streak`, `ota`
+  e as métricas próprias do nó).
+- Serial: `{"nodeDiag":"<dev>"}` → uma linha `{"NodeDiag":{...uma entrada...}}`;
+  `{"nodeDiag":"all"}` → cinco linhas, uma por nó (cada uma < 1 KB). Um nome desconhecido
+  responde `code 404`. A linha `NodeDiag` **não** é quadro de telemetria: o app a trata
+  como resposta de sistema (`ParseOutcome.NodeDiag`). O comando não altera atuadores,
+  NVS nem o hash de estado.
+
+Custo: 5 × ~520 B estáticos + pilha da tarefa; o Hub registra `heap antes/depois` ao
+criar a tarefa (`ESP32_INFO`). Medição de bancada pendente (plano de exposição de
+config, §7.3.6).
+
 ## Limite de responsabilidade
 
 O Hub confirma entrega somente quando `motor_ack == motor_cmd_id`. O driver é

@@ -139,6 +139,13 @@ void processJsonCommand(const String &json) {
   String value;
   bool motorRouteChangedInFrame = false;
 
+  // Diagnostics are a system read: no actuator ownership, NVS mutation or telemetry
+  // frame. "all" deliberately emits one bounded line per node for USB robustness.
+  if (json.indexOf("\"nodeDiag\"") != -1) {
+    printNodeDiagResponse(getValueFromJson(json, "nodeDiag"));
+    return;
+  }
+
   // 1. Calcula a assinatura do estado ANTES das mudanças
   uint32_t preHash = computeStateHash();
 

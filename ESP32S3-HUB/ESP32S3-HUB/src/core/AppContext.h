@@ -430,6 +430,18 @@ DeviceNodeEntry g_deviceRegistry[DEV_COUNT] = {
   { "biomass",   IPAddress(0, 0, 0, 0), "", "", 0, 0, false }
 };
 
+// Health snapshots are fetched by NodeDiagTask, never by an AsyncWebServer callback.
+// Keeping the bounded bodies out of the aggregate frame preserves the serial/Wi-Fi
+// telemetry cadence while making the same diagnostics available over both links.
+struct NodeDiagCache {
+  char body[512];
+  unsigned long fetchedMs;
+  int code;
+};
+
+NodeDiagCache g_nodeDiagCache[DEV_COUNT] = {};
+TaskHandle_t g_nodeDiagTaskHandle = nullptr;
+
 // Shared by the aggregate frame (Telemetry.h) and the /readData cache copy
 // (Runtime.h): the two Strings must reserve the same size or the assignment reallocates.
 #define HUB_TELEMETRY_JSON_RESERVE 3072

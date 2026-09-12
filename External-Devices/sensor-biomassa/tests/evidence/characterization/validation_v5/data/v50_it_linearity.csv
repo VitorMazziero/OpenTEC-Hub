@@ -1,0 +1,8 @@
+# Counts vs integration time with the LED held ON continuously
+# (10.5% duty), firmware 5.0, empty beam. No off->on
+# transition, so this isolates the sensor from the pulse.
+firmware,it_nominal_ms,n,median_raw,min_raw,max_raw
+5.0,100,6,5084.5,5079,5103
+5.0,200,6,10160.5,10154,10167
+5.0,400,6,20289.0,20275,20301
+5.0,800,6,40509.5,40453,40526

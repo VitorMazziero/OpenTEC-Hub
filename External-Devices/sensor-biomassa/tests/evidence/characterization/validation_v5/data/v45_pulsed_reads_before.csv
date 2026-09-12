@@ -1,0 +1,25 @@
+# Baseline measured 2026-08-06 on firmware v4.5, empty beam, gear locked at
+# PWM index 3 (10.5%), auto-ranging off. Thirty single-shot pulsed reads per
+# integration slot.
+#
+# v4.5 waited exactly 2x the NOMINAL integration time. Where the real
+# conversion period exceeded that assumption the read returned a conversion
+# that began before the LED came on -- a dropout, several percent low.
+#
+# WHAT THIS FILE IS: the summary statistics and the individually identified
+# dropouts that the v4.5 session actually recorded. The other ~25 in-family
+# readings per slot were never stored individually, so they are NOT listed
+# here and must not be invented -- n, min, median and max below are the
+# complete measured record.
+#
+# Reproducing the per-reading detail would require reflashing v4.5.
+#
+# dropout_raw holds one dropout per row; slots with more than one dropout
+# have one row per dropout, sharing the same summary columns.
+firmware,it_nominal_ms,n,median_raw,min_raw,max_raw,n_dropouts,dropout_raw
+4.5,800,30,41795,41303,41813,1,41303
+4.5,400,30,20895,18521,20923,4,18521
+4.5,400,30,20895,18521,20923,4,18997
+4.5,400,30,20895,18521,20923,4,19371
+4.5,400,30,20895,18521,20923,4,19861
+4.5,200,30,10456,9676,10465,1,9676

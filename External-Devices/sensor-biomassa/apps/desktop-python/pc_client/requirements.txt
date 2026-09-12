@@ -1,0 +1,8 @@
+# Headless logging (unattended runs) needs only these:
+pyserial>=3.5
+requests>=2.31
+
+# GUI (live plot). Skip these if you only ever use --headless.
+PySide6>=6.6
+pyqtgraph>=0.13
+numpy>=1.24

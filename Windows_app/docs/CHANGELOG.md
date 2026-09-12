@@ -9,6 +9,10 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **`UiHitchMonitor` (DEBUG, §5.1).** Um `DispatcherTimer` em `Input` a cada 50 ms registra todo
+  tick que chega > 30 ms atrasado e resume no log ao sair (`UI hitches > 30 ms: N in T ticks;
+  worst; buckets`). Primeira medição em `docs/evidence/ui-hitches-2026-09-12.md`: 3 min a 1 Hz na
+  página de Potência conectada ao simulador, 3 atrasos só na subida do enlace, depois nenhum.
 - **Menores (§F).** `SessionLogger` deixa de fazer `AutoFlush` por linha (um syscall por quadro na
   thread da UI) e passa a descarregar a cada 1 s, no *Stop* e no fechamento — no pior caso 1 s de
   sessão se perde num crash, que o relatório de pânico cobre. O sink de arquivo do Serilog roda

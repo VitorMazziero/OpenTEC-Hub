@@ -11,9 +11,19 @@ quando "os documentos são salvos".
 alarmes; aceite automático × falhas de sequência; corrida sem captura aceita; critérios
 não persistidos; envio da curva do fluxômetro (hub); revisão das alterações do operador;
 navegar na tabela durante o ensaio; editar a tensão na calibração de vazão.
-**Estado:** diagnóstico concluído por leitura do código, medição de I/O nesta máquina e
-análise dos arquivos dos dois ensaios. **Nada deste plano foi implementado.** O working
-tree tem alterações do operador não commitadas (§M) que devem ser commitadas antes.
+**Estado (12/09/2026): executado — todas as seções estão na `main`**, na ordem da §0.3, um
+commit por seção com os seus testes (`9080b89`…`77146ea`; suíte 1301 → 1363 aprovados). Registro
+de execução em `docs/history/PHASE_LOG.md` (P3-08); decisões D-048 (I/O em fila), D-049 (crash de
+teardown), D-050 (corrida sem captura) em `docs/DECISIONS.md`; medição em
+`docs/evidence/ui-hitches-2026-09-12.md`. Desvios do plano, onde houve: §E.3 manteve o recálculo
+da revisão síncrono (uma vez por corrida; os testes dependem dele); §B fecha os `StreamWriter`
+quando a fila esvazia em vez de mantê-los abertos, porque um handle de escrita aberto impede
+qualquer leitor externo de abrir o arquivo; §M.3 aplicou `RestoreDirectory` no serviço e nas três
+views, sem migrar as views para `IFileInteractionService` (exige injetar o serviço nos ViewModels).
+**Pendente de bancada:** gravar o hub `10.0.1-dev` e validar o envio da curva (§L.6); a corrida
+de 10 min com ensaio em captura (§5.1); o controlador de vazão do alívio (§I.4).
+
+Diagnóstico original abaixo, mantido como registro.
 
 ## 0. Como executar este plano em outra sessão
 

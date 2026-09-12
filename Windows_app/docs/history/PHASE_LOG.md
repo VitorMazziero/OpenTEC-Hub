@@ -1504,6 +1504,47 @@ by the suite from the real visual tree, not collected by hand. See [DECISIONS D-
 
 ---
 
+### P3-08 · The bench of 11/09: no more UI hitches during assays, and what the day found
+
+**Executed 2026-09-11/12**, from `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md` — a
+diagnosis written at the bench during the Rushton-Smith (63 points, 9 h) and IsojetB-Combijet assays,
+plus nine findings collected over the day. Executed in the plan's own order, one commit per section,
+each with its tests; the suite went from 1301 to 1363 green.
+
+**The hitch.** Every telemetry frame (~1 Hz) cost the UI thread 50–400 ms: the plan and results
+grids were cleared and rebuilt twice (`DataPointAdded` and `StateChanged` both ran the same
+refresh), two `File.AppendAllText` opened/wrote/closed per frame, every phase change rewrote an
+832 KB `ensaio.json` (490 KB of embedded tare samples; 55 ms mean, 330 ms peaks measured here),
+hidden pages kept redrawing their ScottPlot charts because `DeferredPageHost` collapses rather than
+unloads, and telemetry was dispatched at `DataBind` — above input and render. Fixed as four
+commits: **§A** grids updated in place by id with a structural key deciding when, the runner raising
+`StateChanged` once per frame; **§B** all assay I/O through one ordered `BackgroundFileWriter`
+([D-048](../DECISIONS.md)), the raw-data SHA-256 sealed from an incremental hash, tare samples
+moved to their sidecar (891 KB → 202 KB on the real manifest); **§C** `VisibleRedrawTimer` gating
+every chart on visibility and change, live series as `DataLogger`s; **§D** telemetry at
+`Background`. A DEBUG `UiHitchMonitor` measured the result: on the Power page, connected to the
+simulator at 1 Hz for 3 min, **3 hitches > 30 ms, all inside the 300 ms after the link came up,
+then none** (`docs/evidence/ui-hitches-2026-09-12.md`). The in-assay 10-minute run needs an
+operator to start the assay and is left for the bench.
+
+**What the day found, and what changed.** The stop criteria typed into the dialog were lost on
+close (§K → *Concluir* persists, with the assay idle or running; default vent time-out 120 → 500 s
+from the measured τ ≈ 45 s). Two runs that never captured were accepted with n = 0 (§J →
+[D-050](../DECISIONS.md): refused, the strip says *Corrida não realizada*, old manifests migrated
+on load — the two ghosts in IsojetB-Combijet demote themselves). One vent time-out parked a 9 h
+unattended assay (§I → `RetryThenSkip` policy and a stability exit for the vent, since the bench
+controller settles +0.08 L/min off target). A finished assay was a dead end (§G → *Duplicar* and
+*Reabrir*). The alarm banner never hid an acknowledged row (§H). The plan table could not be
+scrolled during a run (§N). The flow-calibration voltage could only be captured (§O). And the hub:
+a fragmented calibration frame and dropped `a1`/`b1` terms (§L → line-framed USB reader, terms
+forwarded, `10.0.1-dev`, contract tests). Two crashes outside the plan were found in `Logs/Crash/`
+and fixed on the way: the CRT-teardown false report ([D-049](../DECISIONS.md)) and a
+`XamlParseException` storm on the Receitas canvas (an unfrozen `PointCollection`).
+
+**Left for the bench.** Flash the hub and validate the curve send; the 10-minute in-assay hitch
+run; the flow controller that does not regulate downward on the first vent opening after a
+safe-stop (§I.4) — a controller item, not an app one.
+
 ### P3-05 · Post-merge integration and release audit
 
 **Audited 2026-08-26:** `main` at `846a0f5` contains both sides of the history that diverged at

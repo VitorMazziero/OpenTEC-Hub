@@ -44,6 +44,11 @@ public partial class App : Application
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
 
     private ServiceProvider? _services;
+
+#if DEBUG
+    /// <summary>DEBUG builds measure UI-thread stalls from the first frame to exit (§5.1).</summary>
+    private UiHitchMonitor? _hitchMonitor;
+#endif
     private IServiceProvider? _testServices;
     public IServiceProvider? Services
     {
@@ -148,6 +153,10 @@ public partial class App : Application
         log?.LogInformation(
             "First frame after {ElapsedMs} ms (budget 2000 ms)",
             _startupTimer.ElapsedMilliseconds);
+
+#if DEBUG
+        _hitchMonitor = new UiHitchMonitor(Dispatcher);
+#endif
 
         // Only now do we touch hardware.
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
@@ -465,6 +474,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+#if DEBUG
+        _hitchMonitor?.Dispose();
+#endif
         Log.Information("=== OpenTEC-Hub exiting ===");
 
         if (_services is { } services)

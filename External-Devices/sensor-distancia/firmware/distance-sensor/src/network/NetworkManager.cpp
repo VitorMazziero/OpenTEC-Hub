@@ -13,6 +13,7 @@ void checkWifi() {
   if (g_hubFailStreak >= LINK_WATCHDOG_FAILS) {
     Serial.printf("[NET] Link zumbi detectado (streak=%u). Forcando queda da associacao...\n", g_hubFailStreak);
     g_hubFailStreak = 0;
+    g_hubAnnounced = false;
     WiFi.disconnect(true, false);
     g_wifiState = WF_IDLE;
     g_wifiNextActionMs = now + 500;

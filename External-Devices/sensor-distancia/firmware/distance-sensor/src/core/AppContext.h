@@ -41,3 +41,4 @@ extern String g_otaRejectReason;
 
 extern uint8_t g_hubFailStreak;
 constexpr uint8_t LINK_WATCHDOG_FAILS = 8;
+extern bool g_hubAnnounced;

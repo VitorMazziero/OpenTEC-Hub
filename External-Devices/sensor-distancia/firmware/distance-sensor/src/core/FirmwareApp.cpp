@@ -59,6 +59,21 @@ void firmwareSetup() {
   Serial.println("[WDT] Task Watchdog inicializado (15s).");
 }
 
+void sendHubHello() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  char url[140];
+  snprintf(url, sizeof(url), "%s?dev=distance&ver=v10&mac=%s",
+           BoardConfig::HubHelloUrl, WiFi.macAddress().c_str());
+  int code;
+  String body;
+  if (httpGet(url, code, body)) {
+    g_hubAnnounced = true;
+    Serial.printf("[Hub] Hello registrado com sucesso (%d)\n", code);
+  } else {
+    Serial.printf("[Hub] Hello falhou (%d)\n", code);
+  }
+}
+
 void firmwareLoop() {
   esp_task_wdt_reset();
   const unsigned long now = millis();
@@ -90,6 +105,13 @@ void firmwareLoop() {
   }
 
   checkWifi();
+
+  static unsigned long lastHelloCheckMs = 0;
+  if (WiFi.status() == WL_CONNECTED && (!g_hubAnnounced || now - lastHelloCheckMs >= 30000)) {
+    lastHelloCheckMs = now;
+    sendHubHello();
+  }
+
   if (now - lastSampleMs >= SAMPLE_PERIOD_MS) {
     lastSampleMs = now;
 

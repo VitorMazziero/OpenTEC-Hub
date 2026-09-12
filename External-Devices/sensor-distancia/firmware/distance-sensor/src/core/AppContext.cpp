@@ -36,3 +36,4 @@ unsigned long g_otaRebootAtMs = 0;
 String g_otaRejectReason = "";
 
 uint8_t g_hubFailStreak = 0;
+bool g_hubAnnounced = false;

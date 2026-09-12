@@ -146,6 +146,21 @@ public sealed class SensorReadings
     /// <inheritdoc cref="SensorSnapshot.HubProtocolVersion"/>
     public int HubProtocolVersion { get; set; } = -1;
 
+    /// <inheritdoc cref="SensorSnapshot.DistanceNode"/>
+    public ExternalNodeIdentity DistanceNode { get; set; } = ExternalNodeIdentity.Empty;
+
+    /// <inheritdoc cref="SensorSnapshot.AgitatorNode"/>
+    public ExternalNodeIdentity AgitatorNode { get; set; } = ExternalNodeIdentity.Empty;
+
+    /// <inheritdoc cref="SensorSnapshot.PumpNode"/>
+    public ExternalNodeIdentity PumpNode { get; set; } = ExternalNodeIdentity.Empty;
+
+    /// <inheritdoc cref="SensorSnapshot.FlowmeterNode"/>
+    public ExternalNodeIdentity FlowmeterNode { get; set; } = ExternalNodeIdentity.Empty;
+
+    /// <inheritdoc cref="SensorSnapshot.BiomassNode"/>
+    public ExternalNodeIdentity BiomassNode { get; set; } = ExternalNodeIdentity.Empty;
+
     /// <summary>The Hub has reported on the servo drive node at least once this session.</summary>
     public bool HasServoTelemetry { get; set; }
 
@@ -280,6 +295,11 @@ public sealed class SensorReadings
         AgitatorSource = AgitatorSource,
         HubFirmwareVersion = HubFirmwareVersion,
         HubProtocolVersion = HubProtocolVersion,
+        DistanceNode = DistanceNode,
+        AgitatorNode = AgitatorNode,
+        PumpNode = PumpNode,
+        FlowmeterNode = FlowmeterNode,
+        BiomassNode = BiomassNode,
         HasServoTelemetry = HasServoTelemetry,
         HasServoSample = HasServoSample,
         ServoOnline = ServoOnline,
@@ -439,6 +459,26 @@ public sealed record SensorSnapshot
 
     /// <summary>Wire contract version; -1 against a Hub that predates the key.</summary>
     public int HubProtocolVersion { get; init; }
+
+    // ---- External-node identity (Hub 10.1) --------------------------------
+    // Sticky within the link, like HubFirmwareVersion: a node that said who it is has
+    // not stopped being that node. Empty against a Hub older than the keys, or before
+    // the node registers. Presence is *not* here - that stays with the *Online flags.
+
+    /// <summary>Network identity of the distance-sensor node, as the Hub registered it.</summary>
+    public ExternalNodeIdentity DistanceNode { get; init; } = ExternalNodeIdentity.Empty;
+
+    /// <summary>Network identity of the flask-agitator node.</summary>
+    public ExternalNodeIdentity AgitatorNode { get; init; } = ExternalNodeIdentity.Empty;
+
+    /// <summary>Network identity of the external peristaltic-pump node.</summary>
+    public ExternalNodeIdentity PumpNode { get; init; } = ExternalNodeIdentity.Empty;
+
+    /// <summary>Network identity of the flowmeter node.</summary>
+    public ExternalNodeIdentity FlowmeterNode { get; init; } = ExternalNodeIdentity.Empty;
+
+    /// <summary>Network identity of the biomass (absorbance) node.</summary>
+    public ExternalNodeIdentity BiomassNode { get; init; } = ExternalNodeIdentity.Empty;
 
     /// <inheritdoc cref="HasBiomassTelemetry"/>
     public bool HasServoTelemetry { get; init; }

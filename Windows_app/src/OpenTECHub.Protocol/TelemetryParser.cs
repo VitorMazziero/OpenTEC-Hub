@@ -213,6 +213,7 @@ public sealed class TelemetryParser
         ParsePump(root, now);
         ParseAgitator(root, now);
         ParseHubIdentity(root);
+        ParseNodeIdentity(root);
         ParseServo(root, now);
         ParseTime(root);
 
@@ -658,6 +659,55 @@ public sealed class TelemetryParser
         }
 
         AssignInt(root, TelemetryKeys.HubProtocolVersion, v => Readings.HubProtocolVersion = v);
+    }
+
+    /// <summary>Who each external node is, as the Hub registered it (10.1).</summary>
+    /// <remarks>
+    /// Sticky per member, like the Hub identity: a key that is absent from one frame keeps
+    /// the last value, because the Hub only emits <c>*NodeVer</c>/<c>*NodeMac</c> once the
+    /// node has registered and an older Hub never emits them at all. The one value that
+    /// does clear is an IP of <c>0.0.0.0</c>, which the Hub sends on every frame and which
+    /// means "never seen" - the Hub rebooted and forgot, and so must the app.
+    /// </remarks>
+    private void ParseNodeIdentity(JsonElement root)
+    {
+        Readings.DistanceNode = MergeNode(root, Readings.DistanceNode,
+            TelemetryKeys.DistanceIP, TelemetryKeys.DistanceNodeVer, TelemetryKeys.DistanceNodeMac);
+        Readings.AgitatorNode = MergeNode(root, Readings.AgitatorNode,
+            TelemetryKeys.AgitatorIP, TelemetryKeys.AgitatorNodeVer, TelemetryKeys.AgitatorNodeMac);
+        Readings.PumpNode = MergeNode(root, Readings.PumpNode,
+            TelemetryKeys.PumpIP, TelemetryKeys.PumpNodeVer, TelemetryKeys.PumpNodeMac);
+        Readings.FlowmeterNode = MergeNode(root, Readings.FlowmeterNode,
+            TelemetryKeys.FlowmeterIP, TelemetryKeys.FlowmeterNodeVer, TelemetryKeys.FlowmeterNodeMac);
+        Readings.BiomassNode = MergeNode(root, Readings.BiomassNode,
+            TelemetryKeys.BiomassIP, TelemetryKeys.BiomassNodeVer, TelemetryKeys.BiomassNodeMac);
+    }
+
+    private static ExternalNodeIdentity MergeNode(
+        JsonElement root, ExternalNodeIdentity current, string ipKey, string verKey, string macKey)
+    {
+        var ip = current.Ip;
+        if (TryGetPropertyCaseInsensitive(root, ipKey, out var ipEl) && ipEl.ValueKind == JsonValueKind.String)
+        {
+            // Present on every 10.x frame; "0.0.0.0" is an explicit "never seen" and clears.
+            ip = ExternalNodeIdentity.Normalize(ipEl.GetString());
+        }
+
+        var ver = current.FirmwareVersion;
+        if (TryGetPropertyCaseInsensitive(root, verKey, out var verEl) && verEl.ValueKind == JsonValueKind.String)
+        {
+            ver = ExternalNodeIdentity.Normalize(verEl.GetString()) ?? ver;
+        }
+
+        var mac = current.Mac;
+        if (TryGetPropertyCaseInsensitive(root, macKey, out var macEl) && macEl.ValueKind == JsonValueKind.String)
+        {
+            mac = ExternalNodeIdentity.Normalize(macEl.GetString()) ?? mac;
+        }
+
+        return ip == current.Ip && ver == current.FirmwareVersion && mac == current.Mac
+            ? current
+            : new ExternalNodeIdentity(ip, mac, ver);
     }
 
     private void ParseServo(JsonElement root, DateTimeOffset now)

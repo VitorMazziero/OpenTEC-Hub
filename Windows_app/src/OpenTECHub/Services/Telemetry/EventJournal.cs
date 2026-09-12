@@ -86,6 +86,7 @@ public sealed class EventJournal : IEventJournal
         device.DeviceLogReceived += OnDeviceLogReceived;
         device.CommandSent += OnCommandSent;
         device.StateChanged += OnStateChanged;
+        device.TelemetryReceived += OnTelemetryReceived;
         device.SessionTimeZeroed += OnSessionTimeZeroed;
         arbiter.OwnershipChanged += OnOwnershipChanged;
         arbiter.OwnershipRevoked += OnOwnershipRevoked;
@@ -246,8 +247,47 @@ public sealed class EventJournal : IEventJournal
         _ => "Manual",
     };
 
+    // ---- External-node identity (Hub 10.1) ----------------------------------
+    // The observability the nodes' Link Watchdog and the SoftAP's DHCP never had: a node
+    // that reassociated under a new address, a board that was swapped, a firmware that
+    // changed, all end up in eventos.jsonl with a time - not only on whoever happened to
+    // be watching a serial monitor. Identity loss is not journalled (it is already the
+    // connection/presence story); the next address is a fresh registration.
+
+    private readonly NodeIdentityTracker _nodes = new();
+
+    private void OnTelemetryReceived(SensorSnapshot snapshot)
+    {
+        foreach (var change in _nodes.Observe(snapshot))
+        {
+            var (severity, message) = change.Kind switch
+            {
+                NodeIdentityChangeKind.Registered => (AuditSeverity.Information,
+                    $"Nó {change.DisplayName} registrado em {change.After.Ip}" +
+                    (change.After.FirmwareVersion is { } fw ? $" (firmware {fw})." : ".")),
+                NodeIdentityChangeKind.IpChanged => (AuditSeverity.Information,
+                    $"IP do nó {change.DisplayName} mudou de {change.Before.Ip} para {change.After.Ip}."),
+                NodeIdentityChangeKind.FirmwareChanged => (AuditSeverity.Warning,
+                    $"Firmware do nó {change.DisplayName} mudou de {change.Before.FirmwareVersion} para {change.After.FirmwareVersion}."),
+                NodeIdentityChangeKind.MacChanged => (AuditSeverity.Warning,
+                    $"Nó {change.DisplayName} responde com outro MAC ({change.Before.Mac} → {change.After.Mac}): placa trocada?"),
+                _ => (AuditSeverity.Information, $"Identidade do nó {change.DisplayName} alterada."),
+            };
+
+            Add(AuditSource.Connection, severity, message,
+                $"dev={change.Device} ip={change.After.Ip ?? "-"} mac={change.After.Mac ?? "-"} fw={change.After.FirmwareVersion ?? "-"}");
+        }
+    }
+
     private void OnStateChanged(ConnectionStateChange change)
     {
+        if (change.State != ConnectionState.Connected)
+        {
+            // A new link starts the identity story over: whatever the nodes said before
+            // the Hub went away is not evidence about the Hub that comes back.
+            _nodes.Reset();
+        }
+
         var severity = change.State is ConnectionState.Faulted
             ? AuditSeverity.Error
             : change.State is ConnectionState.Reconnecting
@@ -289,6 +329,7 @@ public sealed class EventJournal : IEventJournal
         _device.DeviceLogReceived -= OnDeviceLogReceived;
         _device.CommandSent -= OnCommandSent;
         _device.StateChanged -= OnStateChanged;
+        _device.TelemetryReceived -= OnTelemetryReceived;
         _device.SessionTimeZeroed -= OnSessionTimeZeroed;
         _arbiter.OwnershipChanged -= OnOwnershipChanged;
         _arbiter.OwnershipRevoked -= OnOwnershipRevoked;

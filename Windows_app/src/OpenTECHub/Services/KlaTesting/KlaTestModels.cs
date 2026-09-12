@@ -257,6 +257,14 @@ public sealed class KlaTestDocument
     public int SettingsRevision { get; set; } = 1;
     public string AppVersion { get; set; } = "";
     public string ProtocolVersion { get; set; } = "OpenTEC_ESP32_v7 + flowmeter_OpenTECHUB_V05";
+
+    /// <summary>Hub build and wire contract at start, as the frame reports them; null on an older Hub or before any frame.</summary>
+    public string? HubFirmwareVersion { get; set; }
+    public int? HubProtocolVersion { get; set; }
+
+    /// <summary>External-node firmware/address at start, keyed by wire name (Hub 10.1); empty when the Hub did not say.</summary>
+    public Dictionary<string, Services.Communication.ExternalNodeProvenance> ExternalNodes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public string AlgorithmVersion { get; set; } = "LogLinear_OLS_v2";
     public List<KlaTestCondition> Conditions { get; set; } = [];
     public List<KlaTestRunSummary> Runs { get; set; } = [];

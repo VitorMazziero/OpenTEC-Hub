@@ -334,7 +334,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
             _servoWriter.WriteLine(ServoSessionLogFormat.BuildPreamble(
                 snapshot.HubFirmwareVersion,
                 snapshot.HubProtocolVersion,
-                AppVersionText));
+                AppVersionText,
+                Services.Communication.ExternalNodeProvenance.From(snapshot)));
             _servoPreambleWritten = true;
         }
 

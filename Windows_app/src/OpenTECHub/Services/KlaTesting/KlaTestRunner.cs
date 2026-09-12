@@ -172,6 +172,19 @@ public sealed class KlaTestRunner : IKlaTestRunner
         RaiseStateChanged();
     }
 
+    /// <summary>Hub and node identity at the moment the assay starts, for the manifest.</summary>
+    private void RecordProvenance(KlaTestDocument doc)
+    {
+        if (_device.Latest is not { } latest)
+        {
+            return;
+        }
+
+        doc.HubFirmwareVersion = string.IsNullOrWhiteSpace(latest.HubFirmwareVersion) ? null : latest.HubFirmwareVersion;
+        doc.HubProtocolVersion = latest.HubProtocolVersion > 0 ? latest.HubProtocolVersion : null;
+        doc.ExternalNodes = Services.Communication.ExternalNodeProvenance.From(latest);
+    }
+
     public Task StartTestAsync(KlaTestDocument doc, CancellationToken ct = default)
     {
         lock (_gate)
@@ -179,6 +192,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _currentTest = doc;
             _currentTest.Status = KlaTestStatus.Running;
             _currentTest.StartedUtc ??= _time.GetUtcNow();
+            RecordProvenance(_currentTest);
             _store.SaveTestManifest(_currentTest);
 
             _testStartMonotonic = GetMonotonicSeconds();

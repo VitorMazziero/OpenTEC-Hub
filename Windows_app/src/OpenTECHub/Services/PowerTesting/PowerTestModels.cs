@@ -895,6 +895,10 @@ public sealed class PowerTestDocument
     public string ProtocolVersion { get; set; } = "OpenTEC_ESP32_v9 + servo ASDA-B2";
     public string? HubFirmwareVersion { get; set; }
     public int? HubProtocolVersion { get; set; }
+
+    /// <summary>External-node firmware/address at start, keyed by wire name (Hub 10.1); empty when the Hub did not say.</summary>
+    public Dictionary<string, Services.Communication.ExternalNodeProvenance> ExternalNodes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public string AlgorithmVersion { get; set; } = "Np_plateau_v1";
 
     /// <summary>Motor nominal torque assumed for the N·m image; needed to reinterpret the data later (§6).</summary>

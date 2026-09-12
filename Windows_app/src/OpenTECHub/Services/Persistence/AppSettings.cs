@@ -1064,13 +1064,18 @@ public static class ServoSessionLogFormat
     /// zero, which is why both columns are kept even though one derives from the other.
     /// </para>
     /// </remarks>
-    public static string BuildPreamble(string? hubFirmware, int hubProtocol, string appVersion)
+    public static string BuildPreamble(
+        string? hubFirmware,
+        int hubProtocol,
+        string appVersion,
+        IReadOnlyDictionary<string, Communication.ExternalNodeProvenance>? nodes = null)
         => string.Join(
             "\n",
             $"# opentec-servo-power v{ContractVersion.ToString(CultureInfo.InvariantCulture)}",
             $"# app: {appVersion}",
             $"# hub_firmware: {(string.IsNullOrWhiteSpace(hubFirmware) ? "desconhecido" : hubFirmware)}",
             $"# hub_protocol: {(hubProtocol < 0 ? "desconhecido" : hubProtocol.ToString(CultureInfo.InvariantCulture))}",
+            $"# nodes: {Communication.ExternalNodeProvenance.Describe(nodes)}",
             "# torque_nm deriva de torque_pct e do torque nominal do motor;",
             "# T_nominal = torque_nm / (torque_pct / 100) em qualquer linha com torque nao nulo.",
             "# potencia e energia sao MECANICAS ESTIMADAS no eixo, nao consumo eletrico.",

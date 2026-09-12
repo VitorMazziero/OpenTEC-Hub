@@ -284,6 +284,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             doc.HubProtocolVersion = latest.HubProtocolVersion > 0
                 ? latest.HubProtocolVersion
                 : null;
+            doc.ExternalNodes = Services.Communication.ExternalNodeProvenance.From(latest);
         }
         _testStartMonotonic = GetMonotonicSeconds();
         _store.SaveTestManifest(doc);

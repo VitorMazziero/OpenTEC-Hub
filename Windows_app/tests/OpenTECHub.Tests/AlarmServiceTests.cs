@@ -854,4 +854,103 @@ public sealed class AlarmServiceTests
 
         Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
     }
+
+    // ── A/B/C rig: dead end and both open (plan Etapa 7) ─────────────────────
+
+    /// <summary>A gas frame on the default wiring: B/C = valve_1, A = valve_2.</summary>
+    private static SensorSnapshot GasFrame(int valve1, int valve2, double setpoint) => HealthyFrame() with
+    {
+        FlowValve1 = valve1,
+        FlowValve2 = valve2,
+        FlowValveMain = setpoint > 0 ? 0 : 1,
+        FlowSetpoint = setpoint,
+        FlowRate = setpoint,
+    };
+
+    /// <summary>
+    /// A setpoint above zero with both inputs closed is a line with no way out. The router
+    /// never commands it; Avançado can, and so can a stale state. Three seconds of it rings.
+    /// </summary>
+    [Fact]
+    public void A_dead_ended_line_annunciates_after_three_seconds_and_clears_when_routed()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(GasFrame(0, 1, 3.0));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+        Assert.False(h.Latched(AlarmId.GasDeadEnd));
+
+        // Both closed with the setpoint still echoed: not yet, the one-frame switch can look like this.
+        h.Device.PushTelemetry(GasFrame(0, 0, 3.0));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2));
+        Assert.False(h.Latched(AlarmId.GasDeadEnd));
+
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.5));
+        Assert.True(h.Latched(AlarmId.GasDeadEnd));
+        Assert.Equal(AlarmSeverity.Critical, h.Get(AlarmId.GasDeadEnd)!.Severity);
+        Assert.Contains("fechar a linha", h.Get(AlarmId.GasDeadEnd)!.Detail, StringComparison.Ordinal);
+        Assert.True(h.Service.IsAudible);
+        Assert.Contains(h.Journal.Entries, e => e.Source == AuditSource.Alarm && e.Message.Contains("Gás sem destino", StringComparison.Ordinal));
+
+        // Giving the gas a destination clears it once acknowledged.
+        h.Service.Acknowledge(AlarmId.GasDeadEnd);
+        h.Device.PushTelemetry(GasFrame(0, 1, 3.0));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.5));
+        Assert.False(h.Latched(AlarmId.GasDeadEnd));
+    }
+
+    /// <summary>Closing the line on purpose (setpoint zero) is "Fechado", not a dead end.</summary>
+    [Fact]
+    public void A_closed_line_with_no_setpoint_is_not_a_dead_end()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(GasFrame(0, 0, 0.0));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(10));
+        Assert.False(h.Latched(AlarmId.GasDeadEnd));
+        Assert.False(h.Latched(AlarmId.GasBothOpen));
+    }
+
+    [Fact]
+    public void Both_inputs_open_is_a_warning_without_audio()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(GasFrame(1, 1, 3.0));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(3.5));
+
+        Assert.True(h.Latched(AlarmId.GasBothOpen));
+        Assert.Equal(AlarmSeverity.Warning, h.Get(AlarmId.GasBothOpen)!.Severity);
+        Assert.False(h.Latched(AlarmId.GasDeadEnd));
+        Assert.Contains("entradas 1 e 2", h.Get(AlarmId.GasBothOpen)!.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>The other wiring reads the same pins the other way round; the anomalies do not depend on it.</summary>
+    [Fact]
+    public void Dead_end_and_both_open_are_wiring_independent()
+    {
+        using var h = new Harness();
+        h.Settings.Update(s => s with { GasRig = new GasRigSettings { AirInletInput = GasInput.Input1 } });
+        h.Device.PushTelemetry(GasFrame(0, 0, 2.0));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(3.5));
+        Assert.True(h.Latched(AlarmId.GasDeadEnd));
+    }
+
+    /// <summary>Every change of the observed route is one line in the journal, in the equipment's words.</summary>
+    [Fact]
+    public void The_journal_gets_one_line_per_observed_route_change()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(GasFrame(0, 0, 0.0));   // Fechado — the baseline, no line yet
+        h.Device.PushTelemetry(GasFrame(0, 0, 0.0));
+        h.Device.PushTelemetry(GasFrame(1, 0, 3.0));   // → Descarga + N₂ (B/C)
+        h.Device.PushTelemetry(GasFrame(1, 0, 3.0));
+        h.Device.PushTelemetry(GasFrame(0, 1, 3.0));   // → Reator (A)
+        h.Device.PushTelemetry(GasFrame(0, 0, 3.0));   // → Gás sem destino (warning)
+
+        var lines = h.Journal.Entries.Where(e => e.Source == AuditSource.Equipment && e.Message.StartsWith("Gás: ", StringComparison.Ordinal)).ToList();
+        Assert.Equal(3, lines.Count);
+        Assert.Equal("Gás: Fechado → Descarga + N₂ (B/C).", lines[0].Message);
+        Assert.Equal(AuditSeverity.Information, lines[0].Severity);
+        Assert.Equal("Gás: Descarga + N₂ (B/C) → Reator (A).", lines[1].Message);
+        Assert.Equal("Gás: Reator (A) → Gás sem destino.", lines[2].Message);
+        Assert.Equal(AuditSeverity.Warning, lines[2].Severity);
+    }
 }

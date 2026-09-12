@@ -86,6 +86,15 @@ public enum AlarmId
     /// nothing else in the app would ever notice.
     /// </remarks>
     DeviceRoutingMismatch,
+
+    /// <summary>
+    /// The flowmeter echoes a setpoint above zero with both inputs closed: the line has no way
+    /// out (A/B/C plan §3.3). The router cannot command this; Avançado and a stale state can.
+    /// </summary>
+    GasDeadEnd,
+
+    /// <summary>Both flowmeter inputs echoed open at once: A and B + C together, the air splits.</summary>
+    GasBothOpen,
 }
 
 /// <summary>Alarm severity — the colour and the audit level it maps to.</summary>

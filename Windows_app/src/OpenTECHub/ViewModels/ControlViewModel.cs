@@ -748,8 +748,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         var confirmed = _dialogs.ConfirmDestructive(
             "Parada segura",
             "Desativa temperatura, agitação, monitor de oxigênio, vazão, pressão, dosagem de pH, " +
-            "nutriente, antiespumante, o agitador de frasco e a bomba externa. As válvulas auxiliar " +
-            "e de nitrogênio serão fechadas e a válvula de respiro será aberta. Os sensores de " +
+            "nutriente, antiespumante, o agitador de frasco e a bomba externa. No fluxômetro, fecha " +
+            "A e B/C (entradas 1 e 2) e fecha a linha (v_Flow) com setpoint zero. Os sensores de " +
             "nível/espuma e de biomassa seguem ativos.",
             command.ToJson());
 

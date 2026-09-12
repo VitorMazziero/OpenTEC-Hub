@@ -7,7 +7,17 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1 a 6 concluídas em 12/09/2026.** Etapa 6 (Controle):
+**Estado:** em execução — **Etapas 1 a 7 concluídas em 12/09/2026.** Etapa 7 (alarmes):
+`AlarmId.GasDeadEnd` ("Gás sem destino", crítico/audível, on-delay 3 s, off 2 s) e
+`AlarmId.GasBothOpen` ("A e B/C abertas", aviso, 3 s), ambos sobre `GasRouting.Interpret` do
+último quadro com o fluxômetro online e o arranjo de `AppSettings.GasRig`; detalhe com a ação
+sugerida (fechar a linha / acionar a entrada 1 ou 2). Jornal: uma linha `AuditSource.Equipment`
+por mudança da rota observada ("Gás: Reator (A) → Descarga + N₂ (B/C).", aviso quando o destino
+é anômalo; detalhe com o par no fio e o setpoint); a baseline zera na desconexão. Texto da parada
+segura: "fecha A e B/C (entradas 1 e 2) e fecha a linha (v_Flow) com setpoint zero"
+(`CoreSafeStop` já mescla `FlowSafeStop`). O chip da malha de gás da Potência já mostra os dois
+textos (Etapa 5). Testes: `AlarmServiceTests` +5. Suíte 1591.
+Etapa 6 (Controle):
 **decisão do usuário (12/09):** o seletor é por **entrada acionada, 1 ou 2**, não por "destino"
 — os papéis das válvulas são fixos (A = ar ao reator, B = N₂ ou nada, C = purga de ar) e a
 tela diz o que cada entrada aciona: *Fechado* · *Entrada 1 · B + C (N₂ ou nada · purga de ar)* ·
@@ -547,7 +557,7 @@ alarme de roteamento), `Views/SynopticView.xaml`/`ShellViewModel.cs` (tag da lin
 limpa ao rotear; jornal com uma linha por mudança.
 **Pronto.** Suíte verde.
 **Commit.** `feat(alarmes): gas sem destino e A/(B+C) abertas; jornal de rota de gas`.
-**Esforço.** P.
+**Esforço.** P. **Executada em 12/09/2026** — ver Estado.
 
 ### Etapa 8 — Configurações › Gás e válvulas, e proveniência
 

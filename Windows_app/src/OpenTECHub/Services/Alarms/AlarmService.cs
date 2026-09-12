@@ -247,6 +247,12 @@ public sealed class AlarmService : IAlarmService
         // A tighter window would fire on every legitimate toggle.
         new(AlarmId.DeviceRoutingMismatch, "Roteamento divergente no Hub", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(2)),
+        // Three seconds (plan §3.3): the one-frame switch the runners send can echo the new
+        // setpoint one frame before the new pair, and a legitimate transition must not ring.
+        new(AlarmId.GasDeadEnd, "Gás sem destino", AlarmSeverity.Critical,
+            TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(2)),
+        new(AlarmId.GasBothOpen, "A e B/C abertas", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(2)),
     ];
 
     private readonly IDeviceService _device;
@@ -555,6 +561,18 @@ public sealed class AlarmService : IAlarmService
 
         AlarmId.DeviceRoutingMismatch => RoutingMismatch(connected),
 
+        AlarmId.GasDeadEnd => (
+            connected && ObservedRoute() == ObservedGasRoute.DeadEnd,
+            "O fluxômetro ecoa um setpoint acima de zero com A e B/C fechadas: a linha não tem saída e a " +
+            "pressão sobe até o fechamento. Ação sugerida: fechar a linha (parada segura da vazão) ou " +
+            "acionar a entrada 1 ou 2 em Controle › Vazão de Ar."),
+
+        AlarmId.GasBothOpen => (
+            connected && ObservedRoute() == ObservedGasRoute.BothOpen,
+            "O fluxômetro ecoa as entradas 1 e 2 acionadas ao mesmo tempo: A e B + C abertas juntas, o ar " +
+            "se divide entre o reator e a purga. Nenhum ensaio comanda isso; escolha uma entrada em " +
+            "Controle › Vazão de Ar."),
+
         _ => (false, ""),
     };
 
@@ -652,6 +670,7 @@ public sealed class AlarmService : IAlarmService
             // not evidence of what they are doing after it. The first frame from a live
             // flowmeter re-establishes this, and until then the app knows nothing.
             _gasOpenWhenLastSeen = false;
+            _journalledRoute = null;
         }
 
         Poll();
@@ -673,8 +692,53 @@ public sealed class AlarmService : IAlarmService
         if (snapshot.FlowmeterOnline)
         {
             _gasOpenWhenLastSeen = GasPathIsOpen(snapshot);
+            JournalRouteChange(snapshot);
         }
         Poll();
+    }
+
+    /// <summary>The A/B/C wiring in force, read at each frame so a Configurações change applies at once.</summary>
+    private GasRigConfiguration Rig => _settings.Current.GasRig.ToConfiguration();
+
+    /// <summary>What the last live flowmeter frame says the gas is doing, in the rig's terms; null without one.</summary>
+    private ObservedGasRoute? ObservedRoute()
+    {
+        if (_lastSnapshot is not { FlowmeterOnline: true } s || s.FlowValve1 < 0 || s.FlowValve2 < 0)
+        {
+            return null;
+        }
+
+        var setpoint = double.IsFinite(s.FlowSetpoint) && s.FlowSetpoint > 0 ? s.FlowSetpoint : 0.0;
+        return GasRouting.Interpret(s.FlowValve1 != 0, s.FlowValve2 != 0, setpoint, Rig);
+    }
+
+    private ObservedGasRoute? _journalledRoute;
+
+    /// <summary>
+    /// One journal line per change of the observed route — "Gás: Reator (A) → Descarga + N₂ (B/C)".
+    /// The equipment's word, not the app's: it is the echo that moved, whoever asked for it.
+    /// </summary>
+    private void JournalRouteChange(SensorSnapshot snapshot)
+    {
+        var route = ObservedRoute();
+        if (route is not { } observed)
+        {
+            return;
+        }
+
+        if (_journalledRoute is { } previous)
+        {
+            if (previous != observed)
+            {
+                _journal.Add(
+                    AuditSource.Equipment,
+                    GasRouting.IsNominal(observed) ? AuditSeverity.Information : AuditSeverity.Warning,
+                    $"Gás: {GasRouting.Describe(previous)} → {GasRouting.Describe(observed)}.",
+                    $"{GasRouting.DescribeWire(snapshot.FlowValve1 != 0, snapshot.FlowValve2 != 0, Rig)} · setpoint {snapshot.FlowSetpoint:0.##} L/min");
+            }
+        }
+
+        _journalledRoute = observed;
     }
 
     /// <summary>

@@ -1,5 +1,7 @@
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Persistence;
 using OpenTECHub.Simulator;
+using OpenTECHub.ViewModels;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -310,5 +312,66 @@ public class SimulatorNodeConfigTests
         Assert.DoesNotContain("FlowKp", frame);
         Assert.DoesNotContain("PumpSlope", frame);
         Assert.DoesNotContain("BiomassGear", frame);
+    }
+
+    [Fact]
+    public void Simulator_normal_and_node_dropout_scenarios_update_viewmodels()
+    {
+        var model = new DeviceModel(randomSeed: 1)
+        {
+            DistanceSensorEnabled = true,
+            FlowmeterEnabled = true,
+            Scenario = Scenario.Normal,
+        };
+
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var dispatcher = new StubDispatcher();
+        using var foam = new FoamControlViewModel(device, settings, dispatcher);
+        var flow = new FlowControlViewModel(initialMaxFlow: 10.0, dispatcher: dispatcher, settings: settings);
+        var parser = new TelemetryParser();
+
+        // 1. Initial normal frame
+        var frame1 = WireCodec.BuildTelemetry(model);
+        parser.Parse(frame1);
+        var snapshot1 = parser.Readings.Snapshot();
+        device.PushTelemetry(snapshot1);
+        flow.UpdateTelemetry(snapshot1);
+
+        Assert.True(foam.CanEditNodeConfig);
+        Assert.True(flow.CanEditTuning);
+        Assert.Contains("20", foam.AppliedOffsetText);
+
+        // 2. Offset 20 -> 25.5 sends command and changes echo in the next frame
+        foam.OffsetMmText = "25.5";
+        foam.SendNodeConfigCommand.Execute(null);
+        Assert.Single(dispatcher.Sent);
+
+        Assert.True(WireCodec.ApplyCommand(model, dispatcher.Sent[0], out _));
+
+        var frame2 = WireCodec.BuildTelemetry(model);
+        parser.Parse(frame2);
+        var snapshot2 = parser.Readings.Snapshot();
+        device.PushTelemetry(snapshot2);
+
+        Assert.Contains("25.5", foam.AppliedOffsetText.Replace(',', '.'));
+
+        // 3. Node-dropout scenario: fields appear disabled with descriptive text
+        model.Scenario = Scenario.NodeDropout;
+        var frameDropout = WireCodec.BuildTelemetry(model);
+        parser.Parse(frameDropout);
+        var snapshotDropout = parser.Readings.Snapshot();
+        device.PushTelemetry(snapshotDropout);
+        flow.UpdateTelemetry(snapshotDropout);
+
+        Assert.False(foam.CanEditNodeConfig);
+        Assert.False(foam.CanSendNodeConfig);
+        Assert.NotNull(foam.NodeConfigUnavailableText);
+        Assert.Contains("desconectado", foam.NodeConfigUnavailableText, StringComparison.OrdinalIgnoreCase);
+
+        Assert.False(flow.CanEditTuning);
+        Assert.False(flow.CanSendTuning);
+        Assert.NotNull(flow.TuningUnavailableText);
+        Assert.Contains("desconectado", flow.TuningUnavailableText, StringComparison.OrdinalIgnoreCase);
     }
 }

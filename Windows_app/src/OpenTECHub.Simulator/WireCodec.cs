@@ -67,7 +67,7 @@ public static class WireCodec
             AppendInt(buffer, "FlowCommandAck", model.FlowCommandAck);
             AppendInt(buffer, "FlowCommandDeliveries", model.FlowCommandDeliveries);
             AppendBool(buffer, "FlowCommandPending", model.FlowCommandPending);
-            AppendBool(buffer, "FlowmeterOnline", true);
+            AppendBool(buffer, "FlowmeterOnline", model.ExternalNodesOnline);
             AppendBool(buffer, "FlowControlEnabled", model.FlowmeterEnabled);
 
             if (model.ExternalNodesOnline && model.Scenario != Scenario.LegacyHub)

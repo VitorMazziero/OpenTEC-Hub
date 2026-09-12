@@ -100,6 +100,11 @@ public static class CommandActuators
             [CommandKeys.Valve1] = ActuatorId.Aeration,
             [CommandKeys.Valve2] = ActuatorId.Aeration,
             [CommandKeys.V_Flow] = ActuatorId.Aeration,
+            [CommandKeys.FlowKp] = ActuatorId.Aeration,
+            [CommandKeys.FlowKi] = ActuatorId.Aeration,
+            [CommandKeys.FlowFfGain] = ActuatorId.Aeration,
+            [CommandKeys.FlowFfOffset] = ActuatorId.Aeration,
+            [CommandKeys.FlowRampRate] = ActuatorId.Aeration,
 
             [CommandKeys.PressureReference] = ActuatorId.Pressure,
 

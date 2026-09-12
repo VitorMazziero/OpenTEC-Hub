@@ -1,7 +1,9 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.ViewModels;
 
@@ -16,6 +18,8 @@ namespace OpenTECHub.ViewModels;
 /// </remarks>
 public sealed partial class FlowControlViewModel : ObservableObject
 {
+    private IManualDispatcher? _dispatcher;
+    private ISettingsService? _settings;
     private bool _initialised;
     private bool _suppressRefresh;
     private bool _telemetryInitialised;
@@ -24,19 +28,38 @@ public sealed partial class FlowControlViewModel : ObservableObject
     private bool _appliedMainValveClosed;
     private double _appliedMaxFlow;
 
-    public FlowControlViewModel(double initialMaxFlow, TimeProvider? timeProvider = null)
+    public FlowControlViewModel(
+        double initialMaxFlow,
+        IManualDispatcher? dispatcher = null,
+        ISettingsService? settings = null,
+        TimeProvider? timeProvider = null)
     {
         if (!double.IsFinite(initialMaxFlow) || initialMaxFlow <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(initialMaxFlow));
         }
 
+        _dispatcher = dispatcher;
+        _settings = settings;
         Status = new ExternalDeviceStatus("Fluxômetro", "do fluxômetro", timeProvider) { NodeKind = NodeFirmwareCatalog.Flowmeter };
 
         _appliedMaxFlow = initialMaxFlow;
         MaxFlowText = Format(initialMaxFlow);
+        LoadTuning(_settings?.Current.FlowControl ?? new FlowControlSettings());
         Validate();
+        RefreshTuningState();
         _initialised = true;
+    }
+
+    public void AttachDispatcher(IManualDispatcher dispatcher, ISettingsService? settings = null)
+    {
+        _dispatcher = dispatcher;
+        if (settings is not null)
+        {
+            _settings = settings;
+            LoadTuning(_settings.Current.FlowControl);
+            RefreshTuningState();
+        }
     }
 
     /// <summary>
@@ -102,6 +125,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(CanSendTuning))]
     [NotifyPropertyChangedFor(nameof(PendingStatusText))]
     [NotifyPropertyChangedFor(nameof(FlowStatusText))]
     [NotifyPropertyChangedFor(nameof(HasFlowStatusAlert))]
@@ -112,15 +136,18 @@ public sealed partial class FlowControlViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFlowmeterOffline))]
     [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(CanSendTuning))]
     [NotifyPropertyChangedFor(nameof(FlowmeterStatusText))]
     [NotifyPropertyChangedFor(nameof(FlowStatusText))]
     [NotifyPropertyChangedFor(nameof(HasFlowStatusAlert))]
     [NotifyPropertyChangedFor(nameof(ShowPendingChip))]
+    [NotifyPropertyChangedFor(nameof(TuningUnavailableText))]
     public partial bool IsFlowmeterOnline { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFlowmeterOffline))]
     [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(CanSendTuning))]
     [NotifyPropertyChangedFor(nameof(FlowmeterStatusText))]
     [NotifyPropertyChangedFor(nameof(FlowStatusText))]
     [NotifyPropertyChangedFor(nameof(HasFlowStatusAlert))]
@@ -129,11 +156,103 @@ public sealed partial class FlowControlViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(CanSendTuning))]
     [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
     [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
     [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
     [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
     public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
+
+    [ObservableProperty]
+    public partial string KpText { get; set; } = "0.8";
+
+    [ObservableProperty]
+    public partial string KiText { get; set; } = "0.15";
+
+    [ObservableProperty]
+    public partial string FfGainText { get; set; } = "0.106";
+
+    [ObservableProperty]
+    public partial string FfOffsetText { get; set; } = "0.01033";
+
+    [ObservableProperty]
+    public partial string RampRateText { get; set; } = "2.0";
+
+    [ObservableProperty]
+    public partial string AppliedKpText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedKiText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedFfGainText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedFfOffsetText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedRampRateText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string FlowOutputText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string FlowSetpointCorrectedText { get; set; } = "—";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendTuning))]
+    [NotifyPropertyChangedFor(nameof(TuningUnavailableText))]
+    public partial bool CanEditTuning { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTuningValid))]
+    [NotifyPropertyChangedFor(nameof(CanSendTuning))]
+    public partial string? TuningValidationError { get; set; }
+
+    [ObservableProperty]
+    public partial string TuningStatusText { get; set; } =
+        "Sintonia restaurada para revisão; nenhum comando foi enviado.";
+
+    public bool IsTuningValid => TuningValidationError is null;
+
+    public bool CanSendTuning => CanSendFlowCommands && CanEditTuning && IsTuningValid;
+
+    public string? TuningUnavailableText => !IsFlowmeterOnline
+        ? FlowmeterStatusText
+        : !CanEditTuning
+            ? "Aguardando telemetria do nó (requer firmware v11+)"
+            : null;
+
+    partial void OnKpTextChanged(string value) => RefreshTuningState();
+    partial void OnKiTextChanged(string value) => RefreshTuningState();
+    partial void OnFfGainTextChanged(string value) => RefreshTuningState();
+    partial void OnFfOffsetTextChanged(string value) => RefreshTuningState();
+    partial void OnRampRateTextChanged(string value) => RefreshTuningState();
+
+    partial void OnCurrentOwnerChanged(CommandOwner value)
+    {
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsAwaitingAckChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsFlowmeterOnlineChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanSendTuning));
+        OnPropertyChanged(nameof(TuningUnavailableText));
+        SendTuningCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnHasFlowmeterTelemetryChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
+    }
 
     public bool IsOwnedByOther => CurrentOwner != CommandOwner.Manual;
     public bool HasOwnerBadge => IsOwnedByOther;
@@ -326,10 +445,21 @@ public sealed partial class FlowControlViewModel : ObservableObject
         HasFlowmeterTelemetry = false;
         IsFlowmeterOnline = false;
         IsFlowCommandPending = false;
+        CanEditTuning = false;
+        AppliedKpText = "—";
+        AppliedKiText = "—";
+        AppliedFfGainText = "—";
+        AppliedFfOffsetText = "—";
+        AppliedRampRateText = "—";
+        FlowOutputText = "—";
+        FlowSetpointCorrectedText = "—";
+        OnPropertyChanged(nameof(TuningUnavailableText));
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
         Status.MarkHubUnavailable();
     }
 
-    /// <summary>Updates the read-only physical valve states from telemetry.</summary>
+    /// <summary>Updates the read-only physical valve states and tuning echoes from telemetry.</summary>
     public void UpdateTelemetry(SensorSnapshot snapshot)
     {
         HasFlowmeterTelemetry = true;
@@ -348,6 +478,19 @@ public sealed partial class FlowControlViewModel : ObservableObject
         ActualValve1 = ToState(snapshot.FlowValve1);
         ActualValve2 = ToState(snapshot.FlowValve2);
         ActualVentValve = ToState(snapshot.FlowValveMain);
+
+        AppliedKpText = snapshot.FlowKp is { } kp ? FormatTuning(kp) : "—";
+        AppliedKiText = snapshot.FlowKi is { } ki ? FormatTuning(ki) : "—";
+        AppliedFfGainText = snapshot.FlowFfGain is { } ffg ? FormatTuning(ffg) : "—";
+        AppliedFfOffsetText = snapshot.FlowFfOffset is { } ffo ? FormatTuning(ffo) : "—";
+        AppliedRampRateText = snapshot.FlowRampRate is { } ramp ? FormatTuning(ramp) : "—";
+        FlowOutputText = snapshot.FlowOutput is { } vo ? vo.ToString("F2", CultureInfo.CurrentCulture) + " V" : "—";
+        FlowSetpointCorrectedText = snapshot.FlowSetpointCorrected is { } spc ? spc.ToString("0.##", CultureInfo.CurrentCulture) + " L/min" : "—";
+
+        CanEditTuning = snapshot.FlowKp is not null;
+        OnPropertyChanged(nameof(TuningUnavailableText));
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
 
         // On first contact, start from what the equipment is actually doing. Do not
         // overwrite an edit the operator made while waiting for the first frame.
@@ -378,6 +521,134 @@ public sealed partial class FlowControlViewModel : ObservableObject
 
         _telemetryInitialised = true;
     }
+
+    [RelayCommand(CanExecute = nameof(CanSendTuning))]
+    private void SendTuning()
+    {
+        if (_dispatcher is null)
+        {
+            TuningStatusText = "Despachante não disponível.";
+            return;
+        }
+
+        if (!TryGetStagedTuning(out var kp, out var ki, out var ffGain, out var ffOffset, out var rampRate))
+        {
+            TuningStatusText = TuningValidationError ?? "Revise os parâmetros de sintonia.";
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.FlowTuning(kp, ki, ffGain, ffOffset, rampRate));
+        if (!result.Accepted)
+        {
+            TuningStatusText = DispatchRefusal.Describe(result, _dispatcher);
+            return;
+        }
+
+        MarkCommandDispatched();
+        _settings?.Update(settings => settings with
+        {
+            FlowControl = new FlowControlSettings
+            {
+                Kp = kp,
+                Ki = ki,
+                FfGain = ffGain,
+                FfOffset = ffOffset,
+                RampRate = rampRate,
+            }
+        });
+        TuningStatusText = "Sintonia do fluxômetro enviada; aguardando confirmação.";
+    }
+
+    public bool TryGetStagedTuning(out double kp, out double ki, out double ffGain, out double ffOffset, out double rampRate)
+    {
+        kp = 0.8;
+        ki = 0.15;
+        ffGain = 0.106;
+        ffOffset = 0.01033;
+        rampRate = 2.0;
+
+        if (!TryParse(KpText, out kp) || kp <= 0 || kp > 100.0)
+        {
+            return false;
+        }
+
+        if (!TryParse(KiText, out ki) || ki < 0 || ki > 100.0)
+        {
+            return false;
+        }
+
+        if (!TryParse(FfGainText, out ffGain) || ffGain < 0 || ffGain > 10.0)
+        {
+            return false;
+        }
+
+        if (!TryParse(FfOffsetText, out ffOffset) || ffOffset < 0 || ffOffset > 5.0)
+        {
+            return false;
+        }
+
+        if (!TryParse(RampRateText, out rampRate) || rampRate <= 0 || rampRate > 100.0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void RefreshTuningState()
+    {
+        if (!_initialised)
+        {
+            return;
+        }
+
+        TuningValidationError = ValidateTuning();
+        OnPropertyChanged(nameof(IsTuningValid));
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
+    }
+
+    private string? ValidateTuning()
+    {
+        if (!TryParse(KpText, out var kp) || kp <= 0 || kp > 100.0)
+        {
+            return "Kp: número maior que 0 e até 100.";
+        }
+
+        if (!TryParse(KiText, out var ki) || ki < 0 || ki > 100.0)
+        {
+            return "Ki: número de 0 a 100.";
+        }
+
+        if (!TryParse(FfGainText, out var ffGain) || ffGain < 0 || ffGain > 10.0)
+        {
+            return "Ganho FF: número de 0 a 10.";
+        }
+
+        if (!TryParse(FfOffsetText, out var ffOffset) || ffOffset < 0 || ffOffset > 5.0)
+        {
+            return "Offset FF: número de 0 a 5.";
+        }
+
+        if (!TryParse(RampRateText, out var rampRate) || rampRate <= 0 || rampRate > 100.0)
+        {
+            return "Taxa de rampa: número maior que 0 e até 100 L/min/s.";
+        }
+
+        return null;
+    }
+
+    private void LoadTuning(FlowControlSettings s)
+    {
+        KpText = FormatTuning(s.Kp);
+        KiText = FormatTuning(s.Ki);
+        FfGainText = FormatTuning(s.FfGain);
+        FfOffsetText = FormatTuning(s.FfOffset);
+        RampRateText = FormatTuning(s.RampRate);
+    }
+
+    private static string FormatTuning(double value)
+        => value.ToString("0.#####", CultureInfo.CurrentCulture);
 
     public bool TryGetStagedMaxFlow(out double maximum)
         => TryParse(MaxFlowText, out maximum) && double.IsFinite(maximum) && maximum > 0;
@@ -415,6 +686,8 @@ public sealed partial class FlowControlViewModel : ObservableObject
 
         Validate();
         OnPropertyChanged(nameof(HasPendingChange));
+        OnPropertyChanged(nameof(CanSendTuning));
+        SendTuningCommand.NotifyCanExecuteChanged();
     }
 
     private void Validate()

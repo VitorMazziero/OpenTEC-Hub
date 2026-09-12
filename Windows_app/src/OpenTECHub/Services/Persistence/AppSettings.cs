@@ -35,7 +35,7 @@ public enum ThemePreference
 public sealed record AppSettings
 {
     /// <summary>Schema version, so a future format change can migrate rather than reset.</summary>
-    public int Version { get; init; } = 1;
+    public int Version { get; init; } = 2;
 
     public ConnectionSettings Connection { get; init; } = new();
 
@@ -52,6 +52,9 @@ public sealed record AppSettings
 
     /// <summary>Staged level/foam sensor configuration (WP7). Restoring it never sends a command.</summary>
     public FoamControlSettings FoamControl { get; init; } = new();
+
+    /// <summary>Staged flowmeter tuning parameters (Phase 1 / Hub 10.2). Restoring them never sends a command.</summary>
+    public FlowControlSettings FlowControl { get; init; } = new();
 
     /// <summary>Staged flask-agitator parameters (WP7). Restoring them never sends a command.</summary>
     public FlaskAgitatorSettings FlaskAgitator { get; init; } = new();
@@ -340,6 +343,34 @@ public sealed record FoamControlSettings
     public int PulseSeconds { get; init; } = 2;
 
     public int IntervalSeconds { get; init; } = 30;
+
+    /// <summary>Staged distance sensor offset in mm (Hub 10.2 / Node v11). Restoring never sends.</summary>
+    public double DistanceOffsetMm { get; init; } = 20.0;
+
+    /// <summary>Staged distance sensor sampling period in ms (Hub 10.2 / Node v11).</summary>
+    public int DistanceSamplePeriodMs { get; init; } = 1000;
+
+    /// <summary>Staged distance sensor send period in ms (Hub 10.2 / Node v11).</summary>
+    public int DistanceSendPeriodMs { get; init; } = 1000;
+}
+
+/// <summary>
+/// Staged flowmeter controller tuning parameters (Hub 10.2 / Node v11).
+/// </summary>
+/// <remarks>
+/// Restoring these parameters never sends a command automatically; the operator must explicitly apply.
+/// </remarks>
+public sealed record FlowControlSettings
+{
+    public double Kp { get; init; } = 0.8;
+
+    public double Ki { get; init; } = 0.15;
+
+    public double FfGain { get; init; } = 0.106;
+
+    public double FfOffset { get; init; } = 0.01033;
+
+    public double RampRate { get; init; } = 2.0;
 }
 
 /// <summary>

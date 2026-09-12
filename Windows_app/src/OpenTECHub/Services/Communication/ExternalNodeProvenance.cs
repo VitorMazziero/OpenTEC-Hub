@@ -17,6 +17,7 @@ public sealed class ExternalNodeProvenance
     public string? FirmwareVersion { get; set; }
     public string? Ip { get; set; }
     public string? Mac { get; set; }
+    public FlowTuningProvenance? FlowTuning { get; set; }
 
     /// <summary>Every node the Hub had an identity for, keyed by wire name; empty on a Hub before 10.1.</summary>
     public static Dictionary<string, ExternalNodeProvenance> From(SensorSnapshot? snapshot)
@@ -32,7 +33,22 @@ public sealed class ExternalNodeProvenance
             var id = NodeFirmwareCatalog.IdentityOf(snapshot, device);
             if (id.IsKnown)
             {
-                map[device] = new ExternalNodeProvenance { FirmwareVersion = id.FirmwareVersion, Ip = id.Ip, Mac = id.Mac };
+                var entry = new ExternalNodeProvenance { FirmwareVersion = id.FirmwareVersion, Ip = id.Ip, Mac = id.Mac };
+                if (string.Equals(device, NodeFirmwareCatalog.Flowmeter, StringComparison.OrdinalIgnoreCase) &&
+                    (snapshot.FlowKp is not null || snapshot.FlowKi is not null || snapshot.FlowFfGain is not null ||
+                     snapshot.FlowFfOffset is not null || snapshot.FlowRampRate is not null))
+                {
+                    entry.FlowTuning = new FlowTuningProvenance
+                    {
+                        Kp = snapshot.FlowKp,
+                        Ki = snapshot.FlowKi,
+                        FfGain = snapshot.FlowFfGain,
+                        FfOffset = snapshot.FlowFfOffset,
+                        RampRate = snapshot.FlowRampRate,
+                    };
+                }
+
+                map[device] = entry;
             }
         }
 
@@ -51,4 +67,16 @@ public sealed class ExternalNodeProvenance
             .Where(nodes.ContainsKey)
             .Select(d => $"{d}={nodes[d].FirmwareVersion ?? "?"}@{nodes[d].Ip ?? "?"}"));
     }
+}
+
+/// <summary>
+/// Active controller tuning echoed by the flowmeter node (Hub 10.2 / Node v11).
+/// </summary>
+public sealed class FlowTuningProvenance
+{
+    public double? Kp { get; set; }
+    public double? Ki { get; set; }
+    public double? FfGain { get; set; }
+    public double? FfOffset { get; set; }
+    public double? RampRate { get; set; }
 }

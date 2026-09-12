@@ -271,7 +271,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // command builders, so validation and the wire cannot drift apart.
         var setpoints = settings.Current.Setpoints;
         var maxFlow = setpoints.MaxFlowLitresPerMinute;
-        FlowControl = new FlowControlViewModel(maxFlow);
+        FlowControl = new FlowControlViewModel(maxFlow, manualDispatcher, settings);
 
         // The synoptic shows presence for every external node, not only the flowmeter, so
         // it needs the same status objects Controle binds to. Exposed rather than

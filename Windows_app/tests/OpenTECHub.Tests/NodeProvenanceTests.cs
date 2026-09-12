@@ -162,4 +162,29 @@ public class NodeProvenanceTests : IDisposable
         Assert.Equal(10, loaded.HubProtocolVersion);
         Assert.Equal("v10", loaded.ExternalNodes["flowmeter"].FirmwareVersion);
     }
+
+    [Fact]
+    public void FlowTuning_is_captured_in_provenance_when_echoes_are_present()
+    {
+        var snapshotWithTuning = new SensorSnapshot
+        {
+            FlowmeterNode = new ExternalNodeIdentity("192.168.4.4", "AA:BB:CC:DD:EE:04", "v11"),
+            FlowKp = 0.8,
+            FlowKi = 0.15,
+            FlowFfGain = 0.106,
+            FlowFfOffset = 0.01033,
+            FlowRampRate = 2.0,
+        };
+
+        var nodes = ExternalNodeProvenance.From(snapshotWithTuning);
+        Assert.NotNull(nodes["flowmeter"].FlowTuning);
+        Assert.Equal(0.8, nodes["flowmeter"].FlowTuning!.Kp);
+        Assert.Equal(0.15, nodes["flowmeter"].FlowTuning!.Ki);
+        Assert.Equal(0.106, nodes["flowmeter"].FlowTuning!.FfGain);
+        Assert.Equal(0.01033, nodes["flowmeter"].FlowTuning!.FfOffset);
+        Assert.Equal(2.0, nodes["flowmeter"].FlowTuning!.RampRate);
+
+        var nodesWithoutTuning = ExternalNodeProvenance.From(Registered);
+        Assert.Null(nodesWithoutTuning["flowmeter"].FlowTuning);
+    }
 }

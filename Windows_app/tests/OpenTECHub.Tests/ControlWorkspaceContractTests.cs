@@ -103,6 +103,17 @@ public sealed class ControlWorkspaceContractTests
     }
 
     [Fact]
+    public void Distance_and_flow_drawers_expose_node_config_and_tuning_expanders()
+    {
+        var xaml = File.ReadAllText(ViewPath);
+
+        Assert.Contains("Header=\"Configuração do nó\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Offset (mm)\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Sintonia do controlador\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Taxa de rampa\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Pump_preview_reuses_the_single_right_axis()
     {
         var chartCode = File.ReadAllText(Path.Combine(

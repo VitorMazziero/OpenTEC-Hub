@@ -1,6 +1,7 @@
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
+using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -41,6 +42,33 @@ internal sealed class StubDispatcher : IManualDispatcher
         SeparateFrames.Add(json);
         return new CommandDispatchResult(true, [], CommandOwner.Manual);
     }
+}
+
+internal sealed class StubDialogService : IDialogService
+{
+    public bool ConfirmResult { get; set; }
+    public int ConfirmDestructiveCalls { get; private set; }
+    public string? ConsequencePassed { get; private set; }
+    public string? ExactCommandPassed { get; private set; }
+
+    public bool ConfirmDestructive(string title, string consequence, string exactCommand)
+    {
+        ConfirmDestructiveCalls++;
+        ConsequencePassed = consequence;
+        ExactCommandPassed = exactCommand;
+        return ConfirmResult;
+    }
+
+    public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false)
+        => ConfirmResult;
+
+    public bool PromptInput(string title, string message, out string response, string initialValue = "")
+    {
+        response = initialValue;
+        return true;
+    }
+
+    public RecipeStartOption PromptRecipeStart(string recipeName) => RecipeStartOption.Cancel;
 }
 
 /// <summary>
@@ -825,5 +853,321 @@ public sealed class ExternalDeviceTests
         device.SendAfterCurrentFrame(CommandBuilders.PumpRoutingDisabled());
 
         Assert.Equal(["""{"mode":0}""", """{"pumpComm":0}"""], ((RecordingDeviceService)device).Sent);
+    }
+
+    // ── Distance node configuration ───────────────────────────────────────────
+
+    [Fact]
+    public void Distance_node_config_validates_range_and_updates_status()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var foam = new FoamControlViewModel(device, settings);
+
+        // Initial staged values come from default settings
+        Assert.True(foam.OffsetMmText is "20" or "20.0" or "20,0");
+        Assert.Equal("1000", foam.SamplePeriodMsText);
+        Assert.Equal("1000", foam.SendPeriodMsText);
+        Assert.True(foam.IsValidNodeConfig);
+        Assert.Null(foam.NodeConfigValidationError);
+
+        // Out of range offset ([-50, 200])
+        foam.OffsetMmText = "250";
+        Assert.False(foam.IsValidNodeConfig);
+        Assert.NotNull(foam.NodeConfigValidationError);
+        Assert.False(foam.CanSendNodeConfig);
+
+        foam.OffsetMmText = "-60";
+        Assert.False(foam.IsValidNodeConfig);
+
+        foam.OffsetMmText = "20";
+        Assert.True(foam.IsValidNodeConfig);
+
+        // Out of range sample period ([100, 60000])
+        foam.SamplePeriodMsText = "50";
+        Assert.False(foam.IsValidNodeConfig);
+        Assert.False(foam.CanSendNodeConfig);
+
+        foam.SamplePeriodMsText = "70000";
+        Assert.False(foam.IsValidNodeConfig);
+
+        foam.SamplePeriodMsText = "500";
+        Assert.True(foam.IsValidNodeConfig);
+
+        // Out of range send period ([100, 60000])
+        foam.SendPeriodMsText = "50";
+        Assert.False(foam.IsValidNodeConfig);
+
+        foam.SendPeriodMsText = "70000";
+        Assert.False(foam.IsValidNodeConfig);
+
+        foam.SendPeriodMsText = "2000";
+        Assert.True(foam.IsValidNodeConfig);
+    }
+
+    [Fact]
+    public void Distance_node_config_dispatches_command_and_persists_settings()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var dispatcher = new StubDispatcher();
+        using var foam = new FoamControlViewModel(device, settings, dispatcher);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasDistanceTelemetry = true,
+            DistanceOnline = true,
+            DistanceCommEnabled = true,
+            DistanceOffsetMm = 20.0,
+        });
+
+        Assert.True(foam.CanEditNodeConfig);
+        Assert.True(foam.CanSendNodeConfig);
+
+        foam.OffsetMmText = "25";
+        foam.SamplePeriodMsText = "500";
+        foam.SendPeriodMsText = "2000";
+
+        foam.SendNodeConfigCommand.Execute(null);
+
+        Assert.Single(dispatcher.Sent);
+        var sentJson = dispatcher.Sent[0];
+        Assert.Contains("\"distanceOffsetMm\":25", sentJson);
+        Assert.Contains("\"distanceSamplePeriodMs\":500", sentJson);
+        Assert.Contains("\"distanceSendPeriodMs\":2000", sentJson);
+
+        Assert.Equal(25.0, settings.Current.FoamControl.DistanceOffsetMm);
+        Assert.Equal(500, settings.Current.FoamControl.DistanceSamplePeriodMs);
+        Assert.Equal(2000, settings.Current.FoamControl.DistanceSendPeriodMs);
+        Assert.Contains("enviada", foam.NodeConfigStatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Distance_node_config_reset_confirms_destructive_and_sends_command()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var dispatcher = new StubDispatcher();
+        var dialog = new StubDialogService();
+        using var foam = new FoamControlViewModel(device, settings, dispatcher, dialog);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasDistanceTelemetry = true,
+            DistanceOnline = true,
+            DistanceCommEnabled = true,
+            DistanceOffsetMm = 20.0,
+        });
+
+        // Case 1: Operator cancels confirmation
+        dialog.ConfirmResult = false;
+        foam.ResetNodeConfigCommand.Execute(null);
+
+        Assert.Equal(1, dialog.ConfirmDestructiveCalls);
+        Assert.Empty(dispatcher.Sent);
+        Assert.Contains("offset 20 mm", dialog.ConsequencePassed ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Restaurar", dialog.ExactCommandPassed);
+
+        // Case 2: Operator confirms
+        dialog.ConfirmResult = true;
+        foam.ResetNodeConfigCommand.Execute(null);
+
+        Assert.Equal(2, dialog.ConfirmDestructiveCalls);
+        Assert.Single(dispatcher.Sent);
+        Assert.Contains("\"distanceResetNvs\":1", dispatcher.Sent[0]);
+        Assert.Contains("restauração", foam.NodeConfigStatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Distance_node_telemetry_echoes_update_applied_properties()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var foam = new FoamControlViewModel(device, settings);
+
+        Assert.Equal("—", foam.AppliedOffsetText);
+        Assert.Equal("—", foam.AppliedSamplePeriodMsText);
+        Assert.Equal("—", foam.AppliedSendPeriodMsText);
+        Assert.False(foam.CanEditNodeConfig);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasDistanceTelemetry = true,
+            DistanceOnline = true,
+            DistanceOffsetMm = 25.5,
+            DistanceSamplePeriodMs = 500,
+            DistanceSendPeriodMs = 1500,
+        });
+
+        Assert.True(foam.CanEditNodeConfig);
+        Assert.Contains("25", foam.AppliedOffsetText);
+        Assert.Equal("500 ms", foam.AppliedSamplePeriodMsText);
+        Assert.Equal("1500 ms", foam.AppliedSendPeriodMsText);
+    }
+
+    // ── Airflow controller tuning ─────────────────────────────────────────────
+
+    [Fact]
+    public void Flow_tuning_validates_ranges_and_updates_status()
+    {
+        var dispatcher = new StubDispatcher();
+        var settings = new MemorySettingsService();
+        var flow = new FlowControlViewModel(initialMaxFlow: 10.0, dispatcher: dispatcher, settings: settings);
+
+        // Initial staged values come from default settings
+        Assert.True(flow.KpText is "0.8" or "0,8");
+        Assert.True(flow.KiText is "0.15" or "0,15");
+        Assert.True(flow.FfGainText is "0.106" or "0,106");
+        Assert.True(flow.FfOffsetText is "0.01033" or "0,01033");
+        Assert.True(flow.RampRateText is "2" or "2.0" or "2,0");
+        Assert.True(flow.IsTuningValid);
+        Assert.Null(flow.TuningValidationError);
+
+        // Kp range (0, 100]
+        flow.KpText = "0";
+        Assert.False(flow.IsTuningValid);
+        Assert.NotNull(flow.TuningValidationError);
+
+        flow.KpText = "150";
+        Assert.False(flow.IsTuningValid);
+
+        flow.KpText = "0.8";
+        Assert.True(flow.IsTuningValid);
+
+        // Ki range [0, 100]
+        flow.KiText = "-1";
+        Assert.False(flow.IsTuningValid);
+
+        flow.KiText = "0";
+        Assert.True(flow.IsTuningValid);
+
+        // FfGain range [0, 10]
+        flow.FfGainText = "15";
+        Assert.False(flow.IsTuningValid);
+
+        flow.FfGainText = "0.106";
+        Assert.True(flow.IsTuningValid);
+
+        // FfOffset range [0, 5]
+        flow.FfOffsetText = "6";
+        Assert.False(flow.IsTuningValid);
+
+        flow.FfOffsetText = "0.01033";
+        Assert.True(flow.IsTuningValid);
+
+        // RampRate range (0, 100]
+        flow.RampRateText = "0";
+        Assert.False(flow.IsTuningValid);
+
+        flow.RampRateText = "2.0";
+        Assert.True(flow.IsTuningValid);
+    }
+
+    [Fact]
+    public void Flow_tuning_dispatches_command_and_persists_settings_when_accepted()
+    {
+        var dispatcher = new StubDispatcher();
+        var settings = new MemorySettingsService();
+        var flow = new FlowControlViewModel(initialMaxFlow: 10.0, dispatcher: dispatcher, settings: settings);
+
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowControlEnabled = true,
+            FlowKp = 0.8,
+            FlowKi = 0.15,
+            FlowFfGain = 0.106,
+            FlowFfOffset = 0.01033,
+            FlowRampRate = 2.0,
+        });
+
+        Assert.True(flow.CanEditTuning);
+        Assert.True(flow.CanSendTuning);
+
+        flow.KpText = "1.2";
+        flow.KiText = "0.25";
+        flow.FfGainText = "0.15";
+        flow.FfOffsetText = "0.02";
+        flow.RampRateText = "3.0";
+
+        flow.SendTuningCommand.Execute(null);
+
+        Assert.Single(dispatcher.Sent);
+        var sentJson = dispatcher.Sent[0];
+        Assert.Contains("\"flowKp\":1.2", sentJson);
+        Assert.Contains("\"flowKi\":0.25", sentJson);
+        Assert.Contains("\"flowFfGain\":0.15", sentJson);
+        Assert.Contains("\"flowFfOffset\":0.02", sentJson);
+        Assert.Contains("\"flowRampRate\":3", sentJson);
+
+        Assert.Equal(1.2, settings.Current.FlowControl.Kp);
+        Assert.Equal(0.25, settings.Current.FlowControl.Ki);
+        Assert.Equal(0.15, settings.Current.FlowControl.FfGain);
+        Assert.Equal(0.02, settings.Current.FlowControl.FfOffset);
+        Assert.Equal(3.0, settings.Current.FlowControl.RampRate);
+        Assert.Contains("enviada", flow.TuningStatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Flow_tuning_refusal_by_arbiter_displays_message_and_preserves_settings()
+    {
+        var dispatcher = new StubDispatcher();
+        var settings = new MemorySettingsService();
+        var flow = new FlowControlViewModel(initialMaxFlow: 10.0, dispatcher: dispatcher, settings: settings);
+
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowControlEnabled = true,
+            FlowKp = 0.8,
+        });
+
+        dispatcher.RefuseWith = [ActuatorId.Aeration];
+
+        flow.KpText = "1.5";
+        flow.SendTuningCommand.Execute(null);
+
+        Assert.Contains("recusado", flow.TuningStatusText, StringComparison.OrdinalIgnoreCase);
+        // Settings remain at original values
+        Assert.Equal(0.8, settings.Current.FlowControl.Kp);
+    }
+
+    [Fact]
+    public void Flow_tuning_telemetry_echoes_and_readouts_update()
+    {
+        var dispatcher = new StubDispatcher();
+        var settings = new MemorySettingsService();
+        var flow = new FlowControlViewModel(initialMaxFlow: 10.0, dispatcher: dispatcher, settings: settings);
+
+        Assert.Equal("—", flow.AppliedKpText);
+        Assert.Equal("—", flow.AppliedKiText);
+        Assert.Equal("—", flow.AppliedFfGainText);
+        Assert.Equal("—", flow.AppliedFfOffsetText);
+        Assert.Equal("—", flow.AppliedRampRateText);
+        Assert.Equal("—", flow.FlowOutputText);
+        Assert.Equal("—", flow.FlowSetpointCorrectedText);
+        Assert.False(flow.CanEditTuning);
+
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowControlEnabled = true,
+            FlowKp = 0.8,
+            FlowKi = 0.15,
+            FlowFfGain = 0.106,
+            FlowFfOffset = 0.01033,
+            FlowRampRate = 2.0,
+            FlowOutput = 3.25,
+            FlowSetpointCorrected = 1.75,
+        });
+
+        Assert.True(flow.CanEditTuning);
+        Assert.Contains("0.8", flow.AppliedKpText.Replace(',', '.'));
+        Assert.Contains("0.15", flow.AppliedKiText.Replace(',', '.'));
+        Assert.Contains("0.106", flow.AppliedFfGainText.Replace(',', '.'));
+        Assert.Contains("0.01033", flow.AppliedFfOffsetText.Replace(',', '.'));
+        Assert.Contains("2", flow.AppliedRampRateText.Replace(',', '.'));
+        Assert.Contains("3.25", flow.FlowOutputText.Replace(',', '.'));
+        Assert.Contains("1.75", flow.FlowSetpointCorrectedText.Replace(',', '.'));
     }
 }

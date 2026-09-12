@@ -104,7 +104,29 @@
 
 ---
 
-## 6. Matriz de Prioridades e Rastreamento
+## 6. Aplicativo Windows (`Windows_app`) — Controle › Distância e Vazão de Ar (Etapa 6)
+
+### 6.1 Confirmação Destrutiva de NVS do Sensor de Distância
+- **Decisão:** A restauração de parâmetros de fábrica do sensor de distância (`distanceResetNvs`) sobrescreve diretamente a memória flash NVS do ESP32 remoto.
+- **Implementação:** O comando foi vinculado a `IDialogService.ConfirmDestructive`, exigindo confirmação explícita do operador ("Restaurar") e alertando expressamente sobre a reversão para o offset de 20 mm e períodos de 1000 ms.
+- **Ponto de Melhoria:** Adicionar na UI um indicador transitório de sincronização (ex: "Gravando NVS...") enquanto o nó reinicializa/aplica e o novo eco não é refletido na telemetria.
+
+### 6.2 Precisão de Feedforward do Fluxômetro (`FormatTuning`)
+- **Problema Detectado:** O offset de feedforward do medidor de vazão (`flowFfOffset`) possui o valor de calibração padrão `0.01033` (5 casas decimais). Máscaras convencionais de formatação (`"F2"` ou `"F4"`) truncavam a exibição visual para `0.0103`.
+- **Implementação:** Foi introduzido o método auxiliar `FormatTuning` com máscara `"0.#####"` em `FlowControlViewModel`, garantindo que tanto o valor staged quanto o eco aplicado preservem a precisão original sem sufixar zeros espúrios.
+
+### 6.3 Preservação dos Contratos de Layout Unificado no XAML
+- **Contrato:** O layout da tela `Controle` possui verificações rígidas de regressão de ergonomia (`ControlWorkspaceContractTests`), monitorando contagens exatas de gatilhos e estilos compartilhados (como 11 instâncias de `ConnectedExternalDeviceEntryStyle`).
+- **Implementação:** Os novos expanders de *"Configuração do nó"* e *"Sintonia do controlador"* foram encapsulados de forma auto-contida, utilizando `MultiDataTrigger` de habilitação nos próprios painéis e vinculações de comando com feedback de validação, sem interferir nos marcadores e contadores globais da tabela.
+
+### 6.4 Arbitragem e Concorrência de Sintonia via `ActuatorId.Aeration`
+- **Segurança:** O ajuste dos parâmetros de malha (`Kp`, `Ki`, `FfGain`, `FfOffset`, `RampRate`) altera a resposta física da válvula de aeração.
+- **Implementação:** Todos os comandos de sintonia foram mapeados para `ActuatorId.Aeration` no `CommandActuators.KeyToActuator`. Com isso, o árbitro central recusa imediatamente qualquer tentativa de envio de sintonia durante ensaios automatizados de $k_L a$, ensaios de potência ou execução de receitas, informando o operador via `DispatchRefusal.Describe`.
+- **Ponto de Melhoria Futura:** Prover predefinições (presets) de sintonia do controlador para diferentes faixas operacionais de vazão (ex.: baixa vazão 0.1–1.0 L/min vs alta vazão > 5.0 L/min).
+
+---
+
+## 7. Matriz de Prioridades e Rastreamento
 
 | Item | Componente | Impacto | Prioridade | Tratamento |
 |---|---|---|---|---|
@@ -118,6 +140,10 @@
 | Eco de `gear`/`ema`/`probe_ms` no push da biomassa (v11)| Nó Biomassa | Telemetria / Óptica | Alta | **Aplicado na Etapa 4** |
 | Remoção de `speed` no `PumpStopProfile()` | App / Hub / Nó | Segurança de Acionamento | Alta | **Aplicado na Etapa 5** |
 | Ecos não-sticky e `FlowmeterBootId` sticky | App Protocol | Integridade de Dados | Alta | **Aplicado na Etapa 5** |
-| Botão explícito de envio (sem auto-save) | App UI | Hardware (Flash NVS) | Alta | Regra para a Etapa 6 |
+| Botão explícito de envio (sem auto-save) | App UI | Hardware (Flash NVS) | Alta | **Aplicado na Etapa 6 (Distância e Vazão)** |
+| Formatação com precisão 5 casas decimais para `flowFfOffset` | App UI | Exibição / Calibração | Média | **Aplicado na Etapa 6** |
+| Arbitragem de comandos de sintonia via `ActuatorId.Aeration` | App Árbitro | Segurança de Processo | Alta | **Aplicado na Etapa 6** |
+| Confirmação destrutiva no reset de NVS do sensor de distância | App UI | Prevenção de Falha | Alta | **Aplicado na Etapa 6** |
 | Medição Content-Length `/readData` | Hub / Infra | Confiabilidade | Média | Executar na bancada da Etapa 4/7 |
 | FreeRTOS multi-core no sensor | Nó Distância | Desempenho | Baixa | Diferido no ROADMAP |
+

@@ -229,6 +229,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         DistanceVariable = distanceVariable;
         BiomassVariable = biomassVariable;
         FlowControl = flowControl;
+        FlowControl.AttachDispatcher(_dispatcher, _settings);
         PHControl = phControl;
         NutrientControl = nutrientControl;
         AntifoamControl = antifoamControl;

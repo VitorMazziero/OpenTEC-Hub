@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.ViewModels;
@@ -29,6 +30,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
     private readonly IDeviceService _device;
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
+    private readonly IDialogService _dialogs;
     private bool _initialised;
     private FoamControlSettings _committed;
 
@@ -36,11 +38,13 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         IDeviceService device,
         ISettingsService settings,
         IManualDispatcher? dispatcher = null,
+        IDialogService? dialogs = null,
         TimeProvider? timeProvider = null)
     {
         _device = device;
         _settings = settings;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
+        _dialogs = dialogs ?? new DialogService();
         _committed = settings.Current.FoamControl;
         Status = new ExternalDeviceStatus("Sensor de distância", "do sensor de distância", timeProvider) { NodeKind = NodeFirmwareCatalog.Distance };
         Status.PropertyChanged += OnStatusChanged;
@@ -51,6 +55,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         _device.StateChanged += OnDeviceStateChanged;
         _initialised = true;
         ValidateAndRefresh();
+        ValidateNodeConfigAndRefresh();
         HasPendingChange = false;
     }
 
@@ -97,6 +102,57 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
     public bool CanApply => IsValid && Status.IsOnline && Status.CanSend;
 
     public string StateText => SensorEnabled ? "Ativo" : "Desligado";
+
+    [ObservableProperty]
+    public partial string OffsetMmText { get; set; } = "20.0";
+
+    [ObservableProperty]
+    public partial string SamplePeriodMsText { get; set; } = "1000";
+
+    [ObservableProperty]
+    public partial string SendPeriodMsText { get; set; } = "1000";
+
+    [ObservableProperty]
+    public partial string AppliedOffsetText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedSamplePeriodMsText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedSendPeriodMsText { get; set; } = "—";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendNodeConfig))]
+    [NotifyPropertyChangedFor(nameof(CanResetNodeConfig))]
+    [NotifyPropertyChangedFor(nameof(NodeConfigUnavailableText))]
+    public partial bool CanEditNodeConfig { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsValidNodeConfig))]
+    [NotifyPropertyChangedFor(nameof(CanSendNodeConfig))]
+    public partial string? NodeConfigValidationError { get; set; }
+
+    [ObservableProperty]
+    public partial string NodeConfigStatusText { get; set; } =
+        "Configurações do nó restauradas para revisão; nenhum comando foi enviado.";
+
+    public bool IsValidNodeConfig => NodeConfigValidationError is null;
+
+    public bool CanSendNodeConfig => Status.IsOnline && Status.CanSend && CanEditNodeConfig && IsValidNodeConfig;
+
+    public bool CanResetNodeConfig => Status.IsOnline && Status.CanSend && CanEditNodeConfig;
+
+    public string? NodeConfigUnavailableText => !Status.IsOnline
+        ? Status.PresenceText
+        : !CanEditNodeConfig
+            ? "Aguardando eco do nó (requer firmware v11+)"
+            : null;
+
+    partial void OnOffsetMmTextChanged(string value) => ValidateNodeConfigAndRefresh();
+
+    partial void OnSamplePeriodMsTextChanged(string value) => ValidateNodeConfigAndRefresh();
+
+    partial void OnSendPeriodMsTextChanged(string value) => ValidateNodeConfigAndRefresh();
 
     partial void OnSensorEnabledChanged(bool value)
     {
@@ -155,6 +211,57 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         StatusText = "Alterações não enviadas de espuma foram revertidas.";
     }
 
+    [RelayCommand(CanExecute = nameof(CanSendNodeConfig))]
+    private void SendNodeConfig()
+    {
+        if (!TryGetStagedNodeConfig(out var offset, out var samplePeriod, out var sendPeriod))
+        {
+            NodeConfigStatusText = NodeConfigValidationError ?? "Revise a configuração do nó.";
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.DistanceConfig(offset, samplePeriod, sendPeriod));
+        if (!result.Accepted)
+        {
+            NodeConfigStatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        Status.MarkCommandDispatched();
+        _committed = _committed with
+        {
+            DistanceOffsetMm = offset,
+            DistanceSamplePeriodMs = samplePeriod,
+            DistanceSendPeriodMs = sendPeriod,
+        };
+        _settings.Update(settings => settings with { FoamControl = _committed });
+        NodeConfigStatusText = "Configuração do sensor de distância enviada; aguardando confirmação.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanResetNodeConfig))]
+    private void ResetNodeConfig()
+    {
+        var confirmed = _dialogs.ConfirmDestructive(
+            "Restaurar padrões do sensor",
+            "restaura offset 20 mm e períodos de fábrica no sensor",
+            "Restaurar");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.DistanceResetNvs());
+        if (!result.Accepted)
+        {
+            NodeConfigStatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        Status.MarkCommandDispatched();
+        NodeConfigStatusText = "Restauração de padrões do sensor enviada; aguardando confirmação.";
+    }
+
     public bool TryGetStagedSettings(out FoamControlSettings settings)
     {
         settings = _committed;
@@ -173,7 +280,34 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
             StartDelaySeconds = startDelay,
             PulseSeconds = pulse,
             IntervalSeconds = interval,
+            DistanceOffsetMm = _committed.DistanceOffsetMm,
+            DistanceSamplePeriodMs = _committed.DistanceSamplePeriodMs,
+            DistanceSendPeriodMs = _committed.DistanceSendPeriodMs,
         };
+        return true;
+    }
+
+    public bool TryGetStagedNodeConfig(out double offsetMm, out int samplePeriodMs, out int sendPeriodMs)
+    {
+        offsetMm = 20.0;
+        samplePeriodMs = 1000;
+        sendPeriodMs = 1000;
+
+        if (!DosingInput.TryParseDouble(OffsetMmText, out offsetMm) || offsetMm is < -50.0 or > 200.0)
+        {
+            return false;
+        }
+
+        if (!DosingInput.TryParseInteger(SamplePeriodMsText, out samplePeriodMs) || samplePeriodMs is < 100 or > 60000)
+        {
+            return false;
+        }
+
+        if (!DosingInput.TryParseInteger(SendPeriodMsText, out sendPeriodMs) || sendPeriodMs is < 100 or > 60000)
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -184,6 +318,9 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         StartDelaySecondsText = DosingInput.FormatInt(s.StartDelaySeconds);
         PulseSecondsText = DosingInput.FormatInt(s.PulseSeconds);
         IntervalSecondsText = DosingInput.FormatInt(s.IntervalSeconds);
+        OffsetMmText = DosingInput.Format(s.DistanceOffsetMm, 1);
+        SamplePeriodMsText = DosingInput.FormatInt(s.DistanceSamplePeriodMs);
+        SendPeriodMsText = DosingInput.FormatInt(s.DistanceSendPeriodMs);
     }
 
     private void ValidateAndRefresh()
@@ -198,6 +335,19 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanApply));
         ApplyCommand.NotifyCanExecuteChanged();
         RefreshPendingState();
+    }
+
+    private void ValidateNodeConfigAndRefresh()
+    {
+        if (!_initialised)
+        {
+            return;
+        }
+
+        NodeConfigValidationError = ValidateNodeConfig();
+        OnPropertyChanged(nameof(IsValidNodeConfig));
+        OnPropertyChanged(nameof(CanSendNodeConfig));
+        SendNodeConfigCommand.NotifyCanExecuteChanged();
     }
 
     private string? Validate()
@@ -225,6 +375,26 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         return null;
     }
 
+    private string? ValidateNodeConfig()
+    {
+        if (!DosingInput.TryParseDouble(OffsetMmText, out var offset) || offset is < -50.0 or > 200.0)
+        {
+            return "Offset: valor de -50 a 200 mm.";
+        }
+
+        if (!DosingInput.TryParseInteger(SamplePeriodMsText, out var sample) || sample is < 100 or > 60000)
+        {
+            return "Amostragem: inteiro de 100 a 60000 ms.";
+        }
+
+        if (!DosingInput.TryParseInteger(SendPeriodMsText, out var send) || send is < 100 or > 60000)
+        {
+            return "Envio: inteiro de 100 a 60000 ms.";
+        }
+
+        return null;
+    }
+
     private void RefreshPendingState()
     {
         if (!_initialised)
@@ -247,6 +417,21 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         LiveDistanceText = snapshot.Distance > SensorReadings.NotReceived
             ? snapshot.Distance.ToString("F0", CultureInfo.CurrentCulture)
             : "—";
+
+        AppliedOffsetText = snapshot.DistanceOffsetMm is { } offset
+            ? offset.ToString("F1", CultureInfo.CurrentCulture) + " mm"
+            : "—";
+        AppliedSamplePeriodMsText = snapshot.DistanceSamplePeriodMs is { } sample
+            ? sample.ToString(CultureInfo.CurrentCulture) + " ms"
+            : "—";
+        AppliedSendPeriodMsText = snapshot.DistanceSendPeriodMs is { } send
+            ? send.ToString(CultureInfo.CurrentCulture) + " ms"
+            : "—";
+
+        CanEditNodeConfig = snapshot.DistanceOffsetMm is not null;
+        OnPropertyChanged(nameof(NodeConfigUnavailableText));
+        SendNodeConfigCommand.NotifyCanExecuteChanged();
+        ResetNodeConfigCommand.NotifyCanExecuteChanged();
     }
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
@@ -254,6 +439,13 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         if (change.State != ConnectionState.Connected)
         {
             Status.MarkHubUnavailable();
+            CanEditNodeConfig = false;
+            AppliedOffsetText = "—";
+            AppliedSamplePeriodMsText = "—";
+            AppliedSendPeriodMsText = "—";
+            OnPropertyChanged(nameof(NodeConfigUnavailableText));
+            SendNodeConfigCommand.NotifyCanExecuteChanged();
+            ResetNodeConfigCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -265,7 +457,12 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(CanSendNodeConfig));
+        OnPropertyChanged(nameof(CanResetNodeConfig));
+        OnPropertyChanged(nameof(NodeConfigUnavailableText));
         ApplyCommand.NotifyCanExecuteChanged();
+        SendNodeConfigCommand.NotifyCanExecuteChanged();
+        ResetNodeConfigCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()

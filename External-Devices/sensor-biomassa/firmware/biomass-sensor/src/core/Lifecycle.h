@@ -71,6 +71,8 @@ void firmwareSetup() {
   server.on("/api/blank",    HTTP_GET,  handleBlankTable);
   server.on("/api/command",  HTTP_POST, handleCommand);
   server.on("/command",      HTTP_POST, handleCommand); // v2.5 alias
+  server.on("/update",       HTTP_GET,  handleOtaPage);
+  server.on("/update",       HTTP_POST, handleOtaUploadDone, handleOtaChunk);
   server.onNotFound(handleNotFound);
   server.begin();
   g_serverStarted = true;
@@ -116,6 +118,24 @@ void firmwareLoop() {
 
   server.handleClient(); // Handle incoming HTTP requests on our AP
 
+  uint32_t now = millis();
+
+  if (g_otaRebootAtMs > 0 && now >= g_otaRebootAtMs) {
+    Serial.println("[OTA] Reiniciando no novo firmware...");
+    delay(100);
+    ESP.restart();
+  }
+
+  if (g_otaInProgress) {
+    if (now - g_otaLastChunkMs > OTA_STALL_TIMEOUT_MS) {
+      Serial.println("[OTA] Watchdog disparado: upload estagnou.");
+      Update.abort();
+      g_otaInProgress = false;
+    }
+    delay(1);
+    return;
+  }
+
   handleSerialInput(/*allowBlocking=*/false); // Commands from serial
 
   // Run any blocking command a handler parked for us. Doing it here, outside
@@ -126,8 +146,6 @@ void firmwareLoop() {
     g_pendingJson = "";
     processJsonCommand(pending, /*allowBlocking=*/true);
   }
-
-  uint32_t now = millis();
 
   checkWifi();
 

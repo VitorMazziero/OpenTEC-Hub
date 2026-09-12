@@ -10,8 +10,16 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
+#include <Update.h>
 
 #include "web_ui.h"           // PROGMEM single-page UI
+
+// OTA State
+volatile bool g_otaInProgress = false;
+unsigned long g_otaLastChunkMs = 0;
+const unsigned long OTA_STALL_TIMEOUT_MS = 90000;
+unsigned long g_otaRebootAtMs = 0;
+String g_otaRejectReason = "";
 
 // Firmware Identity
 static const char* FW_VERSION = "5.3";
@@ -307,6 +315,9 @@ String   buildStatusJson();
 String   buildHistoryJson(uint32_t sinceSeq);
 String   buildBlankJson();
 void     setHubEnabled(bool enabled);
+void     handleOtaPage();
+void     handleOtaUploadDone();
+void     handleOtaChunk();
 
 // CRC32 Helper
 // NOTE: this is a byte sum, not a real CRC32. It is kept exactly as-is

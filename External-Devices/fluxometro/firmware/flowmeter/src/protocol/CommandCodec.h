@@ -19,172 +19,199 @@ void readSerialData() {
   }
 }
 
-bool extractJsonUint32(const String &json, const char *key, uint32_t &value) {
-  String token = "\"" + String(key) + "\"";
-  int keyPos = json.indexOf(token);
-  if (keyPos < 0) return false;
-  int colonPos = json.indexOf(':', keyPos + token.length());
-  if (colonPos < 0) return false;
-  int start = colonPos + 1;
-  while (start < json.length() && isspace(json.charAt(start))) start++;
-  int end = start;
-  while (end < json.length() && isDigit(json.charAt(end))) end++;
-  if (end == start) return false;
-  value = (uint32_t)strtoul(json.substring(start, end).c_str(), NULL, 10);
+static const char* findJsonValueStart(const char* json, const char* key) {
+  if (!json || !key) return nullptr;
+  const size_t klen = strlen(key);
+  const char* p = json;
+  while ((p = strstr(p, key)) != nullptr) {
+    if (p > json && *(p - 1) == '"' && *(p + klen) == '"') {
+      const char* afterQuote = p + klen + 1;
+      while (*afterQuote && isspace(static_cast<unsigned char>(*afterQuote))) afterQuote++;
+      if (*afterQuote == ':') {
+        const char* valStart = afterQuote + 1;
+        while (*valStart && isspace(static_cast<unsigned char>(*valStart))) valStart++;
+        return valStart;
+      }
+    }
+    p += klen;
+  }
+  return nullptr;
+}
+
+bool extractJsonUint32(const char *json, const char *key, uint32_t &value) {
+  const char* valStart = findJsonValueStart(json, key);
+  if (!valStart || *valStart == '"') return false;
+  char* endPtr = nullptr;
+  unsigned long val = strtoul(valStart, &endPtr, 10);
+  if (endPtr == valStart) return false;
+  value = static_cast<uint32_t>(val);
   return true;
 }
 
-bool processReceivedData(String data, CommandSource source) {
-  data.trim();
-  if (data.length() < 2) return false;
-  if (data.startsWith("{") && data.endsWith("}")) {
-    uint32_t hubCommandId = 0;
-    uint32_t directSessionId = 0;
-    uint32_t directCommandId = 0;
-    bool hasHubCommandId = (source == COMMAND_HUB) &&
-                           extractJsonUint32(data, "cmd_id", hubCommandId);
-    bool hasDirectCommandId = (source == COMMAND_DIRECT) &&
-                              extractJsonUint32(data, "direct_cmd_id", directCommandId);
-    bool hasDirectSessionId = (source == COMMAND_DIRECT) &&
-                              extractJsonUint32(data, "direct_session_id", directSessionId);
+inline bool extractJsonUint32(const String &json, const char *key, uint32_t &value) {
+  return extractJsonUint32(json.c_str(), key, value);
+}
 
-    if (hasHubCommandId) {
-      xSemaphoreTake(commandMutex, portMAX_DELAY);
-      bool duplicate = (hubCommandId == lastAppliedHubCommandId);
-      xSemaphoreGive(commandMutex);
-      if (duplicate) {
-        // The hub retries until telemetry carries the acknowledgement. A local
-        // command issued after this hub command must not be overwritten here.
-        return true;
-      }
-    }
+bool processReceivedData(const String& rawData, CommandSource source) {
+  if (rawData.length() < 2) return false;
+  const char* str = rawData.c_str();
+  while (*str && isspace(static_cast<unsigned char>(*str))) str++;
+  const char* firstBrace = strchr(str, '{');
+  const char* lastBrace = strrchr(str, '}');
+  if (!firstBrace || !lastBrace || lastBrace <= firstBrace) return false;
 
-    if (hasDirectCommandId && hasDirectSessionId) {
-      xSemaphoreTake(commandMutex, portMAX_DELAY);
-      bool sameSession = (directSessionId == lastAppliedDirectSessionId);
-      bool duplicateOrStale = sameSession &&
-                              ((int32_t)(directCommandId - lastAppliedDirectCommandId) <= 0);
-      xSemaphoreGive(commandMutex);
-      if (duplicateOrStale) {
-        // Direct-app retry after a delayed acknowledgement: acknowledge it,
-        // but never actuate the same or an older command twice.
-        return true;
-      }
-    }
+  uint32_t hubCommandId = 0;
+  uint32_t directSessionId = 0;
+  uint32_t directCommandId = 0;
+  bool hasHubCommandId = (source == COMMAND_HUB) &&
+                         extractJsonUint32(str, "cmd_id", hubCommandId);
+  bool hasDirectCommandId = (source == COMMAND_DIRECT) &&
+                            extractJsonUint32(str, "direct_cmd_id", directCommandId);
+  bool hasDirectSessionId = (source == COMMAND_DIRECT) &&
+                            extractJsonUint32(str, "direct_session_id", directSessionId);
 
+  if (hasHubCommandId) {
     xSemaphoreTake(commandMutex, portMAX_DELAY);
-    data = data.substring(1, data.length() - 1);
-    int start = 0;
-    bool calParamsUpdated = false;
-    bool lowQuadraticUpdated = false;
-    bool lowHigherOrderUpdated = false;
-    bool recognizedCommand = false;
-    while (start < data.length()) {
-      int colonIndex = data.indexOf(':', start);
-      int commaIndex = data.indexOf(',', start);
-      if (colonIndex == -1) break;
-      if (commaIndex == -1) commaIndex = data.length();
+    bool duplicate = (hubCommandId == lastAppliedHubCommandId);
+    xSemaphoreGive(commandMutex);
+    if (duplicate) {
+      return true;
+    }
+  }
 
-      if (colonIndex < commaIndex) {
-        String key = data.substring(start, colonIndex);
-        String value = data.substring(colonIndex + 1, commaIndex);
-        key.trim();
-        value.trim();
+  if (hasDirectCommandId && hasDirectSessionId) {
+    xSemaphoreTake(commandMutex, portMAX_DELAY);
+    bool sameSession = (directSessionId == lastAppliedDirectSessionId);
+    bool duplicateOrStale = sameSession &&
+                            ((int32_t)(directCommandId - lastAppliedDirectCommandId) <= 0);
+    xSemaphoreGive(commandMutex);
+    if (duplicateOrStale) {
+      return true;
+    }
+  }
 
-        if (key.startsWith("\"") && key.endsWith("\""))
-          key = key.substring(1, key.length() - 1);
+  xSemaphoreTake(commandMutex, portMAX_DELAY);
+  bool calParamsUpdated = false;
+  bool lowQuadraticUpdated = false;
+  bool lowHigherOrderUpdated = false;
+  bool recognizedCommand = false;
 
-        if (key == "v_Flow" || key == "valveFlow") {
-          valveFlowState = value.toInt() != 0;
-          digitalWrite(VALVE_FLOW_PIN, valveFlowState);
-          recognizedCommand = true;
-        }
-        else if (key == "v1" || key == "valve_1") {
-          valve1State = value.toInt() != 0;
-          digitalWrite(VALVE1_PIN, valve1State);
-          recognizedCommand = true;
-        }
-        else if (key == "v2" || key == "valve_2") {
-          valve2State = value.toInt() != 0;
-          digitalWrite(VALVE2_PIN, valve2State);
-          recognizedCommand = true;
-        }
+  const char* cursor = firstBrace + 1;
+  while (cursor < lastBrace) {
+    while (cursor < lastBrace && (isspace(static_cast<unsigned char>(*cursor)) || *cursor == ',')) cursor++;
+    if (cursor >= lastBrace) break;
 
-        else if (key == "reconnect_wifi") {
-           reconnect_Wifi = (value.toInt() == 1);
-           Serial.printf("Wifi Reconnect Logic set to: %s\n", reconnect_Wifi ? "TRUE" : "FALSE");
-           recognizedCommand = true;
-        }
-        else if (key == "debug_pi") {
-           debugPI = (value.toInt() == 1);
-           Serial.printf("PI debug trace %s\n", debugPI ? "ON" : "OFF");
-           recognizedCommand = true;
-        }
+    char keyBuf[32];
+    size_t kLen = 0;
+    if (*cursor == '"') {
+      cursor++;
+      while (cursor < lastBrace && *cursor != '"' && kLen < sizeof(keyBuf) - 1) {
+        keyBuf[kLen++] = *cursor++;
+      }
+      if (cursor < lastBrace && *cursor == '"') cursor++;
+    } else {
+      while (cursor < lastBrace && *cursor != ':' && !isspace(static_cast<unsigned char>(*cursor)) && kLen < sizeof(keyBuf) - 1) {
+        keyBuf[kLen++] = *cursor++;
+      }
+    }
+    keyBuf[kLen] = '\0';
 
-        else if (key == "flow_setpoint" || key == "flowSetpoint") {
-            float newTarget = constrain(value.toFloat(), 0.0f, maxFlowRate);
-            recognizedCommand = true;
+    while (cursor < lastBrace && *cursor != ':') cursor++;
+    if (cursor >= lastBrace) break;
+    cursor++; // skip ':'
+    while (cursor < lastBrace && isspace(static_cast<unsigned char>(*cursor))) cursor++;
 
-            // [REQ 4] Only update if change is > 0.05 OR if we are turning it OFF (0)
-            // We also allow if it was previously 0 (startup)
-            if (fabs(newTarget - targetFlowSetpoint) > 0.001f || newTarget == 0.0f || targetFlowSetpoint == 0.0f) {
+    char valBuf[32];
+    size_t vLen = 0;
+    if (*cursor == '"') {
+      cursor++;
+      while (cursor < lastBrace && *cursor != '"' && vLen < sizeof(valBuf) - 1) {
+        valBuf[vLen++] = *cursor++;
+      }
+      if (cursor < lastBrace && *cursor == '"') cursor++;
+    } else {
+      while (cursor < lastBrace && *cursor != ',' && *cursor != '}' && !isspace(static_cast<unsigned char>(*cursor)) && vLen < sizeof(valBuf) - 1) {
+        valBuf[vLen++] = *cursor++;
+      }
+    }
+    valBuf[vLen] = '\0';
 
-                targetFlowSetpoint = newTarget;
+    if (strcmp(keyBuf, "v_Flow") == 0 || strcmp(keyBuf, "valveFlow") == 0) {
+      valveFlowState = (atoi(valBuf) != 0);
+      digitalWrite(VALVE_FLOW_PIN, valveFlowState);
+      recognizedCommand = true;
+    }
+    else if (strcmp(keyBuf, "v1") == 0 || strcmp(keyBuf, "valve_1") == 0) {
+      valve1State = (atoi(valBuf) != 0);
+      digitalWrite(VALVE1_PIN, valve1State);
+      recognizedCommand = true;
+    }
+    else if (strcmp(keyBuf, "v2") == 0 || strcmp(keyBuf, "valve_2") == 0) {
+      valve2State = (atoi(valBuf) != 0);
+      digitalWrite(VALVE2_PIN, valve2State);
+      recognizedCommand = true;
+    }
+    else if (strcmp(keyBuf, "reconnect_wifi") == 0) {
+      reconnect_Wifi = (atoi(valBuf) == 1);
+      Serial.printf("Wifi Reconnect Logic set to: %s\n", reconnect_Wifi ? "TRUE" : "FALSE");
+      recognizedCommand = true;
+    }
+    else if (strcmp(keyBuf, "debug_pi") == 0) {
+      debugPI = (atoi(valBuf) == 1);
+      Serial.printf("PI debug trace %s\n", debugPI ? "ON" : "OFF");
+      recognizedCommand = true;
+    }
+    else if (strcmp(keyBuf, "flow_setpoint") == 0 || strcmp(keyBuf, "flowSetpoint") == 0) {
+      float newTarget = constrain(strtof(valBuf, nullptr), 0.0f, maxFlowRate);
+      recognizedCommand = true;
 
-                // integralError is never reset: it is the learned gain error of the
-                // MFC at this operating point and is the right starting point next time.
-                if (targetFlowSetpoint == 0.0) {
-                    // A zero target always closes the MFC valve itself (FMA-5400 pin 12).
-                    // The hub sends v_Flow=1 alongside, but a direct command may not,
-                    // and with dacHold the DAC is still live.
-                    valveFlowState = 1;
-                    digitalWrite(VALVE_FLOW_PIN, HIGH);
-                    if (!dacHold) {
-                        flowSetpoint = 0.0;
-                        rampedTarget = 0.0f;
-                        writeFlowSetpointToDAC(0.0);
-                    }
-                }
-
-                Serial.printf("New Target Accepted: %.3f\n", targetFlowSetpoint);
-            } else {
-                Serial.printf("Target Update Ignored (Delta < 0.05): %.3f\n", newTarget);
-            }
-        }
-        else if (key == "kp_flow") { Kp_flow = calParams.kp = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "ki_flow") { Ki_flow = calParams.ki = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "ff_gain") { ffGain = calParams.ff_gain = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "ff_offset") { ffOffset = calParams.ff_offset = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "ramp_rate") { rampRate = calParams.ramp_rate = max(0.0f, value.toFloat()); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "dac_hold") {
-           dacHold = value.toInt() != 0;
-           calParams.dac_hold = dacHold ? 1.0f : 0.0f;
-           calParamsUpdated = true; recognizedCommand = true;
-           Serial.printf("DAC hold across zero setpoint: %s\n", dacHold ? "ON" : "OFF");
-        }
-
-        else if (key == "max_flow" || key == "maxFlow") {
-          float requestedMax = value.toFloat();
-          if (requestedMax > 0.01f) {
-            maxFlowRate = requestedMax;
-            targetFlowSetpoint = constrain(targetFlowSetpoint, 0.0f, maxFlowRate);
-            recognizedCommand = true;
+      if (fabs(newTarget - targetFlowSetpoint) > 0.001f || newTarget == 0.0f || targetFlowSetpoint == 0.0f) {
+        targetFlowSetpoint = newTarget;
+        if (targetFlowSetpoint == 0.0f) {
+          valveFlowState = 1;
+          digitalWrite(VALVE_FLOW_PIN, HIGH);
+          if (!dacHold) {
+            flowSetpoint = 0.0f;
+            rampedTarget = 0.0f;
+            writeFlowSetpointToDAC(0.0f);
           }
         }
-        else if (key == "a1") { a1 = calParams.a1 = value.toFloat(); lowHigherOrderUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "b1") { b1 = calParams.b1 = value.toFloat(); lowHigherOrderUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "k1") { k1 = calParams.k1 = value.toFloat(); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "f1") { f1 = calParams.f1 = value.toFloat(); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "c1") { c1 = calParams.c1 = value.toFloat(); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "k2") { k2 = calParams.k2 = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "f2") { f2 = calParams.f2 = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-        else if (key == "c2") { c2 = calParams.c2 = value.toFloat(); calParamsUpdated = true; recognizedCommand = true; }
-
-        start = commaIndex + 1;
+        Serial.printf("New Target Accepted: %.3f\n", targetFlowSetpoint);
       } else {
-        break;
+        Serial.printf("Target Update Ignored (Delta < 0.05): %.3f\n", newTarget);
       }
     }
+    else if (strcmp(keyBuf, "kp_flow") == 0) { Kp_flow = calParams.kp = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "ki_flow") == 0) { Ki_flow = calParams.ki = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "ff_gain") == 0) { ffGain = calParams.ff_gain = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "ff_offset") == 0) { ffOffset = calParams.ff_offset = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "ramp_rate") == 0) { rampRate = calParams.ramp_rate = max(0.0f, strtof(valBuf, nullptr)); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "dac_hold") == 0) {
+      dacHold = (atoi(valBuf) != 0);
+      calParams.dac_hold = dacHold ? 1.0f : 0.0f;
+      calParamsUpdated = true; recognizedCommand = true;
+      Serial.printf("DAC hold across zero setpoint: %s\n", dacHold ? "ON" : "OFF");
+    }
+    else if (strcmp(keyBuf, "max_flow") == 0 || strcmp(keyBuf, "maxFlow") == 0) {
+      float requestedMax = strtof(valBuf, nullptr);
+      if (requestedMax > 0.01f) {
+        maxFlowRate = requestedMax;
+        targetFlowSetpoint = constrain(targetFlowSetpoint, 0.0f, maxFlowRate);
+        recognizedCommand = true;
+      }
+    }
+    else if (strcmp(keyBuf, "a1") == 0) { a1 = calParams.a1 = strtof(valBuf, nullptr); lowHigherOrderUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "b1") == 0) { b1 = calParams.b1 = strtof(valBuf, nullptr); lowHigherOrderUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "k1") == 0) { k1 = calParams.k1 = strtof(valBuf, nullptr); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "f1") == 0) { f1 = calParams.f1 = strtof(valBuf, nullptr); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "c1") == 0) { c1 = calParams.c1 = strtof(valBuf, nullptr); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "k2") == 0) { k2 = calParams.k2 = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "f2") == 0) { f2 = calParams.f2 = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+    else if (strcmp(keyBuf, "c2") == 0) { c2 = calParams.c2 = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+
+    while (cursor < lastBrace && *cursor != ',') cursor++;
+    if (cursor < lastBrace && *cursor == ',') cursor++;
+  }
     // Backward-compatible calibration commands contain only k1/f1/c1 and mean
     // "quadratic". Explicit a1/b1 opt into the quartic low-range model.
     if (lowQuadraticUpdated && !lowHigherOrderUpdated) {
@@ -209,8 +236,6 @@ bool processReceivedData(String data, CommandSource source) {
     if (recognizedCommand) startLEDBlinking();
     xSemaphoreGive(commandMutex);
     return recognizedCommand;
-  }
-  return false;
 }
 
 // Returns false when the I2C bus could not be taken; the caller keeps its old

@@ -142,83 +142,57 @@ bool httpGet(const String& url, int& code, String& body) {
     return code >= 200 && code < 300;
 }
 
-long getJsonValue(String json, String key) {
-    String searchKey = "\"" + key + "\":";
-    int keyIndex = json.indexOf(searchKey);
-    if (keyIndex == -1) {
-        searchKey = "\"" + key + "\" :";
-        keyIndex = json.indexOf(searchKey);
-        if (keyIndex == -1) return -999999;
+const char* findJsonValueStart(const char* json, const char* key) {
+    if (!json || !key) return nullptr;
+    const size_t klen = strlen(key);
+    const char* p = json;
+    while ((p = strstr(p, key)) != nullptr) {
+        if (p > json && *(p - 1) == '"' && *(p + klen) == '"') {
+            const char* afterQuote = p + klen + 1;
+            while (*afterQuote && isspace(static_cast<unsigned char>(*afterQuote))) afterQuote++;
+            if (*afterQuote == ':') {
+                const char* valStart = afterQuote + 1;
+                while (*valStart && isspace(static_cast<unsigned char>(*valStart))) valStart++;
+                return valStart;
+            }
+        }
+        p += klen;
     }
-    int valueIndex = keyIndex + searchKey.length();
-    while(valueIndex < json.length() && isspace(json.charAt(valueIndex))) valueIndex++;
-    if (json.charAt(valueIndex) == '\"') return -999999;
-    int endIndex = json.indexOf(',', valueIndex);
-    if (endIndex == -1) endIndex = json.indexOf('}', valueIndex);
-    if (endIndex == -1) return -999999;
-    String valueStr = json.substring(valueIndex, endIndex);
-    valueStr.trim();
-    if (valueStr.length() == 0 || (!isDigit(valueStr.charAt(0)) && valueStr.charAt(0) != '-' && valueStr.charAt(0) != '.')) {
-        return -999999;
-    }
-    return atol(valueStr.c_str());
+    return nullptr;
 }
 
-float getJsonFloatValue(String json, String key) {
-    String searchKey = "\"" + key + "\":";
-    int keyIndex = json.indexOf(searchKey);
-    if (keyIndex == -1) {
-        searchKey = "\"" + key + "\" :";
-        keyIndex = json.indexOf(searchKey);
-        if (keyIndex == -1) return NAN;
-    }
-    int valueIndex = keyIndex + searchKey.length();
-    while(valueIndex < json.length() && isspace(json.charAt(valueIndex))) valueIndex++;
-    if (json.charAt(valueIndex) == '\"') return NAN;
-    int endIndex = json.indexOf(',', valueIndex);
-    if (endIndex == -1) endIndex = json.indexOf('}', valueIndex);
-    if (endIndex == -1) return NAN;
-    String valueStr = json.substring(valueIndex, endIndex);
-    valueStr.trim();
-    if (valueStr.length() == 0 || (!isDigit(valueStr.charAt(0)) && valueStr.charAt(0) != '-' && valueStr.charAt(0) != '.')) {
-        return NAN;
-    }
-    return valueStr.toFloat();
+long getJsonValue(const char* json, const char* key) {
+    const char* val = findJsonValueStart(json, key);
+    if (!val || *val == '"') return -999999;
+    char* endPtr = nullptr;
+    long result = strtol(val, &endPtr, 10);
+    if (endPtr == val) return -999999;
+    return result;
 }
 
-String getJsonStringValue(String json, String key) {
-    String searchKey = "\"" + key + "\":\"";
-    int keyIndex = json.indexOf(searchKey);
-    if (keyIndex == -1) {
-        searchKey = "\"" + key + "\" : \"";
-        keyIndex = json.indexOf(searchKey);
-        if (keyIndex == -1) return "";
-    }
-    int valueIndex = keyIndex + searchKey.length();
-    int endIndex = json.indexOf('\"', valueIndex);
-    if (endIndex == -1) return "";
-    return json.substring(valueIndex, endIndex);
+float getJsonFloatValue(const char* json, const char* key) {
+    const char* val = findJsonValueStart(json, key);
+    if (!val || *val == '"') return NAN;
+    char* endPtr = nullptr;
+    float result = strtof(val, &endPtr);
+    if (endPtr == val) return NAN;
+    return result;
 }
 
-double getJsonDoubleValue(String json, String key) {
-    String searchKey = "\"" + key + "\":";
-    int keyIndex = json.indexOf(searchKey);
-    if (keyIndex == -1) {
-        searchKey = "\"" + key + "\" :";
-        keyIndex = json.indexOf(searchKey);
-        if (keyIndex == -1) return NAN;
-    }
-    int valueIndex = keyIndex + searchKey.length();
-    while (valueIndex < json.length() && isspace(json.charAt(valueIndex))) valueIndex++;
-    if (json.charAt(valueIndex) == '\"') return NAN;
-    int endIndex = json.indexOf(',', valueIndex);
-    if (endIndex == -1) endIndex = json.indexOf('}', valueIndex);
-    if (endIndex == -1) return NAN;
-    String valueStr = json.substring(valueIndex, endIndex);
-    valueStr.trim();
-    if (valueStr.length() == 0) return NAN;
-    char *endp = nullptr;
-    double val = strtod(valueStr.c_str(), &endp);
-    if (endp == valueStr.c_str()) return NAN;
-    return val;
+double getJsonDoubleValue(const char* json, const char* key) {
+    const char* val = findJsonValueStart(json, key);
+    if (!val || *val == '"') return NAN;
+    char* endPtr = nullptr;
+    double result = strtod(val, &endPtr);
+    if (endPtr == val) return NAN;
+    return result;
+}
+
+String getJsonStringValue(const char* json, const char* key) {
+    const char* val = findJsonValueStart(json, key);
+    if (!val || *val != '"') return "";
+    val++; // skip opening quote
+    const char* endQ = strchr(val, '"');
+    if (!endQ) return "";
+    return String(val).substring(0, endQ - val);
 }

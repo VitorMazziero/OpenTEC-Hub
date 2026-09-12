@@ -7,8 +7,9 @@
 
 namespace {
 void handleRoot() {
-  const String json = "{\"time\":" + String(g_lastSampleTimeSec, 1) +
-                      ",\"distance\":" + String(static_cast<int>(g_lastValidDistance)) + "}";
+  char json[96];
+  snprintf(json, sizeof(json), "{\"time\":%.1f,\"distance\":%d}",
+           g_lastSampleTimeSec, static_cast<int>(g_lastValidDistance));
   server.send(200, "application/json", json);
 }
 
@@ -25,8 +26,8 @@ void handleConfig() {
   }
 
   const String body = server.arg("plain");
-  Serial.println("[HTTP] Body: " + body);
-  processConfigUpdate(body);
+  Serial.printf("[HTTP] Body: %s\n", body.c_str());
+  processConfigUpdate(body.c_str());
   server.send(200, "text/plain", "Config Updated");
 }
 

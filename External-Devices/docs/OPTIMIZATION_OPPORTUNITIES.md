@@ -6,7 +6,7 @@ Este registro reúne melhorias encontradas durante a reorganização. Nenhuma de
 
 1. Substituir gradualmente os fragmentos privados de bomba, fluxômetro e biomassa por módulos `.h/.cpp` com estado explícito e interfaces pequenas. A extração atual preserva uma única unidade de tradução para reduzir risco de regressão.
 2. [Concluído] Redução drástica de alocações `String` em loops e telemetria: substituídas concatenações dinâmicas de `String` em loops periódicos (1–10 Hz) nos 5 nós por buffers estáticos de pilha com `snprintf` e pré-alocação controlada com `reserve()`.
-3. Criar testes nativos para parsers manuais com campos fora de ordem, espaços, números negativos, strings contendo nomes de chaves, JSON truncado e duplicidade de chaves.
+3. [Concluído] Parsers manuais zero-copy e zero-heap nos 5 dispositivos: substituídas todas as extrações de chaves e parâmetros JSON baseadas em cópia de `String` por ponteiros `const char*`, aritmética de ponteiros e parsing in-place (`strtol`, `strtod`, `strtof`, `strtoul`), eliminando alocações na heap durante o recebimento de comandos.
 4. Separar estado de comunicação, estado físico aplicado e estado desejado nos firmwares ainda baseados em globais.
 
 ## Prioridade média

@@ -321,8 +321,9 @@ void processJsonCommand(String json) {
     // Mode 4: Polynomial
     bool polyChanged = false;
     for (int i = 0; i < NUM_POLY_COEFFS; i++) {
-        String key = "p" + String(i);
-        double dval = getJsonDoubleValue(json, key);
+        char key[16];
+        snprintf(key, sizeof(key), "p%d", i);
+        double dval = getJsonDoubleValue(json.c_str(), key);
         if (!isnan(dval) && g_config.polyCoeffs[i] != dval) {
             g_config.polyCoeffs[i] = dval;
             g_configDirty = true;
@@ -333,7 +334,7 @@ void processJsonCommand(String json) {
 
     // Mode 5: Piecewise
     bool piecewiseChanged = false;
-    fval = getJsonFloatValue(json, "num_segments");
+    fval = getJsonFloatValue(json.c_str(), "num_segments");
     if (!isnan(fval)) {
         int n = (int)fval;
         if (n >= 2 && n <= MAX_SEGMENTS) {
@@ -347,8 +348,9 @@ void processJsonCommand(String json) {
     
     // Parse time points
     for (int i = 0; i < MAX_SEGMENTS; i++) {
-        String key = "t" + String(i);
-        fval = getJsonFloatValue(json, key);
+        char key[16];
+        snprintf(key, sizeof(key), "t%d", i);
+        fval = getJsonFloatValue(json.c_str(), key);
         if (!isnan(fval)) {
             if (g_config.time_points[i] != fval) {
                 g_config.time_points[i] = fval;
@@ -360,8 +362,9 @@ void processJsonCommand(String json) {
     
     // Parse flow points
     for (int i = 0; i < MAX_SEGMENTS; i++) {
-        String key = "q" + String(i);
-        fval = getJsonFloatValue(json, key);
+        char key[16];
+        snprintf(key, sizeof(key), "q%d", i);
+        fval = getJsonFloatValue(json.c_str(), key);
         if (!isnan(fval)) {
             if (g_config.flow_points[i] != fval) {
                 g_config.flow_points[i] = fval;

@@ -2,32 +2,36 @@
 
 #include "../core/AppContext.h"
 
-long getJsonValue(String json, String key) {
-  String searchKey = "\"" + key + "\":";
-  int keyIndex = json.indexOf(searchKey);
-  if (keyIndex == -1) {
-    searchKey = "\"" + key + "\" :";
-    keyIndex = json.indexOf(searchKey);
-    if (keyIndex == -1) {
-      return -1;
+const char* findJsonValueStart(const char* json, const char* key) {
+  if (!json || !key) return nullptr;
+  const size_t klen = strlen(key);
+  const char* p = json;
+  while ((p = strstr(p, key)) != nullptr) {
+    if (p > json && *(p - 1) == '"' && *(p + klen) == '"') {
+      const char* afterQuote = p + klen + 1;
+      while (*afterQuote && isspace(static_cast<unsigned char>(*afterQuote))) afterQuote++;
+      if (*afterQuote == ':') {
+        const char* valStart = afterQuote + 1;
+        while (*valStart && isspace(static_cast<unsigned char>(*valStart))) valStart++;
+        return valStart;
+      }
     }
+    p += klen;
   }
-
-  const int valueIndex = keyIndex + searchKey.length();
-  int endIndex = json.indexOf(',', valueIndex);
-  if (endIndex == -1) {
-    endIndex = json.indexOf('}', valueIndex);
-  }
-  if (endIndex == -1) {
-    return -1;
-  }
-
-  String value = json.substring(valueIndex, endIndex);
-  value.trim();
-  return value.toInt();
+  return nullptr;
 }
 
-void processConfigUpdate(String payload) {
+long getJsonValue(const char* json, const char* key) {
+  const char* val = findJsonValueStart(json, key);
+  if (!val || *val == '"') return -1;
+  char* endPtr = nullptr;
+  long result = strtol(val, &endPtr, 10);
+  if (endPtr == val) return -1;
+  return result;
+}
+
+void processConfigUpdate(const char* payload) {
+  if (!payload) return;
   bool updated = false;
   long value = getJsonValue(payload, "sample_period");
   if (value > 0) {
@@ -91,15 +95,18 @@ void processConfigUpdate(String payload) {
 }
 
 String getConfigAsJson() {
-  String json = "{";
-  json += "\"sample_period\":" + String(SAMPLE_PERIOD_MS);
-  json += ",\"send_period\":" + String(SEND_PERIOD_MS);
-  json += ",\"cooldown_soft\":" + String(COOLDOWN_SOFT_MS);
-  json += ",\"cooldown_bus\":" + String(COOLDOWN_BUS_MS);
-  json += ",\"cooldown_xshut\":" + String(COOLDOWN_XSHUT_MS);
-  json += ",\"l1_reinit\":" + String(L1_SOFT_REINIT);
-  json += ",\"l2_clear\":" + String(L2_BUS_CLEAR);
-  json += ",\"l3_xshut\":" + String(L3_XSHUT);
-  json += "}";
-  return json;
+  char buf[256];
+  snprintf(buf, sizeof(buf),
+           "{\"sample_period\":%lu,\"send_period\":%lu,\"cooldown_soft\":%lu,"
+           "\"cooldown_bus\":%lu,\"cooldown_xshut\":%lu,\"l1_reinit\":%d,"
+           "\"l2_clear\":%d,\"l3_xshut\":%d}",
+           SAMPLE_PERIOD_MS,
+           SEND_PERIOD_MS,
+           COOLDOWN_SOFT_MS,
+           COOLDOWN_BUS_MS,
+           COOLDOWN_XSHUT_MS,
+           L1_SOFT_REINIT,
+           L2_BUS_CLEAR,
+           L3_XSHUT);
+  return String(buf);
 }

@@ -1,66 +1,56 @@
 // JSON Parsing / Networking Helpers
 
-int jsonValueIndex(const String& json, const String& key) {
-  const String needle = "\"" + key + "\"";
-  int i = json.indexOf(needle);
-  if (i == -1) return -1;
-  i += needle.length();
-
-  while (i < (int)json.length() && isspace(json.charAt(i))) i++;
-  if (i >= (int)json.length() || json.charAt(i) != ':') return -1;
-  i++;
-  while (i < (int)json.length() && isspace(json.charAt(i))) i++;
-  return (i < (int)json.length()) ? i : -1;
+const char* findJsonValueStart(const char* json, const char* key) {
+  if (!json || !key) return nullptr;
+  const size_t klen = strlen(key);
+  const char* p = json;
+  while ((p = strstr(p, key)) != nullptr) {
+    if (p > json && *(p - 1) == '"' && *(p + klen) == '"') {
+      const char* afterQuote = p + klen + 1;
+      while (*afterQuote && isspace(static_cast<unsigned char>(*afterQuote))) afterQuote++;
+      if (*afterQuote == ':') {
+        const char* valStart = afterQuote + 1;
+        while (*valStart && isspace(static_cast<unsigned char>(*valStart))) valStart++;
+        return valStart;
+      }
+    }
+    p += klen;
+  }
+  return nullptr;
 }
 
-long getJsonValue(String json, String key) {
-  int valueIndex = jsonValueIndex(json, key);
-  if (valueIndex == -1) return -999999; // Key not found
-
-  if (json.charAt(valueIndex) == '\"') {
-    return -999999; // It's a string, not a number
-  }
-
-  int endIndex = json.indexOf(',', valueIndex);
-  if (endIndex == -1) {
-    endIndex = json.indexOf('}', valueIndex);
-  }
-  if (endIndex == -1) return -999999; // Malformed
-
-  String valueStr = json.substring(valueIndex, endIndex);
-  valueStr.trim();
-
-  if (valueStr.length() == 0 ||
-      (!isDigit(valueStr.charAt(0)) && valueStr.charAt(0) != '-')) {
-    return -999999;
-  }
-
-  return atol(valueStr.c_str());
+long getJsonValue(const char* json, const char* key) {
+  const char* val = findJsonValueStart(json, key);
+  if (!val || *val == '"') return -999999;
+  char* endPtr = nullptr;
+  long result = strtol(val, &endPtr, 10);
+  if (endPtr == val) return -999999;
+  return result;
 }
 
-float getJsonFloat(String json, String key, bool &found) {
+float getJsonFloat(const char* json, const char* key, bool &found) {
   found = false;
-  int valueIndex = jsonValueIndex(json, key);
-  if (valueIndex == -1) return 0.0f;
-  if (json.charAt(valueIndex) == '\"') {
-    return 0.0f; // string, not a number
-  }
-
-  int endIndex = json.indexOf(',', valueIndex);
-  if (endIndex == -1) endIndex = json.indexOf('}', valueIndex);
-  if (endIndex == -1) return 0.0f;
-
-  String valueStr = json.substring(valueIndex, endIndex);
-  valueStr.trim();
-  if (valueStr.length() == 0 ||
-      (!isDigit(valueStr.charAt(0)) && valueStr.charAt(0) != '-' &&
-       valueStr.charAt(0) != '.')) {
-    return 0.0f;
-  }
-
+  const char* val = findJsonValueStart(json, key);
+  if (!val || *val == '"') return 0.0f;
+  char* endPtr = nullptr;
+  float result = strtof(val, &endPtr);
+  if (endPtr == val) return 0.0f;
   found = true;
-  return valueStr.toFloat();
+  return result;
 }
+
+String getJsonStringValue(const char* json, const char* key) {
+  const char* val = findJsonValueStart(json, key);
+  if (!val || *val != '"') return "";
+  val++; // skip quote
+  const char* endQ = strchr(val, '"');
+  if (!endQ) return "";
+  return String(val).substring(0, endQ - val);
+}
+
+inline long   getJsonValue(const String& json, const String& key) { return getJsonValue(json.c_str(), key.c_str()); }
+inline float  getJsonFloat(const String& json, const String& key, bool &found) { return getJsonFloat(json.c_str(), key.c_str(), found); }
+inline String getJsonStringValue(const String& json, const String& key) { return getJsonStringValue(json.c_str(), key.c_str()); }
 
 
 void setAutoRange(bool enabled) {
@@ -110,17 +100,6 @@ void invalidateBlank(const char* reason) {
   Serial.println("!! Run 'blank' again before measuring.");
 }
 
-String getJsonStringValue(String json, String key) {
-  int valueIndex = jsonValueIndex(json, key);
-  if (valueIndex == -1) return "";           // Key not found
-  if (json.charAt(valueIndex) != '\"') return ""; // number, not a string
-  valueIndex++;
-
-  int endIndex = json.indexOf('"', valueIndex);
-  if (endIndex == -1) return ""; // Malformed
-
-  return json.substring(valueIndex, endIndex);
-}
 
 void processJsonCommand(String json, bool allowBlocking) {
   Serial.println("[NET] Processing command: " + json);

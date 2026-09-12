@@ -203,8 +203,9 @@ void updateLEDBlinking();
 void loadParameters();
 void saveParameters();
 float feedforwardSetpoint(float target);
-bool processReceivedData(String data, CommandSource source = COMMAND_DIRECT);
-bool extractJsonUint32(const String &json, const char *key, uint32_t &value);
+bool processReceivedData(const String &data, CommandSource source = COMMAND_DIRECT);
+bool extractJsonUint32(const char *json, const char *key, uint32_t &value);
+inline bool extractJsonUint32(const String &json, const char *key, uint32_t &value);
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
 void setupOTA();
 

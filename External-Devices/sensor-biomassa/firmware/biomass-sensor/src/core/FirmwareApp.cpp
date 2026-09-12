@@ -278,8 +278,13 @@ void     enforceRefreshFloor(bool announce);
 bool     blankIsValid(int itIndex, int pwmIndex);
 bool     findBrightestValidGear(int &itIndex, int &pwmIndex);
 void     findOptimalBlankGear(int &bestItIndex, int &bestPwmIndex);
-int      jsonValueIndex(const String& json, const String& key);
-float    getJsonFloat(String json, String key, bool &found);
+const char* findJsonValueStart(const char* json, const char* key);
+long        getJsonValue(const char* json, const char* key);
+float       getJsonFloat(const char* json, const char* key, bool &found);
+String      getJsonStringValue(const char* json, const char* key);
+long        getJsonValue(const String& json, const String& key);
+float       getJsonFloat(const String& json, const String& key, bool &found);
+String      getJsonStringValue(const String& json, const String& key);
 bool     vemlSetConfig(int itIndex);
 bool     takePulsedReading(int itIndex, int pwmIndex, uint16_t &out,
                            bool holdLed = false);

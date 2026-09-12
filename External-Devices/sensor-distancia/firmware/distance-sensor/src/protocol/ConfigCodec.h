@@ -2,6 +2,13 @@
 
 #include <Arduino.h>
 
-long getJsonValue(String json, String key);
-void processConfigUpdate(String payload);
+const char* findJsonValueStart(const char* json, const char* key);
+long getJsonValue(const char* json, const char* key);
+inline long getJsonValue(const String& json, const char* key) {
+  return getJsonValue(json.c_str(), key);
+}
+void processConfigUpdate(const char* payload);
+inline void processConfigUpdate(const String& payload) {
+  processConfigUpdate(payload.c_str());
+}
 String getConfigAsJson();

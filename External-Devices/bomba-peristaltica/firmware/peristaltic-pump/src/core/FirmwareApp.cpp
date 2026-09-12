@@ -209,10 +209,16 @@ void handleCommand();
 void handleNotFound();
 
 // JSON helpers
-long  getJsonValue(String json, String key);
-float getJsonFloatValue(String json, String key);
-String getJsonStringValue(String json, String key);
-double getJsonDoubleValue(String json, String key);
+const char* findJsonValueStart(const char* json, const char* key);
+long   getJsonValue(const char* json, const char* key);
+float  getJsonFloatValue(const char* json, const char* key);
+double getJsonDoubleValue(const char* json, const char* key);
+String getJsonStringValue(const char* json, const char* key);
+
+inline long   getJsonValue(const String& json, const String& key) { return getJsonValue(json.c_str(), key.c_str()); }
+inline float  getJsonFloatValue(const String& json, const String& key) { return getJsonFloatValue(json.c_str(), key.c_str()); }
+inline double getJsonDoubleValue(const String& json, const String& key) { return getJsonDoubleValue(json.c_str(), key.c_str()); }
+inline String getJsonStringValue(const String& json, const String& key) { return getJsonStringValue(json.c_str(), key.c_str()); }
 
 
 #include "../hardware/PwmRuntime.h"

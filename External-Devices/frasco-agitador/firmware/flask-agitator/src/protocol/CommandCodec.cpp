@@ -1,53 +1,51 @@
 #include "CommandCodec.h"
 
-static bool extractJsonFloat(const String& payload, const char* key, float& outVal) {
-  String searchKey = "\"" + String(key) + "\"";
-  int keyIndex = payload.indexOf(searchKey);
-  if (keyIndex < 0) return false;
-  int colon = payload.indexOf(':', keyIndex + searchKey.length());
-  if (colon < 0) return false;
-  int valueIndex = colon + 1;
-  while (valueIndex < static_cast<int>(payload.length()) && isspace(payload.charAt(valueIndex))) {
-    valueIndex++;
+static const char* findJsonValueStart(const char* json, const char* key) {
+  if (!json || !key) return nullptr;
+  const size_t klen = strlen(key);
+  const char* p = json;
+  while ((p = strstr(p, key)) != nullptr) {
+    if (p > json && *(p - 1) == '"' && *(p + klen) == '"') {
+      const char* afterQuote = p + klen + 1;
+      while (*afterQuote && isspace(static_cast<unsigned char>(*afterQuote))) afterQuote++;
+      if (*afterQuote == ':') {
+        const char* valStart = afterQuote + 1;
+        while (*valStart && isspace(static_cast<unsigned char>(*valStart))) valStart++;
+        return valStart;
+      }
+    }
+    p += klen;
   }
-  if (valueIndex >= static_cast<int>(payload.length())) return false;
+  return nullptr;
+}
+
+static bool extractJsonFloat(const char* payload, const char* key, float& outVal) {
+  const char* valStart = findJsonValueStart(payload, key);
+  if (!valStart || *valStart == '"') return false;
   char* endPtr = nullptr;
-  float val = strtof(payload.c_str() + valueIndex, &endPtr);
-  if (endPtr == payload.c_str() + valueIndex) return false;
+  float val = strtof(valStart, &endPtr);
+  if (endPtr == valStart) return false;
   outVal = val;
   return true;
 }
 
-static bool extractJsonInt(const String& payload, const char* key, int& outVal) {
-  String searchKey = "\"" + String(key) + "\"";
-  int keyIndex = payload.indexOf(searchKey);
-  if (keyIndex < 0) return false;
-  int colon = payload.indexOf(':', keyIndex + searchKey.length());
-  if (colon < 0) return false;
-  int valueIndex = colon + 1;
-  while (valueIndex < static_cast<int>(payload.length()) && isspace(payload.charAt(valueIndex))) {
-    valueIndex++;
-  }
-  if (valueIndex >= static_cast<int>(payload.length())) return false;
+static bool extractJsonInt(const char* payload, const char* key, int& outVal) {
+  const char* valStart = findJsonValueStart(payload, key);
+  if (!valStart || *valStart == '"') return false;
   char* endPtr = nullptr;
-  long val = strtol(payload.c_str() + valueIndex, &endPtr, 10);
-  if (endPtr == payload.c_str() + valueIndex) return false;
+  long val = strtol(valStart, &endPtr, 10);
+  if (endPtr == valStart) return false;
   outVal = static_cast<int>(val);
   return true;
 }
 
-uint32_t extractCmdId(const String& payload) {
-  const int key = payload.indexOf("\"cmd_id\"");
-  if (key < 0) {
-    return 0;
-  }
-  const int colon = payload.indexOf(':', key + 8);
-  if (colon < 0) {
-    return 0;
-  }
-  const char* p = payload.c_str() + colon + 1;
-  while (*p && isspace(*p)) p++;
-  return static_cast<uint32_t>(strtoul(p, nullptr, 10));
+uint32_t extractCmdId(const char* payload) {
+  const char* valStart = findJsonValueStart(payload, "cmd_id");
+  if (!valStart || *valStart == '"') return 0;
+  char* endPtr = nullptr;
+  unsigned long val = strtoul(valStart, &endPtr, 10);
+  if (endPtr == valStart) return 0;
+  return static_cast<uint32_t>(val);
 }
 
 const char* srcName(Source source) {
@@ -63,10 +61,11 @@ const char* srcName(Source source) {
   }
 }
 
-bool parseAndApplyJson(const String& payload, Source source) {
-  int firstBrace = payload.indexOf('{');
-  int lastBrace = payload.lastIndexOf('}');
-  if (firstBrace < 0 || lastBrace <= firstBrace) {
+bool parseAndApplyJson(const char* payload, Source source) {
+  if (!payload) return false;
+  const char* firstBrace = strchr(payload, '{');
+  const char* lastBrace = strrchr(payload, '}');
+  if (!firstBrace || !lastBrace || lastBrace <= firstBrace) {
     return false;
   }
 

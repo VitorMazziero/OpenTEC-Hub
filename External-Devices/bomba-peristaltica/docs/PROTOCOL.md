@@ -1,11 +1,165 @@
-# Protocolo — Bomba peristáltica
+# Protocolo — Bomba Peristáltica (Firmware v3.9)
 
-## Contrato vigente
+Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e vocabulário de comandos da **Bomba Peristáltica** com motor DC e ESP32.
 
-Pull `GET /pumpCommand`; push `GET /pumpData`; entrega confiável por `cmd_id` e `ack_cmd_id`.
+---
 
-Os nomes, tipos, unidades, sentinelas, rotas e semântica de confirmação são compatibilidade de fio. O código atual de `ESP32S3-HUB/ESP32S3-HUB` é a contraparte autoritativa. Alterações sugeridas ficam em `../../docs/HUB_PROTOCOL_IMPROVEMENTS.md` e não estão implementadas.
+## 1. Identidade e Registro
 
-## JSON
+- **Dispositivo**: Bomba Peristáltica (`peristaltic-pump` / `pump`)
+- **Versão do Firmware**: `3.9`
+- **Protocolo de Rede**: HTTP REST / Query params (compatibilidade de fio protocolo 10)
+- **Topologia**: Nó periférico que se anuncia ao Hub e envia telemetria periódica (push) enquanto consome comandos (piggyback ou pull).
 
-Consulte a matriz transversal em `../../docs/HUB_PROTOCOL_IMPROVEMENTS.md`. Um HTTP 200 confirma recebimento da requisição; `ack_cmd_id` confirma a revisão aplicada, não necessariamente a conclusão física de um atuador.
+### Registro Automático (`/nodeHello`)
+Ao conectar-se ao Wi-Fi, o nó anuncia sua presença ao Hub Central:
+```http
+GET /nodeHello?dev=pump&ver=3.9&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
+Host: 192.168.4.1
+```
+- `dev`: `pump`
+- `ver`: `3.9`
+- `mac`: Endereço MAC do ESP32 da bomba.
+
+---
+
+## 2. Telemetria Periódica (`GET /pumpData`)
+
+A cada período de telemetria (~1000 ms), o nó envia seus dados operacionais ao Hub:
+```http
+GET /pumpData?mode=1&pwm=128&speed=45.2&flow=1.265&vol=15.420&v_tgt=15.500&active=1&waiting=0&ack_cmd_id=42&slope=0.0280&intercept=0.0000 HTTP/1.1
+Host: 192.168.4.1
+```
+
+### Campos do Push
+
+| Parâmetro | Tipo | Unidade / Formato | Descrição |
+| :--- | :--- | :--- | :--- |
+| `mode` | `int` | 0 a 5 | Modo de dosagem ativo (ver seção Modos) |
+| `pwm` | `int` | 0 a 255 | Ciclo de trabalho PWM aplicado à ponte H |
+| `speed` | `float` | passos/unid. | Velocidade comandada do motor |
+| `flow` | `float` | mL/min | Vazão instantânea calculada |
+| `vol` | `float` | mL | Volume total cumulativo bombeado |
+| `v_tgt` | `float` | mL | Volume teórico acumulado esperado para o tempo decorrido |
+| `active` | `int` | 0 ou 1 | `1` se em execução ativa (`OP_RUNNING`) |
+| `waiting` | `int` | 0 ou 1 | `1` se aguardando retardo inicial `init_t` (`OP_WAITING`) |
+| `ack_cmd_id` | `uint32` | inteiro | ID do último comando recebido e aplicado com sucesso |
+| `slope` | `float` | (unid/passo) / (mL/min) | Eco do coeficiente angular de calibração (`g_config.pumpSlope`) |
+| `intercept`| `float` | unid/passo | Eco do coeficiente linear de calibração (`g_config.pumpIntercept`)|
+
+---
+
+## 3. Entrega Confiável de Comandos
+
+O Hub responde à requisição `/pumpData` entregando o próximo comando pendente da fila, ou o nó consulta `GET /pumpCommand`:
+
+### Resposta do Hub com Comando
+```json
+{
+  "cmd_id": 42,
+  "command": "start"
+}
+```
+ou ajuste de parâmetros:
+```json
+{
+  "cmd_id": 43,
+  "pumpSlope": 0.0285,
+  "pumpIntercept": 0.0010
+}
+```
+
+Quando o comando é processado com sucesso:
+1. Os parâmetros são atualizados em memória e gravados na NVS (quando marcado `g_configDirty`).
+2. O nó atualiza seu `g_lastAppliedHubCommandId = cmd_id`.
+3. No próximo envio de `/pumpData`, o campo `ack_cmd_id=43` é emitido, confirmando a entrega e aplicação.
+
+---
+
+## 4. Vocabulário de Comandos e Parâmetros
+
+Comandos aceitos tanto via Hub (`/pumpCommand` ou piggyback) quanto localmente via `POST /command`:
+
+### 4.1 Comandos de Controle (`command`)
+
+| Valor de `command` | Descrição |
+| :--- | :--- |
+| `"start"` | Inicia o ciclo de bombeamento (`OP_RUNNING`), reinicia tempo e zera contadores de volume para o novo ciclo. |
+| `"stop"` | Interrompe o bombeamento imediatamente (`OP_IDLE`), define `mode=0` e para o motor. |
+| `"reset_volume"` | Zera o volume cumulativo (`vol = 0.0 mL`) mantendo o modo e estado operacional atuais. |
+| `"save_config"` | Força a gravação imediata da configuração atual na memória flash NVS. |
+| `"load_config"` | Recarrega as configurações salvas da memória flash NVS. |
+| `"print_config"`| Imprime no log serial a configuração completa em formato JSON. |
+| `"clear_nvs"` | Apaga todas as preferências da NVS e reinicia o microcontrolador ESP32. |
+
+### 4.2 Configuração de Modos de Operação (`mode`)
+
+| `mode` | Nome | Equação / Descrição | Parâmetros associados |
+| :---: | :--- | :--- | :--- |
+| `0` | **IDLE / Manual** | Motor parado ou controlado via potenciômetro/USB direto. | - |
+| `1` | **Constante** | Vazão fixa: $Q(t) = \lambda_{\text{const}}$ | `lambda_const` (mL/min) |
+| `2` | **Linear** | Rampa de vazão: $Q(t) = \lambda_{\text{lin}} + \phi_{\text{lin}} \cdot t$ | `lambda_linear`, `phi_linear` |
+| `3` | **Exponencial** | Crescimento exponencial: $Q(t) = \lambda_{\text{exp}} \cdot e^{\phi_{\text{exp}} \cdot t}$ | `lambda_exp`, `phi_exp` |
+| `4` | **Polinomial** | Polinômio de grau até 5: $Q(t) = \sum_{i=0}^5 p_i t^i$ | `p0`, `p1`, `p2`, `p3`, `p4`, `p5` |
+| `5` | **Linear por Partes** | Interpolação linear de múltiplos segmentos $(t_i, q_i)$ | `num_segments`, `t0`..`tN`, `q0`..`qN` |
+
+### 4.3 Temporização de Ciclo
+
+- `init_t` (`float`, minutos): Tempo de espera antes de iniciar o bombeamento efetivo (`OP_WAITING`).
+- `final_t` (`float`, minutos): Duração máxima total do ciclo; ao atingir, transiciona para `OP_IDLE` e para o motor.
+
+### 4.4 Parâmetros de Calibração
+
+- `pumpSlope` (`float`): Coeficiente angular de conversão entre velocidade/passos do motor e vazão em mL/min:
+  $$\text{speed} = \frac{Q - \text{pumpIntercept}}{\text{pumpSlope}}$$
+- `pumpIntercept` (`float`): Coeficiente linear (offset) da curva de calibração da bomba.
+
+### 4.5 Parâmetros de Controle em Malha Fechada (PID)
+
+- `pid_kp` (`float`): Ganho proporcional do compensador de volume.
+- `pid_ki` (`float`): Ganho integral do compensador de volume.
+- `pid_kd` (`float`): Ganho derivativo do compensador de volume.
+
+### 4.6 Opções de Sensores e Hardware
+
+- `disablePot` (`float`, 1.0 ou 0.0): Desativa a leitura do potenciômetro físico da carcaça.
+- `sensorEnable` (`float`, 1.0 ou 0.0): Habilita/desabilita o sensor de gotas/vazão óptico.
+- `sensorBypass` (`float`, 1.0 ou 0.0): Modo bypass para calibração sem interrupção de sensor.
+- `sensorButtonOverride` (`float`, 1.0 ou 0.0): Permite sobreposição do botão físico.
+
+---
+
+## 5. Endpoints HTTP Locais do Nó
+
+O nó executa um servidor Web assíncrono na porta 80:
+
+| Método | Rota | Descrição |
+| :--- | :--- | :--- |
+| `GET` | `/` | Interface Web HTML local para visualização de status e controle |
+| `GET` | `/readData` | Retorna o JSON mais recente de telemetria da bomba |
+| `GET` | `/diag` | Informações completas de diagnóstico (JSON) |
+| `POST`| `/command` | Recebe payload JSON de comando |
+| `GET` | `/update` | Página de atualização OTA de firmware via browser |
+| `POST`| `/update` | Endpoint de upload do binário compilado (`peristaltic-pump.ino.bin`) |
+
+### Resposta de `GET /diag`
+```json
+{
+  "device": "peristaltic-pump",
+  "version": "3.9",
+  "uptime_s": 3600,
+  "free_heap": 184500,
+  "wifi_status": 3,
+  "ssid": "TECNAL-WIFI",
+  "rssi": -58,
+  "ip": "192.168.4.15",
+  "mac": "24:6F:28:XX:XX:XX",
+  "hub_fail_streak": 0,
+  "ota": false,
+  "op_state": 1,
+  "mode": 1,
+  "flow": 1.250,
+  "vol": 12.300
+}
+```
+

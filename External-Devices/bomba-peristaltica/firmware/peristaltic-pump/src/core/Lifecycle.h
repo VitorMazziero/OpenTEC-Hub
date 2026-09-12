@@ -1,7 +1,7 @@
 void firmwareSetup() {
     Serial.begin(115200);
     delay(100);
-    Serial.println("--- Peristaltic Pump Controller v3.8 (Robust Recovery) ---");
+    Serial.println("--- Peristaltic Pump Controller v3.9 (Robust Recovery) ---");
 
     g_prefs.begin(NVS_NAMESPACE, false);
     loadConfig();

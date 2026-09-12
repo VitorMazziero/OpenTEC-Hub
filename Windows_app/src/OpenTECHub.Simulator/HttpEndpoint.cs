@@ -10,7 +10,7 @@ namespace OpenTECHub.Simulator;
 /// <remarks>
 /// <para>
 /// The app-facing surface of the real device is <c>/ping</c>, <c>/readData</c>,
-/// <c>/command</c> and, from Hub 10.0.1, the diagnostic <c>/nodes</c>. Everything else
+/// <c>/command</c>, <c>/nodes</c> and, from Hub 10.2, cached <c>/nodeDiag</c>. Everything else
 /// answers 404 <c>Not found</c>, confirmed by the hardware validation run. (The Hub has
 /// further routes for the nodes themselves - <c>/nodeHello</c>, <c>/pumpData</c>… - which
 /// the app never calls and the simulator does not serve.)
@@ -167,6 +167,10 @@ public sealed class HttpEndpoint(DeviceModel model, int port, Action<string> log
                 HandleNodes(context);
                 break;
 
+            case "/nodeDiag":
+                HandleNodeDiag(context);
+                break;
+
             default:
                 Respond(context, 404, "Not found");
                 break;
@@ -202,6 +206,46 @@ public sealed class HttpEndpoint(DeviceModel model, int port, Action<string> log
         }
 
         Respond(context, 200, string.Create(CultureInfo.InvariantCulture, $"{{\"hub_time_ms\":{now},\"nodes\":[{string.Join(",", rows)}]}}"));
+    }
+
+    private void HandleNodeDiag(HttpListenerContext context)
+    {
+        if (!model.PublishesNodeIdentity)
+        {
+            Respond(context, 404, "Not found");
+            return;
+        }
+
+        var only = context.Request.QueryString["dev"];
+        var now = (long)(model.UptimeSeconds * 1000.0);
+        var rows = new List<string>();
+        foreach (var (device, _) in DeviceModel.RegistryNodes)
+        {
+            if (!string.IsNullOrEmpty(only) && only != device)
+            {
+                continue;
+            }
+            var registered = model.NodeRegistered(device);
+            var diag = registered ? SimulatorDiag(device) : "null";
+            rows.Add($"{{\"dev\":\"{device}\",\"code\":{(registered ? 200 : 0)},\"age_ms\":{(registered ? 400 : 999999)},\"diag\":{diag}}}");
+        }
+        Respond(context, 200, string.Create(CultureInfo.InvariantCulture, $"{{\"hub_time_ms\":{now},\"nodes\":[{string.Join(",", rows)}]}}"));
+    }
+
+    private string SimulatorDiag(string device)
+    {
+        var common = string.Create(CultureInfo.InvariantCulture,
+            $"\"uptime_s\":{model.UptimeSeconds:F0},\"free_heap\":210000,\"rssi\":-58,\"hub_fail_streak\":0,\"ota\":false");
+        var extra = device switch
+        {
+            "distance" => string.Create(CultureInfo.InvariantCulture, $"\"distance\":118,\"sample_time\":{model.UptimeSeconds:F1},\"offset_mm\":{model.DistanceOffsetMm:F2}"),
+            "agitator" => string.Create(CultureInfo.InvariantCulture, $"\"duty\":{model.AgitatorPercent:F1},\"dir\":{(model.AgitatorClockwise ? 1 : 0)},\"pot\":{(model.AgitatorPotActive ? "true" : "false")}"),
+            "pump" => string.Create(CultureInfo.InvariantCulture, $"\"flow\":1.250,\"vol\":{model.PumpVolume:F3},\"mode\":{model.PumpMode}"),
+            "flowmeter" => string.Create(CultureInfo.InvariantCulture, $"\"flow_rate\":{model.ReadFlow():F4},\"flow_sp\":{model.FlowSetpoint:F4}"),
+            "biomass" => "\"absorbance\":0.421,\"raw\":24500,\"state\":1",
+            _ => "",
+        };
+        return $"{{{common},{extra}}}";
     }
 
     private void HandleReadData(HttpListenerContext context)

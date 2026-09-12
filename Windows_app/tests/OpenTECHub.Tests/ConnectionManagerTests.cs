@@ -593,6 +593,35 @@ public class ConnectionManagerTests
     }
 
     [Fact]
+    public async Task Serial_node_diagnostic_has_its_own_event_and_is_not_telemetry_or_failure()
+    {
+        var fake = new FakeTransport();
+        var diagnostics = new List<string>();
+        var telemetry = 0;
+        await using var manager = new ConnectionManager(
+            new ConnectionOptions
+            {
+                PollInterval = TimeSpan.FromMilliseconds(20),
+                TelemetrySilenceTimeout = TimeSpan.FromSeconds(30),
+                LivenessProbeAfterSilence = TimeSpan.FromSeconds(30),
+                BackupEnabled = false,
+            },
+            transportFactory: _ => fake);
+
+        manager.NodeDiagReceived += json => { lock (diagnostics) { diagnostics.Add(json); } };
+        manager.TelemetryReceived += _ => Interlocked.Increment(ref telemetry);
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+
+        fake.Emit("""{"NodeDiag":{"dev":"pump","code":200,"age_ms":400,"diag":{"rssi":-61}}}""");
+
+        Assert.True(await WaitForAsync(() => { lock (diagnostics) { return diagnostics.Count == 1; } }));
+        Assert.Equal(0, telemetry);
+        Assert.Equal(0, manager.Diagnostics.ParseFailures);
+        Assert.Equal(ConnectionState.Connected, manager.State);
+    }
+
+    [Fact]
     public async Task Busy_port_reports_friendly_error_message()
     {
         var fake = new FakeTransport

@@ -1,7 +1,7 @@
 # Pontos de Melhoria e Observações — Exposição de Configurações dos Nós Externos
 
 **Data:** 2026-09-12  
-**Contexto:** Levantamento de oportunidades arquiteturais, resiliência e boas práticas identificadas durante a execução das Etapas 1 e 2 do plano `2026-09-12-plano-exposicao-config-nos-externos.md` (Hub `10.2.0-dev` e nós externos).
+**Contexto:** Levantamento cumulativo de oportunidades arquiteturais, resiliência e boas práticas identificadas durante a execução das Etapas 1 a 8 do plano `2026-09-12-plano-exposicao-config-nos-externos.md` (Hub `10.2.0-dev`, nós externos e aplicativo Windows).
 
 ---
 
@@ -126,7 +126,62 @@
 
 ---
 
-## 7. Matriz de Prioridades e Rastreamento
+## 7. Aplicativo Windows — Bomba Externa e Aquisição da Biomassa (Etapa 7)
+
+### 7.1 Assistente gravimétrico multiponto para a bomba peristáltica
+
+- **Entregue nesta etapa:** A aba **Calibrações › Bomba Externa** permite editar `slope` e `intercept`, visualizar $Q = slope \cdot S + intercept$ em $S = 250, 500, 1000$, enviar o par pelo contrato atual e somente persistir/gravar o recibo quando os dois valores forem ecoados pelo nó. O recibo inclui pedido, eco aplicado, firmware do Hub e identidade da bomba. No firmware 3.9, $S$ é a unidade interna 0–1000 e é convertida em duty PWM 155–1023; usar diretamente PWM 64/128/255, como no rascunho original da Etapa 7, produziria uma calibração incompatível e foi corrigido.
+- **Referência legada auditada:** A pasta `Windows_app/_old/_Windows App/v.6` contém `ui/pump_mode_window.py`, uma janela modal de configuração e simulação dos perfis da bomba, mas não contém um procedimento gravimétrico multiponto nem cálculo de calibração da bomba. Foram aproveitados apenas os princípios de fluxo isolado, prévia antes do envio e persistência explícita; seus payloads v3.7 não são autoridade para o contrato atual.
+- **Melhoria futura — janela dedicada:** Implementar um assistente modal com etapas e possibilidade de retomar/cancelar: identificação da bomba, tubo e fluido; densidade e temperatura; seleção de PWMs; tara; acionamento cronometrado; massa inicial/final; repetições; ajuste linear; revisão; aplicação.
+- **Aquisição sugerida:** Para cada comando de velocidade interna $S$, registrar também o duty PWM ecoado, duração, massa coletada e densidade usada; calcular $V = \Delta m / \rho$ e $Q = V / \Delta t$; exigir ao menos três níveis de $S$ e permitir réplicas. Nunca remover um ponto automaticamente: mostrar resíduos e exigir decisão explícita do operador.
+- **Qualidade do ajuste:** Exibir $R^2$, resíduos, intervalo de PWM coberto e alerta de extrapolação. Impedir aplicação com `slope <= 0`, tempos/massas não positivos ou matriz insuficiente; um limiar mínimo de $R^2$ deve ser definido por validação de bancada, não presumido no software.
+- **Segurança e rastreabilidade:** O assistente deve parar a bomba ao cancelar/fechar, respeitar a arbitragem de `ActuatorId.ExternalPump`, confirmar a parada por telemetria e salvar os pontos brutos, unidade da balança, densidade, temperatura, operador, identificação do tubo, versões de firmware e coeficientes pedidos/aplicados no recibo.
+- **Validação pendente:** O fluxo atual e o futuro assistente não tornam a calibração fisicamente validada. É necessário ensaio de bancada com balança e vidraria rastreáveis, repetibilidade por PWM e verificação independente de vazão após aplicar a curva.
+
+### 7.2 Semântica real dos parâmetros ópticos da biomassa
+
+- **Correção aplicada:** `BiomassIT` é ecoado em milissegundos, porém `set_it` recebe um código discreto 0–5. A UI mantém 25/50/100/200/400/800 ms para o operador e converte para 0/1/2/3/4/5 no fio. A marcha `gear` é o índice óptico combinado 0–31, e não um ganho TIA 1–7. Como `set_it` e `set_pwm` modificam os slots atualmente selecionados, a fila envia primeiro `set_gear`, depois IT e PWM; a ordem inversa alteraria outra posição da tabela.
+- **Efeito operacional:** Alterar a tabela de IT ou PWM invalida o branco no firmware v11. A UI avisa que a captura de branco deve ser repetida antes de medir.
+- **Período da sonda:** O firmware aceita até 3 600 000 ms e eleva solicitações abaixo do piso térmico calculado. O app expõe essa faixa e inicia em 25 000 ms, em vez do valor de 1 000 ms do rascunho, que seria automaticamente corrigido pelo nó na configuração padrão.
+- **Melhoria futura:** Substituir os campos livres de IT e Gear por seletores que mostrem simultaneamente tempo, índice de PWM e PWM efetivo, evitando que o operador precise calcular `gear = IT_idx × 8 + PWM_idx`.
+
+### 7.3 Confirmações e temporização
+
+- **Entregue nesta etapa:** O zeramento de volume é não-otimista e só é declarado concluído após `PumpVol < 0,05 mL`; a calibração só gera recibo após eco compatível; a aquisição óptica envia um comando por vez e permite cancelamento.
+- **Melhoria futura:** Centralizar os timeouts de comandos externos num serviço de relógio/ACK acionado mesmo quando a telemetria cessa por completo. Hoje os avisos de 5 s (zeramento), 10 s (biomassa) e 15 s (calibração) são avaliados na chegada de um quadro subsequente; uma queda total do link é indicada pelo estado offline, mas não produz o texto específico de timeout até haver nova telemetria.
+
+---
+
+## 8. Hub e aplicativo — Saúde dos nós (Etapa 8)
+
+### 8.1 Proxy assíncrono e contrato multimeio
+
+- **Entregue no Hub:** Uma tarefa FreeRTOS independente consulta `GET /diag` dos cinco nós registrados a cada 30 s, com timeout de 500 ms, intervalo de 200 ms entre placas e corpo limitado a 511 bytes. Os handlers `/nodeDiag` apenas serializam o cache sob mutex; nenhuma chamada HTTP externa ocorre dentro de callback do servidor.
+- **Entregue por USB:** `{"nodeDiag":"all"}` produz uma linha `{"NodeDiag":{...}}` por nó. Essa linha possui resultado próprio no parser do app: não vira telemetria, log ou falha consecutiva de parse e não toma posse de nenhum atuador no árbitro.
+- **Entregue no app:** A tabela **Nós na rede do Hub** recebe RSSI, heap livre, uptime, falhas consecutivas com o Hub, estado OTA e métricas específicas. Em Wi-Fi, `/nodes` e `/nodeDiag` são consultados juntos a cada 10 s; em USB, a solicitação serial ocorre a cada 30 s enquanto a seção Conexão está visível.
+- **Semântica operacional:** `code = 0` significa que o Hub ainda nunca consultou aquele nó; código negativo representa erro do cliente HTTP do ESP32; outros códigos preservam a resposta HTTP. `age_ms` é a idade da tentativa armazenada no cache, não substitui a idade da última telemetria da coluna **Visto há**.
+
+### 8.2 Medição física de heap ainda necessária
+
+- **Instrumentação aplicada:** O Hub registra na serial `heap antes` e `heap depois` imediatamente ao criar a tarefa `NodeDiag`, permitindo preencher evidência reprodutível sem estimativa manual.
+- **Bloqueio de bancada:** Não havia Hub conectado nesta execução. Portanto, o critério de mais de 150 kB livres depois da criação da tarefa permanece **não validado fisicamente** e nenhum valor sintético foi registrado como medição.
+- **Próxima ação:** Após gravar o Hub 10.2, capturar o banner de boot e uma varredura completa com os cinco nós em `docs/evidence/hub-node-diag-heap-<data>.md`; registrar heap antes/depois, mínimo observado por 30 min, versões/placas e resultado do limite de 150 kB.
+
+### 8.3 Truncamento, validade JSON e evolução do esquema
+
+- **Situação atual:** Todos os `/diag` atuais cabem em 512 bytes. O Hub sempre termina o buffer em NUL e só incorpora o corpo quando ele ainda possui delimitadores `{...}`; um corpo futuro truncado no meio não corrompe o documento externo, mas aparece como `diag: null` mantendo o código HTTP.
+- **Melhoria recomendada:** Acrescentar `truncated: true` e `body_bytes` ao cache se algum firmware ampliar `/diag`. Isso separa explicitamente “HTTP 200 sem métricas” de “resposta maior que o contrato” e permite que o app dê uma orientação precisa de atualização.
+- **Compatibilidade:** As métricas comuns são tipadas; campos desconhecidos ficam no dicionário `Extra`. Novos campos de um nó podem ser exibidos progressivamente sem alterar o quadro agregado nem quebrar versões anteriores do app.
+
+### 8.4 Segurança e carga de diagnóstico
+
+- **Superfície exposta:** `/nodeDiag` replica IP, MAC, SSID e estado operacional que já existem no `/diag` local. Hoje a rede do Hub é um SoftAP protegido, mas a rota não possui autenticação própria.
+- **Melhoria futura:** Se o Hub passar a operar numa LAN compartilhada, filtrar `ssid`/`mac` por padrão e exigir autenticação para diagnóstico detalhado. Não reutilizar o endpoint para comandos ou OTA.
+- **Monitoramento de carga:** Confirmar em soak de bancada que a varredura de 30 s não aumenta perdas de push, jitter do quadro agregado ou `hub_fail_streak`. Se houver contenção no rádio, elevar o intervalo ou escalonar por atividade; não mover as consultas de volta para o handler HTTP.
+
+---
+
+## 9. Matriz de Prioridades e Rastreamento
 
 | Item | Componente | Impacto | Prioridade | Tratamento |
 |---|---|---|---|---|
@@ -144,6 +199,17 @@
 | Formatação com precisão 5 casas decimais para `flowFfOffset` | App UI | Exibição / Calibração | Média | **Aplicado na Etapa 6** |
 | Arbitragem de comandos de sintonia via `ActuatorId.Aeration` | App Árbitro | Segurança de Processo | Alta | **Aplicado na Etapa 6** |
 | Confirmação destrutiva no reset de NVS do sensor de distância | App UI | Prevenção de Falha | Alta | **Aplicado na Etapa 6** |
+| Zeramento não-otimista do volume da bomba | App / Nó Bomba | Integridade operacional | Alta | **Aplicado na Etapa 7; validação física pendente** |
+| Calibração linear manual com recibo após eco | App / Nó Bomba | Rastreabilidade | Alta | **Aplicado na Etapa 7; assistente gravimétrico diferido** |
+| Assistente gravimétrico multiponto da bomba | App / Bancada | Calibração física | Alta | **Diferido; especificado em §7.1** |
+| Conversão IT ms → código e Gear 0–31 | App / Nó Biomassa | Contrato de fio | Alta | **Corrigido na Etapa 7** |
+| Fila cancelável de aquisição da biomassa | App / Hub / Nó | Confiabilidade | Alta | **Aplicado na Etapa 7** |
+| Serviço central de timeout independente de telemetria | App | Diagnóstico | Média | **Diferido; especificado em §7.3** |
+| Proxy `/nodeDiag` fora do handler HTTP | Hub | Responsividade / Rede | Alta | **Aplicado na Etapa 8; soak físico pendente** |
+| Linha serial `NodeDiag` fora da telemetria | Hub / App Protocol | Integridade de Dados | Alta | **Aplicado na Etapa 8** |
+| Saúde dos cinco nós em Wi-Fi e USB | App UI | Diagnóstico | Alta | **Aplicado na Etapa 8; validação física pendente** |
+| Medição de heap do Hub após tarefa NodeDiag | Hub / Bancada | Memória / Estabilidade | Alta | **Instrumentada; pendente de bancada conforme §8.2** |
+| Sinalizador explícito de corpo `/diag` truncado | Hub / App | Diagnóstico | Média | **Diferido; especificado em §8.3** |
+| Autenticação/filtragem da rota `/nodeDiag` em LAN compartilhada | Hub | Segurança | Média | **Condicional; especificado em §8.4** |
 | Medição Content-Length `/readData` | Hub / Infra | Confiabilidade | Média | Executar na bancada da Etapa 4/7 |
 | FreeRTOS multi-core no sensor | Nó Distância | Desempenho | Baixa | Diferido no ROADMAP |
-

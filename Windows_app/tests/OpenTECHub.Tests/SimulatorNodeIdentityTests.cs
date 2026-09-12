@@ -120,6 +120,31 @@ public class SimulatorNodeIdentityTests
     }
 
     [Fact]
+    public async Task The_node_diag_route_matches_hub_10_2_and_filters_by_device()
+    {
+        var model = Model();
+        var port = FreePort();
+        using var endpoint = new HttpEndpoint(model, port, _ => { });
+        endpoint.Start(CancellationToken.None);
+        using var client = new HubNodeDiagClient();
+
+        var diagnostics = await client.FetchAsync($"127.0.0.1:{port}");
+
+        Assert.NotNull(diagnostics);
+        Assert.Equal(5, diagnostics!.Nodes.Count);
+        var pump = diagnostics.Find("pump")!;
+        Assert.Equal(200, pump.Code);
+        Assert.Equal(-58, pump.Rssi);
+        Assert.Equal(210000, pump.FreeHeap);
+        Assert.Contains("flow", pump.Extra.Keys);
+        Assert.Equal(0, diagnostics.Find("biomass")!.Code);
+
+        using var http = new HttpClient();
+        var one = await http.GetStringAsync($"http://127.0.0.1:{port}/nodeDiag?dev=pump");
+        Assert.Single(HubNodeDiagClient.Parse(one)!.Nodes);
+    }
+
+    [Fact]
     public async Task A_legacy_hub_has_no_nodes_route()
     {
         var model = Model();
@@ -130,6 +155,9 @@ public class SimulatorNodeIdentityTests
         using var client = new HubNodeDirectoryClient();
 
         Assert.Null(await client.FetchAsync($"127.0.0.1:{port}"));
+
+        using var diagClient = new HubNodeDiagClient();
+        Assert.Null(await diagClient.FetchAsync($"127.0.0.1:{port}"));
     }
 
     private static int FreePort()

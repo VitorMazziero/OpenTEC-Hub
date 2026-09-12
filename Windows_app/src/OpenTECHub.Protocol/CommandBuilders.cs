@@ -802,4 +802,16 @@ public static class CommandBuilders
         }
         return list;
     }
+
+    /// <summary>Requests cached health for one external node, or all five over USB.</summary>
+    public static OpenTECCommand NodeDiag(string device)
+    {
+        var valid = device == "all" || device is "distance" or "agitator" or "pump" or "flowmeter" or "biomass";
+        if (!valid)
+        {
+            throw new ArgumentOutOfRangeException(nameof(device), device, "Nó externo desconhecido.");
+        }
+
+        return OpenTECCommand.Create().Set(CommandKeys.NodeDiag, device);
+    }
 }

@@ -128,6 +128,10 @@ public sealed class Wp7Tests
             device,
             dialogs);
 
+        // Opening Configuracoes on USB requests node health once ({"nodeDiag":"all"});
+        // that is a read-only system request, not a destructive command.
+        device.Sent.Clear();
+
         vm.ResetDeviceVariablesCommand.Execute(null);
 
         Assert.Empty(device.Sent);

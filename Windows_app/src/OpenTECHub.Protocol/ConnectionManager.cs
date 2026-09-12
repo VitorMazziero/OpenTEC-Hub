@@ -227,6 +227,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     public event Action<SensorSnapshot>? TelemetryReceived;
     public event Action<string>? RawTelemetryReceived;
     public event Action<string>? DeviceLogReceived;
+    public event Action<string>? NodeDiagReceived;
 
     /// <summary>
     /// Raised only after a command frame was successfully written, carrying the exact
@@ -946,6 +947,11 @@ public sealed class ConnectionManager : IAsyncDisposable
                     _lastCommandSentTimestamp = null;
                     PublishCorrelatedRoundTrip(cmdSentTs);
                 }
+                break;
+
+            case ParseOutcome.NodeDiag:
+                _parseFailureStreak = 0;
+                NodeDiagReceived?.Invoke(line);
                 break;
 
             case ParseOutcome.Malformed:

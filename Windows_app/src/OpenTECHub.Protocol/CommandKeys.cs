@@ -204,6 +204,9 @@ public static class CommandKeys
     public const string BiomassGear = "biomassGear";
     public const string BiomassEma = "biomassEma";
     public const string BiomassProbePeriodMs = "biomassProbePeriodMs";
+
+    /// <summary>Requests one cached node diagnostic or <c>all</c>; system/read-only command.</summary>
+    public const string NodeDiag = "nodeDiag";
 }
 
 /// <summary>

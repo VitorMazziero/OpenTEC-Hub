@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenTECHub.Protocol;
 
 namespace OpenTECHub.Services.Communication;
@@ -99,4 +100,68 @@ public static class NodeFirmwareCatalog
         Biomass => ViewModels.DeviceNames.Absorbance,
         _ => device,
     };
+
+    /// <summary>Formats the device-specific tail of a proxied <c>/diag</c> response.</summary>
+    public static string DescribeDiag(string device, IReadOnlyDictionary<string, string> extra)
+    {
+        var parts = new List<string>();
+        switch (device)
+        {
+            case Distance:
+                AddNumber(parts, extra, "distance", "distância", "mm", 0);
+                AddNumber(parts, extra, "sample_time", "tempo da amostra", "s", 1);
+                AddNumber(parts, extra, "offset_mm", "offset", "mm", 1);
+                break;
+            case Agitator:
+                AddNumber(parts, extra, "duty", "comando", "%", 1);
+                AddText(parts, extra, "dir", "direção");
+                AddBool(parts, extra, "pot", "potenciômetro");
+                break;
+            case Pump:
+                AddNumber(parts, extra, "flow", "vazão", "mL/min", 3);
+                AddNumber(parts, extra, "vol", "volume", "mL", 2);
+                AddText(parts, extra, "mode", "modo");
+                break;
+            case Flowmeter:
+                AddNumber(parts, extra, "flow_rate", "vazão", "L/min", 3);
+                AddNumber(parts, extra, "flow_sp", "setpoint", "L/min", 3);
+                break;
+            case Biomass:
+                AddNumber(parts, extra, "absorbance", "absorbância", "", 3);
+                AddText(parts, extra, "raw", "raw");
+                AddText(parts, extra, "state", "estado");
+                break;
+        }
+
+        if (parts.Count == 0)
+        {
+            parts.AddRange(extra.Take(3).Select(item => $"{item.Key} {item.Value}"));
+        }
+        return parts.Count == 0 ? "Sem métricas específicas" : string.Join(" · ", parts);
+    }
+
+    private static void AddNumber(List<string> parts, IReadOnlyDictionary<string, string> extra, string key, string label, string unit, int decimals)
+    {
+        if (extra.TryGetValue(key, out var raw) && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        {
+            var suffix = string.IsNullOrEmpty(unit) ? "" : " " + unit;
+            parts.Add($"{label} {value.ToString($"F{decimals}", CultureInfo.CurrentCulture)}{suffix}");
+        }
+    }
+
+    private static void AddText(List<string> parts, IReadOnlyDictionary<string, string> extra, string key, string label)
+    {
+        if (extra.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            parts.Add($"{label} {value}");
+        }
+    }
+
+    private static void AddBool(List<string> parts, IReadOnlyDictionary<string, string> extra, string key, string label)
+    {
+        if (extra.TryGetValue(key, out var value) && bool.TryParse(value, out var enabled))
+        {
+            parts.Add($"{label} {(enabled ? "ativo" : "inativo")}");
+        }
+    }
 }

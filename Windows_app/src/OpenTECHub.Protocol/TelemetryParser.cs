@@ -87,6 +87,9 @@ public enum ParseOutcome
     /// </remarks>
     CommandAck,
 
+    /// <summary>A cached external-node diagnostic envelope. Not telemetry and not a parse failure.</summary>
+    NodeDiag,
+
     /// <summary>The line was not valid JSON.</summary>
     Malformed,
 
@@ -199,6 +202,11 @@ public sealed class TelemetryParser
         if (root.ValueKind != JsonValueKind.Object)
         {
             return ParseOutcome.Malformed;
+        }
+
+        if (root.TryGetProperty("NodeDiag", out _))
+        {
+            return ParseOutcome.NodeDiag;
         }
 
         // One clock read per frame: every presence window must age against the same

@@ -39,6 +39,13 @@ public interface IDeviceService
     /// <summary>Raised on the UI thread for device log lines.</summary>
     event Action<string>? DeviceLogReceived;
 
+    /// <summary>Cached node-health response received over the Hub USB serial stream.</summary>
+    event Action<string>? NodeDiagReceived
+    {
+        add { }
+        remove { }
+    }
+
     /// <summary>Exact merged JSON successfully written to the active transport.</summary>
     event Action<string>? CommandSent;
 
@@ -71,6 +78,9 @@ public interface IDeviceService
     /// right for any transport that is not the real link.
     /// </remarks>
     void SendAfterCurrentFrame(OpenTECCommand command) => Send(command);
+
+    /// <summary>Requests diagnostics without claiming ownership of any actuator.</summary>
+    void RequestNodeDiag(string device) => Send(CommandBuilders.NodeDiag(device));
 
     /// <summary>
     /// Zeroes the operator session clock: stores a local display/log offset without ever
@@ -111,6 +121,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         _manager.TelemetryReceived += OnTelemetryReceived;
         _manager.RawTelemetryReceived += OnRawTelemetryReceived;
         _manager.DeviceLogReceived += OnDeviceLogReceived;
+        _manager.NodeDiagReceived += OnNodeDiagReceived;
         _manager.CommandSent += OnCommandSent;
         _manager.SessionTimeZeroed += OnSessionTimeZeroed;
 
@@ -136,6 +147,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     public event Action<string>? RawTelemetryReceived;
 
     public event Action<string>? DeviceLogReceived;
+
+    public event Action<string>? NodeDiagReceived;
 
     public event Action<string>? CommandSent;
 
@@ -232,6 +245,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     public void SendAfterCurrentFrame(OpenTECCommand command)
         => _manager.SendCommandAfterCurrentFrame(command);
 
+    public void RequestNodeDiag(string device) => _manager.SendCommand(CommandBuilders.NodeDiag(device));
+
     public void ZeroSessionTime() => _manager.ZeroSessionTime();
 
     public Task<string?> DiscoverUsbPortAsync(CancellationToken cancellationToken = default)
@@ -270,6 +285,9 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
     }, DispatcherPriority.Background);
 
     private void OnDeviceLogReceived(string line) => QueueLine(isRaw: false, line);
+
+    private void OnNodeDiagReceived(string json)
+        => ToUi(() => NodeDiagReceived?.Invoke(json), DispatcherPriority.Background);
 
     private void OnRawTelemetryReceived(string line) => QueueLine(isRaw: true, line);
 
@@ -332,6 +350,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         _manager.StateChanged -= OnStateChanged;
         _manager.TelemetryReceived -= OnTelemetryReceived;
         _manager.DeviceLogReceived -= OnDeviceLogReceived;
+        _manager.NodeDiagReceived -= OnNodeDiagReceived;
         _manager.CommandSent -= OnCommandSent;
         _manager.SessionTimeZeroed -= OnSessionTimeZeroed;
 

@@ -49,6 +49,44 @@ public sealed partial class HubNodeRowViewModel(string device) : ObservableObjec
 
     public string? FirmwareAdvisoryText => NodeFirmwareCatalog.Advisory(Device, Identity.FirmwareVersion);
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RssiText))]
+    [NotifyPropertyChangedFor(nameof(HeapText))]
+    [NotifyPropertyChangedFor(nameof(UptimeText))]
+    [NotifyPropertyChangedFor(nameof(HubFailuresText))]
+    [NotifyPropertyChangedFor(nameof(HasHubFailureWarning))]
+    [NotifyPropertyChangedFor(nameof(OtaText))]
+    [NotifyPropertyChangedFor(nameof(DiagnosticText))]
+    public partial HubNodeDiag? Diagnostic { get; set; }
+
+    public string RssiText => Diagnostic?.Rssi is { } value ? $"{value} dBm" : "—";
+
+    public string HeapText => Diagnostic?.FreeHeap is { } value
+        ? $"{(value / 1024.0).ToString("F0", CultureInfo.CurrentCulture)} KiB"
+        : "—";
+
+    public string UptimeText => Diagnostic?.UptimeS is { } value ? FormatUptime(value) : "—";
+
+    public string HubFailuresText => Diagnostic?.HubFailStreak?.ToString(CultureInfo.CurrentCulture) ?? "—";
+
+    public bool HasHubFailureWarning => Diagnostic?.HubFailStreak >= 8;
+
+    public string OtaText => Diagnostic?.Ota switch
+    {
+        true => "Em andamento",
+        false => "Livre",
+        null => "—",
+    };
+
+    public string DiagnosticText => Diagnostic switch
+    {
+        null => "—",
+        { Code: 0 } => "Nunca consultado pelo Hub",
+        { Code: not 200 } d => $"HTTP {d.Code}",
+        { Extra.Count: 0 } => "Sem métricas específicas",
+        { } d => NodeFirmwareCatalog.DescribeDiag(Device, d.Extra),
+    };
+
     public string StateText => Online switch
     {
         true => "Online",
@@ -84,6 +122,18 @@ public sealed partial class HubNodeRowViewModel(string device) : ObservableObjec
                 ? $"{age.TotalMinutes.ToString("F0", CultureInfo.CurrentCulture)} min"
                 : $"{age.TotalHours.ToString("F1", CultureInfo.CurrentCulture)} h";
     }
+
+    private static string FormatUptime(long seconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return span.TotalDays >= 1
+            ? $"{span.TotalDays.ToString("F1", CultureInfo.CurrentCulture)} d"
+            : span.TotalHours >= 1
+                ? $"{span.TotalHours.ToString("F1", CultureInfo.CurrentCulture)} h"
+                : span.TotalMinutes >= 1
+                    ? $"{span.TotalMinutes.ToString("F0", CultureInfo.CurrentCulture)} min"
+                    : $"{span.TotalSeconds.ToString("F0", CultureInfo.CurrentCulture)} s";
+    }
 }
 
 /// <summary>
@@ -110,14 +160,18 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
 
     private readonly IDeviceService _device;
     private readonly Func<string, CancellationToken, Task<HubNodeDirectory?>> _fetchDirectory;
+    private readonly Func<string, CancellationToken, Task<HubNodeDiagDirectory?>> _fetchDiagnostics;
     private readonly TimeProvider _time;
-    private readonly IDisposable? _clientLifetime;
+    private readonly IDisposable? _directoryClientLifetime;
+    private readonly IDisposable? _diagnosticsClientLifetime;
     private CancellationTokenSource? _polling;
+    private TransportMedium? _pollingMedium;
 
     public HubNodesViewModel(IDeviceService device, TimeProvider? time = null)
-        : this(device, CreateClient(out var client), time)
+        : this(device, CreateDirectoryClient(out var directoryClient), CreateDiagnosticsClient(out var diagnosticsClient), time)
     {
-        _clientLifetime = client;
+        _directoryClientLifetime = directoryClient;
+        _diagnosticsClientLifetime = diagnosticsClient;
     }
 
     /// <param name="fetchDirectory">The <c>/nodes</c> reader; injectable so tests need no socket.</param>
@@ -125,15 +179,26 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
         IDeviceService device,
         Func<string, CancellationToken, Task<HubNodeDirectory?>> fetchDirectory,
         TimeProvider? time = null)
+        : this(device, fetchDirectory, (_, _) => Task.FromResult<HubNodeDiagDirectory?>(null), time)
+    {
+    }
+
+    public HubNodesViewModel(
+        IDeviceService device,
+        Func<string, CancellationToken, Task<HubNodeDirectory?>> fetchDirectory,
+        Func<string, CancellationToken, Task<HubNodeDiagDirectory?>> fetchDiagnostics,
+        TimeProvider? time = null)
     {
         _device = device;
         _fetchDirectory = fetchDirectory;
+        _fetchDiagnostics = fetchDiagnostics;
         _time = time ?? TimeProvider.System;
         Nodes = new ObservableCollection<HubNodeRowViewModel>(
             NodeFirmwareCatalog.Devices.Select(d => new HubNodeRowViewModel(d)));
 
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnStateChanged;
+        _device.NodeDiagReceived += OnNodeDiagReceived;
         ApplyLink(_device.State, _device.Medium, _device.Endpoint);
         if (_device.Latest is { } latest)
         {
@@ -141,9 +206,16 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static Func<string, CancellationToken, Task<HubNodeDirectory?>> CreateClient(out HubNodeDirectoryClient client)
+    private static Func<string, CancellationToken, Task<HubNodeDirectory?>> CreateDirectoryClient(out HubNodeDirectoryClient client)
     {
         var c = new HubNodeDirectoryClient();
+        client = c;
+        return c.FetchAsync;
+    }
+
+    private static Func<string, CancellationToken, Task<HubNodeDiagDirectory?>> CreateDiagnosticsClient(out HubNodeDiagClient client)
+    {
+        var c = new HubNodeDiagClient();
         client = c;
         return c.FetchAsync;
     }
@@ -154,8 +226,15 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
     /// <summary>The telemetry link is Wi-Fi, so <c>/nodes</c> is reachable.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DirectoryAvailabilityText))]
-    [NotifyCanExecuteChangedFor(nameof(RefreshCommand))]
     public partial bool IsHubOnWiFi { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRefresh))]
+    [NotifyPropertyChangedFor(nameof(DirectoryAvailabilityText))]
+    [NotifyCanExecuteChangedFor(nameof(RefreshCommand))]
+    public partial bool IsConnected { get; set; }
+
+    public bool CanRefresh => IsConnected;
 
     /// <summary>The panel is on screen; polling runs only then.</summary>
     [ObservableProperty]
@@ -175,11 +254,16 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string LastDirectoryText { get; set; } = "Diretório do Hub não consultado.";
 
+    [ObservableProperty]
+    public partial string LastDiagnosticsText { get; set; } = "Diagnóstico dos nós não consultado.";
+
     public string RegisteredCountText => $"{RegisteredCount}/{Nodes.Count} nós com endereço";
 
     public string DirectoryAvailabilityText => IsHubOnWiFi
-        ? "A tabela é enriquecida por GET /nodes a cada 10 s enquanto esta seção estiver aberta."
-        : "Consulta a /nodes disponível apenas por Wi-Fi; por USB a tabela usa o quadro de telemetria.";
+        ? "Identidade e saúde são atualizadas por /nodes e /nodeDiag a cada 10 s."
+        : IsConnected
+            ? "Por USB, o app solicita nodeDiag ao Hub a cada 30 s; identidade e presença continuam vindo da telemetria."
+            : "Conecte ao Hub para consultar a saúde dos nós.";
 
     /// <summary>The Hub said its version and it predates the identity keys.</summary>
     public bool ShowLegacyHubNotice => HubFirmwareVersion is { } v && !PublishesIdentity(v);
@@ -208,19 +292,36 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Consults <c>/nodes</c> once. Available only on Wi-Fi.</summary>
-    [RelayCommand(CanExecute = nameof(IsHubOnWiFi))]
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         var hub = _device.Endpoint;
-        if (!IsHubOnWiFi || string.IsNullOrWhiteSpace(hub))
+        if (!IsConnected)
+        {
+            return;
+        }
+
+        if (!IsHubOnWiFi)
+        {
+            _device.RequestNodeDiag("all");
+            LastDiagnosticsText = "Diagnóstico solicitado ao Hub por USB; aguardando respostas.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(hub))
         {
             return;
         }
 
         HubNodeDirectory? directory;
+        HubNodeDiagDirectory? diagnostics;
         try
         {
-            directory = await _fetchDirectory(hub, cancellationToken).ConfigureAwait(true);
+            var directoryTask = _fetchDirectory(hub, cancellationToken);
+            var diagnosticsTask = _fetchDiagnostics(hub, cancellationToken);
+            await Task.WhenAll(directoryTask, diagnosticsTask).ConfigureAwait(true);
+            directory = await directoryTask.ConfigureAwait(true);
+            diagnostics = await diagnosticsTask.ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -230,25 +331,33 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
         if (directory is null)
         {
             LastDirectoryText = "O Hub não respondeu a /nodes.";
-            return;
         }
-
-        foreach (var row in Nodes)
+        else
         {
-            if (directory.Find(row.Device) is not { } entry)
+            foreach (var row in Nodes)
             {
-                continue;
+                if (directory.Find(row.Device) is not { } entry)
+                {
+                    continue;
+                }
+                row.Registered = entry.Registered;
+                row.HubReportedAge = entry.SinceLastSeen(directory.HubTimeMs);
+                if (entry.Identity.IsKnown)
+                {
+                    row.Identity = Merge(row.Identity, entry.Identity);
+                }
             }
-
-            row.Registered = entry.Registered;
-            row.HubReportedAge = entry.SinceLastSeen(directory.HubTimeMs);
-            if (entry.Identity.IsKnown)
-            {
-                row.Identity = Merge(row.Identity, entry.Identity);
-            }
+            LastDirectoryText = $"Diretório consultado às {_time.GetLocalNow().ToString("HH:mm:ss", CultureInfo.CurrentCulture)}.";
         }
 
-        LastDirectoryText = $"Diretório consultado às {_time.GetLocalNow().ToString("HH:mm:ss", CultureInfo.CurrentCulture)}.";
+        if (diagnostics is null)
+        {
+            LastDiagnosticsText = "O Hub não respondeu a /nodeDiag (rota requer Hub 10.2).";
+        }
+        else
+        {
+            ApplyDiagnostics(diagnostics);
+        }
     }
 
     partial void OnIsActiveChanged(bool value) => UpdatePolling();
@@ -257,15 +366,26 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
 
     private void UpdatePolling()
     {
-        var shouldPoll = IsActive && IsHubOnWiFi;
+        var shouldPoll = IsActive && IsConnected;
+        var currentMedium = IsHubOnWiFi ? TransportMedium.WiFi : TransportMedium.Usb;
+        if (shouldPoll && _polling is not null && _pollingMedium != currentMedium)
+        {
+            var old = _polling;
+            _polling = null;
+            _pollingMedium = null;
+            old.Cancel();
+            old.Dispose();
+        }
         if (shouldPoll && _polling is null)
         {
             _polling = new CancellationTokenSource();
+            _pollingMedium = currentMedium;
             _ = PollAsync(_polling.Token);
         }
         else if (!shouldPoll && _polling is { } cts)
         {
             _polling = null;
+            _pollingMedium = null;
             cts.Cancel();
             cts.Dispose();
         }
@@ -278,7 +398,8 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
             while (!token.IsCancellationRequested)
             {
                 await RefreshAsync(token).ConfigureAwait(true);
-                await Task.Delay(TimeSpan.FromSeconds(10), _time, token).ConfigureAwait(true);
+                var interval = IsHubOnWiFi ? TimeSpan.FromSeconds(10) : TimeSpan.FromSeconds(30);
+                await Task.Delay(interval, _time, token).ConfigureAwait(true);
             }
         }
         catch (OperationCanceledException)
@@ -291,21 +412,55 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
 
     private void ApplyLink(ConnectionState state, TransportMedium? medium, string endpoint)
     {
-        IsHubOnWiFi = state == ConnectionState.Connected && medium == TransportMedium.WiFi;
-        if (state != ConnectionState.Connected)
+        var connected = state == ConnectionState.Connected;
+        if (connected)
         {
+            IsHubOnWiFi = medium == TransportMedium.WiFi;
+            IsConnected = true;
+        }
+        else
+        {
+            IsConnected = false;
+            IsHubOnWiFi = false;
             foreach (var row in Nodes)
             {
                 row.Online = null;
                 row.Registered = null;
                 row.HubReportedAge = null;
+                row.Diagnostic = null;
             }
 
             RegisteredCount = 0;
+            LastDiagnosticsText = "Diagnóstico indisponível: Hub desconectado.";
         }
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot) => ApplySnapshot(snapshot);
+
+    private void OnNodeDiagReceived(string json)
+    {
+        if (HubNodeDiagClient.Parse(json) is { } diagnostics)
+        {
+            ApplyDiagnostics(diagnostics);
+        }
+    }
+
+    private void ApplyDiagnostics(HubNodeDiagDirectory diagnostics)
+    {
+        foreach (var diagnostic in diagnostics.Nodes)
+        {
+            var row = Nodes.FirstOrDefault(n => string.Equals(n.Device, diagnostic.Device, StringComparison.OrdinalIgnoreCase));
+            if (row is not null)
+            {
+                row.Diagnostic = diagnostic;
+            }
+        }
+
+        var ages = diagnostics.Nodes.Where(n => n.Age.HasValue).Select(n => n.Age!.Value).ToArray();
+        LastDiagnosticsText = ages.Length > 0
+            ? $"Diagnóstico via Hub há {HubNodeRowViewModel.Format(ages.Max())}."
+            : "Diagnóstico via Hub recebido; os nós ainda não possuem cache.";
+    }
 
     private void ApplySnapshot(SensorSnapshot snapshot)
     {
@@ -345,9 +500,11 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
     {
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnStateChanged;
+        _device.NodeDiagReceived -= OnNodeDiagReceived;
         _polling?.Cancel();
         _polling?.Dispose();
         _polling = null;
-        _clientLifetime?.Dispose();
+        _directoryClientLifetime?.Dispose();
+        _diagnosticsClientLifetime?.Dispose();
     }
 }

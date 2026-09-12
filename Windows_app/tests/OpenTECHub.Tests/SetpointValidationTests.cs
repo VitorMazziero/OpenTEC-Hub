@@ -39,6 +39,8 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public event Action<string>? DeviceLogReceived;
 
+    public event Action<string>? NodeDiagReceived;
+
     public event Action<string>? CommandSent;
 
     public event Action<double>? SessionTimeZeroed;
@@ -63,6 +65,10 @@ internal sealed class RecordingDeviceService : IDeviceService
     }
 
     public void ZeroSessionTime() => ZeroSessionTimeCalls++;
+
+    public void RequestNodeDiag(string device) => Send(CommandBuilders.NodeDiag(device));
+
+    public void PushNodeDiag(string json) => NodeDiagReceived?.Invoke(json);
 
     /// <summary>Raises the session-zero echo the real worker sends back after zeroing.</summary>
     public void PushSessionTimeZeroed(double offsetMinutes) => SessionTimeZeroed?.Invoke(offsetMinutes);
@@ -109,6 +115,7 @@ internal sealed class RecordingDeviceService : IDeviceService
         StateChanged?.Invoke(default);
         TelemetryReceived?.Invoke(new SensorSnapshot());
         DeviceLogReceived?.Invoke("");
+        NodeDiagReceived?.Invoke("");
     }
 }
 

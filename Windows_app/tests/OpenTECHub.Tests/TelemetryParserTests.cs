@@ -66,6 +66,17 @@ public class TelemetryParserTests
     }
 
     [Fact]
+    public void Node_diagnostic_envelope_is_not_telemetry_or_a_parse_failure()
+    {
+        var parser = new TelemetryParser();
+        var before = parser.Readings.Snapshot();
+
+        Assert.Equal(ParseOutcome.NodeDiag, parser.Parse(
+            """{"NodeDiag":{"dev":"pump","code":200,"age_ms":400,"diag":{"rssi":-61}}}"""));
+        Assert.Equal(before, parser.Readings.Snapshot());
+    }
+
+    [Fact]
     public void Malformed_and_empty_lines_are_distinguished()
     {
         var parser = new TelemetryParser();

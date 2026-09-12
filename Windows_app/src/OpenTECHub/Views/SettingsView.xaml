@@ -257,8 +257,8 @@
                         <TextBlock Text="O período só chega ao equipamento quando Aplicar é acionado."
                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,5,0,0" />
 
-                        <!-- Nós na rede do Hub (Hub 10.1). Fed by the aggregate frame on any link; enriched
-                             from GET /nodes on Wi-Fi. Five fixed rows - an unknown node reads "—", never
+                        <!-- Nós na rede do Hub (Hub 10.2). Identity comes from the aggregate frame and /nodes;
+                             health comes from cached /nodeDiag on Wi-Fi or serial nodeDiag on USB. Five fixed rows - an unknown node reads "—", never
                              disappears, so an empty network is never mistaken for a missing feature. -->
                         <Separator Margin="0,16,0,12" />
                         <Grid DataContext="{Binding HubNodes}">
@@ -277,7 +277,7 @@
                                 <TextBlock Grid.Column="0" Text="Nós na rede do Hub" Style="{StaticResource SectionHeading}" Margin="0" />
                                 <TextBlock Grid.Column="1" Text="{Binding RegisteredCountText}"
                                            Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                <Button Grid.Column="2" Content="Atualizar" Padding="10,3"
+                                <Button Grid.Column="2" Content="Atualizar saúde" Padding="10,3"
                                         Command="{Binding RefreshCommand}"
                                         ToolTip="{Binding DirectoryAvailabilityText}" />
                             </Grid>
@@ -296,11 +296,37 @@
                                         <GridViewColumn Header="Firmware" Width="80" DisplayMemberBinding="{Binding FirmwareText}" />
                                         <GridViewColumn Header="Estado" Width="130" DisplayMemberBinding="{Binding StateText}" />
                                         <GridViewColumn Header="Visto há" Width="70" DisplayMemberBinding="{Binding SeenText}" />
+                                        <GridViewColumn Header="RSSI" Width="75" DisplayMemberBinding="{Binding RssiText}" />
+                                        <GridViewColumn Header="Heap" Width="70" DisplayMemberBinding="{Binding HeapText}" />
+                                        <GridViewColumn Header="Uptime" Width="70" DisplayMemberBinding="{Binding UptimeText}" />
+                                        <GridViewColumn Header="Falhas c/ Hub" Width="100">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding HubFailuresText}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasHubFailureWarning}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        <Setter Property="ToolTip" Value="O nó atingiu o limiar de reassociação com o Hub; aviso informativo, não alarme." />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="OTA" Width="90" DisplayMemberBinding="{Binding OtaText}" />
+                                        <GridViewColumn Header="Métricas do nó" Width="280" DisplayMemberBinding="{Binding DiagnosticText}" />
                                     </GridView>
                                 </ListView.View>
                             </ListView>
                             <StackPanel Grid.Row="3" Margin="0,6,0,0">
                                 <TextBlock Text="{Binding LastDirectoryText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding LastDiagnosticsText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,2,0,0" />
                                 <TextBlock Text="{Binding DirectoryAvailabilityText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,2,0,0" />
                             </StackPanel>
                         </Grid>

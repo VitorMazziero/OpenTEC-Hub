@@ -31,6 +31,14 @@ public class HubNodesViewModelTests
         new HubNodeEntry("biomass", new ExternalNodeIdentity(null, "AA:BB:CC:DD:EE:06", "v11"), false, true, 10_000, 0, 40_000),
     ]);
 
+    private static HubNodeDiagDirectory Diagnostics(int failStreak = 0) => new(50_000,
+    [
+        new HubNodeDiag("pump", 200, TimeSpan.FromMilliseconds(400), -61, 208000, 42, failStreak, false,
+            new Dictionary<string, string> { ["flow"] = "1.25", ["vol"] = "2.5", ["mode"] = "1" }),
+        new HubNodeDiag("distance", 0, null, null, null, null, null, null,
+            new Dictionary<string, string>()),
+    ]);
+
     [Fact]
     public void Five_rows_always_and_the_frame_fills_them()
     {
@@ -86,7 +94,7 @@ public class HubNodesViewModelTests
         => Assert.Equal(publishes, HubNodesViewModel.PublishesIdentity(firmware));
 
     [Fact]
-    public async Task Over_usb_the_directory_is_never_consulted()
+    public async Task Over_usb_refresh_requests_cached_diagnostics_without_consulting_http()
     {
         var calls = 0;
         var device = new RecordingDeviceService { Medium = TransportMedium.Usb };
@@ -95,12 +103,12 @@ public class HubNodesViewModelTests
         device.PushTelemetry(TwoRegistered);
 
         Assert.False(vm.IsHubOnWiFi);
-        Assert.False(vm.RefreshCommand.CanExecute(null));
+        Assert.True(vm.RefreshCommand.CanExecute(null));
         await vm.RefreshAsync();
-        vm.IsActive = true;
 
         Assert.Equal(0, calls);
-        Assert.Contains("apenas por Wi-Fi", vm.DirectoryAvailabilityText);
+        Assert.Contains("Por USB", vm.DirectoryAvailabilityText);
+        Assert.Contains("{\"nodeDiag\":\"all\"}", Assert.Single(device.Sent));
         Assert.Null(vm.Nodes.Single(n => n.Device == "pump").Registered);
     }
 
@@ -108,7 +116,10 @@ public class HubNodesViewModelTests
     public async Task On_wifi_the_directory_enriches_registration_and_freshness_without_overriding_the_frame()
     {
         var device = new RecordingDeviceService { Medium = TransportMedium.WiFi };
-        using var vm = new HubNodesViewModel(device, (hub, _) => Task.FromResult<HubNodeDirectory?>(hub == "FAKE" ? Directory() : null));
+        using var vm = new HubNodesViewModel(
+            device,
+            (hub, _) => Task.FromResult<HubNodeDirectory?>(hub == "FAKE" ? Directory() : null),
+            (hub, _) => Task.FromResult<HubNodeDiagDirectory?>(hub == "FAKE" ? Diagnostics() : null));
         device.PushState(ConnectionState.Connected);
         device.PushTelemetry(TwoRegistered);
 
@@ -130,6 +141,28 @@ public class HubNodesViewModelTests
         Assert.Equal("AA:BB:CC:DD:EE:06", biomass.MacText);
         Assert.Equal("—", biomass.IpText);
         Assert.Contains("Diretório consultado", vm.LastDirectoryText);
+        Assert.Equal("-61 dBm", pump.RssiText);
+        Assert.Equal("203 KiB", pump.HeapText);
+        Assert.Equal("42 s", pump.UptimeText);
+        Assert.Equal("Livre", pump.OtaText);
+        Assert.Contains("vazão", pump.DiagnosticText);
+        Assert.Contains("Diagnóstico via Hub há", vm.LastDiagnosticsText);
+    }
+
+    [Fact]
+    public void Serial_diagnostics_enrich_the_row_and_fail_streak_is_only_a_warning()
+    {
+        var device = new RecordingDeviceService { Medium = TransportMedium.Usb };
+        using var vm = new HubNodesViewModel(device, (_, _) => Task.FromResult<HubNodeDirectory?>(null));
+        device.PushState(ConnectionState.Connected);
+        device.PushNodeDiag(
+            """{"NodeDiag":{"dev":"pump","code":200,"age_ms":400,"diag":{"uptime_s":42,"free_heap":208000,"rssi":-61,"hub_fail_streak":8,"ota":false,"flow":1.25,"vol":2.5,"mode":1}}}""");
+
+        var pump = vm.Nodes.Single(n => n.Device == "pump");
+        Assert.Equal("8", pump.HubFailuresText);
+        Assert.True(pump.HasHubFailureWarning);
+        Assert.Equal("-61 dBm", pump.RssiText);
+        Assert.DoesNotContain("alarme", pump.DiagnosticText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -197,7 +230,7 @@ public class HubNodesViewModelTests
         var window = File.ReadAllText(Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", "MainWindow.xaml"));
 
         Assert.Contains("Text=\"Nós na rede do Hub\"", settings, StringComparison.Ordinal);
-        foreach (var header in new[] { "Dispositivo", "IP", "MAC", "Firmware", "Estado", "Visto há" })
+        foreach (var header in new[] { "Dispositivo", "IP", "MAC", "Firmware", "Estado", "Visto há", "RSSI", "Heap", "Uptime", "Falhas c/ Hub", "OTA", "Métricas do nó" })
         {
             Assert.Contains($"Header=\"{header}\"", settings, StringComparison.Ordinal);
         }

@@ -199,6 +199,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
         _inner.TelemetryReceived += OnInnerTelemetry;
         _inner.RawTelemetryReceived += OnInnerRawTelemetry;
         _inner.DeviceLogReceived += OnInnerDeviceLog;
+        _inner.NodeDiagReceived += OnInnerNodeDiag;
         _inner.CommandSent += OnInnerCommandSent;
         _inner.SessionTimeZeroed += OnInnerSessionTimeZeroed;
     }
@@ -572,6 +573,8 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
 
     private void OnInnerDeviceLog(string text) => DeviceLogReceived?.Invoke(text);
 
+    private void OnInnerNodeDiag(string json) => NodeDiagReceived?.Invoke(json);
+
     private void OnInnerSessionTimeZeroed(double offsetMinutes) => SessionTimeZeroed?.Invoke(offsetMinutes);
 
     // ── IDeviceService (forwarded to the inner transport) ────────────────────
@@ -590,6 +593,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
     public event Action<SensorSnapshot>? TelemetryReceived;
     public event Action<string>? RawTelemetryReceived;
     public event Action<string>? DeviceLogReceived;
+    public event Action<string>? NodeDiagReceived;
     public event Action<string>? CommandSent;
     public event Action<double>? SessionTimeZeroed;
 
@@ -606,6 +610,9 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
 
     public void SendAfterCurrentFrame(OpenTECCommand command)
         => DispatchSeparateFrame(CommandOwner.Manual, command);
+
+    /// <summary>Read-only system request: deliberately bypasses actuator ownership.</summary>
+    public void RequestNodeDiag(string device) => _inner.RequestNodeDiag(device);
 
     public void ZeroSessionTime() => _inner.ZeroSessionTime();
 
@@ -672,6 +679,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
         _inner.StateChanged -= OnInnerStateChanged;
         _inner.TelemetryReceived -= OnInnerTelemetry;
         _inner.DeviceLogReceived -= OnInnerDeviceLog;
+        _inner.NodeDiagReceived -= OnInnerNodeDiag;
         _inner.CommandSent -= OnInnerCommandSent;
         _inner.SessionTimeZeroed -= OnInnerSessionTimeZeroed;
     }

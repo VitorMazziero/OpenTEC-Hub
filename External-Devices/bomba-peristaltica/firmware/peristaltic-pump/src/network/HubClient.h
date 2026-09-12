@@ -194,6 +194,17 @@ void pollHubForCommands() {
 
 void checkWifi() {
     unsigned long now = millis();
+
+    // Link Watchdog: se o streak de falhas consecutivas atingiu o limite, forca queda
+    if (g_hubFailStreak >= 8) {
+        Serial.printf("[NET] Link zumbi detectado (streak=%u). Forcando queda da associacao...\n", g_hubFailStreak);
+        g_hubFailStreak = 0;
+        WiFi.disconnect(true, false);
+        g_wifiState = WF_IDLE;
+        g_wifiNextActionMs = now + 500;
+        return;
+    }
+
     if (now < g_wifiNextActionMs) return;
 
     if (WiFi.status() == WL_CONNECTED) {
@@ -204,10 +215,19 @@ void checkWifi() {
 
     switch(g_wifiState) {
         case WF_IDLE:
-            Serial.println("[NET] WiFi disconnected. Starting async scan...");
-            WiFi.scanNetworks(true, true);
-            g_wifiState = WF_SCANNING;
-            g_wifiNextActionMs = now + 100;
+            if (g_lastKnownSsid != "") {
+                Serial.printf("[NET] Connecting to known hub: %s on channel 6\n", g_lastKnownSsid.c_str());
+                WiFi.disconnect(false, false);
+                WiFi.begin(g_lastKnownSsid.c_str(), g_lastKnownSsid.c_str(), 6);
+                g_wifiState = WF_CONNECTING;
+                g_wifiNextActionMs = now + WIFI_RECONNECT_PERIOD_MS;
+            } else {
+                Serial.println("[NET] WiFi disconnected. Starting async scan...");
+                WiFi.scanDelete();
+                WiFi.scanNetworks(true, true);
+                g_wifiState = WF_SCANNING;
+                g_wifiNextActionMs = now + 100;
+            }
             break;
         case WF_SCANNING: {
             int n = WiFi.scanComplete();
@@ -224,10 +244,10 @@ void checkWifi() {
                     }
                 }
                 if (ssidToTry != "") {
-                    Serial.printf("[NET] Hub found: %s. Connecting...\n", ssidToTry.c_str());
-                    WiFi.disconnect();
-                    delay(100);
-                    WiFi.begin(ssidToTry.c_str(), ssidToTry.c_str());
+                    Serial.printf("[NET] Hub found: %s. Connecting on channel 6...\n", ssidToTry.c_str());
+                    WiFi.disconnect(false, false);
+                    delay(50);
+                    WiFi.begin(ssidToTry.c_str(), ssidToTry.c_str(), 6);
                     g_wifiState = WF_CONNECTING;
                     g_wifiNextActionMs = now + WIFI_RECONNECT_PERIOD_MS;
                 } else {
@@ -244,7 +264,7 @@ void checkWifi() {
         case WF_CONNECTING:
             Serial.println("[NET] Connect attempt timed out.");
             g_wifiState = WF_IDLE;
-            g_wifiNextActionMs = now;
+            g_wifiNextActionMs = now + WIFI_RECONNECT_PERIOD_MS;
             break;
     }
 }

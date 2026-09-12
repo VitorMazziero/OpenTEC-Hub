@@ -25,10 +25,10 @@ void firmwareSetup() {
     Serial.println("[NET] Setting mode to WIFI_AP_STA...");
     WiFi.mode(WIFI_AP_STA);
 
-    Serial.printf("[NET] Configuring AP on subnet %s\n", apIP.toString().c_str());
+    Serial.printf("[NET] Configuring AP on subnet %s (Channel 6)\n", apIP.toString().c_str());
     WiFi.softAPConfig(apIP, apGateway, apSubnet);
-    if (WiFi.softAP(AP_SSID, "")) {
-        Serial.printf("[NET] AP Started: %s (IP: %s)\n", AP_SSID, WiFi.softAPIP().toString().c_str());
+    if (WiFi.softAP(AP_SSID, "", 6)) {
+        Serial.printf("[NET] AP Started: %s (IP: %s) on channel 6\n", AP_SSID, WiFi.softAPIP().toString().c_str());
     } else {
         Serial.println("[NET] AP Start Failed!");
     }

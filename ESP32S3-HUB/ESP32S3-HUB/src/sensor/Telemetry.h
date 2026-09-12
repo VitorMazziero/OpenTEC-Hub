@@ -128,13 +128,16 @@ void readAndBroadcastSensorData() {
 
   // Validação de Distância
   // Uses the display window, not the foam-interlock one - see DISTANCE_PRESENCE_TIMEOUT.
-  bool validDistance = false;
-  if (snapDistanceComm) {
-    unsigned long age = millis() - snapDistanceUpdate;
-    if (age <= DISTANCE_PRESENCE_TIMEOUT && snapDistanceValue >= 0.0f) {
-      validDistance = true;
-    }
-  }
+  //
+  // Presença e leitura são coisas distintas. distanceOnline diz que o nó empurrou dentro
+  // da janela (a mesma expressão de /nodes); validDistance exige além disso que o próprio
+  // nó tenha declarado a leitura válida (distance >= 0; ele empurra -1 quando o VL53L0X
+  // falha). Um nó com sensor em falha continua online e ecoando a sua configuração,
+  // apenas sem valor publicável. Amarrar a presença à leitura fazia o PC acusar "nó não
+  // responde" com o nó respondendo a cada segundo.
+  bool distanceOnline = snapDistanceComm &&
+                        (millis() - snapDistanceUpdate <= DISTANCE_PRESENCE_TIMEOUT);
+  bool validDistance = distanceOnline && snapDistanceValue >= 0.0f;
 
   // Validação da Bomba e do Agitador
   bool pumpOnline = snapPumpComm && snapPumpUpdate > 0 &&
@@ -297,16 +300,18 @@ void readAndBroadcastSensorData() {
     if (snapBiomassProbePeriodMs > 0) jsonResponse += ",\"BiomassProbePeriodMs\":" + String(snapBiomassProbePeriodMs);
   }
 
-  jsonResponse += ",\"DistanceOnline\":" + String(validDistance ? "true" : "false");
+  jsonResponse += ",\"DistanceOnline\":" + String(distanceOnline ? "true" : "false");
   jsonResponse += ",\"DistanceCommEnabled\":" + String(snapDistanceComm ? "true" : "false");
   jsonResponse += ",\"DistanceCommandPending\":" + String(distancePending ? "true" : "false");
   if (validDistance) {
     jsonResponse += ",\"Distance\":" + String(snapDistanceValue, 2);
-    if (snapDistanceEchoSeen) {
-      jsonResponse += ",\"DistanceOffsetMm\":" + String(snapDistanceOffsetMm, 2);
-      jsonResponse += ",\"DistanceSamplePeriodMs\":" + String(snapDistanceSamplePeriodMs);
-      jsonResponse += ",\"DistanceSendPeriodMs\":" + String(snapDistanceSendPeriodMs);
-    }
+  }
+  // Ecos seguem a presença, não a leitura: o offset aplicado não deixa de valer porque o
+  // sensor óptico está em falha.
+  if (distanceOnline && snapDistanceEchoSeen) {
+    jsonResponse += ",\"DistanceOffsetMm\":" + String(snapDistanceOffsetMm, 2);
+    jsonResponse += ",\"DistanceSamplePeriodMs\":" + String(snapDistanceSamplePeriodMs);
+    jsonResponse += ",\"DistanceSendPeriodMs\":" + String(snapDistanceSendPeriodMs);
   }
 
   jsonResponse += ",\"PumpOnline\":" + String(pumpOnline ? "true" : "false");
@@ -380,6 +385,26 @@ void readAndBroadcastSensorData() {
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";
+
+  // Marca d'água do quadro agregado. Só fala quando cresce em degraus de 64 B (a
+  // contagem de dígitos de Time e dos volumes oscila o tamanho em poucos bytes) e avisa
+  // quando o máximo passa da reserva: a partir daí cada ciclo realoca e fragmenta o heap.
+  // É este o número que a medição de bancada do Content-Length precisa (PONTOS §1.2).
+  {
+    static size_t frameHighWater = 0;
+    const size_t frameLen = jsonResponse.length();
+    if (frameLen >= frameHighWater + 64 ||
+        (frameLen > HUB_TELEMETRY_JSON_RESERVE && frameHighWater <= HUB_TELEMETRY_JSON_RESERVE)) {
+      frameHighWater = frameLen;
+      if (frameLen > HUB_TELEMETRY_JSON_RESERVE) {
+        ESP32_AVISO("Quadro agregado com " + String(frameLen) + " bytes excede a reserva de " +
+                    String(HUB_TELEMETRY_JSON_RESERVE) + " bytes; realocacao a cada ciclo");
+      } else {
+        ESP32_EVT("Quadro agregado: novo maximo de " + String(frameLen) + " bytes (reserva " +
+                  String(HUB_TELEMETRY_JSON_RESERVE) + ")");
+      }
+    }
+  }
 
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
     lastSensorJson = jsonResponse;

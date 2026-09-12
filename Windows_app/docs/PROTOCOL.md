@@ -162,7 +162,7 @@ sentinel for floats.
 | `FlowSetpoint` | float | L/min | Echo of the accepted setpoint |
 | `FlowVoltage` | float | V | Raw flowmeter voltage, used by calibration |
 | `Antifoam` | float | — | |
-| `Distance` | float | mm | Accepted if `0 <= v < 1000`. **If the key is absent for > 3 s, force `-1`** |
+| `Distance` | float | mm | Accepted if `0 <= v < 1000`. **If the key is absent for > 3 s, force `-1`**. May be absent while `DistanceOnline` is `true`: the node pushes `-1` when its VL53L0X fails, and the Hub withholds the value but not the presence or the `Distance*` echoes (Hub 10.2 no longer applies its own stagnation filter) |
 | `SensorCommOK` | bool | — | Defaults to `true` when absent |
 | `FlowmeterOnline` | bool | — | Sticky: holds the previous value when absent |
 | `FlowControlEnabled` | bool | — | Sticky |

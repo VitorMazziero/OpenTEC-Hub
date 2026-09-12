@@ -270,6 +270,41 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         self.assertIn("if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > DISTANCE_PRESENCE_TIMEOUT))", tel)
         self.assertIn("distanceEchoSeen = false;", tel)
 
+    def test_distance_handler_has_no_stagnation_filter(self):
+        # PONTOS §1.1: a validade da leitura vem do nó (distance=-1 em falha do VL53L0X).
+        # O filtro de cinco amostras iguais herdado do v1 pausava a lógica de espuma com
+        # nível parado e não pode voltar.
+        http = self.read("src/network/HttpServer.h")
+        self.assertNotIn("stagnated", http)
+        self.assertNotIn("lastAccepted", http)
+        self.assertIn("distanceSensorValue = (newDistance >= 0.0f) ? newDistance : -1.0f;", http)
+
+    def test_telemetry_distance_presence_is_independent_of_reading(self):
+        # PONTOS §1.1: DistanceOnline e os ecos seguem a janela de presença; só a chave
+        # Distance depende da leitura declarada válida pelo nó (distanceSensorValue >= 0).
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn(
+            "bool distanceOnline = snapDistanceComm &&" + chr(10) +
+            "                        (millis() - snapDistanceUpdate <= DISTANCE_PRESENCE_TIMEOUT);",
+            tel,
+        )
+        self.assertIn("bool validDistance = distanceOnline && snapDistanceValue >= 0.0f;", tel)
+        self.assertIn('\\"DistanceOnline\\":" + String(distanceOnline ? "true" : "false")', tel)
+        self.assertIn("if (distanceOnline && snapDistanceEchoSeen) {", tel)
+        # A chave Distance continua condicionada à leitura válida, e os ecos não ficam
+        # aninhados dentro desse bloco.
+        distance_block = tel[tel.index("if (validDistance) {"):tel.index("if (distanceOnline && snapDistanceEchoSeen) {")]
+        self.assertIn('\\"Distance\\":', distance_block)
+        self.assertNotIn("DistanceOffsetMm", distance_block)
+
+    def test_telemetry_reports_frame_high_water_mark(self):
+        # PONTOS §1.2: a marca d'água do quadro agregado sai na serial para a medição de
+        # bancada, e avisa quando ultrapassa a reserva (realocação a cada ciclo).
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn("static size_t frameHighWater = 0;", tel)
+        self.assertIn("if (frameLen > HUB_TELEMETRY_JSON_RESERVE) {", tel)
+        self.assertIn('ESP32_AVISO("Quadro agregado com "', tel)
+
 
 def translate_pump_command(json_str: str, comm_on: bool = True):
     """Espelha o bloco de comando da bomba em Commands.h."""

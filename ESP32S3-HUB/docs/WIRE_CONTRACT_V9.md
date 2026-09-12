@@ -225,6 +225,19 @@ Regra de emissão:
 | `DistanceSamplePeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de leitura do sensor em ms |
 | `DistanceSendPeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de envio HTTP em ms |
 
+`DistanceOnline` é presença pura: `distanceSensorComm` ligado e push dentro de
+`DISTANCE_PRESENCE_TIMEOUT` (a mesma expressão de `/nodes`). A chave `Distance` exige além
+disso que o nó tenha empurrado `distance >= 0`: o nó v11 detecta falha do VL53L0X (timeout
+I²C, leitura 0 / ≥ 4000 / 8190) e empurra `distance=-1`, e o Hub honra esse sinal sem
+heurística própria. Portanto **`DistanceOnline:true` sem `Distance` é um estado legítimo**
+(nó presente, sensor óptico em falha) e os três ecos continuam publicados nele.
+
+Histórico (2026-09-12, 10.2.0-dev): até aqui `/distance` aplicava um filtro de estagnação
+herdado do v1 — cinco pushes iguais marcavam a leitura como inválida. Com mm inteiro e nível
+parado isso era rotina, tirava `Distance` do quadro, pausava a lógica de espuma e, como a
+presença também seguia a leitura, fazia o PC acusar "nó não responde" com o nó respondendo a
+cada segundo. O filtro foi removido; a validade da leitura é responsabilidade do nó.
+
 ### Fluxômetro
 
 | Chave no quadro | Tipo | Quando | Significado |

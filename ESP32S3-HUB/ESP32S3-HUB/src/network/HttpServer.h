@@ -137,31 +137,16 @@ void startWiFi() {
           distanceEchoSeen = true;
         }
 
-        // Filtro de estagnação
-        static float   buf[5]        = {0.0f};
-        static uint8_t bufIndex      = 0;
-        static uint8_t bufCount      = 0;
-        static float   lastAccepted  = NAN;
-        const float   ES            = 1e-3f;
-        buf[bufIndex] = newDistance;
-        bufIndex = (bufIndex + 1) % 5;
-        if (bufCount < 5) ++bufCount;
-        bool stagnated = false;
-        if (bufCount == 5) {
-          stagnated = true;
-          for (uint8_t i = 1; i < 5; ++i) {
-            if (fabsf(buf[i] - buf[0]) > ES) {
-              stagnated = false;
-              break;
-            }
-          }
-        }
-        if (stagnated) {
-          distanceSensorValue = -1.0f;
-        } else if (isnan(lastAccepted) || fabsf(newDistance - lastAccepted) > ES) {
-          distanceSensorValue = newDistance;
-          lastAccepted = newDistance;
-        }
+        // Validade da leitura vem do nó, não de uma heurística daqui. O nó v11 detecta
+        // falha do VL53L0X (timeout I2C, leitura 0 / >= 4000 / 8190) e empurra
+        // distance=-1, além de rodar a própria escada de recuperação; o Hub só precisa
+        // honrar esse sinal. O filtro de estagnação de cinco amostras iguais que morava
+        // aqui desde o v1 foi removido em 10.2: com mm inteiro e nível parado, cinco
+        // pushes idênticos são rotina, e cada disparo pausava a lógica de espuma e tirava
+        // o valor do quadro num sensor perfeitamente saudável. Nível parado por horas é
+        // o estado normal de uma batelada sem espuma; nenhum limiar de tempo separa isso
+        // de um sensor travado, e só o nó teria como tentar.
+        distanceSensorValue = (newDistance >= 0.0f) ? newDistance : -1.0f;
         if (request->hasParam("time")) {
           distanceSensorTime = request->getParam("time")->value().toFloat();
         }

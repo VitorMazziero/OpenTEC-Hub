@@ -46,6 +46,15 @@ presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardwa
 12. Revalidar o ACK revisionado do fluxômetro, que é caminho retido.
 13. Executar soak de duas horas, registrando heap, `ServoCommErr`, alarmes e rail
     de 5 V.
+14. Sensor de distância com nível parado (10.2, remoção do filtro de estagnação):
+    mira fixa em alvo estático por 30 min com `distanceSensorComm` ligado. Esperado:
+    `DistanceOnline=true`, `Distance` presente e constante, ecos `DistanceOffsetMm`/
+    `DistanceSamplePeriodMs`/`DistanceSendPeriodMs` presentes em todos os quadros,
+    nenhum `ESP32_AVISO` de "Lógica de espuma pausada" e nenhum alarme
+    `DistanceSensorOffline` no PC. Ao fim, aproximar o alvo abaixo da referência:
+    a resposta de espuma deve iniciar no primeiro push. Em seguida desconectar o
+    VL53L0X (ou tampar a óptica): o nó deve empurrar `distance=-1`, `Distance` some
+    do quadro com `DistanceOnline=true`, a lógica de espuma pausa com o aviso.
 
 ## Gate de liberação
 

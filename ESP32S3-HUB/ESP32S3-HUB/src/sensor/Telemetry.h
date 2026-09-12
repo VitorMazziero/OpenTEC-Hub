@@ -62,11 +62,22 @@ void readAndBroadcastSensorData() {
   String snapAgitatorSource = "unknown";
   unsigned long snapDistanceUpdate = 0, snapBiomassUpdate = 0, snapBiomassSampleUpdate = 0;
   unsigned long snapPumpUpdate = 0, snapAgitatorUpdate = 0;
+  float snapDistanceOffsetMm = NAN;
+  uint32_t snapDistanceSamplePeriodMs = 0;
+  uint32_t snapDistanceSendPeriodMs = 0;
+  bool snapDistanceEchoSeen = false;
   // 10.1: the node registry is copied whole (IP always; version/MAC only once the
   // node has said hello) so the identity keys are assembled outside the mutex too.
   DeviceNodeEntry snapNodes[DEV_COUNT];
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
     for (int i = 0; i < DEV_COUNT; i++) snapNodes[i] = g_deviceRegistry[i];
+    if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > DISTANCE_PRESENCE_TIMEOUT)) {
+      distanceEchoSeen = false;
+    }
+    snapDistanceEchoSeen = distanceEchoSeen;
+    snapDistanceOffsetMm = distanceOffsetMm;
+    snapDistanceSamplePeriodMs = distanceSamplePeriodMs;
+    snapDistanceSendPeriodMs = distanceSendPeriodMs;
     snapDistanceComm = distanceSensorCommOn;
     snapDistanceValue = distanceSensorValue;
     snapDistanceUpdate = distanceSensorLastUpdate;
@@ -114,6 +125,7 @@ void readAndBroadcastSensorData() {
   bool biomassPending  = mailboxPending(biomassBox);
   bool pumpPending     = mailboxPending(pumpBox);
   bool agitatorPending = mailboxPending(agitatorBox);
+  bool distancePending = mailboxPending(distanceBox);
   const ServoSnapshot servoSnapshot = servoDevice.snapshot(millis());
 
   // Validação de Biomassa
@@ -233,8 +245,14 @@ void readAndBroadcastSensorData() {
 
   jsonResponse += ",\"DistanceOnline\":" + String(validDistance ? "true" : "false");
   jsonResponse += ",\"DistanceCommEnabled\":" + String(snapDistanceComm ? "true" : "false");
+  jsonResponse += ",\"DistanceCommandPending\":" + String(distancePending ? "true" : "false");
   if (validDistance) {
     jsonResponse += ",\"Distance\":" + String(snapDistanceValue, 2);
+    if (snapDistanceEchoSeen) {
+      jsonResponse += ",\"DistanceOffsetMm\":" + String(snapDistanceOffsetMm, 2);
+      jsonResponse += ",\"DistanceSamplePeriodMs\":" + String(snapDistanceSamplePeriodMs);
+      jsonResponse += ",\"DistanceSendPeriodMs\":" + String(snapDistanceSendPeriodMs);
+    }
   }
 
   jsonResponse += ",\"PumpOnline\":" + String(pumpOnline ? "true" : "false");

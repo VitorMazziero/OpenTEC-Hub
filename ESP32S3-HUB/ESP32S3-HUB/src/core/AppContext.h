@@ -110,6 +110,7 @@ struct ReliableMailbox {
 ReliableMailbox biomassBox;
 ReliableMailbox pumpBox;
 ReliableMailbox agitatorBox;
+ReliableMailbox distanceBox;
 
 // ============ UART CONFIG ============
 #define SENSOR_RX_PIN 16
@@ -294,6 +295,13 @@ bool  distanceSensorCommOn = false;
 float distanceSensorTime = 0.0;
 float distanceSensorValue = -1.0f;
 unsigned long distanceSensorLastUpdate = 0;
+
+// Ecos de configuracao do sensor de distancia (Hub 10.2).
+// NAN / 0 / false = nunca ecoado neste boot (so emitidos apos primeiro push v11).
+float    distanceOffsetMm = NAN;
+uint32_t distanceSamplePeriodMs = 0;
+uint32_t distanceSendPeriodMs = 0;
+bool     distanceEchoSeen = false;
 
 // Two windows, deliberately different.
 //

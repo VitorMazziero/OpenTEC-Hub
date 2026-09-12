@@ -158,8 +158,8 @@ class NodeRegistrySourceTests(unittest.TestCase):
         handler = http[http.index('server.on("/agitatorHello"'):http.index('server.on("/nodeHello"')]
         self.assertIn('recordDeviceActivity(DEV_AGITATOR, rip, now, true, "", "")', handler)
 
-    def test_firmware_identity_is_10_1(self):
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.1.0-dev"', self.read("Config.h"))
+    def test_firmware_identity_is_10_2(self):
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.2.0-dev"', self.read("Config.h"))
         self.assertIn("#define HUB_PROTOCOL_VERSION 10", self.read("Config.h"))
 
 

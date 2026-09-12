@@ -179,6 +179,7 @@ void processJsonCommand(const String &json) {
       biomassBox.awaiting = false;  biomassBox.payload  = "";
       pumpBox.awaiting    = false;  pumpBox.payload     = "";
       agitatorBox.awaiting = false; agitatorBox.payload = "";
+      distanceBox.awaiting = false; distanceBox.payload = "";
       xSemaphoreGive(cmdMutex);
     }
     servoDevice.clearCommands();
@@ -475,6 +476,64 @@ void processJsonCommand(const String &json) {
   if (json.indexOf("\"foamStartDelay_s\"") != -1) foamStartDelay_s = getValueFromJson(json, "foamStartDelay_s").toFloat();
   if (json.indexOf("\"foamPulse_s\"") != -1) foamPulse_s = getValueFromJson(json, "foamPulse_s").toFloat();
   if (json.indexOf("\"foamInterval_s\"") != -1) foamInterval_s = getValueFromJson(json, "foamInterval_s").toFloat();
+
+  // ============ DISTANCE (config pass-through) ============
+  String distInner;
+  bool distCmdFound = false;
+
+  if (json.indexOf("\"distanceOffsetMm\"") != -1) {
+    String val = getValueFromJson(json, "distanceOffsetMm");
+    if (val.length() > 0) {
+      float offset = val.toFloat();
+      if (offset >= -50.0f && offset <= 200.0f) {
+        distInner += "\"offset_mm\":" + val;
+        distCmdFound = true;
+      } else {
+        ESP32_EVT(String("Comando de offset da distancia fora da faixa [-50, 200]: ") + val);
+      }
+    }
+  }
+
+  if (json.indexOf("\"distanceSamplePeriodMs\"") != -1) {
+    String val = getValueFromJson(json, "distanceSamplePeriodMs");
+    if (val.length() > 0) {
+      long period = val.toInt();
+      if (period >= 100 && period <= 60000) {
+        if (distCmdFound) distInner += ",";
+        distInner += "\"sample_period\":" + val;
+        distCmdFound = true;
+      } else {
+        ESP32_EVT(String("Comando de sample_period da distancia fora da faixa [100, 60000]: ") + val);
+      }
+    }
+  }
+
+  if (json.indexOf("\"distanceSendPeriodMs\"") != -1) {
+    String val = getValueFromJson(json, "distanceSendPeriodMs");
+    if (val.length() > 0) {
+      long period = val.toInt();
+      if (period >= 100 && period <= 60000) {
+        if (distCmdFound) distInner += ",";
+        distInner += "\"send_period\":" + val;
+        distCmdFound = true;
+      } else {
+        ESP32_EVT(String("Comando de send_period da distancia fora da faixa [100, 60000]: ") + val);
+      }
+    }
+  }
+
+  if (json.indexOf("\"distanceResetNvs\"") != -1) {
+    String val = getValueFromJson(json, "distanceResetNvs");
+    if (val.length() > 0) {
+      if (distCmdFound) distInner += ",";
+      distInner += "\"reset_nvs\":" + val;
+      distCmdFound = true;
+    }
+  }
+
+  if (distCmdFound && distanceSensorCommOn) {
+    queueReliable(distanceBox, distInner, "Distance");
+  }
 
   // ============ PUMP (Pass-Through) ============
   static String pumpCommand;

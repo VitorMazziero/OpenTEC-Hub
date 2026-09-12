@@ -36,7 +36,7 @@ Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow
 Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', 'cmd_id', 'ack_cmd_id', '&idle=', '/nodeHello')
 Require 'Agitator node' $agitator @('/agitatorHello', '/nodeHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
 
-Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")')
+Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")', 'hasParam("offset")', 'hasParam("sample_ms")', 'hasParam("send_ms")')
 Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")')
 Require 'Hub flow fields' $hub @('hasParam("seconds")', 'hasParam("flow_voltage")', 'hasParam("flow_rate")', 'hasParam("flow_setpoint")', 'hasParam("valve1State")', 'hasParam("valve2State")')
 Require 'Hub biomass fields' $hub @('hasParam("absorbance")', 'hasParam("raw")', 'hasParam("idle")')

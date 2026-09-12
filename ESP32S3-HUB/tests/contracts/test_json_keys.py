@@ -77,6 +77,12 @@ REAL_FRAMES = {
         "maxFlow": "50.0", "a1": "-1.2E-05", "b1": "0.00034", "k1": "2.0", "f1": "3.0", "c1": "4.0",
         "k2": "0.0", "f2": "5.0", "c2": "1.0",
     },
+    # Comandos de configuracao do sensor de distancia (Hub 10.2 / v11)
+    '{"distanceOffsetMm":25.5}': {"distanceOffsetMm": "25.5"},
+    '{"distanceSamplePeriodMs":200,"distanceSendPeriodMs":1000}': {
+        "distanceSamplePeriodMs": "200", "distanceSendPeriodMs": "1000",
+    },
+    '{"distanceResetNvs":1}': {"distanceResetNvs": "1"},
 }
 
 
@@ -108,6 +114,26 @@ class JsonKeyTests(unittest.TestCase):
 
     def test_absent_key_returns_empty(self):
         self.assertEqual("", get_value('{"motorSetpoint":300}', "servoPollMs"))
+
+
+class DistanceSourceContractTests(unittest.TestCase):
+    def read(self, rel):
+        import pathlib
+        src_root = pathlib.Path(__file__).resolve().parents[2] / "ESP32S3-HUB"
+        return (src_root / rel).read_text(encoding="utf-8")
+
+    def test_distance_handler_calls_ack_and_take_reliable(self):
+        http = self.read("src/network/HttpServer.h")
+        self.assertIn('ackReliable(distanceBox', http)
+        self.assertIn('takeReliable(distanceBox', http)
+        self.assertIn('readAckParam(request)', http)
+
+    def test_telemetry_emits_distance_echoes_and_pending(self):
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn('\\"DistanceOffsetMm\\"', tel)
+        self.assertIn('\\"DistanceSamplePeriodMs\\"', tel)
+        self.assertIn('\\"DistanceSendPeriodMs\\"', tel)
+        self.assertIn('\\"DistanceCommandPending\\"', tel)
 
 
 if __name__ == "__main__":

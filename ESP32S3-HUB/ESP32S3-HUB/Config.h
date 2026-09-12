@@ -8,7 +8,8 @@
 // A mudanca Hub<->driver e incompatível e por isso incrementa o protocolo.
 // 10.1.0: identidade dos nos externos no quadro agregado (*IP, *NodeVer, *NodeMac)
 // e /nodes completo. Chaves aditivas: o protocolo continua 10.
-#define HUB_FIRMWARE_VERSION "10.1.0-dev"
+// 10.2.0: caixa confiavel da distancia por carona no push e ecos de config dos nos.
+#define HUB_FIRMWARE_VERSION "10.2.0-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

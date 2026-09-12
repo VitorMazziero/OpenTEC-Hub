@@ -123,14 +123,26 @@ void startWiFi() {
       String distStr = request->getParam("distance")->value();
       float   newDistance = distStr.toFloat();
       
-      // Filtro de estagnação
-      static float   buf[5]        = {0.0f};
-      static uint8_t bufIndex      = 0;
-      static uint8_t bufCount      = 0;
-      static float   lastAccepted  = NAN;
-      const float   ES            = 1e-3f;
-      float acceptedDistance = -1.0f;
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        if (request->hasParam("offset")) {
+          distanceOffsetMm = request->getParam("offset")->value().toFloat();
+          distanceEchoSeen = true;
+        }
+        if (request->hasParam("sample_ms")) {
+          distanceSamplePeriodMs = (uint32_t)strtoul(request->getParam("sample_ms")->value().c_str(), NULL, 10);
+          distanceEchoSeen = true;
+        }
+        if (request->hasParam("send_ms")) {
+          distanceSendPeriodMs = (uint32_t)strtoul(request->getParam("send_ms")->value().c_str(), NULL, 10);
+          distanceEchoSeen = true;
+        }
+
+        // Filtro de estagnação
+        static float   buf[5]        = {0.0f};
+        static uint8_t bufIndex      = 0;
+        static uint8_t bufCount      = 0;
+        static float   lastAccepted  = NAN;
+        const float   ES            = 1e-3f;
         buf[bufIndex] = newDistance;
         bufIndex = (bufIndex + 1) % 5;
         if (bufCount < 5) ++bufCount;
@@ -155,11 +167,17 @@ void startWiFi() {
         }
         distanceSensorLastUpdate = millis();
         recordDeviceActivity(DEV_DISTANCE, request->client()->remoteIP(), distanceSensorLastUpdate, false);
-        acceptedDistance = distanceSensorValue;
         xSemaphoreGive(stateMutex);
       }
-      String json = "{\"Distance\":" + String(acceptedDistance, 2) + "}";
-      request->send(200, "application/json", json);
+
+      ackReliable(distanceBox, readAckParam(request), "Distance");
+
+      String pending = takeReliable(distanceBox);
+      if (pending != "{}") {
+        request->send(200, "application/json", pending);
+      } else {
+        request->send(200, "text/plain", "Distance data received");
+      }
     });
 
     // Handler de GET /flowData (recebe dados do fluxômetro)

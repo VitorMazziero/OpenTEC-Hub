@@ -1,11 +1,12 @@
 # Contrato HTTP do Hub 10
 
 > O nome deste arquivo é histórico. A identidade emitida atualmente é firmware
-> `10.1.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
+> `10.2.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
 > manifesto de cada ensaio, por isso toda mudança de comportamento do Hub sobe a versão
 > — `10.0.1-dev` é o leitor serial em linhas e o repasse de `a1`/`b1` (2026-09-11);
 > `10.1.0-dev` é a identidade dos nós externos no quadro agregado e o `/nodes` completo
-> (2026-09-12). Chaves aditivas não sobem o protocolo.
+> (2026-09-12); `10.2.0-dev` é a caixa confiável da distância por carona no push e
+> os ecos de configuração dos nós externos. Chaves aditivas não sobem o protocolo.
 
 ## Compatibilidade com o aplicativo
 
@@ -140,6 +141,49 @@ além de `k1`, `f1`, `c1`. O Hub repassa os oito termos ao fluxômetro **na orde
 recebe `k1/f1/c1` **sem** eles — e até 2026-09-11 o Hub os descartava, de modo que toda
 curva enviada chegava ao nó como quadrática. Chaves do aplicativo: `a1`, `b1`, `k1`,
 `f1`, `c1`, `k2`, `f2`, `c2`, `maxFlow` (ver `docs/PROTOCOL.md` §3.2 do aplicativo).
+
+## Comandos por nó (tradução app→nó)
+
+Todo comando destinado a um nó externo passa pelo Hub e pelo `CommandArbiter` (D-015),
+usando caixas confiáveis (`ReliableMailbox`). O aplicativo envia chaves planas com prefixo
+do dispositivo, e o Hub valida as faixas e traduz para as chaves nativas do nó:
+
+### Sensor de distância (`distanceBox` via carona no push)
+
+| Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Faixa aceita no Hub | Mecanismo de entrega |
+|---|---|---|---|---|
+| `DistanceOffsetMm` | `distanceOffsetMm` | `offset_mm` | `[-50.0, 200.0]` mm | Carona na resposta de `GET /distance` |
+| `DistanceSamplePeriodMs` | `distanceSamplePeriodMs` | `sample_period` | `[100, 60000]` ms | Idem |
+| `DistanceSendPeriodMs` | `distanceSendPeriodMs` | `send_period` | `[100, 60000]` ms | Idem |
+| `DistanceResetNvs` | `distanceResetNvs` | `reset_nvs` | inteiro | Idem |
+
+Valores fora da faixa são descartados no Hub com `ESP32_EVT`.
+
+O sensor de distância não requer rota de poll dedicada: ele já faz um push `GET /distance`
+por segundo e lê o corpo da resposta. Quando há comando pendente na `distanceBox`, o Hub
+responde `200 application/json {"cmd_id":N,"offset_mm":...}`; o nó aplica e responde com
+`&ack_cmd_id=N` no push seguinte. Sem comando pendente, o Hub responde `200 text/plain "Distance data received"`.
+
+## Ecos por nó (10.2)
+
+Valores de configuração aplicados pelo nó são ecoados em seus pushes e republicados no
+quadro agregado (`GET /readData`).
+
+Regra de emissão:
+- Cada bloco de eco só entra no JSON quando o nó já o ecoou pelo menos uma vez neste boot
+  (`distanceEchoSeen = true`) e o nó está dentro da janela de presença (`DistanceOnline = true`).
+- Se o nó sai da janela de presença (`DISTANCE_PRESENCE_TIMEOUT = 3000` ms), `distanceEchoSeen`
+  é redefinido para `false` e as chaves de eco são removidas do quadro (não são *sticky*).
+- `*CommandPending` é publicado sempre (como os outros atuadores e periféricos).
+
+### Sensor de distância
+
+| Chave no quadro | Tipo | Quando | Significado |
+|---|---|---|---|
+| `DistanceCommandPending` | bool | sempre | Verdadeiro enquanto houver comando pendente de confirmação |
+| `DistanceOffsetMm` | float (%.2f) | `DistanceOnline` e `distanceEchoSeen` | Offset em mm aplicado e mantido em NVS pelo sensor |
+| `DistanceSamplePeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de leitura do sensor em ms |
+| `DistanceSendPeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de envio HTTP em ms |
 
 ## Limite de responsabilidade
 

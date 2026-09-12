@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using OpenTECHub.Protocol;
+using OpenTECHub.Services.Communication;
 
 namespace OpenTECHub.ViewModels;
 
@@ -59,6 +61,69 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     public string DisplayName { get; }
 
     public string GenitiveName { get; }
+
+    /// <summary>
+    /// Wire name of the node in the Hub's registry (<c>pump</c>, …), or null for a device
+    /// the registry does not track (the servo drive). Selects the firmware catalogue entry.
+    /// </summary>
+    public string? NodeKind { get; init; }
+
+    // ---- Network identity (Hub 10.1) ----------------------------------------
+    // Who the node is and where it answers, as the Hub registered it. Unknown is not a
+    // fault and is never a chip: a Hub older than 10.1 leaves it Empty, and the text says so.
+
+    /// <summary>IP, MAC and firmware as the Hub registered them; <see cref="ExternalNodeIdentity.Empty"/> when unknown.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNodeIdentity))]
+    [NotifyPropertyChangedFor(nameof(IsNodeReachable))]
+    [NotifyPropertyChangedFor(nameof(NodeIpText))]
+    [NotifyPropertyChangedFor(nameof(NodeMacText))]
+    [NotifyPropertyChangedFor(nameof(NodeFirmwareText))]
+    [NotifyPropertyChangedFor(nameof(NetworkSummaryText))]
+    [NotifyPropertyChangedFor(nameof(NodeDiagnosticsUri))]
+    [NotifyPropertyChangedFor(nameof(FirmwareAdvisoryText))]
+    [NotifyPropertyChangedFor(nameof(HasFirmwareAdvisory))]
+    public partial ExternalNodeIdentity Node { get; set; } = ExternalNodeIdentity.Empty;
+
+    /// <summary>The Hub has said at least one thing about who this node is.</summary>
+    public bool HasNodeIdentity => Node.IsKnown;
+
+    /// <summary>The Hub has an address for the node, so its <c>/diag</c> can be opened from the Hub's network.</summary>
+    public bool IsNodeReachable => Node.IsReachable;
+
+    public string NodeIpText => Node.Ip ?? "—";
+
+    public string NodeMacText => Node.Mac ?? "—";
+
+    public string NodeFirmwareText => Node.FirmwareVersion ?? "—";
+
+    /// <summary>One line for the drawer: <c>192.168.4.3 · fw 3.8</c>, or why there is nothing to show.</summary>
+    public string NetworkSummaryText
+    {
+        get
+        {
+            if (!HasNodeIdentity)
+            {
+                return "Identidade de rede desconhecida (Hub anterior à 10.1 ou nó não registrado)";
+            }
+
+            var ip = Node.Ip ?? "sem IP";
+            return Node.FirmwareVersion is { } fw ? $"{ip} · fw {fw}" : ip;
+        }
+    }
+
+    /// <summary><c>http://&lt;ip&gt;/diag</c>, or null when the Hub has no address for the node.</summary>
+    public Uri? NodeDiagnosticsUri
+        => Node.Ip is { } ip && Uri.TryCreate($"http://{ip}/diag", UriKind.Absolute, out var uri) ? uri : null;
+
+    /// <summary>
+    /// A sentence when the node's firmware is outside the set this build was validated
+    /// with (<see cref="NodeFirmwareCatalog"/>); null otherwise. Advisory only - never an alarm.
+    /// </summary>
+    public string? FirmwareAdvisoryText
+        => NodeKind is { } kind ? NodeFirmwareCatalog.Advisory(kind, Node.FirmwareVersion) : null;
+
+    public bool HasFirmwareAdvisory => FirmwareAdvisoryText is not null;
 
     /// <summary>The Hub has reported on this device at least once since the link came up.</summary>
     [ObservableProperty]
@@ -210,6 +275,7 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
         IsOnline = false;
         IsAwaitingAck = false;
         CommEnabledOnHub = null;
+        Node = ExternalNodeIdentity.Empty;
         _dispatchedAt = null;
     }
 
@@ -221,11 +287,20 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     /// device — in which case <see cref="AckFallbackWindow"/> releases the lock instead.
     /// </param>
     /// <param name="commEnabled">The Hub's routing flag, or null when it does not publish one.</param>
-    public void Update(bool hasTelemetry, bool online, bool? pending, bool? commEnabled)
+    /// <param name="node">
+    /// The node's network identity from the same frame, or null for a device the Hub's
+    /// registry does not track. Sticky in the parser already, so passing the snapshot's
+    /// value every frame is right.
+    /// </param>
+    public void Update(bool hasTelemetry, bool online, bool? pending, bool? commEnabled, ExternalNodeIdentity? node = null)
     {
         HasTelemetry = hasTelemetry;
         IsOnline = online;
         CommEnabledOnHub = commEnabled;
+        if (node is not null && node != Node)
+        {
+            Node = node;
+        }
 
         if (pending is { } reported)
         {

@@ -55,7 +55,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         _settings = settings;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.BiomassControl;
-        Status = new ExternalDeviceStatus("Sensor de biomassa", "do sensor de biomassa", timeProvider);
+        Status = new ExternalDeviceStatus("Sensor de biomassa", "do sensor de biomassa", timeProvider) { NodeKind = NodeFirmwareCatalog.Biomass };
         Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
@@ -398,7 +398,8 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
             snapshot.HasBiomassTelemetry,
             snapshot.BiomassOnline,
             snapshot.BiomassCommandPending,
-            snapshot.BiomassCommEnabled);
+            snapshot.BiomassCommEnabled,
+            snapshot.BiomassNode);
 
         // The four biomass channels arrive together; Abs carries the not-received sentinel,
         // so gate the whole block on it rather than showing 0 counts before any frame. The

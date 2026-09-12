@@ -81,7 +81,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         _arbiter = arbiter ?? (device as ICommandArbiter);
         _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher((_arbiter as IDeviceService) ?? device);
         _committed = settings.Current.PumpControl;
-        Status = new ExternalDeviceStatus(DeviceNames.ExternalPump, "da bomba externa", timeProvider);
+        Status = new ExternalDeviceStatus(DeviceNames.ExternalPump, "da bomba externa", timeProvider) { NodeKind = NodeFirmwareCatalog.Pump };
         Status.PropertyChanged += OnStatusChanged;
 
         if (_cascade is not null)
@@ -683,7 +683,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             snapshot.HasPumpTelemetry,
             snapshot.PumpOnline,
             snapshot.PumpCommandPending,
-            snapshot.PumpCommEnabled);
+            snapshot.PumpCommEnabled,
+            snapshot.PumpNode);
 
         UpdateNodeStateReadouts(snapshot);
 

@@ -53,7 +53,7 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
         _settings = settings;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.FlaskAgitator;
-        Status = new ExternalDeviceStatus("Agitador de frasco", "do agitador de frasco", timeProvider);
+        Status = new ExternalDeviceStatus("Agitador de frasco", "do agitador de frasco", timeProvider) { NodeKind = NodeFirmwareCatalog.Agitator };
         Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
@@ -401,7 +401,8 @@ public sealed partial class FlaskAgitatorViewModel : ObservableObject, IDisposab
             snapshot.HasAgitatorTelemetry,
             snapshot.AgitatorOnline,
             snapshot.AgitatorCommandPending,
-            commEnabled: null);
+            commEnabled: null,
+            snapshot.AgitatorNode);
 
         ActualPercentText = snapshot.AgitatorPercent > SensorReadings.NotReceived
             ? snapshot.AgitatorPercent.ToString("F0", CultureInfo.CurrentCulture)

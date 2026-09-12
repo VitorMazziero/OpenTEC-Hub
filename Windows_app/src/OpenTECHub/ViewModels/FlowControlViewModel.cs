@@ -31,7 +31,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
             throw new ArgumentOutOfRangeException(nameof(initialMaxFlow));
         }
 
-        Status = new ExternalDeviceStatus("Fluxômetro", "do fluxômetro", timeProvider);
+        Status = new ExternalDeviceStatus("Fluxômetro", "do fluxômetro", timeProvider) { NodeKind = NodeFirmwareCatalog.Flowmeter };
 
         _appliedMaxFlow = initialMaxFlow;
         MaxFlowText = Format(initialMaxFlow);
@@ -343,7 +343,8 @@ public sealed partial class FlowControlViewModel : ObservableObject
             hasTelemetry: true,
             snapshot.FlowmeterOnline,
             snapshot.FlowCommandPending,
-            snapshot.FlowControlEnabled);
+            snapshot.FlowControlEnabled,
+            snapshot.FlowmeterNode);
         ActualValve1 = ToState(snapshot.FlowValve1);
         ActualValve2 = ToState(snapshot.FlowValve2);
         ActualVentValve = ToState(snapshot.FlowValveMain);

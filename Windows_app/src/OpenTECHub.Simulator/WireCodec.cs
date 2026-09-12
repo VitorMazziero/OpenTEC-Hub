@@ -72,6 +72,7 @@ public static class WireCodec
         }
 
         AppendExternalDevices(buffer, model);
+        AppendNodeIdentity(buffer, model);
 
         AppendBool(buffer, "SensorCommOK", online);
 
@@ -452,6 +453,29 @@ public static class WireCodec
         => buffer.Append('"').Append(key).Append("\":")
                  .Append(value.ToString(CultureInfo.InvariantCulture))
                  .Append(',');
+
+    /// <summary>
+    /// The Hub 10.1 node registry: <c>*IP</c> on every frame (<c>0.0.0.0</c> = never seen) and
+    /// <c>*NodeVer</c>/<c>*NodeMac</c> only once the node has registered - the same conditional
+    /// rule the real Hub applies so an unregistered node costs the frame nothing.
+    /// </summary>
+    private static void AppendNodeIdentity(StringBuilder buffer, DeviceModel model)
+    {
+        if (!model.PublishesNodeIdentity)
+        {
+            return;
+        }
+
+        foreach (var (device, prefix) in DeviceModel.RegistryNodes)
+        {
+            AppendString(buffer, prefix + "IP", model.NodeIp(device));
+            if (model.NodeRegistered(device))
+            {
+                AppendString(buffer, prefix + "NodeVer", DeviceModel.NodeVersion(device));
+                AppendString(buffer, prefix + "NodeMac", DeviceModel.NodeMac(device));
+            }
+        }
+    }
 
     private static void AppendBool(StringBuilder buffer, string key, bool value)
         => buffer.Append('"').Append(key).Append("\":")

@@ -238,12 +238,18 @@ void processJsonCommand(String json, bool allowBlocking) {
     } else if (cmd.equals("manual")) {
       setAutoRange(false);
     } else if (cmd.equals("set_gear")) {
-      long it  = getJsonValue(json, "it");
-      long pwm = getJsonValue(json, "pwm");
-      if (it == -999999 || pwm == -999999) {
-        Serial.println("Error: set_gear needs \"it\" and \"pwm\" indices.");
-      } else {
+      long it   = getJsonValue(json, "it");
+      long pwm  = getJsonValue(json, "pwm");
+      long gear = getJsonValue(json, "gear");
+      if (gear == -999999) gear = getJsonValue(json, "value");
+      if (it != -999999 && pwm != -999999) {
         setManualGear((int)it, (int)pwm);
+      } else if (gear != -999999 && gear >= 0 && gear < (g_config.IT_COUNT * g_config.PWM_COUNT)) {
+        int itG  = (int)(gear / g_config.PWM_COUNT);
+        int pwmG = (int)(gear % g_config.PWM_COUNT);
+        setManualGear(itG, pwmG);
+      } else {
+        Serial.println("Error: set_gear needs \"it\" and \"pwm\" indices, or linear \"gear\"/\"value\" index (0..31).");
       }
     } else if (cmd.equals("read_once")) {
       if (g_state == IDLE) {
@@ -252,10 +258,25 @@ void processJsonCommand(String json, bool allowBlocking) {
         Serial.println("Error: read_once allowed only in IDLE.");
       }
     } else if (cmd.equals("probe_period")) {
-      // Diagnostic: measures what the sensor's conversion period really is,
-      // rather than trusting the nominal integration time. Needs the LED, so
-      // IDLE only.
-      if (g_state != IDLE) {
+      long periodVal = getJsonValue(json, "value");
+      if (periodVal != -999999 && periodVal > 0) {
+        if (periodVal > 3600000L) periodVal = 3600000L;
+        long floorMs = (long)minSafeRefreshMs();
+        if (periodVal < floorMs) {
+          Serial.print("Requested interval ");
+          Serial.print(periodVal);
+          Serial.print(" ms exceeds the LED thermal duty limit; clamped to ");
+          Serial.print(floorMs);
+          Serial.println(" ms.");
+          periodVal = floorMs;
+        }
+        for (int i = 0; i < g_config.IT_COUNT; i++) {
+          g_config.itRefreshTimes[i] = (uint32_t)periodVal;
+        }
+        Serial.print("Sampling interval set to ");
+        Serial.print(periodVal);
+        Serial.println(" ms");
+      } else if (g_state != IDLE) {
         Serial.println("Error: probe_period allowed only in IDLE.");
       } else {
         long pwm = getJsonValue(json, "pwm");
@@ -291,6 +312,9 @@ void processJsonCommand(String json, bool allowBlocking) {
       long idx = getJsonValue(json, "index");
       bool found;
       float v = getJsonFloat(json, "value", found);
+      if (idx == -999999 && found) {
+        idx = g_currentPwmIndex;
+      }
       if (idx < 0 || idx >= g_config.PWM_COUNT || !found) {
         Serial.println("Error: set_pwm needs \"index\" (0-7) and \"value\" (0-100).");
       } else if (v < 0.0f || v > 100.0f) {
@@ -303,13 +327,29 @@ void processJsonCommand(String json, bool allowBlocking) {
     } else if (cmd.equals("set_it")) {
       long idx  = getJsonValue(json, "index");
       long code = getJsonValue(json, "code"); // 0..5 -> 25,50,100,200,400,800 ms
+      if (code == -999999) code = getJsonValue(json, "value");
+      if (idx == -999999 && code != -999999) {
+        idx = g_currentItIndex;
+      }
       if (idx < 0 || idx >= g_config.IT_COUNT || code < 0 || code > 5) {
-        Serial.println("Error: set_it needs \"index\" (0-3) and \"code\" (0-5).");
+        Serial.println("Error: set_it needs \"index\" (0-3) and \"code\"/\"value\" (0-5).");
       } else {
         g_config.itSettings[idx] = (uint16_t)(IT_BITS[code] << 6);
         g_config.itDelays[idx]   = IT_MS[code];
         saveConfig();
         invalidateBlank("integration time table changed");
+      }
+    } else if (cmd.equals("ema")) {
+      bool found;
+      float f = getJsonFloat(json, "value", found);
+      if (!found) f = getJsonFloat(json, "ema", found);
+      if (found) {
+        if (f <= 0.0f) f = 0.01f;
+        if (f > 1.0f)  f = 1.0f;
+        g_emaAlpha = f;
+        g_prefs.putFloat(NVS_KEY_EMA, g_emaAlpha);
+        Serial.print("EMA alpha set to ");
+        Serial.println(g_emaAlpha, 2);
       }
     } else if (cmd.equals("pwm_preset")) {
       // One shot, one save, one blank invalidation -- setting the eight
@@ -391,6 +431,8 @@ void processJsonCommand(String json, bool allowBlocking) {
   }
 
   val = getJsonValue(json, "refresh_ms");
+  if (val == -999999) val = getJsonValue(json, "probe_ms");
+  if (val == -999999) val = getJsonValue(json, "probe_period");
   if (val != -999999) {
     if (val > 3600000L) val = 3600000L;
     long floorMs = (long)minSafeRefreshMs();

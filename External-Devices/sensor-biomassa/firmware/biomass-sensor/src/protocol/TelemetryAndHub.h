@@ -57,7 +57,7 @@ bool httpGet(const String& url, int& code, String& body) {
 void sendHubHello() {
   if (WiFi.status() != WL_CONNECTED) return;
   char url[140];
-  snprintf(url, sizeof(url), "%s?dev=biomass&ver=v10&mac=%s",
+  snprintf(url, sizeof(url), "%s?dev=biomass&ver=v11&mac=%s",
            sensorHubHelloURL.c_str(), WiFi.macAddress().c_str());
   int code;
   String body;
@@ -70,10 +70,10 @@ void sendHubHello() {
 }
 
 void sendDataToHub() {
-  char url[256];
+  char url[320];
   float pwmVal = (g_state == IDLE) ? 0.0f : g_config.pwmSettings[g_currentPwmIndex];
   snprintf(url, sizeof(url),
-           "%s?absorbance=%.3f&raw=%d&it=%d&pwm=%.1f&hd_mode=%d&ack_cmd_id=%lu&idle=%d",
+           "%s?absorbance=%.3f&raw=%d&it=%d&pwm=%.1f&hd_mode=%d&ack_cmd_id=%lu&idle=%d&gear=%d&ema=%.3f&probe_ms=%lu",
            sensorHubDataURL.c_str(),
            g_lastAbsorbance,
            g_lastAlsRaw,
@@ -81,7 +81,10 @@ void sendDataToHub() {
            pwmVal,
            g_highDensityMode ? 1 : 0,
            static_cast<unsigned long>(g_lastAppliedHubCmdId),
-           (g_state == IDLE) ? 1 : 0);
+           (g_state == IDLE) ? 1 : 0,
+           (g_currentItIndex * g_config.PWM_COUNT + g_currentPwmIndex),
+           g_emaAlpha,
+           static_cast<unsigned long>(g_config.itRefreshTimes[g_currentItIndex]));
 
   int    code;
   String body;

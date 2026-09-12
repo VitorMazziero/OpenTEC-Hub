@@ -73,6 +73,34 @@ void telemetryTask(void *parameter) {
       uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
       currentTelemetryInterval = min(telemetryInterval * (1UL << shift), MAX_HUB_BACKOFF_MS);
     }
+
+    static unsigned long lastHelloCheckMs = 0;
+    static bool hubAnnounced = false;
+    if (g_hubFailStreak >= 8 || telemetryFailures >= telemetryFailuresBeforeRelink) {
+      hubAnnounced = false;
+    }
+    if (!otaInProgress && WiFi.status() == WL_CONNECTED && (!hubAnnounced || now - lastHelloCheckMs >= 30000)) {
+      lastHelloCheckMs = now;
+      char helloUrl[140];
+      snprintf(helloUrl, sizeof(helloUrl), "%s/nodeHello?dev=flowmeter&ver=v10&mac=%s",
+               sensorHubURL.c_str(), WiFi.macAddress().c_str());
+      if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
+        static HTTPClient httpHello;
+        httpHello.begin(helloUrl);
+        httpHello.setConnectTimeout(hubConnectTimeoutMs);
+        httpHello.setTimeout(hubRequestTimeoutMs);
+        int helloCode = httpHello.GET();
+        httpHello.end();
+        xSemaphoreGive(hubHttpMutex);
+        if (helloCode == 200) {
+          hubAnnounced = true;
+          Serial.printf("[HubTelemetryTask] Hello registrado com sucesso (%d)\n", helloCode);
+        } else {
+          Serial.printf("[HubTelemetryTask] Hello falhou (%d)\n", helloCode);
+        }
+      }
+    }
+
     if (!otaInProgress && WiFi.status() == WL_CONNECTED && now - lastHTTPDataTime >= currentTelemetryInterval) {
       lastHTTPDataTime = now;
 

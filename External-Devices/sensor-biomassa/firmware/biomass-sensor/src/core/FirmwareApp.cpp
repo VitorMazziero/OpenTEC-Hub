@@ -92,6 +92,8 @@ static const char* HUB_SSID_A = "ModuloTECNAL_1";
 static const char* HUB_SSID_B = "ModuloTECNAL_2";
 String sensorHubDataURL    = "http://192.168.4.1/biomassData";
 String sensorHubCommandURL = "http://192.168.4.1/biomassCommand";
+String sensorHubHelloURL   = "http://192.168.4.1/nodeHello";
+bool g_hubAnnounced = false;
 
 static const char* AP_SSID = "BiomassSensor";
 IPAddress apIP(192, 168, 7, 1);
@@ -270,6 +272,7 @@ bool     loadBlankingData();
 void     saveBlankingData();
 void     buildDataJson();
 void     sendDataToHub();
+void     sendHubHello();
 void     pollHubForCommands();
 void     checkWifi();
 void     processJsonCommand(String json, bool allowBlocking = true);

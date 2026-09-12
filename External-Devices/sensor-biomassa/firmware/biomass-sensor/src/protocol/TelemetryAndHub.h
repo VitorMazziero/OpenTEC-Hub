@@ -54,6 +54,21 @@ bool httpGet(const String& url, int& code, String& body) {
   return code >= 200 && code < 300;
 }
 
+void sendHubHello() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  char url[140];
+  snprintf(url, sizeof(url), "%s?dev=biomass&ver=v10&mac=%s",
+           sensorHubHelloURL.c_str(), WiFi.macAddress().c_str());
+  int code;
+  String body;
+  if (httpGet(url, code, body)) {
+    g_hubAnnounced = true;
+    Serial.printf("[Hub] Hello registrado com sucesso (%d)\n", code);
+  } else {
+    Serial.printf("[Hub] Hello falhou (%d)\n", code);
+  }
+}
+
 void sendDataToHub() {
   char url[256];
   float pwmVal = (g_state == IDLE) ? 0.0f : g_config.pwmSettings[g_currentPwmIndex];
@@ -140,6 +155,7 @@ void checkWifi() {
   if (g_hubFailStreak >= 8) {
     Serial.printf("[NET] Link zumbi detectado (streak=%u). Forcando queda da associacao...\n", g_hubFailStreak);
     g_hubFailStreak = 0;
+    g_hubAnnounced = false;
     WiFi.disconnect(true, false);
     g_wifiState        = WF_IDLE;
     g_wifiNextActionMs = now + 500;

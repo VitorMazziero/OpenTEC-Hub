@@ -151,6 +151,12 @@ void firmwareLoop() {
 
   checkWifi();
 
+  static unsigned long lastHelloCheckMs = 0;
+  if (g_hubEnabled && WiFi.status() == WL_CONNECTED && (!g_hubAnnounced || now - lastHelloCheckMs >= 30000)) {
+    lastHelloCheckMs = now;
+    sendHubHello();
+  }
+
   unsigned long pollInterval = HUB_POLL_PERIOD_MS;
   if (g_hubFailStreak > 0) {
     uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;

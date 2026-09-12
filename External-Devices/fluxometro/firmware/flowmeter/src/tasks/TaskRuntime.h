@@ -145,9 +145,11 @@ void telemetryTask(void *parameter) {
           // Link watchdog. WL_CONNECTED only says the station is associated; it says
           // nothing about the path working. Without this the failure count just grew
           // forever and the flowmeter stayed silently mute until someone power-cycled it.
-          if (telemetryFailures >= telemetryFailuresBeforeRelink) {
-            Serial.println("[HubTelemetryTask] Link is associated but mute; forcing reassociation.");
+          if (g_hubFailStreak >= 8 || telemetryFailures >= telemetryFailuresBeforeRelink) {
+            Serial.printf("[HubTelemetryTask] Link is associated but mute (streak=%u, fails=%u); forcing reassociation.\n",
+                          g_hubFailStreak, telemetryFailures);
             telemetryFailures = 0;
+            g_hubFailStreak = 0;
             if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
               http.end();
               xSemaphoreGive(hubHttpMutex);

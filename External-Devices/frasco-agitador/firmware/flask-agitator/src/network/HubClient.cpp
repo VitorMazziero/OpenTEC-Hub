@@ -20,14 +20,22 @@ void hubHello() {
   if (responseCode > 0) {
     Serial.printf("Hub hello OK (%d)\n", responseCode);
     hubAnnounced = true;
+    g_hubFailStreak = 0;
   } else {
-    Serial.printf("Hub hello failed (%d)\n", responseCode);
+    if (g_hubFailStreak < 255) g_hubFailStreak++;
+    Serial.printf("Hub hello failed (%d, streak=%u)\n", responseCode, g_hubFailStreak);
   }
   http.end();
 }
 
 void pollHub() {
-  if (millis() - tHubPollMs < 500) {
+  unsigned long pollInterval = 500;
+  if (g_hubFailStreak > 0) {
+    uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+    pollInterval = min(500UL * (1UL << shift), MAX_HUB_BACKOFF_MS);
+  }
+
+  if (millis() - tHubPollMs < pollInterval) {
     return;
   }
   tHubPollMs = millis();
@@ -40,7 +48,9 @@ void pollHub() {
   snprintf(url, sizeof(url), "http://%s/agitatorCommand", hubIp.toString().c_str());
   http.begin(url);
   http.setTimeout(700);
-  if (http.GET() == 200) {
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    g_hubFailStreak = 0;
     String body = http.getString();
     body.trim();
     if (body.length() > 2 && body != "{}") {
@@ -56,6 +66,8 @@ void pollHub() {
         }
       }
     }
+  } else {
+    if (g_hubFailStreak < 255) g_hubFailStreak++;
   }
   http.end();
 }
@@ -78,6 +90,12 @@ void pushTelemetryToHub() {
            static_cast<unsigned long>(lastAppliedHubCmdId));
   http.begin(url);
   http.setTimeout(400);
-  http.GET();
+  int code = http.GET();
+  if (code >= 200 && code < 300) {
+    g_hubFailStreak = 0;
+  } else {
+    if (g_hubFailStreak < 255) g_hubFailStreak++;
+  }
   http.end();
 }
+

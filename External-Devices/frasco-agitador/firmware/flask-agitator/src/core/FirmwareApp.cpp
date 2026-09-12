@@ -116,8 +116,14 @@ void firmwareLoop() {
   }
 
   // The push has its own timer so two blocking Hub requests do not start back-to-back.
-  if (millis() - tHubPushMs >= BoardConfig::HubPushPeriodMs) {
+  unsigned long pushInterval = BoardConfig::HubPushPeriodMs;
+  if (g_hubFailStreak > 0) {
+    uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+    pushInterval = min(BoardConfig::HubPushPeriodMs * (1UL << shift), MAX_HUB_BACKOFF_MS);
+  }
+  if (millis() - tHubPushMs >= pushInterval) {
     tHubPushMs = millis();
     pushTelemetryToHub();
   }
 }
+

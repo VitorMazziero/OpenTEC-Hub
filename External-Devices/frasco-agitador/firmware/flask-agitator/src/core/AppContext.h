@@ -31,3 +31,6 @@ extern unsigned long g_otaLastChunkMs;
 extern const unsigned long OTA_STALL_TIMEOUT_MS;
 extern unsigned long g_otaRebootAtMs;
 extern String g_otaRejectReason;
+
+extern uint8_t g_hubFailStreak;
+extern const unsigned long MAX_HUB_BACKOFF_MS;

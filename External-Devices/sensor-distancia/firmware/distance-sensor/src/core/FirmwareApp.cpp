@@ -14,6 +14,8 @@
 
 namespace {
 constexpr uint32_t WDT_TIMEOUT_S = 15;
+constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
+uint8_t g_hubFailStreak = 0;
 }
 
 void firmwareSetup() {
@@ -116,7 +118,13 @@ void firmwareLoop() {
     g_lastValidDistance = distance;
     g_lastSampleTimeSec = seconds;
 
-    if (WiFi.status() == WL_CONNECTED && now - lastSendMs >= SEND_PERIOD_MS) {
+    unsigned long currentSendInterval = SEND_PERIOD_MS;
+    if (g_hubFailStreak > 0) {
+      uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+      currentSendInterval = min(SEND_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+    }
+
+    if (WiFi.status() == WL_CONNECTED && now - lastSendMs >= currentSendInterval) {
       lastSendMs = now;
       char url[128];
       snprintf(url, sizeof(url), "%s?distance=%d&time=%.1f",
@@ -126,12 +134,19 @@ void firmwareLoop() {
       int code;
       String body;
       if (httpGet(url, code, body)) {
+        if (g_hubFailStreak > 0) {
+          Serial.printf("[Hub] Conexao restabelecida apos %u falha(s).\n", g_hubFailStreak);
+        }
+        g_hubFailStreak = 0;
         Serial.printf("Response: %d\n", code);
       } else {
-        Serial.printf("HTTP error: %d \"%s\"\n", code, body.c_str());
+        if (g_hubFailStreak < 255) g_hubFailStreak++;
+        Serial.printf("HTTP error: %d \"%s\" (streak=%u, backoff=%lu ms)\n",
+                      code, body.c_str(), g_hubFailStreak, currentSendInterval);
       }
     }
   }
 
   delay(1);
 }
+

@@ -96,6 +96,14 @@ the UI from lagging minutes behind when the ESP32 emits faster than the app cons
 Preserve this behaviour; a naive "read one line per tick" port will appear to work
 on the bench and fall progressively behind during a real cultivation.
 
+**…but only telemetry collapses** `[hub 10.2]`. The Hub answers `{"nodeDiag":"all"}` with
+five `{"NodeDiag":…}` lines in one burst, and `OK` acks and `[ESP32_` log lines share the
+stream. Draining to the single newest line would keep at most one of them. `SerialTransport`
+therefore collapses only telemetry frames (a JSON object that is not a `NodeDiag` envelope)
+to the newest and queues every other line, handing them out one per read in arrival order
+(`SerialLineCoalescer`, bounded at 64). Found while writing the bench suite for
+`docs/processes/TESTES_AUTOMATICOS_BANCADA.md` B2.6, before it ran on hardware.
+
 ### 1.3 Wi-Fi link parameters
 
 | Parameter | Value |

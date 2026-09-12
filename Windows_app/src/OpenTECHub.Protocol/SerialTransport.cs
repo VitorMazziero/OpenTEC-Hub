@@ -159,6 +159,7 @@ public sealed class SerialTransport(
     private readonly SemaphoreSlim _ioGate = new(1, 1);
 
     private SerialPort? _port;
+    private readonly SerialLineCoalescer _lines = new();
 
     public TransportMedium Medium => TransportMedium.Usb;
 
@@ -234,12 +235,16 @@ public sealed class SerialTransport(
     }
 
     /// <summary>
-    /// Drains everything buffered and returns only the <b>newest</b> complete line.
+    /// Drains everything buffered and returns the <b>newest</b> telemetry frame, then
+    /// every other kind of line one per call.
     /// </summary>
     /// <remarks>
-    /// Deliberate, and inherited from v.6: the device emits faster than the UI
-    /// consumes, so keeping one line per tick would fall progressively further behind
-    /// over a multi-hour run. Older lines are discarded rather than queued.
+    /// Collapsing telemetry to the newest frame is deliberate, and inherited from v.6:
+    /// the device emits faster than the UI consumes, so keeping one frame per tick
+    /// would fall progressively further behind over a multi-hour run. But the Hub also
+    /// answers in bursts that are not telemetry - five <c>{"NodeDiag":…}</c> lines to one
+    /// <c>{"nodeDiag":"all"}</c>, <c>OK</c> acks, <c>[ESP32_</c> logs - and those must all
+    /// reach the reader. <see cref="SerialLineCoalescer"/> keeps them in order.
     /// See <c>docs/PROTOCOL.md</c> section 1.2.
     /// </remarks>
     public async Task<string?> ReadAsync(CancellationToken cancellationToken = default)
@@ -255,27 +260,21 @@ public sealed class SerialTransport(
 
             try
             {
-                if (port.BytesToRead == 0)
-                {
-                    return null;
-                }
-
-                string? newest = null;
                 while (port.BytesToRead > 0)
                 {
                     var line = port.ReadLine().Trim();
                     if (line.Length > 0)
                     {
-                        newest = line;
+                        _lines.Push(line);
                     }
                 }
 
-                return newest;
+                return _lines.Take();
             }
             catch (TimeoutException)
             {
                 // A partial line was in flight. Not a fault; next poll picks it up.
-                return null;
+                return _lines.Take();
             }
             catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
             {

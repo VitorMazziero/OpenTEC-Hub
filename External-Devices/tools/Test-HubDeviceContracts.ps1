@@ -1,0 +1,51 @@
+[CmdletBinding()]
+param()
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$hubRoot = Join-Path $repoRoot 'ESP32S3-HUB\ESP32S3-HUB\src'
+$externalRoot = Join-Path $repoRoot 'External-Devices'
+$failures = [System.Collections.Generic.List[string]]::new()
+
+function Read-SourceTree([string]$path) {
+    return (Get-ChildItem -LiteralPath $path -Recurse -File |
+        Where-Object { $_.Extension -in '.ino', '.h', '.hpp', '.cpp' } |
+        ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
+}
+
+function Require([string]$label, [string]$text, [string[]]$tokens) {
+    foreach ($token in $tokens) {
+        if (-not $text.Contains($token)) {
+            $failures.Add("$label missing token: $token")
+        }
+    }
+}
+
+$hub = Read-SourceTree $hubRoot
+$pump = Read-SourceTree (Join-Path $externalRoot 'bomba-peristaltica\firmware\peristaltic-pump')
+$flow = Read-SourceTree (Join-Path $externalRoot 'fluxometro\firmware\flowmeter')
+$agitator = Read-SourceTree (Join-Path $externalRoot 'frasco-agitador\firmware\flask-agitator')
+$biomass = Read-SourceTree (Join-Path $externalRoot 'sensor-biomassa\firmware\biomass-sensor')
+$distance = Read-SourceTree (Join-Path $externalRoot 'sensor-distancia\firmware\distance-sensor')
+
+Require 'Hub routes' $hub @('/distance', '/flowData', '/flowCommand', '/biomassData', '/biomassCommand', '/pumpData', '/pumpCommand', '/agitatorHello', '/agitatorData', '/agitatorCommand')
+Require 'Hub reliability' $hub @('cmd_id', 'ack_cmd_id', 'takeReliable', 'ackReliable')
+
+Require 'Distance node' $distance @('/distance', 'distance=', '&time=')
+Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', 'cmd_id', 'ack_cmd_id')
+Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', 'cmd_id', 'ack_cmd_id')
+Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', 'cmd_id', 'ack_cmd_id', '&idle=')
+Require 'Agitator node' $agitator @('/agitatorHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
+
+Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")')
+Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")')
+Require 'Hub flow fields' $hub @('hasParam("seconds")', 'hasParam("flow_voltage")', 'hasParam("flow_rate")', 'hasParam("flow_setpoint")', 'hasParam("valve1State")', 'hasParam("valve2State")')
+Require 'Hub biomass fields' $hub @('hasParam("absorbance")', 'hasParam("raw")', 'hasParam("idle")')
+Require 'Hub agitator fields' $hub @('hasParam("pct")', 'hasParam("dir")', 'hasParam("pot")', 'hasParam("src")')
+
+if ($failures.Count -gt 0) {
+    $failures | ForEach-Object { Write-Error $_ }
+    throw "$($failures.Count) Hub/device contract checks failed."
+}
+
+Write-Output 'Hub/device contract check passed for 10 routes, required telemetry fields, cmd_id and ack_cmd_id.'
+

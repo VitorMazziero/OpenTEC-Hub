@@ -125,6 +125,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private readonly List<double> _capture = [];
+    private readonly TimeProvider _time;
     private readonly int _captureTarget;
     private double _maximumFlow;
 
@@ -135,9 +136,11 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     public FlowCalibrationViewModel(
         IDeviceService device,
         ISettingsService settings,
-        IManualDispatcher? dispatcher = null)
+        IManualDispatcher? dispatcher = null,
+        TimeProvider? time = null)
     {
         _device = device;
+        _time = time ?? TimeProvider.System;
         _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _settings = settings;
         _maximumFlow = settings.Current.Setpoints.MaxFlowLitresPerMinute;
@@ -243,8 +246,23 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         ? $"Salto no limiar (0,0545 V): {Math.Abs(jump):F6} L/min"
         : "Salto no limiar: indisponível (curva incompleta)";
 
+    /// <summary>
+    /// How long a flow command may wait for the flowmeter's ack before the page says so and lets
+    /// the operator send again (§L.5, bench of 2026-09-11: a fragmented calibration frame left the
+    /// page in "aguardando" with the buttons dead). The Hub keeps retrying on its own meanwhile.
+    /// </summary>
+    public static readonly TimeSpan AckOverdueAfter = TimeSpan.FromSeconds(15);
+    private long _awaitingAckSinceTimestamp;
+
+    /// <summary>True once an ack has been pending longer than <see cref="AckOverdueAfter"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(CanSendSetpoint))]
+    [NotifyPropertyChangedFor(nameof(CanSendCurve))]
+    public partial bool IsAckOverdue { get; set; }
+
     public bool CanSendFlowCommands => _device.State == ConnectionState.Connected &&
-                                       IsFlowmeterOnline && !IsAwaitingAck;
+                                       IsFlowmeterOnline && (!IsAwaitingAck || IsAckOverdue);
 
     /// <summary>The trial setpoint may be sent whenever the link and flowmeter allow it.</summary>
     public bool CanSendSetpoint => !IsCapturing && CanSendFlowCommands;
@@ -441,9 +459,27 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             ? snapshot.FlowVoltage.ToString("F6", CultureInfo.CurrentCulture) + " V"
             : "—";
 
+        if (!IsAwaitingAck)
+        {
+            IsAckOverdue = false;
+        }
+        else if (!wasAwaiting)
+        {
+            _awaitingAckSinceTimestamp = _time.GetTimestamp();
+        }
+        else if (!IsAckOverdue && _time.GetElapsedTime(_awaitingAckSinceTimestamp) >= AckOverdueAfter)
+        {
+            IsAckOverdue = true;
+        }
+
         if (!IsFlowmeterOnline)
         {
             StatusText = "Fluxômetro Desconectado da Central.";
+        }
+        else if (IsAwaitingAck && IsAckOverdue)
+        {
+            StatusText = $"Sem confirmação do fluxômetro há {_time.GetElapsedTime(_awaitingAckSinceTimestamp).TotalSeconds:F0} s. " +
+                         "O Hub continuará reenviando até o link voltar; você pode reenviar a curva ou o setpoint.";
         }
         else if (IsAwaitingAck)
         {
@@ -632,6 +668,8 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private void MarkAwaitingAck(string confirmationText)
     {
         _pendingConfirmationText = confirmationText;
+        _awaitingAckSinceTimestamp = _time.GetTimestamp();
+        IsAckOverdue = false;
         IsAwaitingAck = true;
         StatusText = "Aguardando confirmação do fluxômetro...";
         NotifyCommandState();

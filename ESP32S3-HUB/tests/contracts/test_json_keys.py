@@ -71,6 +71,12 @@ REAL_FRAMES = {
         "num_segments": "2", "t0": "0", "q0": "1.5", "t1": "10", "q1": "2.0",
     },
     '{"servoPollMs" : 1500}': {"servoPollMs": "1500"},
+    # Quadro real de calibracao do fluxometro (2026-09-11): a1/b1 em notacao cientifica,
+    # InvariantCulture, os oito termos e maxFlow num unico quadro.
+    '{"maxFlow":50.0,"a1":-1.2E-05,"b1":0.00034,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}': {
+        "maxFlow": "50.0", "a1": "-1.2E-05", "b1": "0.00034", "k1": "2.0", "f1": "3.0", "c1": "4.0",
+        "k2": "0.0", "f2": "5.0", "c2": "1.0",
+    },
 }
 
 

@@ -1,7 +1,9 @@
 # Contrato HTTP do Hub 10
 
 > O nome deste arquivo é histórico. A identidade emitida atualmente é firmware
-> `10.0.0-dev`, `HubProtocolVersion=10`.
+> `10.0.1-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
+> manifesto de cada ensaio, por isso toda mudança de comportamento do Hub sobe a versão
+> — `10.0.1-dev` é o leitor serial em linhas e o repasse de `a1`/`b1` (2026-09-11).
 
 ## Compatibilidade com o aplicativo
 
@@ -74,6 +76,30 @@ Quando a amostra está publicável, também inclui `ServoRpm`, `ServoTorquePct`,
 `ServoCommandPending` é verdadeiro se há evento na FIFO ou comando de motor sem
 ACK. `ServoCommandQueueDepth` conta apenas eventos. Presença é independente do
 roteamento e expira após 6000 ms.
+
+## Serial USB: comandos em linhas
+
+O aplicativo termina cada quadro com `\n`; o Hub só processa um comando quando o seu fim
+de linha chega. O que estiver no buffer USB entre uma chamada e outra é acumulado e
+mantido — o leitor anterior tomava os bytes disponíveis como uma linha inteira, o que
+funcionava para um setpoint de ~40 B (um pacote USB) e fragmentava o comando de
+calibração do fluxômetro (~300 B, vários pacotes): cada pedaço falhava a verificação
+`{...}` e era descartado, e o aplicativo ficava em "aguardando ack".
+
+- Uma linha tem no máximo **1024 B**. Acima disso a linha é descartada com aviso e o Hub
+  ignora tudo até o próximo fim de linha (`discarding`), para que a cauda não vire o
+  início de uma linha seguinte.
+- `\r\n` e `\n` valem como fim de linha; várias linhas num mesmo lote são processadas
+  uma a uma, na ordem.
+
+## Curva do fluxômetro: `a1`/`b1`
+
+O segmento baixo da curva de vazão é uma **quártica ancorada**: `a1` (x⁴) e `b1` (x³)
+além de `k1`, `f1`, `c1`. O Hub repassa os oito termos ao fluxômetro **na ordem
+`a1,b1,k1,f1,c1,k2,f2,c2`**, porque o firmware V10 do fluxômetro só zera `a1`/`b1` quando
+recebe `k1/f1/c1` **sem** eles — e até 2026-09-11 o Hub os descartava, de modo que toda
+curva enviada chegava ao nó como quadrática. Chaves do aplicativo: `a1`, `b1`, `k1`,
+`f1`, `c1`, `k2`, `f2`, `c2`, `maxFlow` (ver `docs/PROTOCOL.md` §3.2 do aplicativo).
 
 ## Limite de responsabilidade
 

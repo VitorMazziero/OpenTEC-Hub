@@ -221,6 +221,7 @@ void startWiFi() {
             pendingFlowmeterCommand = "";
             pendingMaxFlow = false;
             pendingReconnectWifi = false;
+            pendingA1 = pendingB1 = false;
             pendingK1 = pendingF1 = pendingC1 = false;
             pendingK2 = pendingF2 = pendingC2 = false;
             ackedNow = true;

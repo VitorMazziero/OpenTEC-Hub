@@ -277,9 +277,15 @@ bool pendingMaxFlow = false;
 // it back on from here, so a flowmeter parked that way never came back on its own.
 bool pendingReconnectWifi = false;
 int desiredReconnectWifi = 1;
+// a1/b1 are the x^4 and x^3 terms of the flowmeter's low-range curve. The app has
+// sent them since the quartic fit; until now the hub dropped them, and a low segment
+// delivered as k1/f1/c1 alone is taken by the node as a quadratic (a1=b1=0), which
+// corrupted the low range on every "enviar curva".
+bool pendingA1 = false, pendingB1 = false;
 bool pendingK1 = false, pendingF1 = false, pendingC1 = false;
 bool pendingK2 = false, pendingF2 = false, pendingC2 = false;
 float desiredMaxFlow = 50.0f;
+float desiredA1 = 0.0f, desiredB1 = 0.0f;
 float desiredK1 = 0.0f, desiredF1 = 0.0f, desiredC1 = 0.0f;
 float desiredK2 = 0.0f, desiredF2 = 0.0f, desiredC2 = 0.0f;
 

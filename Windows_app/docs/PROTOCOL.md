@@ -370,8 +370,13 @@ Two-segment piecewise curve, split at **0.0545 V**:
 
 | Keys | Segment |
 |---|---|
-| `k1`, `f1`, `c1` | `V <= 0.0545` |
+| `a1`, `b1`, `k1`, `f1`, `c1` | `V <= 0.0545` — anchored quartic `flow = a1·V⁴ + b1·V³ + k1·V² + f1·V + c1` |
 | `k2`, `f2`, `c2` | `V > 0.0545` |
+
+`a1`/`b1` are sent first, in the order `a1,b1,k1,f1,c1,k2,f2,c2`: the flowmeter's V10 firmware
+zeroes them only when `k1/f1/c1` arrive **without** them, so a low segment sent as `k1/f1/c1`
+alone is taken as a quadratic. Hub `10.0.1-dev` forwards them; `10.0.0-dev` dropped them
+(2026-09-11). The whole curve goes on **one frame**, under the Hub's 1024-byte serial line.
 
 Preparing or fine-adjusting one certified point uses the Hub-v7 routed state below. The
 operator's real-flow value comes from an external standard; the app then averages
@@ -528,7 +533,7 @@ Motor setpoint     {"motorSetpoint":790}
 Valve state at 0   {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":1,"v_Flow":1}
 Flow safe-stop     {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1}
 Flow cal setpoint  {"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
-Flow cal curve     {"maxFlow":50.0,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
+Flow cal curve     {"maxFlow":50.0,"a1":-1.2E-05,"b1":0.00034,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
 Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
 Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
                    ... plus the dosing, agitator and pump-profile fragments, then {"pumpComm":0} on the next frame

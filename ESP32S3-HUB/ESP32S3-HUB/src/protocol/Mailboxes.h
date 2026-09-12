@@ -104,6 +104,9 @@ String buildFlowCommandLocked() {
   cmd += ",\"v_Flow\":" + String(desiredFlowValveFlow);
   if (pendingMaxFlow) cmd += ",\"max_flow\":" + String(desiredMaxFlow, 6);
   if (pendingReconnectWifi) cmd += ",\"reconnect_wifi\":" + String(desiredReconnectWifi);
+  // a1/b1 go first so the node sees the quartic opt-in before k1/f1/c1.
+  if (pendingA1) cmd += ",\"a1\":" + String(desiredA1, 9);
+  if (pendingB1) cmd += ",\"b1\":" + String(desiredB1, 9);
   if (pendingK1) cmd += ",\"k1\":" + String(desiredK1, 9);
   if (pendingF1) cmd += ",\"f1\":" + String(desiredF1, 9);
   if (pendingC1) cmd += ",\"c1\":" + String(desiredC1, 9);
@@ -189,6 +192,8 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   // flowmeter's USB serial or its private AP, and nothing here could turn it back on,
   // so a flowmeter parked that way never returned without someone walking to it.
   bool hasReconnect = json.indexOf("\"reconnectWifi\"") != -1;
+  bool hasA1 = json.indexOf("\"a1\"") != -1;
+  bool hasB1 = json.indexOf("\"b1\"") != -1;
   bool hasK1 = json.indexOf("\"k1\"") != -1;
   bool hasF1 = json.indexOf("\"f1\"") != -1;
   bool hasC1 = json.indexOf("\"c1\"") != -1;
@@ -197,7 +202,7 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   bool hasC2 = json.indexOf("\"c2\"") != -1;
 
   if (!(hasFlow || hasV1 || hasV2 || hasVFlow || hasMax || hasReconnect ||
-        hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2)) {
+        hasA1 || hasB1 || hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2)) {
     return 0;
   }
 
@@ -219,6 +224,8 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
       desiredReconnectWifi = getValueFromJson(json, "reconnectWifi").toInt() != 0 ? 1 : 0;
       pendingReconnectWifi = true;
     }
+    if (hasA1) { desiredA1 = getValueFromJson(json, "a1").toFloat(); pendingA1 = true; }
+    if (hasB1) { desiredB1 = getValueFromJson(json, "b1").toFloat(); pendingB1 = true; }
     if (hasK1) { desiredK1 = getValueFromJson(json, "k1").toFloat(); pendingK1 = true; }
     if (hasF1) { desiredF1 = getValueFromJson(json, "f1").toFloat(); pendingF1 = true; }
     if (hasC1) { desiredC1 = getValueFromJson(json, "c1").toFloat(); pendingC1 = true; }

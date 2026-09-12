@@ -1,24 +1,54 @@
 // ------------------------------------------------------------------
 // handleUSBCommands():
 // ------------------------------------------------------------------
+// The line buffer persists across calls. A command is only processed once its
+// terminating newline has arrived; whatever is in the UART/USB buffer meanwhile
+// is appended and kept. The old reader took whatever bytes were available and
+// processed them as a whole line: a ~40-byte setpoint fits in one USB packet and
+// worked, the ~300-byte calibration command arrived in pieces, and each piece
+// failed the "{...}" check and was dropped - so the flowmeter never received a
+// curve and the app waited for an ack that could not come.
+static const size_t USB_LINE_MAX = 1024;
+
 void handleUSBCommands() {
   static String data;
   static bool reserved = false;
+  // Set once a line overflowed USB_LINE_MAX: the tail of that line is thrown away
+  // up to its end-of-line instead of being accumulated as the start of a new one,
+  // which would hand processCommandData() a fragment that is not a command.
+  static bool discarding = false;
   if (!reserved) {
-    data.reserve(256);
+    data.reserve(512);
     reserved = true;
   }
 
-  data = "";
   while (Serial.available() > 0) {
     char c = Serial.read();
-    if (c == '\n' || c == '\r') break;
+    if (c == '\n' || c == '\r') {
+      if (discarding) {
+        discarding = false;   // the runaway line ended here; the next one starts clean
+        data = "";
+        continue;
+      }
+      data.trim();
+      if (data.length() > 0) {
+        processCommandData(data);
+      }
+      data = "";
+      continue;   // keep draining: more than one line may be queued
+    }
+    if (discarding) {
+      continue;
+    }
+    if (data.length() >= USB_LINE_MAX) {
+      // Runaway input without a newline: discard rather than grow forever, and keep
+      // discarding until the line actually ends.
+      ESP32_AVISO("Linha serial excedeu " + String(USB_LINE_MAX) + " bytes sem fim de linha; descartada");
+      data = "";
+      discarding = true;
+      continue;
+    }
     data += c;
-  }
-
-  data.trim();
-  if (data.length() > 0) {
-    processCommandData(data);
   }
 }
 

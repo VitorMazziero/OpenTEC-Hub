@@ -334,6 +334,38 @@ public sealed class GuidedCalibrationTests
         Assert.False(vm.IsCapturing);
     }
 
+    /// <summary>§L.5: an ack that never comes must not leave the page dead — after 15 s it says so and re-enables sending.</summary>
+    [Fact]
+    public void An_overdue_flowmeter_ack_reenables_sending_and_says_the_hub_keeps_retrying()
+    {
+        var device = new RecordingDeviceService();
+        var clock = new TestClock(DateTimeOffset.UnixEpoch);
+        using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService(), time: clock);
+        PushFlow(device, 0.04);
+        Assert.True(vm.CanSendCurve);
+
+        vm.SendCurveCommand.Execute(null);
+        Assert.True(vm.IsAwaitingAck);
+        Assert.False(vm.CanSendCurve);
+
+        // The Hub keeps reporting the command as pending.
+        clock.Advance(TimeSpan.FromSeconds(5));
+        PushFlow(device, 0.04, pending: true);
+        Assert.False(vm.IsAckOverdue);
+        Assert.Contains("Aguardando", vm.StatusText, StringComparison.Ordinal);
+
+        clock.Advance(TimeSpan.FromSeconds(11));
+        PushFlow(device, 0.04, pending: true);
+        Assert.True(vm.IsAckOverdue);
+        Assert.True(vm.CanSendCurve);
+        Assert.Contains("continuará reenviando", vm.StatusText, StringComparison.Ordinal);
+
+        // The ack lands: back to normal.
+        PushFlow(device, 0.04);
+        Assert.False(vm.IsAwaitingAck);
+        Assert.False(vm.IsAckOverdue);
+    }
+
     /// <summary>§O: the voltage can be typed, not only captured, and the two stay mirrored.</summary>
     [Theory]
     [InlineData("0.123456", 0.123456)]
@@ -658,12 +690,13 @@ public sealed class GuidedCalibrationTests
             OxygenCalibrated = calibrated,
         });
 
-    private static void PushFlow(RecordingDeviceService device, double voltage)
+    private static void PushFlow(RecordingDeviceService device, double voltage, bool pending = false)
         => device.PushTelemetry(new SensorSnapshot
         {
             SensorCommOk = true,
             FlowVoltage = voltage,
             FlowmeterOnline = true,
+            FlowCommandPending = pending,
         });
 }
 

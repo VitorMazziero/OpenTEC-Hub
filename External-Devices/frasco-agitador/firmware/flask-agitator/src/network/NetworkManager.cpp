@@ -19,6 +19,15 @@ int hubIndexFromSsid(const String& ssid) {
 }
 
 void kickAsyncScanIfDue() {
+  if (g_hubFailStreak >= 8) {
+    Serial.printf("[NET] Link zumbi detectado (streak=%u). Forcando queda da associacao...\n", g_hubFailStreak);
+    g_hubFailStreak = 0;
+    WiFi.disconnect(true, false);
+    currentHubIndex = -1;
+    hubAnnounced = false;
+    tLastScanKick = 0;
+  }
+
   if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
     return;
   }
@@ -58,12 +67,12 @@ void handleScanResultAndMaybeRoam() {
   desiredHubIndex = bestIndex;
 
   if (WiFi.status() != WL_CONNECTED) {
-    if (desiredHubIndex >= 0 && currentHubIndex != desiredHubIndex) {
-      Serial.printf("Connecting to nearest hub: %s (RSSI %d dBm)\n",
+    if (desiredHubIndex >= 0) {
+      Serial.printf("Connecting to nearest hub: %s (RSSI %d dBm) on channel 6\n",
                     BoardConfig::HubSsids[desiredHubIndex],
                     bestRssi);
       WiFi.disconnect(true, false);
-      WiFi.begin(BoardConfig::HubSsids[desiredHubIndex], BoardConfig::HubPasswords[desiredHubIndex]);
+      WiFi.begin(BoardConfig::HubSsids[desiredHubIndex], BoardConfig::HubPasswords[desiredHubIndex], 6);
       currentHubIndex = desiredHubIndex;
       hubAnnounced = false;
     } else if (desiredHubIndex < 0) {
@@ -90,7 +99,7 @@ void handleScanResultAndMaybeRoam() {
                   otherRssi);
     WiFi.disconnect(true, false);
     delay(50);
-    WiFi.begin(BoardConfig::HubSsids[desiredHubIndex], BoardConfig::HubPasswords[desiredHubIndex]);
+    WiFi.begin(BoardConfig::HubSsids[desiredHubIndex], BoardConfig::HubPasswords[desiredHubIndex], 6);
     currentHubIndex = desiredHubIndex;
     hubAnnounced = false;
   }

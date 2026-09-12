@@ -41,8 +41,8 @@ void firmwareSetup() {
 
   WiFi.mode(WIFI_AP_STA);
   WiFi.setSleep(false);
-  if (WiFi.softAP(BoardConfig::AccessPointSsid, BoardConfig::AccessPointPassword)) {
-    Serial.printf("AP  %s  IP: %s\n",
+  if (WiFi.softAP(BoardConfig::AccessPointSsid, BoardConfig::AccessPointPassword, 6)) {
+    Serial.printf("AP  %s  IP: %s (Channel 6)\n",
                   BoardConfig::AccessPointSsid,
                   WiFi.softAPIP().toString().c_str());
   }

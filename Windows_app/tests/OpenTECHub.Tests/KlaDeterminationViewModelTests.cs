@@ -128,6 +128,40 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.True(_vm.IsAdvancedSettingsDialogOpen);
     }
 
+    /// <summary>
+    /// "Repetir" from the review starts a new run without going through the sequence dialog: the
+    /// live chart must start empty, not draw the replicate on top of the rejected curve.
+    /// </summary>
+    [Fact]
+    public async Task Repeating_a_run_from_the_review_starts_the_live_series_empty()
+    {
+        _vm.NewTestName = "Ensaio Repetir";
+        _vm.CreateNewTest();
+        _vm.NewConditionRpm = 300;
+        _vm.NewConditionFlow = 2.0;
+        _vm.AddManualCondition();
+        _vm.NitrogenSourceConfirmed = true;
+        await _vm.StartSequenceAsync();
+
+        for (var i = 0; i < 12; i++)
+        {
+            _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, i, RunPhase.Reoxygenating, 10 + i, 10 + i, 2, 2, 300, false, true, false));
+        }
+        Assert.Equal(12, _vm.LivePoints.Count);
+        Assert.NotEmpty(_vm.InstantaneousKlaSeries);
+
+        await _vm.StopRunAsync();
+        await _vm.RepeatCurrentRunAsync();
+
+        Assert.Empty(_vm.LivePoints);
+        Assert.Empty(_vm.InstantaneousKlaSeries);
+        Assert.Empty(_vm.LogLinearSeries);
+
+        // Points of the new run are the only ones on the chart.
+        _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, 0, RunPhase.Deoxygenating, 50, 50, 0, 0, 700, true, false, true));
+        Assert.Single(_vm.LivePoints);
+    }
+
     /// <summary>A manifest without a recorded rig opens for review and refuses a new sequence (plan §3.5).</summary>
     [Fact]
     public void Legacy_Manifest_Without_GasRig_Is_Read_Only()
@@ -866,6 +900,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public Task StartRunAsync(KlaTestCondition condition, int replicateNumber, CancellationToken cancellationToken = default)
         {
             CurrentCondition = condition;
+            CurrentRun = new KlaTestRun { ConditionId = condition.ConditionId, ReplicateNumber = replicateNumber };
             Phase = RunPhase.Deoxygenating;
             StateChanged?.Invoke();
             return Task.CompletedTask;
@@ -903,6 +938,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
 
         public Task RepeatRunAsync()
         {
+            CurrentRun = new KlaTestRun { ConditionId = CurrentCondition?.ConditionId ?? Guid.Empty, ReplicateNumber = CurrentRun?.ReplicateNumber ?? 1 };
             Phase = RunPhase.Deoxygenating;
             StateChanged?.Invoke();
             return Task.CompletedTask;

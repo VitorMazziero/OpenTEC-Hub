@@ -1723,6 +1723,15 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         OnPropertyChanged(nameof(DisplayPrestageFlowDeviation));
         OnPropertyChanged(nameof(DisplayPrestageFlowProgress));
 
+        // A new run id while running means a new curve: the live series must not carry the
+        // previous run's points under it, whichever path started it (sequence, a row's ▶,
+        // "repetir" from the review, the automatic advance).
+        if (_runner.IsRunning && _runner.CurrentRun is { } run && run.RunId != _liveRunId)
+        {
+            _liveRunId = run.RunId;
+            ResetLiveSeries();
+        }
+
         if (_runner.IsInReview && !IsReviewOpen)
         {
             OpenReviewDrawer();
@@ -1737,6 +1746,24 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     /// frame (§E). Reset whenever the chart is cleared.
     /// </summary>
     private int _reoxygenationStart = -1;
+    private Guid? _liveRunId;
+
+    /// <summary>Empties the live chart and its derived series before the next run draws.</summary>
+    private void ResetLiveSeries()
+    {
+        if (LivePoints.Count > 0)
+        {
+            LivePoints.Clear();
+        }
+        if (InstantaneousKlaSeries.Count > 0)
+        {
+            InstantaneousKlaSeries.Clear();
+        }
+        if (LogLinearSeries.Count > 0)
+        {
+            LogLinearSeries.Clear();
+        }
+    }
     private int _reoxygenationCount;
     private int _derivedSeriesComputedAt;
 

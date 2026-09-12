@@ -42,8 +42,13 @@ bool getJsonFloat(const char* json, const char* key, float& outVal) {
   return true;
 }
 
-void processConfigUpdate(const char* payload) {
-  if (!payload) return;
+bool processConfigUpdate(const char* payload) {
+  if (!payload) return false;
+
+  long cmdId = getJsonValue(payload, "cmd_id");
+  if (cmdId > 0) {
+    g_lastCmdId = static_cast<uint32_t>(cmdId);
+  }
 
   if (getJsonValue(payload, "reset_nvs") == 1) {
     resetNvsConfig();
@@ -57,7 +62,7 @@ void processConfigUpdate(const char* payload) {
     L3_XSHUT = 20;
     g_offsetMm = BoardConfig::OffsetMm;
     Serial.println("[CMD] Reset NVS e restaurou parametros padroes.");
-    return;
+    return true;
   }
 
   bool updated = false;
@@ -119,7 +124,7 @@ void processConfigUpdate(const char* payload) {
 
   float offsetVal = 0.0f;
   if (getJsonFloat(payload, "offset_mm", offsetVal)) {
-    if (offsetVal >= 0.0f) {
+    if (offsetVal >= -50.0f && offsetVal <= 200.0f) {
       g_offsetMm = offsetVal;
       updated = true;
       Serial.printf("Set g_offsetMm = %.2f\n", offsetVal);
@@ -131,6 +136,7 @@ void processConfigUpdate(const char* payload) {
   } else {
     Serial.println("Failed to parse any valid keys from payload.");
   }
+  return updated;
 }
 
 String getConfigAsJson() {

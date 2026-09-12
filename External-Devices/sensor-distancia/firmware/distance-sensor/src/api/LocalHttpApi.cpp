@@ -128,12 +128,12 @@ void handleOtaChunk() {
 }
 
 void handleDiag() {
-  char json[384];
+  char json[448];
   snprintf(json, sizeof(json),
            "{\"device\":\"distance-sensor\",\"version\":\"%s\",\"uptime_s\":%lu,"
            "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
            "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
-           "\"distance\":%.0f,\"sample_time\":%.1f,\"offset_mm\":%.2f}",
+           "\"distance\":%.0f,\"sample_time\":%.1f,\"offset_mm\":%.2f,\"last_cmd_id\":%lu}",
            BoardConfig::FirmwareTag,
            static_cast<unsigned long>(millis() / 1000),
            static_cast<unsigned int>(ESP.getFreeHeap()),
@@ -146,7 +146,8 @@ void handleDiag() {
            g_otaInProgress ? "true" : "false",
            g_lastValidDistance,
            g_lastSampleTimeSec,
-           g_offsetMm);
+           g_offsetMm,
+           static_cast<unsigned long>(g_lastCmdId));
   server.send(200, "application/json", json);
 }
 

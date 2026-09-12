@@ -11,8 +11,8 @@ bool getJsonFloat(const char* json, const char* key, float& outVal);
 inline bool getJsonFloat(const String& json, const char* key, float& outVal) {
   return getJsonFloat(json.c_str(), key, outVal);
 }
-void processConfigUpdate(const char* payload);
-inline void processConfigUpdate(const String& payload) {
-  processConfigUpdate(payload.c_str());
+bool processConfigUpdate(const char* payload);
+inline bool processConfigUpdate(const String& payload) {
+  return processConfigUpdate(payload.c_str());
 }
 String getConfigAsJson();

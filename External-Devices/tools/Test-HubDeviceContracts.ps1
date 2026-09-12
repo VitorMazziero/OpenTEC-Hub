@@ -30,7 +30,7 @@ $distance = Read-SourceTree (Join-Path $externalRoot 'sensor-distancia\firmware\
 Require 'Hub routes' $hub @('/distance', '/flowData', '/flowCommand', '/biomassData', '/biomassCommand', '/pumpData', '/pumpCommand', '/agitatorHello', '/agitatorData', '/agitatorCommand', '/nodeHello', '/nodes')
 Require 'Hub reliability' $hub @('cmd_id', 'ack_cmd_id', 'takeReliable', 'ackReliable')
 
-Require 'Distance node' $distance @('/distance', 'distance=', '&time=', '/nodeHello')
+Require 'Distance node' $distance @('/distance', 'distance=', '&time=', '/nodeHello', '&offset=', '&ack_cmd_id=', 'processConfigUpdate(body')
 Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
 Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
 Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', 'cmd_id', 'ack_cmd_id', '&idle=', '/nodeHello')

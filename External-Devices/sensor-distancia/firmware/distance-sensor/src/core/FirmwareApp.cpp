@@ -65,7 +65,7 @@ void firmwareSetup() {
 void sendHubHello() {
   if (WiFi.status() != WL_CONNECTED) return;
   char url[140];
-  snprintf(url, sizeof(url), "%s?dev=distance&ver=v10&mac=%s",
+  snprintf(url, sizeof(url), "%s?dev=distance&ver=v11&mac=%s",
            BoardConfig::HubHelloUrl, WiFi.macAddress().c_str());
   int code;
   String body;
@@ -150,9 +150,10 @@ void firmwareLoop() {
 
     if (WiFi.status() == WL_CONNECTED && now - lastSendMs >= currentSendInterval) {
       lastSendMs = now;
-      char url[128];
-      snprintf(url, sizeof(url), "%s?distance=%d&time=%.1f",
-               sensorHubURL.c_str(), static_cast<int>(distance), seconds);
+      char url[192];
+      snprintf(url, sizeof(url), "%s?distance=%d&time=%.1f&offset=%.2f&sample_ms=%lu&send_ms=%lu&ack_cmd_id=%lu",
+               sensorHubURL.c_str(), static_cast<int>(distance), seconds,
+               g_offsetMm, SAMPLE_PERIOD_MS, SEND_PERIOD_MS, static_cast<unsigned long>(g_lastCmdId));
       Serial.print("HTTP GET: ");
       Serial.println(url);
       int code;
@@ -163,6 +164,9 @@ void firmwareLoop() {
         }
         g_hubFailStreak = 0;
         Serial.printf("Response: %d\n", code);
+        if (code == 200 && body.length() > 1 && body[0] == '{') {
+          processConfigUpdate(body.c_str());
+        }
       } else {
         if (g_hubFailStreak < 255) g_hubFailStreak++;
         Serial.printf("HTTP error: %d \"%s\" (streak=%u, backoff=%lu ms)\n",

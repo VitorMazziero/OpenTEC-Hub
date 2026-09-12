@@ -134,7 +134,18 @@ void pollHubForCommands() {
 void checkWifi() {
   if (!g_hubEnabled) return; // Direct-only: never scan, never associate
 
-  unsigned long now = millis();
+  const unsigned long now = millis();
+
+  // Link Watchdog: se o streak de falhas consecutivas atingiu o limite, forca queda
+  if (g_hubFailStreak >= 8) {
+    Serial.printf("[NET] Link zumbi detectado (streak=%u). Forcando queda da associacao...\n", g_hubFailStreak);
+    g_hubFailStreak = 0;
+    WiFi.disconnect(true, false);
+    g_wifiState        = WF_IDLE;
+    g_wifiNextActionMs = now + 500;
+    return;
+  }
+
   if (now < g_wifiNextActionMs) return;
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -146,9 +157,9 @@ void checkWifi() {
   switch (g_wifiState) {
     case WF_IDLE:
       if (g_lastKnownSsid != "") {
-        Serial.println("[NET] Connecting to known hub: " + g_lastKnownSsid);
+        Serial.println("[NET] Connecting to known hub: " + g_lastKnownSsid + " on channel 6");
         WiFi.disconnect(false, false);
-        WiFi.begin(g_lastKnownSsid.c_str(), g_lastKnownSsid.c_str());
+        WiFi.begin(g_lastKnownSsid.c_str(), g_lastKnownSsid.c_str(), 6);
         g_wifiState        = WF_CONNECTING;
         g_wifiNextActionMs = now + WIFI_RECONNECT_PERIOD_MS;
       } else {
@@ -181,9 +192,9 @@ void checkWifi() {
       WiFi.scanDelete();
 
       if (ssidToTry != "") {
-        Serial.println("[NET] Hub found: " + ssidToTry + ". Connecting STA.");
+        Serial.println("[NET] Hub found: " + ssidToTry + ". Connecting STA on channel 6.");
         WiFi.disconnect(false, false);
-        WiFi.begin(ssidToTry.c_str(), ssidToTry.c_str());
+        WiFi.begin(ssidToTry.c_str(), ssidToTry.c_str(), 6);
         g_wifiState = WF_CONNECTING;
       } else {
         Serial.println("[NET] Hub not found. Keeping local AP active.");

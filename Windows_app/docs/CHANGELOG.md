@@ -9,6 +9,13 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Tensão editável na tabela de calibração do fluxômetro (§O).** Cada ponto só recebia a tensão
+  por captura da telemetria (média de N quadros); a coluna era um `TextBlock`. Passa a ser um campo
+  editável espelhado com `Voltage` (captura formata, digitar parseia com ponto ou vírgula; vazio ou
+  inválido = sem tensão). Fora de 0–3,3 V a linha ganha borda de erro, sai do ajuste e o status
+  avisa. Cada ponto registra a origem (`FlowCalibrationPoint.Source`: `Captured` | `Typed`,
+  arquivos antigos leem `Captured`) e a linha mostra "digitada" quando transcrita — para o
+  relatório de calibração distinguir medição de transcrição.
 - **Faixa de alarmes some ao reconhecer — exceto em Eventos (§H).** A faixa ficava visível
   enquanto qualquer alarme estivesse *latched*, e uma linha reconhecida continuava lá, com o botão
   cinza, até a condição limpar pelo deadband: reconhecer não escondia nada em página nenhuma.

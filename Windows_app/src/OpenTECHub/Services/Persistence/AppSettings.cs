@@ -246,6 +246,19 @@ public sealed record FlowCalibrationPoint
     public double FlowLitresPerMinute { get; init; }
 
     public double Voltage { get; init; }
+
+    /// <summary>
+    /// Where the voltage came from: averaged from telemetry, or typed by the operator (§O of the
+    /// 2026-09-11 plan). Files written before this field exist carry <see cref="FlowVoltageSource.Captured"/>.
+    /// The calibration report needs to tell a measurement from a transcription.
+    /// </summary>
+    public FlowVoltageSource Source { get; init; } = FlowVoltageSource.Captured;
+}
+
+public enum FlowVoltageSource
+{
+    Captured,
+    Typed,
 }
 
 /// <summary>

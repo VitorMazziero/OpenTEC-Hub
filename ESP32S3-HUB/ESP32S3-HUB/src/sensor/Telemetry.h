@@ -3,9 +3,13 @@
 // ------------------------------------------------------------------
 void readAndBroadcastSensorData() {
   // 1. LEITURA DOS SENSORES
-  vTaskDelay(pdMS_TO_TICKS(10)); 
-  // Measurement is independent from closed-loop control. The sensor must keep
-  // publishing PV while tempOn is false; tempOn only enables controller actuation.
+  // All sensor readings are unconditional: the *On flags gate closed-loop
+  // actuation only (pump, heater, controller), NOT the acquisition of the
+  // process variable. The PV must be visible on the dashboard regardless of
+  // whether the control loop is active. See temperature below as the reference
+  // pattern — it was already correct; pH, O₂, pressure and antifoam now follow
+  // the same rule.
+  vTaskDelay(pdMS_TO_TICKS(10));
   float temperatureVal = -1.0;
   String temperatureResp = sendSensorCommand("b", true);
   if (temperatureResp.length() > 0) {
@@ -14,13 +18,15 @@ void readAndBroadcastSensorData() {
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float pHVal = -1.0;
-  if (phOn) {
+  {
+    // Measurement always active. phOn controls acid/base dosing, not reading.
     String pHResp = sendSensorCommand("k", true);
     if (pHResp.length() > 0) pHVal = pHResp.toFloat();
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float oxyVal = -1.0;
-  if (oxyOn) {
+  {
+    // Measurement always active. oxyOn controls DO acquisition mode, not reading.
     String oxyResp = sendSensorCommand("g", true);
     if (oxyResp.length() > 0) {
       oxyVal = oxyResp.toFloat();
@@ -29,13 +35,15 @@ void readAndBroadcastSensorData() {
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float pressureVal = -1.0;
-  if (pressureOn) {
+  {
+    // Measurement always active. pressureOn controls the reference setpoint, not reading.
     String pressureResp = sendSensorCommand("c", true);
     pressureVal = pressureResp.toFloat();
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float antifoamVal = -1.0;
-  if (antifoamOn) {
+  {
+    // Measurement always active. antifoamOn controls the dosing pump, not reading.
     String antifoamResp = sendSensorCommand("e", true);
     antifoamVal = antifoamResp.toFloat();
   }

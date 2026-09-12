@@ -1,11 +1,12 @@
 # Plano — Sistema fixo de válvulas A/B/C nos ensaios de potência e de kLa: o que muda na lógica e na interface do app
 
 **Data:** 2026-09-12
-**Origem:** `docs/plans/sistema_valvulas_ensaios_potencia_kLa.md` (descrição física do arranjo) e as
-correções do usuário no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; a válvula
-**A** está numa delas e as válvulas **B e C estão juntas na outra** (mesmo MOSFET — abrem e fecham
-juntas); a nomenclatura do app deve seguir a do hardware (A, B, C; entradas 1 e 2); a ligação
-padrão é configurável (A em 1 ou em 2; B/C ficam na outra).
+**Origem:** `docs/plans/sistema_valvulas_ensaios_potencia_kLa_v2 (rascunho).md` e `valvulas.png`
+(descrição física do arranjo, §3 "Arquitetura de acionamento elétrico") e as correções do usuário
+no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 aciona B e C juntas**
+(mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
+do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
+entrada 1, B/C vão para a 2).
 **Estado:** proposto. Independente dos dois planos anteriores de 12/09 (identidade dos nós e
 configuração dos nós); compartilha com o segundo a sintonia do fluxômetro (§8).
 **Pré-leitura:** `docs/PROTOCOL.md` §3.1 (`valve_1`, `valve_2`, `v_Flow`), §4 (golden strings);
@@ -43,15 +44,16 @@ configuração dos nós); compartilha com o segundo a sintonia do fluxômetro (�
 
 | Hardware | Função | Ligação |
 |---|---|---|
-| **A** — válvula de entrada | conecta a linha de ar do fluxômetro ao T de junção e ao aspersor | uma entrada de MOSFET do fluxômetro (**padrão: entrada 1**) |
-| **B** — válvula de N₂ | liga a linha de nitrogênio ao T de junção antes do aspersor | **a outra entrada, compartilhada com C** (**padrão: entrada 2**) |
+| **A** — válvula de entrada | conecta a linha de ar do fluxômetro ao T de junção e ao aspersor | uma entrada de MOSFET do fluxômetro (**padrão: entrada 2**) |
+| **B** — válvula de N₂ | liga a linha de nitrogênio ao T de junção antes do aspersor | **a outra entrada, compartilhada com C** (**padrão: entrada 1**) |
 | **C** — válvula de descarga (bypass de estabilização) | descarrega o ar do fluxômetro para a atmosfera | **mesmo MOSFET de B** |
 | Entradas 1 e 2 | os dois MOSFETs do fluxômetro | `valve_1` / `valve_2` no fio |
 | `v_Flow` (GPIO 5 do fluxômetro) | no protocolo, "fechamento da linha, ativo-alto" | **assunção deste plano: não aciona nenhuma das três válvulas**; continua a ser enviado como hoje (`1` com setpoint 0) e não participa do roteamento — confirmar na bancada (§8) |
 
-A ligação padrão é **A → 1, B/C → 2**, coerente com o que o app já assume por padrão
-(`SelectedNitrogenValve = Valve2`). O operador pode inverter em Configurações; B/C vão sempre
-para a entrada que A não usa.
+A ligação padrão é a do documento físico: **MOSFET 1 → B e C, MOSFET 2 → A** (`valve_1` = B/C,
+`valve_2` = A). Atenção: é o **inverso** do que o app assume hoje (`SelectedNitrogenValve = Valve2`
+põe o N₂ na entrada 2) — mais um motivo para a configuração ser explícita e visível. O operador
+pode inverter em Configurações; B/C vão sempre para a entrada que A não usa.
 
 ### 1.2 Os quatro estados elétricos e o que significam
 
@@ -75,9 +77,11 @@ estados válidos é o evento experimental dos dois ensaios (§4.2 e §7 do docum
    setpoint de vazão do app precisa passar a abrir A.
 2. **B e C são uma só.** Não existe "descarregar o ar sem abrir o N₂" nem "N₂ sem descarga". Logo:
    - nos ensaios de **potência**, durante a estabilização por C o N₂ entra no reator **se a fonte
-     estiver aberta** — o app não consegue medir isso; precisa exigir do operador a confirmação
-     "N₂ fechado na fonte" antes de qualquer condição gaseificada (e pode vigiar a sonda de O₂:
-     DO caindo durante a estabilização é sinal de N₂ aberto);
+     estiver pressurizada** (o §5 do documento físico exige isolamento a montante de B: fonte
+     despressurizada, regulador fechado ou válvula manual fechada) — o app não consegue medir
+     isso; precisa exigir do operador a confirmação "N₂ isolado a montante de B" antes de
+     qualquer condição gaseificada (e pode vigiar a sonda de O₂: DO caindo durante a
+     estabilização é sinal de N₂ aberto);
    - no **kLa**, não existe mais a janela "sem gás nenhum" entre fechar o N₂ e admitir o ar: fechar
      B fecha C, e abrir C reabre B. A pré-estabilização do ar acontece **com o N₂ ainda fluindo**
      (§6 do documento), e a comutação A↔B/C é **um único comando** que fecha o N₂, fecha a descarga
@@ -140,7 +144,8 @@ GasRoute.Reactor         → A=1, B/C=0
 GasRoute.VentAndNitrogen → A=0, B/C=1
 ```
 
-`GasRigConfiguration { AirInletInput = 1 | 2 }` diz em que entrada está A; B/C ficam na outra.
+`GasRigConfiguration { AirInletInput = 1 | 2 }` diz em que entrada está A (**padrão 2**); B/C
+ficam na outra (padrão 1).
 O caminho inverso, `GasRouting.Interpret(valve1, valve2, setpoint, config)`, traduz o eco do
 fluxômetro em `GasRoute` (+ `BothOpen` e `DeadEnd` como estados anômalos observáveis) e alimenta
 todo texto de estado da UI. `FlowSafeStop` continua `setpoint 0, 0, 0, v_Flow 1` = `Closed`.
@@ -150,8 +155,8 @@ todo texto de estado da UI. `FlowSafeStop` continua `setpoint 0, 0, 0, v_Flow 1`
 Na interface, nas mensagens de fase, nos eventos e nos manifestos: **A**, **B**, **C**,
 **entrada 1**, **entrada 2**. Nunca mais "válvula auxiliar", "válvula de N₂" (é B), "válvula do
 alívio" (é C), "valve_1/valve_2" soltos. A configuração se lê como no painel do equipamento:
-*"A na entrada 1 · B/C na entrada 2"*. Onde o fio aparece (Eventos › comando enviado, jornal), o
-app anota a tradução: `valve_1=1 (A) valve_2=0 (B/C)`.
+*"A na entrada 2 · B/C na entrada 1"*. Onde o fio aparece (Eventos › comando enviado, jornal), o
+app anota a tradução: `valve_1=0 (B/C) valve_2=1 (A)`.
 
 ### 3.3 Intertravamentos, no builder e na telemetria
 
@@ -201,7 +206,7 @@ manifesto sem `GasRig`, o app marca "montagem anterior ao arranjo A/B/C — só 
 public enum GasInput { Input1 = 1, Input2 = 2 }
 public sealed record GasRigConfiguration(GasInput AirInletInput)      // A; B/C = the other
 {
-    public static readonly GasRigConfiguration Default = new(GasInput.Input1);
+    public static readonly GasRigConfiguration Default = new(GasInput.Input2);   // MOSFET 2 → A; MOSFET 1 → B+C
     public GasInput VentAndNitrogenInput => AirInletInput == GasInput.Input1 ? GasInput.Input2 : GasInput.Input1;
 }
 public enum GasRoute { Closed, Reactor, VentAndNitrogen }
@@ -210,8 +215,8 @@ public static class GasRouting
 {
     public static (bool Valve1, bool Valve2) Resolve(GasRoute route, GasRigConfiguration rig);
     public static ObservedGasRoute Interpret(bool valve1, bool valve2, double setpoint, GasRigConfiguration rig);
-    public static string Describe(GasRoute route, GasRigConfiguration rig);   // "Reator (A na entrada 1)"
-    public static string DescribeWire(bool v1, bool v2, GasRigConfiguration rig); // "valve_1=1 (A) · valve_2=0 (B/C)"
+    public static string Describe(GasRoute route, GasRigConfiguration rig);   // "Reator (A na entrada 2)"
+    public static string DescribeWire(bool v1, bool v2, GasRigConfiguration rig); // "valve_1=0 (B/C) · valve_2=1 (A)"
 }
 // CommandBuilders
 public static OpenTECCommand FlowRoute(double setpoint, double maxFlow, GasRoute route, GasRigConfiguration rig);
@@ -219,7 +224,7 @@ public static OpenTECCommand FlowRoute(double setpoint, double maxFlow, GasRoute
 
 Persistência: `AppSettings.GasRig` (versão de esquema; ausente = `Default`). Manifestos:
 `KlaTestDocument.GasRig`, `PowerTestDocument.GasRig`, `FlowCalibration` recibo `GasRig`,
-`ExternalNodeProvenance`-style no sidecar ("# gas_rig: A=1 B/C=2").
+`ExternalNodeProvenance`-style no sidecar ("# gas_rig: A=2 B/C=1").
 
 Textos (pt-BR, iguais em todas as páginas): **Fechado** · **Reator (A)** · **Descarga + N₂ (B/C)**
 · **A e B/C abertas** (anômalo) · **Gás sem destino** (anômalo).
@@ -240,12 +245,12 @@ Textos (pt-BR, iguais em todas as páginas): **Fechado** · **Reator (A)** · **
 2. `CommandBuilders.FlowRoute(setpoint, maxFlow, route, rig)`: `Closed` com setpoint > 0 lança;
    `v_Flow` continua derivado (`setpoint == 0`); reutiliza `FlowSetpoint` por baixo para manter o
    *golden string* do fio. `FlowSafeStop` inalterado.
-3. `AppSettings.GasRig { AirInletInput }` com default `Input1`; `SettingsService` migra ausência
-   para o default sem avisar (é o padrão de ligação).
+3. `AppSettings.GasRig { AirInletInput }` com default `Input2` (MOSFET 2 → A, MOSFET 1 → B+C);
+   `SettingsService` migra ausência para o default sem avisar (é o padrão de ligação).
 **Testes.** `Resolve` para as seis combinações (3 rotas × 2 ligações); `Interpret` idem +
-anômalos; `FlowRoute` recusa `Closed` com setpoint > 0; golden strings: `Reactor` com A em 1 →
-`{"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":1,"valve_2":0,"v_Flow":0}`; `VentAndNitrogen` com A
-em 1 → `valve_1:0, valve_2:1`; A em 2 inverte; `pt-BR`.
+anômalos; `FlowRoute` recusa `Closed` com setpoint > 0; golden strings: `Reactor` com o padrão (A em 2) →
+`{"flowSetpoint":2.5,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}`; `VentAndNitrogen` →
+`valve_1:1, valve_2:0`; A em 1 inverte; `pt-BR`.
 **Pronto.** Suíte verde; nenhum produtor usa o roteador ainda (Etapa 2).
 **Commit.** `feat(protocol): roteamento de gas A/B/C (GasRouting, GasRigConfiguration, FlowRoute)`.
 **Esforço.** P.
@@ -270,7 +275,7 @@ em 1 → `valve_1:0, valve_2:1`; A em 2 inverte; `pt-BR`.
    setpoint > 0 → `Reactor` (nunca reproduz uma linha morta); senão mantém a rota observada.
 4. Testes existentes que fixam frames (`KlaTestRunnerTests`, `PowerTestRunnerTests`,
    `RecipeEngineTests`, `BiomassPumpTests`, `CascadeActuationTests`, `FlowmeterV05SyncTests`)
-   passam a esperar `valve_1:1` no ar ao reator — atualizar cada asserção citando o §1.3.1.
+   passam a esperar `valve_2:1` (A, padrão) no ar ao reator — atualizar cada asserção citando o §1.3.1.
 **Pronto.** `grep -rn "FlowSetpoint(" src/OpenTECHub` só encontra `CommandBuilders` e
 `FlowControlViewModel` (Avançado, Etapa 6); suíte verde.
 **Commit.** `refactor(gas): todo comando de vazao passa pelo roteador A/B/C`.
@@ -281,9 +286,9 @@ em 1 → `valve_1:0, valve_2:1`; A em 2 inverte; `pt-BR`.
 **Objetivo.** As máquinas de estado das Etapas 4–5 exercitadas contra um modelo que só oxigena
 quando A está aberta e só desoxigena quando B/C está.
 **Arquivos.** `OpenTECHub.Simulator/DeviceModel.cs`, `WireCodec.cs`, `HttpEndpoint.cs`,
-`Program.cs` (`--rig a-on-2`), testes `SimulatorGasRigTests.cs` (novo), `SimulatorPhase2Tests`.
+`Program.cs` (`--rig a-on-1`), testes `SimulatorGasRigTests.cs` (novo), `SimulatorPhase2Tests`.
 **Passos.**
-1. `DeviceModel.GasRig` (default A em 1) e `ObservedRoute` calculado de `Valve1/Valve2/FlowSetpoint`.
+1. `DeviceModel.GasRig` (default A em 2) e `ObservedRoute` calculado de `Valve1/Valve2/FlowSetpoint`.
 2. `StepOxygen`: transferência com **ar** só quando `Reactor`; **N₂** (kLa negativo, para o piso)
    só quando `VentAndNitrogen` **e** `NitrogenSourceOpen` (novo flag do modelo, default `true` no
    cenário kLa e `false` no de potência — o simulador é onde se ensaia o esquecimento da fonte);
@@ -297,8 +302,8 @@ quando A está aberta e só desoxigena quando B/C está.
 5. Cenário `nitrogen-left-open` (fonte de N₂ aberta num ensaio de potência) para a guarda de DO.
 **Testes.** DO sobe só com `Reactor`; desce só com `VentAndNitrogen` + fonte aberta; `DeadEnd`
 zera a vazão e sobe a pressão; a comutação `VentAndNitrogen → Reactor` produz o degrau de carga;
-`--rig a-on-2` inverte as entradas e tudo continua igual.
-**Pronto.** Suíte verde; `dotnet run --project src/OpenTECHub.Simulator -- http --rig a-on-2`
+`--rig a-on-1` inverte as entradas e tudo continua igual.
+**Pronto.** Suíte verde; `dotnet run --project src/OpenTECHub.Simulator -- http --rig a-on-1`
 funciona.
 **Commit.** `feat(simulator): arranjo A/B/C, linha morta, fonte de N2 e comutacao`.
 **Esforço.** M.
@@ -349,7 +354,7 @@ funciona.
 6. **UI (`KlaDeterminationView`):** remover "Válvula Conectada ao N₂", "Válvula Conectada ao
    Alívio", o *checkbox* de estabilização e o bloco "Espera após desligar N₂"; acrescentar o bloco
    **Pré-estabilização do ar por C** (antecipação em % de DO, tolerância, amostras, teto) e uma
-   linha fixa "Arranjo: A na entrada {1|2} · B/C na entrada {2|1} (Configurações › Gás e válvulas)".
+   linha fixa "Arranjo: A na entrada {2|1} · B/C na entrada {1|2} (Configurações › Gás e válvulas)".
    Rótulos de fase: *Abrindo N₂ (B/C)*, *Desoxigenando*, *Ar por C · estabilizando*, *Comutando para
    o reator (A)*, *Reoxigenando*.
 7. **Análise:** nada muda no `KlaAnalysisEngine`; o `t = 0` já é o início de `Reoxygenating`. A
@@ -394,7 +399,7 @@ citavam `WaitingForDOStability`/`OpeningVent`.
 7. **`CaptureSettingsDialog`:** some o *checkbox* e o seletor de válvula; fica o bloco
    "Pré-estabilização por C" com tolerância/amostras/teto/rotação e a linha do arranjo.
 **Testes.** Condição gaseificada sempre passa por `PrestagingFlow`; comutação em uma frame com
-`valve_1:1, valve_2:0` (A em 1) e o setpoint preservado; guarda de N₂ com o cenário
+`valve_1:0, valve_2:1` (A em 2, padrão) e o setpoint preservado; guarda de N₂ com o cenário
 `nitrogen-left-open`; P0 continua em Fechado; chip com os cinco textos; manifesto antigo só-leitura.
 **Pronto.** Suíte verde; simulador completa um ensaio `Both` (P0 + gaseificado).
 **Commit.** `feat(potencia): estabilizacao por C obrigatoria, comutacao em uma frame e guarda de N2`.
@@ -416,8 +421,8 @@ alarme de roteamento), `Views/SynopticView.xaml`/`ShellViewModel.cs` (tag da lin
    `BuildStagedCommand`: `FlowRoute(setpoint, RequestedRoute)`; validação: setpoint > 0 com
    `Fechado` → erro "Escolha um destino para o ar (A ou B/C)".
 2. XAML da gaveta: um `SegmentedControl` **Destino do gás** com os três estados, `Telemetria:
-   {ObservedRouteText}` abaixo, e a linha "Arranjo: A na entrada 1 · B/C na entrada 2". `Expander`
-   **Avançado** com os dois toggles crus (*Entrada 1 (A)* / *Entrada 2 (B/C)* — rótulos derivados
+   {ObservedRouteText}` abaixo, e a linha "Arranjo: A na entrada 2 · B/C na entrada 1". `Expander`
+   **Avançado** com os dois toggles crus (*Entrada 1 (B/C)* / *Entrada 2 (A)* — rótulos derivados
    da configuração) e *Fechar linha (v_Flow)*, com validação "as duas abertas" e "sem destino"
    antes de enviar; tooltip explica que é para bancada.
 3. Painel de detalhe (setpoint de vazão): usa `BuildSetpointPreservingRoute` (Etapa 2); o texto de
@@ -458,8 +463,8 @@ limpa ao rotear; jornal com uma linha por mudança.
 
 ### Etapa 8 — Configurações › Gás e válvulas, e proveniência
 
-**Objetivo.** A ligação A→1/B-C→2 é editável, visível em todo lugar que a usa e gravada em cada
-ensaio.
+**Objetivo.** A ligação padrão (MOSFET 1 → B+C, MOSFET 2 → A) é editável, visível em todo lugar
+que a usa e gravada em cada ensaio.
 **Arquivos.** `ViewModels/SettingsViewModel.cs`, `Views/SettingsView.xaml` (nova seção), `AppSettings.cs`,
 `Services/Persistence/SettingsService.cs`, manifestos (`KlaTestStore`, `PowerTestStore`,
 `FlowCalibration` recibo), `SessionLogger` (preâmbulo), `DocumentationCatalog` (tópico
@@ -468,10 +473,10 @@ Configurações › Gás e válvulas), testes `WorkspaceDirectoryTests`/`Setting
 **Passos.**
 1. Seção **Gás e válvulas**: desenho em texto do arranjo (fluxômetro → T → A → T → aspersor; C na
    descarga; B no N₂), seletor **"Válvula A ligada na entrada"** `1 | 2`, linha calculada "B e C
-   ligadas na entrada {outra}", padrão `1`, botão *Restaurar padrão*. Mudar exige que nenhum
+   ligadas na entrada {outra}", padrão `2`, botão *Restaurar padrão*. Mudar exige que nenhum
    ensaio esteja em execução (bloqueio com motivo).
 2. Ao mudar: `GasRig` persiste; `FlowControlViewModel` e os runners releem na próxima corrida; o
-   jornal registra "Arranjo de válvulas: A → entrada 2".
+   jornal registra "Arranjo de válvulas: A → entrada 1" (quando invertido).
 3. Proveniência: `GasRig` em `teste.json`, `ensaio.json`, recibos de calibração; `# gas_rig:` no
    sidecar; `ExternalNodeProvenance`-like helper `GasRigProvenance.Describe`.
 4. Tópico do manual interno + linha no tópico de Controle e nos de kLa/Potência.
@@ -499,8 +504,10 @@ Configurações › Gás e válvulas), testes `WorkspaceDirectoryTests`/`Setting
 - `docs/MANUAL_DO_OPERADOR.md`: §8.A (kLa) e §8.B (potência) reescritos com o arranjo, a
   confirmação do N₂ na fonte e o significado das fases; §6 "Destino do gás" na página Controle;
   §7 calibração de vazão por C.
-- `docs/plans/sistema_valvulas_ensaios_potencia_kLa.md`: acrescentar no topo a nota de ligação
-  elétrica (B e C no mesmo MOSFET; entradas 1 e 2; padrão A→1) e a referência a este plano.
+- `docs/plans/sistema_valvulas_ensaios_potencia_kLa_v2 (rascunho).md` → promover a
+  `sistema_valvulas_ensaios_potencia_kLa.md` (commitar com `valvulas.png`), acrescentando a
+  referência a este plano e a nota de que a ligação (MOSFET 1 → B+C, MOSFET 2 → A) é o padrão
+  configurável do app.
 **Commit.** `docs: arranjo de valvulas A/B/C (PROTOCOL 3.1, D-053, P3-11, planos de kLa e potencia, manual)`.
 **Esforço.** M.
 
@@ -536,7 +543,7 @@ com a montagem nova, mesmo que 4–6 fiquem para depois.
 
 ### 7.2 Simulador
 
-1. `--rig a-on-1` e `--rig a-on-2`: uma corrida de kLa completa e um ensaio de potência `Both`
+1. Padrão (A em 2) e `--rig a-on-1`: uma corrida de kLa completa e um ensaio de potência `Both`
    em cada ligação; os frames trocam `valve_1`/`valve_2` e o resto é idêntico.
 2. `--scenario nitrogen-left-open` num ensaio de potência: a guarda para a corrida com o motivo
    certo.
@@ -545,7 +552,7 @@ com a montagem nova, mesmo que 4–6 fiquem para depois.
 
 ### 7.3 Bancada (recibo)
 
-0. **Ligação:** conferir A → entrada 1, B e C → entrada 2 (ou registrar o inverso em
+0. **Ligação:** conferir MOSFET 1 → B e C, MOSFET 2 → A (ou registrar o inverso em
    Configurações); conferir o que o GPIO 5 (`v_Flow`) aciona — se acionar algo, voltar ao §8.
 1. **Controle:** *Reator (A)* com 2 L/min → borbulha no aspersor, C fechada; *Descarga + N₂ (B/C)*
    → sai por C, B abre (ouvir/ver), nada no aspersor pelo ar; *Fechado* → tudo fechado, setpoint 0.
@@ -566,7 +573,7 @@ com a montagem nova, mesmo que 4–6 fiquem para depois.
 | Item | Tratamento |
 |---|---|
 | **O que o GPIO 5 (`v_Flow`) aciona no arranjo novo** | Assunção: nada das três. Se acionar uma válvula de linha real, ela entra no roteador como quarto sinal (Fechado = linha fechada) — confirmar na bancada antes da Etapa 2. |
-| Padrão de ligação (A → 1) | Coerente com `SelectedNitrogenValve = Valve2` de hoje (B/C → 2). Se a bancada estiver ao contrário, muda-se em Configurações, não no código. |
+| Padrão de ligação (MOSFET 1 → B+C, MOSFET 2 → A) | É o do documento físico e o **inverso** do que o app assume hoje (`SelectedNitrogenValve = Valve2`); por isso a Etapa 2 troca cada asserção de teste de forma explícita e a Etapa 8 mostra a ligação em todas as páginas. Se a bancada estiver ao contrário, muda-se em Configurações, não no código. |
 | Quando começar a pré-estabilização do ar no kLa | `AirPrestageLeadPercent` = 0 (ao atingir `DOMin`) por padrão; antecipar economiza tempo mas gasta ar por C e mantém o N₂ fluindo — o operador decide por condição. |
 | Segundo transiente na comutação (degrau de carga do aspersor) | Medir (§7.3.2). Se for relevante, duas saídas: sintonia do PI (plano dos nós) ou um `PostSwitchSettleSeconds` que atrasa o início da captura de potência (não o `t = 0` do kLa, que é físico). |
 | N₂ aberto na fonte num ensaio de potência | Confirmação obrigatória + guarda de DO (só funciona com a sonda no reator). Sem sonda, só a confirmação. |

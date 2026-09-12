@@ -1,5 +1,10 @@
 ﻿# ESP32-S3 Protocol Contract
 
+> **Nota de organização (2026-09-11):** os firmwares externos agora estão em
+> `External-Devices/<dispositivo>/firmware/`; seus contratos ficam nos diretórios
+> `docs/`. O Hub autoritativo está em `ESP32S3-HUB/ESP32S3-HUB`. A reorganização
+> preserva o fio, verificado por `External-Devices/tools/Test-HubDeviceContracts.ps1`.
+>
 > **Status:** the **v.6 core loop is frozen** — every byte in sections 1 to 3.3 is
 > byte-identical to what v.6 puts on the wire and stays that way.
 > The **external-device sections (3.4, 3.5 and the presence keys in section 2) are not**:
@@ -9,9 +14,10 @@
 > in source** as of 2026-08-29 and is pending a flash. The app degrades to ageing the value
 > keys locally against a Hub that does not publish them, so both states work.
 >
-> **Source of truth:** reverse-engineered from `v.6/communication/{transport,data_parser,connection_manager}.py`
-> and every `send_command()` call site in the v.6 tree, plus a read of
-> `OpenTEC_ESP32_v8.ino` and the five node firmwares on 2026-08-29.
+> **Source of truth:** the frozen desktop wire contract remains derived from
+> `v.6/communication/{transport,data_parser,connection_manager}.py`; for external
+> devices, use the current `ESP32S3-HUB/ESP32S3-HUB` implementation together with
+> the active firmware under `External-Devices/`.
 >
 > **Docs:** [README](README.md) · [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Calibration](CALIBRATION.md) · [Migration](MIGRATION.md) · [UI Design](UI_DESIGN.md) · [Decisions](DECISIONS.md)
 

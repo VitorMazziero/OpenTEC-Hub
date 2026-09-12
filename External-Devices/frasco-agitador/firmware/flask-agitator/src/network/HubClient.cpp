@@ -7,17 +7,31 @@
 #include "../protocol/CommandCodec.h"
 
 void hubHello() {
-  if (hubAnnounced || WiFi.status() != WL_CONNECTED) {
+  static unsigned long lastHelloCheckMs = 0;
+  const unsigned long now = millis();
+  if (WiFi.status() != WL_CONNECTED) {
     return;
   }
+  if (hubAnnounced && (now - lastHelloCheckMs < 30000)) {
+    return;
+  }
+  lastHelloCheckMs = now;
 
   HTTPClient http;
-  char url[64];
-  snprintf(url, sizeof(url), "http://%s/agitatorHello", hubIp.toString().c_str());
+  char url[140];
+  snprintf(url, sizeof(url), "http://%s/nodeHello?dev=agitator&ver=v10&mac=%s",
+           hubIp.toString().c_str(), WiFi.macAddress().c_str());
   http.begin(url);
-  http.setTimeout(500);
-  const int responseCode = http.GET();
-  if (responseCode > 0) {
+  http.setTimeout(800);
+  int responseCode = http.GET();
+  if (responseCode == 404) {
+    http.end();
+    snprintf(url, sizeof(url), "http://%s/agitatorHello", hubIp.toString().c_str());
+    http.begin(url);
+    http.setTimeout(800);
+    responseCode = http.GET();
+  }
+  if (responseCode > 0 && responseCode < 300) {
     Serial.printf("Hub hello OK (%d)\n", responseCode);
     hubAnnounced = true;
     g_hubFailStreak = 0;

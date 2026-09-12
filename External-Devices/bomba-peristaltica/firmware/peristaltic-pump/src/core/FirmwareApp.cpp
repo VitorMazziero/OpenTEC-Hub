@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
+#include <Update.h>
 
 static const bool     DEBUG_ENABLE      = true;
 static const uint32_t DEBUG_INTERVAL_MS = 1000;
@@ -52,6 +53,13 @@ unsigned long lastDataPushMs = 0;
 unsigned long DATA_PUSH_PERIOD_MS = 1000;
 
 uint32_t g_lastAppliedHubCommandId = 0;
+
+// OTA State
+volatile bool g_otaInProgress = false;
+unsigned long g_otaLastChunkMs = 0;
+const unsigned long OTA_STALL_TIMEOUT_MS = 90000;
+unsigned long g_otaRebootAtMs = 0;
+String g_otaRejectReason = "";
 
 
 const float     V_MAX                  = 1000.0f;
@@ -207,6 +215,9 @@ void sendDataToHub();
 void handleReadData();
 void handleCommand();
 void handleNotFound();
+void handleOtaPage();
+void handleOtaUploadDone();
+void handleOtaChunk();
 
 // JSON helpers
 const char* findJsonValueStart(const char* json, const char* key);

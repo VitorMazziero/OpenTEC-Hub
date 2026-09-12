@@ -36,6 +36,8 @@ void firmwareSetup() {
     server.on("/readData", HTTP_GET, handleReadData);
     server.on("/command", HTTP_POST, handleCommand);
     server.on("/", HTTP_GET, handleReadData);
+    server.on("/update", HTTP_GET, handleOtaPage);
+    server.on("/update", HTTP_POST, handleOtaUploadDone, handleOtaChunk);
     server.onNotFound(handleNotFound);
     server.begin();
     Serial.println("[NET] Web server started.");
@@ -76,11 +78,28 @@ void firmwareLoop() {
 
     server.handleClient();
 
+    uint32_t now = millis();
+
+    if (g_otaRebootAtMs > 0 && now >= g_otaRebootAtMs) {
+        Serial.println("[OTA] Reiniciando no novo firmware...");
+        delay(100);
+        ESP.restart();
+    }
+
+    if (g_otaInProgress) {
+        if (now - g_otaLastChunkMs > OTA_STALL_TIMEOUT_MS) {
+            Serial.println("[OTA] Watchdog disparado: upload estagnou.");
+            Update.abort();
+            g_otaInProgress = false;
+        }
+        delay(1);
+        return;
+    }
+
     handleSerialInput();
 
     checkWifi();
     
-    uint32_t now = millis();
     if (WiFi.status() == WL_CONNECTED && (now - lastHubPollMs >= HUB_POLL_PERIOD_MS)) {
         lastHubPollMs = now;
         pollHubForCommands();

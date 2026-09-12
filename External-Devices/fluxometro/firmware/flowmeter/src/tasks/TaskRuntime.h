@@ -16,7 +16,12 @@ void httpTask(void *parameter) {
     if (!otaInProgress && WiFi.status() == WL_CONNECTED) {
       // This task remains command-only, but shares the HTTP bus with telemetry
       // so two HTTPClient instances never drive the Wi-Fi stack concurrently.
-      if (now - lastCommandPollTime >= commandPollInterval) {
+      unsigned long currentCmdInterval = commandPollInterval;
+      if (g_hubFailStreak > 0) {
+        uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+        currentCmdInterval = min(commandPollInterval * (1UL << shift), MAX_HUB_BACKOFF_MS);
+      }
+      if (now - lastCommandPollTime >= currentCmdInterval) {
         lastCommandPollTime = now;
         if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
           char cmdUrl[128];
@@ -27,8 +32,16 @@ void httpTask(void *parameter) {
           int cmdCode = httpCmd.GET();
           String commandPayload;
           if (cmdCode == 200) {
+            if (g_hubFailStreak > 0) {
+              Serial.printf("[HubCommandTask] Link recovered after %u failed request(s).\n", g_hubFailStreak);
+            }
+            g_hubFailStreak = 0;
             commandPayload = httpCmd.getString();
             commandPayload.trim();
+          } else {
+            if (g_hubFailStreak < 255) {
+              g_hubFailStreak++;
+            }
           }
           httpCmd.end();
           xSemaphoreGive(hubHttpMutex);
@@ -55,7 +68,12 @@ void telemetryTask(void *parameter) {
 
   for (;;) {
     unsigned long now = millis();
-    if (!otaInProgress && WiFi.status() == WL_CONNECTED && now - lastHTTPDataTime >= telemetryInterval) {
+    unsigned long currentTelemetryInterval = telemetryInterval;
+    if (g_hubFailStreak > 0) {
+      uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+      currentTelemetryInterval = min(telemetryInterval * (1UL << shift), MAX_HUB_BACKOFF_MS);
+    }
+    if (!otaInProgress && WiFi.status() == WL_CONNECTED && now - lastHTTPDataTime >= currentTelemetryInterval) {
       lastHTTPDataTime = now;
 
       float snapTarget, snapOutput, snapFF;
@@ -108,12 +126,16 @@ void telemetryTask(void *parameter) {
         xSemaphoreGive(hubHttpMutex);
 
         if (telemetryCode == 200) {
-          if (telemetryFailures > 0) {
+          if (telemetryFailures > 0 || g_hubFailStreak > 0) {
             Serial.printf("[HubTelemetryTask] Link recovered after %u failed request(s).\n",
-                          telemetryFailures);
+                          max((uint16_t)g_hubFailStreak, telemetryFailures));
           }
           telemetryFailures = 0;
+          g_hubFailStreak = 0;
         } else {
+          if (g_hubFailStreak < 255) {
+            g_hubFailStreak++;
+          }
           telemetryFailures++;
           if (telemetryFailures == 1 || telemetryFailures % 10 == 0) {
             Serial.printf("[HubTelemetryTask] /flowData failed: HTTP %d (consecutive=%u).\n",

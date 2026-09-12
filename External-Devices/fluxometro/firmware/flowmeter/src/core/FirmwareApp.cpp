@@ -154,6 +154,8 @@ const unsigned long commandPollInterval = 250;
 const unsigned long telemetryInterval = 500;
 const uint16_t hubConnectTimeoutMs = 1000;
 const uint16_t hubRequestTimeoutMs = 1500;
+uint8_t g_hubFailStreak = 0;
+constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
 
 const uint16_t telemetryFailuresBeforeRelink = 10;
 

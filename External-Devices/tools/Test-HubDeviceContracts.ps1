@@ -41,11 +41,12 @@ Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasPar
 Require 'Hub flow fields' $hub @('hasParam("seconds")', 'hasParam("flow_voltage")', 'hasParam("flow_rate")', 'hasParam("flow_setpoint")', 'hasParam("valve1State")', 'hasParam("valve2State")')
 Require 'Hub biomass fields' $hub @('hasParam("absorbance")', 'hasParam("raw")', 'hasParam("idle")')
 Require 'Hub agitator fields' $hub @('hasParam("pct")', 'hasParam("dir")', 'hasParam("pot")', 'hasParam("src")')
+Require 'Hub node identity (10.1)' $hub @('appendNodeIdentity(jsonResponse, "Distance"', 'appendNodeIdentity(jsonResponse, "Agitator"', 'appendNodeIdentity(jsonResponse, "Pump"', 'appendNodeIdentity(jsonResponse, "Flowmeter"', 'appendNodeIdentity(jsonResponse, "Biomass"', 'NodeVer', 'NodeMac', 'hub_time_ms', 'last_hello_ms', 'last_data_ms')
 
 if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Error $_ }
     throw "$($failures.Count) Hub/device contract checks failed."
 }
 
-Write-Output 'Hub/device contract check passed for 12 routes, /nodeHello dynamic registration, required telemetry fields, cmd_id and ack_cmd_id.'
+Write-Output 'Hub/device contract check passed for 12 routes, /nodeHello dynamic registration, node identity keys (*IP/*NodeVer/*NodeMac), required telemetry fields, cmd_id and ack_cmd_id.'
 

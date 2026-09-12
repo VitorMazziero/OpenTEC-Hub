@@ -6,7 +6,9 @@
 // motorControlMode seleciona 0=UART/CN1 tradicional ou 1=Modbus direto. A
 // troca e break-before-make, sempre passa por zero e e confirmada pelo driver.
 // A mudanca Hub<->driver e incompatível e por isso incrementa o protocolo.
-#define HUB_FIRMWARE_VERSION "10.0.1-dev"
+// 10.1.0: identidade dos nos externos no quadro agregado (*IP, *NodeVer, *NodeMac)
+// e /nodes completo. Chaves aditivas: o protocolo continua 10.
+#define HUB_FIRMWARE_VERSION "10.1.0-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

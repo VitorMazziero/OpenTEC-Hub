@@ -439,7 +439,9 @@ void startWiFi() {
       IPAddress rip = request->client()->remoteIP();
       unsigned long now = millis();
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
-        recordDeviceActivity(DEV_AGITATOR, rip, now, true, "rev-h", "");
+        // Legacy route: it renews the hello and the IP but says nothing about the
+        // firmware, so a version the node reported through /nodeHello survives.
+        recordDeviceActivity(DEV_AGITATOR, rip, now, true, "", "");
         xSemaphoreGive(stateMutex);
       }
       String msg = String("{\"hello\":\"agitator\",\"ip\":\"") + rip.toString() + "\"}";
@@ -479,14 +481,21 @@ void startWiFi() {
       }
     });
 
+    // Node directory. Optional ?dev=<name> narrows the answer to one entry. Besides the
+    // 10.0 fields, 10.1 adds registered/last_hello_ms/last_data_ms per node and
+    // hub_time_ms at the root, so a client can compute freshness itself instead of
+    // trusting the 999999 sentinel in age_ms.
     server.on("/nodes", HTTP_GET, [](AsyncWebServerRequest *request) {
-      char resp[768];
+      String only = request->hasParam("dev") ? request->getParam("dev")->value() : "";
+      char resp[1280];
       int offset = 0;
-      offset += snprintf(resp + offset, sizeof(resp) - offset, "{\"nodes\":[");
       unsigned long now = millis();
+      offset += snprintf(resp + offset, sizeof(resp) - offset, "{\"hub_time_ms\":%lu,\"nodes\":[", now);
+      bool first = true;
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
         for (int i = 0; i < DEV_COUNT; i++) {
           const DeviceNodeEntry& e = g_deviceRegistry[i];
+          if (only.length() > 0 && only != e.name) continue;
           unsigned long lastSeen = e.lastDataMs > e.lastHelloMs ? e.lastDataMs : e.lastHelloMs;
           unsigned long ageMs = (lastSeen > 0 && now >= lastSeen) ? (now - lastSeen) : 999999;
           bool isOnline = false;
@@ -497,14 +506,19 @@ void startWiFi() {
           else if (i == DEV_BIOMASS) isOnline = (biomassLastUpdate > 0 && (now - biomassLastUpdate <= BIOMASS_TIMEOUT));
 
           offset += snprintf(resp + offset, sizeof(resp) - offset,
-                             "%s{\"dev\":\"%s\",\"ip\":\"%s\",\"mac\":\"%s\",\"version\":\"%s\",\"online\":%s,\"age_ms\":%lu}",
-                             (i > 0) ? "," : "",
+                             "%s{\"dev\":\"%s\",\"ip\":\"%s\",\"mac\":\"%s\",\"version\":\"%s\",\"online\":%s,\"age_ms\":%lu,"
+                             "\"registered\":%s,\"last_hello_ms\":%lu,\"last_data_ms\":%lu}",
+                             first ? "" : ",",
                              e.name,
                              e.ip.toString().c_str(),
                              e.mac,
                              e.version,
                              isOnline ? "true" : "false",
-                             ageMs);
+                             ageMs,
+                             e.registered ? "true" : "false",
+                             e.lastHelloMs,
+                             e.lastDataMs);
+          first = false;
         }
         xSemaphoreGive(stateMutex);
       }

@@ -54,13 +54,11 @@ void readAndBroadcastSensorData() {
   String snapAgitatorSource = "unknown";
   unsigned long snapDistanceUpdate = 0, snapBiomassUpdate = 0, snapBiomassSampleUpdate = 0;
   unsigned long snapPumpUpdate = 0, snapAgitatorUpdate = 0;
-  IPAddress snapDistIp, snapAgitIp, snapPumpIp, snapFlowIp, snapBioIp;
+  // 10.1: the node registry is copied whole (IP always; version/MAC only once the
+  // node has said hello) so the identity keys are assembled outside the mutex too.
+  DeviceNodeEntry snapNodes[DEV_COUNT];
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
-    snapDistIp = g_deviceRegistry[DEV_DISTANCE].ip;
-    snapAgitIp = g_deviceRegistry[DEV_AGITATOR].ip;
-    snapPumpIp = g_deviceRegistry[DEV_PUMP].ip;
-    snapFlowIp = g_deviceRegistry[DEV_FLOWMETER].ip;
-    snapBioIp  = g_deviceRegistry[DEV_BIOMASS].ip;
+    for (int i = 0; i < DEV_COUNT; i++) snapNodes[i] = g_deviceRegistry[i];
     snapDistanceComm = distanceSensorCommOn;
     snapDistanceValue = distanceSensorValue;
     snapDistanceUpdate = distanceSensorLastUpdate;
@@ -135,7 +133,10 @@ void readAndBroadcastSensorData() {
       // v8.1: presença/roteamento/pendência dos quatro dispositivos e o bloco do
       // agitador acrescentam ~330 bytes. Pior caso medido ~1550; a folga é deliberada,
       // porque um realloc no meio da montagem fragmenta o heap a cada quadro.
-      jsonResponse.reserve(2560);
+      // 10.1: IP dos cinco nós (~140 bytes) e, só para nós registrados, versão e MAC
+      // (~50 bytes por nó). Pior caso estimado ~2050. Mesma reserva de lastSensorJson
+      // (Runtime.h), porque a cópia realoca se a origem for maior.
+      jsonResponse.reserve(HUB_TELEMETRY_JSON_RESERVE);
       jsonReserved = true;
   }
   
@@ -284,11 +285,14 @@ void readAndBroadcastSensorData() {
     jsonResponse += ",\"ServoCommErr\":" + String(servoSnapshot.sample.commErr);
   }
 
-  jsonResponse += ",\"DistanceIP\":\"" + snapDistIp.toString() + "\"";
-  jsonResponse += ",\"AgitatorIP\":\"" + snapAgitIp.toString() + "\"";
-  jsonResponse += ",\"PumpIP\":\"" + snapPumpIp.toString() + "\"";
-  jsonResponse += ",\"FlowmeterIP\":\"" + snapFlowIp.toString() + "\"";
-  jsonResponse += ",\"BiomassIP\":\"" + snapBioIp.toString() + "\"";
+  // External-node identity (10.1). *IP is unconditional (0.0.0.0 = never seen);
+  // *NodeVer/*NodeMac appear only once the node has registered through /nodeHello,
+  // so an unregistered node costs the frame nothing. Additive: protocol stays 10.
+  appendNodeIdentity(jsonResponse, "Distance",  snapNodes[DEV_DISTANCE]);
+  appendNodeIdentity(jsonResponse, "Agitator",  snapNodes[DEV_AGITATOR]);
+  appendNodeIdentity(jsonResponse, "Pump",      snapNodes[DEV_PUMP]);
+  appendNodeIdentity(jsonResponse, "Flowmeter", snapNodes[DEV_FLOWMETER]);
+  appendNodeIdentity(jsonResponse, "Biomass",   snapNodes[DEV_BIOMASS]);
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";

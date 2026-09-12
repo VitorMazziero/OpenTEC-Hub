@@ -257,7 +257,7 @@ void firmwareSetup() {
   Serial.begin(115200);
   ESP32_INFO("Inicialização iniciada");
 
-  lastSensorJson.reserve(2048);
+  lastSensorJson.reserve(HUB_TELEMETRY_JSON_RESERVE);
   preferences.begin("SensorHub", false);
   loadSettings();
   // Setpoint persistido nunca e retomado automaticamente apos reboot. O PC

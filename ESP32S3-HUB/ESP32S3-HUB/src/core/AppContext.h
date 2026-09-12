@@ -392,6 +392,34 @@ DeviceNodeEntry g_deviceRegistry[DEV_COUNT] = {
   { "biomass",   IPAddress(0, 0, 0, 0), "", "", 0, 0, false }
 };
 
+// Shared by the aggregate frame (Telemetry.h) and the /readData cache copy
+// (Runtime.h): the two Strings must reserve the same size or the assignment reallocates.
+#define HUB_TELEMETRY_JSON_RESERVE 3072
+
+// Appends "<Prefix>IP" and, when the node has registered, "<Prefix>NodeVer" and
+// "<Prefix>NodeMac" to an aggregate frame under construction. Version and MAC come
+// from the node's own /nodeHello, never from a hard-coded default.
+inline void appendNodeIdentity(String& json, const char* prefix, const DeviceNodeEntry& e) {
+  json += ",\"";
+  json += prefix;
+  json += "IP\":\"" + e.ip.toString() + "\"";
+  if (!e.registered) return;
+  if (e.version[0] != '\0') {
+    json += ",\"";
+    json += prefix;
+    json += "NodeVer\":\"";
+    json += e.version;
+    json += "\"";
+  }
+  if (e.mac[0] != '\0') {
+    json += ",\"";
+    json += prefix;
+    json += "NodeMac\":\"";
+    json += e.mac;
+    json += "\"";
+  }
+}
+
 inline void recordDeviceActivity(ExternalDeviceId devId, const IPAddress& ip, unsigned long nowMs, bool isHello, const char* ver = nullptr, const char* mac = nullptr) {
   if (devId >= DEV_COUNT) return;
   DeviceNodeEntry& entry = g_deviceRegistry[devId];

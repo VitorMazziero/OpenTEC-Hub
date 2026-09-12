@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Update.h>
+#include <WiFi.h>
 
 #include "../core/AppContext.h"
 #include "../motor/MotorDriver.h"
@@ -119,11 +120,35 @@ void handleOtaChunk() {
   }
 }
 
+void handleDiag() {
+  char json[320];
+  snprintf(json, sizeof(json),
+           "{\"device\":\"flask-agitator\",\"version\":\"1.0\",\"uptime_s\":%lu,"
+           "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
+           "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+           "\"duty\":%.1f,\"dir\":%d,\"pot\":%s}",
+           static_cast<unsigned long>(millis() / 1000),
+           static_cast<unsigned int>(ESP.getFreeHeap()),
+           WiFi.status(),
+           WiFi.SSID().c_str(),
+           WiFi.RSSI(),
+           WiFi.localIP().toString().c_str(),
+           WiFi.macAddress().c_str(),
+           g_hubFailStreak,
+           g_otaInProgress ? "true" : "false",
+           targetPercent,
+           dirRight ? 1 : 0,
+           potEnabled ? "true" : "false");
+  server.send(200, "application/json", json);
+}
+
 }  // namespace
 
 void setupLocalHttpApi() {
   server.on("/cmd", HTTP_POST, handleCommand);
   server.on("/read", HTTP_GET, handleRead);
+  server.on("/diag", HTTP_GET, handleDiag);
+  server.on("/status", HTTP_GET, handleDiag);
   server.on("/update", HTTP_GET, handleOtaPage);
   server.on("/update", HTTP_POST, handleOtaUploadDone, handleOtaChunk);
   server.begin();

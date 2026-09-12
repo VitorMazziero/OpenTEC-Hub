@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Update.h>
+#include <WiFi.h>
 
 #include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
@@ -126,10 +127,34 @@ void handleOtaChunk() {
   }
 }
 
+void handleDiag() {
+  char json[320];
+  snprintf(json, sizeof(json),
+           "{\"device\":\"distance-sensor\",\"version\":\"%s\",\"uptime_s\":%lu,"
+           "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
+           "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+           "\"distance\":%.0f,\"sample_time\":%.1f}",
+           BoardConfig::FirmwareTag,
+           static_cast<unsigned long>(millis() / 1000),
+           static_cast<unsigned int>(ESP.getFreeHeap()),
+           WiFi.status(),
+           WiFi.SSID().c_str(),
+           WiFi.RSSI(),
+           WiFi.localIP().toString().c_str(),
+           WiFi.macAddress().c_str(),
+           g_hubFailStreak,
+           g_otaInProgress ? "true" : "false",
+           g_lastValidDistance,
+           g_lastSampleTimeSec);
+  server.send(200, "application/json", json);
+}
+
 }  // namespace
 
 void setupLocalHttpApi() {
   server.on("/", HTTP_GET, handleRoot);
+  server.on("/diag", HTTP_GET, handleDiag);
+  server.on("/status", HTTP_GET, handleDiag);
   server.on("/config", HTTP_GET, handleGetConfig);
   server.on("/config", HTTP_POST, handleConfig);
   server.on("/update", HTTP_GET, handleOtaPage);

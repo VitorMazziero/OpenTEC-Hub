@@ -19,7 +19,7 @@ void setupOTA() {
         msg = "Upload incomplete. Running firmware untouched.";
       } else {
         ok = true;
-        msg = "OK: " + String(Update.progress()) + " bytes written. Rebooting into new firmware...";
+        msg = "OK: Firmware gravado e validado com sucesso! Reiniciando...";
       }
       Serial.println("[OTA] " + msg);
       AsyncWebServerResponse *response = request->beginResponse(ok ? 200 : 400, "text/plain", msg);

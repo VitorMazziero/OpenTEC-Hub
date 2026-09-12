@@ -82,7 +82,7 @@ void telemetryTask(void *parameter) {
     if (!otaInProgress && WiFi.status() == WL_CONNECTED && (!hubAnnounced || now - lastHelloCheckMs >= 30000)) {
       lastHelloCheckMs = now;
       char helloUrl[140];
-      snprintf(helloUrl, sizeof(helloUrl), "%s/nodeHello?dev=flowmeter&ver=v10&mac=%s",
+      snprintf(helloUrl, sizeof(helloUrl), "%s/nodeHello?dev=flowmeter&ver=v11&mac=%s",
                sensorHubURL.c_str(), WiFi.macAddress().c_str());
       if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
         static HTTPClient httpHello;
@@ -121,13 +121,14 @@ void telemetryTask(void *parameter) {
       snapSource = lastCommandSource;
       xSemaphoreGive(commandMutex);
 
-      char url[384];
+      char url[448];
       snprintf(url, sizeof(url),
                "%s/flowData?seconds=%.3f&flow_voltage=%.6f&flow_rate=%.6f"
                "&flow_setpoint=%.6f&flow_setpoint_corrected=%.6f&flow_output=%.6f"
                "&ff_gain=%.4f&ff_offset=%.4f&valve1State=%u&valve2State=%u"
                "&valveFlowState=%u&ack_cmd_id=%lu&last_apply_ms=%lu"
-               "&command_source=%s&boot_id=%lu&reconnect_wifi=%d",
+               "&command_source=%s&boot_id=%lu&reconnect_wifi=%d"
+               "&kp=%.4f&ki=%.4f&ramp=%.3f",
                sensorHubURL.c_str(),
                now / 1000.0,
                readFlowVoltage,
@@ -144,7 +145,10 @@ void telemetryTask(void *parameter) {
                snapApplyMs,
                snapSource.c_str(),
                static_cast<unsigned long>(bootSessionId),
-               reconnect_Wifi ? 1 : 0);
+               reconnect_Wifi ? 1 : 0,
+               Kp_flow,
+               Ki_flow,
+               rampRate);
       if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
         http.begin(url);
         http.setConnectTimeout(hubConnectTimeoutMs);

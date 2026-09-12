@@ -9,7 +9,7 @@ void setupOTA() {
   server.on("/diag", HTTP_GET, [](AsyncWebServerRequest *request) {
     char json[320];
     snprintf(json, sizeof(json),
-             "{\"device\":\"flowmeter\",\"version\":\"v10\",\"uptime_s\":%lu,"
+             "{\"device\":\"flowmeter\",\"version\":\"v11\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
              "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
              "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
@@ -30,7 +30,7 @@ void setupOTA() {
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     char json[320];
     snprintf(json, sizeof(json),
-             "{\"device\":\"flowmeter\",\"version\":\"v10\",\"uptime_s\":%lu,"
+             "{\"device\":\"flowmeter\",\"version\":\"v11\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
              "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
              "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",

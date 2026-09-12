@@ -1,6 +1,7 @@
 #include "FirmwareApp.h"
 
 #include <Arduino.h>
+#include <Update.h>
 #include <WiFi.h>
 
 #include "../api/LocalHttpApi.h"
@@ -43,6 +44,22 @@ void firmwareSetup() {
 void firmwareLoop() {
   const unsigned long now = millis();
   serviceLocalHttpApi();
+
+  if (g_otaRebootAtMs > 0 && now >= g_otaRebootAtMs) {
+    Serial.println("[OTA] Reiniciando no novo firmware...");
+    delay(100);
+    ESP.restart();
+  }
+
+  if (g_otaInProgress) {
+    if (now - g_otaLastChunkMs > OTA_STALL_TIMEOUT_MS) {
+      Serial.println("[OTA] Watchdog disparado: upload estagnou.");
+      Update.abort();
+      g_otaInProgress = false;
+    }
+    delay(1);
+    return;
+  }
 
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');

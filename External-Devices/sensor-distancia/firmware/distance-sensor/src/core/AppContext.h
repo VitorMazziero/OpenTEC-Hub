@@ -32,3 +32,9 @@ extern float g_lastSampleTimeSec;
 extern String g_lastKnownSsid;
 extern WifiReconnectState g_wifiState;
 extern unsigned long g_wifiNextActionMs;
+
+extern volatile bool g_otaInProgress;
+extern unsigned long g_otaLastChunkMs;
+extern const unsigned long OTA_STALL_TIMEOUT_MS;
+extern unsigned long g_otaRebootAtMs;
+extern String g_otaRejectReason;

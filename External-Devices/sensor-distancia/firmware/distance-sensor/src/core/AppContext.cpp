@@ -28,3 +28,9 @@ float g_lastSampleTimeSec = 0.0f;
 String g_lastKnownSsid;
 WifiReconnectState g_wifiState = WF_IDLE;
 unsigned long g_wifiNextActionMs = 0;
+
+volatile bool g_otaInProgress = false;
+unsigned long g_otaLastChunkMs = 0;
+const unsigned long OTA_STALL_TIMEOUT_MS = 90000;
+unsigned long g_otaRebootAtMs = 0;
+String g_otaRejectReason = "";

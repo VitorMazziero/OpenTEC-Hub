@@ -9,6 +9,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Faixa de alarmes some ao reconhecer — exceto em Eventos (§H).** A faixa ficava visível
+  enquanto qualquer alarme estivesse *latched*, e uma linha reconhecida continuava lá, com o botão
+  cinza, até a condição limpar pelo deadband: reconhecer não escondia nada em página nenhuma.
+  Agora cada *Reconhecer* tira a sua linha da faixa, a manchete seguinte sobe, e a faixa fecha
+  quando não sobra nada por reconhecer. Em **Eventos** — a página de auditoria — a faixa fica
+  enquanto houver alarme latched, reconhecido ou não, com o botão desabilitado nas linhas já
+  reconhecidas. O `+N` e a lista expandida contam só as linhas da página atual. Só apresentação
+  (`AlarmBannerPresenter`, puro): `AlarmService`, latch, deadband e journal não mudam; *Silenciar*
+  continua global.
 - **Ensaio concluído deixa de ser um beco sem saída (§G).** Nada tirava um ensaio de `Completed`
   — nem o app, nem o recarregamento — e Montagem, Aquisição, *Salvar setup* e *Iniciar* ficavam
   desabilitados; só *Novo* saía do estado, com geometria padrão e obrigando a refazer montagem,

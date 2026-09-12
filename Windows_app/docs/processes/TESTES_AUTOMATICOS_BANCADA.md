@@ -24,9 +24,20 @@ teste — é inspeção.
 | Enlace USB | `opentec-harness usb [COM] --for <s> --probe` + `reset-test` | Handshake, período de emissão, o pulso DTR | Idem |
 | Smoke do app | `OpenTECHub.exe --workspace <dir> --no-workspace-prompt --nav <página> --exit-after-ms <ms>` | Página abre sem exceção | Não conecta ao Hub |
 
-Os testes abaixo estão organizados em **seis suítes (B1–B6)**. As suítes B1–B3 podem ser feitas
-hoje com `curl`/PowerShell e o harness; B4–B6 pedem um modo novo no harness
-(`opentec-harness bench-test`, §7), que é a recomendação de implementação.
+Os testes abaixo estão organizados em cinco suítes (B1–B5). **Estado em 12/09/2026 — tudo o que
+é automatizável sem relé está implementado:**
+
+| Suíte | Onde vive | Como rodar | Cobertura |
+|---|---|---|---|
+| Pré-condições, B1, B2, B3, B5 | `opentec-harness bench-test` (`Windows_app/src/OpenTECHub.Harness/BenchTestSuite.cs`) | §7 | 28 testes automáticos + 13 que exigem relé/cabo/manual (marcados SKIP com o motivo no relatório) |
+| B4 | `Windows_app/tests/OpenTECHub.Tests/BenchArbiterTests.cs` (xUnit, `CommandArbiter` real) | `dotnet test --filter BenchArbiterTests` | B4.1–B4.5 — o árbitro é determinístico e não precisa de hardware; a metade de fio do mesmo contrato é B3 |
+| B5.1 | `opentec-harness wifi-test <ip>` (já existia) | manual | linha de base do enlace |
+
+Ensaio a seco contra o simulador (`opentec-simulator http --port 8080 --all-nodes`, alvo
+`127.0.0.1:8080`): **28 PASS · 1 WARN · 13 SKIP · 0 FAIL**. O WARN é B3.2 (o PC não alcança o IP
+fictício do nó), esperado fora da rede do Hub. Escrever a suíte já rendeu um defeito real antes de
+qualquer placa ser ligada: o leitor USB drenava para a linha mais nova e teria descartado quatro das
+cinco respostas `NodeDiag` (corrigido em `SerialLineCoalescer`, `PROTOCOL.md` §1.2).
 
 ---
 
@@ -88,7 +99,7 @@ o valor original ao fim. Latência medida do envio ao primeiro quadro com o eco 
 | # | Nó | Comando (via `/command` ou serial) | Eco esperado | Aprovação | Restaura |
 |---|---|---|---|---|---|
 | B3.1 | Distância | `{"distanceOffsetMm":25.5}` | `DistanceOffsetMm == 25.5` | ≤ **20 s** em operação normal (o nó só acorda para o push; o plano diz 2 s, mas 15 s é o backoff — o número real vai para o recibo); `DistanceCommandPending` `true` no meio, `false` no fim | offset original |
-| B3.2 | Distância | `GET http://<ip-distância>/config` (leitura direta é permitida; escrita não) | `offset_mm` `25.50` | igual ao eco | — |
+| B3.2 | Distância | `GET http://<ip-distância>/config` (leitura direta é permitida; escrita não) | `offset_mm` `25.50` | igual ao eco; **sem resposta = WARN** (o PC pode não rotear para a sub-rede do nó) | — |
 | B3.3 | Distância | persistência: OTA/reset do nó (B1.6) | `DistanceOffsetMm` continua 25.5 depois do reboot | sim | offset original + reboot |
 | B3.4 | Distância | os quatro numa frame (`offset`, `sample`, `send`, sem `reset`) | os três ecos mudam **no mesmo quadro** | sim | originais |
 | B3.5 | Fluxômetro | `{"flowKp":<kp+0.01>}` com setpoint 0 e sem ensaio | `FlowKp` novo | ≤ 5 s (poll `/flowCommand`) | kp original |
@@ -109,18 +120,22 @@ Latência registrada por comando em `echo-latency.csv` (`node,key,sent_ms,echo_m
 
 ## 5. Suíte B4 — Árbitro e interlocks vistos do fio
 
-Estes só fazem sentido com o **app** conectado (não o harness), porque o árbitro vive no app. A
-automação é o próprio app em modo de teste: `OpenTECHub.exe --workspace <dir> --no-workspace-prompt
---connect usb:COM3|wifi:192.168.4.1 --bench <suite> --exit-after-ms <ms>` (flag `--bench` proposta,
-§7). Verifica pelo `CommandSent` (JSON exato) e pelo `eventos.jsonl`.
+O árbitro vive no app e é **determinístico**: não depende de rádio, heap nem tempo real. Por isso
+B4 não é um modo de bancada — é `BenchArbiterTests.cs` na suíte xUnit, através do `CommandArbiter`
+real com um `RecordingDeviceService` que captura o JSON exato. O que o hardware acrescentaria (o
+eco chegar ou não) já é B3. Roda em todo `dotnet test`; para isolar:
+
+```bash
+dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj --filter "FullyQualifiedName~BenchArbiterTests"
+```
 
 | # | Teste | Aprovação |
 |---|---|---|
-| B4.1 | Sintonia recusada durante ensaio | com um ensaio de potência aberto em captura, `FlowControlViewModel.ApplyTuning` → **nenhum** `CommandSent` com `flowKp`; evento `Recusado: aeração pertence ao ensaio` |
-| B4.2 | Sintonia aceita fora de ensaio | mesmo comando sem ensaio → `CommandSent` exato `{"flowKp":…}` e eco (B3.5) |
-| B4.3 | `nodeDiag` não toma posse | abrir Configurações › Conexão em USB → `CommandSent` `{"nodeDiag":"all"}`; nenhum `ActuatorId` muda de dono; cascata/receita em curso não é interrompida |
-| B4.4 | Safe-stop fecha o gás e para a bomba | `SafeStop` → sequência exata `{"mode":0}` → `{"pumpComm":0}` → vazão 0; `PumpFlow == 0` e `flowSetpoint == 0` no quadro seguinte |
-| B4.5 | Campo desabilitado sem eco | derrubar a rota da distância (`distanceComm:0`) → `DistanceConfigEnabled == false` e texto "aguardando eco do nó" em ≤ 2 períodos; voltar a rota → habilita |
+| B4.1 | Sintonia recusada durante ensaio | `Aeration` reivindicada por `Automatic` (o que o runner de potência/kLa faz em captura) → `SendTuning` não escreve nada e `TuningStatusText` diz "recusado" — **implementado** |
+| B4.2 | Sintonia aceita fora de ensaio | mesmo comando sem dono → frame exato `{"flowKp":0.9,"flowKi":0.15,"flowFfGain":0.106,"flowFfOffset":0.0,"flowRampRate":1.0}` — **implementado** (o eco é B3.5) |
+| B4.3 | `nodeDiag` não toma posse | com Aeração e Agitação sob `Automatic`, `RequestNodeDiag("all")` escreve `{"nodeDiag":"all"}`, nenhum dono muda e `OwnershipChanged` não dispara — **implementado** |
+| B4.4 | Safe-stop fecha o gás e para a bomba | `SafetyCoordinator` com os frames do `ControlViewModel`: 1.º frame contém `"mode":0` e `"flowSetpoint":0.0` e **não** contém `speed`; 2.º é exatamente `{"pumpComm":0}`; todos os atuadores voltam a `Manual` — **implementado** (o `PumpFlow == 0` no quadro seguinte é B3.11) |
+| B4.5 | Campo desabilitado sem eco | quadro sem `FlowKp` → `CanEditTuning == false` e "Aguardando telemetria do nó"; com eco → habilita; eco some → desabilita no quadro seguinte (não-sticky) — **implementado** (o análogo da distância já existia em `ExternalDeviceTests`) |
 
 ---
 
@@ -137,28 +152,56 @@ automação é o próprio app em modo de teste: `OpenTECHub.exe --workspace <dir
 
 ---
 
-## 7. Implementação recomendada: `opentec-harness bench-test`
+## 7. Como rodar: `opentec-harness bench-test`
 
-Um modo novo no harness (`Windows_app/src/OpenTECHub.Harness/BenchTestSuite.cs`), no molde do
-`WiFiTestSuite` já existente, que:
+Implementado em `Windows_app/src/OpenTECHub.Harness/BenchTestSuite.cs`, no molde do `WiFiTestSuite`.
 
-1. Recebe `--hub <ip|COMx>`, `--expect-hub 10.2.0-dev`, `--suites B1,B2,B3,B5`, `--soak-min 30`,
-   `--out docs/evidence/bench/<data>/`.
-2. Roda as pré-condições (§1) e **para** se P4 reprovar.
-3. Usa **os mesmos** `CommandBuilders`/`TelemetryParser`/`HubNodeDirectoryClient`/`HubNodeDiagClient`
-   do app — o teste prova o contrato que o app usa, não uma reimplementação.
-4. Escreve um `report.md` com uma tabela por suíte (teste, medido, limite, veredito) e os CSVs
-   listados; termina com código de saída ≠ 0 se algum teste reprovar.
-5. **Restaura** todo valor alterado (offset, ganhos, calibração, `pumpComm`) num bloco `finally`,
-   e imprime o que não conseguiu restaurar.
-6. Nunca liga motor nem bomba com vazão > 0 (B3.11 usa `mode:0`); vazão fica em 0 o tempo todo —
+```bash
+dotnet run --project Windows_app/src/OpenTECHub.Harness -c Release -- bench-test COM3 --reset-hub --pump --soak-min 30 --out Windows_app/docs/evidence/bench/2026-09-13
+```
+
+```bash
+dotnet run --project Windows_app/src/OpenTECHub.Harness -c Release -- bench-test 192.168.4.1 --pump --soak-min 30 --out Windows_app/docs/evidence/bench/2026-09-13-wifi
+```
+
+| Opção | Efeito |
+|---|---|
+| `COMx` ou `ip` | USB ou Wi-Fi. Cada suíte pula o que não vale no meio (B1.4/B1.5/B2.2–2.5 só em Wi-Fi; B1.7/B2.1/B2.6–2.8 só em USB) — rodar **os dois** para o recibo completo |
+| `--expect-hub 10.2.0-dev` | P2; a versão alvo do Hub |
+| `--suites B1,B2,B3,B5` | quais rodar (padrão: todas) |
+| `--soak-min N` | B5.2/B5.3 (e B2.10 em Wi-Fi); 0 = pular |
+| `--reset-hub` | B2.1: reconecta com o pulso DTR para ler `NodeDiag task criada; heap antes=… depois=…` no boot. Reinicia o Hub — só com o processo em estado seguro |
+| `--pump` | B3.8 (`reset_volume`) e B3.11 (`{"mode":0}` → `{"pumpComm":0}` e restaura `pumpComm:1`). Exige `pumpComm` ligado antes; sem a flag, SKIP |
+| `--out <dir>` | `report.md` + CSVs/JSON (padrão `docs/evidence/bench/<data_hora>/`) |
+
+Comportamento:
+
+1. Pré-condições (§1) primeiro; se P2/P4/P5/P7 reprovarem, **nada mais roda** e o relatório diz qual nó
+   está na versão errada e o `Publish-OtaFirmware.ps1` que resolve.
+2. Usa **os mesmos** `CommandBuilders`/`TelemetryParser`/`HubNodeDirectoryClient`/`HubNodeDiagClient`
+   do app — prova o contrato que o app usa, não uma reimplementação.
+3. **Restaura** todo valor alterado (offset e períodos da distância, cinco ganhos do fluxômetro,
+   calibração da bomba, `pumpComm`, gear/PWM/EMA/período da biomassa) num `finally`, na ordem inversa,
+   e registra `FAIL` em "restaurar X" se algum não voltar.
+4. Nunca liga motor nem bomba; a vazão fica em 0 o tempo todo (P7 recusa começar com setpoint > 0) —
    os testes de gás com válvulas são do plano A/B/C, não deste documento.
+5. Código de saída ≠ 0 se houver qualquer `FAIL` (incluindo restauração).
 
-A suíte B4 vive no app (`--bench`), porque precisa do árbitro; é uma classe
-`Services/Diagnostics/BenchSuite.cs` acionada pela flag, gravando no mesmo `report.md`.
+**Ensaio a seco** antes da bancada (valida o próprio harness):
 
-**Esforço:** B1–B3 + B5 no harness ≈ 1 período (o `WiFiTestSuite` já tem o esqueleto de relatório
-e soak); B4 no app ≈ meio período.
+```bash
+dotnet run --project Windows_app/src/OpenTECHub.Simulator -c Debug -- http --port 8080 --quiet --all-nodes
+```
+
+```bash
+dotnet run --project Windows_app/src/OpenTECHub.Harness -c Debug -- bench-test 127.0.0.1:8080 --pump --out /tmp/bench-sim
+```
+
+O que fica **fora** da automação, e por quê: B1.6/B3.3 (reboot de um nó — precisa de relé ou OTA
+deliberado), B2.9 (nó desligado — relé), B3.14 (derrubar a rota de um nó — muda a configuração do
+Hub em NVS; fazer à mão e observar a chave sumir do quadro), B5.4 (puxar o cabo), B5.5 (a curva de
+calibração do fluxômetro é do fluxo de Calibrações no app). O relatório lista cada um como SKIP com
+esse motivo, para o recibo não parecer completo quando não é.
 
 ---
 

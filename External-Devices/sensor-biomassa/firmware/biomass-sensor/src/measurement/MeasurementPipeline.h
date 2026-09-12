@@ -144,7 +144,14 @@ void publishSample(bool single) {
   Serial.println(g_lastDataJson);
 
   if (g_hubEnabled && WiFi.status() == WL_CONNECTED) {
-    sendDataToHub();
+    unsigned long pushInterval = 0;
+    if (g_hubFailStreak > 0) {
+      uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+      pushInterval = min(HUB_HEARTBEAT_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+    }
+    if (g_hubFailStreak == 0 || (millis() - lastHubHeartbeatMs >= pushInterval)) {
+      sendDataToHub();
+    }
   }
 }
 

@@ -107,6 +107,8 @@ unsigned long lastWifiCheckMs = 0;
 unsigned long WIFI_RECONNECT_PERIOD_MS = 10000; // Check every 10 seconds
 unsigned long lastHubPollMs = 0;
 unsigned long HUB_POLL_PERIOD_MS = 2000; // Poll hub every 2 seconds
+uint8_t g_hubFailStreak = 0;
+constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
 
 // The hub re-delivers a command until this id comes back on a data push, so the same
 // JSON arrives repeatedly by design. 0 means "nothing applied yet"; the hub never

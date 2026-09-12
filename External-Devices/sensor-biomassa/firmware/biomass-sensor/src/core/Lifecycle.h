@@ -149,15 +149,27 @@ void firmwareLoop() {
 
   checkWifi();
 
-  if (g_hubEnabled && now - lastHubPollMs >= HUB_POLL_PERIOD_MS) {
+  unsigned long pollInterval = HUB_POLL_PERIOD_MS;
+  if (g_hubFailStreak > 0) {
+    uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+    pollInterval = min(HUB_POLL_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+  }
+
+  if (g_hubEnabled && now - lastHubPollMs >= pollInterval) {
     lastHubPollMs = now;
     if (WiFi.status() == WL_CONNECTED) {
       pollHubForCommands();
     }
   }
 
+  unsigned long heartbeatInterval = HUB_HEARTBEAT_PERIOD_MS;
+  if (g_hubFailStreak > 0) {
+    uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+    heartbeatInterval = min(HUB_HEARTBEAT_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+  }
+
   if (g_hubEnabled && g_state != MEASURING &&
-      now - lastHubHeartbeatMs >= HUB_HEARTBEAT_PERIOD_MS) {
+      now - lastHubHeartbeatMs >= heartbeatInterval) {
     if (WiFi.status() == WL_CONNECTED) {
       sendDataToHub();   // updates lastHubHeartbeatMs itself
     } else {

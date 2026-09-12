@@ -32,7 +32,7 @@ foreach ($entry in $requiredLibraries.GetEnumerator()) {
 
 $jobs = @(
     @('distance', 'esp32:esp32:esp32', 'sensor-distancia\firmware\distance-sensor'),
-    @('agitator', 'esp32:esp32:esp32s3', 'frasco-agitador\firmware\flask-agitator'),
+    @('agitator', 'esp32:esp32:esp32', 'frasco-agitador\firmware\flask-agitator'),
     @('pump', 'esp32:esp32:esp32', 'bomba-peristaltica\firmware\peristaltic-pump'),
     @('flowmeter', 'esp32:esp32:esp32:UploadSpeed=921600,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=4M,PartitionScheme=default,DebugLevel=none,PSRAM=disabled,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default', 'fluxometro\firmware\flowmeter'),
     @('biomass', 'esp32:esp32:esp32s3', 'sensor-biomassa\firmware\biomass-sensor')

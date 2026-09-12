@@ -947,5 +947,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public string? ChooseFolder(string title, string? initialDirectory = null) => null;
         public void OpenFolder(string path) { }
         public void CopyText(string text) { }
+
+        public void OpenUri(Uri uri) { }
     }
 }

@@ -90,4 +90,19 @@ public sealed class FileInteractionService : IFileInteractionService
             Clipboard.SetText(text);
         }
     }
+
+    public void OpenUri(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("Only absolute http/https URIs are opened.", nameof(uri));
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = uri.AbsoluteUri,
+            UseShellExecute = true,
+        });
+    }
 }

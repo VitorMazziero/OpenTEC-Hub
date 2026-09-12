@@ -22,7 +22,8 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public ConnectionState State { get; private set; } = ConnectionState.Connected;
 
-    public TransportMedium? Medium => TransportMedium.Usb;
+    /// <summary>USB by default; a test that needs the Hub's Wi-Fi sets it before <see cref="PushState"/>.</summary>
+    public TransportMedium? Medium { get; set; } = TransportMedium.Usb;
 
     public string Endpoint => "FAKE";
 

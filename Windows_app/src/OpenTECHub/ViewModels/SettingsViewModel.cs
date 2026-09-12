@@ -66,7 +66,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         IApplicationRestartService? restart = null,
         IRecipeEngine? recipes = null,
         IKlaTestRunner? klaTests = null,
-        ISessionLogger? sessionLogger = null)
+        ISessionLogger? sessionLogger = null,
+        HubNodesViewModel? hubNodes = null)
     {
         _settings = settings;
         _theme = theme;
@@ -92,7 +93,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("device", "Comandos do equipamento", "Gear"),
             new(DocumentationSectionId, "Documentação", "Book"),
         ];
+        HubNodes = hubNodes ?? new HubNodesViewModel(device);
         SelectedSection = Sections[0];
+        HubNodes.IsActive = SelectedSection.Id == "connection";
         DocumentationTopics = DocumentationCatalog.Topics;
         SelectedDocumentationTopic = DocumentationTopics[0];
 
@@ -232,6 +235,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// and roughly double the scrolling, for no gain.
     /// </remarks>
     public bool IsDocumentationSelected => SelectedSection?.Id == DocumentationSectionId;
+
+    /// <summary>The "Nós na rede do Hub" panel of the Conexão section. Polls only while that section is open.</summary>
+    public HubNodesViewModel HubNodes { get; }
+
+    partial void OnSelectedSectionChanged(SettingsSection value)
+        => HubNodes.IsActive = value?.Id == "connection";
 
     // ---- Connection --------------------------------------------------
 
@@ -982,6 +991,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _device.TelemetryReceived -= OnTelemetryReceived;
         _settings.Changed -= OnSettingsChanged;
         _theme.ThemeChanged -= OnThemeChanged;
+        HubNodes.Dispose();
     }
 }
 

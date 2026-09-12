@@ -250,6 +250,54 @@
                                  Text="{Binding DataDelayMs, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Text="O período só chega ao equipamento quando Aplicar é acionado."
                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,5,0,0" />
+
+                        <!-- Nós na rede do Hub (Hub 10.1). Fed by the aggregate frame on any link; enriched
+                             from GET /nodes on Wi-Fi. Five fixed rows - an unknown node reads "—", never
+                             disappears, so an empty network is never mistaken for a missing feature. -->
+                        <Separator Margin="0,16,0,12" />
+                        <Grid DataContext="{Binding HubNodes}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Nós na rede do Hub" Style="{StaticResource SectionHeading}" Margin="0" />
+                                <TextBlock Grid.Column="1" Text="{Binding RegisteredCountText}"
+                                           Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <Button Grid.Column="2" Content="Atualizar" Padding="10,3"
+                                        Command="{Binding RefreshCommand}"
+                                        ToolTip="{Binding DirectoryAvailabilityText}" />
+                            </Grid>
+                            <TextBlock Grid.Row="1" Text="{Binding LegacyHubNoticeText}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{DynamicResource StateWarningTextBrush}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding ShowLegacyHubNotice, Converter={StaticResource BoolToVis}}" />
+                            <ListView Grid.Row="2" ItemsSource="{Binding Nodes}" Margin="0,8,0,0"
+                                      AutomationProperties.Name="Nós na rede do Hub">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Dispositivo" Width="130" DisplayMemberBinding="{Binding DisplayName}" />
+                                        <GridViewColumn Header="IP" Width="110" DisplayMemberBinding="{Binding IpText}" />
+                                        <GridViewColumn Header="MAC" Width="140" DisplayMemberBinding="{Binding MacText}" />
+                                        <GridViewColumn Header="Firmware" Width="80" DisplayMemberBinding="{Binding FirmwareText}" />
+                                        <GridViewColumn Header="Estado" Width="130" DisplayMemberBinding="{Binding StateText}" />
+                                        <GridViewColumn Header="Visto há" Width="70" DisplayMemberBinding="{Binding SeenText}" />
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            <StackPanel Grid.Row="3" Margin="0,6,0,0">
+                                <TextBlock Text="{Binding LastDirectoryText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DirectoryAvailabilityText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Border>
 

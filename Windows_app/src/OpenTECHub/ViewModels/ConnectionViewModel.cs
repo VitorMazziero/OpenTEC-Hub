@@ -104,6 +104,10 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string LatencyText { get; set; } = "—";
 
+    /// <summary>External nodes the Hub has an address for, out of five (Hub 10.1); "—" before that.</summary>
+    [ObservableProperty]
+    public partial string NodesText { get; set; } = "—";
+
     [ObservableProperty]
     public partial bool IsDiscovering { get; set; }
 
@@ -281,10 +285,11 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         if (change.State != ConnectionState.Connected)
         {
             LatencyText = "—";
+            NodesText = "—";
         }
     }
 
-    private void OnTelemetryReceived(SensorSnapshot _)
+    private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
         var diagnostics = _device.Diagnostics;
         FramesReceived = diagnostics.FramesReceived;
@@ -296,6 +301,26 @@ public sealed partial class ConnectionViewModel : ObservableObject, IDisposable
         LatencyText = diagnostics.LastRoundTripMs is { } ms
             ? ms.ToString("F0", CultureInfo.CurrentCulture) + " ms"
             : "—";
+
+        // Hub 10.1 publishes each node's address; a Hub that predates it leaves all five
+        // unknown, which reads "—" rather than "0/5" - nothing was claimed about the network.
+        var known = 0;
+        var withAddress = 0;
+        foreach (var device in Services.Communication.NodeFirmwareCatalog.Devices)
+        {
+            var identity = Services.Communication.NodeFirmwareCatalog.IdentityOf(snapshot, device);
+            if (identity.IsKnown)
+            {
+                known++;
+            }
+
+            if (identity.Ip is not null)
+            {
+                withAddress++;
+            }
+        }
+
+        NodesText = known == 0 ? "—" : $"{withAddress}/5";
     }
 
     public void Dispose()

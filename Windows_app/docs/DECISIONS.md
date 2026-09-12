@@ -1397,6 +1397,50 @@ a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
   `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
   `f08ba27`. Um `XamlParseException` continua sendo um crash.
 
+### D-051 · Identidade de rede dos nós externos: aditiva, sticky, sem alarme; ações de rede só por Wi-Fi
+
+**Status:** Accepted and implemented · 2026-09-12 · plano `docs/plans/2026-09-12-plano-identidade-nos-externos-app.md` · [P3-09](history/PHASE_LOG.md)
+
+**Contexto.** A Fase 3 dos dispositivos externos deu ao Hub um registro de nós (`/nodeHello`,
+`/nodes`): IP extraído da conexão TCP, MAC e versão declarados pelo nó. O app mostrava *se* cada nó
+estava presente, mas não *quem* era nem *onde* respondia; abrir o `/diag` de um nó ou gravar um
+firmware por OTA exigia adivinhar o IP, e uma reassociação do Link Watchdog ou uma renumeração do
+DHCP só era visível no monitor serial.
+
+**Decisão.**
+
+- **O quadro agregado é a fonte; `/nodes` só enriquece.** O Hub 10.1 publica `*IP` (sempre) e
+  `*NodeVer`/`*NodeMac` (só depois do hello) no `/readData`, que chega por USB e Wi-Fi. `GET /nodes`
+  é consultado apenas em Wi-Fi, a cada 10 s enquanto Configurações › Conexão está aberta, por um
+  `HubNodeDirectoryClient` **fora do `ITransport`** — o transporte tem um dono (`ConnectionManager`)
+  e isto é diagnóstico; uma consulta falhada muda só um rodapé.
+- **Sticky e anulável, como `HubFirmwareVersion`.** `ExternalNodeIdentity` mantém versão e MAC
+  dentro do enlace; `0.0.0.0` limpa o IP. Ausência é *desconhecido* e a tela diz isso em palavras
+  ("Identidade de rede desconhecida (Hub anterior à 10.1 ou nó não registrado)"), nunca um chip, nunca
+  "offline". Presença continua sendo os `*Online`.
+- **Um lugar para a semântica.** `ExternalDeviceStatus.Node` e os derivados; as cinco VMs só
+  alimentam. `NodeFirmwareCatalog` guarda o **conjunto** de versões validadas por nó — igualdade a um
+  conjunto, não ordenação, porque `v10`, `3.8` e `rev-h` não se comparam — e uma versão fora do
+  conjunto é um **aviso em texto**, não um alarme: um nó mais novo pode estar perfeitamente bem.
+- **Alcance é duas condições, ambas visíveis.** "Abrir diagnóstico" e "Copiar IP" nas gavetas exigem
+  que o Hub tenha o IP *e* que o enlace seja Wi-Fi (`ControlViewModel.IsHubOnWiFi`). Em USB os
+  botões ficam desabilitados com o motivo no tooltip; escondê-los faria a função parecer inexistente.
+  O navegador abre por `IFileInteractionService.OpenUri` (só `http`/`https` absolutos), testável.
+- **Mudanças de identidade são eventos, perda não.** `NodeIdentityTracker` (puro) emite
+  Registered / IpChanged (Info) / FirmwareChanged / MacChanged (Warning) para `eventos.jsonl`; um IP
+  que volta a `0.0.0.0` já é a história da presença, e o próximo endereço é um novo registro. Um novo
+  enlace zera o rastreador.
+- **Proveniência.** Versão e IP dos nós entram ao lado de `HubFirmwareVersion` no preâmbulo do
+  sidecar servo (`# nodes:`), no `ensaio.json` de potência (`externalNodes`) e no `teste.json` de kLa
+  (que ganha também `hubFirmwareVersion`/`hubProtocolVersion`). Manifesto antigo carrega vazio.
+- **Diferido.** Proxy `GET /nodeDiag?dev=` no Hub para alcançar o `/diag` dos nós por USB, e OTA a
+  partir do app (`Publish-OtaFirmware.ps1` já cobre, com verificação de baseline que o app não tem).
+
+**Consequências.** Quinze chaves novas no parser, cinco gavetas com um cartão "Rede", um painel em
+Configurações › Conexão, uma linha no popover ("Nós do Hub n/5"), quatro tipos de evento, três
+cabeçalhos de proveniência. O simulador reproduz a regra condicional do Hub e ganha os cenários
+`node-renumber` e o `legacy-hub` estendido. 62 testes novos.
+
 ### D-050 · Corrida sem captura nunca é aceitável; falha de sequência não é revisão de resultado
 
 **Status:** Accepted and implemented · 2026-09-11

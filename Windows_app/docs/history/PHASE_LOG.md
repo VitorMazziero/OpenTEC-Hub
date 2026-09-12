@@ -1504,6 +1504,39 @@ by the suite from the real visual tree, not collected by hand. See [DECISIONS D-
 
 ---
 
+### P3-09 · Node identity: the app learns who is on the Hub's network
+
+**Executed 2026-09-12**, from `docs/plans/2026-09-12-plano-identidade-nos-externos-app.md`, in the
+plan's order — Hub first, then the wire, the semantics, the simulator, the two surfaces, the journal,
+the provenance, the docs — one commit per section with its tests; the suite went from 1363 to 1448
+green, plus 38 Hub contract tests.
+
+**What the Hub knew and the app threw away.** Since External-Devices phase 3 the Hub keeps a
+registry per node (IP from the TCP connection, MAC and version from `/nodeHello`). Hub 10.0.1 already
+put the five `*IP` keys in the aggregate frame; `TelemetryParser` ignored them. MAC and version lived
+only in `GET /nodes`, which a PC on USB cannot reach. **Hub 10.1.0-dev** adds `*NodeVer`/`*NodeMac`
+to the frame, conditionally on registration (an unregistered node costs the frame nothing; ~50 bytes
+per registered node), completes `/nodes` (`registered`, `last_hello_ms`, `last_data_ms`,
+`hub_time_ms`, `?dev=`), aligns the two frame `String` reserves at 3072 (they were 2560 and 2048, and
+the copy reallocated past 2 KB), and stops the legacy `/agitatorHello` from overwriting a version
+the node reported. `test_node_registry.py` models the registry and reads the source.
+
+**In the app.** `ExternalNodeIdentity` per node on the snapshot, sticky like the Hub identity
+(§2.0.2); `HubNodeDirectoryClient` for `/nodes`, deliberately outside `ITransport`;
+`ExternalDeviceStatus.Node` with the words for unknown; `NodeFirmwareCatalog` as validated *sets*;
+`NodeIdentityTracker` turning snapshots into the four events worth writing down. Surfaces: a "Rede"
+card under each of the five external-device drawers with the address, the firmware advisory and the
+two actions gated on Wi-Fi *and* a known address (disabled with the reason, never hidden); the
+"Nós na rede do Hub" table in Configurações › Conexão, fed by the frame on any link and enriched by
+`/nodes` on Wi-Fi while the section is open; "Nós do Hub n/5" in the connection popover. Eventos
+gets registration, renumbering, firmware and MAC changes. The servo sidecar, the power manifest and
+the kLa manifest record node firmware/IP next to the Hub build. The simulator reproduces the
+conditional rule and gained `node-renumber`.
+
+**Decisions.** [D-051](../DECISIONS.md). **Bench receipt pending:** flash Hub 10.1.0-dev, confirm
+`/nodes` shows five `registered:true`, open a node's `/diag` from a drawer on Wi-Fi, reboot a node and
+read the registration in Eventos, measure the frame with five registered (target < 2.4 KB).
+
 ### P3-08 · The bench of 11/09: no more UI hitches during assays, and what the day found
 
 **Executed 2026-09-11/12**, from `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md` — a

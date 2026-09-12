@@ -1135,6 +1135,13 @@ make while re-implementing, rather than copying forward:
       real reason leaves a readable `Taras-Brutas/` file, and that a single-point check records
       with and without an assay open.
 - [ ] Operator walkthrough of every page against the pt-BR wording, in one review.
+- [ ] **Bench receipt for node identity** (`docs/plans/2026-09-12-plano-identidade-nos-externos-app.md`,
+      [D-051](DECISIONS.md), [PHASE_LOG P3-09](history/PHASE_LOG.md)): flash Hub `10.1.0-dev`; with
+      the five nodes up, `curl http://192.168.4.1/nodes` lists five `registered:true`; on Wi-Fi,
+      **Abrir diagnóstico** in a drawer opens the right node's `/diag` and `Publish-OtaFirmware.ps1
+      -Device pump` discovers the same IP the table shows; reboot a node and read its registration
+      (and the IP change, if DHCP renumbered) in Eventos; measure `/readData` with five registered
+      (target < 2.4 KB) and note it in `docs/evidence/`.
 - [ ] **Bench receipt for the 11/09 plan** (`docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`,
       [PHASE_LOG P3-08](history/PHASE_LOG.md)): flash hub `10.0.1-dev` and confirm the flow-curve
       send (`[HubCmd] Applied`, `Params Saved.`, app leaves "aguardando" in ~1 s); run a 10-minute
@@ -1155,6 +1162,8 @@ make while re-implementing, rather than copying forward:
 | **torch / neural inference of any kind** | Same. | With the gassing-out module. |
 | **Nitrogen enrichment path** | The kLa controller core is stable in ReceitasOpenTEC but *without* enrichment; the enrichment path needs the changes described in the manuscript. | Phase 2, after the base cascade is validated. |
 | **Multi-station hub support** | Telemetry exposes `HubStations` but v.6 never used it. | Only when a second module physically exists. |
+| **Node diagnostics over USB (`GET /nodeDiag?dev=` proxy on the Hub)** | Would need an HTTP client inside the Hub's async server — its own task, queue and cache. Over USB the app knows each node's address but cannot reach its `/diag`. | When the bench asks for node RSSI/heap without switching the PC to the Hub's Wi-Fi ([D-051](DECISIONS.md)). |
+| **Firmware OTA from the app** | `Publish-OtaFirmware.ps1` already discovers the node via `/nodes` and checks baselines and headroom, which the app does not. | If the operator asks; the address is one click away in the drawer ([D-051](DECISIONS.md)). |
 
 ---
 

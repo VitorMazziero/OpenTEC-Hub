@@ -8,8 +8,17 @@ mostra *se* cada nó está presente (`*Online`), *se* o Hub roteia para ele (`*C
 há comando pendente; **não mostra quem é o nó nem como alcançá-lo**. Para abrir o `/diag` de um
 nó, gravar um firmware por OTA ou saber se a placa na bancada é a mesma de ontem, o operador
 ainda precisa adivinhar o IP.
-**Estado:** proposto — nada implementado. Depende de um incremento pequeno no firmware do Hub
-(§3), que é pré-requisito do §4.A e independente do resto.
+**Estado (12/09/2026): executado — tudo na `main`**, na ordem da §5, um commit por etapa com os
+seus testes (suíte 1363 → 1448 aprovados; Hub 28 → 38 testes de contrato; Hub compila em
+971 968 B). Registro em `docs/history/PHASE_LOG.md` (P3-09), decisão D-051 em `docs/DECISIONS.md`,
+contrato em `docs/PROTOCOL.md` §2.0.2 e `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`. Desvios do plano:
+§4.B o servo não recebe catálogo (não está no registro do Hub); §4.D o cartão "Rede" é um cartão
+irmão abaixo da gaveta, com a mesma visibilidade, em vez de um bloco dentro dela; §4.E a atividade
+do painel segue `SelectedSection` em vez de um gatilho de visibilidade da página; §4.G o manifesto de
+kLa ganhou também `hubFirmwareVersion`/`hubProtocolVersion`, que não tinha; §4.H o tópico do manual
+interno (Configurações › Conexão) foi escrito no `DocumentationCatalog`. **Pendente de bancada:**
+§6.3 inteiro. §4.I (OTA pelo app) e §3.H5 (proxy `/nodeDiag`) registrados como diferidos no
+`ROADMAP.md`.
 **Pré-leitura:** `docs/plans/PLANO_DISPOSITIVOS_EXTERNOS.md` (§2 contrato-alvo, §3.2
 `ExternalDeviceStatus`, §5 interface), `docs/PROTOCOL.md` §2.0.1, `docs/CONVENTIONS.md`,
 `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`.

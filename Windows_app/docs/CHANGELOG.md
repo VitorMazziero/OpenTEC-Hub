@@ -8,6 +8,32 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Added — identidade de rede dos nós externos (Hub 10.1, plano `docs/plans/2026-09-12-plano-identidade-nos-externos-app.md`, [D-051](DECISIONS.md))
+- **Quem é cada nó, e onde responde.** O parser lê as quinze chaves do Hub 10.1 (`*IP`, `*NodeVer`,
+  `*NodeMac`) em `ExternalNodeIdentity` por nó — sticky dentro do enlace, `0.0.0.0` limpa o IP,
+  ausência é *desconhecido* e nunca falha. `HubNodeDirectoryClient` lê `GET /nodes` (só Wi-Fi) fora
+  do transporte de telemetria. Um Hub 10.0.1 (só IPs) e um Hub 9 (nada) continuam a funcionar.
+- **Controle › gavetas dos dispositivos externos.** Cartão **Rede** abaixo de cada uma das cinco
+  gavetas: `IP · fw`, MAC no tooltip, aviso discreto quando o firmware do nó está fora do conjunto
+  validado com esta versão (`NodeFirmwareCatalog`; nunca alarme), e os botões **Abrir diagnóstico**
+  (`http://<ip>/diag` no navegador) e **Copiar IP** — habilitados só com IP conhecido *e* enlace
+  Wi-Fi; em USB ficam desabilitados com o motivo no tooltip.
+- **Configurações › Conexão › Nós na rede do Hub.** Tabela Dispositivo · IP · MAC · Firmware ·
+  Estado · Visto há, alimentada pelo quadro em qualquer meio e enriquecida por `/nodes` a cada 10 s em
+  Wi-Fi enquanto a seção está aberta (botão **Atualizar**). Um Hub anterior à 10.1 mostra um aviso no
+  topo em vez de colunas vazias. Popover de conexão ganha **Nós do Hub** (`n/5`, `—` sem identidade).
+- **Eventos.** `Nó X registrado em <ip> (firmware <v>)`, `IP do nó X mudou de a para b`,
+  `Firmware do nó X mudou` e `Nó X responde com outro MAC: placa trocada?` — a observabilidade das
+  reassociações do Link Watchdog e da renumeração do DHCP, em `eventos.jsonl`, com hora.
+- **Proveniência.** `# nodes: pump=3.8@192.168.4.3 …` no preâmbulo do sidecar servo;
+  `externalNodes` no `ensaio.json` de potência; `hubFirmwareVersion`, `hubProtocolVersion` e
+  `externalNodes` no `teste.json` de kLa. Manifestos antigos carregam vazio.
+- **Simulador.** Chaves de identidade com a mesma regra condicional do Hub, rota `/nodes`, cenário
+  `node-renumber` (DHCP renumera a cada 20 s) e `legacy-hub` sem nenhuma das chaves.
+- **Hub `10.1.0-dev`** (`ESP32S3-HUB`): `*NodeVer`/`*NodeMac` no quadro só para nós registrados,
+  `/nodes` com `registered`/`last_hello_ms`/`last_data_ms`/`hub_time_ms` e `?dev=`, reservas do
+  quadro alinhadas em 3072 B, `/agitatorHello` legado sem versão fixa. Protocolo continua 10.
+
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
 - **`UiHitchMonitor` (DEBUG, §5.1).** Um `DispatcherTimer` em `Input` a cada 50 ms registra todo
   tick que chega > 30 ms atrasado e resume no log ao sair (`UI hitches > 30 ms: N in T ticks;

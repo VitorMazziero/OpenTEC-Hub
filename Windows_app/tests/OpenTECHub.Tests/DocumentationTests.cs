@@ -365,6 +365,7 @@ public sealed class DocumentationTests
             (DocumentationCatalog.CalibrationTopicId, "CalibrationView.xaml", ["Dois pontos", "Raw ADC", "Aplicar no app"]),
             (DocumentationCatalog.HistoryTopicId, "HistoricalView.xaml", ["Sessoes", "Exportar CSV", "formato"]),
             (DocumentationCatalog.EventsTopicId, "EventsView.xaml", ["Severidade", "Dados brutos", "Limpar visualização"]),
+            (DocumentationCatalog.SettingsConnectionTopicId, "SettingsView.xaml", ["Nós na rede do Hub", "Atualizar", "Abrir diagnóstico", "Visto há", "10.1"]),
         };
 
         foreach (var (topicId, view, terms) in pages)

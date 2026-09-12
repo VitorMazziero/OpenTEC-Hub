@@ -78,6 +78,26 @@ A tela inicial exibe a barra lateral de conexão:
 
 ---
 
+### Localizar um nó na rede do Hub
+
+Cada dispositivo externo (fluxômetro, sensor de distância, bomba externa, sensor de absorbância e
+frasco agitador) é uma placa Wi-Fi que se registra no Hub ao ligar. O aplicativo mostra onde cada uma
+está em dois lugares:
+
+1. **Controle → gaveta do dispositivo → cartão Rede:** `IP · fw` e, no tooltip, o MAC. Com o PC na
+   rede Wi-Fi do Hub, **Abrir diagnóstico** abre `http://<ip>/diag` no navegador (uptime, heap, RSSI,
+   falhas com o Hub) e **Copiar IP** põe o endereço na área de transferência. Por USB os botões ficam
+   desabilitados com o motivo no tooltip — o app conhece o IP, mas o PC não está na rede do Hub.
+2. **Configurações → Conexão → Nós na rede do Hub:** a tabela dos cinco nós com IP, MAC, firmware,
+   estado e há quanto tempo o Hub os ouviu. Em Wi-Fi, **Atualizar** consulta o diretório do Hub
+   (`/nodes`); por USB a tabela vem do quadro de telemetria.
+
+Um firmware de nó fora do conjunto validado com esta versão do aplicativo aparece como aviso em texto
+no cartão — não é alarme. Mudanças de identidade (nó registrado, IP que mudou, firmware ou placa
+diferente) ficam registradas em **Eventos**. Para gravar um firmware novo num nó, use
+`External-Devices/tools/Publish-OtaFirmware.ps1 -Device <nome>`, que descobre o IP pelo mesmo
+diretório do Hub. Requer Hub `10.1.0-dev` ou superior; com um Hub anterior a tabela avisa.
+
 ## 4.1 Documentação dentro do aplicativo
 
 O programa traz o próprio manual em **Configurações → Documentação**, logo abaixo de *Comandos do

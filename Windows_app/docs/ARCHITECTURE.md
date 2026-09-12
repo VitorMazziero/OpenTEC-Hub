@@ -263,6 +263,15 @@ are streamed to `ITelemetryHistory` and plotted directly in `Gráficos` (`Charts
 claims agitation, aeration and the O₂ monitor through `ICommandArbiter`, allocating the effort using the active mode
 (`AgitationOnly`, `AerationOnly`, `DualCascade`, or `KlaPath`). See [D-024](DECISIONS.md) and [D-025](DECISIONS.md).
 
+**Node identity is read from the frame; `/nodes` is diagnostics outside the transport.**
+Hub 10.1 puts each external node's IP, firmware and MAC in the aggregate frame; `TelemetryParser`
+keeps them sticky per node in `ExternalNodeIdentity`, `ExternalDeviceStatus.Node` carries the words
+for unknown, `NodeFirmwareCatalog` holds the validated version *sets*, `NodeIdentityTracker` turns
+snapshots into the four journal events, and `ExternalNodeProvenance` writes them into the assay
+headers. `HubNodeDirectoryClient` reads `GET /nodes` with its own `HttpClient` and never through
+`ITransport` — the transport has one owner and one job. Node actions in the UI are gated on Wi-Fi
+*and* a known address, disabled with the reason rather than hidden ([D-051](DECISIONS.md)).
+
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session
 `command_logs/`, and an in-window pane) that do not agree with each other.

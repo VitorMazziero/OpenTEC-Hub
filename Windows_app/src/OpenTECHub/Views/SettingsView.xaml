@@ -237,7 +237,13 @@
                         Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
                                              ConverterParameter=connection}">
                     <StackPanel>
-                        <TextBlock Text="Conexão" Style="{StaticResource SectionHeading}" />
+                        <DockPanel Margin="0,0,0,10">
+                            <Button DockPanel.Dock="Right" Content="?" Width="26" Padding="0,4" FontWeight="SemiBold"
+                                    ToolTip="Abrir a documentação desta seção"
+                                    Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="configuracoes-conexao" />
+                            <TextBlock Text="Conexão" Style="{StaticResource SectionHeading}" Margin="0" VerticalAlignment="Center" />
+                        </DockPanel>
                         <CheckBox Content="Conectar automaticamente ao iniciar" Margin="0,0,0,8"
                                   IsChecked="{Binding AutoConnect, Mode=TwoWay}" />
                         <CheckBox Content="Alternar de meio automaticamente ao perder o link" Margin="0,0,0,14"

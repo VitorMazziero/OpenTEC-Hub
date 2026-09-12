@@ -224,6 +224,37 @@ the Hub carries them, so absence of the key means "this Hub predates it", not "f
 > ignore those additive keys without changing the command frame, while bench
 > acceptance must inspect them through `/readData`.
 
+### 2.0.2 External-node identity `[hub 10.1]`
+
+The Hub keeps a registry of the five external nodes, filled by their `GET /nodeHello?dev=&ver=&mac=`
+handshake (External-Devices, phase 3) and updated opportunistically by their data pushes. From
+Hub **10.0.1** the aggregate frame carries each node's address; from **10.1.0** also what the node
+said about itself. All fifteen keys are **additive** — `HubProtocolVersion` stays 10.
+
+| JSON key | Type | When present | Meaning |
+|---|---|---|---|
+| `DistanceIP`, `AgitatorIP`, `PumpIP`, `FlowmeterIP`, `BiomassIP` | string | every frame (10.0.1+) | IP the Hub extracted from the node's TCP connection; `0.0.0.0` = never seen |
+| `DistanceNodeVer`, `AgitatorNodeVer`, `PumpNodeVer`, `FlowmeterNodeVer`, `BiomassNodeVer` | string ≤ 15 | only after the node's `/nodeHello` (10.1+) | the `ver=` the node sent (`v10`, `3.8`, …) |
+| `DistanceNodeMac`, `AgitatorNodeMac`, `PumpNodeMac`, `FlowmeterNodeMac`, `BiomassNodeMac` | string 17 | only after the node's `/nodeHello` (10.1+) | the `mac=` the node sent |
+
+> **Parsing rules.** `TelemetryParser` folds the three into one `ExternalNodeIdentity(Ip, Mac,
+> FirmwareVersion)` per node, every member nullable and null meaning *unknown*. Version and MAC
+> are **sticky** within the link, like `HubFirmwareVersion`: absent from a frame, they keep the
+> last value, because the Hub emits them only once the node registered and an older Hub never
+> does. The IP is **not** sticky through `0.0.0.0`: that value is an explicit "never seen" the
+> Hub sends on every frame after it reboots and forgets, so the app forgets too. Identity says
+> nothing about presence — that stays with the `*Online` flags of §2.0.1 — and unknown identity
+> is never rendered as a fault.
+
+> **`GET /nodes` (Wi-Fi only).** The same registry as one document, read by
+> `HubNodeDirectoryClient` outside the telemetry transport (D-051):
+> `{"hub_time_ms":48210,"nodes":[{"dev":"pump","ip":"192.168.4.3","mac":"…","version":"3.8",
+> "online":true,"age_ms":420,"registered":true,"last_hello_ms":41000,"last_data_ms":47790},…]}`.
+> `registered`, `last_*_ms` and `hub_time_ms` are 10.1; the client tolerates a 10.0 body without
+> them. Reachable only while the PC is on the Hub's SoftAP — over USB the app knows each node's
+> address from the frame but cannot get to `/nodes`, nor to the nodes' own `/diag`. Contract in
+> `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`, tests in `ESP32S3-HUB/tests/contracts/test_node_registry.py`.
+
 ### 2.0 Not every line is telemetry
 
 **Confirmed on hardware 2026-08-19** (ESP32-S3 on COM3, CH343 adapter, no bioreactor

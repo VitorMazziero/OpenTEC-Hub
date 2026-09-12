@@ -121,6 +121,7 @@ public static class DocumentationCatalog
     public const string PowerSinglePointTopicId = "potencia-ponto-unico";
     public const string PowerElectricalTopicId = "potencia-correlacao-eletrica";
     public const string PowerKlaMapTopicId = "potencia-mapa-kla";
+    public const string SettingsConnectionTopicId = "configuracoes-conexao";
 
     private static readonly Lazy<IReadOnlyList<DocumentationTopic>> LazyTopics = new(Build);
 
@@ -865,6 +866,41 @@ public static class DocumentationCatalog
                     B("A eficiência kLa/(P/V) é calculada na região de controle, que é a intersecção entre as condições do mapa e as do ensaio."),
                     B("A tabela compara, condição a condição, o kLa interpolado, a potência líquida, a potência volumétrica P/V e a eficiência específica η."),
                     N("Fora do fecho convexo do mapa a superfície é indefinida e nada é extrapolado em silêncio: a condição aparece marcada como fora da região."),
+                ]),
+            ]),
+
+        // ═══════════════════════════════════════════ Configurações · Conexão
+        new DocumentationTopic(
+            SettingsConnectionTopicId,
+            "Configurações · Conexão",
+            "Como o aplicativo chega ao Hub, o período de telemetria e quem está na rede Wi-Fi do Hub.",
+            [
+                new DocumentationSection("Como a seção é organizada", [
+                    P("A seção **Conexão** de Configurações tem duas partes: em cima, as opções de como o aplicativo se liga ao Hub; embaixo, a tabela **Nós na rede do Hub**, que mostra os cinco dispositivos externos como o Hub os conhece."),
+                    P("O enlace em si — porta USB ou endereço Wi-Fi, Conectar, Parar — fica no popover de conexão da barra superior, não aqui. Aqui ficam as preferências que sobrevivem ao reinício."),
+                ]),
+                new DocumentationSection("Opções de ligação", [
+                    F("Conectar automaticamente ao iniciar", "Ao abrir, o aplicativo tenta o último meio usado — a porta COM ou o IP — sem esperar um clique."),
+                    F("Alternar de meio automaticamente ao perder o link", "Se o enlace cair, tenta o outro meio (USB ↔ Wi-Fi) antes de desistir."),
+                    F("Endereço Wi-Fi", "O IP do Hub na rede: 192.168.4.1 quando o PC está no ponto de acesso do próprio Hub."),
+                    F("Período de telemetria (ms)", "Intervalo entre quadros que o Hub envia. Só chega ao equipamento quando **Aplicar** é acionado; o aplicativo ajusta o seu próprio ritmo de leitura ao mesmo valor."),
+                ]),
+                new DocumentationSection("Nós na rede do Hub", [
+                    P("Cada dispositivo externo é uma placa Wi-Fi que se registra no Hub ao ligar. A tabela mostra os cinco, sempre — um nó que o Hub nunca viu aparece com **—**, nunca desaparece."),
+                    F("Dispositivo", "O nome usado no resto do aplicativo: Vazão de Ar, Distância, Bomba Externa, Absorbância, Frasco Agitador."),
+                    F("IP", "O endereço que o Hub extraiu da conexão da placa — o que responde de fato, não o que a placa declarou."),
+                    F("MAC · Firmware", "O que a placa disse de si ao se registrar. Um MAC diferente sob o mesmo nome significa que a placa foi trocada."),
+                    F("Estado", "Online, Offline, Nunca se registrou ou Aguardando telemetria — a presença que o Hub reporta, não a coluna de rede."),
+                    F("Visto há", "Há quanto tempo o Hub ouviu o nó pela última vez."),
+                    F("Atualizar", "Consulta o diretório do Hub (**/nodes**) uma vez. Disponível apenas por Wi-Fi; por USB a tabela usa o quadro de telemetria, que já traz IP, MAC e firmware."),
+                    F("n/5 nós com endereço", "Quantos dos cinco o Hub tem um IP registrado. O mesmo número aparece no popover de conexão como **Nós do Hub**."),
+                    N("Com um Hub anterior à versão 10.1 as colunas de rede ficam em **—** e um aviso no topo diz para atualizar o Hub: a tabela vazia é o Hub calado, não a rede vazia."),
+                ]),
+                new DocumentationSection("O mesmo endereço, na página Controle", [
+                    P("Cada gaveta de dispositivo externo em Controle tem um cartão **Rede** com `IP · fw` e dois botões: **Abrir diagnóstico** abre a página `/diag` da própria placa no navegador e **Copiar IP** põe o endereço na área de transferência."),
+                    B("Os dois exigem que o Hub tenha o IP **e** que o PC esteja na rede Wi-Fi do Hub. Por USB ficam desabilitados, com o motivo no tooltip."),
+                    B("Um firmware de nó fora do conjunto validado com esta versão do aplicativo aparece como aviso em texto no cartão — não é alarme; um nó mais novo pode estar perfeitamente bem."),
+                    B("Nó registrado, IP que mudou, firmware ou placa diferente ficam registrados na página **Eventos**, com hora."),
                 ]),
             ]),
     ];

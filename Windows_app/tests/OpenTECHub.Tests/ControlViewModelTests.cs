@@ -3,6 +3,7 @@ using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.Services.Safety;
 using OpenTECHub.ViewModels;
@@ -628,13 +629,14 @@ public sealed class ControlViewModelTests
             new(false, refused, CommandOwner.Manual);
     }
 
-    private sealed class ControlFixture : IDisposable
+    internal sealed class ControlFixture : IDisposable
     {
         public ControlFixture(
             AppSettings? initialSettings = null,
             ISafetyCoordinator? safetyCoordinator = null,
             IDeviceService? device = null,
-            ICommandArbiter? arbiter = null)
+            ICommandArbiter? arbiter = null,
+            IFileInteractionService? files = null)
         {
             Device = (device as RecordingDeviceService) ?? new RecordingDeviceService();
             var targetDevice = device ?? Device;
@@ -686,7 +688,8 @@ public sealed class ControlViewModelTests
                 targetDevice, Settings, Dialogs, Cascade,
                 safetyCoordinator: safetyCoordinator,
                 arbiter: Arbiter,
-                dispatcher: Dispatcher);
+                dispatcher: Dispatcher,
+                files: files);
             Device.PushTelemetry(new SensorSnapshot { FlowmeterOnline = true });
         }
 
@@ -740,7 +743,7 @@ public sealed class ControlViewModelTests
         }
     }
 
-    private sealed class RecordingDialogService : IDialogService
+    internal sealed class RecordingDialogService : IDialogService
     {
         public bool ConfirmResult { get; set; }
         public int Calls { get; private set; }

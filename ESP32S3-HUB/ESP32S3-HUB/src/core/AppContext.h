@@ -277,9 +277,15 @@ bool pendingMaxFlow = false;
 // it back on from here, so a flowmeter parked that way never came back on its own.
 bool pendingReconnectWifi = false;
 int desiredReconnectWifi = 1;
+// a1/b1 are the x^4 and x^3 terms of the flowmeter's low-range curve. The app has
+// sent them since the quartic fit; until now the hub dropped them, and a low segment
+// delivered as k1/f1/c1 alone is taken by the node as a quadratic (a1=b1=0), which
+// corrupted the low range on every "enviar curva".
+bool pendingA1 = false, pendingB1 = false;
 bool pendingK1 = false, pendingF1 = false, pendingC1 = false;
 bool pendingK2 = false, pendingF2 = false, pendingC2 = false;
 float desiredMaxFlow = 50.0f;
+float desiredA1 = 0.0f, desiredB1 = 0.0f;
 float desiredK1 = 0.0f, desiredF1 = 0.0f, desiredC1 = 0.0f;
 float desiredK2 = 0.0f, desiredF2 = 0.0f, desiredC2 = 0.0f;
 
@@ -358,3 +364,80 @@ const unsigned long AGITATOR_TIMEOUT = 3000;
 
 bool servoCommOn = true;  // NVS mirror; ServoDevice is the synchronized runtime owner.
 
+// ---------- Device Registry (Auto-Discovery & Presence) ----------
+enum ExternalDeviceId {
+  DEV_DISTANCE = 0,
+  DEV_AGITATOR,
+  DEV_PUMP,
+  DEV_FLOWMETER,
+  DEV_BIOMASS,
+  DEV_COUNT
+};
+
+struct DeviceNodeEntry {
+  const char* name;
+  IPAddress ip;
+  char mac[18];
+  char version[16];
+  unsigned long lastHelloMs;
+  unsigned long lastDataMs;
+  bool registered;
+};
+
+DeviceNodeEntry g_deviceRegistry[DEV_COUNT] = {
+  { "distance",  IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "agitator",  IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "pump",      IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "flowmeter", IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "biomass",   IPAddress(0, 0, 0, 0), "", "", 0, 0, false }
+};
+
+// Shared by the aggregate frame (Telemetry.h) and the /readData cache copy
+// (Runtime.h): the two Strings must reserve the same size or the assignment reallocates.
+#define HUB_TELEMETRY_JSON_RESERVE 3072
+
+// Appends "<Prefix>IP" and, when the node has registered, "<Prefix>NodeVer" and
+// "<Prefix>NodeMac" to an aggregate frame under construction. Version and MAC come
+// from the node's own /nodeHello, never from a hard-coded default.
+inline void appendNodeIdentity(String& json, const char* prefix, const DeviceNodeEntry& e) {
+  json += ",\"";
+  json += prefix;
+  json += "IP\":\"" + e.ip.toString() + "\"";
+  if (!e.registered) return;
+  if (e.version[0] != '\0') {
+    json += ",\"";
+    json += prefix;
+    json += "NodeVer\":\"";
+    json += e.version;
+    json += "\"";
+  }
+  if (e.mac[0] != '\0') {
+    json += ",\"";
+    json += prefix;
+    json += "NodeMac\":\"";
+    json += e.mac;
+    json += "\"";
+  }
+}
+
+inline void recordDeviceActivity(ExternalDeviceId devId, const IPAddress& ip, unsigned long nowMs, bool isHello, const char* ver = nullptr, const char* mac = nullptr) {
+  if (devId >= DEV_COUNT) return;
+  DeviceNodeEntry& entry = g_deviceRegistry[devId];
+  if (ip != IPAddress(0, 0, 0, 0)) {
+    entry.ip = ip;
+  }
+  if (isHello) {
+    entry.lastHelloMs = nowMs;
+    entry.registered = true;
+    if (ver && ver[0] != '\0') {
+      strncpy(entry.version, ver, sizeof(entry.version) - 1);
+      entry.version[sizeof(entry.version) - 1] = '\0';
+    }
+    if (mac && mac[0] != '\0') {
+      strncpy(entry.mac, mac, sizeof(entry.mac) - 1);
+      entry.mac[sizeof(entry.mac) - 1] = '\0';
+    }
+  } else {
+    entry.lastDataMs = nowMs;
+  }
+}

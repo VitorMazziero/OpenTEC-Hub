@@ -123,4 +123,49 @@ public sealed class CrashReporterTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public void IsShutdownCrtUnloadException_Identifies_SingletonDomainUnload_DllNotFound()
+    {
+        var stackTrace = "   at __std_type_info_destroy_list(__type_info_node*)\r\n" +
+                         "   at __scrt_uninitialize_type_info()\r\n" +
+                         "   at _app_exit_callback()\r\n" +
+                         "   at <CrtImplementationDetails>.ModuleUninitializer.SingletonDomainUnload(Object source, EventArgs arguments)";
+
+        var ex = new CustomStackTraceDllNotFoundException("Dll was not found.", stackTrace);
+
+        Assert.True(CrashReporter.IsShutdownCrtUnloadException(ex));
+
+        // Normal DllNotFoundException without CRT unload stack trace should return false
+        var normalEx = new DllNotFoundException("Missing SomeLibrary.dll");
+        Assert.False(CrashReporter.IsShutdownCrtUnloadException(normalEx));
+
+        // Other exception types should return false
+        var invalidOp = new InvalidOperationException("Something failed");
+        Assert.False(CrashReporter.IsShutdownCrtUnloadException(invalidOp));
+    }
+
+    [Fact]
+    public void GenerateAndSaveReport_Suppresses_ShutdownCrtUnloadException()
+    {
+        var stackTrace = "   at <CrtImplementationDetails>.ModuleUninitializer.SingletonDomainUnload(Object source, EventArgs arguments)";
+        var ex = new CustomStackTraceDllNotFoundException("Dll was not found.", stackTrace);
+
+        var result = CrashReporter.GenerateAndSaveReport(ex, "AppDomain.CurrentDomain.UnhandledException", isTerminating: true, preferredDirectory: _tempDir);
+
+        Assert.Contains("Suprimido", result);
+        Assert.Empty(Directory.GetFiles(_tempDir));
+    }
+
+    private sealed class CustomStackTraceDllNotFoundException : DllNotFoundException
+    {
+        private readonly string _customStackTrace;
+
+        public CustomStackTraceDllNotFoundException(string message, string stackTrace) : base(message)
+        {
+            _customStackTrace = stackTrace;
+        }
+
+        public override string StackTrace => _customStackTrace;
+    }
 }

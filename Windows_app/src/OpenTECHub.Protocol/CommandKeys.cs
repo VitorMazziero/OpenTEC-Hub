@@ -276,6 +276,36 @@ public static class TelemetryKeys
     /// <summary>What last moved the agitator: <c>Pot</c>, <c>Hub</c>, <c>Wi-Fi</c> or <c>USB</c>.</summary>
     public const string AgitatorSource = "AgitatorSource";
 
+    // ---- External-node identity (Hub 10.1) --------------------------------
+    // Who is on the other end of each Wi-Fi link, as the Hub's node registry knows it:
+    // the IP it extracted from the node's TCP connection, and the firmware version and
+    // MAC the node declared in its /nodeHello. Additive keys; the protocol stays 10.
+    //
+    // *IP is in every frame from Hub 10.0.1 on, "0.0.0.0" meaning never seen. *NodeVer
+    // and *NodeMac appear only once the node has registered, so their absence means
+    // "not registered yet" (or a Hub older than 10.1), never "empty". TelemetryParser
+    // keeps all three sticky within the link, like HubFirmwareVersion.
+
+    public const string DistanceIP = "DistanceIP";
+    public const string DistanceNodeVer = "DistanceNodeVer";
+    public const string DistanceNodeMac = "DistanceNodeMac";
+
+    public const string AgitatorIP = "AgitatorIP";
+    public const string AgitatorNodeVer = "AgitatorNodeVer";
+    public const string AgitatorNodeMac = "AgitatorNodeMac";
+
+    public const string PumpIP = "PumpIP";
+    public const string PumpNodeVer = "PumpNodeVer";
+    public const string PumpNodeMac = "PumpNodeMac";
+
+    public const string FlowmeterIP = "FlowmeterIP";
+    public const string FlowmeterNodeVer = "FlowmeterNodeVer";
+    public const string FlowmeterNodeMac = "FlowmeterNodeMac";
+
+    public const string BiomassIP = "BiomassIP";
+    public const string BiomassNodeVer = "BiomassNodeVer";
+    public const string BiomassNodeMac = "BiomassNodeMac";
+
     // ---- Hub identity (v9) -----------------------------------------------
 
     /// <summary>Hub firmware build, e.g. <c>9.1.0-dev</c>. Diagnostic only.</summary>

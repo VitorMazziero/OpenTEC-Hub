@@ -23,6 +23,7 @@ public sealed class FileInteractionService : IFileInteractionService
             DefaultExt = extension,
             AddExtension = true,
             OverwritePrompt = true,
+            RestoreDirectory = true,
         };
 
         return dialog.ShowDialog(Application.Current?.MainWindow) == true
@@ -40,6 +41,7 @@ public sealed class FileInteractionService : IFileInteractionService
             AddExtension = true,
             CheckFileExists = true,
             Multiselect = false,
+            RestoreDirectory = true,
         };
 
         return dialog.ShowDialog(Application.Current?.MainWindow) == true
@@ -87,5 +89,20 @@ public sealed class FileInteractionService : IFileInteractionService
         {
             Clipboard.SetText(text);
         }
+    }
+
+    public void OpenUri(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("Only absolute http/https URIs are opened.", nameof(uri));
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = uri.AbsoluteUri,
+            UseShellExecute = true,
+        });
     }
 }

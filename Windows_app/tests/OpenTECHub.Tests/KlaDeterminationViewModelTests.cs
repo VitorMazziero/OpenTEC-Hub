@@ -535,6 +535,93 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(4.0, _runner.CurrentCondition.AirflowLpm);
     }
 
+    /// <summary>§E: the diagnostic series are recomputed every few reoxygenation points, not on every frame.</summary>
+    [Fact]
+    public void Live_derived_series_are_recomputed_every_few_points_not_every_frame() => OnUiThread(() =>
+    {
+        _vm.NewTestName = "Ensaio Derivadas";
+        _vm.CreateNewTest();
+        var resets = 0;
+        _vm.InstantaneousKlaSeries.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                resets++;
+            }
+        };
+
+        for (var i = 0; i < 3; i++)
+        {
+            _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, i, RunPhase.Deoxygenating, 5, 5, 0, 0, 300, false, true, false));
+        }
+        for (var i = 0; i < 20; i++)
+        {
+            var t = 10 + i * 5.0;
+            var value = 100 * (1 - Math.Exp(-0.01 * t));
+            _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, t, RunPhase.Reoxygenating, value, value, 4, 4, 300, false, false, true));
+        }
+
+        Assert.Equal(23, _vm.LivePoints.Count);
+        Assert.NotEmpty(_vm.InstantaneousKlaSeries);
+        Assert.NotEmpty(_vm.LogLinearSeries);
+        // 20 reoxygenation points: recomputed at 5, 10, 15 and 20 — not 16 times.
+        Assert.Equal(4, resets);
+
+        // A cleared chart starts over: the next run's first points do not see the old slice.
+        _vm.LivePoints.Clear();
+        resets = 0;
+        for (var i = 0; i < 4; i++)
+        {
+            _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, i, RunPhase.Reoxygenating, 10 + i, 10 + i, 4, 4, 300, false, false, true));
+        }
+        Assert.Equal(0, resets);
+        _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, 5, RunPhase.Reoxygenating, 15, 15, 4, 4, 300, false, false, true));
+        Assert.Equal(1, resets);
+    });
+
+    /// <summary>
+    /// The ViewModel marshals runner events through <c>Application.Current.Dispatcher</c> when one
+    /// exists — which it does once another test has started the WPF host. Running the body on that
+    /// dispatcher keeps the delivery synchronous either way.
+    /// </summary>
+    private static void OnUiThread(Action body)
+    {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(body);
+        }
+        else
+        {
+            body();
+        }
+    }
+
+    /// <summary>§E: refreshing the matrix keeps the row objects (no Reset) and does not re-read analyses it already has.</summary>
+    [Fact]
+    public void RefreshConditionsList_updates_rows_in_place()
+    {
+        _vm.NewTestName = "Ensaio Matriz In Place";
+        _vm.CreateNewTest();
+        _vm.NewConditionRpm = 350;
+        _vm.NewConditionFlow = 1.5;
+        _vm.NewConditionReplicates = 2;
+        _vm.AddManualCondition();
+        _vm.NewConditionRpm = 500;
+        _vm.NewConditionFlow = 3.0;
+        _vm.NewConditionReplicates = 1;
+        _vm.AddManualCondition();
+        var rows = _vm.MatrixRows.ToArray();
+        var events = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+        _vm.MatrixRows.CollectionChanged += (_, e) => events.Add(e.Action);
+
+        _vm.RefreshConditionsList();
+        _vm.RefreshConditionsList();
+
+        Assert.Empty(events);
+        Assert.Equal(rows, _vm.MatrixRows.ToArray());
+        Assert.Equal([1, 2, 3], _vm.MatrixRows.Select(r => r.OrderIndex));
+    }
+
     [Fact]
     public void MatrixRows_DisposesReplicatesAsIndividualRows()
     {
@@ -727,6 +814,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
 #pragma warning restore CS0067
 
         public void RaiseStateChanged() => StateChanged?.Invoke();
+        public void RaiseDataPoint(KlaRawDataPoint point) => DataPointAdded?.Invoke(point);
 
         public void PrepareTest(KlaTestDocument test)
         {
@@ -859,5 +947,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public string? ChooseFolder(string title, string? initialDirectory = null) => null;
         public void OpenFolder(string path) { }
         public void CopyText(string text) { }
+
+        public void OpenUri(Uri uri) { }
     }
 }

@@ -6,6 +6,16 @@ public interface IKlaTestStore
 {
     string RootDirectory { get; }
 
+    /// <summary>
+    /// Completes when every write issued so far has reached the file system. Saves are queued to
+    /// a background writer (D-048); call this before handing the files to something outside the
+    /// store, or when shutting down.
+    /// </summary>
+    Task FlushAsync() => Task.CompletedTask;
+
+    /// <summary>A queued write failed: the path and the exception. The store keeps going; the runner decides what to tell the operator.</summary>
+    event Action<string, Exception>? WriteFailed { add { } remove { } }
+
     IReadOnlyList<KlaTestSummary> ListTests();
 
     KlaTestDocument? LoadTest(string folderName);
@@ -28,7 +38,12 @@ public interface IKlaTestStore
 
     string InitializeRunFolder(string testFolderName, KlaTestRun run);
 
-    void SaveRunRawData(string testFolderName, string runFolderName, IEnumerable<KlaRawDataPoint> points);
+    /// <summary>
+    /// Rewrites the run's raw CSV in full and returns the SHA-256 the file has once written — the
+    /// same value <see cref="KlaTestFileContracts.ComputeFileSha256"/> gives for it — computed
+    /// from the bytes handed to the writer, so the seal does not wait for the queue to drain.
+    /// </summary>
+    string SaveRunRawData(string testFolderName, string runFolderName, IEnumerable<KlaRawDataPoint> points);
 
     void AppendRunRawDataPoint(string testFolderName, string runFolderName, KlaRawDataPoint point);
 

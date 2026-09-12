@@ -73,6 +73,16 @@ public enum Scenario
     /// the number on the drive's panel - reading it as decimal 17 finds nothing in the manual.
     /// </remarks>
     ServoAlarm,
+
+    /// <summary>
+    /// The Hub's DHCP hands every node a new address every twenty seconds of uptime.
+    /// </summary>
+    /// <remarks>
+    /// What a node reboot or a Link Watchdog reassociation produces on the real SoftAP:
+    /// the node comes back under a different <c>192.168.4.x</c>. Exercises the identity
+    /// tracker and the Eventos entries without touching a board.
+    /// </remarks>
+    NodeRenumber,
 }
 
 /// <summary>
@@ -215,6 +225,64 @@ public sealed class DeviceModel
 
     /// <summary>True while the external Wi-Fi nodes are answering the Hub.</summary>
     public bool ExternalNodesOnline => Scenario != Scenario.NodeDropout;
+
+    // ------------------------------------------------------------------
+    // Node registry (Hub 10.1): who each external node is on the Hub's network
+    // ------------------------------------------------------------------
+
+    /// <summary>Wire names in the Hub's registry order, with the key prefix the frame uses.</summary>
+    public static readonly (string Device, string Prefix)[] RegistryNodes =
+    [
+        ("distance", "Distance"),
+        ("agitator", "Agitator"),
+        ("pump", "Pump"),
+        ("flowmeter", "Flowmeter"),
+        ("biomass", "Biomass"),
+    ];
+
+    /// <summary>False under <see cref="Scenario.LegacyHub"/>: a Hub from before the identity keys.</summary>
+    public bool PublishesNodeIdentity => Scenario != Scenario.LegacyHub;
+
+    /// <summary>
+    /// The node has sent its <c>/nodeHello</c>: it is answering the Hub and the operator has
+    /// it enabled. The agitator and the flowmeter have no enable switch and register whenever present.
+    /// </summary>
+    public bool NodeRegistered(string device) => ExternalNodesOnline && device switch
+    {
+        "distance" => DistanceSensorEnabled,
+        "pump" => PumpEnabled,
+        "biomass" => BiomassEnabled,
+        _ => true,
+    };
+
+    /// <summary>The address the Hub's DHCP gave the node; <c>0.0.0.0</c> before it registered.</summary>
+    /// <remarks>
+    /// Deterministic: <c>192.168.4.2</c>…<c>.6</c> in registry order, shifted by ten every
+    /// twenty seconds under <see cref="Scenario.NodeRenumber"/>.
+    /// </remarks>
+    public string NodeIp(string device)
+    {
+        if (!NodeRegistered(device))
+        {
+            return "0.0.0.0";
+        }
+
+        var index = Array.FindIndex(RegistryNodes, n => n.Device == device);
+        var host = 2 + index;
+        if (Scenario == Scenario.NodeRenumber)
+        {
+            host += 10 * ((int)(UptimeSeconds / 20.0) % 20);
+        }
+
+        return $"192.168.4.{host}";
+    }
+
+    /// <summary>Fixed per node, so a swapped board is something the app could notice.</summary>
+    public static string NodeMac(string device)
+        => $"AA:BB:CC:DD:EE:{2 + Array.FindIndex(RegistryNodes, n => n.Device == device):X2}";
+
+    /// <summary>What each firmware sends as <c>ver=</c> in its <c>/nodeHello</c> today.</summary>
+    public static string NodeVersion(string device) => device == "pump" ? "3.8" : "v10";
 
     // ------------------------------------------------------------------
     // ASDA-B2 servo drive node

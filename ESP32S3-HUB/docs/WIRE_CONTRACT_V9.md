@@ -1,7 +1,11 @@
 # Contrato HTTP do Hub 10
 
 > O nome deste arquivo é histórico. A identidade emitida atualmente é firmware
-> `10.0.0-dev`, `HubProtocolVersion=10`.
+> `10.1.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
+> manifesto de cada ensaio, por isso toda mudança de comportamento do Hub sobe a versão
+> — `10.0.1-dev` é o leitor serial em linhas e o repasse de `a1`/`b1` (2026-09-11);
+> `10.1.0-dev` é a identidade dos nós externos no quadro agregado e o `/nodes` completo
+> (2026-09-12). Chaves aditivas não sobem o protocolo.
 
 ## Compatibilidade com o aplicativo
 
@@ -74,6 +78,68 @@ Quando a amostra está publicável, também inclui `ServoRpm`, `ServoTorquePct`,
 `ServoCommandPending` é verdadeiro se há evento na FIFO ou comando de motor sem
 ACK. `ServoCommandQueueDepth` conta apenas eventos. Presença é independente do
 roteamento e expira após 6000 ms.
+
+### Identidade dos nós externos (10.1)
+
+Para cada nó externo — prefixos `Distance`, `Agitator`, `Pump`, `Flowmeter`, `Biomass` —
+o quadro agregado publica:
+
+| Chave | Quando | Valor |
+|---|---|---|
+| `<Prefixo>IP` | sempre | IP que o Hub extraiu da conexão TCP do nó; `0.0.0.0` = nunca visto |
+| `<Prefixo>NodeVer` | só depois de um `/nodeHello` | string `ver` enviada pelo nó (`v10`, `3.8`…), ≤ 15 caracteres |
+| `<Prefixo>NodeMac` | só depois de um `/nodeHello` | string `mac` enviada pelo nó, 17 caracteres |
+
+A ausência de `*NodeVer`/`*NodeMac` significa "o nó ainda não se registrou", não "vazio";
+o aplicativo trata as três como *sticky* dentro do enlace. O `/agitatorHello` legado renova
+IP e registro mas **não** informa versão, para não sobrescrever a que o nó enviou por
+`/nodeHello`. Os handlers de dados (`/distance`, `/flowData`, …) atualizam o IP de forma
+oportunista mesmo antes do hello.
+
+## Registro de nós: `/nodeHello` e `/nodes`
+
+`GET /nodeHello?dev=<distance|agitator|pump|flowmeter|biomass>&ver=<str>&mac=<str>` →
+`200 {"status":"ok","registered":"<dev>","assigned_ip":"<ip>","hub_time_ms":<millis>}`;
+`400` sem `dev` ou com `dev` desconhecido. O IP registrado é o remoto da conexão, nunca o
+declarado pelo nó.
+
+`GET /nodes[?dev=<nome>]` →
+
+```json
+{"hub_time_ms":48210,"nodes":[
+  {"dev":"pump","ip":"192.168.4.3","mac":"AA:BB:CC:DD:EE:FF","version":"3.8",
+   "online":true,"age_ms":420,"registered":true,"last_hello_ms":41000,"last_data_ms":47790}
+]}
+```
+
+`online` usa a mesma janela de presença do quadro agregado (`*Online`); `age_ms` é
+`hub_time_ms − max(last_hello_ms, last_data_ms)` ou `999999` quando nunca visto —
+clientes devem preferir os `*_ms` brutos. `registered`, `last_hello_ms`, `last_data_ms` e
+`hub_time_ms` são do 10.1; clientes toleram a ausência em Hubs 10.0.
+
+## Serial USB: comandos em linhas
+
+O aplicativo termina cada quadro com `\n`; o Hub só processa um comando quando o seu fim
+de linha chega. O que estiver no buffer USB entre uma chamada e outra é acumulado e
+mantido — o leitor anterior tomava os bytes disponíveis como uma linha inteira, o que
+funcionava para um setpoint de ~40 B (um pacote USB) e fragmentava o comando de
+calibração do fluxômetro (~300 B, vários pacotes): cada pedaço falhava a verificação
+`{...}` e era descartado, e o aplicativo ficava em "aguardando ack".
+
+- Uma linha tem no máximo **1024 B**. Acima disso a linha é descartada com aviso e o Hub
+  ignora tudo até o próximo fim de linha (`discarding`), para que a cauda não vire o
+  início de uma linha seguinte.
+- `\r\n` e `\n` valem como fim de linha; várias linhas num mesmo lote são processadas
+  uma a uma, na ordem.
+
+## Curva do fluxômetro: `a1`/`b1`
+
+O segmento baixo da curva de vazão é uma **quártica ancorada**: `a1` (x⁴) e `b1` (x³)
+além de `k1`, `f1`, `c1`. O Hub repassa os oito termos ao fluxômetro **na ordem
+`a1,b1,k1,f1,c1,k2,f2,c2`**, porque o firmware V10 do fluxômetro só zera `a1`/`b1` quando
+recebe `k1/f1/c1` **sem** eles — e até 2026-09-11 o Hub os descartava, de modo que toda
+curva enviada chegava ao nó como quadrática. Chaves do aplicativo: `a1`, `b1`, `k1`,
+`f1`, `c1`, `k2`, `f2`, `c2`, `maxFlow` (ver `docs/PROTOCOL.md` §3.2 do aplicativo).
 
 ## Limite de responsabilidade
 

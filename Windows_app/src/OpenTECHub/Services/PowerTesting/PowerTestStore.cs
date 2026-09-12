@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using OpenTECHub.Services.Persistence;
 
@@ -13,19 +14,43 @@ namespace OpenTECHub.Services.PowerTesting;
 /// its folder and files; nothing here depends on a cultivation session (§6). Mirrors
 /// <see cref="KlaTesting.KlaTestStore"/> in shape.
 /// </summary>
+/// <remarks>
+/// Writes are formatted or serialised on the caller — that keeps the document-consistency
+/// semantics of a synchronous save — and handed to a <see cref="BackgroundFileWriter"/>, which
+/// executes them in order off the UI thread (D-048). Reads flush the writer first, so a load never
+/// sees a file that is behind a save. Folder creation and the "begin capture" openers stay
+/// synchronous: they are once per run and a storage that cannot be opened must fail before an
+/// actuator is claimed (D-046). Without an explicit writer the store writes inline, which is what
+/// tests that read the files straight back rely on.
+/// </remarks>
 public sealed class PowerTestStore : IPowerTestStore
 {
     internal const string TrashDirectoryName = ".Lixeira";
     private readonly string _rootDirectory;
     private readonly object _ioLock = new();
+    private readonly BackgroundFileWriter _writer;
 
-    public PowerTestStore(string? rootDirectory = null)
+    /// <summary>
+    /// Running SHA-256 of each raw CSV this store is writing, keyed by path, fed with exactly the
+    /// bytes handed to the writer (BOM, header, rows). <see cref="SaveRunResult"/> seals the hash
+    /// from here instead of re-reading a file whose last rows may still be queued.
+    /// </summary>
+    private readonly Dictionary<string, IncrementalHash> _rawHashes = new(StringComparer.OrdinalIgnoreCase);
+    private const int RawHashesKept = 16;
+
+    public PowerTestStore(string? rootDirectory = null, BackgroundFileWriter? writer = null)
     {
         _rootDirectory = rootDirectory ?? AppPaths.PowerTestsDirectory;
+        _writer = writer ?? new BackgroundFileWriter(synchronous: true);
+        _writer.WriteFailed += (path, ex) => WriteFailed?.Invoke(path, ex);
         Directory.CreateDirectory(_rootDirectory);
     }
 
     public string RootDirectory => _rootDirectory;
+
+    public event Action<string, Exception>? WriteFailed;
+
+    public Task FlushAsync() => _writer.FlushAsync();
 
     public bool ValidateTestName(string name, out string? error)
     {
@@ -63,6 +88,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public IReadOnlyList<PowerTestSummary> ListTests()
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             if (!Directory.Exists(_rootDirectory))
@@ -128,6 +154,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public PowerTestDocument? LoadTest(string folderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var folderPath = Path.Combine(_rootDirectory, folderName);
@@ -181,10 +208,78 @@ public sealed class PowerTestStore : IPowerTestStore
                 }
             }
 
+            var manifestCarriedSamples = doc.Tare is { Samples.Count: > 0 };
             doc.Tare = LoadTare(folderName) ?? doc.Tare;
             doc.Calibration = LoadCalibration(folderName) ?? doc.Calibration;
+            if (doc.Tare is { } tare && (manifestCarriedSamples || tare.Samples.Count > 0))
+            {
+                doc.Tare = MoveTareSamplesToSidecar(folderName, tare);
+                WriteAllTextAtomic(manifestPath, PowerTestFileContracts.SerializeTestDocument(doc));
+            }
+
+            DemoteAcceptedRunsWithoutCapture(folderName, folderPath, manifestPath, doc);
 
             return doc;
+        }
+    }
+
+    /// <summary>
+    /// Manifests written before D-050 may hold runs accepted with no capture (n = 0, P = 0 W) —
+    /// the bench of 2026-09-11 had two. They are demoted to <c>Rejected</c> once, on load, the
+    /// condition is reopened so the sequence returns to it, the summary is regenerated and the
+    /// migration is journalled. Runs stay in the manifest: nothing measured is discarded.
+    /// </summary>
+    private void DemoteAcceptedRunsWithoutCapture(string folderName, string folderPath, string manifestPath, PowerTestDocument doc)
+    {
+        var demoted = new List<PowerRunSummary>();
+        for (var i = 0; i < doc.Runs.Count; i++)
+        {
+            var run = doc.Runs[i];
+            if (run.Phase == PowerRunPhase.Accepted && PowerTestFileContracts.IsRunWithoutCapture(run))
+            {
+                doc.Runs[i] = run with { Phase = PowerRunPhase.Rejected };
+                demoted.Add(run);
+            }
+        }
+
+        if (demoted.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var condition in doc.Conditions)
+        {
+            if (demoted.All(r => r.ConditionId != condition.ConditionId))
+            {
+                continue;
+            }
+
+            condition.AcceptedReplicates = doc.Runs.Count(r => r.ConditionId == condition.ConditionId && r.Phase == PowerRunPhase.Accepted);
+            condition.RejectedReplicates = doc.Runs.Count(r => r.ConditionId == condition.ConditionId && r.Phase == PowerRunPhase.Rejected);
+            if (condition.Status == PowerConditionStatus.Completed && condition.AcceptedReplicates < condition.RequestedReplicates)
+            {
+                condition.Status = PowerConditionStatus.Pending;
+            }
+        }
+
+        if (doc.Status == PowerTestStatus.Completed && doc.Conditions.Any(c => c.Status == PowerConditionStatus.Pending))
+        {
+            doc.Status = PowerTestStatus.Interrupted;
+            doc.InterruptionReason = "Corridas aceitas sem captura foram rejeitadas na migração; condições reabertas.";
+        }
+
+        doc.LastModifiedUtc = DateTimeOffset.UtcNow;
+        WriteAllTextAtomic(manifestPath, PowerTestFileContracts.SerializeTestDocument(doc));
+        WriteAllTextAtomic(
+            Path.Combine(folderPath, PowerTestFileContracts.ConditionTableFileName),
+            PowerTestFileContracts.SerializeConditionTable(doc.Conditions));
+        UpdateResultsSummaryCore(folderName, doc);
+        foreach (var run in demoted)
+        {
+            var reason = $"sem captura (migração): {run.FolderName} estava aceita com n = {run.SampleCount}";
+            _writer.AppendLine(
+                Path.Combine(folderPath, PowerTestFileContracts.EventLogFileName),
+                PowerTestFileContracts.FormatEventLogLine(new PowerTestEventLogEntry(DateTimeOffset.UtcNow, "RunRejected", reason)));
         }
     }
 
@@ -247,14 +342,14 @@ public sealed class PowerTestStore : IPowerTestStore
                 Path.Combine(folderPath, PowerTestFileContracts.ConditionTableFileName),
                 PowerTestFileContracts.SerializeConditionTable(conditions));
 
-            File.WriteAllText(
+            WriteAllTextAtomic(
                 Path.Combine(folderPath, PowerTestFileContracts.GlobalSeriesFileName),
-                PowerTestFileContracts.FormatGlobalSeriesHeader() + Environment.NewLine, Encoding.UTF8);
-            File.WriteAllText(
-                Path.Combine(folderPath, PowerTestFileContracts.EventLogFileName), "", Encoding.UTF8);
-            File.WriteAllText(
+                PowerTestFileContracts.FormatGlobalSeriesHeader() + Environment.NewLine);
+            WriteAllTextAtomic(
+                Path.Combine(folderPath, PowerTestFileContracts.EventLogFileName), "");
+            WriteAllTextAtomic(
                 Path.Combine(folderPath, PowerTestFileContracts.ResultsSummaryFileName),
-                PowerTestFileContracts.FormatResultsSummaryHeader() + Environment.NewLine, Encoding.UTF8);
+                PowerTestFileContracts.FormatResultsSummaryHeader() + Environment.NewLine);
 
             return doc;
         }
@@ -262,6 +357,8 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public PowerTestDocument RenameTest(string folderName, string newName)
     {
+        _writer.CloseWriters(Path.Combine(_rootDirectory, folderName));
+        _writer.Flush();
         if (!ValidateTestName(newName, out var error))
         {
             throw new ArgumentException(error ?? "Nome de ensaio inválido.", nameof(newName));
@@ -321,6 +418,8 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public bool DeleteTest(string folderName)
     {
+        _writer.CloseWriters(Path.Combine(_rootDirectory, folderName));
+        _writer.Flush();
         lock (_ioLock)
         {
             var sourcePath = ResolveImmediateTestFolder(folderName);
@@ -351,6 +450,11 @@ public sealed class PowerTestStore : IPowerTestStore
             var folderPath = Path.Combine(_rootDirectory, doc.FolderName);
             Directory.CreateDirectory(folderPath);
 
+            if (doc.Tare is { } tare)
+            {
+                doc.Tare = MoveTareSamplesToSidecar(doc.FolderName, tare);
+            }
+
             doc.LastModifiedUtc = DateTimeOffset.UtcNow;
             WriteAllTextAtomic(
                 Path.Combine(folderPath, PowerTestFileContracts.TestManifestFileName),
@@ -358,8 +462,40 @@ public sealed class PowerTestStore : IPowerTestStore
         }
     }
 
+    /// <summary>
+    /// The tare's readings live in <c>Taras-Brutas/</c>, not inside <c>ensaio.json</c> or
+    /// <c>tara.json</c>. Embedded, they made the manifest 832 KB (490 KB of samples) and every
+    /// phase change rewrote it — 55 ms on average, 330 ms at worst, on the UI thread. A curve
+    /// whose readings are not yet on disk here (measured before D-046, or attached from a shaft
+    /// profile) gets its sidecar written first; the returned curve carries the file name and no
+    /// samples. Nothing is discarded: <see cref="LoadTareRawData"/> reads them back.
+    /// </summary>
+    private TareCurve MoveTareSamplesToSidecar(string testFolderName, TareCurve tare)
+    {
+        if (tare.Samples.Count == 0)
+        {
+            return tare;
+        }
+
+        var fileName = tare.RawSamplesFileName;
+        var hasSidecar = fileName.Length > 0 && File.Exists(GetTareRawDataPath(testFolderName, fileName));
+        if (!hasSidecar)
+        {
+            fileName = BeginTareRawCaptureCore(testFolderName, tare.MeasuredUtc);
+            var path = GetTareRawDataPath(testFolderName, fileName);
+            foreach (var sample in tare.Samples)
+            {
+                var pointIndex = tare.Points.FindIndex(p => Math.Abs(p.Rpm - sample.TargetRpm) < 0.5);
+                _writer.AppendLine(path, PowerTestFileContracts.FormatTareRawRow(sample, Math.Max(pointIndex, 0)));
+            }
+        }
+
+        return tare with { Samples = [], RawSamplesFileName = fileName };
+    }
+
     public IReadOnlyList<PowerCondition> LoadConditionsTable(string testFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var condPath = Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.ConditionTableFileName);
@@ -392,7 +528,7 @@ public sealed class PowerTestStore : IPowerTestStore
             Directory.CreateDirectory(folderPath);
             WriteAllTextAtomic(
                 Path.Combine(folderPath, PowerTestFileContracts.TareFileName),
-                PowerTestFileContracts.SerializeTare(tare));
+                PowerTestFileContracts.SerializeTare(MoveTareSamplesToSidecar(testFolderName, tare)));
         }
     }
 
@@ -400,16 +536,25 @@ public sealed class PowerTestStore : IPowerTestStore
     {
         lock (_ioLock)
         {
-            File.Delete(Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.TareFileName));
+            _writer.Delete(Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.TareFileName));
         }
     }
 
     public TareCurve? LoadTare(string testFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var path = Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.TareFileName);
-            return File.Exists(path) ? PowerTestFileContracts.DeserializeTare(File.ReadAllText(path)) : null;
+            var tare = File.Exists(path) ? PowerTestFileContracts.DeserializeTare(File.ReadAllText(path)) : null;
+            if (tare is { Samples.Count: > 0 })
+            {
+                // Written before the sidecar rule: move the readings out once and rewrite.
+                tare = MoveTareSamplesToSidecar(testFolderName, tare);
+                WriteAllTextAtomic(path, PowerTestFileContracts.SerializeTare(tare));
+            }
+
+            return tare;
         }
     }
 
@@ -420,6 +565,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public IReadOnlyList<TareProfileSummary> ListTareProfiles()
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var dir = TareProfilesDirectory;
@@ -461,6 +607,7 @@ public sealed class PowerTestStore : IPowerTestStore
             return null;
         }
 
+        _writer.Flush();
         lock (_ioLock)
         {
             var path = Path.Combine(
@@ -503,6 +650,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
         lock (_ioLock)
         {
+            _writer.Flush();
             var path = Path.Combine(
                 TareProfilesDirectory, PowerTestFileContracts.TareProfileFileName(profileName));
             if (!File.Exists(path))
@@ -529,6 +677,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public TorqueCalibration? LoadCalibration(string testFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var path = Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.CalibrationFileName);
@@ -556,9 +705,12 @@ public sealed class PowerTestStore : IPowerTestStore
 
             run.FolderName = runFolder;
             Directory.CreateDirectory(runPath);
-            WriteAllTextAtomic(
-                Path.Combine(runPath, PowerTestFileContracts.RunRawDataFileName),
-                PowerTestFileContracts.FormatRawDataHeader() + Environment.NewLine);
+            var rawPath = Path.Combine(runPath, PowerTestFileContracts.RunRawDataFileName);
+            var header = PowerTestFileContracts.FormatRawDataHeader() + Environment.NewLine;
+            WriteAllTextAtomic(rawPath, header);
+            var hash = BeginRawHash(rawPath);
+            hash.AppendData(Encoding.UTF8.GetPreamble());
+            hash.AppendData(Encoding.UTF8.GetBytes(header));
 
             return runFolder;
         }
@@ -569,6 +721,13 @@ public sealed class PowerTestStore : IPowerTestStore
     public string BeginTareRawCapture(string testFolderName, DateTimeOffset startedUtc)
     {
         lock (_ioLock)
+        {
+            return BeginTareRawCaptureCore(testFolderName, startedUtc);
+        }
+    }
+
+    private string BeginTareRawCaptureCore(string testFolderName, DateTimeOffset startedUtc)
+    {
         {
             var directory = Path.Combine(
                 _rootDirectory, testFolderName, PowerTestFileContracts.TareRawDirectoryName);
@@ -599,17 +758,10 @@ public sealed class PowerTestStore : IPowerTestStore
         lock (_ioLock)
         {
             var path = GetTareRawDataPath(testFolderName, rawFileName);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            if (!File.Exists(path) || new FileInfo(path).Length == 0)
-            {
-                File.AppendAllText(
-                    path, PowerTestFileContracts.FormatTareRawHeader() + Environment.NewLine, Encoding.UTF8);
-            }
-
-            File.AppendAllText(
+            _writer.AppendLine(
                 path,
-                PowerTestFileContracts.FormatTareRawRow(sample, pointIndex) + Environment.NewLine,
-                Encoding.UTF8);
+                PowerTestFileContracts.FormatTareRawRow(sample, pointIndex),
+                headerIfEmpty: PowerTestFileContracts.FormatTareRawHeader());
         }
     }
 
@@ -618,6 +770,7 @@ public sealed class PowerTestStore : IPowerTestStore
 
     public IReadOnlyList<TareSample> LoadTareRawData(string testFolderName, string rawFileName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var path = GetTareRawDataPath(testFolderName, rawFileName);
@@ -697,15 +850,10 @@ public sealed class PowerTestStore : IPowerTestStore
         lock (_ioLock)
         {
             var path = GetSinglePointDataPath(testFolderName, rawFileName);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            if (!File.Exists(path) || new FileInfo(path).Length == 0)
-            {
-                File.AppendAllText(
-                    path, PowerTestFileContracts.FormatRawDataHeader() + Environment.NewLine, Encoding.UTF8);
-            }
-
-            File.AppendAllText(
-                path, PowerTestFileContracts.FormatRawDataRow(point) + Environment.NewLine, Encoding.UTF8);
+            _writer.AppendLine(
+                path,
+                PowerTestFileContracts.FormatRawDataRow(point),
+                headerIfEmpty: PowerTestFileContracts.FormatRawDataHeader());
         }
     }
 
@@ -732,7 +880,7 @@ public sealed class PowerTestStore : IPowerTestStore
             ? Path.Combine(_rootDirectory, PowerTestFileContracts.SinglePointDirectoryName)
             : Path.Combine(_rootDirectory, testFolderName.Trim(), PowerTestFileContracts.SinglePointDirectoryName);
 
-    private static void WriteSinglePointManifest(string directory, SinglePointSession session)
+    private void WriteSinglePointManifest(string directory, SinglePointSession session)
     {
         var manifestPath = Path.Combine(
             directory,
@@ -748,17 +896,54 @@ public sealed class PowerTestStore : IPowerTestStore
         lock (_ioLock)
         {
             var filePath = GetRunRawDataPath(testFolderName, runFolderName);
-            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            if (!File.Exists(filePath) || new FileInfo(filePath).Length == 0)
+            var header = PowerTestFileContracts.FormatRawDataHeader();
+            var row = PowerTestFileContracts.FormatRawDataRow(point) + Environment.NewLine;
+
+            if (!_rawHashes.TryGetValue(filePath, out var hash))
             {
-                File.AppendAllText(filePath, PowerTestFileContracts.FormatRawDataHeader() + Environment.NewLine, Encoding.UTF8);
+                // A run this store did not initialise (a resumed folder, a test): start the
+                // running hash from what is already on disk, or from the header the writer is
+                // about to put at the top of a new file — BOM first, as File.AppendAllText did.
+                hash = BeginRawHash(filePath);
+                if (File.Exists(filePath) && new FileInfo(filePath).Length > 0)
+                {
+                    _writer.Flush();
+                    hash.AppendData(File.ReadAllBytes(filePath));
+                }
+                else
+                {
+                    hash.AppendData(Encoding.UTF8.GetPreamble());
+                    hash.AppendData(Encoding.UTF8.GetBytes(header + Environment.NewLine));
+                }
             }
-            File.AppendAllText(filePath, PowerTestFileContracts.FormatRawDataRow(point) + Environment.NewLine, Encoding.UTF8);
+
+            hash.AppendData(Encoding.UTF8.GetBytes(row));
+            _writer.AppendLine(filePath, PowerTestFileContracts.FormatRawDataRow(point), headerIfEmpty: header);
         }
+    }
+
+    private IncrementalHash BeginRawHash(string rawPath)
+    {
+        if (_rawHashes.Remove(rawPath, out var stale))
+        {
+            stale.Dispose();
+        }
+
+        while (_rawHashes.Count >= RawHashesKept)
+        {
+            var oldest = _rawHashes.Keys.First();
+            _rawHashes.Remove(oldest, out var evicted);
+            evicted?.Dispose();
+        }
+
+        var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        _rawHashes[rawPath] = hash;
+        return hash;
     }
 
     public IReadOnlyList<PowerDataPoint> LoadRunRawData(string testFolderName, string runFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var filePath = GetRunRawDataPath(testFolderName, runFolderName);
@@ -826,11 +1011,17 @@ public sealed class PowerTestStore : IPowerTestStore
             Directory.CreateDirectory(runPath);
 
             var rawPath = Path.Combine(runPath, PowerTestFileContracts.RunRawDataFileName);
-            if (File.Exists(rawPath))
+            if (_rawHashes.TryGetValue(rawPath, out var hash))
             {
-                run.RawDataPath = Path.Combine(
-                        PowerTestFileContracts.RunsDirectoryName, run.FolderName, PowerTestFileContracts.RunRawDataFileName)
-                    .Replace('\\', '/');
+                // Everything queued for this file has already been folded into the running hash,
+                // so the seal is exact without waiting for the queue to drain.
+                run.RawDataPath = RelativeRawDataPath(run.FolderName);
+                run.RawDataSha256 = Convert.ToHexStringLower(hash.GetCurrentHash());
+            }
+            else if (File.Exists(rawPath))
+            {
+                _writer.Flush();
+                run.RawDataPath = RelativeRawDataPath(run.FolderName);
                 run.RawDataSha256 = PowerTestFileContracts.ComputeFileSha256(rawPath);
             }
 
@@ -841,12 +1032,16 @@ public sealed class PowerTestStore : IPowerTestStore
         }
     }
 
+    private static string RelativeRawDataPath(string runFolderName) =>
+        Path.Combine(PowerTestFileContracts.RunsDirectoryName, runFolderName, PowerTestFileContracts.RunRawDataFileName)
+            .Replace('\\', '/');
+
     public void AppendGlobalSeriesSample(string testFolderName, PowerGlobalSeriesSample sample)
     {
         lock (_ioLock)
         {
             var filePath = Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.GlobalSeriesFileName);
-            File.AppendAllText(filePath, PowerTestFileContracts.FormatGlobalSeriesRow(sample) + Environment.NewLine, Encoding.UTF8);
+            _writer.AppendLine(filePath, PowerTestFileContracts.FormatGlobalSeriesRow(sample));
         }
     }
 
@@ -855,7 +1050,7 @@ public sealed class PowerTestStore : IPowerTestStore
         lock (_ioLock)
         {
             var filePath = Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.EventLogFileName);
-            File.AppendAllText(filePath, PowerTestFileContracts.FormatEventLogLine(entry) + Environment.NewLine, Encoding.UTF8);
+            _writer.AppendLine(filePath, PowerTestFileContracts.FormatEventLogLine(entry));
         }
     }
 
@@ -878,111 +1073,92 @@ public sealed class PowerTestStore : IPowerTestStore
         ArgumentNullException.ThrowIfNull(doc);
         lock (_ioLock)
         {
-            var rows = new List<string> { PowerTestFileContracts.FormatResultsSummaryHeader() };
-            foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
-            {
-                var accepted = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.NetPowerW is { } value && double.IsFinite(value))
-                    .Select(r => r.NetPowerW!.Value)
-                    .ToArray();
-                double? mean = accepted.Length > 0 ? accepted.Average() : null;
-                double? standardDeviation = null;
-                if (accepted.Length > 1 && mean is { } average)
-                {
-                    standardDeviation = Math.Sqrt(
-                        accepted.Sum(value => Math.Pow(value - average, 2)) / (accepted.Length - 1));
-                }
-
-                var npValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyPowerNumber))
-                    .Select(r => r.Analysis!.AssemblyPowerNumber)
-                    .ToArray();
-                var reValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyReynoldsNumber))
-                    .Select(r => r.Analysis!.AssemblyReynoldsNumber)
-                    .ToArray();
-                double? meanNp = npValues.Length > 0 ? npValues.Average() : null;
-                double? standardDeviationNp = null;
-                if (npValues.Length > 1 && meanNp is { } averageNp)
-                {
-                    standardDeviationNp = Math.Sqrt(
-                        npValues.Sum(value => Math.Pow(value - averageNp, 2)) / (npValues.Length - 1));
-                }
-                double? meanRe = reValues.Length > 0 ? reValues.Average() : null;
-
-                var ratioValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.PowerRatio is { } ratio && double.IsFinite(ratio))
-                    .Select(r => r.PowerRatio!.Value)
-                    .ToArray();
-                double? meanRatio = ratioValues.Length > 0 ? ratioValues.Average() : null;
-                double? stdDevRatio = null;
-                if (ratioValues.Length > 1 && meanRatio is { } avgRatio)
-                {
-                    stdDevRatio = Math.Sqrt(ratioValues.Sum(v => Math.Pow(v - avgRatio, 2)) / (ratioValues.Length - 1));
-                }
-
-                var flGValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.GasFlowNumber is { } flg && double.IsFinite(flg))
-                    .Select(r => r.GasFlowNumber!.Value)
-                    .ToArray();
-                double? meanFlG = flGValues.Length > 0 ? flGValues.Average() : null;
-
-                var frValues = doc.Runs
-                    .Where(r => r.ConditionId == condition.ConditionId &&
-                                r.Phase == PowerRunPhase.Accepted &&
-                                r.FroudeNumber is { } fr && double.IsFinite(fr))
-                    .Select(r => r.FroudeNumber!.Value)
-                    .ToArray();
-                double? meanFr = frValues.Length > 0 ? frValues.Average() : null;
-
-                rows.Add(PowerTestFileContracts.FormatResultsSummaryRow(
-                    condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe,
-                    meanRatio, stdDevRatio, meanFlG, meanFr));
-            }
-
-            WriteAllTextAtomic(
-                Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.ResultsSummaryFileName),
-                string.Join(Environment.NewLine, rows) + Environment.NewLine);
+            UpdateResultsSummaryCore(testFolderName, doc);
         }
     }
 
-    private static void WriteAllTextAtomic(string path, string contents)
+    private void UpdateResultsSummaryCore(string testFolderName, PowerTestDocument doc)
     {
-        var tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        try
+        var rows = new List<string> { PowerTestFileContracts.FormatResultsSummaryHeader() };
+        foreach (var condition in doc.Conditions.OrderBy(c => c.OrderIndex))
         {
-            File.WriteAllText(tempPath, contents, Encoding.UTF8);
-            for (var attempt = 1; attempt <= 5; attempt++)
+            var accepted = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            !PowerTestFileContracts.IsRunWithoutCapture(r) &&
+                            r.NetPowerW is { } value && double.IsFinite(value))
+                .Select(r => r.NetPowerW!.Value)
+                .ToArray();
+            double? mean = accepted.Length > 0 ? accepted.Average() : null;
+            double? standardDeviation = null;
+            if (accepted.Length > 1 && mean is { } average)
             {
-                try
-                {
-                    File.Move(tempPath, path, overwrite: true);
-                    return;
-                }
-                catch (Exception) when (attempt < 5)
-                {
-                    Thread.Sleep(20);
-                }
+                standardDeviation = Math.Sqrt(
+                    accepted.Sum(value => Math.Pow(value - average, 2)) / (accepted.Length - 1));
             }
-        }
-        finally
-        {
-            if (File.Exists(tempPath))
+
+            var npValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyPowerNumber))
+                .Select(r => r.Analysis!.AssemblyPowerNumber)
+                .ToArray();
+            var reValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.Analysis is { } analysis && double.IsFinite(analysis.AssemblyReynoldsNumber))
+                .Select(r => r.Analysis!.AssemblyReynoldsNumber)
+                .ToArray();
+            double? meanNp = npValues.Length > 0 ? npValues.Average() : null;
+            double? standardDeviationNp = null;
+            if (npValues.Length > 1 && meanNp is { } averageNp)
             {
-                try { File.Delete(tempPath); } catch { }
+                standardDeviationNp = Math.Sqrt(
+                    npValues.Sum(value => Math.Pow(value - averageNp, 2)) / (npValues.Length - 1));
             }
+            double? meanRe = reValues.Length > 0 ? reValues.Average() : null;
+
+            var ratioValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.PowerRatio is { } ratio && double.IsFinite(ratio))
+                .Select(r => r.PowerRatio!.Value)
+                .ToArray();
+            double? meanRatio = ratioValues.Length > 0 ? ratioValues.Average() : null;
+            double? stdDevRatio = null;
+            if (ratioValues.Length > 1 && meanRatio is { } avgRatio)
+            {
+                stdDevRatio = Math.Sqrt(ratioValues.Sum(v => Math.Pow(v - avgRatio, 2)) / (ratioValues.Length - 1));
+            }
+
+            var flGValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.GasFlowNumber is { } flg && double.IsFinite(flg))
+                .Select(r => r.GasFlowNumber!.Value)
+                .ToArray();
+            double? meanFlG = flGValues.Length > 0 ? flGValues.Average() : null;
+
+            var frValues = doc.Runs
+                .Where(r => r.ConditionId == condition.ConditionId &&
+                            r.Phase == PowerRunPhase.Accepted &&
+                            r.FroudeNumber is { } fr && double.IsFinite(fr))
+                .Select(r => r.FroudeNumber!.Value)
+                .ToArray();
+            double? meanFr = frValues.Length > 0 ? frValues.Average() : null;
+
+            rows.Add(PowerTestFileContracts.FormatResultsSummaryRow(
+                condition, mean, standardDeviation, meanNp, standardDeviationNp, meanRe,
+                meanRatio, stdDevRatio, meanFlG, meanFr));
         }
+
+        WriteAllTextAtomic(
+            Path.Combine(_rootDirectory, testFolderName, PowerTestFileContracts.ResultsSummaryFileName),
+            string.Join(Environment.NewLine, rows) + Environment.NewLine);
     }
+
+    /// <summary>Queued: temp file + move, executed in order by the background writer.</summary>
+    private void WriteAllTextAtomic(string path, string contents) => _writer.WriteAllTextAtomic(path, contents);
 
     private string ResolveImmediateTestFolder(string folderName)
     {

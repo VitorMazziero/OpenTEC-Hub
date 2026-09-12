@@ -1,0 +1,17 @@
+# Conversion period vs temperature, firmware v5.0.
+# temp_c is the ESP32 SoC die sensor standing in for board
+# temperature -- the VEML7700 exposes no temperature
+# register. Heating is LED self-heating at 100% duty for 6 min.
+phase,temp_c,it_nominal_ms,period_mean_ms,period_min_ms,period_max_ms,ratio,resolved,trials,guard,within_guard
+cold,53.8,100,110.6,105,112,1.106,5,6,1.2,True
+cold,53.8,200,218.2,217,224,1.091,6,6,1.2,True
+cold,53.8,400,438.7,434,441,1.097,6,6,1.2,True
+cold,53.8,800,875.0,875,875,1.094,6,6,1.2,True
+hot,55.8,100,110.6,105,112,1.106,5,6,1.2,True
+hot,55.8,200,220.5,217,224,1.102,6,6,1.2,True
+hot,55.8,400,434.0,434,434,1.085,6,6,1.2,True
+hot,55.8,800,875.0,875,875,1.094,6,6,1.2,True
+recovered,56.8,100,109.2,105,112,1.092,5,6,1.2,True
+recovered,56.8,200,219.3,217,224,1.097,6,6,1.2,True
+recovered,56.8,400,436.3,434,441,1.091,6,6,1.2,True
+recovered,56.8,800,877.3,875,882,1.097,6,6,1.2,True

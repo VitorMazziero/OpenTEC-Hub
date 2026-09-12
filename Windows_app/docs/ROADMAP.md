@@ -1135,6 +1135,15 @@ make while re-implementing, rather than copying forward:
       real reason leaves a readable `Taras-Brutas/` file, and that a single-point check records
       with and without an assay open.
 - [ ] Operator walkthrough of every page against the pt-BR wording, in one review.
+- [ ] **Bench receipt for the 11/09 plan** (`docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`,
+      [PHASE_LOG P3-08](history/PHASE_LOG.md)): flash hub `10.0.1-dev` and confirm the flow-curve
+      send (`[HubCmd] Applied`, `Params Saved.`, app leaves "aguardando" in ~1 s); run a 10-minute
+      power assay with auto-accept and copy the `UI hitches > 30 ms` log line into
+      `docs/evidence/ui-hitches-2026-09-12.md` (target: none during capture); watch a
+      `RetryThenSkip` sequence failure and a stability exit from the vent phase.
+- [ ] **Flow controller does not regulate downward on the first vent opening after a safe-stop**
+      (§I.4 of the plan): reproduce by hand — safe-stop → 2.0 L/min on the vent → does it stick at
+      ~3.4 L/min? A controller/firmware item (`FLOWMETER_V05_HUB_V7_SYNC_PLAN.md`), not an app one.
 
 ---
 

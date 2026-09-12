@@ -1,0 +1,283 @@
+# 📡 Fluxômetro ESP32 — Guia de Uso
+---
+> ⚠️ Faixa de vazão calibrada 0.5 a 20 L/min (máximo de até 50 L/min; mas a calibração será extrapolada)
+> ⚠️ Vazões menores que 0.5L/min não são recomendadas (utilize o fluxometro de 0-10L/min para vazões menores)
+---
+
+## 🔐 Acesso Wi-Fi (Ponto de Acesso do Dispositivo)
+
+| Campo    | Valor             |
+|----------|-------------------|
+| **SSID** | `Flowmeter_AP`    |
+| **Senha**| `flowmeter123`    |
+| **IP**   | `192.168.10.1`    |
+| **Porta**| `80`              |
+| **WebSocket** | `ws://192.168.10.1/ws` |
+
+> O fluxômetro cria sua própria rede Wi-Fi. Conecte seu celular ou computador a ela para comunicação direta.
+
+---
+
+## 📱 Aplicativo Android
+
+O aplicativo Android se comunica **diretamente via Wi-Fi** com o fluxômetro.
+
+**Passos:**
+1. Conecte o celular à rede `Flowmeter_AP` (senha: `flowmeter123`)
+2. Instale o APK fornecido — **fale com Ivan para obter o instalador**
+3. O app se conecta automaticamente ao IP `192.168.10.1`
+4. Você poderá monitorar e controlar o fluxômetro em tempo real
+
+---
+
+## 🖥️ Programa Windows (Módulo TECNAL)
+
+O programa Windows utiliza o **software do Módulo TECNAL** para comunicação.
+
+**Procedimento de conexão:**
+1. Ligue o **Módulo TECNAL** primeiro e aguarde ele inicializar
+2. Em seguida, ligue o **fluxômetro**
+3. Os dois dispositivos se conectam **automaticamente** (o fluxômetro busca as redes `ModuloTECNAL_1` ou `ModuloTECNAL_2`)
+4. Abra o programa do Módulo TECNAL no Windows para monitorar os dados
+
+---
+
+## 🔌 Comunicação via USB (Serial)
+
+Conecte o ESP32 ao computador via cabo USB e use um dos programas abaixo.
+
+**Configurações da porta serial:**
+
+| Parâmetro    | Valor    |
+|--------------|----------|
+| Baud Rate    | `115200` |
+| Data Bits    | `8`      |
+| Stop Bits    | `1`      |
+| Parity       | `None`   |
+| Flow Control | `None`   |
+
+### Programas para comunicação USB
+
+#### Windows
+| Programa | Como usar |
+|---|---|
+| **Arduino IDE** (Monitor Serial) | Ferramentas → Monitor Serial → selecionar `115200 baud` |
+| **PuTTY** | Connection type: Serial → Speed: 115200 → Open |
+| **Termite** | Configurar porta COM e baud rate 115200 |
+| **RealTerm** | Port → selecionar COM → Baud 115200 → Open |
+| **CoolTerm** | Options → Serial Port → selecionar porta e 115200 |
+
+#### Linux / macOS
+| Programa | Comando |
+|---|---|
+| **screen** | `screen /dev/ttyUSB0 115200` |
+| **minicom** | `minicom -D /dev/ttyUSB0 -b 115200` |
+| **picocom** | `picocom -b 115200 /dev/ttyUSB0` |
+| **cu** | `cu -l /dev/ttyUSB0 -s 115200` |
+
+#### Python (script)
+```python
+import serial
+ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)  # ou 'COM3' no Windows
+while True:
+    linha = ser.readline().decode('utf-8').strip()
+    if linha:
+        print(linha)
+```
+> Instalar: `pip install pyserial`
+
+---
+
+## 📤 Dados Enviados pelo Fluxômetro (a cada 1 segundo)
+
+O fluxômetro transmite automaticamente um JSON a cada segundo via Serial e WebSocket:
+
+```json
+{
+  "seconds": 123.456,
+  "flow_voltage": 0.123456,
+  "flow_rate": 5.250000,
+  "flow_setpoint": 5.000000,
+  "valve1State": 0,
+  "valve2State": 0,
+  "valveFlowState": 1,
+  "Kp": 0.10,
+  "Ki": 0.10,
+  "reconnect_wifi": 1
+}
+```
+
+| Campo | Descrição |
+|---|---|
+| `seconds` | Tempo desde o boot (segundos) |
+| `flow_voltage` | Tensão lida no sensor (V) |
+| `flow_rate` | Vazão medida atual (L/min) |
+| `flow_setpoint` | Setpoint alvo atual (L/min) |
+| `valve1State` | Estado da válvula 1 (0=fechada, 1=aberta) |
+| `valve2State` | Estado da válvula 2 (0=fechada, 1=aberta) |
+| `valveFlowState` | Estado da válvula de fluxo (0/1) |
+| `Kp` / `Ki` | Ganhos do controlador PI |
+| `reconnect_wifi` | Reconexão Wi-Fi ativa (1) ou desativada (0) |
+
+---
+
+## 📥 Comandos — Como Enviar
+
+Os comandos são enviados em formato **JSON** pela Serial (USB) ou pelo WebSocket.
+
+**Formato geral:**
+```json
+{"chave": valor, "chave2": valor2}
+```
+
+---
+
+## 🎛️ Tabela Completa de Comandos
+
+### Controle de Válvulas
+
+| Comando | Valores | Descrição |
+|---|---|---|
+| `{"v_Flow": 1}` | `0` ou `1` | Liga/desliga a válvula de fluxo principal |
+| `{"v1": 1}` | `0` ou `1` | Liga/desliga a válvula 1 |
+| `{"v2": 1}` | `0` ou `1` | Liga/desliga a válvula 2 |
+
+```json
+{"v_Flow": 1, "v1": 0, "v2": 0}
+```
+
+---
+
+### Controle de Vazão (Setpoint)
+
+| Comando | Valores | Descrição |
+|---|---|---|
+| `{"flow_setpoint": 10.0}` | `0.0` até `max_flow` | Define a vazão alvo em L/min |
+| `{"flow_setpoint": 0.0}` | `0.0` | Para o fluxo e zera o controle PI |
+| `{"max_flow": 50.0}` | float | Define a vazão máxima permitida |
+
+```json
+{"flow_setpoint": 15.5}
+```
+> ⚠️ Mudanças menores que 0.05 L/min são ignoradas para evitar ruído.
+
+---
+
+### Controle PI (Sintonização)
+
+| Comando | Padrão | Descrição |
+|---|---|---|
+| `{"kp_flow": 0.1}` | `0.1` | Ganho proporcional do controlador |
+| `{"ki_flow": 0.1}` | `0.1` | Ganho integral do controlador |
+
+```json
+{"kp_flow": 0.2, "ki_flow": 0.05}
+```
+> Os valores são salvos na memória EEPROM e persistem após reinicialização.
+
+---
+
+### Calibração do Sensor
+
+O sensor usa duas equações quadráticas (segmentadas por tensão ≤ 0.0545 V):
+
+**Região 1** (tensão baixa): `flow = k1·V² + f1·V + c1`  
+**Região 2** (tensão alta): `flow = k2·V² + f2·V + c2`
+
+| Comando | Padrão | Descrição |
+|---|---|---|
+| `{"k1": -139.057}` | `-139.0570077428` | Coef. quadrático — região 1 |
+| `{"f1": 21.974}` | `21.9738888302` | Coef. linear — região 1 |
+| `{"c1": -0.034}` | `-0.0341880209` | Coef. constante — região 1 |
+| `{"k2": -0.872}` | `-0.8724324917` | Coef. quadrático — região 2 |
+| `{"f2": 10.657}` | `10.6573301479` | Coef. linear — região 2 |
+| `{"c2": 0.195}` | `0.1953756879` | Coef. constante — região 2 |
+
+```json
+{"k1": -139.057, "f1": 21.974, "c1": -0.034, "k2": -0.872, "f2": 10.657, "c2": 0.195}
+```
+> Todos os parâmetros de calibração e PI são salvos na EEPROM automaticamente.
+
+---
+
+### Controle de Reconexão Wi-Fi
+
+| Comando | Descrição |
+|---|---|
+| `{"reconnect_wifi": 1}` | Ativa tentativas automáticas de reconexão |
+| `{"reconnect_wifi": 0}` | Desativa reconexão automática |
+
+---
+
+## 🔄 Lógica de Reconexão Wi-Fi
+
+O fluxômetro opera em modo **AP + STA simultâneos**:
+
+- **Modo AP:** Sempre ativo como `Flowmeter_AP` — permite conexão direta do celular/PC
+- **Modo STA:** Tenta se conectar ao `ModuloTECNAL_1` ou `ModuloTECNAL_2`
+  - Tenta a reconexão a cada **10 segundos** se desconectado
+  - Se o SSID já foi encontrado antes, tenta conexão direta (mais rápido)
+  - Se nunca conectou, faz um scan completo das redes disponíveis
+
+---
+
+## 💡 LED de Status
+
+O LED no pino **GPIO 19** pisca **2 vezes** rapidamente ao receber um comando com sucesso.
+
+---
+
+## 🔧 Exemplos de Comandos Completos
+
+**Iniciar fluxo a 10 L/min com válvulas abertas:**
+```json
+{"v_Flow": 1, "v1": 1, "v2": 0, "flow_setpoint": 10.0}
+```
+
+**Parar tudo:**
+```json
+{"v_Flow": 0, "v1": 0, "v2": 0, "flow_setpoint": 0.0}
+```
+
+**Ajuste fino do controlador PI:**
+```json
+{"kp_flow": 0.15, "ki_flow": 0.08}
+```
+
+**Desativar reconexão Wi-Fi (modo standalone):**
+```json
+{"reconnect_wifi": 0}
+```
+
+**Recalibrar sensor completo:**
+```json
+{"k1": -139.057, "f1": 21.974, "c1": -0.034, "k2": -0.872, "f2": 10.657, "c2": 0.195}
+```
+
+---
+
+## 📌 Pinagem Relevante
+
+| Pino GPIO | Função |
+|---|---|
+| `5` | Válvula de Fluxo (`v_Flow`) |
+| `17` | Válvula 1 (`v1`) |
+| `16` | Válvula 2 (`v2`) |
+| `19` | LED de recepção de comandos |
+| `SDA/SCL` | I2C — ADS1115 (ADC) + MCP4725 (DAC) |
+
+| Componente | Endereço I2C |
+|---|---|
+| ADS1115 (ADC) | `0x48` |
+| MCP4725 (DAC) | `0x60` |
+
+---
+
+## ⚠️ Notas Importantes
+
+- Sempre ligue o **Módulo TECNAL antes** do fluxômetro para conexão automática
+- Para o app Android: **fale com Ivan** para obter o APK de instalação
+- Os parâmetros de calibração e PI são **salvos na EEPROM** — persistem após desligar
+- Para resetar os parâmetros aos valores de fábrica, apague a EEPROM via código
+- O servidor HTTP do fluxômetro fica em `http://192.168.10.1`
+- O WebSocket fica em `ws://192.168.10.1/ws`

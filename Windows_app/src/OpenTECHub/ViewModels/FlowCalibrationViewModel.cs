@@ -13,25 +13,99 @@ namespace OpenTECHub.ViewModels;
 /// <summary>Editable real-flow value and read-only captured voltage.</summary>
 public sealed partial class FlowCalibrationPointViewModel : ObservableObject
 {
-    public FlowCalibrationPointViewModel(string flowText = "", double? voltage = null)
+    /// <summary>The flowmeter's ADC reference: a typed voltage outside this range is a transcription error.</summary>
+    public const double MaximumVoltage = 3.3;
+
+    private bool _syncing;
+
+    public FlowCalibrationPointViewModel(string flowText = "", double? voltage = null, FlowVoltageSource source = FlowVoltageSource.Captured)
     {
         FlowText = flowText;
+        VoltageText = "";
+        Source = source;
         Voltage = voltage;
     }
 
     [ObservableProperty]
     public partial string FlowText { get; set; }
 
+    /// <summary>
+    /// The voltage as a number. Set by a capture (mean of N frames) or by parsing what the operator
+    /// typed; null when the text is empty or not a number.
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VoltageText))]
     [NotifyPropertyChangedFor(nameof(HasVoltage))]
+    [NotifyPropertyChangedFor(nameof(IsVoltageOutOfRange))]
     public partial double? Voltage { get; set; }
 
-    public string VoltageText => Voltage is { } voltage
-        ? voltage.ToString("F6", CultureInfo.CurrentCulture)
-        : "—";
+    /// <summary>
+    /// The voltage as the operator sees and edits it (§O). Mirrors <see cref="Voltage"/> both ways:
+    /// a capture formats it, typing parses it (comma or point). Editing marks the point
+    /// <see cref="FlowVoltageSource.Typed"/>; a capture marks it <see cref="FlowVoltageSource.Captured"/>.
+    /// </summary>
+    [ObservableProperty]
+    public partial string VoltageText { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTyped))]
+    [NotifyPropertyChangedFor(nameof(SourceLabel))]
+    public partial FlowVoltageSource Source { get; set; }
 
     public bool HasVoltage => Voltage is not null;
+
+    public bool IsTyped => Source == FlowVoltageSource.Typed;
+
+    /// <summary>A discreet mark on the row: a typed voltage is a transcription, not a measurement.</summary>
+    public string SourceLabel => IsTyped ? "digitada" : "";
+
+    /// <summary>Negative or above the ADC reference: shown as an error and left out of the fit.</summary>
+    public bool IsVoltageOutOfRange => Voltage is { } v && (v < 0.0 || v > MaximumVoltage);
+
+    /// <summary>Sets the voltage from a telemetry capture: formats the text and marks the source.</summary>
+    public void SetCapturedVoltage(double voltage)
+    {
+        Source = FlowVoltageSource.Captured;
+        Voltage = voltage;
+    }
+
+    partial void OnVoltageChanged(double? value)
+    {
+        if (_syncing)
+        {
+            return;
+        }
+
+        _syncing = true;
+        try
+        {
+            VoltageText = value is { } v ? v.ToString("F6", CultureInfo.CurrentCulture) : "";
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    partial void OnVoltageTextChanged(string value)
+    {
+        if (_syncing)
+        {
+            return;
+        }
+
+        _syncing = true;
+        try
+        {
+            Source = FlowVoltageSource.Typed;
+            Voltage = double.TryParse((value ?? "").Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && double.IsFinite(parsed)
+                ? parsed
+                : null;
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
 }
 
 /// <summary>
@@ -51,6 +125,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
     private readonly List<double> _capture = [];
+    private readonly TimeProvider _time;
     private readonly int _captureTarget;
     private double _maximumFlow;
 
@@ -61,9 +136,11 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     public FlowCalibrationViewModel(
         IDeviceService device,
         ISettingsService settings,
-        IManualDispatcher? dispatcher = null)
+        IManualDispatcher? dispatcher = null,
+        TimeProvider? time = null)
     {
         _device = device;
+        _time = time ?? TimeProvider.System;
         _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher(device);
         _settings = settings;
         _maximumFlow = settings.Current.Setpoints.MaxFlowLitresPerMinute;
@@ -79,7 +156,8 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         {
             AddPoint(new FlowCalibrationPointViewModel(
                 point.FlowLitresPerMinute.ToString("G", CultureInfo.CurrentCulture),
-                point.Voltage));
+                point.Voltage,
+                point.Source));
         }
 
         if (Points.Count == 0)
@@ -168,8 +246,23 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         ? $"Salto no limiar (0,0545 V): {Math.Abs(jump):F6} L/min"
         : "Salto no limiar: indisponível (curva incompleta)";
 
+    /// <summary>
+    /// How long a flow command may wait for the flowmeter's ack before the page says so and lets
+    /// the operator send again (§L.5, bench of 2026-09-11: a fragmented calibration frame left the
+    /// page in "aguardando" with the buttons dead). The Hub keeps retrying on its own meanwhile.
+    /// </summary>
+    public static readonly TimeSpan AckOverdueAfter = TimeSpan.FromSeconds(15);
+    private long _awaitingAckSinceTimestamp;
+
+    /// <summary>True once an ack has been pending longer than <see cref="AckOverdueAfter"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendFlowCommands))]
+    [NotifyPropertyChangedFor(nameof(CanSendSetpoint))]
+    [NotifyPropertyChangedFor(nameof(CanSendCurve))]
+    public partial bool IsAckOverdue { get; set; }
+
     public bool CanSendFlowCommands => _device.State == ConnectionState.Connected &&
-                                       IsFlowmeterOnline && !IsAwaitingAck;
+                                       IsFlowmeterOnline && (!IsAwaitingAck || IsAckOverdue);
 
     /// <summary>The trial setpoint may be sent whenever the link and flowmeter allow it.</summary>
     public bool CanSendSetpoint => !IsCapturing && CanSendFlowCommands;
@@ -323,6 +416,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
                  .OrderBy(point => point.Voltage)
                  .ToArray();
 
+    /// <summary>The rows whose typed voltage is outside the ADC range; they are excluded from the fit.</summary>
+    public int OutOfRangePointCount => Points.Count(point => point.IsVoltageOutOfRange);
+
     private void Adjust(double direction)
     {
         if (_commandedSetpoint is not { } current ||
@@ -363,9 +459,27 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             ? snapshot.FlowVoltage.ToString("F6", CultureInfo.CurrentCulture) + " V"
             : "—";
 
+        if (!IsAwaitingAck)
+        {
+            IsAckOverdue = false;
+        }
+        else if (!wasAwaiting)
+        {
+            _awaitingAckSinceTimestamp = _time.GetTimestamp();
+        }
+        else if (!IsAckOverdue && _time.GetElapsedTime(_awaitingAckSinceTimestamp) >= AckOverdueAfter)
+        {
+            IsAckOverdue = true;
+        }
+
         if (!IsFlowmeterOnline)
         {
             StatusText = "Fluxômetro Desconectado da Central.";
+        }
+        else if (IsAwaitingAck && IsAckOverdue)
+        {
+            StatusText = $"Sem confirmação do fluxômetro há {_time.GetElapsedTime(_awaitingAckSinceTimestamp).TotalSeconds:F0} s. " +
+                         "O Hub continuará reenviando até o link voltar; você pode reenviar a curva ou o setpoint.";
         }
         else if (IsAwaitingAck)
         {
@@ -393,7 +507,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         }
 
         var mean = _capture.Average();
-        SelectedPoint!.Voltage = mean;
+        SelectedPoint!.SetCapturedVoltage(mean);
         _capture.Clear();
         IsCapturing = false;
         CaptureProgressPercent = 100;
@@ -451,6 +565,10 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             // expected to type while the setpoint stays put.
             RecalculateCurve();
             NotifyCommandState();
+            if (sender is FlowCalibrationPointViewModel { IsVoltageOutOfRange: true })
+            {
+                StatusText = $"Tensão fora de 0–{FlowCalibrationPointViewModel.MaximumVoltage:0.0} V: o ponto fica fora do ajuste até ser corrigido.";
+            }
         }
     }
 
@@ -493,11 +611,14 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
     private void PersistPoints()
     {
-        var persisted = GetValidPoints()
-            .Select(point => new FlowCalibrationPoint
+        var persisted = Points
+            .Select(point => (Point: point, Read: TryReadPoint(point)))
+            .Where(item => item.Read is not null)
+            .Select(item => new FlowCalibrationPoint
             {
-                FlowLitresPerMinute = point.Flow,
-                Voltage = point.Voltage,
+                FlowLitresPerMinute = item.Read!.Value.Flow,
+                Voltage = item.Read.Value.Voltage,
+                Source = item.Point.Source,
             })
             .OrderBy(point => point.FlowLitresPerMinute)
             .ToArray();
@@ -514,7 +635,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
     private static (double Voltage, double Flow)? TryReadPoint(FlowCalibrationPointViewModel point)
         => point.Voltage is { } voltage &&
-           double.IsFinite(voltage) && voltage >= 0.0 &&
+           double.IsFinite(voltage) && voltage >= 0.0 && voltage <= FlowCalibrationPointViewModel.MaximumVoltage &&
            TryParseDouble(point.FlowText, out var flow) && flow >= 0.0
             ? (voltage, flow)
             : null;
@@ -547,6 +668,8 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private void MarkAwaitingAck(string confirmationText)
     {
         _pendingConfirmationText = confirmationText;
+        _awaitingAckSinceTimestamp = _time.GetTimestamp();
+        IsAckOverdue = false;
         IsAwaitingAck = true;
         StatusText = "Aguardando confirmação do fluxômetro...";
         NotifyCommandState();

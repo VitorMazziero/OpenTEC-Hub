@@ -334,6 +334,114 @@ public sealed class GuidedCalibrationTests
         Assert.False(vm.IsCapturing);
     }
 
+    /// <summary>§L.5: an ack that never comes must not leave the page dead — after 15 s it says so and re-enables sending.</summary>
+    [Fact]
+    public void An_overdue_flowmeter_ack_reenables_sending_and_says_the_hub_keeps_retrying()
+    {
+        var device = new RecordingDeviceService();
+        var clock = new TestClock(DateTimeOffset.UnixEpoch);
+        using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService(), time: clock);
+        PushFlow(device, 0.04);
+        Assert.True(vm.CanSendCurve);
+
+        vm.SendCurveCommand.Execute(null);
+        Assert.True(vm.IsAwaitingAck);
+        Assert.False(vm.CanSendCurve);
+
+        // The Hub keeps reporting the command as pending.
+        clock.Advance(TimeSpan.FromSeconds(5));
+        PushFlow(device, 0.04, pending: true);
+        Assert.False(vm.IsAckOverdue);
+        Assert.Contains("Aguardando", vm.StatusText, StringComparison.Ordinal);
+
+        clock.Advance(TimeSpan.FromSeconds(11));
+        PushFlow(device, 0.04, pending: true);
+        Assert.True(vm.IsAckOverdue);
+        Assert.True(vm.CanSendCurve);
+        Assert.Contains("continuará reenviando", vm.StatusText, StringComparison.Ordinal);
+
+        // The ack lands: back to normal.
+        PushFlow(device, 0.04);
+        Assert.False(vm.IsAwaitingAck);
+        Assert.False(vm.IsAckOverdue);
+    }
+
+    /// <summary>§O: the voltage can be typed, not only captured, and the two stay mirrored.</summary>
+    [Theory]
+    [InlineData("0.123456", 0.123456)]
+    [InlineData("0,123456", 0.123456)]
+    [InlineData("", null)]
+    [InlineData("abc", null)]
+    public void Typed_voltage_parses_point_or_comma_and_marks_the_point_as_typed(string text, double? expected)
+    {
+        var point = new FlowCalibrationPointViewModel("1.0", 0.05);
+        Assert.Equal(FlowVoltageSource.Captured, point.Source);
+        Assert.Equal(0.05.ToString("F6", System.Globalization.CultureInfo.CurrentCulture), point.VoltageText);
+
+        point.VoltageText = text;
+
+        Assert.Equal(expected, point.Voltage);
+        Assert.Equal(FlowVoltageSource.Typed, point.Source);
+        Assert.True(point.IsTyped);
+        Assert.Equal("digitada", point.SourceLabel);
+    }
+
+    [Fact]
+    public void Capture_overwrites_the_typed_text_and_marks_the_point_captured_again()
+    {
+        var point = new FlowCalibrationPointViewModel("1.0");
+        point.VoltageText = "0.2";
+        Assert.Equal(FlowVoltageSource.Typed, point.Source);
+
+        point.SetCapturedVoltage(0.05);
+
+        Assert.Equal(0.05, point.Voltage);
+        Assert.Equal(0.05.ToString("F6", System.Globalization.CultureInfo.CurrentCulture), point.VoltageText);
+        Assert.Equal(FlowVoltageSource.Captured, point.Source);
+    }
+
+    [Fact]
+    public void A_typed_voltage_outside_the_adc_range_is_flagged_and_left_out_of_the_fit()
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new FlowCalibrationViewModel(device, new MemorySettingsService());
+        var before = vm.GetValidPoints().Count;
+        var point = vm.Points[0];
+        var original = point.Voltage;
+
+        point.VoltageText = "5";
+
+        Assert.True(point.IsVoltageOutOfRange);
+        Assert.Equal(1, vm.OutOfRangePointCount);
+        Assert.Equal(before - 1, vm.GetValidPoints().Count);
+        Assert.Contains("fora de 0", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+
+        point.VoltageText = original!.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+        Assert.False(point.IsVoltageOutOfRange);
+        Assert.Equal(before, vm.GetValidPoints().Count);
+    }
+
+    [Fact]
+    public void Saving_points_persists_the_source_and_it_survives_a_reload()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using (var vm = new FlowCalibrationViewModel(device, settings))
+        {
+            vm.Points[1].VoltageText = "0.0311";
+            vm.SavePointsCommand.Execute(null);
+        }
+
+        var stored = settings.Current.Calibration.FlowCalibrationPoints;
+        Assert.Contains(stored, p => p.Source == FlowVoltageSource.Typed && Math.Abs(p.Voltage - 0.0311) < 1e-9);
+        Assert.Contains(stored, p => p.Source == FlowVoltageSource.Captured);
+
+        using var reloaded = new FlowCalibrationViewModel(device, settings);
+        var typed = reloaded.Points.Single(p => p.IsTyped);
+        Assert.Equal(0.0311, typed.Voltage!.Value, precision: 9);
+        Assert.Equal("digitada", typed.SourceLabel);
+    }
+
     [Fact]
     public void Flow_capture_locks_point_editing_and_connection_loss_clears_the_setpoint()
     {
@@ -582,12 +690,13 @@ public sealed class GuidedCalibrationTests
             OxygenCalibrated = calibrated,
         });
 
-    private static void PushFlow(RecordingDeviceService device, double voltage)
+    private static void PushFlow(RecordingDeviceService device, double voltage, bool pending = false)
         => device.PushTelemetry(new SensorSnapshot
         {
             SensorCommOk = true,
             FlowVoltage = voltage,
             FlowmeterOnline = true,
+            FlowCommandPending = pending,
         });
 }
 

@@ -90,13 +90,13 @@ public sealed class DialogService : IDialogService
         return false;
     }
 
-    public void ShowCaptureSettings(ViewModels.PowerTestViewModel viewModel)
+    public bool ShowCaptureSettings(ViewModels.PowerTestViewModel viewModel)
     {
         var dialog = new CaptureSettingsDialog(viewModel)
         {
             Owner = Application.Current?.MainWindow,
         };
         DialogBounds.ConstrainToOwner(dialog);
-        dialog.ShowDialog();
+        return dialog.ShowDialog() == true;
     }
 }

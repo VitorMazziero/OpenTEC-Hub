@@ -12,4 +12,12 @@ public interface IFileInteractionService
     void OpenFolder(string path);
 
     void CopyText(string text);
+
+    /// <summary>Opens an absolute <c>http</c>/<c>https</c> URI in the operator's default browser.</summary>
+    /// <remarks>
+    /// Used for the external nodes' own diagnostic pages (<c>http://192.168.4.x/diag</c>),
+    /// reachable only while the PC is on the Hub's Wi-Fi. Anything that is not a web URI
+    /// is refused rather than handed to the shell.
+    /// </remarks>
+    void OpenUri(Uri uri);
 }

@@ -1,0 +1,17 @@
+Cable Gland PG7-PG19
+
+Link to CAD model:
+https://grabcad.com/library/cable-gland-pg7-pg19-1
+
+One Solidworks design table configurable file that contains six sizes of PG cable gland conduit fittings.
+
+PG7, PG9, PG11, PG13.5, PG16, PG19
+
+https://www.aliexpress.us/item/2251832794730362.html
+https://www.amazon.com/gp/product/B07KFCGFYF
+
+Note: Some dimensions used were found from standards for PG fittings and some dimensions were actual part measured dimensions from digital calipers. 
+
+There may be a slight mismatch but for the most part they should be accurate.
+
+#CAD #Solidworks #3dmodels #cablegland #PG #PGFittings

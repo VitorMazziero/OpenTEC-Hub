@@ -4,6 +4,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.Alarms;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
@@ -200,7 +201,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         ProcessVariableViewModel? biomassVariable = null,
         ISafetyCoordinator? safetyCoordinator = null,
         ICommandArbiter? arbiter = null,
-        IManualDispatcher? dispatcher = null)
+        IManualDispatcher? dispatcher = null,
+        IFileInteractionService? files = null)
     {
         if (subsystems.Count != 5)
         {
@@ -210,6 +212,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _device = device;
         _settings = settings;
         _dialogs = dialogs;
+        _files = files ?? new FileInteractionService();
+        IsHubOnWiFi = _device.Medium == TransportMedium.WiFi;
         _cascade = cascade;
         _klaProfileStore = klaProfileStore;
         _alarms = alarms;
@@ -980,8 +984,46 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
     private void OnPHStateChanged(object? sender, PropertyChangedEventArgs e)
         => RefreshState();
 
+    // ---- External-node network actions (Hub 10.1) ---------------------------
+    // The Hub tells the app where each node answers; whether the PC can get there is a
+    // different question. Only a Wi-Fi link puts the PC on the Hub's SoftAP, so over USB
+    // the buttons stay visible but disabled, with the reason in the tooltip.
+
+    private readonly IFileInteractionService _files;
+
+    /// <summary>The telemetry link is Wi-Fi, so the PC shares the Hub's network and can reach the nodes.</summary>
+    [ObservableProperty]
+    public partial bool IsHubOnWiFi { get; set; }
+
+    /// <summary>Opens the node's own <c>/diag</c> page in the browser. No-op without an address or off Wi-Fi.</summary>
+    [RelayCommand]
+    private void OpenNodeDiagnostics(ExternalDeviceStatus? status)
+    {
+        if (status?.NodeDiagnosticsUri is not { } uri || !IsHubOnWiFi)
+        {
+            return;
+        }
+
+        _files.OpenUri(uri);
+        StatusText = $"Diagnóstico {status.GenitiveName} aberto em {uri.Host}.";
+    }
+
+    /// <summary>Copies the node's IP to the clipboard, for a browser bar or the OTA tool.</summary>
+    [RelayCommand]
+    private void CopyNodeIp(ExternalDeviceStatus? status)
+    {
+        if (status?.Node.Ip is not { } ip)
+        {
+            return;
+        }
+
+        _files.CopyText(ip);
+        StatusText = $"IP {status.GenitiveName} copiado: {ip}.";
+    }
+
     private void OnDeviceStateChanged(ConnectionStateChange change)
     {
+        IsHubOnWiFi = change.State == ConnectionState.Connected && change.Medium == TransportMedium.WiFi;
         if (change.State != ConnectionState.Connected && _flowCommitPending)
         {
             StatusText = "Conexão com a central perdida; o comando de vazão permanece sem confirmação.";

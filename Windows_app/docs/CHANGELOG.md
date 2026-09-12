@@ -8,6 +8,154 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **`UiHitchMonitor` (DEBUG, §5.1).** Um `DispatcherTimer` em `Input` a cada 50 ms registra todo
+  tick que chega > 30 ms atrasado e resume no log ao sair (`UI hitches > 30 ms: N in T ticks;
+  worst; buckets`). Primeira medição em `docs/evidence/ui-hitches-2026-09-12.md`: 3 min a 1 Hz na
+  página de Potência conectada ao simulador, 3 atrasos só na subida do enlace, depois nenhum.
+- **Menores (§F).** `SessionLogger` deixa de fazer `AutoFlush` por linha (um syscall por quadro na
+  thread da UI) e passa a descarregar a cada 1 s, no *Stop* e no fechamento — no pior caso 1 s de
+  sessão se perde num crash, que o relatório de pânico cobre. O sink de arquivo do Serilog roda
+  atrás de `Serilog.Sinks.Async`. O chip **Malha de gás** deixa de mostrar "Alívio Estabilizando"
+  com o ensaio parado: esse nome fica reservado à fase `VentStabilizing`; fora de corrida,
+  `v_Flow = 1` com as válvulas fechadas e setpoint zero é **"Fechado (shutoff)"** — o shutoff
+  principal ativo-alto que `FlowSafeStop` deixa de propósito — e com vazão ou setpoint > 0,
+  **"Alívio aberto"** (visto ao fim do Rushton-Smith, 63/63 aceitas, chip preso). Investigado o
+  `{"pHCal":…}` reenviado a cada ~30 s no log de 11/09: é o eco do pH calibrado do protocolo v.6
+  (PROTOCOL §2.2), reenviado sempre que o valor com duas casas muda — uma sonda fora do reator
+  oscilando 7,62↔7,63 dispara um eco por oscilação. Comportamento de fio congelado (D-002); não
+  é defeito e não foi alterado.
+- **Tensão editável na tabela de calibração do fluxômetro (§O).** Cada ponto só recebia a tensão
+  por captura da telemetria (média de N quadros); a coluna era um `TextBlock`. Passa a ser um campo
+  editável espelhado com `Voltage` (captura formata, digitar parseia com ponto ou vírgula; vazio ou
+  inválido = sem tensão). Fora de 0–3,3 V a linha ganha borda de erro, sai do ajuste e o status
+  avisa. Cada ponto registra a origem (`FlowCalibrationPoint.Source`: `Captured` | `Typed`,
+  arquivos antigos leem `Captured`) e a linha mostra "digitada" quando transcrita — para o
+  relatório de calibração distinguir medição de transcrição.
+- **Faixa de alarmes some ao reconhecer — exceto em Eventos (§H).** A faixa ficava visível
+  enquanto qualquer alarme estivesse *latched*, e uma linha reconhecida continuava lá, com o botão
+  cinza, até a condição limpar pelo deadband: reconhecer não escondia nada em página nenhuma.
+  Agora cada *Reconhecer* tira a sua linha da faixa, a manchete seguinte sobe, e a faixa fecha
+  quando não sobra nada por reconhecer. Em **Eventos** — a página de auditoria — a faixa fica
+  enquanto houver alarme latched, reconhecido ou não, com o botão desabilitado nas linhas já
+  reconhecidas. O `+N` e a lista expandida contam só as linhas da página atual. Só apresentação
+  (`AlarmBannerPresenter`, puro): `AlarmService`, latch, deadband e journal não mudam; *Silenciar*
+  continua global.
+- **Ensaio concluído deixa de ser um beco sem saída (§G).** Nada tirava um ensaio de `Completed`
+  — nem o app, nem o recarregamento — e Montagem, Aquisição, *Salvar setup* e *Iniciar* ficavam
+  desabilitados; só *Novo* saía do estado, com geometria padrão e obrigando a refazer montagem,
+  tara e tabela. Dois botões novos no card do ensaio: **Duplicar** cria um ensaio com o mesmo
+  fluido, geometria, calibração, tara, critérios e tabela (ids novos, contadores zerados, sem
+  pontos, sem flooding) e grava `duplicatedFrom` no manifesto e `TestDuplicated` no journal;
+  **Reabrir** volta um `Completed` a `Interrompido` (confirmação, `CompletedUtc = null`,
+  `InterruptionReason = "Reaberto pelo operador"`, `TestReopened`), mantendo os pontos aceitos, e
+  *Iniciar/continuar* segue o caminho normal. O chip de status passa a dizer *Concluído — somente
+  leitura. Use Novo, Duplicar ou Reabrir.*
+- **Política de falha de sequência em modo autônomo e critério de estabilidade do alívio (§I).**
+  No Rushton-Smith um único tempo limite de alívio na primeira condição com gás parou um ensaio
+  autônomo de 9 h em "Revisando" — o aceite automático só é consultado após uma captura. Novo
+  `PowerTestSettings.UnattendedFailurePolicy`: `StopForReview` (padrão, comportamento anterior) ou
+  `RetryThenSkip` — com aceite automático, um tempo limite de alívio, válvula ou rotação rejeita a
+  corrida com o motivo, repete a condição **uma** vez e, se falhar de novo, marca a condição como
+  pulada e segue; limite de torque/rotação continua parando sempre. Nada aqui aceita ponto (D-050).
+  No diálogo, a caixa fica abaixo de *Aceite automático* e só habilita com ele. E as 55
+  estabilizações do Rushton convergiram em +0,07…+0,10 L/min, na borda da banda, gastando ~150 s
+  cada (~2,3 h do ensaio) esperando a leitura "cair" para dentro: o alívio passa a ter uma segunda
+  saída, por **estabilidade** — desvio-padrão das últimas N leituras ≤ `VentFlowStabilityStdDevLpm`
+  (0,05) e |média − alvo| ≤ `VentFlowStabilityMaxErrorLpm` (0,3) — porque o que importa é a vazão
+  ter assentado; ela é medida de novo no reator. O status mostra "estabilizando há X s · offset
+  +0,08 · σ 0,008". Item de bancada, fora do app: o controlador de vazão não regula para baixo na
+  primeira abertura após `FlowSafeStop` (travou em 3,36 L/min por 7 min com alvo 2,00).
+- **kLa: séries de diagnóstico a cada 5 pontos, análises em cache, matriz no lugar (§E).**
+  `OnDataPointAdded` fazia `LivePoints.Where(Reoxygenating).ToList()` sobre todos os pontos e
+  recalculava a suavização O(n·janela) e a OLS a **cada quadro**; passa a guardar o índice do
+  primeiro ponto de reoxigenação e a recomputar a cada 5 pontos (a revisão recomputa exato).
+  `RefreshConditionsList` relia **todos** os `analise.json` do disco a cada aceite — centenas de
+  ms com 20–40 corridas; as análises ficam em cache válido apenas para a instância do sumário
+  que as originou (o runner substitui o sumário ao mudar o desfecho; um recarregamento cria
+  instâncias novas), e `MatrixRows` é atualizada no lugar por (condição, réplica) em vez de
+  `Clear()`. O recálculo síncrono da revisão foi mantido: é uma vez por corrida e os testes
+  dependem dele ser síncrono.
+- **Gráficos só redesenham visíveis e só quando mudaram (§C).** `DeferredPageHost` esconde uma
+  página colapsando-a e nunca a descarrega, então o timer iniciado em `Loaded` seguia redesenhando
+  gráficos invisíveis a sessão inteira — até nove por segundo numa sessão que visitou Sinóptico,
+  Potência e kLa. `Controls/VisibleRedrawTimer` roda só com a página carregada **e** visível,
+  em `DispatcherPriority.Background`, e só desenha quando alguém marcou os dados como alterados
+  (coleções, propriedades `Review*`/`Setting*`, tema). Ao voltar a uma página o redesenho é
+  imediato. O gráfico ao vivo da Potência (torque/rotação) e o de OD do kLa (bruto/filtrado) viram
+  `DataLogger`s alimentados ponto a ponto, em vez de `Clear()` + cópia de até 6000 pontos por
+  segundo; no kLa só as sobreposições da revisão são reconstruídas.
+- **Telemetria despachada em `DispatcherPriority.Background` (§D).** Estava em `DataBind`, acima
+  de `Input` e `Render`: o quadro era processado antes de qualquer clique ou hover pendente.
+  `StateChanged`/`CommandSent` continuam em `Normal`; linhas brutas e de log do mesmo quadro vão
+  num único item de despacho.
+- **O I/O dos ensaios saiu da thread da UI (§B, D-048).** Dois `File.AppendAllText` por quadro e,
+  a cada mudança de fase, a reescrita de um `ensaio.json` de 832 KB (55 ms médios, picos de
+  330 ms) rodavam na thread da UI. `PowerTestStore` e `KlaTestStore` passam a formatar/serializar no
+  chamador e a enfileirar a escrita num `BackgroundFileWriter` — um consumidor, ordem de
+  enfileiramento, leituras drenam antes, `FlushAsync()` nas interfaces. O SHA-256 do dado bruto é
+  selado de um hash incremental alimentado com os mesmos bytes, sem reler o arquivo. `ensaio.json`
+  e `tara.json` deixam de embutir `tare.samples` (que já vivem em `Taras-Brutas/`): 832 KB →
+  ~120 KB, com migração única ao carregar. Falha de escrita marca o ensaio como "⚠ Gravação
+  comprometida" sem pará-lo. Um teste roda o mesmo ensaio pelos dois caminhos e exige arquivos
+  idênticos.
+- **As grades da página de Potência deixaram de ser reconstruídas a cada quadro (§A).** Cada
+  quadro de telemetria (~1 Hz) fazia `Conditions.Clear()` + 42 clones e `Results.Clear()` + 41
+  linhas — **duas vezes**, porque `DataPointAdded` e `StateChanged` chamavam a mesma rotina — e o
+  `DataGrid` recebia um `Reset` que destruía os contêineres de linha, o hover, a rolagem e a
+  seleção duas vezes por segundo. `UpdateRunnerState` foi dividido em uma parte **por amostra**
+  (flags, rótulos, IC95, progresso, chip de gás) e uma parte **estrutural** (grades, estado do
+  documento, pré-voo) que só roda quando muda uma chave: fase, corrida, réplicas aceitas ou
+  concluídas, condições, revisão de ajustes, status. As grades passam a ser atualizadas **no
+  lugar**, por `ConditionId`/`RunId` (`PowerCondition.CopyRuntimeStateFrom`; linhas de resultado
+  substituídas só quando o conteúdo muda), preservando `SelectedCondition` e `SelectedResultRow`.
+  `DetectFlooding` saiu do caminho de refresh e roda ao aceitar uma corrida e ao abrir o ensaio; o
+  mapa de kLa vinculado passa a ser lido do disco fora da thread da UI. No runner, um quadro de
+  telemetria levanta `StateChanged` **no máximo uma vez**, depois de todas as mutações do quadro.
+- **A tabela de condições pode ser navegada durante o ensaio (§N).** O card inteiro ficava em
+  `IsEnabled=CanEditPlan`: com o ensaio em curso o grid ficava cinza — sem rolagem, sem seleção,
+  sem tooltip. O grid passa a ser **somente leitura** (não desabilitado) enquanto o plano está
+  travado; os botões `+ − ↑ ↓ Pular/repor` continuam desabilitados. A linha em curso ganha
+  destaque (`AccentSubtleBrush`, negrito) e o grid **acompanha a condição em curso**
+  (`CurrentConditionId` → `ScrollIntoView`) sem mexer na seleção — que é do operador — e só se o
+  operador não rolou a tabela nos últimos 5 s. Depende da §A: com a grade resetando a cada quadro,
+  nem rolagem nem seleção sobreviveriam.
+- **Os critérios de parada não sobreviviam ao fechar o aplicativo (§K).** A janela *Critérios de
+  Parada e Opções de Captura* só editava campos do ViewModel; os valores só chegavam ao
+  `ensaio.json` por *Salvar setup*, *Iniciar* ou por uma edição posterior na tabela. O operador
+  ajustou o tempo limite do alívio, fechou o aplicativo normalmente e o ensaio voltou com os
+  padrões de fábrica — três estabilizações a 200 rpm expiraram aos 120 s. Agora **Concluir
+  persiste**: `SettingsRevision` sobe, o manifesto é regravado e `eventos.jsonl` recebe um
+  `SettingsChanged` com o diff campo a campo (`MaxVentStabilizationSeconds: 120 → 500`). Funciona
+  com o ensaio parado **ou em curso** — o runner lê `Settings` do mesmo documento a cada fase, então
+  a próxima `VentStabilizing` já usa o limite novo. O `X` e `Esc` descartam, perguntando antes se
+  houver diferença; ao sair do aplicativo com setup não salvo, a janela principal pergunta
+  *Salvar o setup do ensaio antes de sair?*.
+- **Corrida sem captura não pode mais ser aceita (§J, D-050).** Um ponto que parou para revisão por
+  tempo limite (alívio, válvula, rotação) chegava à faixa de revisão com *Aceitar* disponível; no
+  IsojetB-Combijet duas corridas foram aceitas com n = 0 e P = 0 W, entraram no resumo e fecharam
+  as condições. O runner recusa o aceite sem captura, a faixa vira **Corrida não realizada — Sem
+  captura: {motivo}** só com *Repetir* e *Rejeitar*, *Alternar Aceite* aplica a mesma regra, e ao
+  carregar um ensaio antigo as corridas aceitas sem captura são rebaixadas para rejeitadas, as
+  condições reabertas e a migração registrada em `eventos.jsonl`.
+- **Padrão de `MaxVentStabilizationSeconds`: 120 → 500 s.** Medido em 11/09: ao abrir o alívio a
+  vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, entrando em ±0,2 L/min só após 110–170 s. O
+  diálogo avisa quando o operador põe menos de ~150 s (~3τ), e o texto de *Aceite automático* passa
+  a dizer o que ele **não** cobre: falhas de sequência continuam parando para revisão.
+- **Tempestade de `XamlParseException` na página de Receitas** (39 relatórios em 4 s às 18:19 de
+  11/09): `RecipeConnectionViewModel.ArrowPoints` era um `PointCollection` sem `Freeze()`, e um
+  `Freezable` não congelado só pode ser ligado pela thread que o criou — o template do canvas
+  falhava a cada `Measure`. Passa a ser sempre congelado, como `RouteGeometry` já era.
+- **Relatório de pânico falso ao fechar o aplicativo (D-049).** O `DllNotFoundException` que o
+  WPF levanta ao descarregar o `DirectWriteForwarder` depois do `vcruntime` é reconhecido pela
+  pilha de teardown e suprimido com um aviso no log; um `DllNotFoundException` real continua gerando
+  relatório.
+- **Gráfico ao vivo de Potência limpo por corrida.** O runner anuncia `RunStarted` e o ViewModel
+  limpa `LivePoints` ali e em `PreparingNextRun` — inclusive na subfase gaseada de uma condição
+  *Both*, que é uma corrida própria.
+- **Diálogos de arquivo com `RestoreDirectory`.** Escolher uma pasta na exportação deixava de mudar
+  o diretório corrente do processo.
+
 ### Added
 - **Documentação dentro do aplicativo, e páginas sem texto solto (D-047).** Configurações ganha a
   seção **Documentação**, abaixo de *Comandos do equipamento* e com ícone próprio: o manual do

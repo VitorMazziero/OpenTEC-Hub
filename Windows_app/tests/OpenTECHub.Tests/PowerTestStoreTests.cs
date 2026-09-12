@@ -203,8 +203,15 @@ public sealed class PowerTestStoreTests : IDisposable
         Assert.Equal(0.62, loadedTare.Points[0].SigmaTauPercent, 4);
         Assert.Equal(120, loadedTare.Points[0].SampleCount);
         Assert.Equal(0.04, loadedTare.Points[0].TorqueCi95Percent, 4);
-        Assert.Single(loadedTare.Samples);
-        Assert.True(loadedTare.Samples[0].Counted);
+        // The readings are not embedded any more (D-048): tara.json names the sidecar in Taras-Brutas/.
+        Assert.Empty(loadedTare.Samples);
+        Assert.NotEmpty(loadedTare.RawSamplesFileName);
+        var sidecar = _store.LoadTareRawData(created.FolderName, loadedTare.RawSamplesFileName);
+        Assert.Single(sidecar);
+        Assert.True(sidecar[0].Counted);
+        Assert.Equal(300, sidecar[0].TargetRpm);
+        var tareJson = File.ReadAllText(Path.Combine(_store.RootDirectory, created.FolderName, PowerTestFileContracts.TareFileName));
+        Assert.DoesNotContain("\"targetRpm\"", tareJson, StringComparison.Ordinal);
         Assert.Equal(120, loadedTare.AcquisitionSettings!.MinSamples);
         Assert.Equal(tare.ImpellerSetHash, loadedTare.ImpellerSetHash);
         Assert.Equal(tare.CalibrationHash, loadedTare.CalibrationHash);
@@ -320,6 +327,7 @@ public sealed class PowerTestStoreTests : IDisposable
             GasMode = run.GasMode,
             Phase = PowerRunPhase.Accepted,
             StopReason = run.StopReason,
+            SampleCount = run.SampleCount,
             NetPowerW = run.NetPowerW,
             Analysis = run.Analysis,
         });

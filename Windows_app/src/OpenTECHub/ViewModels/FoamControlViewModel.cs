@@ -42,7 +42,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         _settings = settings;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.FoamControl;
-        Status = new ExternalDeviceStatus("Sensor de distância", "do sensor de distância", timeProvider);
+        Status = new ExternalDeviceStatus("Sensor de distância", "do sensor de distância", timeProvider) { NodeKind = NodeFirmwareCatalog.Distance };
         Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
@@ -241,7 +241,8 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
             snapshot.HasDistanceTelemetry,
             snapshot.DistanceOnline,
             pending: null,
-            snapshot.DistanceCommEnabled);
+            snapshot.DistanceCommEnabled,
+            snapshot.DistanceNode);
 
         LiveDistanceText = snapshot.Distance > SensorReadings.NotReceived
             ? snapshot.Distance.ToString("F0", CultureInfo.CurrentCulture)

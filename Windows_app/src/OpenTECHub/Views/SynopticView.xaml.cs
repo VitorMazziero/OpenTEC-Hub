@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using OpenTECHub.Controls;
 using ScottPlot;
 using ScottPlot.WPF;
 using OpenTECHub.Services.Telemetry;
@@ -34,7 +35,11 @@ public partial class SynopticView : UserControl
     private readonly WpfPlot _rightPlot = new();
     private readonly WpfPlot _bottomLeftPlot = new();
     private readonly WpfPlot _bottomRightPlot = new();
-    private readonly DispatcherTimer _redraw = new() { Interval = TimeSpan.FromSeconds(1) };
+    /// <summary>
+    /// Redraws only while the page is on screen (§C): the shell collapses a hidden page and never
+    /// unloads it, so a Loaded-started timer kept rendering four unseen plots per second.
+    /// </summary>
+    private readonly VisibleRedrawTimer _redraw;
 
     private ChartsViewModel? _subscribed;
     private Border? _activeSubmenuTarget;
@@ -48,7 +53,7 @@ public partial class SynopticView : UserControl
         BottomLeftHost.Child = _bottomLeftPlot;
         BottomRightHost.Child = _bottomRightPlot;
 
-        _redraw.Tick += (_, _) => Redraw();
+        _redraw = new VisibleRedrawTimer(this, TimeSpan.FromSeconds(1), Redraw);
         _leftPlot.MouseMove += (_, args) => UpdateCursor(_leftPlot, args.GetPosition(_leftPlot));
         _rightPlot.MouseMove += (_, args) => UpdateCursor(_rightPlot, args.GetPosition(_rightPlot));
         _bottomLeftPlot.MouseMove += (_, args) => UpdateCursor(_bottomLeftPlot, args.GetPosition(_bottomLeftPlot));
@@ -58,12 +63,11 @@ public partial class SynopticView : UserControl
         {
             SubscribeToThemeChanges();
             Attach();
-            _redraw.Start();
+            _redraw.Invalidate();
         };
 
         Unloaded += (_, _) =>
         {
-            _redraw.Stop();
             UnsubscribeFromThemeChanges();
             Detach();
         };
@@ -263,6 +267,9 @@ public partial class SynopticView : UserControl
 
     private void Redraw()
     {
+        // Live data moves every frame, so the chart is always dirty while telemetry arrives;
+        // the gate that matters here is visibility. Paused charts are left as they are.
+        _redraw.MarkDirty();
         if (ViewModel is not { } viewModel || viewModel.IsPaused)
         {
             return;
@@ -412,6 +419,7 @@ public partial class SynopticView : UserControl
             DefaultExt = ".csv",
             AddExtension = true,
             OverwritePrompt = true,
+            RestoreDirectory = true,
         };
 
         if (dialog.ShowDialog(Window.GetWindow(this)) == true)

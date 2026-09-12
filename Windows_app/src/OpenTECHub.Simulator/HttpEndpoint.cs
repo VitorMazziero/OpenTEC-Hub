@@ -9,9 +9,11 @@ namespace OpenTECHub.Simulator;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Only three endpoints exist on the real device - <c>/ping</c>, <c>/readData</c> and
-/// <c>/command</c>. Everything else answers 404 <c>Not found</c>, confirmed by the
-/// hardware validation run.
+/// The app-facing surface of the real device is <c>/ping</c>, <c>/readData</c>,
+/// <c>/command</c> and, from Hub 10.0.1, the diagnostic <c>/nodes</c>. Everything else
+/// answers 404 <c>Not found</c>, confirmed by the hardware validation run. (The Hub has
+/// further routes for the nodes themselves - <c>/nodeHello</c>, <c>/pumpData</c>… - which
+/// the app never calls and the simulator does not serve.)
 /// </para>
 /// <para>
 /// Pointing the app at <c>127.0.0.1</c> needs no driver, no administrator rights and
@@ -161,10 +163,45 @@ public sealed class HttpEndpoint(DeviceModel model, int port, Action<string> log
                 HandleCommand(context);
                 break;
 
+            case "/nodes":
+                HandleNodes(context);
+                break;
+
             default:
                 Respond(context, 404, "Not found");
                 break;
         }
+    }
+
+    /// <summary>The Hub 10.1 node directory, in the shape <c>WIRE_CONTRACT_V9.md</c> documents.</summary>
+    private void HandleNodes(HttpListenerContext context)
+    {
+        if (!model.PublishesNodeIdentity)
+        {
+            Respond(context, 404, "Not found");
+            return;
+        }
+
+        var only = context.Request.QueryString["dev"];
+        var now = (long)(model.UptimeSeconds * 1000.0);
+        var rows = new List<string>();
+        foreach (var (device, _) in DeviceModel.RegistryNodes)
+        {
+            if (!string.IsNullOrEmpty(only) && only != device)
+            {
+                continue;
+            }
+
+            var registered = model.NodeRegistered(device);
+            var lastSeen = registered ? Math.Max(0, now - 400) : 0;
+            rows.Add(string.Create(CultureInfo.InvariantCulture,
+                $"{{\"dev\":\"{device}\",\"ip\":\"{model.NodeIp(device)}\",\"mac\":\"{(registered ? DeviceModel.NodeMac(device) : "")}\"," +
+                $"\"version\":\"{(registered ? DeviceModel.NodeVersion(device) : "")}\",\"online\":{(registered ? "true" : "false")}," +
+                $"\"age_ms\":{(registered ? now - lastSeen : 999999)},\"registered\":{(registered ? "true" : "false")}," +
+                $"\"last_hello_ms\":{lastSeen},\"last_data_ms\":{lastSeen}}}"));
+        }
+
+        Respond(context, 200, string.Create(CultureInfo.InvariantCulture, $"{{\"hub_time_ms\":{now},\"nodes\":[{string.Join(",", rows)}]}}"));
     }
 
     private void HandleReadData(HttpListenerContext context)

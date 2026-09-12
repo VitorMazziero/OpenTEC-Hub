@@ -550,9 +550,27 @@
                                             <TextBox Grid.Column="0" Margin="0,0,5,0" Height="30"
                                                      Padding="8,0" VerticalContentAlignment="Center"
                                                      Text="{Binding FlowText, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBlock Grid.Column="1" Text="{Binding VoltageText}"
-                                                       Style="{StaticResource NumericTextStyle}"
-                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                            <!-- The voltage can be captured from telemetry or typed (§O); a typed
+                                                 value is marked so the report tells measurement from transcription. -->
+                                            <DockPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding SourceLabel}" Margin="6,0,0,0"
+                                                           VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBox Height="30" Padding="8,0" VerticalContentAlignment="Center"
+                                                         Text="{Binding VoltageText, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="Tensão medida (V); capture da telemetria ou digite (ponto ou vírgula). Fora de 0–3,3 V o ponto sai do ajuste.">
+                                                    <TextBox.Style>
+                                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsVoltageOutOfRange}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="1.5" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBox.Style>
+                                                </TextBox>
+                                            </DockPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

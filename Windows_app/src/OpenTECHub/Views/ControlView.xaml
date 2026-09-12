@@ -1360,6 +1360,20 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                                <!-- Rede: who the node is on the Hub's network (Hub 10.1). Own card below the drawer,
+                                     same visibility, so the drawer's layout is untouched. -->
+                                <Border Visibility="{Binding DataContext.IsExpandedFlow, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,0,8,8"
+                                        Padding="14,2,14,10">
+                                    <ctl:NodeNetworkPanel Status="{Binding DataContext.FlowControl.Status, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CanReachNodes="{Binding DataContext.IsHubOnWiFi, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          OpenCommand="{Binding DataContext.OpenNodeDiagnosticsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CopyCommand="{Binding DataContext.CopyNodeIpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                </Border>
                             </StackPanel>
 
                             <!-- 9. Distância (Controle de espuma) -->
@@ -1492,6 +1506,20 @@
                                             <ctl:SensorHealthView DataContext="{Binding DataContext.DistanceVariable, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                         </StackPanel>
                                     </Grid>
+                                </Border>
+                                <!-- Rede: who the node is on the Hub's network (Hub 10.1). Own card below the drawer,
+                                     same visibility, so the drawer's layout is untouched. -->
+                                <Border Visibility="{Binding DataContext.IsExpandedDistance, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,0,8,8"
+                                        Padding="14,2,14,10">
+                                    <ctl:NodeNetworkPanel Status="{Binding DataContext.FoamControl.Status, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CanReachNodes="{Binding DataContext.IsHubOnWiFi, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          OpenCommand="{Binding DataContext.OpenNodeDiagnosticsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CopyCommand="{Binding DataContext.CopyNodeIpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 </Border>
                             </StackPanel>
 
@@ -1745,6 +1773,20 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+                                <!-- Rede: who the node is on the Hub's network (Hub 10.1). Own card below the drawer,
+                                     same visibility, so the drawer's layout is untouched. -->
+                                <Border Visibility="{Binding DataContext.IsExpandedExternalPump, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,0,8,8"
+                                        Padding="14,2,14,10">
+                                    <ctl:NodeNetworkPanel Status="{Binding DataContext.PumpControl.Status, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CanReachNodes="{Binding DataContext.IsHubOnWiFi, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          OpenCommand="{Binding DataContext.OpenNodeDiagnosticsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CopyCommand="{Binding DataContext.CopyNodeIpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                </Border>
                             </StackPanel>
 
                             <!-- 11. Absorbância -->
@@ -1936,6 +1978,20 @@
                                             <ctl:SensorHealthView DataContext="{Binding DataContext.BiomassVariable, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                         </StackPanel>
                                     </Grid>
+                                </Border>
+                                <!-- Rede: who the node is on the Hub's network (Hub 10.1). Own card below the drawer,
+                                     same visibility, so the drawer's layout is untouched. -->
+                                <Border Visibility="{Binding DataContext.IsExpandedBiomass, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,0,8,8"
+                                        Padding="14,2,14,10">
+                                    <ctl:NodeNetworkPanel Status="{Binding DataContext.BiomassControl.Status, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CanReachNodes="{Binding DataContext.IsHubOnWiFi, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          OpenCommand="{Binding DataContext.OpenNodeDiagnosticsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CopyCommand="{Binding DataContext.CopyNodeIpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 </Border>
                             </StackPanel>
 
@@ -2149,6 +2205,20 @@
                                                     ToolTip="Devolve o controle ao potenciômetro de bancada. A parada segura o bloqueia." />
                                         </StackPanel>
                                     </StackPanel>
+                                </Border>
+                                <!-- Rede: who the node is on the Hub's network (Hub 10.1). Own card below the drawer,
+                                     same visibility, so the drawer's layout is untouched. -->
+                                <Border Visibility="{Binding DataContext.IsExpandedFlaskAgitator, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SurfaceHoverBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,0,8,8"
+                                        Padding="14,2,14,10">
+                                    <ctl:NodeNetworkPanel Status="{Binding DataContext.FlaskAgitator.Status, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CanReachNodes="{Binding DataContext.IsHubOnWiFi, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          OpenCommand="{Binding DataContext.OpenNodeDiagnosticsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CopyCommand="{Binding DataContext.CopyNodeIpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 </Border>
                             </StackPanel>
 

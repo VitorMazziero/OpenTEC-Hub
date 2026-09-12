@@ -3,9 +3,13 @@
 // ------------------------------------------------------------------
 void readAndBroadcastSensorData() {
   // 1. LEITURA DOS SENSORES
-  vTaskDelay(pdMS_TO_TICKS(10)); 
-  // Measurement is independent from closed-loop control. The sensor must keep
-  // publishing PV while tempOn is false; tempOn only enables controller actuation.
+  // All sensor readings are unconditional: the *On flags gate closed-loop
+  // actuation only (pump, heater, controller), NOT the acquisition of the
+  // process variable. The PV must be visible on the dashboard regardless of
+  // whether the control loop is active. See temperature below as the reference
+  // pattern — it was already correct; pH, O₂, pressure and antifoam now follow
+  // the same rule.
+  vTaskDelay(pdMS_TO_TICKS(10));
   float temperatureVal = -1.0;
   String temperatureResp = sendSensorCommand("b", true);
   if (temperatureResp.length() > 0) {
@@ -14,13 +18,15 @@ void readAndBroadcastSensorData() {
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float pHVal = -1.0;
-  if (phOn) {
+  {
+    // Measurement always active. phOn controls acid/base dosing, not reading.
     String pHResp = sendSensorCommand("k", true);
     if (pHResp.length() > 0) pHVal = pHResp.toFloat();
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float oxyVal = -1.0;
-  if (oxyOn) {
+  {
+    // Measurement always active. oxyOn controls DO acquisition mode, not reading.
     String oxyResp = sendSensorCommand("g", true);
     if (oxyResp.length() > 0) {
       oxyVal = oxyResp.toFloat();
@@ -29,13 +35,15 @@ void readAndBroadcastSensorData() {
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float pressureVal = -1.0;
-  if (pressureOn) {
+  {
+    // Measurement always active. pressureOn controls the reference setpoint, not reading.
     String pressureResp = sendSensorCommand("c", true);
     pressureVal = pressureResp.toFloat();
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float antifoamVal = -1.0;
-  if (antifoamOn) {
+  {
+    // Measurement always active. antifoamOn controls the dosing pump, not reading.
     String antifoamResp = sendSensorCommand("e", true);
     antifoamVal = antifoamResp.toFloat();
   }
@@ -54,7 +62,11 @@ void readAndBroadcastSensorData() {
   String snapAgitatorSource = "unknown";
   unsigned long snapDistanceUpdate = 0, snapBiomassUpdate = 0, snapBiomassSampleUpdate = 0;
   unsigned long snapPumpUpdate = 0, snapAgitatorUpdate = 0;
+  // 10.1: the node registry is copied whole (IP always; version/MAC only once the
+  // node has said hello) so the identity keys are assembled outside the mutex too.
+  DeviceNodeEntry snapNodes[DEV_COUNT];
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    for (int i = 0; i < DEV_COUNT; i++) snapNodes[i] = g_deviceRegistry[i];
     snapDistanceComm = distanceSensorCommOn;
     snapDistanceValue = distanceSensorValue;
     snapDistanceUpdate = distanceSensorLastUpdate;
@@ -129,7 +141,10 @@ void readAndBroadcastSensorData() {
       // v8.1: presença/roteamento/pendência dos quatro dispositivos e o bloco do
       // agitador acrescentam ~330 bytes. Pior caso medido ~1550; a folga é deliberada,
       // porque um realloc no meio da montagem fragmenta o heap a cada quadro.
-      jsonResponse.reserve(2560);
+      // 10.1: IP dos cinco nós (~140 bytes) e, só para nós registrados, versão e MAC
+      // (~50 bytes por nó). Pior caso estimado ~2050. Mesma reserva de lastSensorJson
+      // (Runtime.h), porque a cópia realoca se a origem for maior.
+      jsonResponse.reserve(HUB_TELEMETRY_JSON_RESERVE);
       jsonReserved = true;
   }
   
@@ -277,6 +292,15 @@ void readAndBroadcastSensorData() {
     jsonResponse += ",\"ServoCommOk\":" + String(servoSnapshot.sample.commOk);
     jsonResponse += ",\"ServoCommErr\":" + String(servoSnapshot.sample.commErr);
   }
+
+  // External-node identity (10.1). *IP is unconditional (0.0.0.0 = never seen);
+  // *NodeVer/*NodeMac appear only once the node has registered through /nodeHello,
+  // so an unregistered node costs the frame nothing. Additive: protocol stays 10.
+  appendNodeIdentity(jsonResponse, "Distance",  snapNodes[DEV_DISTANCE]);
+  appendNodeIdentity(jsonResponse, "Agitator",  snapNodes[DEV_AGITATOR]);
+  appendNodeIdentity(jsonResponse, "Pump",      snapNodes[DEV_PUMP]);
+  appendNodeIdentity(jsonResponse, "Flowmeter", snapNodes[DEV_FLOWMETER]);
+  appendNodeIdentity(jsonResponse, "Biomass",   snapNodes[DEV_BIOMASS]);
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";

@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -131,6 +131,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             _runner.StateChanged += OnRunnerStateChanged;
             _runner.DataPointAdded += OnDataPointAdded;
+            _runner.RunStarted += OnRunStarted;
         }
 
         RefreshOwnership();
@@ -350,6 +351,22 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasPreflightWarning))]
     public partial bool IsRunning { get; private set; }
     [ObservableProperty] public partial bool IsInReview { get; private set; }
+
+    /// <summary>The condition the runner is executing, for the plan grid to follow; null when idle.</summary>
+    [ObservableProperty] public partial Guid? CurrentConditionId { get; private set; }
+
+    /// <summary>
+    /// True while the run under review captured samples. A run that stopped before capturing —
+    /// vent, valve or speed time-out — is not a result to review: the strip offers only
+    /// <c>Repetir</c> and <c>Rejeitar</c> (D-050).
+    /// </summary>
+    [ObservableProperty] public partial bool ReviewHasCapture { get; private set; }
+
+    public bool CanAcceptRun => IsInReview && ReviewHasCapture;
+    public bool IsReviewingUnperformedRun => IsInReview && !ReviewHasCapture;
+
+    /// <summary>"Sem captura — {motivo}", for the strip shown in place of the accept button.</summary>
+    [ObservableProperty] public partial string ReviewNoCaptureText { get; private set; } = "";
     [ObservableProperty] public partial bool IsPaused { get; private set; }
     [ObservableProperty] public partial bool IsWaitingManualEnergy { get; private set; }
     [ObservableProperty] public partial bool IsAccumulating { get; private set; }
@@ -382,12 +399,36 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double StationarityWindowSeconds { get; set; } = 20.0;
     [ObservableProperty] public partial double StationaritySlopeTolerance { get; set; } = 0.5;
     [ObservableProperty] public partial int StationarityRequiredSamples { get; set; } = 5;
-    [ObservableProperty] public partial bool VentStabilizationEnabled { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVentTimeoutShort))]
+    public partial bool VentStabilizationEnabled { get; set; }
     [ObservableProperty] public partial PowerVentValve SelectedVentValve { get; set; } = PowerVentValve.Valve2;
     [ObservableProperty] public partial double VentFlowToleranceLpm { get; set; } = 0.2;
     [ObservableProperty] public partial int VentFlowStableSamples { get; set; } = 5;
     [ObservableProperty] public partial double VentAgitationRpm { get; set; } = 15.0;
-    [ObservableProperty] public partial double MaxVentStabilizationSeconds { get; set; } = 120.0;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVentTimeoutShort))]
+    public partial double MaxVentStabilizationSeconds { get; set; } = 500.0;
+
+    /// <summary>
+    /// Bench of 2026-09-11: the vent flow overshoots to ~2.3× the target and decays with τ ≈ 45 s,
+    /// so it takes ~110–170 s to enter the tolerance band. A time-out under ~3τ expires before the
+    /// flow has settled and sends the run to review with nothing captured.
+    /// </summary>
+    public const double VentTimeoutShortThresholdSeconds = 150.0;
+
+    public bool IsVentTimeoutShort => VentStabilizationEnabled && MaxVentStabilizationSeconds < VentTimeoutShortThresholdSeconds;
+
+    /// <summary>Stability way out of the vent phase (§I.2): spread of the last N readings and the allowed offset.</summary>
+    [ObservableProperty] public partial double VentFlowStabilityStdDevLpm { get; set; } = 0.05;
+    [ObservableProperty] public partial double VentFlowStabilityMaxErrorLpm { get; set; } = 0.3;
+
+    /// <summary>
+    /// <see cref="UnattendedFailurePolicy.RetryThenSkip"/> as a switch: with auto-accept, a vent,
+    /// valve or speed time-out rejects the run, retries the condition once and then skips it,
+    /// instead of parking the assay for review (§I.1). Limits still stop.
+    /// </summary>
+    [ObservableProperty] public partial bool RetryThenSkipOnSequenceFailure { get; set; }
     [ObservableProperty] public partial bool ManualEnergyCaptureEnabled { get; set; }
 
     /// <summary>
@@ -582,9 +623,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         PowerTestStatus.Draft => "Rascunho",
         PowerTestStatus.Running => "Em execução",
         PowerTestStatus.Interrupted => "Interrompido · edição liberada",
-        PowerTestStatus.Completed => "Concluído",
+        PowerTestStatus.Completed => "Concluído — somente leitura. Use Novo, Duplicar ou Reabrir.",
         _ => "Nenhum ensaio",
     };
+
+    /// <summary>A finished assay can only be left through Novo, Duplicar or Reabrir (§G).</summary>
+    public bool CanReopenTest => CanManageTest && CurrentTest?.Status == PowerTestStatus.Completed;
     public string TareStatus
     {
         get
@@ -716,6 +760,127 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         StatusMessage = ValidationMessage;
     }
 
+    /// <summary>
+    /// New assay with this one's fluid, geometry, calibration, tare, settings and plan — counters
+    /// zeroed, no runs, no flooding — so a finished assay is not a dead end that forces the operator
+    /// to redo the whole setup through Novo (bench of 2026-09-11). The manifest records the source.
+    /// </summary>
+    [RelayCommand]
+    private void DuplicateTest()
+    {
+        if (!CanManageTest || CurrentTest is null || _dialogs is null ||
+            !_dialogs.PromptInput("Duplicar ensaio de potência", "Nome do novo ensaio (mesmo setup, sem pontos):", out var name, CurrentTest.Name + " (2)"))
+        {
+            return;
+        }
+
+        if (!_store.ValidateTestName(name, out var error)) { ShowError(error ?? "Nome inválido."); return; }
+        if (_store.TestExists(name)) { ShowError($"Já existe um ensaio chamado '{name.Trim()}'."); return; }
+
+        var source = CurrentTest;
+        try
+        {
+            var conditions = source.Conditions
+                .OrderBy(c => c.OrderIndex)
+                .Select(c =>
+                {
+                    var clone = c.Clone();
+                    clone.ConditionId = Guid.NewGuid();
+                    clone.CompletedReplicates = 0;
+                    clone.AcceptedReplicates = 0;
+                    clone.RejectedReplicates = 0;
+                    clone.Status = PowerConditionStatus.Pending;
+                    clone.HasReplicateDisagreement = false;
+                    clone.ReproducibilityWarning = null;
+                    return clone;
+                })
+                .ToList();
+
+            var doc = _store.CreateTest(
+                name.Trim(),
+                source.Fluid,
+                new PowerGeometry
+                {
+                    VesselDiameterM = source.Geometry.VesselDiameterM,
+                    LiquidVolumeM3 = source.Geometry.LiquidVolumeM3,
+                    Baffled = source.Geometry.Baffled,
+                    Impellers = source.Geometry.Impellers.Select(i => i.Clone()).ToList(),
+                },
+                source.Settings,
+                conditions,
+                source.LinkedMap);
+            doc.DuplicatedFrom = source.TestId;
+            doc.MotorRatedTorqueNm = source.MotorRatedTorqueNm;
+            if (source.Calibration is { } calibration)
+            {
+                doc.Calibration = calibration;
+                _store.SaveCalibration(doc.FolderName, calibration);
+            }
+            if (source.Tare is { } tare)
+            {
+                doc.Tare = tare;
+                _store.SaveTare(doc.FolderName, tare);
+            }
+            doc.RelativeMode = doc.Calibration is null || doc.Tare is null;
+            _store.SaveTestManifest(doc);
+            _store.AppendEventLog(doc.FolderName, new PowerTestEventLogEntry(
+                DateTimeOffset.UtcNow, "TestDuplicated", $"Duplicado de '{source.Name}' ({source.TestId}).", null));
+
+            LoadDocument(_store.LoadTest(doc.FolderName) ?? doc);
+            RefreshTests();
+            SelectedTest = Tests.FirstOrDefault(t => t.FolderName == doc.FolderName);
+            ValidationMessage = $"Ensaio '{doc.Name}' criado a partir de '{source.Name}': {conditions.Count} condição(ões), tara e calibração copiadas, sem pontos.";
+            StatusMessage = ValidationMessage;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível duplicar o ensaio: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Takes a finished assay back to <see cref="PowerTestStatus.Interrupted"/> so the plan can be
+    /// edited and the sequence continued; accepted runs stay. Nothing else ever leaves
+    /// <see cref="PowerTestStatus.Completed"/> — not the app, not a reload.
+    /// </summary>
+    [RelayCommand]
+    private void ReopenTest()
+    {
+        if (!CanReopenTest || CurrentTest is null || _dialogs is null)
+        {
+            return;
+        }
+
+        var doc = CurrentTest;
+        if (!_dialogs.Confirm(
+                "Reabrir ensaio concluído",
+                $"Reabrir '{doc.Name}' para editar a tabela e continuar a sequência? Os pontos aceitos são mantidos; o ensaio deixa de constar como concluído.",
+                "Reabrir",
+                "Cancelar"))
+        {
+            return;
+        }
+
+        try
+        {
+            doc.Status = PowerTestStatus.Interrupted;
+            doc.CompletedUtc = null;
+            doc.InterruptionReason = "Reaberto pelo operador";
+            _store.SaveTestManifest(doc);
+            _store.AppendEventLog(doc.FolderName, new PowerTestEventLogEntry(DateTimeOffset.UtcNow, "TestReopened", "Reaberto pelo operador.", null));
+            _runner?.PrepareTest(doc);
+            RefreshTests();
+            NotifyDocumentState();
+            OnPropertyChanged(nameof(CanReopenTest));
+            ValidationMessage = $"Ensaio '{doc.Name}' reaberto: edição liberada, {doc.Runs.Count(r => r.Phase == PowerRunPhase.Accepted)} ponto(s) aceito(s) mantidos.";
+            StatusMessage = ValidationMessage;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível reabrir o ensaio: {ex.Message}");
+        }
+    }
+
     [RelayCommand]
     private void RenameTest()
     {
@@ -798,6 +963,36 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Mirrors a <see cref="PowerTestSettings"/> into the editable fields (the inverse of <see cref="BuildEditedSettings"/>).</summary>
+    private void LoadSettingsFields(PowerTestSettings settings)
+    {
+        MinRpm = settings.MinRpm;
+        MaxRpm = settings.MaxRpm;
+        StepRpm = settings.DefaultStepRpm;
+        MinFlowLpm = settings.MinFlowLpm;
+        MaxFlowLpm = settings.MaxFlowLpm;
+        StepFlowLpm = settings.DefaultStepFlowLpm;
+        RelativeCiPercent = settings.RelativeCiFraction * 100.0;
+        CiFloorSigmaMultiple = settings.CiFloorSigmaMultiple;
+        MinimumSamples = settings.MinSamples;
+        MaxCaptureSeconds = settings.MaxCaptureSeconds;
+        MaxTries = settings.MaxTries;
+        StationarityWindowSeconds = settings.StationarityWindowSeconds;
+        StationaritySlopeTolerance = settings.StationaritySlopeTolerancePercentPerSecond;
+        StationarityRequiredSamples = settings.StationarityRequiredSamples;
+        VentStabilizationEnabled = settings.VentStabilizationEnabled;
+        SelectedVentValve = settings.SelectedVentValve;
+        VentFlowToleranceLpm = settings.VentFlowToleranceLpm;
+        VentFlowStableSamples = settings.VentFlowStableSamples;
+        VentAgitationRpm = settings.VentAgitationRpm;
+        MaxVentStabilizationSeconds = settings.MaxVentStabilizationSeconds;
+        VentFlowStabilityStdDevLpm = settings.VentFlowStabilityStdDevLpm;
+        VentFlowStabilityMaxErrorLpm = settings.VentFlowStabilityMaxErrorLpm;
+        ManualEnergyCaptureEnabled = settings.ManualEnergyCaptureEnabled;
+        AutoAcceptRuns = settings.AutoAcceptRuns;
+        RetryThenSkipOnSequenceFailure = settings.UnattendedFailurePolicy == UnattendedFailurePolicy.RetryThenSkip;
+    }
+
     private void LoadDocument(PowerTestDocument doc)
     {
         _isLoadingTest = true;
@@ -813,28 +1008,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             RelativeMode = doc.RelativeMode;
             RefreshTareProfiles();
             SelectedTareProfile = TareProfiles.FirstOrDefault(p => p.Name == doc.Tare?.ProfileName);
-            MinRpm = doc.Settings.MinRpm;
-            MaxRpm = doc.Settings.MaxRpm;
-            StepRpm = doc.Settings.DefaultStepRpm;
-            MinFlowLpm = doc.Settings.MinFlowLpm;
-            MaxFlowLpm = doc.Settings.MaxFlowLpm;
-            StepFlowLpm = doc.Settings.DefaultStepFlowLpm;
-            RelativeCiPercent = doc.Settings.RelativeCiFraction * 100.0;
-            CiFloorSigmaMultiple = doc.Settings.CiFloorSigmaMultiple;
-            MinimumSamples = doc.Settings.MinSamples;
-            MaxCaptureSeconds = doc.Settings.MaxCaptureSeconds;
-            MaxTries = doc.Settings.MaxTries;
-            StationarityWindowSeconds = doc.Settings.StationarityWindowSeconds;
-            StationaritySlopeTolerance = doc.Settings.StationaritySlopeTolerancePercentPerSecond;
-            StationarityRequiredSamples = doc.Settings.StationarityRequiredSamples;
-            VentStabilizationEnabled = doc.Settings.VentStabilizationEnabled;
-            SelectedVentValve = doc.Settings.SelectedVentValve;
-            VentFlowToleranceLpm = doc.Settings.VentFlowToleranceLpm;
-            VentFlowStableSamples = doc.Settings.VentFlowStableSamples;
-            VentAgitationRpm = doc.Settings.VentAgitationRpm;
-            MaxVentStabilizationSeconds = doc.Settings.MaxVentStabilizationSeconds;
-            ManualEnergyCaptureEnabled = doc.Settings.ManualEnergyCaptureEnabled;
-            AutoAcceptRuns = doc.Settings.AutoAcceptRuns;
+            LoadSettingsFields(doc.Settings);
 
             CurrentTarePoints.Clear();
             if (doc.Tare is { } tare)
@@ -862,6 +1036,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             SelectedImpeller = Impellers.FirstOrDefault();
             SelectedCondition = Conditions.FirstOrDefault();
             LivePoints.Clear();
+            Results.Clear();
+            _structureKey = null;
+            DetectFloodingIfMissing();
             RebuildResults();
             _runner?.PrepareTest(doc);
             ValidationMessage = "";
@@ -871,6 +1048,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             RecalculateLiveMetrics();
             _linkedKlaDocument = null;
             _linkedKlaSurface = null;
+            _linkedKlaLoad = null;
             UpdateKlaEfficiencyComparison();
         }
         finally
@@ -1090,7 +1268,110 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenCaptureSettings()
     {
-        _dialogs?.ShowCaptureSettings(this);
+        if (_dialogs is null)
+        {
+            return;
+        }
+
+        if (_dialogs.ShowCaptureSettings(this))
+        {
+            PersistCaptureSettings();
+        }
+        else if (CurrentTest is { } doc)
+        {
+            LoadSettingsFields(doc.Settings);
+        }
+    }
+
+    /// <summary>True when the criteria edited on the page differ from what the open assay holds.</summary>
+    public bool HasUnsavedCaptureSettings => CurrentTest is { } doc && BuildEditedSettings() != doc.Settings;
+
+    /// <summary>
+    /// True when anything <c>Salvar setup</c> would write differs from the open assay — the
+    /// criteria, the fluid or the geometry. The conditions table is not included because every
+    /// edit to it already persists itself.
+    /// </summary>
+    public bool HasUnsavedSetup => CurrentTest is { } doc && !_isLoadingTest &&
+        (BuildEditedSettings() != doc.Settings ||
+         doc.Fluid.DensityKgM3 != DensityKgM3 || doc.Fluid.ViscosityPaS != ViscosityPaS || doc.Fluid.TemperatureC != TemperatureC ||
+         PowerTestFileContracts.Fingerprint(BuildGeometry()) != PowerTestFileContracts.Fingerprint(doc.Geometry));
+
+    /// <summary>
+    /// Commits the criteria alone — not the conditions, fluid or geometry, which stay behind
+    /// <see cref="CanEditPlan"/>. Works with the assay stopped <em>or running</em>: the runner reads
+    /// <c>Settings</c> from this same document at every phase, so a longer vent time-out applies to
+    /// the next <c>VentStabilizing</c>. (A capture already in progress keeps the statistical gates it
+    /// started with.) The change is journalled field by field in <c>eventos.jsonl</c>.
+    /// </summary>
+    public bool PersistCaptureSettings()
+    {
+        if (CurrentTest is not { } doc)
+        {
+            return false;
+        }
+
+        var error = ValidateCaptureSettings();
+        if (error.Length > 0)
+        {
+            ShowError(error);
+            return false;
+        }
+
+        var settings = BuildEditedSettings();
+        if (settings == doc.Settings)
+        {
+            return true;
+        }
+
+        try
+        {
+            var diff = PowerTestSettingsDiff.Describe(doc.Settings, settings);
+            doc.SettingsRevision++;
+            doc.Settings = settings;
+            doc.LastModifiedUtc = DateTimeOffset.UtcNow;
+            _store.SaveTestManifest(doc);
+            _store.AppendEventLog(doc.FolderName, new PowerTestEventLogEntry(
+                DateTimeOffset.UtcNow, "SettingsChanged",
+                $"Critérios alterados pelo operador (revisão {doc.SettingsRevision}).", diff));
+            ValidationMessage = $"Critérios salvos (revisão {doc.SettingsRevision}).";
+            StatusMessage = ValidationMessage;
+            _lastPreflightTick = 0;
+            RefreshPreflight();
+            NotifyDocumentState();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível salvar os critérios: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Saves what the operator left unsaved before the application exits: the whole setup when the
+    /// assay is idle, only the criteria when it is running (the rest is locked while it runs).
+    /// </summary>
+    public bool TrySaveSetupForExit(out string error)
+    {
+        error = "";
+        if (CurrentTest is null)
+        {
+            return true;
+        }
+
+        if (IsRunning || IsTareRunning || CurrentTest.Status == PowerTestStatus.Completed)
+        {
+            return PersistCaptureSettings();
+        }
+
+        if (!TryPersist(out error))
+        {
+            return false;
+        }
+
+        RefreshTests();
+        NotifyDocumentState();
+        return true;
     }
 
     [RelayCommand]
@@ -1429,6 +1710,51 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    private Task? _linkedKlaLoad;
+
+    private async Task LoadLinkedKlaMapAsync(Guid mapId)
+    {
+        KlaExperimentDocument? document = null;
+        KlaSurface? surface = null;
+        try
+        {
+            var store = _klaStore!;
+            var experiments = await Task.Run(() => store.LoadExperimentsAsync()).ConfigureAwait(true);
+            document = experiments.FirstOrDefault(e => e.Snapshot.Id == mapId);
+            if (document is not null)
+            {
+                try
+                {
+                    surface = await Task.Run(() => new KlaMappingEngine().Reconstruct(document.Snapshot)).ConfigureAwait(true);
+                }
+                catch
+                {
+                    surface = null;
+                }
+            }
+        }
+        catch
+        {
+            // Best effort: the summary says the file was not found.
+        }
+
+        if (_disposed)
+        {
+            return;
+        }
+
+        RunOnUi(() =>
+        {
+            if (CurrentTest?.LinkedMap?.MapId != mapId)
+            {
+                return;
+            }
+            _linkedKlaDocument = document;
+            _linkedKlaSurface = surface;
+            UpdateKlaEfficiencyComparison();
+        });
+    }
+
     public void UpdateKlaEfficiencyComparison()
     {
         if (CurrentTest?.LinkedMap is null)
@@ -1444,34 +1770,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         HasLinkedKlaMap = true;
         LinkedKlaMapName = CurrentTest.LinkedMap.MapName;
 
-        if (_linkedKlaDocument is null && _klaStore is not null)
+        if (_linkedKlaDocument is null && _klaStore is not null && _linkedKlaLoad is null)
         {
-            try
-            {
-                var experiments = _klaStore.LoadExperimentsAsync().GetAwaiter().GetResult();
-                _linkedKlaDocument = experiments.FirstOrDefault(e => e.Snapshot.Id == CurrentTest.LinkedMap.MapId);
-                if (_linkedKlaDocument is not null)
-                {
-                    try
-                    {
-                        var engine = new KlaMappingEngine();
-                        _linkedKlaSurface = engine.Reconstruct(_linkedKlaDocument.Snapshot);
-                    }
-                    catch
-                    {
-                        _linkedKlaSurface = null;
-                    }
-                }
-            }
-            catch
-            {
-                // Best effort
-            }
+            // The map is read from disk and its surface reconstructed off the UI thread; the
+            // comparison is recomputed when it lands. Used to block the first refresh after opening
+            // an assay with a linked map.
+            _linkedKlaLoad = LoadLinkedKlaMapAsync(CurrentTest.LinkedMap.MapId);
+            ControlRegionSummary = $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado · carregando…";
+            return;
         }
 
         if (_linkedKlaDocument is null)
         {
-            ControlRegionSummary = $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado, mas arquivo não encontrado.";
+            ControlRegionSummary = _linkedKlaLoad is { IsCompleted: false }
+                ? $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado · carregando…"
+                : $"Mapa '{CurrentTest.LinkedMap.MapName}' vinculado, mas arquivo não encontrado.";
             return;
         }
 
@@ -2187,6 +2500,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         var newPhase = run.Phase == PowerRunPhase.Accepted ? PowerRunPhase.Rejected : PowerRunPhase.Accepted;
+        if (newPhase == PowerRunPhase.Accepted && PowerTestFileContracts.IsRunWithoutCapture(run))
+        {
+            ShowError(PowerTestRunner.NoCaptureMessage);
+            return;
+        }
         var updatedRun = run with { Phase = newPhase };
         var idx = CurrentTest.Runs.IndexOf(run);
         CurrentTest.Runs[idx] = updatedRun;
@@ -3115,8 +3433,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         VentFlowStableSamples = VentFlowStableSamples,
         VentAgitationRpm = VentAgitationRpm,
         MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
+        VentFlowStabilityStdDevLpm = VentFlowStabilityStdDevLpm,
+        VentFlowStabilityMaxErrorLpm = VentFlowStabilityMaxErrorLpm,
         ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
         AutoAcceptRuns = AutoAcceptRuns,
+        UnattendedFailurePolicy = RetryThenSkipOnSequenceFailure ? UnattendedFailurePolicy.RetryThenSkip : UnattendedFailurePolicy.StopForReview,
     };
 
     private bool TryPersist(out string error)
@@ -3176,6 +3497,37 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return "Cadastre ao menos um impelidor com D positivo, pás e folga válidos.";
         }
 
+        if (ValidateCaptureSettings() is { Length: > 0 } settingsError)
+        {
+            return settingsError;
+        }
+
+        if (Conditions.Count == 0)
+        {
+            return "Inclua ao menos uma condição.";
+        }
+
+        if (Conditions.Any(c => !double.IsFinite(c.AgitationRpm) || c.AgitationRpm < MinRpm || c.AgitationRpm > MaxRpm || c.RequestedReplicates < 1))
+        {
+            return $"Cada condição deve ficar entre {MinRpm:F0} e {MaxRpm:F0} rpm e ter ao menos uma réplica.";
+        }
+
+        if (Conditions.Any(c => c.FlowUnit == FlowInputUnit.Vvm && c.GasFlowVvm.HasValue) && LiquidVolumeL <= 0)
+        {
+            return "Informe o volume de trabalho para converter vvm em L/min.";
+        }
+
+        if (Conditions.Any(c => c.GasFlowLpm is < 0 || c.GasFlowVvm is < 0))
+        {
+            return "A vazão de gás não pode ser negativa.";
+        }
+
+        return "";
+    }
+
+    /// <summary>The checks that concern only <see cref="PowerTestSettings"/> — what the criteria dialog edits.</summary>
+    private string ValidateCaptureSettings()
+    {
         if (!FinitePositive(MinRpm) || !FinitePositive(MaxRpm) || MinRpm < 15 || MaxRpm > 1000 || MinRpm > MaxRpm || StepRpm < 5)
         {
             return "Faixa de rotação inválida: 15–1000 rpm e passo mínimo de 5 rpm.";
@@ -3204,26 +3556,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             {
                 return "Tempo limite de alívio deve ser positivo.";
             }
-        }
-
-        if (Conditions.Count == 0)
-        {
-            return "Inclua ao menos uma condição.";
-        }
-
-        if (Conditions.Any(c => !double.IsFinite(c.AgitationRpm) || c.AgitationRpm < MinRpm || c.AgitationRpm > MaxRpm || c.RequestedReplicates < 1))
-        {
-            return $"Cada condição deve ficar entre {MinRpm:F0} e {MaxRpm:F0} rpm e ter ao menos uma réplica.";
-        }
-
-        if (Conditions.Any(c => c.FlowUnit == FlowInputUnit.Vvm && c.GasFlowVvm.HasValue) && LiquidVolumeL <= 0)
-        {
-            return "Informe o volume de trabalho para converter vvm em L/min.";
-        }
-
-        if (Conditions.Any(c => c.GasFlowLpm is < 0 || c.GasFlowVvm is < 0))
-        {
-            return "A vazão de gás não pode ser negativa.";
+            if (VentFlowStabilityStdDevLpm < 0 || !double.IsFinite(VentFlowStabilityStdDevLpm) ||
+                VentFlowStabilityMaxErrorLpm < 0 || !double.IsFinite(VentFlowStabilityMaxErrorLpm))
+            {
+                return "Critério de estabilidade do alívio (σ e |erro|) não pode ser negativo.";
+            }
         }
 
         return "";
@@ -3536,34 +3873,97 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         NotifyLiveText();
     }
 
+    /// <summary>
+    /// The "Malha de gás" chip. "Alívio Estabilizando" is reserved for the runner's own phase:
+    /// outside a run, <c>v_Flow = 1</c> is the active-high main shutoff that <c>FlowSafeStop</c>
+    /// leaves closed on purpose — seen on 2026-09-11 at the end of Rushton-Smith, 63/63 accepted,
+    /// both valves closed, and the chip stuck on "Alívio Estabilizando" (§F.4).
+    /// </summary>
     private void UpdateGasLoopStatus()
     {
-        if (_runner?.Phase == PowerRunPhase.VentStabilizing)
-        {
-            GasLoopStatusBadge = "Alívio Estabilizando";
-        }
-        else if (_runner is not null && _runner.IsRunning &&
-                 (_runner.Phase is PowerRunPhase.PreparingCondition or PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.HoldingForManualEnergy) &&
-                 _runner.CurrentRun?.GasMode == PowerGasMode.Gassed)
-        {
-            GasLoopStatusBadge = "Reator Aberto";
-        }
-        else if (_latestSnapshot is { } s && (s.FlowValve1 == 1 || s.FlowValve2 == 1))
-        {
-            GasLoopStatusBadge = "Reator Aberto";
-        }
-        else if (_latestSnapshot is { } s2 && s2.FlowValveMain == 1)
-        {
-            GasLoopStatusBadge = "Alívio Estabilizando";
-        }
-        else
-        {
-            GasLoopStatusBadge = "Fechado";
-        }
+        GasLoopStatusBadge = GasLoopStatusFor(_runner, _latestSnapshot);
         OnPropertyChanged(nameof(GasLoopStatusBadge));
     }
 
+    internal static string GasLoopStatusFor(IPowerTestRunner? runner, SensorSnapshot? snapshot)
+    {
+        if (runner?.Phase == PowerRunPhase.VentStabilizing)
+        {
+            return "Alívio Estabilizando";
+        }
+
+        if (runner is not null && runner.IsRunning &&
+            runner.Phase is PowerRunPhase.PreparingCondition or PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.HoldingForManualEnergy &&
+            runner.CurrentRun?.GasMode == PowerGasMode.Gassed)
+        {
+            return "Reator Aberto";
+        }
+
+        if (snapshot is null)
+        {
+            return "Fechado";
+        }
+
+        if (snapshot.FlowValve1 == 1 || snapshot.FlowValve2 == 1)
+        {
+            return "Reator Aberto";
+        }
+
+        if (snapshot.FlowValveMain == 1)
+        {
+            // v_Flow = 1 with the reactor valves closed: either gas is venting (a setpoint is
+            // being driven) or the loop is simply shut off.
+            var venting = double.IsFinite(snapshot.FlowSetpoint) && snapshot.FlowSetpoint > 0 ||
+                          double.IsFinite(snapshot.FlowRate) && snapshot.FlowRate > 0.05;
+            return venting ? "Alívio aberto" : "Fechado (shutoff)";
+        }
+
+        return "Fechado";
+    }
+
     private void OnRunnerStateChanged() => RunOnUi(UpdateRunnerState);
+
+    /// <summary>
+    /// The live chart shows one run at a time. The runner announces every run it starts —
+    /// including the gassed subphase of a <c>Both</c> condition, which is its own
+    /// <see cref="PowerRun"/> with its own folder — so this is the single place that clears it.
+    /// </summary>
+    private void OnRunStarted(PowerRun run) => RunOnUi(LivePoints.Clear);
+
+    /// <summary>
+    /// What the last structural refresh saw. A telemetry frame only refreshes the read-outs; the
+    /// grids, the document-state notifications and the preflight are refreshed when one of these
+    /// changes — a phase, a run, a replicate accepted or rejected, a plan or settings revision.
+    /// Bench of 2026-09-11: refreshing the grids on every frame rebuilt the plan table twice a
+    /// second, so no row container, hover state or cell edit ever survived.
+    /// </summary>
+    private readonly record struct RunnerStructureKey(
+        PowerRunPhase Phase,
+        bool IsRunning,
+        bool IsInReview,
+        Guid? RunId,
+        int RunCount,
+        int AcceptedReplicates,
+        int CompletedReplicates,
+        int SkippedConditions,
+        int ConditionCount,
+        int SettingsRevision,
+        PowerTestStatus Status);
+
+    private RunnerStructureKey? _structureKey;
+
+    private RunnerStructureKey StructureKeyOf(IPowerTestRunner runner, PowerTestDocument? doc) => new(
+        runner.Phase,
+        runner.IsRunning,
+        runner.IsInReview,
+        runner.CurrentRun?.RunId,
+        doc?.Runs.Count ?? 0,
+        doc?.Conditions.Sum(c => c.AcceptedReplicates) ?? 0,
+        doc?.Conditions.Sum(c => c.CompletedReplicates) ?? 0,
+        doc?.Conditions.Count(c => c.Status == PowerConditionStatus.Skipped) ?? 0,
+        doc?.Conditions.Count ?? 0,
+        doc?.SettingsRevision ?? 0,
+        doc?.Status ?? PowerTestStatus.Draft);
 
     private void UpdateRunnerState()
     {
@@ -3572,13 +3972,43 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (_runner.CurrentTest is { } runnerDoc)
+        var documentChanged = false;
+        if (_runner.CurrentTest is { } runnerDoc && !ReferenceEquals(CurrentTest, runnerDoc))
         {
             CurrentTest = runnerDoc;
+            documentChanged = true;
+        }
+
+        if (_runner.Phase == PowerRunPhase.PreparingNextRun && LivePoints.Count > 0)
+        {
+            LivePoints.Clear();
+        }
+
+        UpdateRunnerLiveState();
+
+        var key = StructureKeyOf(_runner, _runner.CurrentTest);
+        if (documentChanged || _structureKey != key)
+        {
+            var acceptedChanged = _structureKey?.AcceptedReplicates != key.AcceptedReplicates;
+            _structureKey = key;
+            UpdateRunnerStructure(acceptedChanged);
+        }
+    }
+
+    /// <summary>Per-sample: flags, labels, the CI gauge, sequence progress and the gas-loop chip. No grids.</summary>
+    private void UpdateRunnerLiveState()
+    {
+        if (_runner is null)
+        {
+            return;
         }
 
         IsRunning = _runner.IsRunning;
         IsInReview = _runner.IsInReview;
+        ReviewHasCapture = _runner.CurrentRun is { } reviewed && PowerTestRunner.HasCapture(reviewed);
+        ReviewNoCaptureText = IsInReview && !ReviewHasCapture ? $"Sem captura — {_runner.StatusMessage}" : "";
+        OnPropertyChanged(nameof(CanAcceptRun));
+        OnPropertyChanged(nameof(IsReviewingUnperformedRun));
         IsPaused = _runner.IsPausedByOperator || _runner.IsPausedForMeasurement;
         IsWaitingManualEnergy = _runner.Phase == PowerRunPhase.HoldingForManualEnergy;
         IsAccumulating = _runner.Phase == PowerRunPhase.AccumulatingToTarget;
@@ -3590,9 +4020,25 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var target = _runner.CurrentTorqueCiTargetPercent;
         CiProgressPercent = current <= 0 ? 0 : Math.Clamp(target / current * 100.0, 0, 100);
         CiLabel = current > 0 ? $"IC95 ±{current:F4}% · alvo ≤ {target:F4}% · tentativa {_runner.CurrentAttempt}" : "IC95 — · aguardando acumulação";
+        CurrentConditionId = _runner.IsRunning ? _runner.CurrentCondition?.ConditionId : null;
         UpdateSequenceProgress();
+        UpdateGasLoopStatus();
+    }
+
+    /// <summary>Structural: the results and plan grids (updated in place), document state, preflight.</summary>
+    private void UpdateRunnerStructure(bool acceptedChanged)
+    {
+        if (_runner is null)
+        {
+            return;
+        }
+
         if (_runner.CurrentTest is not null)
         {
+            if (acceptedChanged)
+            {
+                DetectFloodingIfMissing();
+            }
             RebuildResults();
         }
 
@@ -3602,10 +4048,13 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             RefreshConditionRows();
         }
-        UpdateGasLoopStatus();
         NotifyDocumentState();
     }
 
+    /// <summary>
+    /// The runner raises <c>DataPointAdded</c> and then <c>StateChanged</c> in the same frame, so
+    /// the point only goes to the chart here; everything else is refreshed by the state change.
+    /// </summary>
     private void OnDataPointAdded(PowerDataPoint point) => RunOnUi(() =>
     {
         LivePoints.Add(point);
@@ -3613,15 +4062,40 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         {
             LivePoints.RemoveAt(0);
         }
-
-        UpdateRunnerState();
     });
 
+    /// <summary>
+    /// Runs the automatic flooding detection once there are enough runs and no result yet. Called
+    /// when a run is accepted and when an assay is opened — not on every refresh, because it
+    /// writes <c>flooding.json</c> and the manifest.
+    /// </summary>
+    private void DetectFloodingIfMissing()
+    {
+        if (CurrentTest is null || CurrentTest.Flooding is not null || CurrentTest.Runs.Count < 3)
+        {
+            return;
+        }
+
+        var flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
+        if (flooding is not null)
+        {
+            CurrentTest.Flooding = flooding;
+            _store.SaveFlooding(CurrentTest.FolderName, flooding);
+            _store.SaveTestManifest(CurrentTest);
+        }
+    }
+
+    /// <summary>
+    /// Brings <see cref="Results"/> in line with the document's runs <em>in place</em>: rows are
+    /// matched by <c>RunId</c>, replaced only when their content changed, moved when the order
+    /// changed, and only then added or removed. A <c>Reset</c> would drop the grid's containers
+    /// and the operator's selection on every call.
+    /// </summary>
     private void RebuildResults()
     {
-        Results.Clear();
         if (CurrentTest is null)
         {
+            Results.Clear();
             FloodingResult = null;
             HasFloodingPoint = false;
             FloodingCoordinates = "";
@@ -3630,23 +4104,50 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return;
         }
 
+        var selectedRunId = SelectedResultRow?.RunId;
+        var index = 0;
         foreach (var run in CurrentTest.Runs.OrderBy(r => r.StartedUtc))
         {
-            Results.Add(PowerResultRow.From(run));
+            var row = PowerResultRow.From(run);
+            var existingIndex = -1;
+            for (var i = index; i < Results.Count; i++)
+            {
+                if (Results[i].RunId == run.RunId)
+                {
+                    existingIndex = i;
+                    break;
+                }
+            }
+
+            if (existingIndex < 0)
+            {
+                Results.Insert(index, row);
+            }
+            else
+            {
+                if (existingIndex != index)
+                {
+                    Results.Move(existingIndex, index);
+                }
+                if (!Results[index].Equals(row))
+                {
+                    Results[index] = row;
+                }
+            }
+            index++;
+        }
+
+        while (Results.Count > index)
+        {
+            Results.RemoveAt(Results.Count - 1);
+        }
+
+        if (selectedRunId is { } id && SelectedResultRow?.RunId != id || selectedRunId is { } && !Results.Contains(SelectedResultRow!))
+        {
+            SelectedResultRow = Results.FirstOrDefault(r => r.RunId == selectedRunId);
         }
 
         var flooding = CurrentTest.Flooding;
-        if (flooding is null && CurrentTest.Runs.Count >= 3)
-        {
-            flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
-            if (flooding is not null)
-            {
-                CurrentTest.Flooding = flooding;
-                _store.SaveFlooding(CurrentTest.FolderName, flooding);
-                _store.SaveTestManifest(CurrentTest);
-            }
-        }
-
         FloodingResult = flooding;
         HasFloodingPoint = flooding is not null;
         if (flooding is not null)
@@ -3679,6 +4180,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         EtaLabel = done > 0 && total > done ? $"ETA {FormatDuration(elapsed / done * (total - done))}" : total > 0 && done >= total ? "Sequência concluída" : "ETA —";
     }
 
+    /// <summary>
+    /// Brings the plan grid in line with the document's conditions <em>in place</em>: rows are
+    /// matched by <c>ConditionId</c> and receive the runner-owned fields (status, counters); rows
+    /// are moved, added or removed only when the plan itself changed. The row objects — and with
+    /// them the grid's containers, hover, scroll position and selection — survive every frame.
+    /// Copying into a row raises its <c>PropertyChanged</c>, so persistence is suppressed: these
+    /// values come from the document, they are not edits.
+    /// </summary>
     private void RefreshConditionRows()
     {
         if (CurrentTest is null)
@@ -3687,13 +4196,51 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         var selectedId = SelectedCondition?.ConditionId;
-        Conditions.Clear();
-        foreach (var condition in CurrentTest.Conditions.OrderBy(c => c.OrderIndex))
+        _suppressConditionPersistence = true;
+        try
         {
-            Conditions.Add(condition.Clone());
+            var index = 0;
+            foreach (var condition in CurrentTest.Conditions.OrderBy(c => c.OrderIndex))
+            {
+                var existingIndex = -1;
+                for (var i = index; i < Conditions.Count; i++)
+                {
+                    if (Conditions[i].ConditionId == condition.ConditionId)
+                    {
+                        existingIndex = i;
+                        break;
+                    }
+                }
+
+                if (existingIndex < 0)
+                {
+                    Conditions.Insert(index, condition.Clone());
+                }
+                else
+                {
+                    if (existingIndex != index)
+                    {
+                        Conditions.Move(existingIndex, index);
+                    }
+                    Conditions[index].CopyRuntimeStateFrom(condition);
+                }
+                index++;
+            }
+
+            while (Conditions.Count > index)
+            {
+                Conditions.RemoveAt(Conditions.Count - 1);
+            }
+        }
+        finally
+        {
+            _suppressConditionPersistence = false;
         }
 
-        SelectedCondition = Conditions.FirstOrDefault(c => c.ConditionId == selectedId) ?? Conditions.FirstOrDefault();
+        if (SelectedCondition is null || !Conditions.Contains(SelectedCondition))
+        {
+            SelectedCondition = Conditions.FirstOrDefault(c => c.ConditionId == selectedId) ?? Conditions.FirstOrDefault();
+        }
     }
 
     private void OnOwnershipChanged(OwnershipTransfer _) => RunOnUi(OnOwnershipTransferred);
@@ -3733,7 +4280,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void NotifyDocumentState()
     {
-        OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest));
+        OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest)); OnPropertyChanged(nameof(CanReopenTest));
         OnPropertyChanged(nameof(CanPause)); OnPropertyChanged(nameof(CanStop)); OnPropertyChanged(nameof(CanSkipCurrent));
         OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel));
         OnPropertyChanged(nameof(TareStatus)); OnPropertyChanged(nameof(ResultModeLabel)); OnPropertyChanged(nameof(ImpellerSetHash));
@@ -3850,7 +4397,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _flowConfiguredConditions.Clear();
         _device.TelemetryReceived -= OnTelemetryReceived;
         _arbiter.OwnershipChanged -= OnOwnershipChanged;
-        if (_runner is not null) { _runner.StateChanged -= OnRunnerStateChanged; _runner.DataPointAdded -= OnDataPointAdded; }
+        if (_runner is not null) { _runner.StateChanged -= OnRunnerStateChanged; _runner.DataPointAdded -= OnDataPointAdded; _runner.RunStarted -= OnRunStarted; }
     }
 }
 

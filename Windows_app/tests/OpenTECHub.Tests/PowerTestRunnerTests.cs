@@ -1,6 +1,7 @@
 using System.IO;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Simulator;
 using Xunit;
@@ -123,6 +124,136 @@ public sealed class PowerTestRunnerTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
         Assert.Contains("refaça a tara", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(h.Device.Sent);
+    }
+
+    /// <summary>
+    /// Every telemetry frame the page refreshes on <c>StateChanged</c>; a frame that raised it two
+    /// or three times (SetPhase + the explicit raise) cost two or three refreshes on the UI thread.
+    /// Frames with a valid servo measurement raise it exactly once, after all of the frame's
+    /// mutations; a frame without one raises nothing unless it paused the run.
+    /// </summary>
+    [Fact]
+    public async Task A_telemetry_frame_raises_StateChanged_at_most_once_and_after_the_data_point()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings());
+        var raisesInFrame = 0;
+        var order = new List<string>();
+        h.Runner.StateChanged += () => { raisesInFrame++; order.Add("state"); };
+        h.Runner.DataPointAdded += _ => order.Add("point");
+        h.Push(0, 0);
+
+        await h.Runner.StartTestAsync(doc);
+        var phases = new List<PowerRunPhase>();
+        var frames = 0;
+        while (h.Runner.Phase is PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget && frames < 500)
+        {
+            raisesInFrame = 0;
+            order.Clear();
+            h.Push(300, 2.0);
+            frames++;
+            phases.Add(h.Runner.Phase);
+            Assert.True(raisesInFrame <= 1, $"frame {frames} ({h.Runner.Phase}) raised StateChanged {raisesInFrame} times");
+            Assert.Equal(1, raisesInFrame);
+            if (order.Contains("point"))
+            {
+                Assert.Equal("state", order[^1]);
+            }
+        }
+
+        Assert.Contains(PowerRunPhase.SettlingTorque, phases);
+        Assert.Contains(PowerRunPhase.AccumulatingToTarget, phases);
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+    }
+
+    /// <summary>
+    /// D-048, file equivalence: the same assay driven through the synchronous store and through the
+    /// queued store leaves byte-identical raw data, global series, journal and summary.
+    /// </summary>
+    [Fact]
+    public async Task The_queued_store_writes_the_same_assay_files_as_the_synchronous_one()
+    {
+        using var queued = new BackgroundFileWriter();
+        using var a = new Harness();
+        using var b = new Harness(writer: queued);
+        var name = "runner-equivalencia";
+
+        static async Task<PowerTestDocument> Drive(Harness h, string name)
+        {
+            var geometry = new PowerGeometry
+            {
+                Impellers = [new Impeller { StageIndex = 0, DiameterM = 0.060 }],
+                VesselDiameterM = 0.20,
+                LiquidVolumeM3 = 0.010,
+            };
+            var doc = h.Store.CreateTest(name, new FluidProperties { DensityKgM3 = 998, ViscosityPaS = 0.001 }, geometry,
+                FastSettings() with { AutoAcceptRuns = true }, [new PowerCondition { AgitationRpm = 300 }, new PowerCondition { AgitationRpm = 400 }]);
+            h.Push(0, 0);
+            await h.Runner.StartTestAsync(doc);
+            var frames = 0;
+            while (h.Runner.Phase != PowerRunPhase.Completed && frames++ < 400)
+            {
+                var rpm = h.Runner.CurrentRun?.AgitationRpm ?? 15;
+                h.Push(h.Runner.Phase == PowerRunPhase.PreparingNextRun ? 15 : rpm, 2.0 + 0.001 * (frames % 7));
+            }
+            Assert.Equal(PowerRunPhase.Completed, h.Runner.Phase);
+            return doc;
+        }
+
+        var docA = await Drive(a, name);
+        var docB = await Drive(b, name);
+        await b.Store.FlushAsync();
+
+        // Ids are minted per assay; everything else — clock-driven timestamps included — must match.
+        static string Normalised(string path) => System.Text.RegularExpressions.Regex.Replace(
+            File.ReadAllText(path), "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<id>");
+
+        foreach (var file in new[] { PowerTestFileContracts.GlobalSeriesFileName, PowerTestFileContracts.EventLogFileName, PowerTestFileContracts.ResultsSummaryFileName })
+        {
+            Assert.Equal(
+                Normalised(Path.Combine(a.Store.RootDirectory, docA.FolderName, file)),
+                Normalised(Path.Combine(b.Store.RootDirectory, docB.FolderName, file)));
+        }
+        Assert.Equal(2, docA.Runs.Count);
+        foreach (var run in docA.Runs)
+        {
+            var rawA = a.Store.GetRunRawDataPath(docA.FolderName, run.FolderName);
+            var rawB = b.Store.GetRunRawDataPath(docB.FolderName, run.FolderName);
+            Assert.Equal(File.ReadAllBytes(rawA), File.ReadAllBytes(rawB));
+            var resultA = Path.Combine(Path.GetDirectoryName(rawA)!, PowerTestFileContracts.RunResultFileName);
+            var resultB = Path.Combine(Path.GetDirectoryName(rawB)!, PowerTestFileContracts.RunResultFileName);
+            Assert.Equal(Normalised(resultA), Normalised(resultB));
+        }
+    }
+
+    /// <summary>D-048: a queued write that fails does not stop the assay, but the runner says the record has a hole.</summary>
+    [Fact]
+    public async Task A_failed_queued_write_marks_the_recording_as_compromised_and_the_run_goes_on()
+    {
+        using var queued = new BackgroundFileWriter();
+        using var h = new Harness(writer: queued);
+        var doc = h.CreateDocument(FastSettings());
+        // The journal's path is taken by a directory: every append to it fails on the writer's thread.
+        var eventsPath = Path.Combine(h.Store.RootDirectory, doc.FolderName, PowerTestFileContracts.EventLogFileName);
+        File.Delete(eventsPath);
+        Directory.CreateDirectory(eventsPath);
+        var stateChanges = 0;
+        h.Runner.StateChanged += () => stateChanges++;
+        h.Push(0, 0);
+
+        await h.Runner.StartTestAsync(doc);
+        await h.Store.FlushAsync();
+        // The event is raised on the writer's thread; give the runner's handler a moment.
+        for (var i = 0; i < 50 && !h.Runner.IsStorageCompromised; i++) { await Task.Delay(20); }
+
+        Assert.True(h.Runner.IsStorageCompromised);
+        Assert.StartsWith("⚠ Gravação comprometida", h.Runner.StatusMessage, StringComparison.Ordinal);
+        Assert.True(h.Runner.IsRunning);
+        h.Push(300, 2.0);
+        h.Push(300, 2.0);
+        h.Push(300, 2.0);
+        Assert.True(h.Runner.IsRunning || h.Runner.IsInReview);
+        await h.Store.FlushAsync(); // the harness deletes its folder on dispose
     }
 
     [Fact]
@@ -623,6 +754,182 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(PowerStopReason.Tmax, h.Runner.CurrentRun!.StopReason);
     }
 
+    /// <summary>D-050: a vent time-out reaches review with n = 0; that run has no result to accept.</summary>
+    [Fact]
+    public async Task A_run_that_timed_out_before_capturing_cannot_be_accepted_only_rejected_or_repeated()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.1,
+            VentFlowStableSamples = 5,
+            MaxVentStabilizationSeconds = 2.0,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 5.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+        await h.Runner.StartTestAsync(doc);
+        for (var i = 0; i < 10; i++)
+        {
+            h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+        Assert.Equal(0, h.Runner.CurrentRun!.SampleCount);
+        Assert.False(PowerTestRunner.HasCapture(h.Runner.CurrentRun));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.AcceptRunAsync());
+        Assert.Equal(PowerTestRunner.NoCaptureMessage, ex.Message);
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+        Assert.Equal(0, doc.Conditions[0].AcceptedReplicates);
+        Assert.DoesNotContain(doc.Runs, r => r.Phase == PowerRunPhase.Accepted);
+
+        await h.Runner.RejectRunAsync("sem captura");
+        Assert.Equal(PowerRunPhase.Rejected, h.Runner.Phase);
+        Assert.Equal(1, doc.Conditions[0].RejectedReplicates);
+        Assert.Equal(PowerConditionStatus.Pending, doc.Conditions[0].Status);
+    }
+
+    /// <summary>§I.1: with auto-accept and RetryThenSkip, a vent time-out retries the condition once, then skips it and moves on.</summary>
+    [Fact]
+    public async Task Unattended_sequence_failure_retries_once_then_skips_the_condition()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            AutoAcceptRuns = true,
+            UnattendedFailurePolicy = UnattendedFailurePolicy.RetryThenSkip,
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.1,
+            VentFlowStableSamples = 5,
+            VentFlowStabilityStdDevLpm = 0.0, // stability exit disabled so the time-out is what happens
+            MaxVentStabilizationSeconds = 2.0,
+        };
+        var doc = h.CreateDocumentWithConditions(settings,
+        [
+            new PowerCondition { OrderIndex = 0, AgitationRpm = 300, GasFlowLpm = 5.0, GasMode = PowerGasMode.Gassed },
+            new PowerCondition { OrderIndex = 1, AgitationRpm = 300, GasMode = PowerGasMode.Ungassed },
+        ]);
+        var gassed = doc.Conditions[0];
+        var dry = doc.Conditions[1];
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+
+        // First failure: the flow never settles - rejected, and the same condition is retried.
+        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.VentStabilizing; i++)
+        {
+            h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+        Assert.Equal(PowerRunPhase.PreparingNextRun, h.Runner.Phase);
+        Assert.Equal(1, gassed.RejectedReplicates);
+        Assert.Equal(PowerConditionStatus.Pending, gassed.Status);
+        Assert.Equal(0, gassed.AcceptedReplicates);
+        Assert.DoesNotContain(doc.Runs, r => r.Phase == PowerRunPhase.Accepted);
+
+        // Back at minimum speed the runner starts the retry of the same condition.
+        h.PushGas(15, 0.5, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 1, commandAck: 1);
+        h.PushGas(15, 0.5, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Same(gassed, h.Runner.CurrentCondition);
+
+        // Second failure: skipped, and the sequence goes on to the dry condition.
+        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.VentStabilizing; i++)
+        {
+            h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        }
+        Assert.Equal(PowerConditionStatus.Skipped, gassed.Status);
+        Assert.Equal(2, gassed.RejectedReplicates);
+        Assert.Equal(PowerRunPhase.PreparingNextRun, h.Runner.Phase);
+        h.PushGas(15, 0.5, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 2, commandAck: 2);
+        h.PushGas(15, 0.5, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 2, commandAck: 2);
+        Assert.Same(dry, h.Runner.CurrentCondition);
+        Assert.True(h.Runner.IsRunning);
+        Assert.DoesNotContain(doc.Runs, r => r.Phase == PowerRunPhase.Accepted);
+    }
+
+    /// <summary>§I.1: the default policy still parks for review.</summary>
+    [Fact]
+    public async Task Unattended_default_policy_still_stops_for_review()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            AutoAcceptRuns = true,
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.1,
+            VentFlowStableSamples = 5,
+            VentFlowStabilityStdDevLpm = 0.0,
+            MaxVentStabilizationSeconds = 2.0,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 5.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+        await h.Runner.StartTestAsync(doc);
+        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.VentStabilizing; i++)
+        {
+            h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+        Assert.Equal(PowerRunPhase.Reviewing, h.Runner.Phase);
+    }
+
+    /// <summary>§I.2: a flow that settled just outside the band (the controller's +0.08 offset) leaves the vent phase.</summary>
+    [Fact]
+    public async Task Vent_phase_exits_when_the_flow_is_stable_even_if_just_outside_the_band()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            VentStabilizationEnabled = true,
+            SelectedVentValve = PowerVentValve.Valve1,
+            VentAgitationRpm = 15.0,
+            VentFlowToleranceLpm = 0.05,
+            VentFlowStableSamples = 5,
+            VentFlowStabilityStdDevLpm = 0.05,
+            VentFlowStabilityMaxErrorLpm = 0.3,
+            MaxVentStabilizationSeconds = 500.0,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 2.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+
+        // 2.08 +/- 0.01 L/min: outside the 0.05 band, but flat.
+        foreach (var flow in new[] { 2.09, 2.07, 2.08, 2.08, 2.07, 2.09 })
+        {
+            if (h.Runner.Phase != PowerRunPhase.VentStabilizing)
+            {
+                break;
+            }
+            h.PushGas(15, 0.5, flowRate: flow, flowSetpoint: 2.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        }
+
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        var events = File.ReadAllText(Path.Combine(h.Store.RootDirectory, doc.FolderName, PowerTestFileContracts.EventLogFileName));
+        Assert.Contains("VentFlowStable", events, StringComparison.Ordinal);
+        // The journal escapes non-ASCII, so "est\u00E1vel" is stored as est\u00E1vel.
+        Assert.Contains(@"(est\u00E1vel", events, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(new[] { 2.09, 2.07, 2.08, 2.08, 2.07 }, 2.0, true)]   // flat, +0.08 offset
+    [InlineData(new[] { 2.5, 2.3, 2.2, 2.1, 2.05 }, 2.0, false)]      // still decaying
+    [InlineData(new[] { 2.4, 2.4, 2.4, 2.4, 2.4 }, 2.0, false)]       // flat but 0.4 off (> 0.3)
+    [InlineData(new[] { 2.09, 2.07 }, 2.0, false)]                    // not enough samples
+    public void VentFlowHasSettled_requires_low_spread_and_a_mean_near_the_target(double[] window, double target, bool expected)
+    {
+        var settings = new PowerTestSettings { VentFlowStableSamples = 5, VentFlowStabilityStdDevLpm = 0.05, VentFlowStabilityMaxErrorLpm = 0.3 };
+        Assert.Equal(expected, PowerTestRunner.VentFlowHasSettled(window, target, settings, out _));
+    }
+
     [Fact]
     public async Task Both_condition_sequences_P0_ungassed_first_then_PG_gassed_with_paired_reference()
     {
@@ -867,11 +1174,11 @@ public sealed class PowerTestRunnerTests
         private readonly string _root = Path.Combine(Path.GetTempPath(), "PowerRunnerTests_" + Guid.NewGuid().ToString("N"));
         private readonly TestClock _clock = new(new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero));
 
-        public Harness(string? blockReason = null, bool useSimulator = false, DeviceModel? customSimulator = null)
+        public Harness(string? blockReason = null, bool useSimulator = false, DeviceModel? customSimulator = null, BackgroundFileWriter? writer = null)
         {
             Device = new RunnerDeviceService(customSimulator ?? (useSimulator ? new DeviceModel(randomSeed: 20260904) : null));
             Arbiter = new CommandArbiter(Device, _clock);
-            Store = new PowerTestStore(_root);
+            Store = new PowerTestStore(_root, writer);
             Runner = new PowerTestRunner(
                 Arbiter,
                 Arbiter,

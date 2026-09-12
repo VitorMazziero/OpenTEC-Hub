@@ -1,0 +1,1047 @@
+2025-03-06 17:47:50	{"time":41.4,"distance":54}
+2025-03-06 17:47:51	Stagnant reading count: 1
+2025-03-06 17:47:51	{"time":42.4,"distance":54}
+2025-03-06 17:47:52	Stagnant reading count: 2
+2025-03-06 17:47:52	{"time":43.4,"distance":54}
+2025-03-06 17:47:53	Stagnant reading count: 3
+2025-03-06 17:47:53	{"time":44.4,"distance":54}
+2025-03-06 17:47:54	E (50200) wifi:sta is connecting, return error
+2025-03-06 17:47:54	Stagnant reading count: 4
+2025-03-06 17:47:54	{"time":45.4,"distance":54}
+2025-03-06 17:47:55	Stagnant reading count: 5
+2025-03-06 17:47:55	{"time":46.4,"distance":54}
+2025-03-06 17:47:56	Stagnant reading count: 6
+2025-03-06 17:47:56	{"time":47.4,"distance":54}
+2025-03-06 17:47:57	{"time":48.4,"distance":53}
+2025-03-06 17:47:58	{"time":49.4,"distance":54}
+2025-03-06 17:47:59	E (55200) wifi:sta is connecting, return error
+2025-03-06 17:47:59	Stagnant reading count: 1
+2025-03-06 17:47:59	{"time":50.4,"distance":54}
+2025-03-06 17:48:00	{"time":51.4,"distance":53}
+2025-03-06 17:48:01	{"time":52.4,"distance":54}
+2025-03-06 17:48:02	Stagnant reading count: 1
+2025-03-06 17:48:02	{"time":53.4,"distance":54}
+2025-03-06 17:48:03	Stagnant reading count: 2
+2025-03-06 17:48:03	{"time":54.4,"distance":54}
+2025-03-06 17:48:04	E (60200) wifi:sta is connecting, return error
+2025-03-06 17:48:04	Stagnant reading count: 3
+2025-03-06 17:48:04	{"time":55.4,"distance":54}
+2025-03-06 17:48:05	Stagnant reading count: 4
+2025-03-06 17:48:05	{"time":56.4,"distance":54}
+2025-03-06 17:48:06	Stagnant reading count: 5
+2025-03-06 17:48:06	{"time":57.4,"distance":54}
+2025-03-06 17:48:07	{"time":58.4,"distance":55}
+2025-03-06 17:48:08	{"time":59.4,"distance":54}
+2025-03-06 17:48:09	E (65200) wifi:sta is connecting, return error
+2025-03-06 17:48:09	Stagnant reading count: 1
+2025-03-06 17:48:09	{"time":60.4,"distance":54}
+2025-03-06 17:48:10	{"time":61.4,"distance":55}
+2025-03-06 17:48:11	{"time":62.4,"distance":54}
+2025-03-06 17:48:12	Stagnant reading count: 1
+2025-03-06 17:48:12	{"time":63.4,"distance":54}
+2025-03-06 17:48:13	Stagnant reading count: 2
+2025-03-06 17:48:13	{"time":64.4,"distance":54}
+2025-03-06 17:48:14	E (70200) wifi:sta is connecting, return error
+2025-03-06 17:48:14	{"time":65.4,"distance":55}
+2025-03-06 17:48:15	{"time":66.4,"distance":54}
+2025-03-06 17:48:16	Stagnant reading count: 1
+2025-03-06 17:48:16	{"time":67.4,"distance":54}
+2025-03-06 17:48:17	Stagnant reading count: 2
+2025-03-06 17:48:17	{"time":68.4,"distance":54}
+2025-03-06 17:48:18	Stagnant reading count: 3
+2025-03-06 17:48:18	{"time":69.4,"distance":54}
+2025-03-06 17:48:19	E (75200) wifi:sta is connecting, return error
+2025-03-06 17:48:19	{"time":70.4,"distance":55}
+2025-03-06 17:48:20	Stagnant reading count: 1
+2025-03-06 17:48:20	{"time":71.4,"distance":55}
+2025-03-06 17:48:21	Stagnant reading count: 2
+2025-03-06 17:48:21	{"time":72.4,"distance":55}
+2025-03-06 17:48:22	{"time":73.4,"distance":54}
+2025-03-06 17:48:23	{"time":74.4,"distance":55}
+2025-03-06 17:48:24	E (80200) wifi:sta is connecting, return error
+2025-03-06 17:48:24	Stagnant reading count: 1
+2025-03-06 17:48:24	{"time":75.4,"distance":55}
+2025-03-06 17:48:25	Stagnant reading count: 2
+2025-03-06 17:48:25	{"time":76.4,"distance":55}
+2025-03-06 17:48:26	{"time":77.4,"distance":54}
+2025-03-06 17:48:27	Stagnant reading count: 1
+2025-03-06 17:48:27	{"time":78.4,"distance":54}
+2025-03-06 17:48:28	Stagnant reading count: 2
+2025-03-06 17:48:28	{"time":79.4,"distance":54}
+2025-03-06 17:48:29	E (85200) wifi:sta is connecting, return error
+2025-03-06 17:48:29	{"time":80.4,"distance":55}
+2025-03-06 17:48:30	Stagnant reading count: 1
+2025-03-06 17:48:30	{"time":81.4,"distance":55}
+2025-03-06 17:48:31	Stagnant reading count: 2
+2025-03-06 17:48:31	{"time":82.4,"distance":55}
+2025-03-06 17:48:32	{"time":83.4,"distance":54}
+2025-03-06 17:48:33	{"time":84.4,"distance":55}
+2025-03-06 17:48:34	E (90200) wifi:sta is connecting, return error
+2025-03-06 17:48:34	Stagnant reading count: 1
+2025-03-06 17:48:34	{"time":85.4,"distance":55}
+2025-03-06 17:48:35	Stagnant reading count: 2
+2025-03-06 17:48:35	{"time":86.4,"distance":55}
+2025-03-06 17:48:36	Stagnant reading count: 3
+2025-03-06 17:48:36	{"time":87.4,"distance":55}
+2025-03-06 17:48:37	Stagnant reading count: 4
+2025-03-06 17:48:37	{"time":88.4,"distance":55}
+2025-03-06 17:48:38	{"time":89.4,"distance":56}
+2025-03-06 17:48:39	E (95200) wifi:sta is connecting, return error
+2025-03-06 17:48:39	{"time":90.4,"distance":55}
+2025-03-06 17:48:40	Stagnant reading count: 1
+2025-03-06 17:48:40	{"time":91.4,"distance":55}
+2025-03-06 17:48:41	Stagnant reading count: 2
+2025-03-06 17:48:41	{"time":92.4,"distance":55}
+2025-03-06 17:48:42	Stagnant reading count: 3
+2025-03-06 17:48:42	{"time":93.4,"distance":55}
+2025-03-06 17:48:43	Stagnant reading count: 4
+2025-03-06 17:48:43	{"time":94.4,"distance":55}
+2025-03-06 17:48:44	E (100200) wifi:sta is connecting, return error
+2025-03-06 17:48:44	Stagnant reading count: 5
+2025-03-06 17:48:44	{"time":95.4,"distance":55}
+2025-03-06 17:48:45	Stagnant reading count: 6
+2025-03-06 17:48:45	{"time":96.4,"distance":55}
+2025-03-06 17:48:46	Stagnant reading count: 7
+2025-03-06 17:48:46	{"time":97.4,"distance":55}
+2025-03-06 17:48:47	Stagnant reading count: 8
+2025-03-06 17:48:47	{"time":98.4,"distance":55}
+2025-03-06 17:48:48	Stagnant reading count: 9
+2025-03-06 17:48:48	{"time":99.4,"distance":55}
+2025-03-06 17:48:49	E (105200) wifi:sta is connecting, return error
+2025-03-06 17:48:49	{"time":100.4,"distance":56}
+2025-03-06 17:48:50	{"time":101.4,"distance":55}
+2025-03-06 17:48:51	Stagnant reading count: 1
+2025-03-06 17:48:51	{"time":102.4,"distance":55}
+2025-03-06 17:48:52	{"time":103.4,"distance":56}
+2025-03-06 17:48:53	Stagnant reading count: 1
+2025-03-06 17:48:53	{"time":104.4,"distance":56}
+2025-03-06 17:48:54	E (110200) wifi:sta is connecting, return error
+2025-03-06 17:48:54	Stagnant reading count: 2
+2025-03-06 17:48:54	{"time":105.4,"distance":56}
+2025-03-06 17:48:55	Stagnant reading count: 3
+2025-03-06 17:48:55	{"time":106.4,"distance":56}
+2025-03-06 17:48:56	Stagnant reading count: 4
+2025-03-06 17:48:56	{"time":107.4,"distance":56}
+2025-03-06 17:48:57	Stagnant reading count: 5
+2025-03-06 17:48:57	{"time":108.4,"distance":56}
+2025-03-06 17:48:58	Stagnant reading count: 6
+2025-03-06 17:48:58	{"time":109.4,"distance":56}
+2025-03-06 17:48:59	E (115200) wifi:sta is connecting, return error
+2025-03-06 17:48:59	Stagnant reading count: 7
+2025-03-06 17:48:59	{"time":110.4,"distance":56}
+2025-03-06 17:49:00	Stagnant reading count: 8
+2025-03-06 17:49:00	{"time":111.4,"distance":56}
+2025-03-06 17:49:01	Stagnant reading count: 9
+2025-03-06 17:49:01	{"time":112.4,"distance":56}
+2025-03-06 17:49:02	Stagnant reading count: 10
+2025-03-06 17:49:02	{"time":113.4,"distance":56}
+2025-03-06 17:49:03	Stagnant reading count: 11
+2025-03-06 17:49:03	{"time":114.4,"distance":56}
+2025-03-06 17:49:04	E (120200) wifi:sta is connecting, return error
+2025-03-06 17:49:04	Stagnant reading count: 12
+2025-03-06 17:49:04	{"time":115.4,"distance":56}
+2025-03-06 17:49:05	Stagnant reading count: 13
+2025-03-06 17:49:05	{"time":116.4,"distance":56}
+2025-03-06 17:49:06	Stagnant reading count: 14
+2025-03-06 17:49:06	{"time":117.4,"distance":56}
+2025-03-06 17:49:07	{"time":118.4,"distance":55}
+2025-03-06 17:49:08	{"time":119.4,"distance":56}
+2025-03-06 17:49:09	E (125200) wifi:sta is connecting, return error
+2025-03-06 17:49:09	{"time":120.4,"distance":55}
+2025-03-06 17:49:10	Stagnant reading count: 1
+2025-03-06 17:49:10	{"time":121.4,"distance":55}
+2025-03-06 17:49:11	{"time":122.4,"distance":56}
+2025-03-06 17:49:12	Stagnant reading count: 1
+2025-03-06 17:49:12	{"time":123.4,"distance":56}
+2025-03-06 17:49:13	{"time":124.4,"distance":55}
+2025-03-06 17:49:14	E (130200) wifi:sta is connecting, return error
+2025-03-06 17:49:14	{"time":125.4,"distance":56}
+2025-03-06 17:49:15	{"time":126.4,"distance":55}
+2025-03-06 17:49:16	{"time":127.4,"distance":56}
+2025-03-06 17:49:17	Stagnant reading count: 1
+2025-03-06 17:49:17	{"time":128.4,"distance":56}
+2025-03-06 17:49:18	Stagnant reading count: 2
+2025-03-06 17:49:18	{"time":129.4,"distance":56}
+2025-03-06 17:49:19	E (135200) wifi:sta is connecting, return error
+2025-03-06 17:49:19	Stagnant reading count: 3
+2025-03-06 17:49:19	{"time":130.4,"distance":56}
+2025-03-06 17:49:20	Stagnant reading count: 4
+2025-03-06 17:49:20	{"time":131.4,"distance":56}
+2025-03-06 17:49:21	Stagnant reading count: 5
+2025-03-06 17:49:21	{"time":132.4,"distance":56}
+2025-03-06 17:49:22	Stagnant reading count: 6
+2025-03-06 17:49:22	{"time":133.4,"distance":56}
+2025-03-06 17:49:23	{"time":134.4,"distance":55}
+2025-03-06 17:49:24	E (140200) wifi:sta is connecting, return error
+2025-03-06 17:49:24	{"time":135.4,"distance":56}
+2025-03-06 17:49:25	Stagnant reading count: 1
+2025-03-06 17:49:25	{"time":136.4,"distance":56}
+2025-03-06 17:49:26	Stagnant reading count: 2
+2025-03-06 17:49:26	{"time":137.4,"distance":56}
+2025-03-06 17:49:27	Stagnant reading count: 3
+2025-03-06 17:49:27	{"time":138.4,"distance":56}
+2025-03-06 17:49:28	Stagnant reading count: 4
+2025-03-06 17:49:28	{"time":139.4,"distance":56}
+2025-03-06 17:49:29	E (145200) wifi:sta is connecting, return error
+2025-03-06 17:49:29	Stagnant reading count: 5
+2025-03-06 17:49:29	{"time":140.4,"distance":56}
+2025-03-06 17:49:30	{"time":141.4,"distance":55}
+2025-03-06 17:49:31	Stagnant reading count: 1
+2025-03-06 17:49:31	{"time":142.4,"distance":55}
+2025-03-06 17:49:32	Stagnant reading count: 2
+2025-03-06 17:49:32	{"time":143.4,"distance":55}
+2025-03-06 17:49:33	Stagnant reading count: 3
+2025-03-06 17:49:33	{"time":144.4,"distance":55}
+2025-03-06 17:49:34	E (150200) wifi:sta is connecting, return error
+2025-03-06 17:49:34	Stagnant reading count: 4
+2025-03-06 17:49:34	{"time":145.4,"distance":55}
+2025-03-06 17:49:35	Stagnant reading count: 5
+2025-03-06 17:49:35	{"time":146.4,"distance":55}
+2025-03-06 17:49:36	{"time":147.4,"distance":56}
+2025-03-06 17:49:37	{"time":148.4,"distance":55}
+2025-03-06 17:49:38	Stagnant reading count: 1
+2025-03-06 17:49:38	{"time":149.4,"distance":55}
+2025-03-06 17:49:39	E (155200) wifi:sta is connecting, return error
+2025-03-06 17:49:39	Stagnant reading count: 2
+2025-03-06 17:49:39	{"time":150.4,"distance":55}
+2025-03-06 17:49:40	Stagnant reading count: 3
+2025-03-06 17:49:40	{"time":151.4,"distance":55}
+2025-03-06 17:49:41	Stagnant reading count: 4
+2025-03-06 17:49:41	{"time":152.4,"distance":55}
+2025-03-06 17:49:42	Stagnant reading count: 5
+2025-03-06 17:49:42	{"time":153.4,"distance":55}
+2025-03-06 17:49:43	Stagnant reading count: 6
+2025-03-06 17:49:43	{"time":154.4,"distance":55}
+2025-03-06 17:49:44	E (160200) wifi:sta is connecting, return error
+2025-03-06 17:49:44	{"time":155.4,"distance":56}
+2025-03-06 17:49:45	{"time":156.4,"distance":55}
+2025-03-06 17:49:46	Stagnant reading count: 1
+2025-03-06 17:49:46	{"time":157.4,"distance":55}
+2025-03-06 17:49:47	Stagnant reading count: 2
+2025-03-06 17:49:47	{"time":158.4,"distance":55}
+2025-03-06 17:49:48	Stagnant reading count: 3
+2025-03-06 17:49:48	{"time":159.4,"distance":55}
+2025-03-06 17:49:49	E (165200) wifi:sta is connecting, return error
+2025-03-06 17:49:49	Stagnant reading count: 4
+2025-03-06 17:49:49	{"time":160.4,"distance":55}
+2025-03-06 17:49:50	Stagnant reading count: 5
+2025-03-06 17:49:50	{"time":161.4,"distance":55}
+2025-03-06 17:49:51	Stagnant reading count: 6
+2025-03-06 17:49:51	{"time":162.4,"distance":55}
+2025-03-06 17:49:52	Stagnant reading count: 7
+2025-03-06 17:49:52	{"time":163.4,"distance":55}
+2025-03-06 17:49:53	Stagnant reading count: 8
+2025-03-06 17:49:53	{"time":164.4,"distance":55}
+2025-03-06 17:49:54	E (170200) wifi:sta is connecting, return error
+2025-03-06 17:49:54	Stagnant reading count: 9
+2025-03-06 17:49:54	{"time":165.4,"distance":55}
+2025-03-06 17:49:55	Stagnant reading count: 10
+2025-03-06 17:49:55	{"time":166.4,"distance":55}
+2025-03-06 17:49:56	Stagnant reading count: 11
+2025-03-06 17:49:56	{"time":167.4,"distance":55}
+2025-03-06 17:49:57	Stagnant reading count: 12
+2025-03-06 17:49:57	{"time":168.4,"distance":55}
+2025-03-06 17:49:58	Stagnant reading count: 13
+2025-03-06 17:49:58	{"time":169.4,"distance":55}
+2025-03-06 17:49:59	E (175200) wifi:sta is connecting, return error
+2025-03-06 17:49:59	{"time":170.4,"distance":54}
+2025-03-06 17:50:00	{"time":171.4,"distance":55}
+2025-03-06 17:50:01	Stagnant reading count: 1
+2025-03-06 17:50:01	{"time":172.4,"distance":55}
+2025-03-06 17:50:02	Stagnant reading count: 2
+2025-03-06 17:50:02	{"time":173.4,"distance":55}
+2025-03-06 17:50:03	Stagnant reading count: 3
+2025-03-06 17:50:03	{"time":174.4,"distance":55}
+2025-03-06 17:50:04	E (180200) wifi:sta is connecting, return error
+2025-03-06 17:50:04	Stagnant reading count: 4
+2025-03-06 17:50:04	{"time":175.4,"distance":55}
+2025-03-06 17:50:05	{"time":176.4,"distance":54}
+2025-03-06 17:50:06	{"time":177.4,"distance":55}
+2025-03-06 17:50:07	Stagnant reading count: 1
+2025-03-06 17:50:07	{"time":178.4,"distance":55}
+2025-03-06 17:50:08	{"time":179.4,"distance":54}
+2025-03-06 17:50:09	E (185200) wifi:sta is connecting, return error
+2025-03-06 17:50:09	{"time":180.4,"distance":55}
+2025-03-06 17:50:10	Stagnant reading count: 1
+2025-03-06 17:50:10	{"time":181.4,"distance":55}
+2025-03-06 17:50:11	Stagnant reading count: 2
+2025-03-06 17:50:11	{"time":182.4,"distance":55}
+2025-03-06 17:50:12	Stagnant reading count: 3
+2025-03-06 17:50:12	{"time":183.4,"distance":55}
+2025-03-06 17:50:13	{"time":184.4,"distance":54}
+2025-03-06 17:50:14	E (190200) wifi:sta is connecting, return error
+2025-03-06 17:50:14	{"time":185.4,"distance":55}
+2025-03-06 17:50:15	Stagnant reading count: 1
+2025-03-06 17:50:15	{"time":186.4,"distance":55}
+2025-03-06 17:50:16	Stagnant reading count: 2
+2025-03-06 17:50:16	{"time":187.4,"distance":55}
+2025-03-06 17:50:17	{"time":188.4,"distance":54}
+2025-03-06 17:50:18	{"time":189.4,"distance":55}
+2025-03-06 17:50:19	E (195200) wifi:sta is connecting, return error
+2025-03-06 17:50:19	{"time":190.4,"distance":54}
+2025-03-06 17:50:20	Stagnant reading count: 1
+2025-03-06 17:50:20	{"time":191.4,"distance":54}
+2025-03-06 17:50:21	{"time":192.4,"distance":55}
+2025-03-06 17:50:22	Stagnant reading count: 1
+2025-03-06 17:50:22	{"time":193.4,"distance":55}
+2025-03-06 17:50:23	Stagnant reading count: 2
+2025-03-06 17:50:23	{"time":194.4,"distance":55}
+2025-03-06 17:50:24	E (200200) wifi:sta is connecting, return error
+2025-03-06 17:50:24	Stagnant reading count: 3
+2025-03-06 17:50:24	{"time":195.4,"distance":55}
+2025-03-06 17:50:25	{"time":196.4,"distance":54}
+2025-03-06 17:50:26	Stagnant reading count: 1
+2025-03-06 17:50:26	{"time":197.4,"distance":54}
+2025-03-06 17:50:27	Stagnant reading count: 2
+2025-03-06 17:50:27	{"time":198.4,"distance":54}
+2025-03-06 17:50:28	{"time":199.4,"distance":55}
+2025-03-06 17:50:29	E (205200) wifi:sta is connecting, return error
+2025-03-06 17:50:29	{"time":200.4,"distance":54}
+2025-03-06 17:50:30	Stagnant reading count: 1
+2025-03-06 17:50:30	{"time":201.4,"distance":54}
+2025-03-06 17:50:31	{"time":202.4,"distance":55}
+2025-03-06 17:50:32	Stagnant reading count: 1
+2025-03-06 17:50:32	{"time":203.4,"distance":55}
+2025-03-06 17:50:33	Stagnant reading count: 2
+2025-03-06 17:50:33	{"time":204.4,"distance":55}
+2025-03-06 17:50:34	E (210200) wifi:sta is connecting, return error
+2025-03-06 17:50:34	Stagnant reading count: 3
+2025-03-06 17:50:34	{"time":205.4,"distance":55}
+2025-03-06 17:50:35	Stagnant reading count: 4
+2025-03-06 17:50:35	{"time":206.4,"distance":55}
+2025-03-06 17:50:36	Stagnant reading count: 5
+2025-03-06 17:50:36	{"time":207.4,"distance":55}
+2025-03-06 17:50:37	Stagnant reading count: 6
+2025-03-06 17:50:37	{"time":208.4,"distance":55}
+2025-03-06 17:50:38	Stagnant reading count: 7
+2025-03-06 17:50:38	{"time":209.4,"distance":55}
+2025-03-06 17:50:39	E (215200) wifi:sta is connecting, return error
+2025-03-06 17:50:39	Stagnant reading count: 8
+2025-03-06 17:50:39	{"time":210.4,"distance":55}
+2025-03-06 17:50:40	{"time":211.4,"distance":54}
+2025-03-06 17:50:41	{"time":212.4,"distance":55}
+2025-03-06 17:50:42	Stagnant reading count: 1
+2025-03-06 17:50:42	{"time":213.4,"distance":55}
+2025-03-06 17:50:43	Stagnant reading count: 2
+2025-03-06 17:50:43	{"time":214.4,"distance":55}
+2025-03-06 17:50:44	E (220200) wifi:sta is connecting, return error
+2025-03-06 17:50:44	Stagnant reading count: 3
+2025-03-06 17:50:44	{"time":215.4,"distance":55}
+2025-03-06 17:50:45	Stagnant reading count: 4
+2025-03-06 17:50:45	{"time":216.4,"distance":55}
+2025-03-06 17:50:46	Stagnant reading count: 5
+2025-03-06 17:50:46	{"time":217.4,"distance":55}
+2025-03-06 17:50:47	Stagnant reading count: 6
+2025-03-06 17:50:47	{"time":218.4,"distance":55}
+2025-03-06 17:50:48	Stagnant reading count: 7
+2025-03-06 17:50:48	{"time":219.4,"distance":55}
+2025-03-06 17:50:49	E (225200) wifi:sta is connecting, return error
+2025-03-06 17:50:49	Stagnant reading count: 8
+2025-03-06 17:50:49	{"time":220.4,"distance":55}
+2025-03-06 17:50:50	Stagnant reading count: 9
+2025-03-06 17:50:50	{"time":221.4,"distance":55}
+2025-03-06 17:50:51	Stagnant reading count: 10
+2025-03-06 17:50:51	{"time":222.4,"distance":55}
+2025-03-06 17:50:52	Stagnant reading count: 11
+2025-03-06 17:50:52	{"time":223.4,"distance":55}
+2025-03-06 17:50:53	Stagnant reading count: 12
+2025-03-06 17:50:53	{"time":224.4,"distance":55}
+2025-03-06 17:50:54	E (230200) wifi:sta is connecting, return error
+2025-03-06 17:50:54	Stagnant reading count: 13
+2025-03-06 17:50:54	{"time":225.4,"distance":55}
+2025-03-06 17:50:55	Stagnant reading count: 14
+2025-03-06 17:50:55	{"time":226.4,"distance":55}
+2025-03-06 17:50:56	Stagnant reading count: 15
+2025-03-06 17:50:56	{"time":227.4,"distance":55}
+2025-03-06 17:50:57	Stagnant reading count: 16
+2025-03-06 17:50:57	{"time":228.4,"distance":55}
+2025-03-06 17:50:58	Stagnant reading count: 17
+2025-03-06 17:50:58	{"time":229.4,"distance":55}
+2025-03-06 17:50:59	E (235200) wifi:sta is connecting, return error
+2025-03-06 17:50:59	Stagnant reading count: 18
+2025-03-06 17:50:59	{"time":230.4,"distance":55}
+2025-03-06 17:51:00	Stagnant reading count: 19
+2025-03-06 17:51:00	{"time":231.4,"distance":55}
+2025-03-06 17:51:01	Stagnant reading count: 20
+2025-03-06 17:51:01	Sensor readings appear stagnant. Reinitializing sensor...
+2025-03-06 17:51:01	Attempting to initialize VL53L0X sensor...
+2025-03-06 17:51:02	VL53L0X sensor initialized successfully.
+2025-03-06 17:51:02	{"time":232.4,"distance":55}
+2025-03-06 17:51:02	Stagnant reading count: 1
+2025-03-06 17:51:02	{"time":233.4,"distance":55}
+2025-03-06 17:51:03	Stagnant reading count: 2
+2025-03-06 17:51:03	{"time":234.4,"distance":55}
+2025-03-06 17:51:04	E (240200) wifi:sta is connecting, return error
+2025-03-06 17:51:04	{"time":235.4,"distance":56}
+2025-03-06 17:51:05	{"time":236.4,"distance":55}
+2025-03-06 17:51:06	Stagnant reading count: 1
+2025-03-06 17:51:06	{"time":237.4,"distance":55}
+2025-03-06 17:51:07	{"time":238.4,"distance":56}
+2025-03-06 17:51:08	{"time":239.4,"distance":55}
+2025-03-06 17:51:09	E (245200) wifi:sta is connecting, return error
+2025-03-06 17:51:09	Stagnant reading count: 1
+2025-03-06 17:51:09	{"time":240.4,"distance":55}
+2025-03-06 17:51:10	Stagnant reading count: 2
+2025-03-06 17:51:10	{"time":241.4,"distance":55}
+2025-03-06 17:51:11	Stagnant reading count: 3
+2025-03-06 17:51:11	{"time":242.4,"distance":55}
+2025-03-06 17:51:12	Stagnant reading count: 4
+2025-03-06 17:51:12	{"time":243.4,"distance":55}
+2025-03-06 17:51:13	Stagnant reading count: 5
+2025-03-06 17:51:13	{"time":244.4,"distance":55}
+2025-03-06 17:51:14	E (250200) wifi:sta is connecting, return error
+2025-03-06 17:51:14	Stagnant reading count: 6
+2025-03-06 17:51:14	{"time":245.4,"distance":55}
+2025-03-06 17:51:15	Stagnant reading count: 7
+2025-03-06 17:51:15	{"time":246.4,"distance":55}
+2025-03-06 17:51:16	Stagnant reading count: 8
+2025-03-06 17:51:16	{"time":247.4,"distance":55}
+2025-03-06 17:51:17	Stagnant reading count: 9
+2025-03-06 17:51:17	{"time":248.4,"distance":55}
+2025-03-06 17:51:18	Stagnant reading count: 10
+2025-03-06 17:51:18	{"time":249.4,"distance":55}
+2025-03-06 17:51:19	E (255200) wifi:sta is connecting, return error
+2025-03-06 17:51:19	Stagnant reading count: 11
+2025-03-06 17:51:19	{"time":250.4,"distance":55}
+2025-03-06 17:51:20	Stagnant reading count: 12
+2025-03-06 17:51:20	{"time":251.4,"distance":55}
+2025-03-06 17:51:21	Stagnant reading count: 13
+2025-03-06 17:51:21	{"time":252.4,"distance":55}
+2025-03-06 17:51:22	Stagnant reading count: 14
+2025-03-06 17:51:22	{"time":253.4,"distance":55}
+2025-03-06 17:51:23	Stagnant reading count: 15
+2025-03-06 17:51:23	{"time":254.4,"distance":55}
+2025-03-06 17:51:24	E (260200) wifi:sta is connecting, return error
+2025-03-06 17:51:24	Stagnant reading count: 16
+2025-03-06 17:51:24	{"time":255.4,"distance":55}
+2025-03-06 17:51:25	Stagnant reading count: 17
+2025-03-06 17:51:25	{"time":256.4,"distance":55}
+2025-03-06 17:51:26	Stagnant reading count: 18
+2025-03-06 17:51:26	{"time":257.4,"distance":55}
+2025-03-06 17:51:27	Stagnant reading count: 19
+2025-03-06 17:51:27	{"time":258.4,"distance":55}
+2025-03-06 17:51:28	Stagnant reading count: 20
+2025-03-06 17:51:28	Sensor readings appear stagnant. Reinitializing sensor...
+2025-03-06 17:51:28	Attempting to initialize VL53L0X sensor...
+2025-03-06 17:51:29	VL53L0X sensor initialized successfully.
+2025-03-06 17:51:29	{"time":259.4,"distance":55}
+2025-03-06 17:51:29	E (265200) wifi:sta is connecting, return error
+2025-03-06 17:51:29	Stagnant reading count: 1
+2025-03-06 17:51:29	{"time":260.4,"distance":55}
+2025-03-06 17:51:30	Stagnant reading count: 2
+2025-03-06 17:51:30	{"time":261.4,"distance":55}
+2025-03-06 17:51:31	{"time":262.4,"distance":56}
+2025-03-06 17:51:32	{"time":263.4,"distance":55}
+2025-03-06 17:51:33	Stagnant reading count: 1
+2025-03-06 17:51:33	{"time":264.4,"distance":55}
+2025-03-06 17:51:34	E (270200) wifi:sta is connecting, return error
+2025-03-06 17:51:34	Stagnant reading count: 2
+2025-03-06 17:51:34	{"time":265.4,"distance":55}
+2025-03-06 17:51:35	Stagnant reading count: 3
+2025-03-06 17:51:35	{"time":266.4,"distance":55}
+2025-03-06 17:51:36	Stagnant reading count: 4
+2025-03-06 17:51:36	{"time":267.4,"distance":55}
+2025-03-06 17:51:37	Stagnant reading count: 5
+2025-03-06 17:51:37	{"time":268.4,"distance":55}
+2025-03-06 17:51:38	Stagnant reading count: 6
+2025-03-06 17:51:38	{"time":269.4,"distance":55}
+2025-03-06 17:51:39	E (275200) wifi:sta is connecting, return error
+2025-03-06 17:51:39	Stagnant reading count: 7
+2025-03-06 17:51:39	{"time":270.4,"distance":55}
+2025-03-06 17:51:40	Stagnant reading count: 8
+2025-03-06 17:51:40	{"time":271.4,"distance":55}
+2025-03-06 17:51:41	Stagnant reading count: 9
+2025-03-06 17:51:41	{"time":272.4,"distance":55}
+2025-03-06 17:51:42	Stagnant reading count: 10
+2025-03-06 17:51:42	{"time":273.4,"distance":55}
+2025-03-06 17:51:43	Stagnant reading count: 11
+2025-03-06 17:51:43	{"time":274.4,"distance":55}
+2025-03-06 17:51:44	E (280200) wifi:sta is connecting, return error
+2025-03-06 17:51:44	Stagnant reading count: 12
+2025-03-06 17:51:44	{"time":275.4,"distance":55}
+2025-03-06 17:51:45	Stagnant reading count: 13
+2025-03-06 17:51:45	{"time":276.4,"distance":55}
+2025-03-06 17:51:46	Stagnant reading count: 14
+2025-03-06 17:51:46	{"time":277.4,"distance":55}
+2025-03-06 17:51:47	Stagnant reading count: 15
+2025-03-06 17:51:47	{"time":278.4,"distance":55}
+2025-03-06 17:51:48	Stagnant reading count: 16
+2025-03-06 17:51:48	{"time":279.4,"distance":55}
+2025-03-06 17:51:49	E (285200) wifi:sta is connecting, return error
+2025-03-06 17:51:49	Stagnant reading count: 17
+2025-03-06 17:51:49	{"time":280.4,"distance":55}
+2025-03-06 17:51:50	Stagnant reading count: 18
+2025-03-06 17:51:50	{"time":281.4,"distance":55}
+2025-03-06 17:51:51	Stagnant reading count: 19
+2025-03-06 17:51:51	{"time":282.4,"distance":55}
+2025-03-06 17:51:52	{"time":283.4,"distance":54}
+2025-03-06 17:51:53	{"time":284.4,"distance":55}
+2025-03-06 17:51:54	E (290200) wifi:sta is connecting, return error
+2025-03-06 17:51:54	Stagnant reading count: 1
+2025-03-06 17:51:54	{"time":285.4,"distance":55}
+2025-03-06 17:51:55	Stagnant reading count: 2
+2025-03-06 17:51:55	{"time":286.4,"distance":55}
+2025-03-06 17:51:56	{"time":287.4,"distance":56}
+2025-03-06 17:51:57	{"time":288.4,"distance":55}
+2025-03-06 17:51:58	Stagnant reading count: 1
+2025-03-06 17:51:58	{"time":289.4,"distance":55}
+2025-03-06 17:51:59	E (295200) wifi:sta is connecting, return error
+2025-03-06 17:51:59	Stagnant reading count: 2
+2025-03-06 17:51:59	{"time":290.4,"distance":55}
+2025-03-06 17:52:00	Stagnant reading count: 3
+2025-03-06 17:52:00	{"time":291.4,"distance":55}
+2025-03-06 17:52:01	Stagnant reading count: 4
+2025-03-06 17:52:01	{"time":292.4,"distance":55}
+2025-03-06 17:52:02	Stagnant reading count: 5
+2025-03-06 17:52:02	{"time":293.4,"distance":55}
+2025-03-06 17:52:03	Stagnant reading count: 6
+2025-03-06 17:52:03	{"time":294.4,"distance":55}
+2025-03-06 17:52:04	E (300200) wifi:sta is connecting, return error
+2025-03-06 17:52:04	Stagnant reading count: 7
+2025-03-06 17:52:04	{"time":295.4,"distance":55}
+2025-03-06 17:52:05	Stagnant reading count: 8
+2025-03-06 17:52:05	{"time":296.4,"distance":55}
+2025-03-06 17:52:06	Stagnant reading count: 9
+2025-03-06 17:52:06	{"time":297.4,"distance":55}
+2025-03-06 17:52:07	Stagnant reading count: 10
+2025-03-06 17:52:07	{"time":298.4,"distance":55}
+2025-03-06 17:52:08	Stagnant reading count: 11
+2025-03-06 17:52:08	{"time":299.4,"distance":55}
+2025-03-06 17:52:09	E (305200) wifi:sta is connecting, return error
+2025-03-06 17:52:09	Stagnant reading count: 12
+2025-03-06 17:52:09	{"time":300.4,"distance":55}
+2025-03-06 17:52:10	Stagnant reading count: 13
+2025-03-06 17:52:10	{"time":301.4,"distance":55}
+2025-03-06 17:52:11	Stagnant reading count: 14
+2025-03-06 17:52:11	{"time":302.4,"distance":55}
+2025-03-06 17:52:12	Stagnant reading count: 15
+2025-03-06 17:52:12	{"time":303.4,"distance":55}
+2025-03-06 17:52:13	Stagnant reading count: 16
+2025-03-06 17:52:13	{"time":304.4,"distance":55}
+2025-03-06 17:52:14	E (310200) wifi:sta is connecting, return error
+2025-03-06 17:52:14	Stagnant reading count: 17
+2025-03-06 17:52:14	{"time":305.4,"distance":55}
+2025-03-06 17:52:15	Stagnant reading count: 18
+2025-03-06 17:52:15	{"time":306.4,"distance":55}
+2025-03-06 17:52:16	Stagnant reading count: 19
+2025-03-06 17:52:16	{"time":307.4,"distance":55}
+2025-03-06 17:52:17	Stagnant reading count: 20
+2025-03-06 17:52:17	Sensor readings appear stagnant. Reinitializing sensor...
+2025-03-06 17:52:17	Attempting to initialize VL53L0X sensor...
+2025-03-06 17:52:17	VL53L0X sensor initialized successfully.
+2025-03-06 17:52:18	{"time":308.4,"distance":55}
+2025-03-06 17:52:18	{"time":309.4,"distance":56}
+2025-03-06 17:52:19	E (315200) wifi:sta is connecting, return error
+2025-03-06 17:52:19	{"time":310.4,"distance":55}
+2025-03-06 17:52:20	Stagnant reading count: 1
+2025-03-06 17:52:20	{"time":311.4,"distance":55}
+2025-03-06 17:52:21	{"time":312.4,"distance":56}
+2025-03-06 17:52:22	Stagnant reading count: 1
+2025-03-06 17:52:22	{"time":313.4,"distance":56}
+2025-03-06 17:52:23	{"time":314.4,"distance":55}
+2025-03-06 17:52:24	E (320200) wifi:sta is connecting, return error
+2025-03-06 17:52:24	Stagnant reading count: 1
+2025-03-06 17:52:24	{"time":315.4,"distance":55}
+2025-03-06 17:52:25	Stagnant reading count: 2
+2025-03-06 17:52:25	{"time":316.4,"distance":55}
+2025-03-06 17:52:26	Stagnant reading count: 3
+2025-03-06 17:52:26	{"time":317.4,"distance":55}
+2025-03-06 17:52:27	Stagnant reading count: 4
+2025-03-06 17:52:27	{"time":318.4,"distance":55}
+2025-03-06 17:52:28	{"time":319.4,"distance":56}
+2025-03-06 17:52:29	E (325200) wifi:sta is connecting, return error
+2025-03-06 17:52:29	{"time":320.4,"distance":55}
+2025-03-06 17:52:30	Stagnant reading count: 1
+2025-03-06 17:52:30	{"time":321.4,"distance":55}
+2025-03-06 17:52:31	Stagnant reading count: 2
+2025-03-06 17:52:31	{"time":322.4,"distance":55}
+2025-03-06 17:52:32	Stagnant reading count: 3
+2025-03-06 17:52:32	{"time":323.4,"distance":55}
+2025-03-06 17:52:33	Stagnant reading count: 4
+2025-03-06 17:52:33	{"time":324.4,"distance":55}
+2025-03-06 17:52:34	E (330200) wifi:sta is connecting, return error
+2025-03-06 17:52:34	Stagnant reading count: 5
+2025-03-06 17:52:34	{"time":325.4,"distance":55}
+2025-03-06 17:52:35	Stagnant reading count: 6
+2025-03-06 17:52:35	{"time":326.4,"distance":55}
+2025-03-06 17:52:36	Stagnant reading count: 7
+2025-03-06 17:52:36	{"time":327.4,"distance":55}
+2025-03-06 17:52:37	Stagnant reading count: 8
+2025-03-06 17:52:37	{"time":328.4,"distance":55}
+2025-03-06 17:52:38	{"time":329.4,"distance":54}
+2025-03-06 17:52:39	E (335200) wifi:sta is connecting, return error
+2025-03-06 17:52:39	{"time":330.4,"distance":55}
+2025-03-06 17:52:40	Stagnant reading count: 1
+2025-03-06 17:52:40	{"time":331.4,"distance":55}
+2025-03-06 17:52:41	Stagnant reading count: 2
+2025-03-06 17:52:41	{"time":332.4,"distance":55}
+2025-03-06 17:52:42	Stagnant reading count: 3
+2025-03-06 17:52:42	{"time":333.4,"distance":55}
+2025-03-06 17:52:43	{"time":334.4,"distance":54}
+2025-03-06 17:52:44	E (340200) wifi:sta is connecting, return error
+2025-03-06 17:52:44	Stagnant reading count: 1
+2025-03-06 17:52:44	{"time":335.4,"distance":54}
+2025-03-06 17:52:45	Stagnant reading count: 2
+2025-03-06 17:52:45	{"time":336.4,"distance":54}
+2025-03-06 17:52:46	{"time":337.4,"distance":55}
+2025-03-06 17:52:47	Stagnant reading count: 1
+2025-03-06 17:52:47	{"time":338.4,"distance":55}
+2025-03-06 17:52:48	{"time":339.4,"distance":54}
+2025-03-06 17:52:49	E (345200) wifi:sta is connecting, return error
+2025-03-06 17:52:49	{"time":340.4,"distance":55}
+2025-03-06 17:52:50	Stagnant reading count: 1
+2025-03-06 17:52:50	{"time":341.4,"distance":55}
+2025-03-06 17:52:51	{"time":342.4,"distance":54}
+2025-03-06 17:52:52	{"time":343.4,"distance":55}
+2025-03-06 17:52:53	Stagnant reading count: 1
+2025-03-06 17:52:53	{"time":344.4,"distance":55}
+2025-03-06 17:52:54	E (350200) wifi:sta is connecting, return error
+2025-03-06 17:52:54	Stagnant reading count: 2
+2025-03-06 17:52:54	{"time":345.4,"distance":55}
+2025-03-06 17:52:55	Stagnant reading count: 3
+2025-03-06 17:52:55	{"time":346.4,"distance":55}
+2025-03-06 17:52:56	Stagnant reading count: 4
+2025-03-06 17:52:56	{"time":347.4,"distance":55}
+2025-03-06 17:52:57	Stagnant reading count: 5
+2025-03-06 17:52:57	{"time":348.4,"distance":55}
+2025-03-06 17:52:58	{"time":349.4,"distance":54}
+2025-03-06 17:52:59	E (355200) wifi:sta is connecting, return error
+2025-03-06 17:52:59	Stagnant reading count: 1
+2025-03-06 17:52:59	{"time":350.4,"distance":54}
+2025-03-06 17:53:00	{"time":351.4,"distance":55}
+2025-03-06 17:53:01	Stagnant reading count: 1
+2025-03-06 17:53:01	{"time":352.4,"distance":55}
+2025-03-06 17:53:02	Stagnant reading count: 2
+2025-03-06 17:53:02	{"time":353.4,"distance":55}
+2025-03-06 17:53:03	Stagnant reading count: 3
+2025-03-06 17:53:03	{"time":354.4,"distance":55}
+2025-03-06 17:53:04	E (360200) wifi:sta is connecting, return error
+2025-03-06 17:53:04	Stagnant reading count: 4
+2025-03-06 17:53:04	{"time":355.4,"distance":55}
+2025-03-06 17:53:05	Stagnant reading count: 5
+2025-03-06 17:53:05	{"time":356.4,"distance":55}
+2025-03-06 17:53:06	Stagnant reading count: 6
+2025-03-06 17:53:06	{"time":357.4,"distance":55}
+2025-03-06 17:53:07	Stagnant reading count: 7
+2025-03-06 17:53:07	{"time":358.4,"distance":55}
+2025-03-06 17:53:08	Stagnant reading count: 8
+2025-03-06 17:53:08	{"time":359.4,"distance":55}
+2025-03-06 17:53:09	E (365200) wifi:sta is connecting, return error
+2025-03-06 17:53:09	Stagnant reading count: 9
+2025-03-06 17:53:09	{"time":360.4,"distance":55}
+2025-03-06 17:53:10	Stagnant reading count: 10
+2025-03-06 17:53:10	{"time":361.4,"distance":55}
+2025-03-06 17:53:11	Stagnant reading count: 11
+2025-03-06 17:53:11	{"time":362.4,"distance":55}
+2025-03-06 17:53:12	Stagnant reading count: 12
+2025-03-06 17:53:12	{"time":363.4,"distance":55}
+2025-03-06 17:53:13	Stagnant reading count: 13
+2025-03-06 17:53:13	{"time":364.4,"distance":55}
+2025-03-06 17:53:14	E (370200) wifi:sta is connecting, return error
+2025-03-06 17:53:14	Stagnant reading count: 14
+2025-03-06 17:53:14	{"time":365.4,"distance":55}
+2025-03-06 17:53:15	Stagnant reading count: 15
+2025-03-06 17:53:15	{"time":366.4,"distance":55}
+2025-03-06 17:53:16	Stagnant reading count: 16
+2025-03-06 17:53:16	{"time":367.4,"distance":55}
+2025-03-06 17:53:17	Stagnant reading count: 17
+2025-03-06 17:53:17	{"time":368.4,"distance":55}
+2025-03-06 17:53:18	Stagnant reading count: 18
+2025-03-06 17:53:18	{"time":369.4,"distance":55}
+2025-03-06 17:53:19	E (375200) wifi:sta is connecting, return error
+2025-03-06 17:53:19	Stagnant reading count: 19
+2025-03-06 17:53:19	{"time":370.4,"distance":55}
+2025-03-06 17:53:20	Stagnant reading count: 20
+2025-03-06 17:53:20	Sensor readings appear stagnant. Reinitializing sensor...
+2025-03-06 17:53:20	Attempting to initialize VL53L0X sensor...
+2025-03-06 17:53:21	VL53L0X sensor initialized successfully.
+2025-03-06 17:53:21	{"time":371.4,"distance":55}
+2025-03-06 17:53:21	Stagnant reading count: 1
+2025-03-06 17:53:21	{"time":372.4,"distance":55}
+2025-03-06 17:53:22	Stagnant reading count: 2
+2025-03-06 17:53:22	{"time":373.4,"distance":55}
+2025-03-06 17:53:23	Stagnant reading count: 3
+2025-03-06 17:53:23	{"time":374.4,"distance":55}
+2025-03-06 17:53:24	E (380200) wifi:sta is connecting, return error
+2025-03-06 17:53:24	Stagnant reading count: 4
+2025-03-06 17:53:24	{"time":375.4,"distance":55}
+2025-03-06 17:53:25	Stagnant reading count: 5
+2025-03-06 17:53:25	{"time":376.4,"distance":55}
+2025-03-06 17:53:26	Stagnant reading count: 6
+2025-03-06 17:53:26	{"time":377.4,"distance":55}
+2025-03-06 17:53:27	Stagnant reading count: 7
+2025-03-06 17:53:27	{"time":378.4,"distance":55}
+2025-03-06 17:53:28	Stagnant reading count: 8
+2025-03-06 17:53:28	{"time":379.4,"distance":55}
+2025-03-06 17:53:29	E (385200) wifi:sta is connecting, return error
+2025-03-06 17:53:29	Stagnant reading count: 9
+2025-03-06 17:53:29	{"time":380.4,"distance":55}
+2025-03-06 17:53:30	Stagnant reading count: 10
+2025-03-06 17:53:30	{"time":381.4,"distance":55}
+2025-03-06 17:53:31	Stagnant reading count: 11
+2025-03-06 17:53:31	{"time":382.4,"distance":55}
+2025-03-06 17:53:32	Stagnant reading count: 12
+2025-03-06 17:53:32	{"time":383.4,"distance":55}
+2025-03-06 17:53:33	{"time":384.4,"distance":54}
+2025-03-06 17:53:34	E (390200) wifi:sta is connecting, return error
+2025-03-06 17:53:34	{"time":385.4,"distance":55}
+2025-03-06 17:53:35	Stagnant reading count: 1
+2025-03-06 17:53:35	{"time":386.4,"distance":55}
+2025-03-06 17:53:36	Stagnant reading count: 2
+2025-03-06 17:53:36	{"time":387.4,"distance":55}
+2025-03-06 17:53:37	Stagnant reading count: 3
+2025-03-06 17:53:37	{"time":388.4,"distance":55}
+2025-03-06 17:53:38	{"time":389.4,"distance":54}
+2025-03-06 17:53:39	E (395200) wifi:sta is connecting, return error
+2025-03-06 17:53:39	Stagnant reading count: 1
+2025-03-06 17:53:39	{"time":390.4,"distance":54}
+2025-03-06 17:53:40	{"time":391.4,"distance":55}
+2025-03-06 17:53:41	Stagnant reading count: 1
+2025-03-06 17:53:41	{"time":392.4,"distance":55}
+2025-03-06 17:53:42	Stagnant reading count: 2
+2025-03-06 17:53:42	{"time":393.4,"distance":55}
+2025-03-06 17:53:43	Stagnant reading count: 3
+2025-03-06 17:53:43	{"time":394.4,"distance":55}
+2025-03-06 17:53:44	E (400200) wifi:sta is connecting, return error
+2025-03-06 17:53:44	{"time":395.4,"distance":54}
+2025-03-06 17:53:45	{"time":396.4,"distance":55}
+2025-03-06 17:53:46	Stagnant reading count: 1
+2025-03-06 17:53:46	{"time":397.4,"distance":55}
+2025-03-06 17:53:47	{"time":398.4,"distance":54}
+2025-03-06 17:53:48	{"time":399.4,"distance":55}
+2025-03-06 17:53:49	E (405200) wifi:sta is connecting, return error
+2025-03-06 17:53:49	Stagnant reading count: 1
+2025-03-06 17:53:49	{"time":400.4,"distance":55}
+2025-03-06 17:53:50	{"time":401.4,"distance":54}
+2025-03-06 17:53:51	{"time":402.4,"distance":55}
+2025-03-06 17:53:52	{"time":403.4,"distance":54}
+2025-03-06 17:53:53	{"time":404.4,"distance":55}
+2025-03-06 17:53:54	E (410200) wifi:sta is connecting, return error
+2025-03-06 17:53:54	{"time":405.4,"distance":54}
+2025-03-06 17:53:55	{"time":406.4,"distance":55}
+2025-03-06 17:53:56	{"time":407.4,"distance":54}
+2025-03-06 17:53:57	{"time":408.4,"distance":55}
+2025-03-06 17:53:58	Stagnant reading count: 1
+2025-03-06 17:53:58	{"time":409.4,"distance":55}
+2025-03-06 17:53:59	E (415200) wifi:sta is connecting, return error
+2025-03-06 17:53:59	{"time":410.4,"distance":54}
+2025-03-06 17:54:00	Stagnant reading count: 1
+2025-03-06 17:54:00	{"time":411.4,"distance":54}
+2025-03-06 17:54:01	{"time":412.4,"distance":55}
+2025-03-06 17:54:02	{"time":413.4,"distance":54}
+2025-03-06 17:54:03	Stagnant reading count: 1
+2025-03-06 17:54:03	{"time":414.4,"distance":54}
+2025-03-06 17:54:04	E (420200) wifi:sta is connecting, return error
+2025-03-06 17:54:04	Stagnant reading count: 2
+2025-03-06 17:54:04	{"time":415.4,"distance":54}
+2025-03-06 17:54:05	Stagnant reading count: 3
+2025-03-06 17:54:05	{"time":416.4,"distance":54}
+2025-03-06 17:54:06	Stagnant reading count: 4
+2025-03-06 17:54:06	{"time":417.4,"distance":54}
+2025-03-06 17:54:07	{"time":418.4,"distance":55}
+2025-03-06 17:54:08	{"time":419.4,"distance":54}
+2025-03-06 17:54:09	E (425200) wifi:sta is connecting, return error
+2025-03-06 17:54:09	Stagnant reading count: 1
+2025-03-06 17:54:09	{"time":420.4,"distance":54}
+2025-03-06 17:54:10	{"time":421.4,"distance":55}
+2025-03-06 17:54:11	{"time":422.4,"distance":54}
+2025-03-06 17:54:12	Stagnant reading count: 1
+2025-03-06 17:54:12	{"time":423.4,"distance":54}
+2025-03-06 17:54:13	Stagnant reading count: 2
+2025-03-06 17:54:13	{"time":424.4,"distance":54}
+2025-03-06 17:54:14	E (430200) wifi:sta is connecting, return error
+2025-03-06 17:54:14	Stagnant reading count: 3
+2025-03-06 17:54:14	{"time":425.4,"distance":54}
+2025-03-06 17:54:15	Stagnant reading count: 4
+2025-03-06 17:54:15	{"time":426.4,"distance":54}
+2025-03-06 17:54:16	Stagnant reading count: 5
+2025-03-06 17:54:16	{"time":427.4,"distance":54}
+2025-03-06 17:54:17	Stagnant reading count: 6
+2025-03-06 17:54:17	{"time":428.4,"distance":54}
+2025-03-06 17:54:18	Stagnant reading count: 7
+2025-03-06 17:54:18	{"time":429.4,"distance":54}
+2025-03-06 17:54:19	E (435200) wifi:sta is connecting, return error
+2025-03-06 17:54:19	Stagnant reading count: 8
+2025-03-06 17:54:19	{"time":430.4,"distance":54}
+2025-03-06 17:54:20	Stagnant reading count: 9
+2025-03-06 17:54:20	{"time":431.4,"distance":54}
+2025-03-06 17:54:21	Stagnant reading count: 10
+2025-03-06 17:54:21	{"time":432.4,"distance":54}
+2025-03-06 17:54:22	Stagnant reading count: 11
+2025-03-06 17:54:22	{"time":433.4,"distance":54}
+2025-03-06 17:54:23	Stagnant reading count: 12
+2025-03-06 17:54:23	{"time":434.4,"distance":54}
+2025-03-06 17:54:24	E (440200) wifi:sta is connecting, return error
+2025-03-06 17:54:24	Stagnant reading count: 13
+2025-03-06 17:54:24	{"time":435.4,"distance":54}
+2025-03-06 17:54:25	{"time":436.4,"distance":55}
+2025-03-06 17:54:26	{"time":437.4,"distance":54}
+2025-03-06 17:54:27	{"time":438.4,"distance":55}
+2025-03-06 17:54:28	{"time":439.4,"distance":54}
+2025-03-06 17:54:29	E (445200) wifi:sta is connecting, return error
+2025-03-06 17:54:29	Stagnant reading count: 1
+2025-03-06 17:54:29	{"time":440.4,"distance":54}
+2025-03-06 17:54:30	Stagnant reading count: 2
+2025-03-06 17:54:30	{"time":441.4,"distance":54}
+2025-03-06 17:54:31	{"time":442.4,"distance":55}
+2025-03-06 17:54:32	{"time":443.4,"distance":54}
+2025-03-06 17:54:33	Stagnant reading count: 1
+2025-03-06 17:54:33	{"time":444.4,"distance":54}
+2025-03-06 17:54:34	E (450200) wifi:sta is connecting, return error
+2025-03-06 17:54:34	{"time":445.4,"distance":55}
+2025-03-06 17:54:35	Stagnant reading count: 1
+2025-03-06 17:54:35	{"time":446.4,"distance":55}
+2025-03-06 17:54:36	{"time":447.4,"distance":54}
+2025-03-06 17:54:37	Stagnant reading count: 1
+2025-03-06 17:54:37	{"time":448.4,"distance":54}
+2025-03-06 17:54:38	Stagnant reading count: 2
+2025-03-06 17:54:38	{"time":449.4,"distance":54}
+2025-03-06 17:54:39	E (455200) wifi:sta is connecting, return error
+2025-03-06 17:54:39	Stagnant reading count: 3
+2025-03-06 17:54:39	{"time":450.4,"distance":54}
+2025-03-06 17:54:40	Stagnant reading count: 4
+2025-03-06 17:54:40	{"time":451.4,"distance":54}
+2025-03-06 17:54:41	Stagnant reading count: 5
+2025-03-06 17:54:41	{"time":452.4,"distance":54}
+2025-03-06 17:54:42	Stagnant reading count: 6
+2025-03-06 17:54:42	{"time":453.4,"distance":54}
+2025-03-06 17:54:43	Stagnant reading count: 7
+2025-03-06 17:54:43	{"time":454.4,"distance":54}
+2025-03-06 17:54:44	E (460200) wifi:sta is connecting, return error
+2025-03-06 17:54:44	Stagnant reading count: 8
+2025-03-06 17:54:44	{"time":455.4,"distance":54}
+2025-03-06 17:54:45	Stagnant reading count: 9
+2025-03-06 17:54:45	{"time":456.4,"distance":54}
+2025-03-06 17:54:46	Stagnant reading count: 10
+2025-03-06 17:54:46	{"time":457.4,"distance":54}
+2025-03-06 17:54:47	Stagnant reading count: 11
+2025-03-06 17:54:47	{"time":458.4,"distance":54}
+2025-03-06 17:54:48	Stagnant reading count: 12
+2025-03-06 17:54:48	{"time":459.4,"distance":54}
+2025-03-06 17:54:49	E (465200) wifi:sta is connecting, return error
+2025-03-06 17:54:49	{"time":460.4,"distance":55}
+2025-03-06 17:54:50	{"time":461.4,"distance":54}
+2025-03-06 17:54:51	Stagnant reading count: 1
+2025-03-06 17:54:51	{"time":462.4,"distance":54}
+2025-03-06 17:54:52	{"time":463.4,"distance":55}
+2025-03-06 17:54:53	Stagnant reading count: 1
+2025-03-06 17:54:53	{"time":464.4,"distance":55}
+2025-03-06 17:54:54	E (470200) wifi:sta is connecting, return error
+2025-03-06 17:54:54	{"time":465.4,"distance":54}
+2025-03-06 17:54:55	{"time":466.4,"distance":55}
+2025-03-06 17:54:56	Stagnant reading count: 1
+2025-03-06 17:54:56	{"time":467.4,"distance":55}
+2025-03-06 17:54:57	Stagnant reading count: 2
+2025-03-06 17:54:57	{"time":468.4,"distance":55}
+2025-03-06 17:54:58	Stagnant reading count: 3
+2025-03-06 17:54:58	{"time":469.4,"distance":55}
+2025-03-06 17:54:59	E (475200) wifi:sta is connecting, return error
+2025-03-06 17:54:59	Stagnant reading count: 4
+2025-03-06 17:54:59	{"time":470.4,"distance":55}
+2025-03-06 17:55:00	Stagnant reading count: 5
+2025-03-06 17:55:00	{"time":471.4,"distance":55}
+2025-03-06 17:55:01	Stagnant reading count: 6
+2025-03-06 17:55:01	{"time":472.4,"distance":55}
+2025-03-06 17:55:02	{"time":473.4,"distance":54}
+2025-03-06 17:55:03	Stagnant reading count: 1
+2025-03-06 17:55:03	{"time":474.4,"distance":54}
+2025-03-06 17:55:04	E (480200) wifi:sta is connecting, return error
+2025-03-06 17:55:04	Stagnant reading count: 2
+2025-03-06 17:55:04	{"time":475.4,"distance":54}
+2025-03-06 17:55:05	{"time":476.4,"distance":55}
+2025-03-06 17:55:06	{"time":477.4,"distance":54}
+2025-03-06 17:55:07	{"time":478.4,"distance":55}
+2025-03-06 17:55:08	Stagnant reading count: 1
+2025-03-06 17:55:08	{"time":479.4,"distance":55}
+2025-03-06 17:55:09	E (485200) wifi:sta is connecting, return error
+2025-03-06 17:55:09	Stagnant reading count: 2
+2025-03-06 17:55:09	{"time":480.4,"distance":55}
+2025-03-06 17:55:10	Stagnant reading count: 3
+2025-03-06 17:55:10	{"time":481.4,"distance":55}
+2025-03-06 17:55:11	Stagnant reading count: 4
+2025-03-06 17:55:11	{"time":482.4,"distance":55}
+2025-03-06 17:55:12	{"time":483.4,"distance":54}
+2025-03-06 17:55:13	Stagnant reading count: 1
+2025-03-06 17:55:13	{"time":484.4,"distance":54}
+2025-03-06 17:55:14	E (490200) wifi:sta is connecting, return error
+2025-03-06 17:55:14	Stagnant reading count: 2
+2025-03-06 17:55:14	{"time":485.4,"distance":54}
+2025-03-06 17:55:15	{"time":486.4,"distance":55}
+2025-03-06 17:55:16	Stagnant reading count: 1
+2025-03-06 17:55:16	{"time":487.4,"distance":55}
+2025-03-06 17:55:17	Stagnant reading count: 2
+2025-03-06 17:55:17	{"time":488.4,"distance":55}
+2025-03-06 17:55:18	{"time":489.4,"distance":54}
+2025-03-06 17:55:19	E (495200) wifi:sta is connecting, return error
+2025-03-06 17:55:19	{"time":490.4,"distance":55}
+2025-03-06 17:55:20	Stagnant reading count: 1
+2025-03-06 17:55:20	{"time":491.4,"distance":55}
+2025-03-06 17:55:21	{"time":492.4,"distance":54}
+2025-03-06 17:55:22	Stagnant reading count: 1
+2025-03-06 17:55:22	{"time":493.4,"distance":54}
+2025-03-06 17:55:23	{"time":494.4,"distance":55}
+2025-03-06 17:55:24	E (500200) wifi:sta is connecting, return error
+2025-03-06 17:55:24	Stagnant reading count: 1
+2025-03-06 17:55:24	{"time":495.4,"distance":55}
+2025-03-06 17:55:25	Stagnant reading count: 2
+2025-03-06 17:55:25	{"time":496.4,"distance":55}
+2025-03-06 17:55:26	{"time":497.4,"distance":54}
+2025-03-06 17:55:27	{"time":498.4,"distance":55}
+2025-03-06 17:55:28	Stagnant reading count: 1
+2025-03-06 17:55:28	{"time":499.4,"distance":55}
+2025-03-06 17:55:29	E (505200) wifi:sta is connecting, return error
+2025-03-06 17:55:29	{"time":500.4,"distance":54}
+2025-03-06 17:55:30	Stagnant reading count: 1
+2025-03-06 17:55:30	{"time":501.4,"distance":54}
+2025-03-06 17:55:31	{"time":502.4,"distance":55}
+2025-03-06 17:55:32	Stagnant reading count: 1
+2025-03-06 17:55:32	{"time":503.4,"distance":55}
+2025-03-06 17:55:33	{"time":504.4,"distance":54}
+2025-03-06 17:55:34	E (510200) wifi:sta is connecting, return error
+2025-03-06 17:55:34	{"time":505.4,"distance":55}
+2025-03-06 17:55:35	Stagnant reading count: 1
+2025-03-06 17:55:35	{"time":506.4,"distance":55}
+2025-03-06 17:55:36	{"time":507.4,"distance":54}
+2025-03-06 17:55:37	{"time":508.4,"distance":55}
+2025-03-06 17:55:38	{"time":509.4,"distance":54}
+2025-03-06 17:55:39	E (515200) wifi:sta is connecting, return error
+2025-03-06 17:55:39	Stagnant reading count: 1
+2025-03-06 17:55:39	{"time":510.4,"distance":54}
+2025-03-06 17:55:40	Stagnant reading count: 2
+2025-03-06 17:55:40	{"time":511.4,"distance":54}
+2025-03-06 17:55:41	{"time":512.4,"distance":55}
+2025-03-06 17:55:42	{"time":513.4,"distance":54}
+2025-03-06 17:55:43	Stagnant reading count: 1
+2025-03-06 17:55:43	{"time":514.4,"distance":54}
+2025-03-06 17:55:44	E (520200) wifi:sta is connecting, return error
+2025-03-06 17:55:44	{"time":515.4,"distance":55}
+2025-03-06 17:55:45	Stagnant reading count: 1
+2025-03-06 17:55:45	{"time":516.4,"distance":55}
+2025-03-06 17:55:46	Stagnant reading count: 2
+2025-03-06 17:55:46	{"time":517.4,"distance":55}
+2025-03-06 17:55:47	Stagnant reading count: 3
+2025-03-06 17:55:47	{"time":518.4,"distance":55}
+2025-03-06 17:55:48	{"time":519.4,"distance":54}
+2025-03-06 17:55:49	E (525200) wifi:sta is connecting, return error
+2025-03-06 17:55:49	Stagnant reading count: 1
+2025-03-06 17:55:49	{"time":520.4,"distance":54}
+2025-03-06 17:55:50	Stagnant reading count: 2
+2025-03-06 17:55:50	{"time":521.4,"distance":54}
+2025-03-06 17:55:51	{"time":522.4,"distance":55}
+2025-03-06 17:55:52	Stagnant reading count: 1
+2025-03-06 17:55:52	{"time":523.4,"distance":55}
+2025-03-06 17:55:53	{"time":524.4,"distance":54}
+2025-03-06 17:55:54	E (530200) wifi:sta is connecting, return error
+2025-03-06 17:55:54	Stagnant reading count: 1
+2025-03-06 17:55:54	{"time":525.4,"distance":54}
+2025-03-06 17:55:55	{"time":526.4,"distance":55}
+2025-03-06 17:55:56	Stagnant reading count: 1
+2025-03-06 17:55:56	{"time":527.4,"distance":55}
+2025-03-06 17:55:57	Stagnant reading count: 2
+2025-03-06 17:55:57	{"time":528.4,"distance":55}
+2025-03-06 17:55:58	{"time":529.4,"distance":54}
+2025-03-06 17:55:59	E (535200) wifi:sta is connecting, return error
+2025-03-06 17:55:59	{"time":530.4,"distance":55}
+2025-03-06 17:56:00	Stagnant reading count: 1
+2025-03-06 17:56:00	{"time":531.4,"distance":55}
+2025-03-06 17:56:01	{"time":532.4,"distance":54}
+2025-03-06 17:56:02	Stagnant reading count: 1
+2025-03-06 17:56:02	{"time":533.4,"distance":54}
+2025-03-06 17:56:03	{"time":534.4,"distance":55}
+2025-03-06 17:56:04	E (540200) wifi:sta is connecting, return error
+2025-03-06 17:56:04	Stagnant reading count: 1
+2025-03-06 17:56:04	{"time":535.4,"distance":55}
+2025-03-06 17:56:05	Stagnant reading count: 2
+2025-03-06 17:56:05	{"time":536.4,"distance":55}
+2025-03-06 17:56:06	{"time":537.4,"distance":54}
+2025-03-06 17:56:07	{"time":538.4,"distance":55}
+2025-03-06 17:56:08	{"time":539.4,"distance":54}
+2025-03-06 17:56:09	E (545200) wifi:sta is connecting, return error
+2025-03-06 17:56:09	{"time":540.4,"distance":55}
+2025-03-06 17:56:10	Stagnant reading count: 1
+2025-03-06 17:56:10	{"time":541.4,"distance":55}
+2025-03-06 17:56:11	{"time":542.4,"distance":54}
+2025-03-06 17:56:12	{"time":543.4,"distance":55}
+2025-03-06 17:56:13	Stagnant reading count: 1
+2025-03-06 17:56:13	{"time":544.4,"distance":55}
+2025-03-06 17:56:14	E (550200) wifi:sta is connecting, return error
+2025-03-06 17:56:14	Stagnant reading count: 2
+2025-03-06 17:56:14	{"time":545.4,"distance":55}
+2025-03-06 17:56:15	Stagnant reading count: 3
+2025-03-06 17:56:15	{"time":546.4,"distance":55}
+2025-03-06 17:56:16	Stagnant reading count: 4
+2025-03-06 17:56:16	{"time":547.4,"distance":55}
+2025-03-06 17:56:17	Stagnant reading count: 5
+2025-03-06 17:56:17	{"time":548.4,"distance":55}
+2025-03-06 17:56:18	Stagnant reading count: 6
+2025-03-06 17:56:18	{"time":549.4,"distance":55}
+2025-03-06 17:56:19	E (555200) wifi:sta is connecting, return error
+2025-03-06 17:56:19	Stagnant reading count: 7
+2025-03-06 17:56:19	{"time":550.4,"distance":55}
+2025-03-06 17:56:20	Stagnant reading count: 8
+2025-03-06 17:56:20	{"time":551.4,"distance":55}
+2025-03-06 17:56:21	Stagnant reading count: 9
+2025-03-06 17:56:21	{"time":552.4,"distance":55}
+2025-03-06 17:56:22	Stagnant reading count: 10
+2025-03-06 17:56:22	{"time":553.4,"distance":55}
+2025-03-06 17:56:23	Stagnant reading count: 11
+2025-03-06 17:56:23	{"time":554.4,"distance":55}
+2025-03-06 17:56:24	E (560200) wifi:sta is connecting, return error
+2025-03-06 17:56:24	{"time":555.4,"distance":56}
+2025-03-06 17:56:25	{"time":556.4,"distance":55}
+2025-03-06 17:56:26	Stagnant reading count: 1
+2025-03-06 17:56:26	{"time":557.4,"distance":55}
+2025-03-06 17:56:27	Stagnant reading count: 2
+2025-03-06 17:56:27	{"time":558.4,"distance":55}
+2025-03-06 17:56:28	Stagnant reading count: 3
+2025-03-06 17:56:28	{"time":559.4,"distance":55}
+2025-03-06 17:56:29	E (565200) wifi:sta is connecting, return error
+2025-03-06 17:56:29	{"time":560.4,"distance":54}
+2025-03-06 17:56:30	{"time":561.4,"distance":55}
+2025-03-06 17:56:31	Stagnant reading count: 1
+2025-03-06 17:56:31	{"time":562.4,"distance":55}
+2025-03-06 17:56:32	Stagnant reading count: 2
+2025-03-06 17:56:32	{"time":563.4,"distance":55}
+2025-03-06 17:56:33	{"time":564.4,"distance":56}
+2025-03-06 17:56:34	E (570200) wifi:sta is connecting, return error
+2025-03-06 17:56:34	{"time":565.4,"distance":55}
+2025-03-06 17:56:35	Stagnant reading count: 1
+2025-03-06 17:56:35	{"time":566.4,"distance":55}
+2025-03-06 17:56:36	Stagnant reading count: 2
+2025-03-06 17:56:36	{"time":567.4,"distance":55}
+2025-03-06 17:56:37	Stagnant reading count: 3
+2025-03-06 17:56:37	{"time":568.4,"distance":55}
+2025-03-06 17:56:38	Stagnant reading count: 4
+2025-03-06 17:56:38	{"time":569.4,"distance":55}
+2025-03-06 17:56:39	E (575200) wifi:sta is connecting, return error
+2025-03-06 17:56:39	Stagnant reading count: 5
+2025-03-06 17:56:39	{"time":570.4,"distance":55}
+2025-03-06 17:56:40	Stagnant reading count: 6
+2025-03-06 17:56:40	{"time":571.4,"distance":55}
+2025-03-06 17:56:41	Stagnant reading count: 7
+2025-03-06 17:56:41	{"time":572.4,"distance":55}
+2025-03-06 17:56:42	Stagnant reading count: 8
+2025-03-06 17:56:42	{"time":573.4,"distance":55}
+2025-03-06 17:56:43	Stagnant reading count: 9
+2025-03-06 17:56:43	{"time":574.4,"distance":55}
+2025-03-06 17:56:44	E (580200) wifi:sta is connecting, return error
+2025-03-06 17:56:44	Stagnant reading count: 10
+2025-03-06 17:56:44	{"time":575.4,"distance":55}
+2025-03-06 17:56:45	Stagnant reading count: 11
+2025-03-06 17:56:45	{"time":576.4,"distance":55}
+2025-03-06 17:56:46	Stagnant reading count: 12
+2025-03-06 17:56:46	{"time":577.4,"distance":55}
+2025-03-06 17:56:47	Stagnant reading count: 13
+2025-03-06 17:56:47	{"time":578.4,"distance":55}
+2025-03-06 17:56:48	Stagnant reading count: 14
+2025-03-06 17:56:48	{"time":579.4,"distance":55}
+2025-03-06 17:56:49	E (585200) wifi:sta is connecting, return error
+2025-03-06 17:56:49	Stagnant reading count: 15
+2025-03-06 17:56:49	{"time":580.4,"distance":55}
+2025-03-06 17:56:50	Stagnant reading count: 16
+2025-03-06 17:56:50	{"time":581.4,"distance":55}
+2025-03-06 17:56:51	{"time":582.4,"distance":56}
+2025-03-06 17:56:52	{"time":583.4,"distance":54}
+2025-03-06 17:56:53	{"time":584.4,"distance":55}
+2025-03-06 17:56:54	E (590200) wifi:sta is connecting, return error
+2025-03-06 17:56:54	{"time":585.4,"distance":54}

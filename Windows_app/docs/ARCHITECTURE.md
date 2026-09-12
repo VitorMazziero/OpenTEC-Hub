@@ -45,7 +45,10 @@ One rule, and it removes an entire class of bug that v.6 has
 > and observe its events.
 
 - All transport I/O is `async`, on the thread pool, never on the dispatcher.
-- Telemetry is marshalled to the UI thread **once**, at the ViewModel boundary.
+- Telemetry is marshalled to the UI thread **once**, at the ViewModel boundary — at
+  `DispatcherPriority.Background`, below `Input` and `Render`, so a frame's subscribers never
+  run ahead of a pending click or layout. State changes and command echoes go at `Normal`.
+  Raw and log lines of a frame are batched into one dispatcher item.
 - One `CommandArbiter` owns the command path above the transport: every `Send` carries an
   owner, ownership is tracked per actuator, and an operator, the cascade and a running recipe
   cannot issue contradictory writes into the same link. See [D-015](DECISIONS.md).
@@ -54,6 +57,19 @@ One rule, and it removes an entire class of bug that v.6 has
 Nothing blocks the UI thread. A synchronous file read in `App.OnStartup` is a bug,
 not a shortcut — the 2 s cold-start budget in [ROADMAP.md](ROADMAP.md#non-functional-targets)
 has no room for one.
+
+- **Chart redraws are gated by visibility and by change.** `DeferredPageHost` hides a page by
+  collapsing it and never unloads it, so a `Loaded`-started timer would redraw unseen plots for
+  the whole session. Views use `Controls/VisibleRedrawTimer`: it runs only while its host is
+  loaded and `IsVisible`, ticks at `Background` priority, and draws only when a data source
+  marked it dirty. Live series (power torque/rpm, kLa DO) are `DataLogger`s fed per point.
+- **Assay I/O goes through one ordered queue** ([D-048](DECISIONS.md)). `PowerTestStore` and
+  `KlaTestStore` format or serialise on the caller and hand the bytes to a shared
+  `BackgroundFileWriter` — one consumer, enqueue order, so the ordering a `lock` gave the
+  synchronous writes is kept. Reads flush the queue first. The stores' `void Save*`/`Append*`
+  signatures did not change; the runners did not change. A store built without a writer writes
+  inline (tests). What stays synchronous, on purpose: folder creation and the "begin capture"
+  openers — a storage that cannot be opened must fail before an actuator is claimed (D-046).
 
 ---
 

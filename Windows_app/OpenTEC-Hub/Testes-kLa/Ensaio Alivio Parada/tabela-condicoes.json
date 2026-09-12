@@ -1,1 +1,14 @@
-﻿[]
+﻿[
+  {
+    "conditionId": "309d94f8-7a8a-4189-98c4-0628baa77bf9",
+    "orderIndex": 0,
+    "agitationRpm": 450,
+    "airflowLpm": 3,
+    "requestedReplicates": 1,
+    "completedReplicates": 0,
+    "acceptedReplicates": 0,
+    "rejectedReplicates": 0,
+    "origin": "Manual",
+    "status": "Pending"
+  }
+]

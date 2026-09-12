@@ -302,5 +302,7 @@ public sealed class Wp7Tests
         public void CopyText(string text)
         {
         }
+
+        public void OpenUri(Uri uri) { }
     }
 }

@@ -142,6 +142,32 @@ Detalhes que importam na implementacao:
   `_lastSnapshot`: o que as valvulas faziam antes de uma lacuna nao e evidencia do que fazem
   depois dela.
 
+## 7.1. Envio da curva de calibracao (2026-09-11)
+
+Na bancada de 11/09 o botao "Salvar e enviar curva" deixava o aplicativo em "aguardando
+ack" para sempre. Duas causas, as duas no Hub (`10.0.1-dev`):
+
+1. **Leitor serial fragmentava o comando.** `handleUSBCommands()` processava o que houvesse
+   no buffer como uma linha; o comando de calibracao (~300 B) chega em varios pacotes USB e
+   cada pedaco era descartado. O leitor passa a acumular ate o `\n` (limite 1024 B; acima
+   disso descarta e ignora ate o proximo fim de linha).
+2. **`a1`/`b1` eram descartados.** Os termos x⁴/x³ do segmento baixo nao chegavam ao
+   fluxometro, que interpretava a curva baixa como quadratica. `queueReliableFlowCommandFromJson`
+   e `buildFlowCommandLocked` passam a repassa-los, antes de `k1/f1/c1`.
+
+Conferido contra o aplicativo e o firmware V10 do fluxometro: o aplicativo ja termina
+quadros com `\n` (`SerialTransport.cs`), usa `InvariantCulture` e manda a curva num unico
+quadro (< 1024 B); o fluxometro parseia `a1`/`b1` e so os zera quando chega `k1/f1/c1` sem
+eles. Nenhuma mudanca no aplicativo era necessaria para o envio funcionar; o aplicativo
+apenas avisa apos 15 s sem ack e reabilita o botao (o Hub continua reenviando ate o link
+voltar).
+
+Validacao apos gravar o Hub: o console do Hub loga `Flow command queued ... "a1":...,"b1":...`;
+a serial do fluxometro mostra `[HubCmd] Applied cmd_id=N` e `Params Saved.`; o aplicativo sai
+de "aguardando" em ~1 s; a vazao reportada abaixo de 1 L/min confere com os pontos
+certificados. Testes de contrato: `tests/contracts/test_usb_line_framing.py` e o quadro real
+de calibracao em `test_json_keys.py`.
+
 ## 8. Como verificar em bancada
 
 1. **Keep-alive e carga:** com o ensaio rodando, o console do Hub nao deve mais registrar

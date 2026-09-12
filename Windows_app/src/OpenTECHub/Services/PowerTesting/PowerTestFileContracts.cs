@@ -89,6 +89,20 @@ public static class PowerTestFileContracts
         Converters = { new JsonStringEnumConverter() },
     };
 
+    /// <summary>
+    /// The persisted form of a model object, for equality checks on classes that have none
+    /// (geometry, conditions). Two objects that would write the same JSON are the same setup.
+    /// </summary>
+    public static string Fingerprint<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
+
+    /// <summary>
+    /// A summary row that stopped before capturing anything: no samples <em>and</em> no usable
+    /// power (D-050). Both are required so that a row from an older manifest that never recorded
+    /// <c>sampleCount</c> but does carry a measured power is not mistaken for one.
+    /// </summary>
+    public static bool IsRunWithoutCapture(PowerRunSummary run) =>
+        run.SampleCount == 0 && !(run.NetPowerW is { } p && double.IsFinite(p) && p != 0.0);
+
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "CON", "PRN", "AUX", "NUL",

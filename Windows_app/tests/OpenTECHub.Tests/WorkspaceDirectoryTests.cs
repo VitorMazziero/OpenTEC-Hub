@@ -465,6 +465,8 @@ public sealed class WorkspaceDirectoryTests : IDisposable
         {
         }
 
+        public void OpenUri(Uri uri) { }
+
         public void OpenFolder(string path)
         {
             LastOpenedFolder = path;

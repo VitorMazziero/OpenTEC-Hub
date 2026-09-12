@@ -748,11 +748,18 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     // ── Operational alarms (WP4) ─────────────────────────────────────────────
 
-    /// <summary>True while any system alarm is latched, so the banner shows.</summary>
+    /// <summary>True while any system alarm is latched (acknowledged or not).</summary>
     public bool HasAlarms => _alarms.HasActiveAlarms;
 
-    /// <summary>The alarm the banner headlines, or null.</summary>
-    public AlarmSnapshot? AlarmHeadline => _alarms.Headline;
+    /// <summary>
+    /// Whether the banner is on screen: outside Eventos only while something is still to be
+    /// acknowledged; on Eventos while anything is latched at all (§H,
+    /// <see cref="AlarmBannerPresenter"/>). Re-evaluated on every alarm change and on navigation.
+    /// </summary>
+    public bool IsAlarmBannerVisible => AlarmBannerPresenter.IsVisible(_alarms.Snapshot(), SelectedNavigationId);
+
+    /// <summary>The alarm the banner headlines on the current page, or null.</summary>
+    public AlarmSnapshot? AlarmHeadline => AlarmBannerPresenter.Headline(_alarms.Snapshot(), _alarms.Headline, SelectedNavigationId);
 
     /// <summary>The headline as a display row, so the banner and the list agree.</summary>
     public AlarmListItem? AlarmHeadlineItem
@@ -778,29 +785,23 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public VariableState AlarmState => AlarmHeadlineItem?.State ?? VariableState.Alarm;
 
     /// <summary>
-    /// Every other latched alarm, for the banner's expandable list. The headline is
-    /// excluded because its own row already shows it above the list.
+    /// Every other alarm the banner lists on this page, for the expandable list. The headline is
+    /// excluded because its own row already shows it above the list. Outside Eventos only the
+    /// unacknowledged ones are here; on Eventos all latched ones, acknowledged rows with their
+    /// button disabled and the state text saying so.
     /// </summary>
     public IReadOnlyList<AlarmListItem> OtherAlarms
-        => _alarms.Snapshot()
-            .Where(a => _alarms.Headline is not { } head || a.Id != head.Id)
+        => AlarmBannerPresenter.Others(_alarms.Snapshot(), _alarms.Headline, SelectedNavigationId)
             .Select(ToAlarmListItem)
             .ToArray();
 
     /// <summary>
-    /// A count suffix for the banner when more than one alarm is latched, e.g. "+2".
+    /// A count suffix for the banner when more than one alarm is listed on this page, e.g. "+2".
     /// </summary>
-    public string AlarmMoreText
-    {
-        get
-        {
-            var others = _alarms.Snapshot().Count - 1;
-            return others > 0 ? $"+{others}" : "";
-        }
-    }
+    public string AlarmMoreText => AlarmBannerPresenter.MoreText(_alarms.Snapshot(), SelectedNavigationId);
 
-    /// <summary>True when more than one alarm is latched, so the expander is offered.</summary>
-    public bool HasMultipleAlarms => _alarms.Snapshot().Count > 1;
+    /// <summary>True when more than one alarm is listed on this page, so the expander is offered.</summary>
+    public bool HasMultipleAlarms => AlarmBannerPresenter.Displayed(_alarms.Snapshot(), SelectedNavigationId).Count > 1;
 
     /// <summary>Whether the banner's list of the other alarms is expanded.</summary>
     [ObservableProperty]
@@ -851,7 +852,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void AcknowledgeHeadline()
     {
-        if (_alarms.Headline is { } headline)
+        if (AlarmHeadline is { } headline)
         {
             _alarms.Acknowledge(headline.Id);
         }
@@ -882,7 +883,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             IsAlarmListExpanded = false;
         }
 
+        NotifyAlarmBanner();
         OnPropertyChanged(nameof(HasAlarms));
+        OnPropertyChanged(nameof(IsAlarmAudible));
+        OnPropertyChanged(nameof(HasUnacknowledgedAlarms));
+    }
+
+    /// <summary>The banner's page-dependent properties: raised on alarm changes and on navigation.</summary>
+    private void NotifyAlarmBanner()
+    {
+        OnPropertyChanged(nameof(IsAlarmBannerVisible));
         OnPropertyChanged(nameof(AlarmHeadline));
         OnPropertyChanged(nameof(AlarmHeadlineItem));
         OnPropertyChanged(nameof(AlarmHeadlineText));
@@ -892,9 +902,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(OtherAlarms));
         OnPropertyChanged(nameof(AlarmMoreText));
         OnPropertyChanged(nameof(HasMultipleAlarms));
-        OnPropertyChanged(nameof(IsAlarmAudible));
-        OnPropertyChanged(nameof(HasUnacknowledgedAlarms));
         OnPropertyChanged(nameof(CanAcknowledgeHeadline));
+        if (!HasMultipleAlarms && IsAlarmListExpanded)
+        {
+            IsAlarmListExpanded = false;
+        }
     }
 
     [ObservableProperty]
@@ -990,6 +1002,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     partial void OnSelectedNavigationIdChanged(string value)
     {
         IsNavDrawerOpen = false;
+        // Eventos shows every latched alarm; the other pages only what is still to acknowledge.
+        NotifyAlarmBanner();
         if (!_uiLoaded || !NavigationItems.Any(item => item.Id == value))
         {
             return;

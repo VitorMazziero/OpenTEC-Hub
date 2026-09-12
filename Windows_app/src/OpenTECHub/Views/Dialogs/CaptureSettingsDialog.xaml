@@ -59,7 +59,7 @@
                 BorderThickness="0,1,0,0">
             <Button Content="Concluir" MinWidth="95" Padding="14,6" HorizontalAlignment="Right"
                     Style="{StaticResource AccentButtonStyle}"
-                    IsDefault="True" IsCancel="True" Click="OnCloseClick" />
+                    IsDefault="True" Click="OnCloseClick" />
         </Border>
 
         <!-- Main Content -->
@@ -97,7 +97,11 @@
                 <TextBlock Text="Opções de Operação" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
 
                 <CheckBox Margin="0,0,0,8" Content="Aceite automático dos pontos" IsChecked="{Binding AutoAcceptRuns}"
-                          ToolTip="Aceita cada ponto capturado sem revisão e emenda direto na próxima condição, deixando o ensaio rodar sozinho até o fim da tabela. Sem isso, cada ponto para em 'Revisando' e espera o operador." />
+                          ToolTip="Aceita cada ponto capturado sem revisão e emenda direto na próxima condição, deixando o ensaio rodar sozinho até o fim da tabela. Sem isso, cada ponto para em 'Revisando' e espera o operador. Falhas de sequência (alívio, válvulas, rotação, limites) continuam parando para revisão." />
+                <CheckBox Margin="20,0,0,8" Content="Falha de sequência em modo autônomo: repetir uma vez, depois pular"
+                          IsChecked="{Binding RetryThenSkipOnSequenceFailure}"
+                          IsEnabled="{Binding AutoAcceptRuns}"
+                          ToolTip="Com o aceite automático, um tempo limite de alívio, de válvula ou de rotação rejeita a corrida, repete a condição uma vez e, se falhar de novo, marca a condição como pulada e segue. Sem esta opção o ensaio para em 'Revisando'. Limite de torque ou rotação continua parando sempre — é segurança, não sequência." />
                 <CheckBox Margin="0,0,0,8" Content="Leitura manual de energia após cada ponto"
                           IsChecked="{Binding ManualEnergyCaptureEnabled}"
                           IsEnabled="{Binding AutoAcceptRuns, Converter={StaticResource InverseBool}}"
@@ -141,6 +145,28 @@
                                 <TextBox Style="{StaticResource CompactField}" Text="{Binding MaxVentStabilizationSeconds, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                         </Grid>
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="2*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" ToolTip="Estabilidade: desvio-padrão máximo das últimas N leituras para considerar a vazão estabilizada mesmo fora da banda de tolerância">
+                                <TextBlock Text="σ máx. (L/min)" Style="{StaticResource PowerLabel}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStabilityStdDevLpm, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" ToolTip="Estabilidade: distância máxima entre a média das últimas N leituras e o alvo">
+                                <TextBlock Text="|erro| máx. (L/min)" Style="{StaticResource PowerLabel}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStabilityMaxErrorLpm, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="4" VerticalAlignment="Bottom" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                                       Text="Sai do alívio quando N leituras estão na banda OU quando σ e |erro| ficam abaixo destes limites (o controlador tem offset de ~+0,08 L/min)." />
+                        </Grid>
+                        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource StateWarningTextBrush}"
+                                   Visibility="{Binding IsVentTimeoutShort, Converter={StaticResource BoolToVis}}"
+                                   Text="Abaixo de ~150 s o alívio tende a expirar: ao abrir, a vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, levando 110–170 s para entrar na banda (bancada de 11/09/2026)." />
                     </StackPanel>
                 </Border>
             </StackPanel>

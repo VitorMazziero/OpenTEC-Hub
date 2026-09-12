@@ -368,4 +368,101 @@ public sealed class PowerNavigationContractTests
             }
         }
     }
+
+    [Fact]
+    public void LivePoints_Clears_When_Runner_Advances_To_Next_Point_Or_Starts_New_Run()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "LivePoints_Clear_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var inner = new RecordingDeviceService();
+            using var arbiter = new CommandArbiter(inner, TimeProvider.System);
+            var store = new PowerTestStore(root);
+            var runner = new NavigationStubRunner();
+            using var vm = new PowerTestViewModel(store, inner, arbiter, runner, null);
+
+            // Simulate point 1 data accumulated in LivePoints
+            vm.LivePoints.Add(new PowerDataPoint(DateTimeOffset.UtcNow, 0.0, PowerRunPhase.AccumulatingToTarget, 200, 3.5, 0.1, 2.0, null, true));
+            vm.LivePoints.Add(new PowerDataPoint(DateTimeOffset.UtcNow, 5.0, PowerRunPhase.AccumulatingToTarget, 200, 3.6, 0.1, 2.0, null, true));
+            Assert.Equal(2, vm.LivePoints.Count);
+
+            // When advancing to next point (PreparingNextRun phase)
+            runner.Phase = PowerRunPhase.PreparingNextRun;
+            runner.RaiseStateChanged();
+            Assert.Empty(vm.LivePoints);
+
+            // Re-populate with residual data
+            vm.LivePoints.Add(new PowerDataPoint(DateTimeOffset.UtcNow, 0.0, PowerRunPhase.AccumulatingToTarget, 250, 4.0, 0.15, 2.8, null, true));
+            Assert.NotEmpty(vm.LivePoints);
+
+            // When new run starts (RunStarted event)
+            var nextRun = new PowerRun
+            {
+                RunId = Guid.NewGuid(),
+                ConditionId = Guid.NewGuid(),
+                CurrentPhase = PowerRunPhase.Preflight,
+            };
+            runner.RaiseRunStarted(nextRun);
+            Assert.Empty(vm.LivePoints);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private sealed class NavigationStubRunner : IPowerTestRunner
+    {
+        public PowerTestDocument? CurrentTest => null;
+        public PowerRun? CurrentRun { get; set; }
+        public PowerCondition? CurrentCondition => null;
+        public PowerRunPhase Phase { get; set; } = PowerRunPhase.Idle;
+        public bool IsRunning => false;
+        public bool IsInReview => false;
+        public bool IsPausedByOperator => false;
+        public bool IsPausedForMeasurement => false;
+        public double PhaseElapsedSeconds => 0;
+        public double TotalElapsedSeconds => 0;
+        public double CurrentRpm => 0;
+        public double CurrentTorquePercent => 0;
+        public double CurrentTorqueCi95Percent => 0;
+        public double CurrentTorqueCiTargetPercent => 0;
+        public int CurrentAttempt => 0;
+        public string StatusMessage => "";
+        public IReadOnlyList<PowerDataPoint> CurrentRunPoints => [];
+        public IReadOnlyList<PowerGlobalSeriesSample> GlobalSeriesSamples => [];
+
+        public event Action? StateChanged;
+        public event Action<PowerDataPoint>? DataPointAdded;
+        public event Action<PowerRun>? RunStarted;
+        public event Action<string>? Logged;
+
+        public void RaiseStateChanged() => StateChanged?.Invoke();
+        public void RaiseRunStarted(PowerRun run)
+        {
+            CurrentRun = run;
+            RunStarted?.Invoke(run);
+        }
+
+        public bool CanStart(PowerTestDocument doc, out string? reason) { reason = null; return true; }
+        public void PrepareTest(PowerTestDocument doc) { }
+        public void ClearTest() { }
+        public Task StartTestAsync(PowerTestDocument doc, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StartRunAsync(PowerCondition condition, int replicateNumber, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task PauseAsync() => Task.CompletedTask;
+        public Task ResumeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SkipCurrentConditionAsync(string reason = "") => Task.CompletedTask;
+        public Task ResumeAfterMeasurementAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SubmitManualEnergyAsync(double electricalPowerW, string? instrument = null, string? note = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StopRunAndReviewAsync(string reason = "") => Task.CompletedTask;
+        public Task AcceptRunAsync() => Task.CompletedTask;
+        public Task RejectRunAsync(string reason) => Task.CompletedTask;
+        public Task RepeatRunAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CompleteTestAsync() => Task.CompletedTask;
+        public Task AbortTestAsync(string reason) => Task.CompletedTask;
+        public void Dispose() { }
+    }
 }

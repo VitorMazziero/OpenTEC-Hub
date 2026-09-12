@@ -302,12 +302,13 @@
         </Border>
 
         <!-- ══ Alarm banner (WP4) — full width, above the rails ══
-             Shows whenever a system alarm is latched. Each row carries its own Reconhecer,
-             so alarms are cleared one at a time; Silenciar is global, lives on this first
+             Shows while something is still to be acknowledged - and on Eventos while anything
+             is latched at all (AlarmBannerPresenter). Each row carries its own Reconhecer,
+             so alarms are cleared one at a time and an acknowledged row leaves the banner; Silenciar is global, lives on this first
              row and only greys out (never disappears) once the audible is off. The chevron
              on the right expands the rest of the currently latched alarms. -->
         <Border DockPanel.Dock="Top"
-                Visibility="{Binding HasAlarms, Converter={StaticResource BoolToVis}}"
+                Visibility="{Binding IsAlarmBannerVisible, Converter={StaticResource BoolToVis}}"
                 Background="{DynamicResource SurfaceCardBrush}"
                 BorderBrush="{Binding AlarmState, Converter={StaticResource StateToBrush}}"
                 BorderThickness="0,0,0,2"

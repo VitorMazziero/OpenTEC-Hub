@@ -44,6 +44,11 @@ public partial class App : Application
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
 
     private ServiceProvider? _services;
+
+#if DEBUG
+    /// <summary>DEBUG builds measure UI-thread stalls from the first frame to exit (§5.1).</summary>
+    private UiHitchMonitor? _hitchMonitor;
+#endif
     private IServiceProvider? _testServices;
     public IServiceProvider? Services
     {
@@ -149,6 +154,10 @@ public partial class App : Application
             "First frame after {ElapsedMs} ms (budget 2000 ms)",
             _startupTimer.ElapsedMilliseconds);
 
+#if DEBUG
+        _hitchMonitor = new UiHitchMonitor(Dispatcher);
+#endif
+
         // Only now do we touch hardware.
         _services?.GetRequiredService<ShellViewModel>().StartAutoConnect();
     }
@@ -221,13 +230,17 @@ public partial class App : Application
     {
         var logPath = Path.Combine(AppPaths.LogDirectory, "opentechub-.log");
 
+        // The file sink runs behind an async buffer (§F.2): a log line written from the UI thread
+        // costs an enqueue, not a disk write. Volume is low (~1 line / 30 s), so this is hygiene
+        // rather than a fix; blockWhenFull keeps a burst from dropping lines.
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
-            .WriteTo.File(
+            .WriteTo.Async(sink => sink.File(
                 logPath,
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 14,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"),
+                blockWhenFull: true)
             .CreateLogger();
 
         Log.Information("=== OpenTEC-Hub starting ===");
@@ -302,10 +315,13 @@ public partial class App : Application
         services.AddSingleton<IWorkspaceMigrationService, WorkspaceMigrationService>();
         services.AddSingleton<IKlaMappingEngine, KlaMappingEngine>();
         services.AddSingleton<IKlaProfileStore>(_ => new KlaProfileStore(AppPaths.KlaMappingDirectory));
-        services.AddSingleton<IKlaTestStore>(_ => new KlaTestStore(AppPaths.KlaTestsDirectory));
+        // One ordered background writer for both assay stores (D-048): saves are queued off the UI
+        // thread; the container disposes it at exit, which drains the queue.
+        services.AddSingleton(sp => new BackgroundFileWriter(logger: sp.GetRequiredService<ILogger<BackgroundFileWriter>>()));
+        services.AddSingleton<IKlaTestStore>(sp => new KlaTestStore(AppPaths.KlaTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IKlaAnalysisEngine, KlaAnalysisEngine>();
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
-        services.AddSingleton<IPowerTestStore>(_ => new PowerTestStore(AppPaths.PowerTestsDirectory));
+        services.AddSingleton<IPowerTestStore>(sp => new PowerTestStore(AppPaths.PowerTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IPowerMapStore>(_ => new PowerMapStore(AppPaths.PowerMapsDirectory));
         services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();
         services.AddSingleton<IPowerMapEngine, PowerMapEngine>();
@@ -441,6 +457,12 @@ public partial class App : Application
     private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         var ex = e.ExceptionObject as Exception ?? new InvalidOperationException($"Unhandled domain exception: {e.ExceptionObject}");
+        if (CrashReporter.IsShutdownCrtUnloadException(ex))
+        {
+            Log.Warning("Exceção inofensiva de descarregamento CRT/WPF suprimida durante o encerramento do processo.");
+            return;
+        }
+
         CrashReporter.GenerateAndSaveReport(ex, "AppDomain.CurrentDomain.UnhandledException", isTerminating: e.IsTerminating);
     }
 
@@ -452,6 +474,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+#if DEBUG
+        _hitchMonitor?.Dispose();
+#endif
         Log.Information("=== OpenTEC-Hub exiting ===");
 
         if (_services is { } services)

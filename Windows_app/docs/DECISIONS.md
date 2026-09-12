@@ -1306,6 +1306,138 @@ Os cortes eram do mesmo problema em outra forma: `Pot. Mecânica (W)` em 112 DIP
 - A evidência visual é gerada por `DocumentationEvidenceTests` a cada execução da suíte, em `docs/evidence/ui-documentation/`. Captura feita à mão envelhece sem avisar.
 - Páginas ainda não documentadas (Receitas, kLa, Mapeamentos, Históricos, Eventos, Calibrações) seguem sem `?`. A ausência é honesta: o botão só existe onde há tópico.
 
+### D-048 · O I/O dos ensaios sai da thread da UI por uma fila única e ordenada
+
+**Status:** Accepted and implemented · 2026-09-11
+
+**Decisão.** Tudo o que os ensaios de potência e de kLa gravam passa a ser **formatado ou
+serializado na thread chamadora e executado por um único consumidor em segundo plano**, na ordem
+em que foi enfileirado (`Services/Persistence/BackgroundFileWriter.cs`, `System.Threading.Channels`,
+um consumidor de longa duração):
+
+- Os `Append*` (linha bruta da corrida, série global, journal, tara bruta, ponto único) enfileiram a
+  linha já formatada; os `Save*` (manifesto, tabela, resultado, resumo, análise, tara, calibração)
+  serializam no chamador — o que preserva a semântica de consistência do documento — e enfileiram
+  a escrita `.tmp` + `Move`. Um consumidor único preserva exatamente a ordenação que o
+  `lock (_ioLock)` dava; as assinaturas `void` dos stores e os runners **não mudam**.
+- Toda leitura (`Load*`, `List*`) drena a fila antes de ler, e `FlushAsync()` entra nas duas
+  interfaces para quem precisa entregar os arquivos a alguém de fora. Mover ou apagar uma pasta
+  drena e fecha primeiro.
+- O consumidor mantém um `StreamWriter` por arquivo **só enquanto há fila acumulada** e fecha tudo
+  quando a fila esvazia: um arquivo aberto para escrita impede qualquer outro processo — a
+  planilha do operador, um script, o próprio `Load*` — de abri-lo (`FileShare.Read` recusa um
+  handle de escrita existente), e era por isso que os stores abriam/fechavam por linha. O custo
+  de abrir/fechar fica, mas na thread do consumidor.
+- **O SHA-256 do dado bruto é selado sem reler o arquivo.** `PowerTestStore` alimenta um
+  `IncrementalHash` por CSV de corrida com exatamente os bytes que entrega ao escritor (BOM,
+  cabeçalho, linhas), e `SaveRunResult` sela a partir dele; `KlaTestStore.SaveRunRawData` devolve o
+  hash do conteúdo que acabou de enfileirar (preâmbulo incluído, igual ao que
+  `File.WriteAllText(…, Encoding.UTF8)` põe no disco). Um teste confirma a igualdade com o hash
+  do arquivo depois do drain.
+- **`ensaio.json` e `tara.json` deixam de embutir `tare.samples`.** As leituras da tara vão para o
+  arquivo lateral que o esquema já previa (`tare.rawSamplesFileName`, em `Taras-Brutas/`, o mesmo
+  que a D-046 grava ao vivo); o manifesto guarda só `tare.points`. Um manifesto antigo é migrado
+  uma vez ao carregar. 832 KB → ~120 KB.
+- Falha de escrita no consumidor é registrada (`ILogger`) e exposta por `WriteFailed`; os runners
+  marcam `IsStorageCompromised`, prefixam o status com "⚠ Gravação comprometida" e seguem — o
+  quadro seguinte também é dado. Sem escritor explícito, um store grava inline: é o comportamento
+  anterior e o que os testes que leem os arquivos de volta esperam.
+
+**Por quê.** Bancada de 11/09/2026: a cada quadro de telemetria (~1 Hz) a thread da UI fazia dois
+`File.AppendAllText` (abre/escreve/fecha; 1–2 ms médios, picos de 12–22 ms) e, a cada mudança de
+fase, reescrevia um `ensaio.json` **de 832 KB** — 490 KB de `tare.samples` — com `File.Move` e
+`Thread.Sleep(20)` em retentativa: 55 ms médios, picos de 330 ms, medidos nesta máquina. Era o
+engasgo "quando os documentos são salvos". A regra da §2 de `ARCHITECTURE.md` diz que nada bloqueia
+a thread da UI; os stores eram a lista dos lugares em que ela era violada.
+
+**Consequências.**
+- **Nenhuma amostra deixa de ser gravada** (D-046 preservada): muda quem grava e quando, não o
+  quê. `PowerTestRunnerTests.The_queued_store_writes_the_same_assay_files_as_the_synchronous_one`
+  roda o mesmo ensaio pelos dois caminhos e exige `dados-brutos.csv` idêntico byte a byte e
+  `serie-global.csv`, `eventos.jsonl`, `resumo-resultados.csv` e `resultado.csv` idênticos a menos
+  dos ids.
+- Um `Load*` logo após um `Save*` espera o drain — na prática instantâneo; no pior caso (mudança
+  de fase com quatro reescritas) alguns ms. É a troca certa: leituras são raras e quem lê quer o
+  arquivo mais recente.
+- Criação de pastas e os `Begin*Capture` continuam síncronos, de propósito: a D-046 exige que um
+  armazenamento inacessível falhe **antes** de reivindicar um atuador.
+- Cobertura: `BackgroundFileWriterTests` (paridade byte a byte com `File.AppendAllText`,
+  cabeçalho uma vez, ordem entre appends/reescritas/trabalho, falha reportada sem parar o
+  consumidor, modo síncrono sem arquivo aberto, selo do hash na potência e no kLa, leituras que
+  veem a fila, migração da tara) e os dois testes do runner (equivalência de arquivos; gravação
+  comprometida).
+
+### D-049 · O `DllNotFoundException` do descarregamento do CRT no encerramento não é um crash
+
+**Status:** Accepted and implemented · 2026-09-11
+
+**Decisão.** `CrashReporter.IsShutdownCrtUnloadException` reconhece a exceção que o .NET levanta ao
+descarregar os assemblies C++/CLI do WPF (`DirectWriteForwarder`, `System.Printing`) **depois** de o
+`vcruntime` já ter sido descarregado, e o `App.OnDomainUnhandledException` e o próprio
+`GenerateAndSaveReport` a suprimem: uma linha de aviso no log, nenhum relatório, nenhuma janela de
+pânico. A assinatura exige as **duas** coisas — um `DllNotFoundException` (direto ou como causa) **e**
+quadros de teardown na pilha (`SingletonDomainUnload`, `ModuleUninitializer`,
+`__scrt_uninitialize_type_info`, `__std_type_info_destroy_list`, `_app_exit_callback`). Um
+`DllNotFoundException` real, com a pilha de quem o provocou, continua gerando relatório.
+
+**Por quê.** O relatório `Logs/Crash/crash_20260911_103551_35c1e6.log` é o caso: o operador fechou o
+aplicativo normalmente e recebeu a janela de pânico com
+`__std_type_info_destroy_list → __scrt_uninitialize_type_info → _app_exit_callback →
+SingletonDomainUnload`. É um defeito conhecido do encerramento do WPF quando há uma cópia nativa do
+CRT no processo — aqui a que o SkiaSharp/ScottPlot traz — e acontece **depois** de todo o estado
+do aplicativo já estar salvo. Mostrar um relatório de pânico ali é alarme falso, e um alarme falso
+a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
+
+**Consequências.**
+- A supressão é uma assinatura estreita e explícita, não um `catch` genérico: dois testes em
+  `CrashReporterTests` verificam que a pilha de teardown é suprimida e que um `DllNotFoundException`
+  comum e um `InvalidOperationException` não são. O teste sobrescreve `StackTrace` para fabricar a
+  pilha, porque ela não é reproduzível em processo de teste.
+- Os relatórios `crash_20260909_233817` e `crash_20260910_000426` **não** são este caso: eram
+  `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
+  `f08ba27`. Um `XamlParseException` continua sendo um crash.
+
+### D-050 · Corrida sem captura nunca é aceitável; falha de sequência não é revisão de resultado
+
+**Status:** Accepted and implemented · 2026-09-11
+
+**Decisão.** Uma corrida de potência que parou para revisão **antes de capturar** — tempo limite do
+alívio, de confirmação de válvula ou de rotação — não tem resultado, e por isso não pode ser aceita:
+
+- `PowerTestRunner.AcceptRunAsync`/`AcceptRunCore` recusam (`InvalidOperationException`, "Corrida sem
+  captura: repita ou rejeite") quando `SampleCount == 0` ou `NetPowerW` não é finito. O aceite
+  automático nunca chega aqui: só é consultado após uma captura bem-sucedida.
+- A faixa de revisão muda de natureza: com captura, *Aceitar · Rejeitar · Repetir*; sem captura, o
+  título é **Corrida não realizada**, o texto é *Sem captura — {motivo}*, não há P/IC95/Np e só
+  existem **Repetir** e **Rejeitar**. Confirmado com o operador: "não deve aparecer para eu aceitar
+  nada, pois não se conseguiu fazer o teste".
+- *Alternar Aceite* na tabela de pontos aplica a mesma regra ao ir para `Accepted`.
+- **Migração ao carregar.** Um manifesto anterior a esta decisão pode trazer corridas `Accepted`
+  com `sampleCount = 0` e `netPowerW = 0`: `PowerTestStore.LoadTest` as rebaixa para `Rejected` uma
+  vez, recalcula `AcceptedReplicates`/`RejectedReplicates`, reabre a condição (`Completed →
+  Pending`), volta um ensaio `Completed` para `Interrupted` se alguma condição reabriu, regrava
+  manifesto e tabela, regenera `resumo-resultados.csv` e registra um `RunRejected` "sem captura
+  (migração)" por corrida em `eventos.jsonl`. A corrida fica no manifesto: nada medido é apagado.
+- `resumo-resultados.csv` exclui linhas sem captura mesmo que um manifesto as traga.
+
+**Por quê.** Ensaio IsojetB-Combijet, 2026-09-11: com `MaxVentStabilizationSeconds = 120`, três
+estabilizações a 200 rpm expiraram com zero amostras e foram para revisão. Em duas o operador clicou
+*Aceitar*: as corridas ficaram `Accepted` com `n = 0` e `P = 0 W`, entraram no resumo e marcaram as
+condições como `Completed` — a sequência pularia por cima delas. O runner só verificava a fase
+`Reviewing`; a faixa oferecia *Aceitar* sem condição. Uma falha de sequência era apresentada como um
+resultado a revisar, e a interface convidava a aceitar um ponto falso.
+
+**Consequências.**
+- O predicado de "fantasma" para linhas de resumo é **sem amostras e sem potência utilizável**
+  (`IsRunWithoutCapture`): as duas condições, porque uma linha de manifesto antigo que nunca gravou
+  `sampleCount` mas carrega potência medida não pode ser confundida com uma corrida não realizada.
+  No runner, sobre a corrida viva, o predicado é o estrito (`HasCapture`: amostras > 0 e P finita).
+- Em modo autônomo, a política de falha de sequência (§I do plano de 11/09) decide entre parar para
+  revisão e repetir/pular — mas nunca aceitar.
+- Cobertura: `PowerRunWithoutCaptureTests` (predicados, faixa sem *Aceitar*, *Alternar Aceite*
+  recusado, migração com reabertura e journal único, manifesto limpo intocado) e
+  `PowerTestRunnerTests.A_run_that_timed_out_before_capturing_cannot_be_accepted_only_rejected_or_repeated`.
+
 ---
 
 ## Open questions

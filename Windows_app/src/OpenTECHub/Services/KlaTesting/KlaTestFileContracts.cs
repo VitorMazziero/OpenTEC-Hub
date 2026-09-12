@@ -241,6 +241,18 @@ public static class KlaTestFileContracts
         return Convert.ToHexStringLower(hash);
     }
 
+    /// <summary>
+    /// SHA-256 of the bytes <c>File.WriteAllText(path, contents, Encoding.UTF8)</c> puts on disk —
+    /// preamble included — so a hash sealed before the write lands equals the file's own.
+    /// </summary>
+    public static string ComputeUtf8FileContentSha256(string contents)
+    {
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        sha.AppendData(Encoding.UTF8.GetPreamble());
+        sha.AppendData(Encoding.UTF8.GetBytes(contents));
+        return Convert.ToHexStringLower(sha.GetHashAndReset());
+    }
+
     public static string ComputeStringSha256(string content)
     {
         using var sha = SHA256.Create();

@@ -18,3 +18,8 @@
   "eventType": "RunStopped",
   "message": "Corrida interrompida para revis\u00E3o: Parada durante o al\u00EDvio"
 }
+{
+  "timestampUtc": "2026-09-11T01:16:23.873625+00:00",
+  "eventType": "SettingsUpdated",
+  "message": "Limiares atualizados: DOMin=10,0%, DOMax=85,0%."
+}

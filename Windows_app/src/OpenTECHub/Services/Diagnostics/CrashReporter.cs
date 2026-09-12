@@ -50,6 +50,41 @@ public sealed class CrashReporter : ICrashReporter
     }
 
     /// <summary>
+    /// Identifica se a exceção decorre da falha inofensiva conhecida do descarregamento de CRT
+    /// em assemblies C++/CLI do WPF (DirectWriteForwarder / System.Printing) durante o encerramento
+    /// do processo (.NET SingletonDomainUnload). Nesses casos, a janela modal de pânico não deve ser exibida.
+    /// </summary>
+    public static bool IsShutdownCrtUnloadException(Exception? exception)
+    {
+        if (exception is null)
+        {
+            return false;
+        }
+
+        if (exception is AggregateException agg)
+        {
+            return agg.InnerExceptions.Count > 0 && agg.InnerExceptions.All(IsShutdownCrtUnloadException);
+        }
+
+        var isDllNotFound = exception is DllNotFoundException ||
+                            exception.InnerException is DllNotFoundException;
+
+        if (!isDllNotFound)
+        {
+            return false;
+        }
+
+        var stack = (exception.StackTrace ?? "") + " " + (exception.InnerException?.StackTrace ?? "");
+        var isCrtTeardown = stack.Contains("SingletonDomainUnload", StringComparison.OrdinalIgnoreCase) ||
+                            stack.Contains("ModuleUninitializer", StringComparison.OrdinalIgnoreCase) ||
+                            stack.Contains("__scrt_uninitialize_type_info", StringComparison.OrdinalIgnoreCase) ||
+                            stack.Contains("__std_type_info_destroy_list", StringComparison.OrdinalIgnoreCase) ||
+                            stack.Contains("_app_exit_callback", StringComparison.OrdinalIgnoreCase);
+
+        return isCrtTeardown;
+    }
+
+    /// <summary>
     /// Gera e persiste o relatório de pânico em disco, registrando em log e exibindo diálogo ao operador.
     /// </summary>
     public static string GenerateAndSaveReport(
@@ -58,6 +93,12 @@ public sealed class CrashReporter : ICrashReporter
         bool isTerminating,
         string? preferredDirectory = null)
     {
+        if (IsShutdownCrtUnloadException(exception))
+        {
+            Log.Warning("Exceção inofensiva de descarregamento CRT/WPF suprimida durante o encerramento do processo: {Message}", exception.Message);
+            return "Suprimido (descarregamento normal do processo)";
+        }
+
         var timestamp = DateTimeOffset.UtcNow;
         var localTimestamp = timestamp.ToLocalTime();
         var fileId = localTimestamp.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) + "_" + Guid.NewGuid().ToString("N")[..6];

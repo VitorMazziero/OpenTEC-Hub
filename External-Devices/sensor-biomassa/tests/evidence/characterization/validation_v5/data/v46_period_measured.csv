@@ -1,0 +1,23 @@
+# Conversion period measured with {"command":"probe_period"} on firmware
+# v4.6, at bench temperature, PWM index 4 (18%). Three independent runs.
+#
+# The nominal integration time is a LABEL: the VEML7700 datasheet (Rev. 1.0,
+# doc 84286) shows an internal oscillator in its block diagram and publishes
+# no tolerance for it in the Basic Characteristics table. Measured here the
+# period is 1.09x its label in every slot -- a fixed scale error, not scatter.
+#
+# These runs carry no temperature column: soc_temp_c was added in v5.0.
+# The v5.0 temperature sweep supersedes them for any temperature question.
+run,it_nominal_ms,period_mean_ms,period_min_ms,period_max_ms,ratio,resolved,trials
+1,100,109.2,109,110,1.092,6,6
+1,200,218.3,218,219,1.092,6,6
+1,400,438.2,437,442,1.095,6,6
+1,800,873.5,870,878,1.092,6,6
+2,100,108.7,104,110,1.087,6,6
+2,200,218.7,214,220,1.093,6,6
+2,400,437.5,435,439,1.094,6,6
+2,800,873.7,870,875,1.092,6,6
+3,100,109.3,109,111,1.093,6,6
+3,200,218.7,218,220,1.093,6,6
+3,400,436.2,432,438,1.090,6,6
+3,800,874.0,873,876,1.092,6,6

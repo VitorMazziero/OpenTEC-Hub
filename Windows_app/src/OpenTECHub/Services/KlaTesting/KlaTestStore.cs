@@ -8,18 +8,30 @@ using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.Services.KlaTesting;
 
+/// <remarks>
+/// Writes are formatted or serialised on the caller and queued to a <see cref="BackgroundFileWriter"/>
+/// that executes them in order off the UI thread (D-048); reads flush the writer first. Without an
+/// explicit writer the store writes inline (tests).
+/// </remarks>
 public sealed class KlaTestStore : IKlaTestStore
 {
     private readonly string _rootDirectory;
     private readonly object _ioLock = new();
+    private readonly BackgroundFileWriter _writer;
 
-    public KlaTestStore(string? rootDirectory = null)
+    public KlaTestStore(string? rootDirectory = null, BackgroundFileWriter? writer = null)
     {
         _rootDirectory = rootDirectory ?? AppPaths.KlaTestsDirectory;
+        _writer = writer ?? new BackgroundFileWriter(synchronous: true);
+        _writer.WriteFailed += (path, ex) => WriteFailed?.Invoke(path, ex);
         Directory.CreateDirectory(_rootDirectory);
     }
 
     public string RootDirectory => _rootDirectory;
+
+    public event Action<string, Exception>? WriteFailed;
+
+    public Task FlushAsync() => _writer.FlushAsync();
 
     public bool ValidateTestName(string name, out string? error) =>
         KlaTestFileContracts.ValidateTestName(name, out error);
@@ -37,6 +49,7 @@ public sealed class KlaTestStore : IKlaTestStore
 
     public IReadOnlyList<KlaTestSummary> ListTests()
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             if (!Directory.Exists(_rootDirectory))
@@ -102,6 +115,7 @@ public sealed class KlaTestStore : IKlaTestStore
 
     public KlaTestDocument? LoadTest(string folderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var folderPath = Path.Combine(_rootDirectory, folderName);
@@ -185,6 +199,7 @@ public sealed class KlaTestStore : IKlaTestStore
         var sourceDoc = KlaTestFileContracts.DeserializeTestDocument(File.ReadAllText(manifestPath))
             ?? throw new InvalidDataException("O manifesto do ensaio não pôde ser lido.");
 
+        _writer.Flush();
         lock (_ioLock)
         {
             foreach (var existing in ListTests())
@@ -452,15 +467,15 @@ public sealed class KlaTestStore : IKlaTestStore
 
             // Initialize serie-global.csv
             var globalSeriesPath = Path.Combine(folderPath, KlaTestFileContracts.GlobalSeriesFileName);
-            File.WriteAllText(globalSeriesPath, KlaTestFileContracts.FormatGlobalSeriesHeader() + Environment.NewLine, Encoding.UTF8);
+            WriteAllTextAtomic(globalSeriesPath, KlaTestFileContracts.FormatGlobalSeriesHeader() + Environment.NewLine);
 
             // Initialize eventos.jsonl
             var eventsPath = Path.Combine(folderPath, KlaTestFileContracts.EventLogFileName);
-            File.WriteAllText(eventsPath, "", Encoding.UTF8);
+            WriteAllTextAtomic(eventsPath, "");
 
             // Initialize resumo-resultados.csv
             var summaryPath = Path.Combine(folderPath, KlaTestFileContracts.ResultsSummaryFileName);
-            File.WriteAllText(summaryPath, KlaTestFileContracts.FormatResultsSummaryHeader() + Environment.NewLine, Encoding.UTF8);
+            WriteAllTextAtomic(summaryPath, KlaTestFileContracts.FormatResultsSummaryHeader() + Environment.NewLine);
 
             return doc;
         }
@@ -482,6 +497,7 @@ public sealed class KlaTestStore : IKlaTestStore
 
     public IReadOnlyList<KlaTestCondition> LoadConditionsTable(string testFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var condPath = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.ConditionTableFileName);
@@ -533,7 +549,7 @@ public sealed class KlaTestStore : IKlaTestStore
         }
     }
 
-    public void SaveRunRawData(string testFolderName, string runFolderName, IEnumerable<KlaRawDataPoint> points)
+    public string SaveRunRawData(string testFolderName, string runFolderName, IEnumerable<KlaRawDataPoint> points)
     {
         lock (_ioLock)
         {
@@ -549,7 +565,9 @@ public sealed class KlaTestStore : IKlaTestStore
                 sb.AppendLine(KlaTestFileContracts.FormatRawDataRow(p));
             }
 
-            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+            var contents = sb.ToString();
+            WriteAllTextAtomic(filePath, contents);
+            return KlaTestFileContracts.ComputeUtf8FileContentSha256(contents);
         }
     }
 
@@ -558,47 +576,19 @@ public sealed class KlaTestStore : IKlaTestStore
         lock (_ioLock)
         {
             var filePath = GetRunRawDataPath(testFolderName, runFolderName);
-            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            if (!File.Exists(filePath) || new FileInfo(filePath).Length == 0)
-            {
-                File.AppendAllText(filePath, KlaTestFileContracts.FormatRawDataHeader() + Environment.NewLine, Encoding.UTF8);
-            }
-            File.AppendAllText(filePath, KlaTestFileContracts.FormatRawDataRow(point) + Environment.NewLine, Encoding.UTF8);
+            _writer.AppendLine(filePath, KlaTestFileContracts.FormatRawDataRow(point), headerIfEmpty: KlaTestFileContracts.FormatRawDataHeader());
         }
     }
 
     public string GetRunRawDataPath(string testFolderName, string runFolderName) =>
         Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, KlaTestFileContracts.RunRawDataFileName);
 
-    private static void WriteAllTextAtomic(string path, string contents)
-    {
-        var tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        try
-        {
-            File.WriteAllText(tempPath, contents, Encoding.UTF8);
-            File.Move(tempPath, path, overwrite: true);
-        }
-        catch
-        {
-            try
-            {
-                if (File.Exists(tempPath))
-                {
-                    File.Copy(tempPath, path, overwrite: true);
-                    File.Delete(tempPath);
-                    return;
-                }
-            }
-            catch
-            {
-                // Fall back to direct write
-            }
-            File.WriteAllText(path, contents, Encoding.UTF8);
-        }
-    }
+    /// <summary>Queued: temp file + move, executed in order by the background writer.</summary>
+    private void WriteAllTextAtomic(string path, string contents) => _writer.WriteAllTextAtomic(path, contents);
 
     public IReadOnlyList<KlaRawDataPoint> LoadRunRawData(string testFolderName, string runFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var filePath = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, KlaTestFileContracts.RunRawDataFileName);
@@ -691,14 +681,15 @@ public sealed class KlaTestStore : IKlaTestStore
 
             var json = KlaTestFileContracts.SerializeAnalysis(analysis);
             var filePath = Path.Combine(runPath, KlaTestFileContracts.RunAnalysisFileName);
-            File.WriteAllText(filePath, json, Encoding.UTF8);
+            WriteAllTextAtomic(filePath, json);
             var revisionPath = Path.Combine(runPath, $"analise-rev-{analysis.RevisionNumber:D3}.json");
-            File.WriteAllText(revisionPath, json, Encoding.UTF8);
+            WriteAllTextAtomic(revisionPath, json);
         }
     }
 
     public KlaAnalysisRevision? LoadRunAnalysis(string testFolderName, string runFolderName)
     {
+        _writer.Flush();
         lock (_ioLock)
         {
             var filePath = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, KlaTestFileContracts.RunAnalysisFileName);
@@ -724,7 +715,7 @@ public sealed class KlaTestStore : IKlaTestStore
             sb.AppendLine(KlaTestFileContracts.FormatRunResultRow(run, analysis));
 
             var filePath = Path.Combine(runPath, KlaTestFileContracts.RunResultFileName);
-            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+            WriteAllTextAtomic(filePath, sb.ToString());
         }
     }
 
@@ -784,7 +775,7 @@ public sealed class KlaTestStore : IKlaTestStore
             }
 
             var filePath = Path.Combine(folderPath, KlaTestFileContracts.ResultsSummaryFileName);
-            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+            WriteAllTextAtomic(filePath, sb.ToString());
         }
     }
 
@@ -793,8 +784,7 @@ public sealed class KlaTestStore : IKlaTestStore
         lock (_ioLock)
         {
             var filePath = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.GlobalSeriesFileName);
-            var line = KlaTestFileContracts.FormatGlobalSeriesRow(sample);
-            File.AppendAllText(filePath, line + Environment.NewLine, Encoding.UTF8);
+            _writer.AppendLine(filePath, KlaTestFileContracts.FormatGlobalSeriesRow(sample));
         }
     }
 
@@ -803,8 +793,7 @@ public sealed class KlaTestStore : IKlaTestStore
         lock (_ioLock)
         {
             var filePath = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.EventLogFileName);
-            var line = KlaTestFileContracts.FormatEventLogLine(entry);
-            File.AppendAllText(filePath, line + Environment.NewLine, Encoding.UTF8);
+            _writer.AppendLine(filePath, KlaTestFileContracts.FormatEventLogLine(entry));
         }
     }
 }

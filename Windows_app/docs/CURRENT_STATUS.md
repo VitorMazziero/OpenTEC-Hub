@@ -34,6 +34,17 @@ quadro — e registrou três pendências P3 em
 [IMPLEMENTATION_STEPS.md · Etapa 4.1-A](IMPLEMENTATION_STEPS.md#etapa-41-a--pendências-abertas-pela-auditoria-da-etapa-41).
 Os itens abaixo refletem a estabilização e verificação das pendências restantes de release.
 
+**11–12/09/2026 — plano de correção dos engasgos e achados de bancada, executado.** As quinze seções
+do plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md` estão na `main`
+([PHASE_LOG P3-08](history/PHASE_LOG.md)): grades sem `Reset`, I/O dos ensaios em fila fora da
+thread da UI (D-048), gráficos só visíveis e só quando mudaram, telemetria em `Background`, critérios
+persistidos, corrida sem captura recusada (D-050), política autônoma e saída por estabilidade do
+alívio, Duplicar/Reabrir, faixa de alarmes por página, tabela navegável, tensão editável, hub
+`10.0.1-dev`. Suíte: **1363 aprovados**. Medido com o `UiHitchMonitor` (DEBUG): 3 min a 1 Hz na
+página de Potência, 3 atrasos > 30 ms só na subida do enlace, depois nenhum. **Pendente de
+bancada:** gravar o hub e validar o envio da curva; a corrida de 10 min com ensaio em captura; o
+controlador de vazão que não regula para baixo na primeira abertura do alívio.
+
 The remaining work is concentrated in:
 
 1. completing remaining control findings (AUD-005: foco e limiares de biomassa);

@@ -46,6 +46,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private int _lastFlowCommandId;
     private int _ventFlowStableCount;
     private double? _ventFlowDeviation;
+    private readonly List<double> _ventFlowWindow = [];
+
+    /// <summary>Sequence failures per condition in this assay, for <see cref="UnattendedFailurePolicy.RetryThenSkip"/>.</summary>
+    private readonly Dictionary<Guid, int> _sequenceFailures = new();
     private double? _pairedUngassedP0W;
     private double? _pairedUngassedP0Ci95W;
     private bool _isSubphase2Both;
@@ -75,6 +79,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnConnectionStateChanged;
         _arbiter.OwnershipRevoked += OnOwnershipRevoked;
+        _store.WriteFailed += OnStoreWriteFailed;
 
         if (_device.Latest is { } latest)
         {
@@ -110,6 +115,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
     public int CurrentAttempt => _currentRun?.Tries ?? 0;
     public string StatusMessage => _statusMessage;
 
+
     public double PhaseElapsedSeconds => _phaseStartMonotonic > 0
         ? Math.Max(0, GetMonotonicSeconds() - _phaseStartMonotonic)
         : 0;
@@ -123,6 +129,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     public event Action? StateChanged;
     public event Action<PowerDataPoint>? DataPointAdded;
+    public event Action<PowerRun>? RunStarted;
     public event Action<string>? Logged;
 
     public bool CanStart(PowerTestDocument doc, out string? reason)
@@ -264,6 +271,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
 
         _currentTest = doc;
+        _sequenceFailures.Clear();
         doc.Status = PowerTestStatus.Running;
         doc.StartedUtc ??= _time.GetUtcNow();
         doc.CompletedUtc = null;
@@ -497,9 +505,22 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             throw new InvalidOperationException("Nenhuma corrida está aguardando aceite.");
         }
+        if (!HasCapture(_currentRun))
+        {
+            throw new InvalidOperationException(NoCaptureMessage);
+        }
         AcceptRunCore(autoAdvance: false);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// A run that stopped for review before capturing anything — vent, valve or speed time-out —
+    /// has no result to accept. Bench of 2026-09-11: two such runs were accepted with n = 0 and
+    /// P = 0 W, entered the summary and marked their conditions complete (D-050).
+    /// </summary>
+    public const string NoCaptureMessage = "Corrida sem captura: repita ou rejeite.";
+
+    public static bool HasCapture(PowerRun run) => run.SampleCount > 0 && double.IsFinite(run.NetPowerW);
 
     public Task RejectRunAsync(string reason)
     {
@@ -656,6 +677,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             : null;
         _capture = new PowerCaptureController(doc.Settings, sigma);
         _runStartMonotonic = GetMonotonicSeconds();
+        RunStarted?.Invoke(_currentRun);
         SetPhase(PowerRunPhase.Preflight, $"Pré-voo da corrida {_currentRun.FolderName}.");
 
         var actuators = ownsGas ? GassedActuators : Phase1Actuators;
@@ -726,6 +748,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             _targetGasState = (targetFlow, isV1, isV2, false);
             _ventFlowStableCount = 0;
             _ventFlowDeviation = null;
+            _ventFlowWindow.Clear();
 
             DispatchMotorOrFault((int)doc.Settings.VentAgitationRpm, "reduzir agitação durante estabilização no alívio");
             DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, isV1, isV2, mainValveClosed: false), "abrir válvula de alívio");
@@ -784,6 +807,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
         _capture = new PowerCaptureController(doc.Settings, sigma);
         _runStartMonotonic = GetMonotonicSeconds();
+        RunStarted?.Invoke(_currentRun);
         StartGassedSequence(condition.GasFlowLpm ?? 0.0);
     }
 
@@ -815,7 +839,36 @@ public sealed class PowerTestRunner : IPowerTestRunner
         return flowOk && v1Ok && v2Ok && vFlowOk && ackOk;
     }
 
+    /// <summary>
+    /// One telemetry frame raises <see cref="StateChanged"/> <em>at most once</em>, after every
+    /// mutation of the frame. A frame used to raise it up to three times (a <c>SetPhase</c>, a
+    /// <c>DataPointAdded</c> re-entering the page, and the explicit raise at the end), and each
+    /// raise cost the page a full refresh on the UI thread. Raises outside a frame — operator
+    /// commands, the watchdog — are immediate as before.
+    /// </summary>
     private void OnTelemetryReceived(SensorSnapshot snapshot)
+    {
+        _inTelemetryFrame = true;
+        _stateChangePending = false;
+        try
+        {
+            ProcessTelemetryFrame(snapshot);
+        }
+        finally
+        {
+            _inTelemetryFrame = false;
+            if (_stateChangePending)
+            {
+                _stateChangePending = false;
+                StateChanged?.Invoke();
+            }
+        }
+    }
+
+    private bool _inTelemetryFrame;
+    private bool _stateChangePending;
+
+    private void ProcessTelemetryFrame(SensorSnapshot snapshot)
     {
         var now = GetMonotonicSeconds();
         _lastTelemetryMonotonic = now;
@@ -831,10 +884,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _lastValidServoMonotonic = now;
         _currentRpm = snapshot.ServoRpm;
         _currentTorquePercent = snapshot.ServoTorquePct;
+        RaiseStateChanged();
 
         if (_currentTest is null)
         {
-            RaiseStateChanged();
             return;
         }
 
@@ -907,7 +960,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             {
                 if (PhaseElapsedSeconds >= 10.0)
                 {
-                    StopForReview("Tempo limite de confirmação da válvula de alívio excedido.", PowerStopReason.Tmax);
+                    StopForReview("Tempo limite de confirmação da válvula de alívio excedido.", PowerStopReason.Tmax, sequenceFailure: true);
                 }
                 return;
             }
@@ -915,7 +968,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
             var targetFlow = _targetGasState!.Value.Flow;
             var dev = snapshot.FlowRate - targetFlow;
             _ventFlowDeviation = dev;
-            if (Math.Abs(dev) <= _currentTest!.Settings.VentFlowToleranceLpm)
+            var settings = _currentTest!.Settings;
+            if (Math.Abs(dev) <= settings.VentFlowToleranceLpm)
             {
                 _ventFlowStableCount++;
             }
@@ -924,21 +978,34 @@ public sealed class PowerTestRunner : IPowerTestRunner
                 _ventFlowStableCount = 0;
             }
 
-            _statusMessage = $"Alívio ({_currentTest.Settings.SelectedVentValve}) · {snapshot.FlowRate:F2} L/min " +
-                $"(alvo {targetFlow:F2} ± {_currentTest.Settings.VentFlowToleranceLpm:F2}) · " +
-                $"estabilidade {_ventFlowStableCount}/{_currentTest.Settings.VentFlowStableSamples}";
-
-            if (_ventFlowStableCount >= _currentTest.Settings.VentFlowStableSamples)
+            // Second way out: the flow has settled (low spread over the last N readings) close to
+            // the target, even if it sits just outside the tolerance band — the bench controller's
+            // steady offset. The reactor phase measures the flow again anyway.
+            _ventFlowWindow.Add(snapshot.FlowRate);
+            while (_ventFlowWindow.Count > Math.Max(2, settings.VentFlowStableSamples))
             {
-                LogEvent("VentFlowStable", $"Vazão estabilizada em {snapshot.FlowRate:F2} L/min no alívio. Comutando para o reator.");
+                _ventFlowWindow.RemoveAt(0);
+            }
+            var settled = VentFlowHasSettled(_ventFlowWindow, targetFlow, settings, out var spread);
+
+            var offsetText = dev >= 0 ? $"+{dev:F2}" : $"{dev:F2}";
+            _statusMessage = $"Alívio ({settings.SelectedVentValve}) · {snapshot.FlowRate:F2} L/min " +
+                $"(alvo {targetFlow:F2} ± {settings.VentFlowToleranceLpm:F2}) · " +
+                $"estabilidade {_ventFlowStableCount}/{settings.VentFlowStableSamples} · " +
+                $"estabilizando há {PhaseElapsedSeconds:F0} s · offset {offsetText} · σ {spread:F3}";
+
+            if (_ventFlowStableCount >= settings.VentFlowStableSamples || settled)
+            {
+                var how = _ventFlowStableCount >= settings.VentFlowStableSamples ? "dentro da banda" : $"estável (σ {spread:F3} L/min, offset {offsetText} L/min)";
+                LogEvent("VentFlowStable", $"Vazão estabilizada em {snapshot.FlowRate:F2} L/min no alívio ({how}) após {PhaseElapsedSeconds:F0} s. Comutando para o reator.");
                 // max flow is constant MaxFlow
                 _targetGasState = (targetFlow, false, false, false);
                 DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false, false), "comutar fluxo ao reator");
                 SetPhase(PowerRunPhase.OpeningGas, "Fechando alívio e direcionando vazão ao reator...");
             }
-            else if (PhaseElapsedSeconds >= _currentTest.Settings.MaxVentStabilizationSeconds)
+            else if (PhaseElapsedSeconds >= settings.MaxVentStabilizationSeconds)
             {
-                StopForReview("Tempo limite de estabilização da vazão no alívio excedido.", PowerStopReason.Tmax);
+                StopForReview("Tempo limite de estabilização da vazão no alívio excedido.", PowerStopReason.Tmax, sequenceFailure: true);
             }
             return;
         }
@@ -954,7 +1021,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             }
             else if (PhaseElapsedSeconds >= 10.0)
             {
-                StopForReview("Tempo limite de confirmação da válvula do reator excedido.", PowerStopReason.Tmax);
+                StopForReview("Tempo limite de confirmação da válvula do reator excedido.", PowerStopReason.Tmax, sequenceFailure: true);
             }
             return;
         }
@@ -972,7 +1039,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
                 var timeoutReason = _routeCoordinator.IsUartFallback && _commandedRpm > PowerMotorRouteCoordinator.UartFallbackMaxRpm
                     ? $"A rotação medida não alcançou {_commandedRpm} rpm: no modo de fallback UART a rotação máxima é de {PowerMotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm."
                     : "A rotação medida não entrou na banda dentro do tempo limite.";
-                StopForReview(timeoutReason, PowerStopReason.Tmax);
+                StopForReview(timeoutReason, PowerStopReason.Tmax, sequenceFailure: true);
             }
             return;
         }
@@ -1151,6 +1218,10 @@ public sealed class PowerTestRunner : IPowerTestRunner
     {
         var run = _currentRun!;
         var condition = _currentCondition!;
+        if (!HasCapture(run))
+        {
+            throw new InvalidOperationException(NoCaptureMessage);
+        }
         run.CurrentPhase = PowerRunPhase.Accepted;
         run.CompletedUtc ??= _time.GetUtcNow();
         condition.CompletedReplicates++;
@@ -1161,6 +1232,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
         UpsertCurrentRunSummary(PowerRunPhase.Accepted);
         UpdateReplicateAgreement(condition);
+        _sequenceFailures.Remove(condition.ConditionId);
         PersistCurrentRun();
         SetPhase(PowerRunPhase.Accepted, "Corrida aceita.");
         LogEvent("RunAccepted", $"Corrida {run.FolderName} aceita.");
@@ -1187,7 +1259,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         SetPhase(PowerRunPhase.PreparingNextRun, "Retornando à rotação mínima antes da próxima réplica.");
     }
 
-    private void StopForReview(string reason, PowerStopReason stopReason)
+    private void StopForReview(string reason, PowerStopReason stopReason, bool sequenceFailure = false)
     {
         if (_currentRun is null)
         {
@@ -1202,11 +1274,102 @@ public sealed class PowerTestRunner : IPowerTestRunner
             _currentRun.StopReason = stopReason;
             _currentRun.CompletedUtc = _time.GetUtcNow();
         }
+
+        if (sequenceFailure && _currentTest is { } doc && _currentCondition is { } condition &&
+            doc.Settings.AutoAcceptRuns && doc.Settings.UnattendedFailurePolicy == UnattendedFailurePolicy.RetryThenSkip)
+        {
+            HandleUnattendedSequenceFailure(reason, condition);
+            return;
+        }
+
         SafeParkAndRelease(reason);
         _currentRun.CurrentPhase = PowerRunPhase.Reviewing;
         PersistCurrentRun();
         SetPhase(PowerRunPhase.Reviewing, reason);
         LogEvent("RunStoppedForReview", reason);
+    }
+
+    /// <summary>
+    /// <see cref="UnattendedFailurePolicy.RetryThenSkip"/>: the failed run is rejected with its
+    /// reason, the condition gets one more try, and a second failure marks it skipped so the
+    /// sequence moves on. Nothing here accepts anything (D-050). Bench of 2026-09-11: one vent
+    /// time-out on the first gassed condition parked a 9 h unattended assay for the night.
+    /// </summary>
+    private void HandleUnattendedSequenceFailure(string reason, PowerCondition condition)
+    {
+        var run = _currentRun!;
+        var failures = _sequenceFailures.GetValueOrDefault(condition.ConditionId) + 1;
+        _sequenceFailures[condition.ConditionId] = failures;
+
+        run.CurrentPhase = PowerRunPhase.Rejected;
+        condition.CompletedReplicates++;
+        condition.RejectedReplicates++;
+        UpsertCurrentRunSummary(PowerRunPhase.Rejected);
+        // Gas off, but ownership kept: the assay goes on, as after an auto-accepted run.
+        ParkGasKeepingOwnership();
+
+        if (failures < 2)
+        {
+            condition.Status = PowerConditionStatus.Pending;
+            PersistCurrentRun();
+            SetPhase(PowerRunPhase.Rejected, $"{reason} Repetindo a condição uma vez (modo autônomo).");
+            LogEvent("RunRejected", $"{reason} Falha de sequência em modo autônomo; a condição será repetida uma vez.");
+        }
+        else
+        {
+            condition.Status = PowerConditionStatus.Skipped;
+            PersistCurrentRun();
+            SetPhase(PowerRunPhase.Rejected, $"{reason} Condição pulada após duas falhas de sequência (modo autônomo).");
+            LogEvent("RunRejected", $"{reason} Segunda falha de sequência em modo autônomo.");
+            LogEvent("ConditionSkipped", $"Condição {condition.AgitationRpm:F0} rpm / {condition.GasFlowLpm ?? 0:F2} L/min pulada: {reason}");
+        }
+
+        AdvanceUnattended();
+    }
+
+    private void ParkGasKeepingOwnership()
+    {
+        if (_arbiter.OwnerOf(ActuatorId.Aeration) == CommandOwner.PowerAssay)
+        {
+            _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.FlowSafeStop(MaxFlow));
+        }
+    }
+
+    /// <summary>Returns to the minimum speed and lets the next frame start the next pending condition, or completes the assay.</summary>
+    private void AdvanceUnattended()
+    {
+        if (NextPendingCondition() is null)
+        {
+            CompleteTestAsync().GetAwaiter().GetResult();
+            return;
+        }
+
+        _speedStableCount = 0;
+        DispatchMotorOrFault((int)_currentTest!.Settings.MinRpm, "reaproximar para a próxima condição");
+        if (_phase == PowerRunPhase.Faulted)
+        {
+            return;
+        }
+        SetPhase(PowerRunPhase.PreparingNextRun, "Retornando à rotação mínima antes da próxima condição.");
+    }
+
+    /// <summary>
+    /// The vent flow has settled when the spread of the last window is small and the mean sits
+    /// within the stability error of the target. Pure, so the criterion is testable on its own.
+    /// </summary>
+    internal static bool VentFlowHasSettled(IReadOnlyList<double> window, double targetFlow, PowerTestSettings settings, out double standardDeviation)
+    {
+        standardDeviation = double.NaN;
+        var required = Math.Max(2, settings.VentFlowStableSamples);
+        if (window.Count < required || settings.VentFlowStabilityStdDevLpm <= 0)
+        {
+            return false;
+        }
+
+        var mean = window.Average();
+        standardDeviation = Math.Sqrt(window.Sum(v => (v - mean) * (v - mean)) / (window.Count - 1));
+        return standardDeviation <= settings.VentFlowStabilityStdDevLpm &&
+               Math.Abs(mean - targetFlow) <= settings.VentFlowStabilityMaxErrorLpm;
     }
 
     private void PauseForMeasurement(string reason)
@@ -1665,6 +1828,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
             !double.IsFinite(settings.VentAgitationRpm) ||
             settings.VentAgitationRpm < 15 || settings.VentAgitationRpm > 1000 ||
             !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0 ||
+            !double.IsFinite(settings.VentFlowStabilityStdDevLpm) || settings.VentFlowStabilityStdDevLpm < 0 ||
+            !double.IsFinite(settings.VentFlowStabilityMaxErrorLpm) || settings.VentFlowStabilityMaxErrorLpm < 0 ||
             settings.CaptureServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs ||
             settings.RestoreServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs)
         {
@@ -1695,7 +1860,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
     private double GetMonotonicSeconds() => (double)_time.GetTimestamp() / _time.TimestampFrequency;
 
-    private void RaiseStateChanged() => StateChanged?.Invoke();
+    private void RaiseStateChanged()
+    {
+        if (_inTelemetryFrame)
+        {
+            _stateChangePending = true;
+            return;
+        }
+
+        StateChanged?.Invoke();
+    }
 
     public void Dispose()
     {
@@ -1708,5 +1882,33 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnConnectionStateChanged;
         _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+        _store.WriteFailed -= OnStoreWriteFailed;
+    }
+
+    public bool IsStorageCompromised { get; private set; }
+
+    /// <summary>
+    /// Raised on the writer's thread. A write that failed is a hole in the record: the flag is
+    /// set once, the message names the first file, and the journal gets an entry — which may
+    /// itself fail, in which case the log line is the evidence.
+    /// </summary>
+    private void OnStoreWriteFailed(string path, Exception exception)
+    {
+        var first = !IsStorageCompromised;
+        IsStorageCompromised = true;
+        if (first)
+        {
+            var name = System.IO.Path.GetFileName(path);
+            _statusMessage = $"⚠ Gravação comprometida ({name}: {exception.Message}). {_statusMessage}";
+            try
+            {
+                LogEvent("StorageWriteFailed", $"{path}: {exception.GetType().Name}: {exception.Message}");
+            }
+            catch
+            {
+                // The journal is on the same storage.
+            }
+            RaiseStateChanged();
+        }
     }
 }

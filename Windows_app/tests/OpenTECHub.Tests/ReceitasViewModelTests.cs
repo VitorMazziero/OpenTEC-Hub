@@ -124,6 +124,28 @@ public sealed class ReceitasViewModelTests
         Assert.Equal(before + 1, Tab(vm).Connections.Count);
     }
 
+    /// <summary>
+    /// The canvas binds <c>RouteGeometry</c> and <c>ArrowPoints</c> from a template that WPF re-applies
+    /// on every measure. Both are Freezables: unfrozen, they belong to the thread that created them and
+    /// the binding throws "DependencySource must be created on the same thread" — the crash storm of
+    /// 2026-09-11 18:19, one report per window message. Frozen, they are thread-agnostic.
+    /// </summary>
+    [Fact]
+    public void Connection_geometry_and_arrow_are_frozen_so_any_thread_can_bind_them()
+    {
+        var vm = Build();
+        var connection = Tab(vm).Connections.First();
+        Assert.True(connection.RouteGeometry.IsFrozen);
+        Assert.True(connection.ArrowPoints.IsFrozen);
+
+        // Moving an endpoint recomputes both; the replacements must be frozen too.
+        var start = Tab(vm).Nodes.First(n => n.Type == NodeType.Start);
+        start.X += 40;
+        Assert.True(connection.RouteGeometry.IsFrozen);
+        Assert.True(connection.ArrowPoints.IsFrozen);
+        Assert.Equal(3, connection.ArrowPoints.Count);
+    }
+
     [Fact]
     public void Deleting_a_selected_connection_removes_it()
     {

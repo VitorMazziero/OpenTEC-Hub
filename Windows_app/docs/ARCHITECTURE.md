@@ -272,6 +272,16 @@ headers. `HubNodeDirectoryClient` reads `GET /nodes` with its own `HttpClient` a
 `ITransport` — the transport has one owner and one job. Node actions in the UI are gated on Wi-Fi
 *and* a known address, disabled with the reason rather than hidden ([D-051](DECISIONS.md)).
 
+**Node configuration goes through the Hub; a field exists only where an echo exists.** The app
+never talks to a node's own HTTP config route: `CommandBuilders` emit camelCase keys, the Hub
+translates them into each node's vocabulary and queues them in the node's reliable mailbox, and the
+`CommandArbiter` is the one gate (so an assay can refuse a flowmeter retune). `TelemetryParser`
+reads the node's echoes strictly non-sticky; each configuration expander in a drawer binds its
+fields to the echo and disables them with "aguardando eco do nó" while it is null. Node health
+(`/diag`) reaches the app through the Hub's cache — `HubNodeDiagClient` on Wi-Fi, or the serial
+`{"nodeDiag":…}` request whose `{"NodeDiag":…}` answer is a `ParseOutcome.NodeDiag` line, never
+telemetry — and never through the aggregate frame ([D-052](DECISIONS.md)).
+
 **Logging through Serilog only.** One rolling file plus an in-app pane. No ad-hoc
 `.txt` writes — v.6 has three separate logging mechanisms (`crash_log.txt`, per-session
 `command_logs/`, and an in-window pane) that do not agree with each other.

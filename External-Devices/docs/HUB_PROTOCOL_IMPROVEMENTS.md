@@ -18,8 +18,8 @@ Documento de propostas futuras. **Nada abaixo altera o protocolo atual.** O cont
 ## Propostas compatíveis
 
 1. Publicar `protocol_version` e `firmware_version` como campos opcionais de telemetria. Hubs antigos ignorariam os campos; o Hub novo poderia sinalizar incompatibilidade ao operador.
-2. Acrescentar `boot_id` a todos os dispositivos, como já ocorre no fluxo mais recente, para distinguir reinício de perda temporária de pacote.
-3. Padronizar diagnósticos opcionais: `uptime_ms`, `free_heap`, `last_error`, `command_source` e contador monotônico de telemetria.
+2. Acrescentar `boot_id` a todos os dispositivos, como já ocorre no fluxo mais recente, para distinguir reinício de perda temporária de pacote. **Parcial (12/09/2026):** o fluxômetro `v11` publica `boot_id` e o Hub `10.2` o repassa como `FlowmeterBootId`; distância, agitador, bomba e biomassa ficam para a próxima regravação da frota.
+3. ~~Padronizar diagnósticos opcionais: `uptime_ms`, `free_heap`, `last_error`, `command_source` e contador monotônico de telemetria.~~ **Feito (12/09/2026):** os cinco nós servem `GET /diag` com `uptime_s`, `free_heap`, `rssi`, `hub_fail_streak`, `ota` e métricas próprias; o Hub `10.2` os coleta numa tarefa própria e os expõe por `GET /nodeDiag` e pelo comando serial `nodeDiag` (`ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`, "Diagnóstico dos nós"). Fora do quadro de telemetria, de propósito.
 4. Validar numericamente todos os campos no Hub, rejeitando `NaN`, infinito, estouro e booleanos fora de `0/1` antes de atualizar o estado publicado.
 5. Introduzir testes golden compartilhados para cada comando e telemetria, incluindo ordem irrelevante das chaves e campos opcionais.
 

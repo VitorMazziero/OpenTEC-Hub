@@ -1504,6 +1504,63 @@ by the suite from the real visual tree, not collected by hand. See [DECISIONS D-
 
 ---
 
+### P3-10 · Node configuration through the Hub: offset, tuning, calibration, acquisition, health
+
+**Executed 2026-09-12**, from `docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md`, nine
+stages in the plan's order — Hub, distance node, Hub again, the other three nodes, the app's wire,
+two UI stages, the health proxy, the docs — one commit per stage (`884ef58`, `4939e51`, `8fffba8`,
+`1473895`/`ddf10e9`/`8194301`, `e666a03`, `23aa797`, `54e166c`, `10f2210`/`8befccf`), the suite from
+1448 to 1497 green and the Hub contract tests from 38 to 72. Two sessions shared the day: one wrote
+stages 1–8, the other closed 7–8 (a doc-string escape that broke the build, a `Wp7Tests` assertion
+that did not expect the health request Configurações now makes on USB) and wrote this stage.
+
+**What the nodes exposed and nobody could reach.** The 11–12/09 reorganisation of
+`External-Devices/` turned constants into parameters: the distance sensor persists `offset_mm` and
+its two periods in NVS behind `POST /config`; the flowmeter accepts `kp_flow`/`ki_flow`/`ff_*`/
+`ramp_rate`; the pump accepts `slope`/`intercept`/`pid_*` and `reset_volume`; the biomass node has
+`set_it`/`set_pwm`/`set_gear`/`set_ema`/`set_period`. Hub 10.1 forwarded some of it and dropped the
+rest at its whitelists (`ff_*`, `pid_*`, `reset_volume`), echoed almost none of it, and the app
+exposed none — the operator's only path was a browser and the node's IP. Each node also serves a
+`/diag` that a PC on USB cannot open.
+
+**Hub `10.2.0-dev`** (`884ef58`, `8fffba8`, `10f2210`). The distance node only wakes to push, so
+its reliable mailbox rides on the response to `GET /distanceData` and is redelivered until the ack;
+the other three nodes keep their poll routes with the whitelists completed. Seventeen echoes join
+the aggregate frame, each conditional on the node's presence and on having been echoed at least
+once, so an absent node costs nothing. The health proxy is a FreeRTOS task — never an
+AsyncWebServer callback — sweeping the registered nodes every 30 s into a 5 × 512 B cache that
+`GET /nodeDiag` and the serial `{"nodeDiag":…}` only read. `test_node_diag.py` reads the source to
+prove no handler contains `http.GET(`. Protocol stays 10; nothing renamed.
+
+**Nodes** (`4939e51`, `1473895`, `ddf10e9`, `8194301`). Distance `v11` applies the Hub's config
+from the push response and echoes it; flowmeter `v11` echoes `kp`/`ki`/`ramp`; pump `3.9` echoes
+`slope`/`intercept` (not `pid_*` — the app keeps those disabled); biomass `v11` echoes
+`gear`/`ema`/`probe_period`. No backward compatibility: the whole fleet is reflashed with the Hub
+and `NodeFirmwareCatalog` lists only the new versions.
+
+**App** (`e666a03`, `23aa797`, `54e166c`, `8befccf`). `CommandKeys`/`CommandBuilders` with range
+validation and golden strings in pt-BR too; the parser reads the echoes strictly non-sticky (absent
+→ null → field disabled with "aguardando eco do nó"); the simulator echoes what it applied one frame
+later. Distance drawer: *Configuração do nó* (offset, periods, restore NVS). Vazão de Ar: *Sintonia
+do controlador* with the echoes beside each field and the controller output in V; refused by the
+arbiter during an assay. Bomba Externa: *Zerar volume* that waits for `PumpVol` ≈ 0 rather than
+zeroing locally, *PID do nó* disabled until echoed. Calibrações › *Bomba externa*: slope/intercept
+with a preview at S = 250/500/1000 (the internal 0–1000 unit, not raw PWM — the plan's 64/128/255
+would have calibrated the wrong axis) and a JSON receipt written only after the echo. Absorbância:
+*Parâmetros de aquisição* sending one `command` per confirmation, `gear` first because `set_it` and
+`set_pwm` write into the slots the gear selects; IT shown in ms and sent as the 0–5 code. The
+security frame of the pump loses `speed` (§3.5). Configurações › Conexão: the node table gains RSSI ·
+Heap · Uptime · Falhas c/ Hub · OTA and per-node metrics, from `/nodeDiag` on Wi-Fi and from the
+serial request on USB while the section is open; `hub_fail_streak ≥ 8` is a text warning, never an
+alarm.
+
+**Decisions.** [D-052](../DECISIONS.md). **Bench receipt pending** (plan §7.3): reflash the fleet
+and read five new versions in `/nodes`; offset 20 → 25,5 echoed in ≤ 2 s and surviving a sensor
+reboot; whether the flow controller now regulates downward with the new gains (ROADMAP §I.4);
+`PumpVol` → 0 on the frame after *Zerar volume*; three biomass `cmd_id`/acks in sequence; the
+`/readData` size with everything echoed (ceiling 2.6 KB); the Hub's free heap after the `NodeDiag`
+task (> 150 KB) — the number is not in `docs/evidence/` because no Hub was connected today.
+
 ### P3-09 · Node identity: the app learns who is on the Hub's network
 
 **Executed 2026-09-12**, from `docs/plans/2026-09-12-plano-identidade-nos-externos-app.md`, in the

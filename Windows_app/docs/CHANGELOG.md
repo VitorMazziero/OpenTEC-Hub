@@ -8,6 +8,45 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Added — configuração dos nós pelo Hub (Hub 10.2, nós `v11`/`3.9`, plano `docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md`, [D-052](DECISIONS.md))
+- **Fio.** 25 chaves de comando camelCase que o Hub traduz para cada nó (`PROTOCOL.md` §3.7) e 17 ecos
+  no quadro agregado (§2.0.3), estritamente não-sticky: chave ausente é "aguardando eco do nó" e o
+  campo fica desabilitado com o motivo. `CommandBuilders` valida faixas e tem *golden strings* em
+  pt-BR. O simulador ecoa o que aplicou no quadro seguinte.
+- **Controle › Distância › Configuração do nó.** Offset de instalação (mm), períodos de amostragem e
+  envio (ms), restaurar padrões de fábrica (NVS); `DistanceCommandPending` mostra o comando em
+  trânsito — o nó só acorda para empurrar, e a caixa vai de carona na resposta do push.
+- **Controle › Vazão de Ar › Sintonia do controlador.** Kp, Ki, ganho e offset de feedforward, taxa
+  de rampa, com o eco ao lado de cada campo, tensão de saída do controlador (V) e setpoint corrigido.
+  Recusado pelo árbitro durante um ensaio; fora dele, aviso de que é persistido no nó.
+- **Controle › Bomba Externa.** **Zerar volume** (espera `PumpVol` ≈ 0 no quadro seguinte, nunca
+  zera localmente; aviso após 5 s) e o expansor **PID do nó** — desabilitado até a bomba ecoar
+  `pid_*`.
+- **Calibrações › Bomba externa.** Ganho e deslocamento da bomba peristáltica (`Q = slope·S +
+  intercept`, S = unidade interna 0–1000) com prévia em três pontos e recibo JSON em `Calibracoes/`
+  gravado só depois do eco.
+- **Controle › Absorbância › Parâmetros de aquisição.** IT (25…800 ms, enviado como código 0–5),
+  PWM do LED, marcha óptica (0–31), EMA, período da sonda — um comando por confirmação, `gear`
+  primeiro, fila cancelável; aviso de que IT/PWM invalidam o branco.
+- **Configurações › Conexão › Nós na rede do Hub.** Colunas **RSSI · Heap · Uptime · Falhas c/ Hub ·
+  OTA** e métricas por nó, via `GET /nodeDiag` em Wi-Fi (junto com `/nodes`, a cada 10 s) e via o
+  pedido serial `{"nodeDiag":"all"}` em USB (a cada 30 s com a seção aberta). A linha `NodeDiag` não é
+  telemetria nem falha de parse; o pedido não toma posse de atuador. `hub_fail_streak ≥ 8` é aviso
+  em texto.
+- **Hub `10.2.0-dev`** (`ESP32S3-HUB`): caixa confiável da distância por carona no push, whitelists
+  completas (`ff_*`, `pid_*`, `reset_volume`, `set_*`), ecos condicionais à presença, tarefa `NodeDiag`
+  (30 s, timeout 500 ms, cache 5 × 512 B), `GET /nodeDiag[?dev=]`, serial `nodeDiag`. Protocolo
+  continua 10. **Nós:** distância `v11`, fluxômetro `v11`, bomba `3.9`, biomassa `v11` ecoam o que
+  aplicam; sem compatibilidade com `v10`/`3.8` — a frota é regravada de uma vez.
+
+### Changed — configuração dos nós pelo Hub
+- **Quadro de segurança da bomba** passa a `{"mode":0}` seguido de `{"pumpComm":0}`: `speed:0` saiu
+  porque o Hub nunca o repassou e a bomba 3.9 o leria como modo de velocidade armado. Fim da paridade
+  byte a byte com v.6 nesse quadro (`PROTOCOL.md` §3.5).
+- **`NodeFirmwareCatalog`** lista só as versões novas (`v11`, `v11`, `3.9`, `v11`; agitador `v10`);
+  um nó antigo gera o aviso de firmware da D-051.
+- **`BiomassGear`** documentado como marcha óptica combinada 0–31 (`IT × 8 + PWM`), não ganho TIA 1–7.
+
 ### Added — identidade de rede dos nós externos (Hub 10.1, plano `docs/plans/2026-09-12-plano-identidade-nos-externos-app.md`, [D-051](DECISIONS.md))
 - **Quem é cada nó, e onde responde.** O parser lê as quinze chaves do Hub 10.1 (`*IP`, `*NodeVer`,
   `*NodeMac`) em `ExternalNodeIdentity` por nó — sticky dentro do enlace, `0.0.0.0` limpa o IP,

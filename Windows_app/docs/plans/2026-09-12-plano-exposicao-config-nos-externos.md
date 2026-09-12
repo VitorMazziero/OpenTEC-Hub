@@ -6,12 +6,24 @@ parsers zero-heap, Web OTA, `/diag`, backoff, Link Watchdog, `/nodeHello`, NVS n
 distância) contra o que o Hub `10.1.0-dev` repassa e o que o app `OpenTECHub` expõe; e as **nove
 etapas** para fechar as lacunas — no Hub (`10.2.0-dev`), nos nós (`v11`/`3.9`) e no app — sem
 quebrar o fio congelado.
-**Estado:** aprovado para execução em 12/09/2026 com as decisões do §8 fechadas pelo usuário:
-recomendações adotadas (`speed` sai do app; carona na resposta do push; um `command` por revisão;
-proxy com tarefa própria) e **sem compatibilidade retroativa com nós `v10`/`3.8`** — todos os
-dispositivos serão regravados junto com o Hub `10.2.0-dev`. Só a Etapa 8 (saúde dos nós) depende do
-recibo de bancada do plano anterior (`2026-09-12-plano-identidade-nos-externos-app.md`, §6.3),
-porque reaproveita o registro de IPs; as demais são independentes dele.
+**Estado:** **executado em 12/09/2026** — as nove etapas na `main`, um commit por etapa
+(`884ef58`, `4939e51`, `8fffba8`, `1473895`/`ddf10e9`/`8194301`, `e666a03`, `23aa797`, `54e166c`,
+`10f2210`/`8befccf`, e o commit de docs desta etapa); suíte 1448 → 1497, contratos do Hub 38 → 72,
+firmware do Hub compila. Decisões do §8 fechadas pelo usuário: recomendações adotadas (`speed` sai do
+app; carona na resposta do push; um `command` por revisão; proxy com tarefa própria) e **sem
+compatibilidade retroativa com nós `v10`/`3.8`**. Registro: [D-052](../DECISIONS.md),
+[P3-10](../history/PHASE_LOG.md), `docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
+**Desvios:** (a) Etapa 7 — a prévia da calibração da bomba usa S = 250/500/1000 (unidade interna
+0–1000), não PWM 64/128/255: a bomba 3.9 converte S em PWM 155–1023 e o rascunho calibraria o eixo
+errado; (b) Etapa 7 — `BiomassGear` é a marcha óptica combinada 0–31 (`IT × 8 + PWM`), não ganho TIA
+1–7, e `set_gear` vai antes de `set_it`/`set_pwm`; IT é exibido em ms e enviado como código 0–5;
+período da sonda parte de 25 000 ms (o nó eleva valores abaixo do piso térmico); (c) Etapa 8 — a
+Etapa 8 foi executada sem o recibo de bancada da D-051 (o proxy só depende do registro de IPs no
+código, já testado por contrato); o número do heap **não** foi medido — não havia Hub conectado — e
+fica como pendência, com o Hub registrando `heap antes/depois` no boot para a medição; (d) Etapa 9 —
+`DocumentationEvidenceTests` regera capturas em `docs/evidence/screenshots/` a cada execução; não
+foram commitadas. **Pendências de bancada:** §7.3 na íntegra (regravação da frota, offset, sintonia,
+bomba, biomassa, tamanho do quadro, heap), listadas em `ROADMAP.md › Field readiness`.
 **Pré-leitura:** `docs/PROTOCOL.md` §2.0.1, §2.0.2, §3.4, §3.5; `docs/DECISIONS.md` D-015 (árbitro
 único do fio), D-021/D-022 (biomassa/bomba), D-051; `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`;
 `ESP32S3-HUB/ESP32S3-HUB/src/protocol/Mailboxes.h` (caixa confiável `queueReliable` /

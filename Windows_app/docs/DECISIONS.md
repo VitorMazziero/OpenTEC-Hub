@@ -1397,6 +1397,60 @@ a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
   `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
   `f08ba27`. Um `XamlParseException` continua sendo um crash.
 
+### D-052 · Configuração dos nós só pelo Hub; eco obrigatório antes de campo editável; diagnóstico por proxy com tarefa própria
+
+**Status:** Accepted and implemented · 2026-09-12 · plano `docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md` · [P3-10](history/PHASE_LOG.md)
+
+**Contexto.** A reorganização dos firmwares dos nós (11–12/09) expôs parâmetros que antes eram
+constantes: offset e períodos do sensor de distância (NVS, `POST /config`), sintonia do controlador
+de vazão (`kp_flow`, `ki_flow`, `ff_*`, `ramp_rate`), calibração linear e PID da bomba, zerar
+volume, e a aquisição óptica da biomassa (IT, PWM, gear, EMA, período). O Hub `10.1` repassava só
+parte disso — as whitelists descartavam `ff_*`, `pid_*`, `reset_volume` — e o app não expunha nada;
+o operador precisava do navegador e do IP do nó. Cada nó também tem um `/diag` (RSSI, heap, uptime,
+`hub_fail_streak`, `ota`) inalcançável de um PC em USB.
+
+**Decisão.**
+
+- **Todo comando a um nó passa pelo Hub e pelo árbitro (D-015).** O app nunca fala `POST /config`
+  com um nó, mesmo em Wi-Fi: um único caminho de escrita, uma única fila por nó (`queueReliable`),
+  um único lugar para recusar durante um ensaio. O Hub traduz chaves camelCase do app para o
+  vocabulário de cada nó (`PROTOCOL.md` §3.7).
+- **Sem eco, sem campo editável.** Só vira campo na tela o que o nó ecoa no push e o Hub publica no
+  quadro (`PROTOCOL.md` §2.0.3). Os ecos **não são sticky**: chave ausente é "aguardando eco do nó"
+  e o campo fica desabilitado com o motivo — estado de *runtime*, não de versão. O PID da bomba
+  existe na UI mas fica desabilitado até a bomba ecoar `pid_*`.
+- **Distância: carona na resposta do push.** O nó só acorda para empurrar; a caixa confiável da
+  distância é entregue no corpo da resposta ao `GET /distanceData`, re-entregue a cada push até o
+  ack. `DistanceCommandPending` diz ao app que há comando em trânsito.
+- **Biomassa: um `command` por revisão**, fila no VM, `gear` antes de `set_it`/`set_pwm` porque
+  esses escrevem nos *slots* selecionados pelo gear. Fluxômetro: sintonia e setpoint na mesma
+  revisão da caixa. Distância: os quatro campos numa frame só.
+- **`speed` sai do quadro de segurança da bomba.** `{"mode":0}` e depois `{"pumpComm":0}`; o Hub
+  nunca repassou `speed` e a bomba 3.9 leria `speed:0` como modo de velocidade armado. Fim da paridade
+  byte a byte com v.6 nesse quadro (`PROTOCOL.md` §3.5).
+- **Sem compatibilidade retroativa com nós `v10`/`3.8`.** A frota é regravada junto com o Hub
+  `10.2.0-dev`; `NodeFirmwareCatalog` lista só `v11`/`3.9`/`v11`/`v11`/`v10` (agitador inalterado).
+  Um nó antigo é um esquecido e o aviso de firmware da D-051 o denuncia; nenhum código trata "nó
+  antigo sem eco" como caso especial.
+- **Diagnóstico por proxy, nunca de um handler HTTP.** Uma tarefa FreeRTOS (`NodeDiag`, 6144 B,
+  prioridade 1) coleta o `/diag` de cada nó registrado a cada 30 s (timeout 500 ms, 200 ms entre nós)
+  num cache de 5 × 512 B; `GET /nodeDiag` e o comando serial `{"nodeDiag":…}` só leem o cache. A
+  linha `{"NodeDiag":…}` é `ParseOutcome.NodeDiag` no app — não é telemetria nem falha de parse — e
+  `RequestNodeDiag` é um pedido de sistema que não toma posse de atuador. Nada de saúde entra no
+  quadro agregado.
+- **Sintonia durante ensaio é recusada** pelo árbitro (a aeração pertence ao ensaio); fora de ensaio
+  o app avisa que o valor é persistido no nó; a proveniência dos ensaios grava a sintonia usada.
+
+**Consequências.** Hub `10.2.0-dev` (protocolo continua 10; tudo aditivo): caixa da distância por
+carona, whitelists completas, 17 ecos novos no quadro, `/nodeDiag`, serial `nodeDiag`. Nós:
+distância `v11`, fluxômetro `v11`, bomba `3.9`, biomassa `v11`. App: 25 chaves de comando, 17 de eco,
+`CommandBuilders` com validação de faixa, expansores de configuração nas gavetas Distância, Vazão de
+Ar, Bomba Externa e Absorbância, aba Calibrações › Bomba externa com recibo, tabela Nós na rede do
+Hub com RSSI · Heap · Uptime · Falhas c/ Hub · OTA em USB e Wi-Fi. Suíte 1448 → 1497; contratos do
+Hub 38 → 72. Pendências de bancada no plano §7.3 (regravação da frota, tamanho do quadro com ecos,
+heap do Hub com a tarefa, espera da carona sob backoff). Melhorias registradas em
+`docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
+
 ### D-051 · Identidade de rede dos nós externos: aditiva, sticky, sem alarme; ações de rede só por Wi-Fi
 
 **Status:** Accepted and implemented · 2026-09-12 · plano `docs/plans/2026-09-12-plano-identidade-nos-externos-app.md` · [P3-09](history/PHASE_LOG.md)
@@ -1433,8 +1487,8 @@ DHCP só era visível no monitor serial.
 - **Proveniência.** Versão e IP dos nós entram ao lado de `HubFirmwareVersion` no preâmbulo do
   sidecar servo (`# nodes:`), no `ensaio.json` de potência (`externalNodes`) e no `teste.json` de kLa
   (que ganha também `hubFirmwareVersion`/`hubProtocolVersion`). Manifesto antigo carrega vazio.
-- **Diferido.** Proxy `GET /nodeDiag?dev=` no Hub para alcançar o `/diag` dos nós por USB, e OTA a
-  partir do app (`Publish-OtaFirmware.ps1` já cobre, com verificação de baseline que o app não tem).
+- **Diferido.** OTA a partir do app (`Publish-OtaFirmware.ps1` já cobre, com verificação de baseline
+  que o app não tem). O proxy `GET /nodeDiag` foi feito em [D-052](#d-052--configuração-dos-nós-só-pelo-hub-eco-obrigatório-antes-de-campo-editável-diagnóstico-por-proxy-com-tarefa-própria).
 
 **Consequências.** Quinze chaves novas no parser, cinco gavetas com um cartão "Rede", um painel em
 Configurações › Conexão, uma linha no popover ("Nós do Hub n/5"), quatro tipos de evento, três

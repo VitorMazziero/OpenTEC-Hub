@@ -1149,8 +1149,21 @@ make while re-implementing, rather than copying forward:
       `docs/evidence/ui-hitches-2026-09-12.md` (target: none during capture); watch a
       `RetryThenSkip` sequence failure and a stability exit from the vent phase.
 - [ ] **Flow controller does not regulate downward on the first vent opening after a safe-stop**
-      (§I.4 of the plan): reproduce by hand — safe-stop → 2.0 L/min on the vent → does it stick at
-      ~3.4 L/min? A controller/firmware item (`FLOWMETER_V05_HUB_V7_SYNC_PLAN.md`), not an app one.
+      (§I.4 of the plan): **instrumented — the tuning is now exposed.** Controle › Vazão de Ar ›
+      *Sintonia do controlador* edits `kp_flow`/`ki_flow`/`ff_*`/`ramp_rate` on the node with echoes
+      ([D-052](DECISIONS.md)). Reproduce by hand — safe-stop → 2.0 L/min on the vent → does it stick
+      at ~3.4 L/min? — then retune from the app and record what closed it. Still a controller item.
+- [ ] **Bench receipt for node configuration through the Hub**
+      (`docs/plans/2026-09-12-plano-exposicao-config-nos-externos.md` §7.3, [D-052](DECISIONS.md),
+      [PHASE_LOG P3-10](history/PHASE_LOG.md)): reflash Hub `10.2.0-dev` and the four nodes
+      (`Publish-OtaFirmware.ps1 -Device <nó> -Compile`) and read `v11`/`3.9`/`v11`/`v11`/`v10` in
+      `/nodes` with no firmware advisory in the table; distance offset 20 → 25,5 echoed in ≤ 2 s and
+      surviving a sensor reboot; *Zerar volume* → `PumpVol` 0 on the next frame; pump calibration
+      echoed with a receipt in `Calibracoes/`; three biomass adjustments → three `cmd_id`/acks in the
+      Hub log; `/readData` `Content-Length` with everything echoed (ceiling 2.6 KB) and the Hub's free
+      heap after the `NodeDiag` task (> 150 KB, from the boot log line `heap antes/depois`) noted in
+      `docs/evidence/`; on USB, RSSI/heap of the five in the table, one node switched off → `code 0`
+      with a growing age.
 
 ---
 
@@ -1162,7 +1175,8 @@ make while re-implementing, rather than copying forward:
 | **torch / neural inference of any kind** | Same. | With the gassing-out module. |
 | **Nitrogen enrichment path** | The kLa controller core is stable in ReceitasOpenTEC but *without* enrichment; the enrichment path needs the changes described in the manuscript. | Phase 2, after the base cascade is validated. |
 | **Multi-station hub support** | Telemetry exposes `HubStations` but v.6 never used it. | Only when a second module physically exists. |
-| **Node diagnostics over USB (`GET /nodeDiag?dev=` proxy on the Hub)** | Would need an HTTP client inside the Hub's async server — its own task, queue and cache. Over USB the app knows each node's address but cannot reach its `/diag`. | When the bench asks for node RSSI/heap without switching the PC to the Hub's Wi-Fi ([D-051](DECISIONS.md)). |
+| **Pump PID gains editable from the app** | Pump `3.9` applies `pid_*` but does not echo them, and no echo means no editable field ([D-052](DECISIONS.md)). The fields exist, disabled. | When the operator needs them: the pump echoes `pid_*` in its next version and the app enables the fields with no other change. |
+| **`boot_id` on the distance, agitator, pump and biomass nodes** | Only the flowmeter publishes it (`FlowmeterBootId`, sticky). Restart vs. packet loss is told apart on one node out of five. | With the next fleet reflash; the Hub whitelist and the parser are additive. |
 | **Firmware OTA from the app** | `Publish-OtaFirmware.ps1` already discovers the node via `/nodes` and checks baselines and headroom, which the app does not. | If the operator asks; the address is one click away in the drawer ([D-051](DECISIONS.md)). |
 
 ---

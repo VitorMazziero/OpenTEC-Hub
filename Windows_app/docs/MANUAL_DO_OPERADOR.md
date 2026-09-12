@@ -92,6 +92,23 @@ está em dois lugares:
    estado e há quanto tempo o Hub os ouviu. Em Wi-Fi, **Atualizar** consulta o diretório do Hub
    (`/nodes`); por USB a tabela vem do quadro de telemetria.
 
+### Saúde dos nós (RSSI, heap, uptime, falhas, OTA)
+
+A mesma tabela mostra, para cada nó, a intensidade do Wi-Fi (**RSSI**), a memória livre (**Heap**),
+o tempo desde a última inicialização (**Uptime**), o contador de falhas consecutivas ao falar com o
+Hub (**Falhas c/ Hub**) e se há gravação de firmware em andamento (**OTA**), além de uma métrica
+própria do nó (distância e offset, vazão e volume da bomba, absorbância…). Requer Hub `10.2`:
+
+- **Em Wi-Fi**, o app consulta `/nodeDiag` junto com `/nodes` a cada 10 s enquanto a seção está
+  aberta.
+- **Em USB**, o app pede ao Hub (`nodeDiag`) a cada 30 s com a seção aberta, ou ao clicar em
+  **Atualizar saúde**; o Hub responde com o que tem em cache — ele mesmo consulta cada placa a cada
+  30 s. O pedido não interfere em nenhum atuador nem em ensaio em andamento.
+
+**Falhas c/ Hub ≥ 8** aparece como aviso de reassociação (o nó está tendo dificuldade de entregar o
+push), nunca como alarme de processo. Um nó desligado fica com a idade da última coleta crescendo;
+um nó que nunca se registrou aparece sem saúde ("—"). O rodapé diz há quanto tempo o Hub coletou.
+
 Um firmware de nó fora do conjunto validado com esta versão do aplicativo aparece como aviso em texto
 no cartão — não é alarme. Mudanças de identidade (nó registrado, IP que mudou, firmware ou placa
 diferente) ficam registradas em **Eventos**. Para gravar um firmware novo num nó, use
@@ -145,6 +162,28 @@ Para garantir máxima agilidade ao operador paramentado na bancada:
 - Ao digitar um novo valor de setpoint em qualquer campo (temperatura, agitação, vazão de ar, dosagem), basta pressionar a tecla **`Enter`** ou simplesmente clicar em outro campo (**perda de foco**).
 - O comando é validado contra os limites de engenharia de segurança e enviado instantaneamente ao hardware.
 
+### Configuração dos nós externos pela gaveta (offset, sintonia, aquisição)
+
+Cada nó externo persiste parâmetros próprios; o app os edita **sempre pelo Hub** (nunca direto no
+nó), e um campo só fica habilitado quando o nó **ecoa** o valor aplicado — enquanto o eco não chega,
+o campo mostra "aguardando eco do nó". O valor ecoado aparece ao lado do campo (`Telemetria: …`);
+é ele, e não o que foi digitado, que vale.
+
+- **Distância → Configuração do nó:** offset de instalação (mm) e períodos de amostragem e envio
+  (ms), com **Restaurar padrões** (apaga a NVS do sensor). Os quatro vão numa mensagem só; o sensor
+  só acorda para enviar, então o comando é entregue na resposta ao próximo push (indicador "comando
+  em trânsito"). Ver §7.D.
+- **Vazão de Ar → Sintonia do controlador:** Kp, Ki, ganho e offset de feedforward e taxa de rampa
+  do controlador de vazão, com a tensão de saída (V) e o setpoint corrigido ao lado. **Quando:** se
+  a vazão não regula para baixo depois de uma parada segura, ou oscila ao trocar de destino. **Como:**
+  com o alívio aberto e sem ensaio em andamento (o árbitro recusa durante um ensaio), mudar um ganho
+  de cada vez, esperar o eco e observar a vazão medida por alguns minutos. Os valores ficam
+  persistidos no nó e são gravados na proveniência dos ensaios seguintes.
+- **Absorbância → Parâmetros de aquisição:** tempo de integração (25 a 800 ms), PWM do LED, marcha
+  óptica (0–31), fator EMA e período da sonda. O app envia **um comando por vez** (a marcha primeiro)
+  e mostra "n de m enviados"; pode ser cancelado. Alterar IT ou PWM invalida o branco: capture-o de
+  novo antes de medir.
+
 ### Procedimento de Parada Segura Global (*Safe Stop*)
 No cabeçalho superior direito de qualquer tela, encontra-se o botão de emergência **Parada Segura (Safe Stop)**:
 - Ao ser acionado, o coordenador de segurança **revoga instantaneamente a posse** de qualquer receita em andamento, malha cascata ou ensaio cinético.
@@ -183,6 +222,29 @@ O menu **Calibração** fornece assistentes passo a passo para garantir a rastre
 2. Defina uma rotação fixa (ex.: 50 rpm) e acione o teste de temporização de calibração por 60 segundos.
 3. Meça o volume ou massa de líquido transferido.
 4. Digite o volume real aferido no campo correspondente; o sistema calculará o coeficiente de vazão em $mL/rot$ ou $mL/min$.
+
+### D. Offset do sensor de distância
+1. Com o reator no nível de referência, leia a distância em **Controle → Distância** (`Telemetria`).
+2. Meça a distância real (régua ou gabarito) entre o sensor e a superfície.
+3. Em **Configuração do nó**, digite em **Offset (mm)** a diferença (real − lida) somada ao offset
+   atual e confirme com `Enter`. O campo fica "aguardando eco" até o próximo envio do sensor (≤ 2 s
+   em operação normal; mais sob backoff).
+4. Confira que `Telemetria: <offset>` acompanha e que a distância lida passou a bater com a real.
+   O valor é gravado na NVS do sensor e sobrevive a reinícios; **Restaurar padrões** volta ao de
+   fábrica.
+
+### E. Calibração da bomba externa (peristáltica do Hub)
+1. Em **Calibrações → Bomba externa**, leia os coeficientes vigentes (ecoados pelo nó): a bomba
+   aplica `Q [mL/min] = slope · S + intercept`, onde **S é a velocidade interna 0–1000** (o firmware a
+   converte em PWM 155–1023) — não é o PWM bruto.
+2. Acione a bomba em pelo menos três velocidades (por exemplo S = 250, 500 e 1000) por tempo
+   cronometrado sobre uma balança; converta massa em volume pela densidade e calcule a vazão.
+3. Ajuste a reta (slope, intercept) e digite os dois valores; a prévia mostra a vazão prevista nos
+   três pontos. **Aplicar** envia ao nó pelo Hub.
+4. O recibo `Calibracoes/bomba-externa-<data>.json` (pedido, eco aplicado, firmware do Hub e da bomba)
+   é gravado **só depois do eco**; sem eco em 15 s o app avisa e nada é persistido.
+5. **Zerar volume** (na gaveta Bomba Externa) zera o acumulador `PumpVol` no nó; o app espera o
+   quadro seguinte para confirmar, não zera localmente.
 
 ---
 

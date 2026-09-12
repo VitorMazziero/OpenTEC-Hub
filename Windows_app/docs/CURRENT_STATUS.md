@@ -45,6 +45,17 @@ página de Potência, 3 atrasos > 30 ms só na subida do enlace, depois nenhum. 
 bancada:** gravar o hub e validar o envio da curva; a corrida de 10 min com ensaio em captura; o
 controlador de vazão que não regula para baixo na primeira abertura do alívio.
 
+**12/09/2026 — identidade e configuração dos nós pelo Hub, executados.** Dois planos do mesmo dia
+estão na `main`: identidade de rede dos nós (Hub `10.1`, [D-051](DECISIONS.md), [PHASE_LOG
+P3-09](history/PHASE_LOG.md)) e configuração dos nós pelo Hub (Hub `10.2.0-dev`, nós
+`v11`/`3.9`/`v11`/`v11`, [D-052](DECISIONS.md), [P3-10](history/PHASE_LOG.md)): offset e períodos
+do sensor de distância, sintonia do controlador de vazão, zerar volume/calibração/PID da bomba,
+aquisição da biomassa, e a saúde dos nós (RSSI, heap, uptime, falhas, OTA) por `/nodeDiag` em Wi-Fi
+e por serial em USB. Suíte: **1497 aprovados**; contratos do Hub: 72; firmware do Hub compila
+(85 % do flash). **Pendente de bancada:** regravar a frota inteira (sem compatibilidade com
+`v10`/`3.8`), medir o quadro com todos os ecos e o heap do Hub com a tarefa `NodeDiag`
+(`ROADMAP.md` › Field readiness).
+
 The remaining work is concentrated in:
 
 1. completing remaining control findings (AUD-005: foco e limiares de biomassa);

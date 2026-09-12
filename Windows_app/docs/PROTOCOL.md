@@ -275,9 +275,18 @@ missing from the frame, the reading resolves to null (except `FlowmeterBootId`, 
 | `FlowmeterBootId` | int | — | Flowmeter boot cycle counter (sticky across session) |
 | `PumpSlope` | float | — | Peristaltic pump linear calibration slope |
 | `PumpIntercept` | float | — | Peristaltic pump linear calibration intercept |
-| `BiomassGear` | int | 1-7 | Biomass sensor TIA gain gear |
+| `BiomassGear` | int | 0-31 | Biomass combined optical gear (`IT index × 8 + PWM index`); the node also echoes `BiomassIT` (ms) and `BiomassPWM` (%) from §2.0.1 |
 | `BiomassEma` | float | 0.0-1.0 | Biomass sensor EMA smoothing filter factor |
 | `BiomassProbePeriodMs` | int | ms | Biomass sensor acquisition probe period |
+
+The pump node (3.9) does **not** echo `pid_kp`/`pid_ki`/`pid_kd`; the app keeps those fields
+disabled until a pump firmware echoes them (§3.3 of the plan: no echo, no editable field).
+
+**Node health is not in the frame.** RSSI, free heap, uptime, `hub_fail_streak` and `ota` of each
+node reach the app through `GET /nodeDiag[?dev=]` (Wi-Fi) or the serial request
+`{"nodeDiag":"<dev>|all"}` (USB), which the Hub answers with one `{"NodeDiag":{…}}` line per node
+from a cache filled by its own task every 30 s. Contract in `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`
+("Diagnóstico dos nós"). See §2.0 for how the line is classified.
 
 ### 2.0 Not every line is telemetry
 
@@ -290,6 +299,7 @@ assumes "every line is JSON telemetry" will tear down a healthy link:
 | `{...}` | Telemetry frame | Parse |
 | `[ESP32_AVISO]: ...` | Device log line | Log, ignore, **do not count as a parse failure** |
 | `OK` | Command acknowledgement | Recognise, **do not count as a parse failure** |
+| `{"NodeDiag":{…}}` | Cached node health, answer to `{"nodeDiag":…}` `[hub 10.2]` | `ParseOutcome.NodeDiag`: raise `NodeDiagReceived`, **not telemetry, not a parse failure** |
 
 Observed device log lines:
 
@@ -577,6 +587,7 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 | `dataDelay` | Telemetry period in **ms** (field value: 2000) |
 | `resetVariables` | `1` — reset the module's process variables |
 | `restart` | `1` — restart all controller communications |
+| `nodeDiag` | `"distance"`, `"agitator"`, `"pump"`, `"flowmeter"`, `"biomass"` or `"all"` — asks the Hub for the cached `/diag` of that node (`all`: five lines). A read-only system request: it claims no actuator in the arbiter, mutates no NVS and does not change the Hub's state hash `[hub 10.2]` |
 
 ### 3.7 External-node configuration commands `[hub 10.2]`
 
@@ -674,5 +685,7 @@ the Phase 0 transport is declared done.
 | Q2 | Is there a **maximum payload size** for `POST /command`? | The polynomial pump mode sends 21 coefficients plus mode in a single object. |
 | Q3 | Does `POST /command` ever reply something other than `OK` / non-200? | v.6 treats everything else as failure and silently drops the command. |
 | ~~Q4~~ | ~~Does the ESP32 emit a boot banner after reset?~~ | **Answered 2026-08-19.** No banner, but it does emit `[ESP32_` log lines and bare `OK` acks on the telemetry stream. See section 2.0. |
+| Q7 | How large is `/readData` with the five nodes registered **and every §2.0.3 echo present** (`[hub 10.2]`)? | The frame `String` reserve is 3072 B and the USB line limit is 1024 B per *command*, not per frame; the plan's ceiling is 2.6 KB. If the bench measures above it, `FlowOutput` and `FlowSetpointCorrected` are the first keys to drop. Recorded in `docs/evidence/` when measured. |
+| Q8 | Hub free heap after the `NodeDiag` task is created (`[hub 10.2]`)? | The task costs a 6144 B stack plus 5 × ~520 B of cache; the Hub logs `heap antes/depois` at boot. Acceptance: > 150 KB free. Not yet measured. |
 | Q5 | Does `dataDelay` apply to both transports? | Drives the Wi-Fi poll period and the chart sample rate. **Partly answered 2026-08-19:** the measured USB emission period is ~2.0 s, matching the field `dataDelay` of 2000 ms. |
 | ~~Q6~~ | ~~Should the DTR/RTS reset pulse be suppressed?~~ | **Answered 2026-08-19** by `opentec-harness reset-test`. Yes. With the pulse the device clock fell 102.1 s to 2.8 s across a reconnect while 5.1 s of wall time passed; without it the clock advanced 5.5 s against 5.5 s of wall time. The pulse is what reboots the board. Suppressing it takes a connect from 1903 ms to 13 ms and preserves device state. Now default-off, with an escalation to a pulsed connect after repeated handshake failures for the hung-firmware case. |

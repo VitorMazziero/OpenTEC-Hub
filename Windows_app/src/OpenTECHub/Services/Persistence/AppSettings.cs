@@ -214,6 +214,14 @@ public sealed record CalibrationSettings
     public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } = CertifiedReferencePoints;
 
     /// <summary>
+    /// Provenance of the points above: the A/B/C wiring and the route the air took while they
+    /// were captured (C by default; the reactor on request). Null on points captured before
+    /// the rig, or on the shipped reference.
+    /// </summary>
+    public GasRigSettings? FlowCalibrationGasRig { get; init; }
+    public GasRoute? FlowCalibrationRoute { get; init; }
+
+    /// <summary>
     /// The certified bench run behind the calibration shipped in
     /// <c>flowmeter_OpenTECHUB_V05.ino</c>. Fitting these regenerates the firmware's own
     /// coefficients, so they double as the reference to fall back on and to compare against.
@@ -372,6 +380,22 @@ public sealed record GasRigSettings
     public GasRigConfiguration ToConfiguration() => new(AirInletInput);
 
     public static GasRigSettings From(GasRigConfiguration rig) => new() { AirInletInput = rig.AirInletInput };
+}
+
+/// <summary>
+/// The wiring as a provenance string: what goes into manifests, receipts and sidecars, and the
+/// phrase a reviewer sees on a file older than the rig. Same shape everywhere
+/// (<c>A=2 B/C=1</c>), so grep finds it.
+/// </summary>
+public static class GasRigProvenance
+{
+    public const string Unknown = "desconhecido (anterior ao arranjo A/B/C)";
+
+    public static string Describe(GasRigSettings? rig)
+        => rig is null ? Unknown : Describe(rig.ToConfiguration());
+
+    public static string Describe(GasRigConfiguration rig)
+        => $"A={(int)rig.AirInletInput} B/C={(int)rig.VentAndNitrogenInput}";
 }
 
 public sealed record FlowControlSettings
@@ -1144,7 +1168,8 @@ public static class ServoSessionLogFormat
         string? hubFirmware,
         int hubProtocol,
         string appVersion,
-        IReadOnlyDictionary<string, Communication.ExternalNodeProvenance>? nodes = null)
+        IReadOnlyDictionary<string, Communication.ExternalNodeProvenance>? nodes = null,
+        GasRigSettings? gasRig = null)
         => string.Join(
             "\n",
             $"# opentec-servo-power v{ContractVersion.ToString(CultureInfo.InvariantCulture)}",
@@ -1152,6 +1177,7 @@ public static class ServoSessionLogFormat
             $"# hub_firmware: {(string.IsNullOrWhiteSpace(hubFirmware) ? "desconhecido" : hubFirmware)}",
             $"# hub_protocol: {(hubProtocol < 0 ? "desconhecido" : hubProtocol.ToString(CultureInfo.InvariantCulture))}",
             $"# nodes: {Communication.ExternalNodeProvenance.Describe(nodes)}",
+            $"# gas_rig: {GasRigProvenance.Describe(gasRig)}",
             "# torque_nm deriva de torque_pct e do torque nominal do motor;",
             "# T_nominal = torque_nm / (torque_pct / 100) em qualquer linha com torque nao nulo.",
             "# potencia e energia sao MECANICAS ESTIMADAS no eixo, nao consumo eletrico.",

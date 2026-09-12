@@ -646,6 +646,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             {
                 FlowCalibrationPoints = persisted,
                 FlowCaptureSamples = _captureTarget,
+                // Provenance: the wiring and the route the air took while these were captured.
+                FlowCalibrationGasRig = settings.GasRig,
+                FlowCalibrationRoute = CalibrationRoute,
             },
         });
     }

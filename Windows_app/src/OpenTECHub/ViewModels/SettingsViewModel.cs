@@ -8,6 +8,7 @@ using OpenTECHub.Services.Documentation;
 using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Platform;
+using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.Services.Telemetry;
 using OpenTECHub.Services.Theme;
@@ -50,6 +51,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IApplicationRestartService? _restart;
     private readonly IRecipeEngine? _recipes;
     private readonly IKlaTestRunner? _klaTests;
+    private readonly IPowerTestRunner? _powerTests;
+    private readonly IEventJournal? _journal;
     private readonly ISessionLogger? _sessionLogger;
 
     private bool _loading;
@@ -67,8 +70,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         IRecipeEngine? recipes = null,
         IKlaTestRunner? klaTests = null,
         ISessionLogger? sessionLogger = null,
-        HubNodesViewModel? hubNodes = null)
+        HubNodesViewModel? hubNodes = null,
+        IPowerTestRunner? powerTests = null,
+        IEventJournal? journal = null)
     {
+        _powerTests = powerTests;
+        _journal = journal;
         _settings = settings;
         _theme = theme;
         _device = device;
@@ -88,6 +95,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("calibration", "Calibração", "Target"),
             new("acquisition", "Aquisição", "Trend"),
             new("units", "Unidades", "Pressure"),
+            new(GasRigSectionId, "Gás e válvulas", "Pressure"),
             new("logging", "Aparência", "Trend"),
             new("backup", "Backup e dados", "File"),
             new("device", "Comandos do equipamento", "Gear"),
@@ -235,6 +243,89 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// and roughly double the scrolling, for no gain.
     /// </remarks>
     public bool IsDocumentationSelected => SelectedSection?.Id == DocumentationSectionId;
+
+    // ── Gás e válvulas: the A/B/C wiring (plan Etapa 8) ──────────────────────
+
+    public const string GasRigSectionId = "gas";
+
+    /// <summary>Which flowmeter input drives valve A; B and C share the other one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GasVentInputText))]
+    [NotifyPropertyChangedFor(nameof(GasRigSummary))]
+    [NotifyPropertyChangedFor(nameof(IsGasRigDefault))]
+    public partial GasInput GasAirInletInput { get; set; } = GasRigConfiguration.Default.AirInletInput;
+
+    public IReadOnlyList<EnumChoice<GasInput>> GasInputOptions { get; } =
+    [
+        new(GasInput.Input1, "Entrada 1 (MOSFET 1)"),
+        new(GasInput.Input2, "Entrada 2 (MOSFET 2)"),
+    ];
+
+    /// <summary>The line the operator does not choose: B and C go on the other input.</summary>
+    public string GasVentInputText => $"B e C ligadas na entrada {(int)new GasRigConfiguration(GasAirInletInput).VentAndNitrogenInput}";
+
+    public string GasRigSummary => $"Arranjo: {new GasRigConfiguration(GasAirInletInput).Describe()}";
+
+    public bool IsGasRigDefault => GasAirInletInput == GasRigConfiguration.Default.AirInletInput;
+
+    /// <summary>Click to enlarge the flowchart; the page is narrow on a laptop.</summary>
+    [ObservableProperty]
+    public partial bool IsGasDiagramEnlarged { get; set; }
+
+    [RelayCommand]
+    private void ToggleGasDiagram() => IsGasDiagramEnlarged = !IsGasDiagramEnlarged;
+
+    [RelayCommand]
+    private void RestoreGasRigDefault() => GasAirInletInput = GasRigConfiguration.Default.AirInletInput;
+
+    /// <summary>Why the wiring cannot change right now, or null when it can.</summary>
+    private string? GasRigChangeBlockedReason()
+    {
+        if (_recipes is not null && _recipes.State is RecipeRunState.Running or RecipeRunState.Paused)
+        {
+            return "Há uma receita em execução. Finalize-a antes de mudar o arranjo de válvulas.";
+        }
+        if (_klaTests is { IsRunning: true })
+        {
+            return "Há um ensaio de kLa em andamento. Finalize-o antes de mudar o arranjo de válvulas.";
+        }
+        if (_powerTests is { IsRunning: true })
+        {
+            return "Há um ensaio de potência em andamento. Finalize-o antes de mudar o arranjo de válvulas.";
+        }
+        return null;
+    }
+
+    partial void OnGasAirInletInputChanged(GasInput value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        var current = _settings.Current.GasRig.AirInletInput;
+        if (value == current)
+        {
+            return;
+        }
+
+        if (GasRigChangeBlockedReason() is { } reason)
+        {
+            // Put the selector back without re-entering this handler as an edit.
+            _loading = true;
+            try { GasAirInletInput = current; }
+            finally { _loading = false; }
+            StatusMessage = reason;
+            return;
+        }
+
+        var rig = new GasRigConfiguration(value);
+        _settings.Update(s => s with { GasRig = GasRigSettings.From(rig) });
+        _journal?.Add(AuditSource.Application, AuditSeverity.Warning,
+            $"Arranjo de válvulas: A → entrada {(int)value}; B e C → entrada {(int)rig.VentAndNitrogenInput}.",
+            "Configurações › Gás e válvulas. Vale para os próximos comandos e corridas; ensaios já iniciados com outro arranjo são recusados.");
+        StatusMessage = $"Arranjo de válvulas salvo: {rig.Describe()}.";
+    }
 
     /// <summary>The "Nós na rede do Hub" panel of the Conexão section. Polls only while that section is open.</summary>
     public HubNodesViewModel HubNodes { get; }
@@ -526,6 +617,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _loading = true;
         try
         {
+            GasAirInletInput = settings.GasRig.AirInletInput;
             AutoConnect = settings.Connection.AutoConnect;
             BackupEnabled = settings.Connection.BackupEnabled;
             DataDelayMs = Format(settings.Connection.DataDelayMs);

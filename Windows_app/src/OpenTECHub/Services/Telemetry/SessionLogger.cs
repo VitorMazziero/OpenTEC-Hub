@@ -51,7 +51,7 @@ public interface ISessionLogger : IAsyncDisposable
 /// silently break every consumer, in the same way it would on the wire.
 /// </para>
 /// </remarks>
-public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
+public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? settings = null) : ISessionLogger
 {
     private readonly Lock _gate = new();
 
@@ -335,7 +335,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
                 snapshot.HubFirmwareVersion,
                 snapshot.HubProtocolVersion,
                 AppVersionText,
-                Services.Communication.ExternalNodeProvenance.From(snapshot)));
+                Services.Communication.ExternalNodeProvenance.From(snapshot),
+                settings?.Current.GasRig));
             _servoPreambleWritten = true;
         }
 

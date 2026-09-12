@@ -122,6 +122,7 @@ public static class DocumentationCatalog
     public const string PowerElectricalTopicId = "potencia-correlacao-eletrica";
     public const string PowerKlaMapTopicId = "potencia-mapa-kla";
     public const string SettingsConnectionTopicId = "configuracoes-conexao";
+    public const string SettingsGasRigTopicId = "configuracoes-gas-valvulas";
 
     private static readonly Lazy<IReadOnlyList<DocumentationTopic>> LazyTopics = new(Build);
 
@@ -230,7 +231,7 @@ public static class DocumentationCatalog
                     F("Alívio de Pressão", "Linha sem painel de detalhe: setpoint e leitura de pressão na própria tabela."),
                 ]),
                 new DocumentationSection("Detalhe — dispositivos externos", [
-                    F("Vazão de Ar", "Além do setpoint, escolhe qual entrada do fluxômetro está acionada. As válvulas têm papel fixo: A = ar ao reator, B = N₂ (ou nada), C = purga de ar; B e C abrem juntas na mesma entrada. Na ligação padrão a entrada 2 aciona A e a entrada 1 aciona B + C (Configurações › Gás e válvulas). O seletor tem Fechado, Entrada 1 e Entrada 2, cada um com o que aciona; abaixo, Telemetria mostra a rota observada (Fechado · Reator (A) · Descarga + N₂ (B/C) · Gás sem destino · A e B/C abertas) e o par valve_1/valve_2 no fio. O expansor Avançado expõe as entradas 1 e 2 uma a uma e Fechar linha (v_Flow) para bancada: qualquer combinação é enviada — as duas acionadas ou um setpoint sem entrada aberta só geram aviso, nunca recusa. maxFlow é o fundo de escala do medidor, e Calibrar Vazão abre a calibração da curva. O expansor Sintonia do controlador expõe Kp, Ki, ganho e offset de feedforward e taxa de rampa, com ecos aplicados pelo nó, tensão de saída do controlador em V e setpoint corrigido em L/min."),
+                    F("Vazão de Ar", "Além do setpoint, escolhe qual entrada do fluxômetro está acionada — o arranjo está em Configurações › Gás e válvulas. As válvulas têm papel fixo: A = ar ao reator, B = N₂ (ou nada), C = purga de ar; B e C abrem juntas na mesma entrada. Na ligação padrão a entrada 2 aciona A e a entrada 1 aciona B + C (Configurações › Gás e válvulas). O seletor tem Fechado, Entrada 1 e Entrada 2, cada um com o que aciona; abaixo, Telemetria mostra a rota observada (Fechado · Reator (A) · Descarga + N₂ (B/C) · Gás sem destino · A e B/C abertas) e o par valve_1/valve_2 no fio. O expansor Avançado expõe as entradas 1 e 2 uma a uma e Fechar linha (v_Flow) para bancada: qualquer combinação é enviada — as duas acionadas ou um setpoint sem entrada aberta só geram aviso, nunca recusa. maxFlow é o fundo de escala do medidor, e Calibrar Vazão abre a calibração da curva. O expansor Sintonia do controlador expõe Kp, Ki, ganho e offset de feedforward e taxa de rampa, com ecos aplicados pelo nó, tensão de saída do controlador em V e setpoint corrigido em L/min."),
                     F("Distância", "Atraso inicial (s), Pulso (s) e Intervalo (s) governam a medição por ultrassom. Este sensor é usado como sensor de espuma, e o atuador de antiespumante nesse caso é a bomba de nutrientes. O expansor Configuração do nó permite ajustar offset de instalação (mm) e períodos de amostragem e envio (ms), com botões para enviar ao nó e restaurar padrões de fábrica (NVS)."),
                     F("Bomba Externa", "Modo escolhe entre os cinco perfis; Tempo inicial e Tempo final delimitam a janela de dosagem e λ parametriza o perfil. O gráfico mostra vazão e volume acumulado antes do envio, com pico e volume total abaixo. O botão Zerar volume zera o acumulador no nó da bomba (esperando confirmação não-otimista por telemetria). O expansor PID do nó documenta a sintonia do controlador (edição desabilitada temporariamente no firmware 3.9). Gás proporcional liga a aeração ao volume dosado por Q_g = (V₀ + Vol/1000)·vvm — quando ativo, comanda a aeração pelo mesmo árbitro do controle manual e é recusado se a cascata detiver a aeração. Reverter descarta as edições; Enviar perfil manda o conjunto ao nó."),
                     F("Absorbância", "Mostra Abs, Raw, IT e PWM lado a lado. Capturar branco registra a referência óptica; Iniciar e Parar controlam a leitura contínua. Limiar baixo, alto e ótimo definem a janela de trabalho do sensor e vão ao nó por Enviar limiares. O expansor Parâmetros de aquisição permite escolher IT entre 25, 50, 100, 200, 400 e 800 ms, PWM do LED (0–100%), a marcha óptica combinada (Gear 0–31), fator EMA (0,01–1,0) e período da sonda (100–3600000 ms). O app seleciona Gear antes de alterar seus slots, converte IT para o código 0–5 exigido pelo firmware e envia um comando por confirmação. O firmware pode elevar o período ao piso térmico seguro. Alterar IT ou PWM invalida o branco do nó, que deve ser capturado novamente antes da medição. Calibrar Biomassa abre a curva absorbância → concentração."),
@@ -474,11 +475,12 @@ public static class DocumentationCatalog
                 ]),
                 new DocumentationSection("Como uma corrida acontece", [
                     P("Cada corrida segue a mesma sequência de fases, e o cabeçalho mostra em qual delas o ensaio está:"),
+                    B("**Pré-voo** — confirme que o N₂ está aberto na fonte (a linha B). A confirmação vai ao manifesto e ao jornal."),
                     B("**Fechar gases** — o ensaio confirma pelo fluxômetro que tudo está fechado antes de começar. Sem essa confirmação nada avança."),
-                    B("**Abrir N₂ e desoxigenar** — o nitrogênio entra com a rotação de desgaseificação até o oxigênio cair abaixo do limiar de desligamento."),
-                    B("**Fechar N₂ e esperar estabilizar** — o gás é cortado e o ensaio espera a leitura parar de cair, medindo a derivada do sinal. É o que garante que o `t₀` não pegue a sonda ainda em queda."),
-                    B("**Alívio (opcional)** — quando a montagem tem válvula de alívio, a vazão é estabilizada fora do vaso antes de entrar, para que o pulso inicial do fluxômetro não contamine o começo da curva."),
-                    B("**Abrir ar e reoxigenar** — a curva que interessa. Termina quando o oxigênio atinge o limiar superior."),
+                    B("**Abrir N₂ (B/C) e desoxigenar** — o nitrogênio entra por B com a rotação de desgaseificação até o oxigênio chegar ao piso (DO mínimo mais a antecipação, se houver). Se o DO já estiver no piso ao iniciar, esta fase é pulada."),
+                    B("**Ar por C · estabilizando** — a vazão do ensaio é pedida na mesma saída B/C: o ar sai pela descarga C enquanto o N₂ segue abrindo por B. O ensaio espera a vazão assentar **e** o piso de DO ficar plano (derivada), os dois ao mesmo tempo."),
+                    B("**Comutando para o reator (A)** — uma única frame fecha B/C e abre A com o setpoint já assentado. A confirmação pelo fluxômetro é o `t = 0`; a vazão e o DO desse instante ficam gravados na corrida."),
+                    B("**Reoxigenar** — a curva que interessa. Termina quando o oxigênio atinge o limiar superior."),
                     B("**Parar e revisar** — as válvulas fecham e a corrida espera a sua decisão."),
                     N("Fluxômetro offline, leitura de oxigênio inválida ou telemetria parada abortam a corrida em vez de continuar medindo às cegas."),
                 ]),
@@ -502,7 +504,7 @@ public static class DocumentationCatalog
                     F("Desligar N₂ (%)", "O oxigênio abaixo do qual o nitrogênio é cortado — o piso da curva."),
                     F("DO Máx (%)", "O oxigênio em que a reoxigenação termina — o teto da curva."),
                     F("Rot. N₂ (rpm)", "A rotação usada durante a desgaseificação, que não precisa ser a da condição."),
-                    F("Engrenagem", "Abre os **parâmetros avançados**: tempos máximos de desoxigenação e reoxigenação, a espera após desligar o N₂ (atraso mínimo, janela da derivada, confirmações consecutivas, espera máxima), a estabilização no alívio e os padrões da análise automática (suavização e Ceq inicial). Alterações válidas valem ao vivo."),
+                    F("Engrenagem", "Abre os **parâmetros avançados**: tempos máximos de desoxigenação e reoxigenação, a pré-estabilização do ar por C (antecipação em DO, tolerância e confirmações de vazão, teto), a estabilidade da sonda no piso (janela da derivada, limiar, confirmações) e os padrões da análise automática (suavização e Ceq inicial). O arranjo A/B/C aparece como linha fixa; muda-se em Configurações › Gás e válvulas. Alterações válidas valem ao vivo."),
                 ]),
                 new DocumentationSection("Os três gráficos", [
                     F("Oxigênio Dissolvido", "A corrida como ela acontece: OD bruto e filtrado, as linhas de DO mín e DO máx e o ajuste exponencial correspondente ao kLa estimado."),
@@ -596,6 +598,11 @@ public static class DocumentationCatalog
                        "Reynolds do impelidor. Acima de ~10⁴ o regime é turbulento e o Np tende a um platô — é esse platô que um ensaio bem feito mostra."),
                     N("Sem tara aplicada o ensaio roda em **modo relativo**: as comparações entre condições continuam válidas, mas os Np não são absolutos."),
                 ]),
+                new DocumentationSection("Com gás: como o ar entra", [
+                    P("Toda condição gaseificada segue o arranjo A/B/C (Configurações › Gás e válvulas): a vazão é pedida primeiro na saída B/C — o pulso de partida do fluxômetro sai pela descarga C — e só a vazão assentada é comutada para o reator (A), numa frame só. Neste ensaio a linha B fica pinçada ou desconectada: não há N₂."),
+                    F("Pré-estabilização por C", "Nos parâmetros de captura: tolerância e amostras na banda, σ e |erro| máximos do critério de estabilidade, rotação durante a descarga e o teto (500 s por padrão — a vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s)."),
+                    F("Chip Malha de gás", "Fechado · Reator (A) · Descarga + N₂ (B/C) · Ar por C · estabilizando · Gás sem destino · A e B/C abertas — o que o fluxômetro ecoa, lido no arranjo configurado."),
+                ]),
                 new DocumentationSection("Com gás: os números que aparecem", [
                     Eq("Fl_G = Q_g / (n · D³)",
                        "Número de aeração: quanto gás passa por revolução do impelidor."),
@@ -682,6 +689,7 @@ public static class DocumentationCatalog
                     Eq("valor = a · raw + b",
                        "A forma de duas das curvas — pH e oxigênio. Com dois pontos, **a** e **b** saem do par; com um ponto, só **b** é recalculado."),
                     N("A vazão de ar não é uma reta: o fluxômetro usa polinômios por segmento, e a calibração escreve os coeficientes no próprio nó. Por isso a aba de vazão fala em curva, não em ganho e deslocamento."),
+                    N("Durante a calibração o ar sai pela descarga **C** (mantenha o N₂ fechado na fonte); marque *Calibrar pelo reator (A)* para soprar pelo aspersor. O arranjo e a rota ficam gravados com os pontos."),
                 ]),
                 new DocumentationSection("Onde a calibração aparece depois", [
                     B("Na página Controle, o detalhe de cada variável traz o atalho direto para a sua aba aqui."),
@@ -903,6 +911,31 @@ public static class DocumentationCatalog
                 ]),
                 new DocumentationSection("O mesmo endereço, na página Controle", [
                     P("Cada gaveta de dispositivo externo em Controle tem um cartão **Rede** com `IP · fw` e dois botões: **Abrir diagnóstico** abre a página `/diag` da própria placa no navegador e **Copiar IP** põe o endereço na área de transferência."),
+                ]),
+            ]),
+
+        // ═══════════════════════════════════════════ Configurações · Gás e válvulas
+        new DocumentationTopic(
+            SettingsGasRigTopicId,
+            "Configurações · Gás e válvulas",
+            "O arranjo fixo de válvulas A, B e C dos ensaios, como ele está ligado nas entradas do fluxômetro e o que cada página faz com isso.",
+            [
+                new DocumentationSection("O arranjo", [
+                    P("Depois do fluxômetro há um T: um ramo vai à válvula **A** (ar ao reator, pelo aspersor) e o outro à válvula **C** (descarga / purga de ar). A válvula **B** é a linha de N₂ e está no **mesmo canal elétrico** que C — abrem e fecham juntas. A seção mostra o fluxograma do documento físico; clique para ampliar."),
+                    P("O arranjo é o mesmo nos dois ensaios. O que muda é o que está ligado em B: pinçada ou desconectada no ensaio de potência (só ar; o cilindro nunca é aberto), na linha de N₂ no ensaio de kLa."),
+                    F("Válvula A ligada na entrada", "1 ou 2 — a entrada (MOSFET) do fluxômetro que aciona A. B e C ficam na outra, calculada. O padrão é **2** (MOSFET 1 → B + C, MOSFET 2 → A). Se a bancada estiver ao contrário, muda-se aqui, nunca no código."),
+                    F("Restaurar padrão", "Volta A para a entrada 2."),
+                    N("Não é possível mudar com uma receita ou um ensaio em andamento. A mudança vai ao jornal de eventos como aviso."),
+                ]),
+                new DocumentationSection("Quem lê esta configuração", [
+                    B("**Controle › Vazão de Ar** — o seletor *Fechado / Entrada 1 / Entrada 2* mostra o que cada entrada aciona, e a telemetria é lida com os mesmos nomes (Reator (A), Descarga + N₂ (B/C), Gás sem destino, A e B/C abertas)."),
+                    B("**Ensaio de kLa** — N₂ por B, ar pré-estabilizado por C com o N₂ ainda aberto, comutação para A numa frame (t = 0)."),
+                    B("**Ensaio de potência** — toda condição gaseificada sobe a vazão por C e comuta para A numa frame."),
+                    B("**Receitas, cascata, gás proporcional, ponto único** — ar ao reator por A. **Calibração de vazão** — por C, com a opção de usar A."),
+                    B("**Alarmes** — *Gás sem destino* (setpoint sem entrada aberta por 3 s) e *A e B/C abertas*."),
+                ]),
+                new DocumentationSection("Proveniência", [
+                    P("Cada ensaio grava o arranjo em que rodou (`gasRig` em `teste.json` e `ensaio.json`); o registro servo da sessão leva `# gas_rig: A=2 B/C=1` no preâmbulo; a calibração de vazão guarda o arranjo e a rota em que os pontos foram capturados. Um manifesto sem `gasRig` é anterior ao arranjo: abre para revisão, não pode ser continuado."),
                     B("Os dois exigem que o Hub tenha o IP **e** que o PC esteja na rede Wi-Fi do Hub. Por USB ficam desabilitados, com o motivo no tooltip."),
                     B("Um firmware de nó fora do conjunto validado com esta versão do aplicativo aparece como aviso em texto no cartão — não é alarme; um nó mais novo pode estar perfeitamente bem."),
                     B("Nó registrado, IP que mudou, firmware ou placa diferente ficam registrados na página **Eventos**, com hora."),

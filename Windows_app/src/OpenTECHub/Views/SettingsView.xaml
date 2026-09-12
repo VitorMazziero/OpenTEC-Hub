@@ -13,6 +13,7 @@
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:EqualsToVisibilityConverter x:Key="EqualsToVis" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
 
         <Style x:Key="SectionHeading" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="{DynamicResource FontSizeSubtitle}" />
@@ -573,6 +574,64 @@
                                         Command="{Binding ImportBackupCommand}" />
                             </StackPanel>
                         </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Gás e válvulas: the A/B/C rig. The picture is the bench document's flowchart;
+                     the one editable thing is which flowmeter input drives A. -->
+                <Border Style="{StaticResource Card}"
+                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
+                                             ConverterParameter=gas}">
+                    <StackPanel>
+                        <TextBlock Text="Gás e válvulas" Style="{StaticResource SectionHeading}" />
+                        <TextBlock Text="O arranjo fixo de válvulas dos ensaios de potência e de kLa, e como ele está ligado nas duas entradas do fluxômetro."
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <Border BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusSmall}" Background="White" Padding="6"
+                                HorizontalAlignment="Left" Cursor="Hand"
+                                ToolTip="Clique para ampliar ou reduzir o fluxograma">
+                            <Border.InputBindings>
+                                <MouseBinding MouseAction="LeftClick" Command="{Binding ToggleGasDiagramCommand}" />
+                            </Border.InputBindings>
+                            <Image Source="pack://application:,,,/Resources/Images/valvulas-abc.png"
+                                   Stretch="Uniform" AutomationProperties.Name="Fluxograma das válvulas A, B e C">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="MaxWidth" Value="420" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGasDiagramEnlarged}" Value="True">
+                                                <Setter Property="MaxWidth" Value="1200" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                        </Border>
+                        <TextBlock Text="Fluxograma das válvulas (documento físico de 12/09/2026). Clique na imagem para ampliar."
+                                   Style="{StaticResource CaptionTextStyle}" Margin="0,4,0,12" />
+
+                        <TextBlock Text="O setup" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                                   Text="Fluxômetro → T → válvula A (ar ao reator, pelo aspersor) e válvula C (descarga / purga de ar). A válvula B é a linha de N₂ e está no mesmo canal elétrico que C: as duas abrem e fecham juntas." />
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                                   Text="O arranjo é o mesmo nos dois ensaios; o que muda é o que está ligado em B. No ensaio de potência a linha B fica pinçada ou desconectada — só ar, e o cilindro de N₂ nunca é aberto. No ensaio de kLa a linha B vai ao N₂: ele entra por B enquanto o ar de pré-estabilização sai por C, e a comutação para A é uma frame só." />
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Padrão de ligação: MOSFET 1 (entrada 1) → B + C · MOSFET 2 (entrada 2) → A. Se a bancada estiver ao contrário, muda-se aqui, nunca no código: todos os comandos de gás do aplicativo passam por um roteador que lê esta configuração." />
+
+                        <TextBlock Text="Válvula A ligada na entrada" Style="{StaticResource FieldLabel}" />
+                        <ComboBox ItemsSource="{Binding GasInputOptions}"
+                                  SelectedValue="{Binding GasAirInletInput, Mode=TwoWay}"
+                                  SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  HorizontalAlignment="Left" MinWidth="220"
+                                  AutomationProperties.Name="Entrada da válvula A" />
+                        <TextBlock Text="{Binding GasVentInputText}" Style="{StaticResource CaptionTextStyle}" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding GasRigSummary}" FontWeight="SemiBold" Margin="0,2,0,10" />
+                        <Button Content="Restaurar padrão (A na entrada 2)" HorizontalAlignment="Left"
+                                Command="{Binding RestoreGasRigDefaultCommand}"
+                                IsEnabled="{Binding IsGasRigDefault, Converter={StaticResource InverseBool}}" />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"
+                                   Text="A mudança vale para os próximos comandos e corridas e vai ao jornal de eventos. Não é possível mudar com uma receita ou um ensaio em andamento. Cada ensaio grava o arranjo em que rodou (teste.json / ensaio.json); um ensaio iniciado em outro arranjo não pode ser continuado." />
                     </StackPanel>
                 </Border>
 

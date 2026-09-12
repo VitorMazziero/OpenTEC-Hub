@@ -7,7 +7,20 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1 a 7 concluídas em 12/09/2026.** Etapa 7 (alarmes):
+**Estado:** em execução — **Etapas 1 a 8 concluídas em 12/09/2026.** Etapa 8 (Configurações):
+seção **Gás e válvulas** (`SettingsViewModel.GasRigSectionId = "gas"`) com a imagem do fluxograma
+(`docs/UI_design_guides/valvulas-abc.png` → recurso WPF `Resources/Images/valvulas-abc.png`,
+clique amplia), a descrição do setup em texto, o seletor "Válvula A ligada na entrada" 1|2
+(`GasAirInletInput`), a linha calculada "B e C ligadas na entrada {outra}", *Restaurar padrão*;
+mudar com receita, kLa ou potência em execução é recusado com motivo e o seletor volta; a mudança
+persiste em `AppSettings.GasRig` e vai ao jornal (`AuditSource.Application`, aviso). Proveniência:
+`GasRigProvenance.Describe` ("A=2 B/C=1" / "desconhecido (anterior ao arranjo A/B/C)"),
+`# gas_rig:` no preâmbulo do sidecar servo (`SessionLogger` recebe `ISettingsService`),
+`CalibrationSettings.FlowCalibrationGasRig/FlowCalibrationRoute` gravados com os pontos;
+`teste.json`/`ensaio.json` já levavam `gasRig` (Etapas 4–5). Manual interno: tópico
+"Configurações · Gás e válvulas" e linhas nos tópicos de Controle, kLa (fases novas), Potência e
+Calibrações. Testes: `GasRigSettingsTests` (6). Suíte 1597.
+Etapa 7 (alarmes):
 `AlarmId.GasDeadEnd` ("Gás sem destino", crítico/audível, on-delay 3 s, off 2 s) e
 `AlarmId.GasBothOpen` ("A e B/C abertas", aviso, 3 s), ambos sobre `GasRouting.Interpret` do
 último quadro com o fluxômetro online e o arranjo de `AppSettings.GasRig`; detalhe com a ação
@@ -589,7 +602,7 @@ Configurações › Gás e válvulas), testes `WorkspaceDirectoryTests`/`Setting
 **Testes.** Persistência e default; bloqueio durante ensaio; manifestos com e sem `GasRig`.
 **Pronto.** Suíte verde.
 **Commit.** `feat(configuracoes): arranjo de valvulas A/B/C (entrada de A) e proveniencia`.
-**Esforço.** P.
+**Esforço.** P. **Executada em 12/09/2026** — ver Estado.
 
 ### Etapa 9 — Documentação
 

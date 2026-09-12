@@ -34,6 +34,10 @@
       <Link>Resources\Images\Imagem_biorreator_side.png</Link>
       <LogicalName>Resources/Images/Imagem_biorreator_side.png</LogicalName>
     </Resource>
+    <Resource Include="..\..\docs\UI_design_guides\valvulas-abc.png">
+      <Link>Resources\Images\valvulas-abc.png</Link>
+      <LogicalName>Resources/Images/valvulas-abc.png</LogicalName>
+    </Resource>
     <Resource Include="..\..\docs\UI_design_guides\logos-fapesp.png">
       <Link>Resources\Images\logos-fapesp.png</Link>
       <LogicalName>Resources/Images/logos-fapesp.png</LogicalName>

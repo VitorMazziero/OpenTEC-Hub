@@ -1792,13 +1792,16 @@
                                     <WrapPanel Margin="0,0,0,10">
                                         <TextBlock Text="{Binding PumpTargetVolumeText, StringFormat='Alvo no nó: {0} mL'}"
                                                    Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
+                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding PumpModeText, StringFormat='Modo no nó: {0}'}"
                                                    Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
+                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding PumpRunStateText}"
                                                    Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" VerticalAlignment="Center" />
+                                        <Button Content="Zerar volume" Command="{Binding ResetVolumeCommand}"
+                                                Padding="8,2" FontSize="{DynamicResource FontSizeCaption}" VerticalAlignment="Center"
+                                                ToolTip="Zera o volume acumulado registrado no nó da bomba (espera confirmação pela telemetria)" />
                                     </WrapPanel>
 
                                     <WrapPanel Margin="0,12,0,0">
@@ -1904,6 +1907,29 @@
                                                        TextWrapping="Wrap" Margin="0,0,0,0" />
                                         </StackPanel>
                                     </Border>
+
+                                    <Expander Header="PID do nó (firmware 3.9)" Margin="0,8,0,0" IsExpanded="False">
+                                        <StackPanel Margin="0,6,0,0">
+                                            <TextBlock Text="{Binding PidUnavailableText}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <WrapPanel IsEnabled="{Binding CanEditPid}">
+                                                <StackPanel Width="120" Margin="0,0,10,6">
+                                                    <TextBlock Text="Kp" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding PidKpText, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel Width="120" Margin="0,0,10,6">
+                                                    <TextBlock Text="Ki" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding PidKiText, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel Width="120" Margin="0,0,10,6">
+                                                    <TextBlock Text="Kd" Style="{StaticResource DosingFieldLabel}" />
+                                                    <TextBox Text="{Binding PidKdText, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Expander>
 
                                     <TextBlock Text="{Binding ValidationError}"
                                                Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
@@ -2120,6 +2146,78 @@
                                                             Command="{Binding ApplyThresholdsCommand}" />
                                                 </StackPanel>
                                             </Grid>
+
+                                            <Expander Header="Parâmetros de aquisição" Margin="0,10,0,0" IsExpanded="False">
+                                                <StackPanel Margin="0,8,0,0">
+                                                    <WrapPanel>
+                                                        <StackPanel Width="130" Margin="0,0,10,6">
+                                                            <TextBlock Text="IT (ms)" Style="{StaticResource DosingFieldLabel}" />
+                                                            <TextBox Width="110" HorizontalAlignment="Left"
+                                                                     Text="{Binding AcquisitionIntegrationTimeText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="Valores aceitos: 25, 50, 100, 200, 400 ou 800 ms" />
+                                                            <TextBlock Text="{Binding AppliedITText, StringFormat='Nó: {0} ms'}"
+                                                                       Style="{StaticResource CaptionTextStyle}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Width="130" Margin="0,0,10,6">
+                                                            <TextBlock Text="PWM (%)" Style="{StaticResource DosingFieldLabel}" />
+                                                            <TextBox Width="110" HorizontalAlignment="Left"
+                                                                     Text="{Binding AcquisitionPwmText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="0.0 a 100.0 %" />
+                                                            <TextBlock Text="{Binding AppliedPwmText, StringFormat='Nó: {0} %'}"
+                                                                       Style="{StaticResource CaptionTextStyle}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Width="130" Margin="0,0,10,6">
+                                                            <TextBlock Text="Ganho (Gear)" Style="{StaticResource DosingFieldLabel}" />
+                                                            <TextBox Width="110" HorizontalAlignment="Left"
+                                                                     Text="{Binding AcquisitionGainGearText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="Marcha óptica combinada: 0 a 31 (índice IT × 8 + índice PWM)" />
+                                                            <TextBlock Text="{Binding AppliedGearText, StringFormat='Nó: {0}'}"
+                                                                       Style="{StaticResource CaptionTextStyle}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Width="130" Margin="0,0,10,6">
+                                                            <TextBlock Text="Fator EMA" Style="{StaticResource DosingFieldLabel}" />
+                                                            <TextBox Width="110" HorizontalAlignment="Left"
+                                                                     Text="{Binding AcquisitionEmaFactorText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="0.01 a 1.00" />
+                                                            <TextBlock Text="{Binding AppliedEmaText, StringFormat='Nó: {0}'}"
+                                                                       Style="{StaticResource CaptionTextStyle}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Width="140" Margin="0,0,10,6">
+                                                            <TextBlock Text="Período sonda (ms)" Style="{StaticResource DosingFieldLabel}" />
+                                                            <TextBox Width="110" HorizontalAlignment="Left"
+                                                                     Text="{Binding AcquisitionProbePeriodMsText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="100 a 3600000 ms; o firmware pode elevar ao piso térmico seguro" />
+                                                            <TextBlock Text="{Binding AppliedProbePeriodText, StringFormat='Nó: {0} ms'}"
+                                                                       Style="{StaticResource CaptionTextStyle}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                        <Button Content="Gravar no nó"
+                                                                Command="{Binding ApplyAcquisitionCommand}"
+                                                                Style="{StaticResource AccentButtonStyle}"
+                                                                Margin="0,0,8,0" />
+                                                        <Button Content="Reverter"
+                                                                Command="{Binding RevertAcquisitionCommand}"
+                                                                Margin="0,0,8,0" />
+                                                        <Button Content="Cancelar envio"
+                                                                Command="{Binding CancelAcquisitionCommand}"
+                                                                Visibility="{Binding CanCancelAcquisition, Converter={StaticResource BoolToVis}}" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding AcquisitionValidationError}"
+                                                               Visibility="{Binding AcquisitionValidationError, Converter={StaticResource NullToVis}}"
+                                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                                               FontSize="{DynamicResource FontSizeCaption}" Margin="0,4,0,0" />
+                                                    <TextBlock Text="Alterar IT ou PWM modifica a tabela óptica e invalida o branco armazenado; refaça a captura de branco antes de medir."
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource StateWarningTextBrush}"
+                                                               TextWrapping="Wrap" Margin="0,6,0,0" />
+                                                </StackPanel>
+                                            </Expander>
                                         </StackPanel>
 
                                         <!-- Right: Calibration & Sensor Health -->

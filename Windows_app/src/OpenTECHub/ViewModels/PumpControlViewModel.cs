@@ -57,6 +57,10 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     /// <summary>Guards the gas-proportional toggle while a refused toggle is rolled back.</summary>
     private bool _revertingGasProportional;
 
+    private readonly TimeProvider _timeProvider;
+    private DateTime? _resetVolumeRequestedAt;
+    private bool _awaitingResetVolume;
+
     private PumpControlSettings _committed;
 
     /// <summary>Latest pump volume from telemetry, mL. Drives the gas coupling and the readout.</summary>
@@ -78,6 +82,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         _device = device;
         _settings = settings;
         _cascade = cascade;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _arbiter = arbiter ?? (device as ICommandArbiter);
         _dispatcher = dispatcher ?? (device as IManualDispatcher) ?? new ManualDispatcher((_arbiter as IDeviceService) ?? device);
         _committed = settings.Current.PumpControl;
@@ -249,6 +254,21 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     public bool CanApply => IsEnabled && IsValid && Status.CanSend && !IsOwnedByOther;
 
+    public bool CanResetVolume => IsEnabled && Status.CanSend && !IsOwnedByOther && !_awaitingResetVolume;
+
+    [ObservableProperty]
+    public partial string PidKpText { get; set; } = "1.000";
+
+    [ObservableProperty]
+    public partial string PidKiText { get; set; } = "0.000";
+
+    [ObservableProperty]
+    public partial string PidKdText { get; set; } = "0.000";
+
+    public bool CanEditPid => false;
+
+    public string PidUnavailableText => "O firmware atual da bomba (3.9) não ecoa ganhos PID. Edição desativada temporariamente.";
+
     public string StateText => IsEnabled ? "Ativa" : "Desligada";
 
     /// <summary>True when the pump is active and proportional gas coupling is enabled and driving aeration.</summary>
@@ -258,6 +278,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(IsGasProportionalActive));
+        OnPropertyChanged(nameof(CanResetVolume));
+        ResetVolumeCommand.NotifyCanExecuteChanged();
         ValidateAndRefresh();
 
         if (!_initialised || _revertingEnable)
@@ -426,6 +448,31 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         StatusText = "Alterações não enviadas do perfil da bomba foram revertidas.";
     }
 
+    [RelayCommand(CanExecute = nameof(CanResetVolume))]
+    private void ResetVolume()
+    {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Operação bloqueada pelo controlador atual.";
+            return;
+        }
+
+        var command = CommandBuilders.PumpResetVolume();
+        var result = _dispatcher.Dispatch(command);
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        _resetVolumeRequestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        _awaitingResetVolume = true;
+        OnPropertyChanged(nameof(CanResetVolume));
+        ResetVolumeCommand.NotifyCanExecuteChanged();
+        Status.MarkCommandDispatched();
+        StatusText = "Comando de zerar volume enviado. Aguardando confirmação do nó...";
+    }
+
     /// <summary>
     /// The pump's contribution to the merged operator safe-stop frame.
     /// </summary>
@@ -490,6 +537,11 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             GasProportionalEnabled = gasEnabled,
             InitialVolumeLitres = v0,
             Vvm = vvm,
+            CalibrationSlope = _committed.CalibrationSlope,
+            CalibrationIntercept = _committed.CalibrationIntercept,
+            PidKp = DosingInput.TryParseDouble(PidKpText, out var kp) ? kp : _committed.PidKp,
+            PidKi = DosingInput.TryParseDouble(PidKiText, out var ki) ? ki : _committed.PidKi,
+            PidKd = DosingInput.TryParseDouble(PidKdText, out var kd) ? kd : _committed.PidKd,
         };
         return true;
     }
@@ -631,6 +683,9 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         GasProportionalEnabled = s.GasProportionalEnabled;
         InitialVolumeText = DosingInput.Format(s.InitialVolumeLitres, 2);
         VvmText = DosingInput.Format(s.Vvm, 2);
+        PidKpText = DosingInput.Format(s.PidKp, 3);
+        PidKiText = DosingInput.Format(s.PidKi, 3);
+        PidKdText = DosingInput.Format(s.PidKd, 3);
     }
 
     private void ValidateAndRefresh()
@@ -699,6 +754,27 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
         RefreshGasReadout();
         MaybeSendProportionalGas();
+
+        if (_awaitingResetVolume)
+        {
+            if (snapshot.PumpVolume is >= 0 and < 0.05)
+            {
+                _awaitingResetVolume = false;
+                _resetVolumeRequestedAt = null;
+                OnPropertyChanged(nameof(CanResetVolume));
+                ResetVolumeCommand.NotifyCanExecuteChanged();
+                StatusText = "Volume acumulado da bomba zerado com sucesso.";
+            }
+            else if (_resetVolumeRequestedAt.HasValue &&
+                     (_timeProvider.GetUtcNow().UtcDateTime - _resetVolumeRequestedAt.Value).TotalSeconds > 5.0)
+            {
+                _awaitingResetVolume = false;
+                _resetVolumeRequestedAt = null;
+                OnPropertyChanged(nameof(CanResetVolume));
+                ResetVolumeCommand.NotifyCanExecuteChanged();
+                StatusText = "Aviso: nó da bomba não confirmou zeramento do volume em 5 s.";
+            }
+        }
     }
 
     /// <summary>
@@ -838,6 +914,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(CanApply));
         ApplyProfileCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanResetVolume));
+        ResetVolumeCommand.NotifyCanExecuteChanged();
     }
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
@@ -845,6 +923,10 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         if (change.State != ConnectionState.Connected)
         {
             Status.MarkHubUnavailable();
+            _awaitingResetVolume = false;
+            _resetVolumeRequestedAt = null;
+            OnPropertyChanged(nameof(CanResetVolume));
+            ResetVolumeCommand.NotifyCanExecuteChanged();
         }
     }
 

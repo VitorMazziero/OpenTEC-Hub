@@ -530,7 +530,16 @@ public static class WireCodec
 
         if (TryDouble(root, CommandKeys.BiomassIt, out var bioIt))
         {
-            model.BiomassIntegrationTimeMs = (int)bioIt;
+            model.BiomassIntegrationTimeMs = (int)bioIt switch
+            {
+                0 => 25,
+                1 => 50,
+                2 => 100,
+                3 => 200,
+                4 => 400,
+                5 => 800,
+                _ => model.BiomassIntegrationTimeMs
+            };
         }
         if (TryDouble(root, CommandKeys.BiomassPwm, out var bioPwm))
         {

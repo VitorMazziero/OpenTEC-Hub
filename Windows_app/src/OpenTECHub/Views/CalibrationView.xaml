@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="OpenTECHub.Views.CalibrationView"
+<UserControl x:Class="OpenTECHub.Views.CalibrationView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
@@ -24,6 +24,7 @@
         </Style>
 
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <Style x:Key="CalibrationCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
@@ -461,6 +462,122 @@
                                             Style="{StaticResource AccentButtonStyle}"
                                             HorizontalAlignment="Right" Margin="0,12,0,0"
                                             Command="{Binding ApplyThresholdsCommand}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="{Binding StatusText}"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,12,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- External Pump linear calibration -->
+            <TabItem Header="Bomba Externa" Style="{StaticResource SegmentedItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,12,0,0" DataContext="{Binding Pump}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="0.9*" />
+                                <ColumnDefinition Width="1.1*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left: Live readouts & Node echoes -->
+                            <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
+                                <StackPanel>
+                                    <TextBlock Text="Leitura e ecos do nó" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="Valores medidos e parâmetros de calibração atualmente aplicados na bomba peristáltica."
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <UniformGrid Columns="2" Margin="0,0,0,12">
+                                        <StackPanel Margin="0,0,6,8">
+                                            <TextBlock Text="Vazão atual" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentFlowText}" Style="{StaticResource NumericTextStyle}" FontSize="20" />
+                                        </StackPanel>
+                                        <StackPanel Margin="6,0,0,8">
+                                            <TextBlock Text="Volume acumulado" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CurrentVolumeText}" Style="{StaticResource NumericTextStyle}" FontSize="20" />
+                                        </StackPanel>
+                                        <StackPanel Margin="0,4,6,0">
+                                            <TextBlock Text="Slope aplicado (nó)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding AppliedSlopeText}" Style="{StaticResource NumericTextStyle}" FontSize="16" />
+                                        </StackPanel>
+                                        <StackPanel Margin="6,4,0,0">
+                                            <TextBlock Text="Intercepto aplicado (nó)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding AppliedInterceptText}" Style="{StaticResource NumericTextStyle}" FontSize="16" />
+                                        </StackPanel>
+                                    </UniformGrid>
+
+                                    <Button Content="Zerar volume acumulado"
+                                            Command="{Binding ResetVolumeCommand}"
+                                            HorizontalAlignment="Left" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Right: Curve calibration and flow preview -->
+                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Calibração linear: Q = slope · S + intercept"
+                                               FontSize="{DynamicResource FontSizeSubtitle}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="S é a velocidade interna da bomba (0..1000); o firmware a converte em duty PWM depois da calibração."
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="Ganho (mL/min por unidade S)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding SlopeText, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsEnabled="{Binding CanEditCalibration}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBlock Text="Deslocamento (intercept: mL/min)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding InterceptText, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsEnabled="{Binding CanEditCalibration}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Firmware 3.9 maps speed S=1..1000 to duty PWM 155..1023. -->
+                                    <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="Pré-visualização da vazão calculada:" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,6" />
+                                            <UniformGrid Columns="3">
+                                                <StackPanel Margin="0,0,4,0">
+                                                    <TextBlock Text="S 250 (PWM ≈ 371)" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                    <TextBlock Text="{Binding Preview250Text}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                                                </StackPanel>
+                                                <StackPanel Margin="4,0,4,0">
+                                                    <TextBlock Text="S 500 (PWM ≈ 589)" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                    <TextBlock Text="{Binding Preview500Text}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                                                </StackPanel>
+                                                <StackPanel Margin="4,0,0,0">
+                                                    <TextBlock Text="S 1000 (PWM 1023)" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                    <TextBlock Text="{Binding Preview1000Text}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                                                </StackPanel>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="{Binding ValidationError}"
+                                               Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                        <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,8,0" />
+                                        <Button Content="Aplicar calibração"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding ApplyCommand}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </Grid>

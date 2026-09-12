@@ -82,6 +82,32 @@ public sealed class CompactLayoutTests
             + string.Join(Environment.NewLine, issues.Take(25)));
     }
 
+    [Theory]
+    [InlineData(936.0, 534.0)]
+    [InlineData(1680.0, 980.0)]
+    public void External_pump_calibration_tab_fits_supported_windows(double width, double height)
+    {
+        var issues = WpfRenderingHost.Run(() =>
+        {
+            var shell = WpfRenderingHost.Services.GetRequiredService<ShellViewModel>();
+            shell.Calibration.SelectedTabIndex = 4;
+            try
+            {
+                var view = new CalibrationView { DataContext = shell.Calibration };
+                return ArrangeAndInspect(view, width, height);
+            }
+            finally
+            {
+                shell.Calibration.SelectedTabIndex = 0;
+            }
+        });
+
+        Assert.True(
+            issues.Count == 0,
+            $"external-pump calibration at {width} x {height} DIP:{Environment.NewLine}"
+            + string.Join(Environment.NewLine, issues.Take(25)));
+    }
+
     /// <summary>
     /// The three stacked kLa plots used to demand 620 DIP of height whatever the window
     /// offered. On a short page one plot is picked from a selector and gets the whole

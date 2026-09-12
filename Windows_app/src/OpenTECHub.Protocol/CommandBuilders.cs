@@ -694,9 +694,20 @@ public static class CommandBuilders
 
     /// <summary>Configures the external pump linear calibration: slope and intercept.</summary>
     public static OpenTECCommand PumpCalibration(double slope, double intercept)
-        => OpenTECCommand.Create()
+    {
+        if (!double.IsFinite(slope) || slope <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slope), "Pump slope must be finite and greater than zero.");
+        }
+        if (!double.IsFinite(intercept))
+        {
+            throw new ArgumentOutOfRangeException(nameof(intercept), "Pump intercept must be finite.");
+        }
+
+        return OpenTECCommand.Create()
             .Set(CommandKeys.PumpSlope, slope)
             .Set(CommandKeys.PumpIntercept, intercept);
+    }
 
     /// <summary>Configures the external pump PID gains.</summary>
     public static OpenTECCommand PumpPid(double kp, double ki, double kd)
@@ -705,25 +716,55 @@ public static class CommandBuilders
             .Set(CommandKeys.PumpPidKi, ki)
             .Set(CommandKeys.PumpPidKd, kd);
 
-    /// <summary>Sets integration time (counts) on biomass sensor node.</summary>
-    public static OpenTECCommand BiomassIt(int it)
-        => OpenTECCommand.Create().Set(CommandKeys.BiomassIt, it);
+    /// <summary>Sets the VEML7700 integration-time code (0..5) on the active IT slot.</summary>
+    public static OpenTECCommand BiomassIt(int integrationCode)
+    {
+        if (integrationCode is < 0 or > 5)
+        {
+            throw new ArgumentOutOfRangeException(nameof(integrationCode));
+        }
+        return OpenTECCommand.Create().Set(CommandKeys.BiomassIt, integrationCode);
+    }
 
     /// <summary>Sets LED PWM drive (0-100%) on biomass sensor node.</summary>
     public static OpenTECCommand BiomassPwm(double pwm)
-        => OpenTECCommand.Create().Set(CommandKeys.BiomassPwm, pwm);
+    {
+        if (!double.IsFinite(pwm) || pwm is < 0.0 or > 100.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pwm));
+        }
+        return OpenTECCommand.Create().Set(CommandKeys.BiomassPwm, pwm);
+    }
 
-    /// <summary>Sets TIA gain gear (1-7) on biomass sensor node.</summary>
+    /// <summary>Sets the combined optical gear (IT index * 8 + PWM index, 0..31).</summary>
     public static OpenTECCommand BiomassGear(int gear)
-        => OpenTECCommand.Create().Set(CommandKeys.BiomassGear, gear);
+    {
+        if (gear is < 0 or > 31)
+        {
+            throw new ArgumentOutOfRangeException(nameof(gear));
+        }
+        return OpenTECCommand.Create().Set(CommandKeys.BiomassGear, gear);
+    }
 
     /// <summary>Sets EMA smoothing factor (0.0-1.0) on biomass sensor node.</summary>
     public static OpenTECCommand BiomassEma(double ema)
-        => OpenTECCommand.Create().Set(CommandKeys.BiomassEma, ema);
+    {
+        if (!double.IsFinite(ema) || ema is < 0.01 or > 1.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ema));
+        }
+        return OpenTECCommand.Create().Set(CommandKeys.BiomassEma, ema);
+    }
 
     /// <summary>Sets acquisition probe period in milliseconds on biomass sensor node.</summary>
     public static OpenTECCommand BiomassProbePeriod(int probePeriodMs)
-        => OpenTECCommand.Create().Set(CommandKeys.BiomassProbePeriodMs, probePeriodMs);
+    {
+        if (probePeriodMs is < 100 or > 3_600_000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(probePeriodMs));
+        }
+        return OpenTECCommand.Create().Set(CommandKeys.BiomassProbePeriodMs, probePeriodMs);
+    }
 
     /// <summary>
     /// Builds a list of discrete commands for biomass tuning parameters, emitting one frame per
@@ -737,6 +778,12 @@ public static class CommandBuilders
         int? probePeriodMs = null)
     {
         var list = new List<OpenTECCommand>();
+        // set_it and set_pwm modify the currently selected table slots. Select the
+        // combined gear first so both writes target the slots the operator requested.
+        if (gear.HasValue)
+        {
+            list.Add(BiomassGear(gear.Value));
+        }
         if (it.HasValue)
         {
             list.Add(BiomassIt(it.Value));
@@ -744,10 +791,6 @@ public static class CommandBuilders
         if (pwm.HasValue)
         {
             list.Add(BiomassPwm(pwm.Value));
-        }
-        if (gear.HasValue)
-        {
-            list.Add(BiomassGear(gear.Value));
         }
         if (ema.HasValue)
         {

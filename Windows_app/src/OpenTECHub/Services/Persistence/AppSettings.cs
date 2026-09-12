@@ -406,6 +406,21 @@ public sealed record BiomassControlSettings
     public int HighThreshold { get; init; } = 40000;
 
     public int OptimalThreshold { get; init; } = 25000;
+
+    /// <summary>Integration time in milliseconds (one of 25, 50, 100, 200, 400 or 800 ms).</summary>
+    public int IntegrationTime { get; init; } = 100;
+
+    /// <summary>LED PWM drive percent (0..100%).</summary>
+    public double PwmPercent { get; init; } = 2.0;
+
+    /// <summary>Combined optical gear (IT index * 8 + PWM index, 0..31).</summary>
+    public int GainGear { get; init; }
+
+    /// <summary>Exponential moving average smoothing factor (0.01..1.0).</summary>
+    public double EmaFactor { get; init; } = 0.8;
+
+    /// <summary>Acquisition probe period in milliseconds (100..3600000 ms; firmware may raise it to its thermal floor).</summary>
+    public int ProbePeriodMs { get; init; } = 25000;
 }
 
 /// <summary>
@@ -459,6 +474,21 @@ public sealed record PumpControlSettings
 
     /// <summary>Specific aeration rate vvm (L gas per L medium per min), for the coupling.</summary>
     public double Vvm { get; init; } = 0.5;
+
+    /// <summary>Calibration slope: flow = slope * internal speed unit + intercept.</summary>
+    public double CalibrationSlope { get; init; } = 0.0280188148;
+
+    /// <summary>Calibration intercept: flow = slope * internal speed unit + intercept.</summary>
+    public double CalibrationIntercept { get; init; } = 1.7601988934;
+
+    /// <summary>Proportional gain staged for pump controller.</summary>
+    public double PidKp { get; init; } = 0.5;
+
+    /// <summary>Integral gain staged for pump controller.</summary>
+    public double PidKi { get; init; } = 0.05;
+
+    /// <summary>Derivative gain staged for pump controller.</summary>
+    public double PidKd { get; init; } = 0.001;
 }
 
 /// <summary>
@@ -1190,6 +1220,9 @@ public static class AppPaths
 
     public static string BackupsDirectory => Path.Combine(DataDirectory, "Backups");
 
+    /// <summary>Peristaltic pump and sensor calibration receipts, saved as JSON.</summary>
+    public static string CalibrationsDirectory => Path.Combine(DataDirectory, "Calibracoes");
+
     public static void InitializeWorkspace(string workspacePath, bool persist = true)
     {
         _customDataDirectory = workspacePath;
@@ -1228,6 +1261,7 @@ public static class AppPaths
         Directory.CreateDirectory(LogDirectory);
         Directory.CreateDirectory(SessionsDirectory);
         Directory.CreateDirectory(BackupsDirectory);
+        Directory.CreateDirectory(CalibrationsDirectory);
     }
 
     public static string? ReadConfiguredWorkspace()

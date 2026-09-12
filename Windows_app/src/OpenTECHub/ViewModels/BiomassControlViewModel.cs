@@ -35,9 +35,18 @@ namespace OpenTECHub.ViewModels;
 /// </remarks>
 public sealed partial class BiomassControlViewModel : ObservableObject, IDisposable
 {
+    private static readonly int[] SupportedIntegrationTimesMs = [25, 50, 100, 200, 400, 800];
+
     private readonly IDeviceService _device;
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
+    private readonly TimeProvider _timeProvider;
+    private readonly Queue<OpenTECCommand> _acquisitionQueue = new();
+    private bool _isSendingAcquisitionQueue;
+    private int _acquisitionCommandsTotal;
+    private int _acquisitionCommandsSent;
+    private DateTime? _lastAcquisitionCommandSentAt;
+    private BiomassControlSettings? _requestedAcquisitionSettings;
     private bool _initialised;
 
     /// <summary>Guards the enable setter while a refused toggle is being rolled back.</summary>
@@ -53,6 +62,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     {
         _device = device;
         _settings = settings;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _dispatcher = dispatcher ?? new ManualDispatcher(device);
         _committed = settings.Current.BiomassControl;
         Status = new ExternalDeviceStatus("Sensor de biomassa", "do sensor de biomassa", timeProvider) { NodeKind = NodeFirmwareCatalog.Biomass };
@@ -104,8 +114,47 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     public partial string StatusText { get; set; } = "";
 
     [ObservableProperty]
+    public partial string AcquisitionIntegrationTimeText { get; set; } = "100";
+
+    [ObservableProperty]
+    public partial string AcquisitionPwmText { get; set; } = "2.0";
+
+    [ObservableProperty]
+    public partial string AcquisitionGainGearText { get; set; } = "0";
+
+    [ObservableProperty]
+    public partial string AcquisitionEmaFactorText { get; set; } = "0.80";
+
+    [ObservableProperty]
+    public partial string AcquisitionProbePeriodMsText { get; set; } = "25000";
+
+    [ObservableProperty]
+    public partial string? AcquisitionValidationError { get; set; }
+
+    [ObservableProperty]
+    public partial string AppliedGearText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedEmaText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string AppliedProbePeriodText { get; set; } = "—";
+
+    public string AppliedITText => IntegrationTimeText;
+    public string AppliedPwmText => PwmText;
+
+    public bool IsAcquisitionValid => AcquisitionValidationError is null;
+
+    public bool CanApplyAcquisition => IsEnabled && Status.IsOnline && Status.CanSend && !IsOwnedByOther && !_isSendingAcquisitionQueue && IsAcquisitionValid;
+
+    public bool CanCancelAcquisition => _isSendingAcquisitionQueue;
+
+    public bool CanEditAcquisition => !_isSendingAcquisitionQueue;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
     [NotifyPropertyChangedFor(nameof(CanActuate))]
+    [NotifyPropertyChangedFor(nameof(CanApplyAcquisition))]
     [NotifyPropertyChangedFor(nameof(IsOwnedByOther))]
     [NotifyPropertyChangedFor(nameof(HasOwnerBadge))]
     [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
@@ -135,9 +184,11 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     {
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(CanActuate));
+        OnPropertyChanged(nameof(CanApplyAcquisition));
         BlankCommand.NotifyCanExecuteChanged();
         StartCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
+        ApplyAcquisitionCommand.NotifyCanExecuteChanged();
 
         if (!_initialised || _revertingEnable)
         {
@@ -207,6 +258,173 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     partial void OnHighThresholdTextChanged(string value) => ValidateAndRefresh();
 
     partial void OnOptimalThresholdTextChanged(string value) => ValidateAndRefresh();
+
+    partial void OnAcquisitionIntegrationTimeTextChanged(string value) => ValidateAcquisition();
+
+    partial void OnAcquisitionPwmTextChanged(string value) => ValidateAcquisition();
+
+    partial void OnAcquisitionGainGearTextChanged(string value) => ValidateAcquisition();
+
+    partial void OnAcquisitionEmaFactorTextChanged(string value) => ValidateAcquisition();
+
+    partial void OnAcquisitionProbePeriodMsTextChanged(string value) => ValidateAcquisition();
+
+    private void ValidateAcquisition()
+    {
+        if (!_initialised)
+        {
+            return;
+        }
+
+        if (!DosingInput.TryParseInteger(AcquisitionIntegrationTimeText, out var it) ||
+            Array.IndexOf(SupportedIntegrationTimesMs, it) < 0)
+        {
+            AcquisitionValidationError = "Tempo de integração (IT): use 25, 50, 100, 200, 400 ou 800 ms.";
+            NotifyAcquisitionAvailability();
+            return;
+        }
+
+        if (!DosingInput.TryParseDouble(AcquisitionPwmText, out var pwm) || pwm is < 0.0 or > 100.0)
+        {
+            AcquisitionValidationError = "PWM do LED: 0.0 a 100.0 %.";
+            NotifyAcquisitionAvailability();
+            return;
+        }
+
+        if (!DosingInput.TryParseInteger(AcquisitionGainGearText, out var gear) || gear is < 0 or > 31)
+        {
+            AcquisitionValidationError = "Marcha óptica (Gear): inteiro de 0 a 31 (IT × 8 + PWM).";
+            NotifyAcquisitionAvailability();
+            return;
+        }
+
+        if (!DosingInput.TryParseDouble(AcquisitionEmaFactorText, out var ema) || ema is < 0.01 or > 1.0)
+        {
+            AcquisitionValidationError = "Fator EMA: 0.01 a 1.00.";
+            NotifyAcquisitionAvailability();
+            return;
+        }
+
+        if (!DosingInput.TryParseInteger(AcquisitionProbePeriodMsText, out var period) || period is < 100 or > 3_600_000)
+        {
+            AcquisitionValidationError = "Período de leitura: inteiro de 100 a 3600000 ms.";
+            NotifyAcquisitionAvailability();
+            return;
+        }
+
+        AcquisitionValidationError = null;
+        NotifyAcquisitionAvailability();
+    }
+
+    private void NotifyAcquisitionAvailability()
+    {
+        OnPropertyChanged(nameof(IsAcquisitionValid));
+        OnPropertyChanged(nameof(CanApplyAcquisition));
+        OnPropertyChanged(nameof(CanCancelAcquisition));
+        OnPropertyChanged(nameof(CanEditAcquisition));
+        ApplyAcquisitionCommand.NotifyCanExecuteChanged();
+        CancelAcquisitionCommand.NotifyCanExecuteChanged();
+        RevertAcquisitionCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyAcquisition))]
+    private void ApplyAcquisition()
+    {
+        if (IsOwnedByOther)
+        {
+            StatusText = OwnerLockReason ?? "Sensor de biomassa sob controle de outro processo.";
+            return;
+        }
+
+        ValidateAcquisition();
+        if (AcquisitionValidationError is not null)
+        {
+            StatusText = AcquisitionValidationError;
+            return;
+        }
+
+        DosingInput.TryParseInteger(AcquisitionIntegrationTimeText, out var it);
+        DosingInput.TryParseDouble(AcquisitionPwmText, out var pwm);
+        DosingInput.TryParseInteger(AcquisitionGainGearText, out var gear);
+        DosingInput.TryParseDouble(AcquisitionEmaFactorText, out var ema);
+        DosingInput.TryParseInteger(AcquisitionProbePeriodMsText, out var period);
+
+        _requestedAcquisitionSettings = _committed with
+        {
+            IntegrationTime = it,
+            PwmPercent = pwm,
+            GainGear = gear,
+            EmaFactor = ema,
+            ProbePeriodMs = period
+        };
+
+        // The node reports IT in milliseconds, but set_it accepts the VEML7700 code
+        // (0..5 => 25, 50, 100, 200, 400, 800 ms). Never put milliseconds on the wire.
+        var integrationCode = Array.IndexOf(SupportedIntegrationTimesMs, it);
+        var commands = CommandBuilders.BiomassTuning(integrationCode, pwm, gear, ema, period);
+        _acquisitionQueue.Clear();
+        foreach (var cmd in commands)
+        {
+            _acquisitionQueue.Enqueue(cmd);
+        }
+
+        _acquisitionCommandsTotal = commands.Count;
+        _acquisitionCommandsSent = 0;
+        _isSendingAcquisitionQueue = true;
+        NotifyAcquisitionAvailability();
+
+        SendNextAcquisitionCommand();
+    }
+
+    private void SendNextAcquisitionCommand()
+    {
+        if (_acquisitionQueue.Count == 0)
+        {
+            CompleteAcquisitionQueue();
+            return;
+        }
+
+        var cmd = _acquisitionQueue.Dequeue();
+        var result = _dispatcher.Dispatch(cmd);
+        if (!result.Accepted)
+        {
+            _acquisitionQueue.Clear();
+            _isSendingAcquisitionQueue = false;
+            _requestedAcquisitionSettings = null;
+            NotifyAcquisitionAvailability();
+            StatusText = "Falha ao enviar parâmetro de aquisição: " + DispatchRefusal.Describe(result);
+            return;
+        }
+
+        _acquisitionCommandsSent++;
+        _lastAcquisitionCommandSentAt = _timeProvider.GetUtcNow().UtcDateTime;
+        Status.MarkCommandDispatched();
+        NotifyAcquisitionAvailability();
+        StatusText = $"Enviando parâmetros de aquisição ({_acquisitionCommandsSent}/{_acquisitionCommandsTotal})...";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelAcquisition))]
+    private void CancelAcquisition()
+    {
+        _acquisitionQueue.Clear();
+        _isSendingAcquisitionQueue = false;
+        _requestedAcquisitionSettings = null;
+        NotifyAcquisitionAvailability();
+        StatusText = "Fila de aquisição cancelada. O comando já em trânsito ainda pode ser aplicado pelo nó.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditAcquisition))]
+    private void RevertAcquisition()
+    {
+        var s = _committed;
+        AcquisitionIntegrationTimeText = DosingInput.FormatInt(s.IntegrationTime);
+        AcquisitionPwmText = DosingInput.Format(s.PwmPercent, 1);
+        AcquisitionGainGearText = DosingInput.FormatInt(s.GainGear);
+        AcquisitionEmaFactorText = DosingInput.Format(s.EmaFactor, 2);
+        AcquisitionProbePeriodMsText = DosingInput.FormatInt(s.ProbePeriodMs);
+        ValidateAcquisition();
+        StatusText = "Parâmetros de aquisição restaurados das configurações persistidas.";
+    }
 
     /// <summary>Captures the blank (zero-absorbance) reference. Momentary; needs the sensor on.</summary>
     [RelayCommand(CanExecute = nameof(CanActuate))]
@@ -283,7 +501,10 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void Revert()
     {
-        Load(_committed);
+        LowThresholdText = DosingInput.FormatInt(_committed.LowThreshold);
+        HighThresholdText = DosingInput.FormatInt(_committed.HighThreshold);
+        OptimalThresholdText = DosingInput.FormatInt(_committed.OptimalThreshold);
+        ValidateAndRefresh();
         HasPendingChange = false;
         StatusText = "Alterações não enviadas dos limiares de biomassa foram revertidas.";
     }
@@ -304,6 +525,11 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
             LowThreshold = low,
             HighThreshold = high,
             OptimalThreshold = optimal,
+            IntegrationTime = _committed.IntegrationTime,
+            PwmPercent = _committed.PwmPercent,
+            GainGear = _committed.GainGear,
+            EmaFactor = _committed.EmaFactor,
+            ProbePeriodMs = _committed.ProbePeriodMs,
         };
         return true;
     }
@@ -313,6 +539,12 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         LowThresholdText = DosingInput.FormatInt(s.LowThreshold);
         HighThresholdText = DosingInput.FormatInt(s.HighThreshold);
         OptimalThresholdText = DosingInput.FormatInt(s.OptimalThreshold);
+        AcquisitionIntegrationTimeText = DosingInput.FormatInt(s.IntegrationTime);
+        AcquisitionPwmText = DosingInput.Format(s.PwmPercent, 1);
+        AcquisitionGainGearText = DosingInput.FormatInt(s.GainGear);
+        AcquisitionEmaFactorText = DosingInput.Format(s.EmaFactor, 2);
+        AcquisitionProbePeriodMsText = DosingInput.FormatInt(s.ProbePeriodMs);
+        ValidateAcquisition();
     }
 
     private void ValidateAndRefresh()
@@ -327,6 +559,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         OnPropertyChanged(nameof(CanApply));
         ApplyThresholdsCommand.NotifyCanExecuteChanged();
         RefreshPendingState();
+        ValidateAcquisition();
     }
 
     private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -342,6 +575,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         BlankCommand.NotifyCanExecuteChanged();
         StartCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
+        NotifyAcquisitionAvailability();
     }
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
@@ -349,6 +583,14 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         if (change.State != ConnectionState.Connected)
         {
             Status.MarkHubUnavailable();
+            if (_isSendingAcquisitionQueue)
+            {
+                _acquisitionQueue.Clear();
+                _isSendingAcquisitionQueue = false;
+                _requestedAcquisitionSettings = null;
+                NotifyAcquisitionAvailability();
+                StatusText = "Conexão perdida; a fila restante de aquisição foi cancelada.";
+            }
         }
     }
 
@@ -408,13 +650,65 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         if (snapshot.BiomassAbsorbance <= SensorReadings.NotReceived)
         {
             AbsorbanceText = RawText = IntegrationTimeText = PwmText = "—";
-            return;
+            AppliedGearText = AppliedEmaText = AppliedProbePeriodText = "—";
+        }
+        else
+        {
+            AbsorbanceText = snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture);
+            RawText = snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture);
+            IntegrationTimeText = snapshot.BiomassIntegrationTimeMs.ToString(CultureInfo.CurrentCulture);
+            PwmText = snapshot.BiomassPwmPercent.ToString("F1", CultureInfo.CurrentCulture);
+            AppliedGearText = snapshot.BiomassGear.HasValue && snapshot.BiomassGear.Value > SensorReadings.NotReceived
+                ? snapshot.BiomassGear.Value.ToString(CultureInfo.CurrentCulture)
+                : "—";
+            AppliedEmaText = snapshot.BiomassEma.HasValue && snapshot.BiomassEma.Value > SensorReadings.NotReceived
+                ? snapshot.BiomassEma.Value.ToString("F2", CultureInfo.CurrentCulture)
+                : "—";
+            AppliedProbePeriodText = snapshot.BiomassProbePeriodMs.HasValue && snapshot.BiomassProbePeriodMs.Value > SensorReadings.NotReceived
+                ? snapshot.BiomassProbePeriodMs.Value.ToString(CultureInfo.CurrentCulture)
+                : "—";
         }
 
-        AbsorbanceText = snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture);
-        RawText = snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture);
-        IntegrationTimeText = snapshot.BiomassIntegrationTimeMs.ToString(CultureInfo.CurrentCulture);
-        PwmText = snapshot.BiomassPwmPercent.ToString("F1", CultureInfo.CurrentCulture);
+        OnPropertyChanged(nameof(AppliedITText));
+        OnPropertyChanged(nameof(AppliedPwmText));
+
+        if (_isSendingAcquisitionQueue)
+        {
+            if (snapshot.BiomassCommandPending == false)
+            {
+                if (_acquisitionQueue.Count > 0)
+                {
+                    SendNextAcquisitionCommand();
+                }
+                else
+                {
+                    CompleteAcquisitionQueue();
+                }
+            }
+            else if (_lastAcquisitionCommandSentAt.HasValue &&
+                     (_timeProvider.GetUtcNow().UtcDateTime - _lastAcquisitionCommandSentAt.Value).TotalSeconds > 10.0)
+            {
+                _acquisitionQueue.Clear();
+                _isSendingAcquisitionQueue = false;
+                _requestedAcquisitionSettings = null;
+                NotifyAcquisitionAvailability();
+                StatusText = "Aviso: tempo limite excedido (10 s) aguardando consumo do comando pelo nó de biomassa.";
+            }
+        }
+    }
+
+    private void CompleteAcquisitionQueue()
+    {
+        if (_requestedAcquisitionSettings is { } applied)
+        {
+            _committed = applied;
+            _settings.Update(settings => settings with { BiomassControl = applied });
+        }
+
+        _requestedAcquisitionSettings = null;
+        _isSendingAcquisitionQueue = false;
+        NotifyAcquisitionAvailability();
+        StatusText = "Todos os parâmetros de aquisição foram confirmados pelo nó e salvos no app.";
     }
 
     public void Dispose()

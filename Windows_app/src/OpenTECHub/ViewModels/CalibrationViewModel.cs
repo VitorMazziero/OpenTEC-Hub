@@ -17,6 +17,7 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
         Oxygen = new OxygenCalibrationViewModel(device, settings);
         Flow = new FlowCalibrationViewModel(device, settings);
         Biomass = new BiomassCalibrationViewModel(device, settings);
+        Pump = new PumpCalibrationViewModel(device, settings);
     }
 
     public PHCalibrationViewModel PH { get; }
@@ -27,6 +28,9 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
 
     /// <summary>Guided biomass blank/threshold procedure (Phase 3 WP1).</summary>
     public BiomassCalibrationViewModel Biomass { get; }
+
+    /// <summary>Linear calibration for the external peristaltic pump node.</summary>
+    public PumpCalibrationViewModel Pump { get; }
 
     [ObservableProperty]
     public partial int SelectedTabIndex { get; set; }
@@ -39,6 +43,7 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
             "oxygen" => 1,
             "flow" => 2,
             "biomass" => 3,
+            "pump" => 4,
             _ => SelectedTabIndex,
         };
     }
@@ -49,5 +54,6 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
         Oxygen.Dispose();
         Flow.Dispose();
         Biomass.Dispose();
+        Pump.Dispose();
     }
 }

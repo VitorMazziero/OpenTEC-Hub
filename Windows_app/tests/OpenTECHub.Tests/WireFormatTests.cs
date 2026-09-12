@@ -584,17 +584,17 @@ public class CultureInvarianceTests : IDisposable
                 CommandBuilders.PumpPid(1.5, 0.2, 0.05).ToJson());
 
             // Biomass
-            Assert.Equal("""{"biomassIt":100}""", CommandBuilders.BiomassIt(100).ToJson());
+            Assert.Equal("""{"biomassIt":2}""", CommandBuilders.BiomassIt(2).ToJson());
             Assert.Equal("""{"biomassPwm":75.0}""", CommandBuilders.BiomassPwm(75.0).ToJson());
             Assert.Equal("""{"biomassGear":3}""", CommandBuilders.BiomassGear(3).ToJson());
             Assert.Equal("""{"biomassEma":0.25}""", CommandBuilders.BiomassEma(0.25).ToJson());
             Assert.Equal("""{"biomassProbePeriodMs":500}""", CommandBuilders.BiomassProbePeriod(500).ToJson());
 
-            var tuningList = CommandBuilders.BiomassTuning(it: 100, pwm: 75.0, gear: 3, ema: 0.25, probePeriodMs: 500);
+            var tuningList = CommandBuilders.BiomassTuning(it: 2, pwm: 75.0, gear: 3, ema: 0.25, probePeriodMs: 500);
             Assert.Equal(5, tuningList.Count);
-            Assert.Equal("""{"biomassIt":100}""", tuningList[0].ToJson());
-            Assert.Equal("""{"biomassPwm":75.0}""", tuningList[1].ToJson());
-            Assert.Equal("""{"biomassGear":3}""", tuningList[2].ToJson());
+            Assert.Equal("""{"biomassGear":3}""", tuningList[0].ToJson());
+            Assert.Equal("""{"biomassIt":2}""", tuningList[1].ToJson());
+            Assert.Equal("""{"biomassPwm":75.0}""", tuningList[2].ToJson());
             Assert.Equal("""{"biomassEma":0.25}""", tuningList[3].ToJson());
             Assert.Equal("""{"biomassProbePeriodMs":500}""", tuningList[4].ToJson());
         }
@@ -609,5 +609,11 @@ public class CultureInvarianceTests : IDisposable
     {
         Assert.Throws<ArgumentException>(() => CommandBuilders.DistanceConfig());
         Assert.Throws<ArgumentException>(() => CommandBuilders.FlowTuning());
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpCalibration(0.0, 1.0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassIt(6));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassPwm(101.0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassGear(32));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassEma(0.0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassProbePeriod(3_600_001));
     }
 }

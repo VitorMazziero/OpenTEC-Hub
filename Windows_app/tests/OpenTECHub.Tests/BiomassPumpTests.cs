@@ -75,6 +75,34 @@ public sealed class BiomassPumpTests
         Assert.Equal(15000, settings.Current.BiomassControl.OptimalThreshold);
     }
 
+    [Fact]
+    public void Biomass_threshold_apply_does_not_persist_unconfirmed_acquisition_edits()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var original = settings.Current.BiomassControl;
+        using var vm = new BiomassControlViewModel(device, settings)
+        {
+            LowThresholdText = "5000",
+            HighThresholdText = "30000",
+            OptimalThresholdText = "15000",
+            AcquisitionIntegrationTimeText = "800",
+            AcquisitionPwmText = "75.0",
+            AcquisitionGainGearText = "31",
+            AcquisitionEmaFactorText = "0.25",
+            AcquisitionProbePeriodMsText = "5000",
+        };
+
+        vm.ApplyThresholdsCommand.Execute(null);
+
+        Assert.Equal(5000, settings.Current.BiomassControl.LowThreshold);
+        Assert.Equal(original.IntegrationTime, settings.Current.BiomassControl.IntegrationTime);
+        Assert.Equal(original.PwmPercent, settings.Current.BiomassControl.PwmPercent);
+        Assert.Equal(original.GainGear, settings.Current.BiomassControl.GainGear);
+        Assert.Equal(original.EmaFactor, settings.Current.BiomassControl.EmaFactor);
+        Assert.Equal(original.ProbePeriodMs, settings.Current.BiomassControl.ProbePeriodMs);
+    }
+
     [Theory]
     [InlineData("40000", "10000", "20000")] // low >= high
     [InlineData("10000", "40000", "50000")] // optimal above high

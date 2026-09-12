@@ -247,9 +247,9 @@ public class SimulatorNodeConfigTests
         Assert.Contains("\"PumpIntercept\":-0.1200", framePump);
 
         // 4. Biomass tuning
-        var bioIt = CommandBuilders.BiomassIt(250);
+        var bioIt = CommandBuilders.BiomassIt(3);
         Assert.True(WireCodec.ApplyCommand(model, bioIt.ToJson(), out _));
-        Assert.Equal(250, model.BiomassIntegrationTimeMs);
+        Assert.Equal(200, model.BiomassIntegrationTimeMs);
 
         var bioPwm = CommandBuilders.BiomassPwm(80.0);
         Assert.True(WireCodec.ApplyCommand(model, bioPwm.ToJson(), out _));

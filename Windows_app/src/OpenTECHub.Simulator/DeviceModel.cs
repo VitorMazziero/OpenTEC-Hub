@@ -237,20 +237,20 @@ public sealed class DeviceModel
     public double FlowSetpointCorrected => FlowSetpoint;
     public long FlowmeterBootId { get; set; } = 1001;
 
-    public double PumpSlope { get; set; } = 1.0;
-    public double PumpIntercept { get; set; } = 0.0;
-    public double PumpPidKp { get; set; } = 1.0;
-    public double PumpPidKi { get; set; } = 0.1;
-    public double PumpPidKd { get; set; } = 0.01;
+    public double PumpSlope { get; set; } = 0.0280188148;
+    public double PumpIntercept { get; set; } = 1.7601988934;
+    public double PumpPidKp { get; set; } = 0.5;
+    public double PumpPidKi { get; set; } = 0.05;
+    public double PumpPidKd { get; set; } = 0.001;
     public double PumpVolumeOffset { get; set; }
     public double PumpVolume => Math.Max(0.0, (UptimeSeconds * 1.25 / 60.0) - PumpVolumeOffset);
     public void ResetPumpVolume() => PumpVolumeOffset = UptimeSeconds * 1.25 / 60.0;
 
     public int BiomassIntegrationTimeMs { get; set; } = 100;
-    public double BiomassPwmPercent { get; set; } = 50.0;
-    public int BiomassGear { get; set; } = 1;
-    public double BiomassEma { get; set; } = 0.1;
-    public int BiomassProbePeriodMs { get; set; } = 1000;
+    public double BiomassPwmPercent { get; set; } = 2.0;
+    public int BiomassGear { get; set; }
+    public double BiomassEma { get; set; } = 0.8;
+    public int BiomassProbePeriodMs { get; set; } = 25000;
 
     /// <summary>
     /// What the Hub reports for a routing flag, which is not always what was commanded.

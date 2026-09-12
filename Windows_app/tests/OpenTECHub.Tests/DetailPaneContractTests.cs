@@ -60,6 +60,7 @@ public sealed class DetailPaneContractTests
         Assert.Contains("\"oxygen\" => 1", vm, StringComparison.Ordinal);
         Assert.Contains("\"flow\" => 2", vm, StringComparison.Ordinal);
         Assert.Contains("\"biomass\" => 3", vm, StringComparison.Ordinal);
+        Assert.Contains("\"pump\" => 4", vm, StringComparison.Ordinal);
     }
 
     [Fact]

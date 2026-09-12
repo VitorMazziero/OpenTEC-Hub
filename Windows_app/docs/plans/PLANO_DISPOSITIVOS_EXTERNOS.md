@@ -1,5 +1,11 @@
 ﻿# Plano de implementação: padronização dos dispositivos externos
 
+> **Documento histórico.** A localização externa e os nomes de firmware deste plano
+> foram substituídos em 2026-09-11 pela árvore versionada `External-Devices/`.
+> Consulte `External-Devices/README.md`, os documentos por dispositivo e
+> `Windows_app/docs/hardware/FIRMWARE_DISPOSITIVOS_EXTERNOS.md` para o estado atual.
+> O conteúdo abaixo permanece como registro das decisões originais.
+>
 > **Data:** 2026-08-29 · **Base:** `d221db7` em `codex/receitas-fluxometro-pos-merge`
 > **Alvo:** 0.25.0 · **Referência de estilo:** fluxômetro v05 (`FlowControlViewModel`, linha "Vazão de Ar")
 >

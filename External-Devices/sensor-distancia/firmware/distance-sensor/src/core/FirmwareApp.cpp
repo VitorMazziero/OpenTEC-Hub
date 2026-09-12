@@ -15,7 +15,6 @@
 namespace {
 constexpr uint32_t WDT_TIMEOUT_S = 15;
 constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
-uint8_t g_hubFailStreak = 0;
 }
 
 void firmwareSetup() {
@@ -33,10 +32,10 @@ void firmwareSetup() {
   Serial.println("[NET] Setting mode to WIFI_AP_STA...");
   WiFi.mode(WIFI_AP_STA);
   const IPAddress apIp(192, 168, 5, 1);
-  Serial.printf("[NET] Configuring AP on subnet %s\n", apIp.toString().c_str());
+  Serial.printf("[NET] Configuring AP on subnet %s (Channel 6)\n", apIp.toString().c_str());
   WiFi.softAPConfig(apIp, apIp, IPAddress(255, 255, 255, 0));
-  Serial.printf("[NET] Starting AP: %s\n", BoardConfig::AccessPointSsid);
-  if (WiFi.softAP(BoardConfig::AccessPointSsid)) {
+  Serial.printf("[NET] Starting AP: %s on channel 6\n", BoardConfig::AccessPointSsid);
+  if (WiFi.softAP(BoardConfig::AccessPointSsid, "", 6)) {
     Serial.printf("[NET] AP IP: %s\n", WiFi.softAPIP().toString().c_str());
   } else {
     Serial.println("[NET] AP Start Failed!");

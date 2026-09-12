@@ -34,3 +34,5 @@ unsigned long g_otaLastChunkMs = 0;
 const unsigned long OTA_STALL_TIMEOUT_MS = 90000;
 unsigned long g_otaRebootAtMs = 0;
 String g_otaRejectReason = "";
+
+uint8_t g_hubFailStreak = 0;

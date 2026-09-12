@@ -27,14 +27,14 @@ $agitator = Read-SourceTree (Join-Path $externalRoot 'frasco-agitador\firmware\f
 $biomass = Read-SourceTree (Join-Path $externalRoot 'sensor-biomassa\firmware\biomass-sensor')
 $distance = Read-SourceTree (Join-Path $externalRoot 'sensor-distancia\firmware\distance-sensor')
 
-Require 'Hub routes' $hub @('/distance', '/flowData', '/flowCommand', '/biomassData', '/biomassCommand', '/pumpData', '/pumpCommand', '/agitatorHello', '/agitatorData', '/agitatorCommand')
+Require 'Hub routes' $hub @('/distance', '/flowData', '/flowCommand', '/biomassData', '/biomassCommand', '/pumpData', '/pumpCommand', '/agitatorHello', '/agitatorData', '/agitatorCommand', '/nodeHello', '/nodes')
 Require 'Hub reliability' $hub @('cmd_id', 'ack_cmd_id', 'takeReliable', 'ackReliable')
 
-Require 'Distance node' $distance @('/distance', 'distance=', '&time=')
-Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', 'cmd_id', 'ack_cmd_id')
-Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', 'cmd_id', 'ack_cmd_id')
-Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', 'cmd_id', 'ack_cmd_id', '&idle=')
-Require 'Agitator node' $agitator @('/agitatorHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
+Require 'Distance node' $distance @('/distance', 'distance=', '&time=', '/nodeHello')
+Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
+Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
+Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', 'cmd_id', 'ack_cmd_id', '&idle=', '/nodeHello')
+Require 'Agitator node' $agitator @('/agitatorHello', '/nodeHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
 
 Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")')
 Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")')
@@ -47,5 +47,5 @@ if ($failures.Count -gt 0) {
     throw "$($failures.Count) Hub/device contract checks failed."
 }
 
-Write-Output 'Hub/device contract check passed for 10 routes, required telemetry fields, cmd_id and ack_cmd_id.'
+Write-Output 'Hub/device contract check passed for 12 routes, /nodeHello dynamic registration, required telemetry fields, cmd_id and ack_cmd_id.'
 

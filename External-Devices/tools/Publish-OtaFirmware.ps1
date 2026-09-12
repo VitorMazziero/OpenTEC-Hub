@@ -62,7 +62,25 @@ $deviceMeta = @{
 }
 
 $info = $deviceMeta[$Device]
-$targetIp = if ($IpAddress) { $IpAddress } else { $info.DefaultApIp }
+$targetIp = $IpAddress
+if (-not $targetIp) {
+    try {
+        $hubNodesUrl = 'http://192.168.4.1/nodes'
+        $resp = Invoke-RestMethod -Uri $hubNodesUrl -TimeoutSec 1 -ErrorAction Stop
+        if ($resp.nodes) {
+            $matched = $resp.nodes | Where-Object { $_.dev -eq $Device -and $_.ip -ne '0.0.0.0' }
+            if ($matched) {
+                $targetIp = $matched.ip
+                Write-Host "[OTA] Auto-descoberta no Hub: '$Device' localizado no IP $targetIp" -ForegroundColor Green
+            }
+        }
+    } catch {
+        # Hub offline ou rede externa; prossegue com DefaultApIp
+    }
+}
+if (-not $targetIp) {
+    $targetIp = $info.DefaultApIp
+}
 $deviceSketchDir = Join-Path $externalRoot $info.RelativePath
 
 # 1. Compilação opcional se solicitado

@@ -417,11 +417,9 @@ public sealed class PowerTestStoreTests : IDisposable
     {
         var settings = new PowerTestSettings
         {
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve1,
-            VentFlowToleranceLpm = 0.15,
-            VentAgitationRpm = 20.0,
-            MaxVentStabilizationSeconds = 90.0,
+            PrestageFlowToleranceLpm = 0.15,
+            PrestageAgitationRpm = 20.0,
+            MaxPrestageSeconds = 90.0,
         };
         var conditions = new List<PowerCondition>
         {
@@ -449,11 +447,9 @@ public sealed class PowerTestStoreTests : IDisposable
         var loaded = _store.LoadTest(created.FolderName);
 
         Assert.NotNull(loaded);
-        Assert.True(loaded!.Settings.VentStabilizationEnabled);
-        Assert.Equal(PowerVentValve.Valve1, loaded.Settings.SelectedVentValve);
-        Assert.Equal(0.15, loaded.Settings.VentFlowToleranceLpm, 3);
-        Assert.Equal(20.0, loaded.Settings.VentAgitationRpm, 1);
-        Assert.Equal(90.0, loaded.Settings.MaxVentStabilizationSeconds, 1);
+        Assert.Equal(0.15, loaded!.Settings.PrestageFlowToleranceLpm, 3);
+        Assert.Equal(20.0, loaded.Settings.PrestageAgitationRpm, 1);
+        Assert.Equal(90.0, loaded.Settings.MaxPrestageSeconds, 1);
         Assert.Equal(0.190, loaded.Geometry.VesselDiameterM, 3);
 
         Assert.Equal(2, loaded.Conditions.Count);
@@ -572,7 +568,7 @@ public sealed class PowerTestStoreTests : IDisposable
         // Global series event logging verification
         var now = DateTimeOffset.UtcNow;
         _store.AppendGlobalSeriesSample(created.FolderName, new PowerGlobalSeriesSample(
-            now, 10.5, created.TestId, run.RunId, cond.ConditionId, 1, PowerRunPhase.VentStabilizing,
+            now, 10.5, created.TestId, run.RunId, cond.ConditionId, 1, PowerRunPhase.PrestagingFlow,
             300.0, 1.2, 0.015, 0.47, 5.0, 24.5, 0.47, 0.01, 10, 1,
             PowerTestEventCodes.VentOpened, "Válvula de alívio aberta para assentamento de fluxo"));
 

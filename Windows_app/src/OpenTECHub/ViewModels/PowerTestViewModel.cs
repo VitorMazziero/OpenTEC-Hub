@@ -270,11 +270,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         new(FlowInputUnit.Lpm, "L/min"),
         new(FlowInputUnit.Vvm, "vvm"),
     ];
-    public IReadOnlyList<EnumChoice<PowerVentValve>> VentValves { get; } =
-    [
-        new(PowerVentValve.Valve2, "Válvula 2 (Alívio)"),
-        new(PowerVentValve.Valve1, "Válvula 1 (Alívio)"),
-    ];
     public IReadOnlyList<EnumChoice<PowerSweepType>> SweepTypes { get; } =
     [
         new(PowerSweepType.VariableNConstantQg, "N variável (Qg constante)"),
@@ -404,29 +399,35 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double StationarityWindowSeconds { get; set; } = 20.0;
     [ObservableProperty] public partial double StationaritySlopeTolerance { get; set; } = 0.5;
     [ObservableProperty] public partial int StationarityRequiredSamples { get; set; } = 5;
+    // Pre-staging on C: mandatory for every gassed condition on the A/B/C rig (plan §3.4).
+    [ObservableProperty] public partial double PrestageFlowToleranceLpm { get; set; } = 0.2;
+    [ObservableProperty] public partial int PrestageFlowStableSamples { get; set; } = 5;
+    [ObservableProperty] public partial double PrestageAgitationRpm { get; set; } = 15.0;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsVentTimeoutShort))]
-    public partial bool VentStabilizationEnabled { get; set; }
-    [ObservableProperty] public partial PowerVentValve SelectedVentValve { get; set; } = PowerVentValve.Valve2;
-    [ObservableProperty] public partial double VentFlowToleranceLpm { get; set; } = 0.2;
-    [ObservableProperty] public partial int VentFlowStableSamples { get; set; } = 5;
-    [ObservableProperty] public partial double VentAgitationRpm { get; set; } = 15.0;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsVentTimeoutShort))]
-    public partial double MaxVentStabilizationSeconds { get; set; } = 500.0;
+    [NotifyPropertyChangedFor(nameof(IsPrestageTimeoutShort))]
+    public partial double MaxPrestageSeconds { get; set; } = 500.0;
 
     /// <summary>
-    /// Bench of 2026-09-11: the vent flow overshoots to ~2.3× the target and decays with τ ≈ 45 s,
+    /// Bench of 2026-09-11: the flow on C overshoots to ~2.3× the target and decays with τ ≈ 45 s,
     /// so it takes ~110–170 s to enter the tolerance band. A time-out under ~3τ expires before the
     /// flow has settled and sends the run to review with nothing captured.
     /// </summary>
-    public const double VentTimeoutShortThresholdSeconds = 150.0;
+    public const double PrestageTimeoutShortThresholdSeconds = 150.0;
 
-    public bool IsVentTimeoutShort => VentStabilizationEnabled && MaxVentStabilizationSeconds < VentTimeoutShortThresholdSeconds;
+    public bool IsPrestageTimeoutShort => MaxPrestageSeconds < PrestageTimeoutShortThresholdSeconds;
 
-    /// <summary>Stability way out of the vent phase (§I.2): spread of the last N readings and the allowed offset.</summary>
-    [ObservableProperty] public partial double VentFlowStabilityStdDevLpm { get; set; } = 0.05;
-    [ObservableProperty] public partial double VentFlowStabilityMaxErrorLpm { get; set; } = 0.3;
+    /// <summary>Stability way out of the pre-stage (§I.2): spread of the last N readings and the allowed offset.</summary>
+    [ObservableProperty] public partial double PrestageFlowStabilityStdDevLpm { get; set; } = 0.05;
+    [ObservableProperty] public partial double PrestageFlowStabilityMaxErrorLpm { get; set; } = 0.3;
+
+    /// <summary>The wiring in force, from Configurações › Gás e válvulas — shown, never edited here.</summary>
+    public string GasRigDescription => $"Arranjo: {_rig().Describe()} (Configurações › Gás e válvulas)";
+
+    /// <summary>An assay recorded before the A/B/C rig: reviewable, never continued (plan §3.5).</summary>
+    public bool IsLegacyRigTest => CurrentTest?.IsLegacyRig == true;
+    public string LegacyRigMessage => IsLegacyRigTest
+        ? "Montagem anterior ao arranjo A/B/C — só leitura. Crie um ensaio novo para continuar no arranjo atual."
+        : "";
 
     /// <summary>
     /// <see cref="UnattendedFailurePolicy.RetryThenSkip"/> as a switch: with auto-accept, a vent,
@@ -985,14 +986,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         StationarityWindowSeconds = settings.StationarityWindowSeconds;
         StationaritySlopeTolerance = settings.StationaritySlopeTolerancePercentPerSecond;
         StationarityRequiredSamples = settings.StationarityRequiredSamples;
-        VentStabilizationEnabled = settings.VentStabilizationEnabled;
-        SelectedVentValve = settings.SelectedVentValve;
-        VentFlowToleranceLpm = settings.VentFlowToleranceLpm;
-        VentFlowStableSamples = settings.VentFlowStableSamples;
-        VentAgitationRpm = settings.VentAgitationRpm;
-        MaxVentStabilizationSeconds = settings.MaxVentStabilizationSeconds;
-        VentFlowStabilityStdDevLpm = settings.VentFlowStabilityStdDevLpm;
-        VentFlowStabilityMaxErrorLpm = settings.VentFlowStabilityMaxErrorLpm;
+        PrestageFlowToleranceLpm = settings.PrestageFlowToleranceLpm;
+        PrestageFlowStableSamples = settings.PrestageFlowStableSamples;
+        PrestageAgitationRpm = settings.PrestageAgitationRpm;
+        MaxPrestageSeconds = settings.MaxPrestageSeconds;
+        PrestageFlowStabilityStdDevLpm = settings.PrestageFlowStabilityStdDevLpm;
+        PrestageFlowStabilityMaxErrorLpm = settings.PrestageFlowStabilityMaxErrorLpm;
         ManualEnergyCaptureEnabled = settings.ManualEnergyCaptureEnabled;
         AutoAcceptRuns = settings.AutoAcceptRuns;
         RetryThenSkipOnSequenceFailure = settings.UnattendedFailurePolicy == UnattendedFailurePolicy.RetryThenSkip;
@@ -1046,8 +1045,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             DetectFloodingIfMissing();
             RebuildResults();
             _runner?.PrepareTest(doc);
-            ValidationMessage = "";
-            StatusMessage = $"Ensaio '{doc.Name}' carregado.";
+            OnPropertyChanged(nameof(IsLegacyRigTest));
+            OnPropertyChanged(nameof(LegacyRigMessage));
+            OnPropertyChanged(nameof(GasRigDescription));
+            ValidationMessage = doc.IsLegacyRig ? LegacyRigMessage : "";
+            StatusMessage = doc.IsLegacyRig ? LegacyRigMessage : $"Ensaio '{doc.Name}' carregado.";
             RefreshManualEnergyReadings();
             NotifyDocumentState();
             RecalculateLiveMetrics();
@@ -3433,14 +3435,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         StationarityWindowSeconds = StationarityWindowSeconds,
         StationaritySlopeTolerancePercentPerSecond = StationaritySlopeTolerance,
         StationarityRequiredSamples = StationarityRequiredSamples,
-        VentStabilizationEnabled = VentStabilizationEnabled,
-        SelectedVentValve = SelectedVentValve,
-        VentFlowToleranceLpm = VentFlowToleranceLpm,
-        VentFlowStableSamples = VentFlowStableSamples,
-        VentAgitationRpm = VentAgitationRpm,
-        MaxVentStabilizationSeconds = MaxVentStabilizationSeconds,
-        VentFlowStabilityStdDevLpm = VentFlowStabilityStdDevLpm,
-        VentFlowStabilityMaxErrorLpm = VentFlowStabilityMaxErrorLpm,
+        PrestageFlowToleranceLpm = PrestageFlowToleranceLpm,
+        PrestageFlowStableSamples = PrestageFlowStableSamples,
+        PrestageAgitationRpm = PrestageAgitationRpm,
+        MaxPrestageSeconds = MaxPrestageSeconds,
+        PrestageFlowStabilityStdDevLpm = PrestageFlowStabilityStdDevLpm,
+        PrestageFlowStabilityMaxErrorLpm = PrestageFlowStabilityMaxErrorLpm,
         ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
         AutoAcceptRuns = AutoAcceptRuns,
         UnattendedFailurePolicy = RetryThenSkipOnSequenceFailure ? UnattendedFailurePolicy.RetryThenSkip : UnattendedFailurePolicy.StopForReview,
@@ -3544,29 +3544,26 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             return "Revise os limites de estacionariedade e parada adaptativa.";
         }
 
-        if (VentStabilizationEnabled)
+        if (PrestageFlowToleranceLpm <= 0 || !double.IsFinite(PrestageFlowToleranceLpm))
         {
-            if (VentFlowToleranceLpm <= 0 || !double.IsFinite(VentFlowToleranceLpm))
-            {
-                return "Tolerância de vazão no alívio deve ser positiva.";
-            }
-            if (VentFlowStableSamples < 1)
-            {
-                return "Amostras estáveis no alívio deve ser ao menos 1.";
-            }
-            if (VentAgitationRpm < 0 || VentAgitationRpm > MaxRpm || !double.IsFinite(VentAgitationRpm))
-            {
-                return $"Rotação no alívio deve estar entre 0 e {MaxRpm:F0} rpm.";
-            }
-            if (MaxVentStabilizationSeconds <= 0 || !double.IsFinite(MaxVentStabilizationSeconds))
-            {
-                return "Tempo limite de alívio deve ser positivo.";
-            }
-            if (VentFlowStabilityStdDevLpm < 0 || !double.IsFinite(VentFlowStabilityStdDevLpm) ||
-                VentFlowStabilityMaxErrorLpm < 0 || !double.IsFinite(VentFlowStabilityMaxErrorLpm))
-            {
-                return "Critério de estabilidade do alívio (σ e |erro|) não pode ser negativo.";
-            }
+            return "Tolerância de vazão da pré-estabilização por C deve ser positiva.";
+        }
+        if (PrestageFlowStableSamples < 1)
+        {
+            return "Amostras estáveis da pré-estabilização por C deve ser ao menos 1.";
+        }
+        if (PrestageAgitationRpm < 0 || PrestageAgitationRpm > MaxRpm || !double.IsFinite(PrestageAgitationRpm))
+        {
+            return $"Rotação durante a pré-estabilização deve estar entre 0 e {MaxRpm:F0} rpm.";
+        }
+        if (MaxPrestageSeconds <= 0 || !double.IsFinite(MaxPrestageSeconds))
+        {
+            return "Tempo limite da pré-estabilização por C deve ser positivo.";
+        }
+        if (PrestageFlowStabilityStdDevLpm < 0 || !double.IsFinite(PrestageFlowStabilityStdDevLpm) ||
+            PrestageFlowStabilityMaxErrorLpm < 0 || !double.IsFinite(PrestageFlowStabilityMaxErrorLpm))
+        {
+            return "Critério de estabilidade da pré-estabilização (σ e |erro|) não pode ser negativo.";
         }
 
         return "";
@@ -3887,44 +3884,33 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     /// </summary>
     private void UpdateGasLoopStatus()
     {
-        GasLoopStatusBadge = GasLoopStatusFor(_runner, _latestSnapshot);
+        GasLoopStatusBadge = GasLoopStatusFor(_runner, _latestSnapshot, _rig());
         OnPropertyChanged(nameof(GasLoopStatusBadge));
     }
 
-    internal static string GasLoopStatusFor(IPowerTestRunner? runner, SensorSnapshot? snapshot)
-    {
-        if (runner?.Phase == PowerRunPhase.VentStabilizing)
-        {
-            return "Alívio Estabilizando";
-        }
+    /// <summary>Chip text for the runner's pre-stage; the other texts are <see cref="GasRouting.Describe(ObservedGasRoute)"/>.</summary>
+    internal const string PrestagingChipText = "Ar por C · estabilizando";
 
-        if (runner is not null && runner.IsRunning &&
-            runner.Phase is PowerRunPhase.PreparingCondition or PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.HoldingForManualEnergy &&
-            runner.CurrentRun?.GasMode == PowerGasMode.Gassed)
+    /// <summary>
+    /// The "Malha de gás" chip reads the wire the way the rig does: the observed pair and the
+    /// echoed setpoint, through <see cref="GasRouting.Interpret"/>, so "Reator (A)", "Descarga +
+    /// N₂ (B/C)", "Gás sem destino" and "A e B/C abertas" are the same words everywhere. The
+    /// pre-stage text is reserved for the runner's own phase.
+    /// </summary>
+    internal static string GasLoopStatusFor(IPowerTestRunner? runner, SensorSnapshot? snapshot, GasRigConfiguration rig)
+    {
+        if (runner?.Phase == PowerRunPhase.PrestagingFlow)
         {
-            return "Reator Aberto";
+            return PrestagingChipText;
         }
 
         if (snapshot is null)
         {
-            return "Fechado";
+            return GasRouting.Describe(ObservedGasRoute.Closed);
         }
 
-        if (snapshot.FlowValve1 == 1 || snapshot.FlowValve2 == 1)
-        {
-            return "Reator Aberto";
-        }
-
-        if (snapshot.FlowValveMain == 1)
-        {
-            // v_Flow = 1 with the reactor valves closed: either gas is venting (a setpoint is
-            // being driven) or the loop is simply shut off.
-            var venting = double.IsFinite(snapshot.FlowSetpoint) && snapshot.FlowSetpoint > 0 ||
-                          double.IsFinite(snapshot.FlowRate) && snapshot.FlowRate > 0.05;
-            return venting ? "Alívio aberto" : "Fechado (shutoff)";
-        }
-
-        return "Fechado";
+        var setpoint = double.IsFinite(snapshot.FlowSetpoint) ? snapshot.FlowSetpoint : 0.0;
+        return GasRouting.Describe(GasRouting.Interpret(snapshot.FlowValve1 == 1, snapshot.FlowValve2 == 1, setpoint, rig));
     }
 
     private void OnRunnerStateChanged() => RunOnUi(UpdateRunnerState);

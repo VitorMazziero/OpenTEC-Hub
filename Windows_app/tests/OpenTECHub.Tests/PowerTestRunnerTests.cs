@@ -85,7 +85,7 @@ public sealed class PowerTestRunnerTests
             FastSettings() with { StationaritySlopeTolerancePercentPerSecond = double.NaN },
             FastSettings() with { RelativeCiFraction = double.PositiveInfinity },
             FastSettings() with { DefaultStepRpm = 4, MinStepRpm = 5 },
-            FastSettings() with { VentAgitationRpm = 14 },
+            FastSettings() with { PrestageAgitationRpm = 14 },
         };
 
         foreach (var settings in invalidSettings)
@@ -673,12 +673,10 @@ public sealed class PowerTestRunnerTests
         using var h = new Harness();
         var settings = FastSettings() with
         {
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve2,
-            VentAgitationRpm = 15.0,
-            VentFlowToleranceLpm = 0.2,
-            VentFlowStableSamples = 2,
-            MaxVentStabilizationSeconds = 30.0,
+            PrestageAgitationRpm = 15.0,
+            PrestageFlowToleranceLpm = 0.2,
+            PrestageFlowStableSamples = 2,
+            MaxPrestageSeconds = 30.0,
         };
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 4.0;
@@ -686,7 +684,7 @@ public sealed class PowerTestRunnerTests
 
         await h.Runner.StartTestAsync(doc);
 
-        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
         Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
         Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Aeration));
         Assert.Contains(h.Device.Sent, json => json.Contains("\"motorSetpoint\":15"));
@@ -695,7 +693,7 @@ public sealed class PowerTestRunnerTests
 
         // Push telemetry confirming the vent state with flow stabilizing
         h.PushGas(15, 0.5, flowRate: 4.1, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
-        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
 
         // 2nd stable sample -> one-frame switch to the reactor: B/C close, A (valve_2) opens
         h.PushGas(15, 0.5, flowRate: 4.05, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
@@ -731,19 +729,17 @@ public sealed class PowerTestRunnerTests
         using var h = new Harness();
         var settings = FastSettings() with
         {
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve1,
-            VentAgitationRpm = 15.0,
-            VentFlowToleranceLpm = 0.1,
-            VentFlowStableSamples = 5,
-            MaxVentStabilizationSeconds = 2.0,
+            PrestageAgitationRpm = 15.0,
+            PrestageFlowToleranceLpm = 0.1,
+            PrestageFlowStableSamples = 5,
+            MaxPrestageSeconds = 2.0,
         };
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 5.0;
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
 
         await h.Runner.StartTestAsync(doc);
-        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
 
         // Advance past 2s with flow out of tolerance
         for (var i = 0; i < 10; i++)
@@ -762,12 +758,10 @@ public sealed class PowerTestRunnerTests
         using var h = new Harness();
         var settings = FastSettings() with
         {
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve1,
-            VentAgitationRpm = 15.0,
-            VentFlowToleranceLpm = 0.1,
-            VentFlowStableSamples = 5,
-            MaxVentStabilizationSeconds = 2.0,
+            PrestageAgitationRpm = 15.0,
+            PrestageFlowToleranceLpm = 0.1,
+            PrestageFlowStableSamples = 5,
+            MaxPrestageSeconds = 2.0,
         };
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 5.0;
@@ -802,13 +796,11 @@ public sealed class PowerTestRunnerTests
         {
             AutoAcceptRuns = true,
             UnattendedFailurePolicy = UnattendedFailurePolicy.RetryThenSkip,
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve1,
-            VentAgitationRpm = 15.0,
-            VentFlowToleranceLpm = 0.1,
-            VentFlowStableSamples = 5,
-            VentFlowStabilityStdDevLpm = 0.0, // stability exit disabled so the time-out is what happens
-            MaxVentStabilizationSeconds = 2.0,
+            PrestageAgitationRpm = 15.0,
+            PrestageFlowToleranceLpm = 0.1,
+            PrestageFlowStableSamples = 5,
+            PrestageFlowStabilityStdDevLpm = 0.0, // stability exit disabled so the time-out is what happens
+            MaxPrestageSeconds = 2.0,
         };
         var doc = h.CreateDocumentWithConditions(settings,
         [
@@ -820,10 +812,10 @@ public sealed class PowerTestRunnerTests
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
 
         await h.Runner.StartTestAsync(doc);
-        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
 
         // First failure: the flow never settles - rejected, and the same condition is retried.
-        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.VentStabilizing; i++)
+        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.PrestagingFlow; i++)
         {
             h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
         }
@@ -836,11 +828,11 @@ public sealed class PowerTestRunnerTests
         // Back at minimum speed the runner starts the retry of the same condition.
         h.PushGas(15, 0.5, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 1, commandAck: 1);
         h.PushGas(15, 0.5, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 1, commandAck: 1);
-        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
         Assert.Same(gassed, h.Runner.CurrentCondition);
 
         // Second failure: skipped, and the sequence goes on to the dry condition.
-        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.VentStabilizing; i++)
+        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.PrestagingFlow; i++)
         {
             h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
         }
@@ -862,19 +854,17 @@ public sealed class PowerTestRunnerTests
         var settings = FastSettings() with
         {
             AutoAcceptRuns = true,
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve1,
-            VentAgitationRpm = 15.0,
-            VentFlowToleranceLpm = 0.1,
-            VentFlowStableSamples = 5,
-            VentFlowStabilityStdDevLpm = 0.0,
-            MaxVentStabilizationSeconds = 2.0,
+            PrestageAgitationRpm = 15.0,
+            PrestageFlowToleranceLpm = 0.1,
+            PrestageFlowStableSamples = 5,
+            PrestageFlowStabilityStdDevLpm = 0.0,
+            MaxPrestageSeconds = 2.0,
         };
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 5.0;
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
         await h.Runner.StartTestAsync(doc);
-        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.VentStabilizing; i++)
+        for (var i = 0; i < 10 && h.Runner.Phase == PowerRunPhase.PrestagingFlow; i++)
         {
             h.PushGas(15, 0.5, flowRate: 1.0, flowSetpoint: 5.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
         }
@@ -888,25 +878,23 @@ public sealed class PowerTestRunnerTests
         using var h = new Harness();
         var settings = FastSettings() with
         {
-            VentStabilizationEnabled = true,
-            SelectedVentValve = PowerVentValve.Valve1,
-            VentAgitationRpm = 15.0,
-            VentFlowToleranceLpm = 0.05,
-            VentFlowStableSamples = 5,
-            VentFlowStabilityStdDevLpm = 0.05,
-            VentFlowStabilityMaxErrorLpm = 0.3,
-            MaxVentStabilizationSeconds = 500.0,
+            PrestageAgitationRpm = 15.0,
+            PrestageFlowToleranceLpm = 0.05,
+            PrestageFlowStableSamples = 5,
+            PrestageFlowStabilityStdDevLpm = 0.05,
+            PrestageFlowStabilityMaxErrorLpm = 0.3,
+            MaxPrestageSeconds = 500.0,
         };
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 2.0;
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
         await h.Runner.StartTestAsync(doc);
-        Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
 
         // 2.08 +/- 0.01 L/min: outside the 0.05 band, but flat.
         foreach (var flow in new[] { 2.09, 2.07, 2.08, 2.08, 2.07, 2.09 })
         {
-            if (h.Runner.Phase != PowerRunPhase.VentStabilizing)
+            if (h.Runner.Phase != PowerRunPhase.PrestagingFlow)
             {
                 break;
             }
@@ -915,7 +903,7 @@ public sealed class PowerTestRunnerTests
 
         Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
         var events = File.ReadAllText(Path.Combine(h.Store.RootDirectory, doc.FolderName, PowerTestFileContracts.EventLogFileName));
-        Assert.Contains("VentFlowStable", events, StringComparison.Ordinal);
+        Assert.Contains("PrestageFlowStable", events, StringComparison.Ordinal);
         // The journal escapes non-ASCII, so "est\u00E1vel" is stored as est\u00E1vel.
         Assert.Contains(@"(est\u00E1vel", events, StringComparison.Ordinal);
     }
@@ -927,8 +915,8 @@ public sealed class PowerTestRunnerTests
     [InlineData(new[] { 2.09, 2.07 }, 2.0, false)]                    // not enough samples
     public void VentFlowHasSettled_requires_low_spread_and_a_mean_near_the_target(double[] window, double target, bool expected)
     {
-        var settings = new PowerTestSettings { VentFlowStableSamples = 5, VentFlowStabilityStdDevLpm = 0.05, VentFlowStabilityMaxErrorLpm = 0.3 };
-        Assert.Equal(expected, PowerTestRunner.VentFlowHasSettled(window, target, settings, out _));
+        var settings = new PowerTestSettings { PrestageFlowStableSamples = 5, PrestageFlowStabilityStdDevLpm = 0.05, PrestageFlowStabilityMaxErrorLpm = 0.3 };
+        Assert.Equal(expected, PowerTestRunner.PrestageFlowHasSettled(window, target, settings, out _));
     }
 
     [Fact]
@@ -937,7 +925,6 @@ public sealed class PowerTestRunnerTests
         using var h = new Harness();
         var settings = FastSettings() with
         {
-            VentStabilizationEnabled = false,
             AutoAcceptRuns = true,
         };
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Both);
@@ -956,33 +943,40 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
 
         // Drive Subphase 1 to completion
-        while (h.Runner.Phase != PowerRunPhase.OpeningGas)
+        while (h.Runner.Phase != PowerRunPhase.PrestagingFlow)
         {
             h.PushGas(300, 3.0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0);
         }
 
-        // Subphase 1 completed, immediately started Subphase 2 (OpeningGas)
-        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        // Subphase 1 completed, immediately started Subphase 2: the gas goes out of C first
+        // (B/C = valve_1 on the default wiring), never straight into the vessel.
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
         Assert.Equal(PowerGasMode.Gassed, h.Runner.CurrentRun!.GasMode);
+        Assert.True(h.Runner.CurrentRun.UsedVentStabilization);
         Assert.Equal(P0Provenance.MeasuredUngassed, h.Runner.CurrentRun.P0Provenance);
         Assert.NotNull(h.Runner.CurrentRun.ReferenceP0W);
         var p0Captured = h.Runner.CurrentRun.ReferenceP0W.Value;
         Assert.True(p0Captured > 0);
+        Assert.Contains("\"valve_1\":1,\"valve_2\":0", h.Device.Sent.Last(j => j.Contains("flowSetpoint")));
 
-        // Confirm reactor gas for Subphase 2 — A is valve_2 on the default wiring (plan §1.3.1);
-        // commandId 1 because the first flow command was dispatched in Subphase 2.
-        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        // Settle on C (commandId 1: the first flow command was dispatched in Subphase 2), then the
+        // one-frame switch and its confirmation on A = valve_2.
+        h.PushGas(15, 0.5, flowRate: 3.0, flowSetpoint: 3.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(15, 0.5, flowRate: 3.0, flowSetpoint: 3.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        Assert.Contains("\"valve_1\":0,\"valve_2\":1", h.Device.Sent.Last(j => j.Contains("flowSetpoint")));
+        h.PushGas(15, 0.5, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
 
         // Speed confirmation for Subphase 2
-        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
-        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
 
         // Drive Subphase 2 to completion
         while (h.Runner.Phase is PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget)
         {
-            h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+            h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         }
 
         // Both runs completed!
@@ -990,17 +984,68 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(P0Provenance.MeasuredUngassed, h.Runner.CurrentRun.P0Provenance);
     }
 
+    /// <summary>
+    /// The rig is recorded when the assay starts; a manifest older than the rig is reviewable
+    /// but never continued, and a wiring change mid-assay is refused with both spelled out (plan §3.5).
+    /// </summary>
+    [Fact]
+    public async Task StartTest_records_the_rig_and_refuses_a_legacy_manifest_or_a_changed_wiring()
+    {
+        using var h = new Harness();
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        var legacy = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Gassed);
+        legacy.Status = PowerTestStatus.Interrupted;
+        Assert.True(legacy.IsLegacyRig);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(legacy));
+        Assert.Contains("A/B/C", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(PowerRunPhase.Idle, h.Runner.Phase);
+
+        var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Gassed);
+        Assert.False(doc.IsLegacyRig);
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(GasInput.Input2, doc.GasRig!.AirInletInput);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
+        await h.Runner.AbortTestAsync("fim");
+
+        h.Rig = new GasRigConfiguration(GasInput.Input1);
+        ex = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
+        Assert.Contains("A na entrada 1", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("A na entrada 2", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>On the other wiring the pre-stage lands on valve_2 and the reactor on valve_1.</summary>
+    [Fact]
+    public async Task Gassed_sequence_follows_the_configured_wiring()
+    {
+        using var h = new Harness { Rig = new GasRigConfiguration(GasInput.Input1) };
+        var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 4.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
+        Assert.Contains("\"valve_1\":0,\"valve_2\":1", h.Device.Sent.Last(j => j.Contains("flowSetpoint")));
+
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        Assert.Contains("\"valve_1\":1,\"valve_2\":0", h.Device.Sent.Last(j => j.Contains("flowSetpoint")));
+        Assert.DoesNotContain(h.Device.Sent, j => j.Contains("\"valve_1\":1,\"valve_2\":1"));
+    }
+
     [Fact]
     public async Task Gassed_assay_abort_parks_motor_at_minimum_and_zeros_flow_closing_valves()
     {
         using var h = new Harness();
-        var settings = FastSettings() with { VentStabilizationEnabled = false };
+        var settings = FastSettings();
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 4.0;
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
 
         await h.Runner.StartTestAsync(doc);
-        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        // Every gassed condition starts on C; an abort there must still close the meter.
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
 
         await h.Runner.AbortTestAsync("Parada de emergência");
 
@@ -1015,29 +1060,32 @@ public sealed class PowerTestRunnerTests
     public async Task Flowmeter_disconnect_or_offline_during_gassed_capture_pauses_for_measurement()
     {
         using var h = new Harness();
-        var settings = FastSettings() with { VentStabilizationEnabled = false };
+        var settings = FastSettings();
         var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
         doc.Conditions[0].GasFlowLpm = 4.0;
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
 
         await h.Runner.StartTestAsync(doc);
-        // Confirm gas state: air to the reactor is A = valve_2 on the default wiring (plan §1.3.1)
-        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        // Settle on C (B/C = valve_1), switch, confirm A = valve_2 (default wiring, plan §1.3.1)
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
 
         // Confirm speed
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
 
         // Flowmeter drops offline!
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1, flowmeterOnline: false);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2, flowmeterOnline: false);
 
         Assert.True(h.Runner.IsPausedForMeasurement);
     }
 
     [Fact]
-    public async Task End_to_end_gassed_assay_with_simulator_both_with_and_without_relief_stabilization()
+    public async Task End_to_end_gassed_assay_with_simulator_prestages_on_C_then_captures_in_the_reactor()
     {
         var powerOptions = new ServoPowerModelOptions
         {
@@ -1059,11 +1107,10 @@ public sealed class PowerTestRunnerTests
             AutoAcceptRuns = true,
             MinSamples = 4,
             RelativeCiFraction = 0.50,
-            VentStabilizationEnabled = true,
-            VentFlowStableSamples = 2,
-            VentFlowToleranceLpm = 0.3,
-            VentAgitationRpm = 15.0,
-            MaxVentStabilizationSeconds = 15.0,
+            PrestageFlowStableSamples = 2,
+            PrestageFlowToleranceLpm = 0.3,
+            PrestageAgitationRpm = 15.0,
+            MaxPrestageSeconds = 15.0,
         };
 
         var doc = h.CreateDocumentWithConditions(
@@ -1091,15 +1138,15 @@ public sealed class PowerTestRunnerTests
         h.AdvanceSimulator(0.5);
         await h.Runner.StartTestAsync(doc);
 
-        var sawVentStabilizing = false;
+        var sawPrestaging = false;
         var sawSettingSpeed = false;
         var sawAccumulating = false;
 
         for (var tick = 0; tick < 1000 && h.Runner.Phase != PowerRunPhase.Completed; tick++)
         {
-            if (h.Runner.Phase == PowerRunPhase.VentStabilizing)
+            if (h.Runner.Phase == PowerRunPhase.PrestagingFlow)
             {
-                sawVentStabilizing = true;
+                sawPrestaging = true;
             }
 
             if (h.Runner.Phase == PowerRunPhase.SettingSpeed)
@@ -1116,7 +1163,7 @@ public sealed class PowerTestRunnerTests
         }
 
         Assert.Equal(PowerRunPhase.Completed, h.Runner.Phase);
-        Assert.True(sawVentStabilizing, "Expected to pass through VentStabilizing phase");
+        Assert.True(sawPrestaging, "Expected to pass through PrestagingFlow phase");
         Assert.True(sawSettingSpeed, "Expected to pass through SettingSpeed phase");
         Assert.True(sawAccumulating, "Expected to pass through AccumulatingToTarget phase");
 
@@ -1169,6 +1216,8 @@ public sealed class PowerTestRunnerTests
         MeasurementTimeoutSeconds = 5,
         CaptureServoPollMs = 250,
         RestoreServoPollMs = 1000,
+        // Two settled frames on C are enough for the scripted sequences (bench default is 5).
+        PrestageFlowStableSamples = 2,
     };
 
     private sealed class Harness : IDisposable
@@ -1187,8 +1236,12 @@ public sealed class PowerTestRunnerTests
                 Store,
                 new PowerAnalysisEngine(),
                 new StubInterlock(blockReason),
-                _clock);
+                _clock,
+                gasRig: () => Rig);
         }
+
+        /// <summary>The A/B/C wiring the runner reads at each dispatch; tests swap it to exercise the other wiring.</summary>
+        public GasRigConfiguration Rig { get; set; } = GasRigConfiguration.Default;
 
         public RunnerDeviceService Device { get; }
         public CommandArbiter Arbiter { get; }

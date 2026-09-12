@@ -34,7 +34,9 @@ public enum PowerRunPhase
     Preflight,
     PreparingCondition,
     SettingSpeed,
-    VentStabilizing,
+
+    /// <summary>Gassed condition: the flow settles on C (B/C output) before the one-frame switch to A.</summary>
+    PrestagingFlow,
     OpeningGas,
     SettlingTorque,
     AccumulatingToTarget,
@@ -72,12 +74,6 @@ public enum FloodingDetectionMethod
 {
     Automatic,
     ManualAdjusted,
-}
-
-public enum PowerVentValve
-{
-    Valve1 = 1,
-    Valve2 = 2,
 }
 
 /// <summary>Preloaded impeller families (§8). <see cref="Custom"/> is anything else.</summary>
@@ -282,31 +278,34 @@ public sealed record PowerTestSettings
     /// <summary>SNR gate (§7.2): a net power below this multiple of the tare noise floor is "below noise".</summary>
     public double SnrFloorMultiple { get; init; } = 3.0;
 
-    // Estabilização no alívio (§13), montagem opcional.
-    public bool VentStabilizationEnabled { get; init; }
-    public PowerVentValve SelectedVentValve { get; init; } = PowerVentValve.Valve2;
-    public double VentFlowToleranceLpm { get; init; } = 0.2;
-    public int VentFlowStableSamples { get; init; } = 5;
-    public double VentAgitationRpm { get; init; } = 15.0;
+    // Pre-staging on C (§13, plan A/B/C §3.4): every gassed condition raises its flow on the B/C
+    // output first — the meter's pulse goes out of the vent — and only a settled flow is switched
+    // into the reactor, in one frame. On this assay the B line carries no nitrogen (pinched or
+    // not connected): what shares the output with C is irrelevant here.
+    public double PrestageFlowToleranceLpm { get; init; } = 0.2;
+    public int PrestageFlowStableSamples { get; init; } = 5;
+
+    /// <summary>Agitation held while the gas leaves through C: the vessel has no gas yet, so the condition's rotation waits for the switch.</summary>
+    public double PrestageAgitationRpm { get; init; } = 15.0;
 
     /// <summary>
-    /// Bench of 2026-09-11: opening the vent overshoots to ~2.3× the target and decays with
+    /// Bench of 2026-09-11: opening C overshoots to ~2.3× the target and decays with
     /// τ ≈ 45 s, so ±0.2 L/min is reached after ~110–170 s. 120 s expired three times in a row;
     /// 500 s covers >3τ with margin for the flow controller's steady offset.
     /// </summary>
-    public double MaxVentStabilizationSeconds { get; init; } = 500.0;
+    public double MaxPrestageSeconds { get; init; } = 500.0;
 
     /// <summary>
-    /// Second way out of the vent phase: the flow is <em>stable</em> — the standard deviation of the
-    /// last <see cref="VentFlowStableSamples"/> readings is below this — and within
-    /// <see cref="VentFlowStabilityMaxErrorLpm"/> of the target, even if outside the tolerance band.
+    /// Second way out of the pre-stage: the flow is <em>stable</em> — the standard deviation of the
+    /// last <see cref="PrestageFlowStableSamples"/> readings is below this — and within
+    /// <see cref="PrestageFlowStabilityMaxErrorLpm"/> of the target, even if outside the tolerance band.
     /// The bench controller settles at +0.07…+0.10 L/min, on the edge of a 0.1 band, and the 55
     /// stabilisations of the Rushton-Smith assay spent ~150 s each waiting for the reading to "fall"
     /// inside it (~2.3 h of a 9 h assay). What matters is that the flow has settled: the final
-    /// value is measured again in the reactor.
+    /// value is measured again in the reactor (<c>FlowSettling</c>, shared with the kLa runner).
     /// </summary>
-    public double VentFlowStabilityStdDevLpm { get; init; } = 0.05;
-    public double VentFlowStabilityMaxErrorLpm { get; init; } = 0.3;
+    public double PrestageFlowStabilityStdDevLpm { get; init; } = 0.05;
+    public double PrestageFlowStabilityMaxErrorLpm { get; init; } = 0.3;
 
     /// <summary>See <see cref="UnattendedFailurePolicy"/>. Consulted only with <see cref="AutoAcceptRuns"/>.</summary>
     public UnattendedFailurePolicy UnattendedFailurePolicy { get; init; } = UnattendedFailurePolicy.StopForReview;
@@ -788,6 +787,8 @@ public sealed class PowerRun
     public double AgitationRpm { get; set; }
     public double? GasFlowLpm { get; set; }
     public PowerGasMode GasMode { get; set; } = PowerGasMode.Ungassed;
+
+    /// <summary>True for every gassed run on the A/B/C rig: its flow was raised on C before the switch to A. Column name kept for the results file.</summary>
     public bool UsedVentStabilization { get; set; }
     public PowerRunPhase CurrentPhase { get; set; } = PowerRunPhase.Idle;
 
@@ -877,6 +878,16 @@ public sealed class PowerTestDocument
     public DateTimeOffset? StartedUtc { get; set; }
     public DateTimeOffset? LastModifiedUtc { get; set; }
     public DateTimeOffset? CompletedUtc { get; set; }
+
+    /// <summary>The A/B/C wiring this assay ran on, recorded when it started; null on a manifest older than the rig.</summary>
+    public Persistence.GasRigSettings? GasRig { get; set; }
+
+    /// <summary>
+    /// An assay that already ran without a recorded rig routed its gas differently; its runs are
+    /// reviewable, but a new run on the A/B/C rig would not be comparable. A draft has nothing to protect.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsLegacyRig => GasRig is null && Status != PowerTestStatus.Draft;
 
     public FluidProperties Fluid { get; set; } = new();
     public PowerGeometry Geometry { get; set; } = new();

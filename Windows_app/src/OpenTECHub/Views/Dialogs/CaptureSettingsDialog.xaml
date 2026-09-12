@@ -106,21 +106,18 @@
                           IsChecked="{Binding ManualEnergyCaptureEnabled}"
                           IsEnabled="{Binding AutoAcceptRuns, Converter={StaticResource InverseBool}}"
                           ToolTip="Mantém cada ponto parado à espera da leitura do wattímetro. Incompatível com o aceite automático, que por isso desabilita esta opção." />
-                <CheckBox Margin="0,0,0,8" Content="Estabilização no alívio" IsChecked="{Binding VentStabilizationEnabled}" IsEnabled="{Binding CanEditPlan}"
-                          ToolTip="Estabiliza a vazão direcionada ao alívio antes de alimentar o reator" />
+                <TextBlock Margin="0,4,0,2" Text="Pré-estabilização por C (condições gaseificadas)" Style="{StaticResource PowerLabel}" FontWeight="SemiBold" />
+                <TextBlock Margin="0,0,0,6" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
+                           Text="Toda condição gaseificada sobe a vazão pela saída B/C — o pulso do fluxômetro sai pela descarga (C) — e só a vazão assentada é comutada para o reator (A), numa frame só. Neste ensaio a linha B fica pinçada ou desconectada: não há N₂." />
+                <TextBlock Margin="0,0,0,6" Text="{Binding GasRigDescription}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
 
-                <Border Visibility="{Binding VentStabilizationEnabled, Converter={StaticResource BoolToVis}}"
-                        Background="{DynamicResource SurfaceSunkenBrush}"
+                <Border Background="{DynamicResource SurfaceSunkenBrush}"
                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="{DynamicResource RadiusSmall}"
                         Padding="10"
                         Margin="0,2,0,0">
                     <StackPanel>
-                        <TextBlock Text="Válvula de alívio:" Style="{StaticResource PowerLabel}" />
-                        <ComboBox Margin="0,2,0,8" ItemsSource="{Binding VentValves}"
-                                  SelectedValue="{Binding SelectedVentValve}"
-                                  SelectedValuePath="Value" DisplayMemberPath="Label" Height="26" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" /><ColumnDefinition Width="6" />
@@ -130,19 +127,19 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="Tol. (L/min)" Style="{StaticResource PowerLabel}" />
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowToleranceLpm, UpdateSourceTrigger=LostFocus}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding PrestageFlowToleranceLpm, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Amostras" Style="{StaticResource PowerLabel}" />
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStableSamples, UpdateSourceTrigger=LostFocus}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding PrestageFlowStableSamples, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                             <StackPanel Grid.Column="4">
-                                <TextBlock Text="N alívio" Style="{StaticResource PowerLabel}" />
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentAgitationRpm, UpdateSourceTrigger=LostFocus}" />
+                                <TextBlock Text="N em C (rpm)" Style="{StaticResource PowerLabel}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding PrestageAgitationRpm, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                             <StackPanel Grid.Column="6">
                                 <TextBlock Text="t máx. (s)" Style="{StaticResource PowerLabel}" />
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding MaxVentStabilizationSeconds, UpdateSourceTrigger=LostFocus}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding MaxPrestageSeconds, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                         </Grid>
                         <Grid Margin="0,6,0,0">
@@ -153,20 +150,20 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" ToolTip="Estabilidade: desvio-padrão máximo das últimas N leituras para considerar a vazão estabilizada mesmo fora da banda de tolerância">
                                 <TextBlock Text="σ máx. (L/min)" Style="{StaticResource PowerLabel}" />
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStabilityStdDevLpm, UpdateSourceTrigger=LostFocus}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding PrestageFlowStabilityStdDevLpm, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" ToolTip="Estabilidade: distância máxima entre a média das últimas N leituras e o alvo">
                                 <TextBlock Text="|erro| máx. (L/min)" Style="{StaticResource PowerLabel}" />
-                                <TextBox Style="{StaticResource CompactField}" Text="{Binding VentFlowStabilityMaxErrorLpm, UpdateSourceTrigger=LostFocus}" />
+                                <TextBox Style="{StaticResource CompactField}" Text="{Binding PrestageFlowStabilityMaxErrorLpm, UpdateSourceTrigger=LostFocus}" />
                             </StackPanel>
                             <TextBlock Grid.Column="4" VerticalAlignment="Bottom" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
-                                       Text="Sai do alívio quando N leituras estão na banda OU quando σ e |erro| ficam abaixo destes limites (o controlador tem offset de ~+0,08 L/min)." />
+                                       Text="Comuta para A quando N leituras estão na banda OU quando σ e |erro| ficam abaixo destes limites (o controlador tem offset de ~+0,08 L/min)." />
                         </Grid>
                         <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
                                    Style="{StaticResource CaptionTextStyle}"
                                    Foreground="{DynamicResource StateWarningTextBrush}"
-                                   Visibility="{Binding IsVentTimeoutShort, Converter={StaticResource BoolToVis}}"
-                                   Text="Abaixo de ~150 s o alívio tende a expirar: ao abrir, a vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, levando 110–170 s para entrar na banda (bancada de 11/09/2026)." />
+                                   Visibility="{Binding IsPrestageTimeoutShort, Converter={StaticResource BoolToVis}}"
+                                   Text="Abaixo de ~150 s a pré-estabilização tende a expirar: ao abrir C, a vazão sobe a ~2,3× o alvo e decai com τ ≈ 45 s, levando 110–170 s para entrar na banda (bancada de 11/09/2026)." />
                     </StackPanel>
                 </Border>
             </StackPanel>

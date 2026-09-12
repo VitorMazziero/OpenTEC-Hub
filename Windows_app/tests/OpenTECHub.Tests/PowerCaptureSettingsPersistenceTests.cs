@@ -48,7 +48,7 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
     public void Default_vent_stabilisation_timeout_is_500_s()
     {
         // τ ≈ 45 s and a 2.3× overshoot on opening: 120 s expired three times on the bench.
-        Assert.Equal(500.0, new PowerTestSettings().MaxVentStabilizationSeconds);
+        Assert.Equal(500.0, new PowerTestSettings().MaxPrestageSeconds);
     }
 
     [Fact]
@@ -56,14 +56,14 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
     {
         var (vm, doc, dialogs) = Build();
         var revisionBefore = doc.SettingsRevision;
-        dialogs.OnShow = v => { v.MaxVentStabilizationSeconds = 321.0; v.VentFlowToleranceLpm = 0.3; return true; };
+        dialogs.OnShow = v => { v.MaxPrestageSeconds = 321.0; v.PrestageFlowToleranceLpm = 0.3; return true; };
 
         vm.OpenCaptureSettingsCommand.Execute(null);
 
         var reloaded = _store.LoadTest(doc.FolderName);
         Assert.NotNull(reloaded);
-        Assert.Equal(321.0, reloaded.Settings.MaxVentStabilizationSeconds);
-        Assert.Equal(0.3, reloaded.Settings.VentFlowToleranceLpm);
+        Assert.Equal(321.0, reloaded.Settings.MaxPrestageSeconds);
+        Assert.Equal(0.3, reloaded.Settings.PrestageFlowToleranceLpm);
         Assert.Equal(revisionBefore + 1, reloaded.SettingsRevision);
         Assert.Contains($"revisão {revisionBefore + 1}", vm.StatusMessage);
         Assert.False(vm.HasUnsavedCaptureSettings);
@@ -71,8 +71,8 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
         // The journal escapes non-ASCII, so the arrow appears as → in the file.
         var events = File.ReadAllText(Path.Combine(_store.RootDirectory, doc.FolderName, PowerTestFileContracts.EventLogFileName));
         Assert.Contains("\"SettingsChanged\"", events, StringComparison.Ordinal);
-        Assert.Contains("MaxVentStabilizationSeconds: 500 \\u2192 321", events, StringComparison.Ordinal);
-        Assert.Contains("VentFlowToleranceLpm: 0.2 \\u2192 0.3", events, StringComparison.Ordinal);
+        Assert.Contains("MaxPrestageSeconds: 500 \\u2192 321", events, StringComparison.Ordinal);
+        Assert.Contains("PrestageFlowToleranceLpm: 0.2 \\u2192 0.3", events, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -93,13 +93,13 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
     public void Discarding_the_dialog_reverts_the_fields_to_the_assay()
     {
         var (vm, doc, dialogs) = Build();
-        dialogs.OnShow = v => { v.MaxVentStabilizationSeconds = 77.0; return false; };
+        dialogs.OnShow = v => { v.MaxPrestageSeconds = 77.0; return false; };
 
         vm.OpenCaptureSettingsCommand.Execute(null);
 
-        Assert.Equal(doc.Settings.MaxVentStabilizationSeconds, vm.MaxVentStabilizationSeconds);
+        Assert.Equal(doc.Settings.MaxPrestageSeconds, vm.MaxPrestageSeconds);
         Assert.False(vm.HasUnsavedCaptureSettings);
-        Assert.Equal(doc.Settings.MaxVentStabilizationSeconds, _store.LoadTest(doc.FolderName)!.Settings.MaxVentStabilizationSeconds);
+        Assert.Equal(doc.Settings.MaxPrestageSeconds, _store.LoadTest(doc.FolderName)!.Settings.MaxPrestageSeconds);
     }
 
     [Fact]
@@ -107,12 +107,12 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
     {
         var (vm, doc, dialogs) = Build();
         var before = doc.Settings;
-        dialogs.OnShow = v => { v.VentStabilizationEnabled = true; v.MaxVentStabilizationSeconds = -5; return true; };
+        dialogs.OnShow = v => { v.MaxPrestageSeconds = -5; return true; };
 
         vm.OpenCaptureSettingsCommand.Execute(null);
 
         Assert.Equal(before, _store.LoadTest(doc.FolderName)!.Settings);
-        Assert.Contains("Tempo limite de alívio", vm.ValidationMessage, StringComparison.Ordinal);
+        Assert.Contains("Tempo limite da pré-estabilização", vm.ValidationMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -126,13 +126,13 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
         Assert.True(vm.IsRunning);
         Assert.False(vm.CanEditPlan);
 
-        dialogs.OnShow = v => { v.MaxVentStabilizationSeconds = 450.0; return true; };
+        dialogs.OnShow = v => { v.MaxPrestageSeconds = 450.0; return true; };
         vm.OpenCaptureSettingsCommand.Execute(null);
 
         // Same document instance: the next VentStabilizing phase reads the new limit.
         Assert.Same(doc, runner.CurrentTest);
-        Assert.Equal(450.0, runner.CurrentTest!.Settings.MaxVentStabilizationSeconds);
-        Assert.Equal(450.0, _store.LoadTest(doc.FolderName)!.Settings.MaxVentStabilizationSeconds);
+        Assert.Equal(450.0, runner.CurrentTest!.Settings.MaxPrestageSeconds);
+        Assert.Equal(450.0, _store.LoadTest(doc.FolderName)!.Settings.MaxPrestageSeconds);
     }
 
     [Fact]
@@ -154,12 +154,12 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
     public void Settings_diff_names_each_changed_field_with_invariant_values()
     {
         var before = new PowerTestSettings();
-        var after = before with { MaxVentStabilizationSeconds = 321.5, AutoAcceptRuns = true };
+        var after = before with { MaxPrestageSeconds = 321.5, AutoAcceptRuns = true };
 
         var changes = PowerTestSettingsDiff.Compute(before, after);
 
         Assert.Equal(2, changes.Count);
-        Assert.Contains(changes, c => c.Field == "MaxVentStabilizationSeconds" && c.From == "500" && c.To == "321.5");
+        Assert.Contains(changes, c => c.Field == "MaxPrestageSeconds" && c.From == "500" && c.To == "321.5");
         Assert.Contains(changes, c => c.Field == "AutoAcceptRuns" && c.From == "false" && c.To == "true");
         Assert.Empty(PowerTestSettingsDiff.Compute(before, before));
     }
@@ -196,7 +196,7 @@ public sealed class PowerCaptureSettingsPersistenceTests : IDisposable
         public PowerTestDocument? CurrentTest { get; private set; }
         public PowerRun? CurrentRun => null;
         public PowerCondition? CurrentCondition => null;
-        public PowerRunPhase Phase => IsRunning ? PowerRunPhase.VentStabilizing : PowerRunPhase.Idle;
+        public PowerRunPhase Phase => IsRunning ? PowerRunPhase.PrestagingFlow : PowerRunPhase.Idle;
         public bool IsRunning { get; set; }
         public bool IsInReview => false;
         public bool IsPausedByOperator => false;

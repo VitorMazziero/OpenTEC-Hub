@@ -683,14 +683,27 @@
                                         <Style TargetType="Border">
                                             <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Reator Aberto">
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Reator (A)">
                                                     <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
                                                     <Setter Property="BorderThickness" Value="1" />
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Alívio Estabilizando">
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Ar por C · estabilizando">
                                                     <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource StateWarningBrush}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Descarga + N₂ (B/C)">
+                                                    <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateWarningBrush}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Gás sem destino">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="A e B/C abertas">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                     <Setter Property="BorderThickness" Value="1" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -701,11 +714,20 @@
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Reator Aberto">
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Reator (A)">
                                                         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                                                     </DataTrigger>
-                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Alívio Estabilizando">
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Ar por C · estabilizando">
                                                         <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Descarga + N₂ (B/C)">
+                                                        <Setter Property="Foreground" Value="{DynamicResource StateWarningTextBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="Gás sem destino">
+                                                        <Setter Property="Foreground" Value="{DynamicResource StateAlarmBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding GasLoopStatusBadge}" Value="A e B/C abertas">
+                                                        <Setter Property="Foreground" Value="{DynamicResource StateAlarmBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>

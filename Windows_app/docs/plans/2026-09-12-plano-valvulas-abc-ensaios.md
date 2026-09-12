@@ -7,7 +7,27 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapas 1, 2, 3 e 4 concluídas em 12/09/2026.** Etapa 4 (runner de
+**Estado:** em execução — **Etapas 1 a 5 concluídas em 12/09/2026.** Etapa 5 (runner de
+potência): toda condição gaseificada passa por `PrestagingFlow` (ex-`VentStabilizing`) — Q na
+saída B/C com `PrestageAgitationRpm`, saída pela banda **ou** por `FlowSettling`, uma frame
+`Reactor` com o setpoint preservado → `OpeningGas` confirma → captura; P0/ungassed continua em
+Fechado. Saem `VentStabilizationEnabled`, `SelectedVentValve`, `PowerVentValve`; `Vent*` →
+`Prestage*` (`PrestageFlowToleranceLpm`, `PrestageFlowStableSamples`, `MaxPrestageSeconds`,
+`PrestageFlowStabilityStdDevLpm/MaxErrorLpm`); `UsedVentStabilization` fica (coluna do
+`resultados.csv`, agora sempre 1 em corrida gaseificada). `PowerTestDocument.GasRig` gravado ao
+iniciar; `IsLegacyRig` → mensagem "montagem anterior ao arranjo A/B/C — só leitura" em
+`ValidationMessage`, `CanStart` recusa (e recusa arranjo diferente do gravado).
+`GasLoopStatusFor(runner, snapshot, rig)` reescrito sobre `GasRouting.Interpret`: *Fechado* /
+*Reator (A)* / *Descarga + N₂ (B/C)* / *Gás sem destino* / *A e B/C abertas* + *Ar por C ·
+estabilizando* na fase; `PowerView` com os seis `DataTrigger`. `CaptureSettingsDialog` sem o
+checkbox e o seletor de válvula, com o bloco "Pré-estabilização por C" e a linha do arranjo.
+**Decisão do usuário (12/09): sem guarda de N₂ e sem confirmação "N₂ fechado na fonte"** — no
+ensaio de potência a linha B fica pinçada ou desconectada e o cilindro nunca é aberto (garantia
+física; a sonda de DO nem é conectada); os passos 4 e 5 da etapa não foram implementados. Testes:
+`PowerTestRunnerTests` +2 (rig gravado/legado/arranjo mudou; sequência no outro arranjo),
+`PowerGassedUiTests` chip com os cinco textos e o outro arranjo; E2E no simulador (P0 +
+gaseificado) passa por `PrestagingFlow`. Suíte 1577.
+Etapa 4 (runner de
 kLa): fases `OpeningNitrogen → Deoxygenating → PrestagingAir → SwitchingToReactor → Reoxygenating`
 (saíram `ClosingNitrogen`, `WaitingForDOStability`, `OpeningVent`, `StabilizingVentFlow`,
 `OpeningAir`); `BeginAirPrestage` pede Q na **mesma** rota B/C ao atingir `DOMin + AirPrestageLeadPercent`;
@@ -451,7 +471,8 @@ citavam `WaitingForDOStability`/`OpeningVent`.
 `nitrogen-left-open`; P0 continua em Fechado; chip com os cinco textos; manifesto antigo só-leitura.
 **Pronto.** Suíte verde; simulador completa um ensaio `Both` (P0 + gaseificado).
 **Commit.** `feat(potencia): estabilizacao por C obrigatoria, comutacao em uma frame e guarda de N2`.
-**Esforço.** M.
+**Esforço.** M. **Executada em 12/09/2026 sem os passos 4 e 5 (guarda e confirmação de N₂)** — ver
+Estado no cabeçalho.
 
 ### Etapa 6 — Página Controle, painel de detalhe e sinótico
 

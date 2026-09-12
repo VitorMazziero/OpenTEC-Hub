@@ -164,6 +164,18 @@ public sealed class PowerTestRunner : IPowerTestRunner
     {
         ArgumentNullException.ThrowIfNull(doc);
 
+        if (doc.IsLegacyRig)
+        {
+            reason = "Montagem anterior ao arranjo A/B/C — este ensaio é só leitura. Crie um ensaio novo para o arranjo atual.";
+            return false;
+        }
+        if (doc.GasRig is { } recordedRig && recordedRig.ToConfiguration() != Rig)
+        {
+            reason = $"O arranjo configurado ({Rig.Describe()}) difere do gravado neste ensaio ({recordedRig.ToConfiguration().Describe()}). " +
+                     "Ajuste Configurações › Gás e válvulas ou crie um ensaio novo.";
+            return false;
+        }
+
         try
         {
             ValidateDocument(doc);
@@ -289,6 +301,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _sequenceFailures.Clear();
         doc.Status = PowerTestStatus.Running;
         doc.StartedUtc ??= _time.GetUtcNow();
+        doc.GasRig ??= Persistence.GasRigSettings.From(Rig);
         doc.CompletedUtc = null;
         doc.InterruptionReason = null;
         if (_device.Latest is { } latest)
@@ -303,7 +316,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
         _testStartMonotonic = GetMonotonicSeconds();
         _store.SaveTestManifest(doc);
-        LogEvent("TestStarted", $"Ensaio '{doc.Name}' iniciado.");
+        LogEvent("TestStarted", $"Ensaio '{doc.Name}' iniciado. Arranjo: {Rig.Describe()}.");
 
         var next = NextPendingCondition();
         if (next is null)
@@ -751,34 +764,27 @@ public sealed class PowerTestRunner : IPowerTestRunner
         LogEvent("RunStarted", $"Corrida {_currentRun.FolderName}: {_commandedRpm} rpm, modo {actualMode}, tentativa 1.");
     }
 
+    /// <summary>
+    /// Every gassed condition raises its flow on the B/C output first: the meter's start-up
+    /// pulse and its settling go out of C, never into the vessel. The reactor only ever sees the
+    /// one frame that closes B/C and opens A with a settled setpoint (plan §3.4). On this assay
+    /// the B line carries no nitrogen — pinched or not connected — so the shared output is moot.
+    /// </summary>
     private void StartGassedSequence(double targetFlow)
     {
         var doc = _currentTest!;
-        // max flow is constant MaxFlow
+        _currentRun!.UsedVentStabilization = true;
+        _ventFlowStableCount = 0;
+        _ventFlowDeviation = null;
+        _ventFlowWindow.Clear();
 
-        if (doc.Settings.VentStabilizationEnabled)
-        {
-            _currentRun!.UsedVentStabilization = true;
-            _ventFlowStableCount = 0;
-            _ventFlowDeviation = null;
-            _ventFlowWindow.Clear();
-
-            // The vent is C, which shares its output with B (N₂): the operator must have the
-            // nitrogen shut at the source (plan §3.3). SelectedVentValve is legacy and ignored.
-            var route = GasRouting.Describe(GasRoute.VentAndNitrogen, Rig);
-            DispatchMotorOrFault((int)doc.Settings.VentAgitationRpm, "reduzir agitação durante estabilização na descarga");
-            DispatchFlow(RouteFrame(targetFlow, GasRoute.VentAndNitrogen), "abrir a descarga (C)");
-            SetPhase(
-                PowerRunPhase.VentStabilizing,
-                $"Descarga aberta ({route}); estabilizando vazão em {targetFlow:F2} ± {doc.Settings.VentFlowToleranceLpm:F2} L/min.");
-            LogEvent("VentStabilizationStarted", $"Descarga aberta ({route}), alvo {targetFlow:F2} L/min.");
-        }
-        else
-        {
-            DispatchFlow(RouteFrame(targetFlow, GasRoute.Reactor), "abrir gás para o reator (A)");
-            SetPhase(PowerRunPhase.OpeningGas, $"Abrindo fluxo para o reator — A ({targetFlow:F2} L/min)...");
-            LogEvent("OpeningGasDirect", $"Vazão de {targetFlow:F2} L/min direcionada ao reator por A.");
-        }
+        var route = GasRouting.Describe(GasRoute.VentAndNitrogen, Rig);
+        DispatchMotorOrFault((int)doc.Settings.PrestageAgitationRpm, "reduzir agitação durante a pré-estabilização por C");
+        DispatchFlow(RouteFrame(targetFlow, GasRoute.VentAndNitrogen), "abrir a descarga (C)");
+        SetPhase(
+            PowerRunPhase.PrestagingFlow,
+            $"Ar por C ({route}); estabilizando vazão em {targetFlow:F2} ± {doc.Settings.PrestageFlowToleranceLpm:F2} L/min.");
+        LogEvent("PrestageStarted", $"Ar por C ({route}), alvo {targetFlow:F2} L/min.");
     }
 
     private void StartBothSubphase2()
@@ -968,14 +974,14 @@ public sealed class PowerTestRunner : IPowerTestRunner
             return;
         }
 
-        if (_phase == PowerRunPhase.VentStabilizing)
+        if (_phase == PowerRunPhase.PrestagingFlow)
         {
             AppendSample(snapshot, now, counted: false);
             if (!IsGasStateConfirmed(snapshot, _targetGasState))
             {
                 if (PhaseElapsedSeconds >= 10.0)
                 {
-                    StopForReview("Tempo limite de confirmação da válvula de alívio excedido.", PowerStopReason.Tmax, sequenceFailure: true);
+                    StopForReview("Tempo limite de confirmação da saída B/C (descarga) excedido.", PowerStopReason.Tmax, sequenceFailure: true);
                 }
                 return;
             }
@@ -984,7 +990,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             var dev = snapshot.FlowRate - targetFlow;
             _ventFlowDeviation = dev;
             var settings = _currentTest!.Settings;
-            if (Math.Abs(dev) <= settings.VentFlowToleranceLpm)
+            if (Math.Abs(dev) <= settings.PrestageFlowToleranceLpm)
             {
                 _ventFlowStableCount++;
             }
@@ -996,26 +1002,26 @@ public sealed class PowerTestRunner : IPowerTestRunner
             // Second way out: the flow has settled (low spread over the last N readings) close to
             // the target, even if it sits just outside the tolerance band — the bench controller's
             // steady offset. The reactor phase measures the flow again anyway.
-            FlowSettling.Push(_ventFlowWindow, snapshot.FlowRate, settings.VentFlowStableSamples);
-            var settled = VentFlowHasSettled(_ventFlowWindow, targetFlow, settings, out var spread);
+            FlowSettling.Push(_ventFlowWindow, snapshot.FlowRate, settings.PrestageFlowStableSamples);
+            var settled = PrestageFlowHasSettled(_ventFlowWindow, targetFlow, settings, out var spread);
 
             var offsetText = dev >= 0 ? $"+{dev:F2}" : $"{dev:F2}";
-            _statusMessage = $"Alívio ({settings.SelectedVentValve}) · {snapshot.FlowRate:F2} L/min " +
-                $"(alvo {targetFlow:F2} ± {settings.VentFlowToleranceLpm:F2}) · " +
-                $"estabilidade {_ventFlowStableCount}/{settings.VentFlowStableSamples} · " +
+            _statusMessage = $"Ar por C · {snapshot.FlowRate:F2} L/min " +
+                $"(alvo {targetFlow:F2} ± {settings.PrestageFlowToleranceLpm:F2}) · " +
+                $"estabilidade {_ventFlowStableCount}/{settings.PrestageFlowStableSamples} · " +
                 $"estabilizando há {PhaseElapsedSeconds:F0} s · offset {offsetText} · σ {spread:F3}";
 
-            if (_ventFlowStableCount >= settings.VentFlowStableSamples || settled)
+            if (_ventFlowStableCount >= settings.PrestageFlowStableSamples || settled)
             {
-                var how = _ventFlowStableCount >= settings.VentFlowStableSamples ? "dentro da banda" : $"estável (σ {spread:F3} L/min, offset {offsetText} L/min)";
-                LogEvent("VentFlowStable", $"Vazão estabilizada em {snapshot.FlowRate:F2} L/min no alívio ({how}) após {PhaseElapsedSeconds:F0} s. Comutando para o reator.");
+                var how = _ventFlowStableCount >= settings.PrestageFlowStableSamples ? "dentro da banda" : $"estável (σ {spread:F3} L/min, offset {offsetText} L/min)";
+                LogEvent("PrestageFlowStable", $"Vazão estabilizada em {snapshot.FlowRate:F2} L/min por C ({how}) após {PhaseElapsedSeconds:F0} s. Comutando para o reator.");
                 // One frame: B/C close and A opens in the same JSON (plan §3.4).
                 DispatchFlow(RouteFrame(targetFlow, GasRoute.Reactor), "comutar fluxo ao reator (A)");
                 SetPhase(PowerRunPhase.OpeningGas, "Fechando B/C e abrindo A: vazão ao reator...");
             }
-            else if (PhaseElapsedSeconds >= settings.MaxVentStabilizationSeconds)
+            else if (PhaseElapsedSeconds >= settings.MaxPrestageSeconds)
             {
-                StopForReview("Tempo limite de estabilização da vazão no alívio excedido.", PowerStopReason.Tmax, sequenceFailure: true);
+                StopForReview("Tempo limite da pré-estabilização por C excedido.", PowerStopReason.Tmax, sequenceFailure: true);
             }
             return;
         }
@@ -1368,13 +1374,13 @@ public sealed class PowerTestRunner : IPowerTestRunner
     /// within the stability error of the target — <see cref="FlowSettling.HasSettled"/>, shared
     /// with the kLa runner's pre-staging on C.
     /// </summary>
-    internal static bool VentFlowHasSettled(IReadOnlyList<double> window, double targetFlow, PowerTestSettings settings, out double standardDeviation)
+    internal static bool PrestageFlowHasSettled(IReadOnlyList<double> window, double targetFlow, PowerTestSettings settings, out double standardDeviation)
         => FlowSettling.HasSettled(
             window,
             targetFlow,
-            settings.VentFlowStableSamples,
-            settings.VentFlowStabilityStdDevLpm,
-            settings.VentFlowStabilityMaxErrorLpm,
+            settings.PrestageFlowStableSamples,
+            settings.PrestageFlowStabilityStdDevLpm,
+            settings.PrestageFlowStabilityMaxErrorLpm,
             out standardDeviation);
 
     private void PauseForMeasurement(string reason)
@@ -1736,8 +1742,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
         PowerRunPhase.HoldingForManualEnergy;
 
     private bool RequiresGasMeasurement(PowerRunPhase phase) =>
-        (_currentRun?.GasMode == PowerGasMode.Gassed || phase is PowerRunPhase.VentStabilizing or PowerRunPhase.OpeningGas) &&
-        phase is PowerRunPhase.VentStabilizing or
+        (_currentRun?.GasMode == PowerGasMode.Gassed || phase is PowerRunPhase.PrestagingFlow or PowerRunPhase.OpeningGas) &&
+        phase is PowerRunPhase.PrestagingFlow or
                  PowerRunPhase.OpeningGas or
                  PowerRunPhase.SettlingTorque or
                  PowerRunPhase.AccumulatingToTarget or
@@ -1828,13 +1834,13 @@ public sealed class PowerTestRunner : IPowerTestRunner
             !double.IsFinite(settings.CiFloorSigmaMultiple) || settings.CiFloorSigmaMultiple < 0 ||
             !double.IsFinite(settings.MaxTorquePercent) || settings.MaxTorquePercent <= 0 ||
             !double.IsFinite(settings.SnrFloorMultiple) || settings.SnrFloorMultiple <= 0 ||
-            !double.IsFinite(settings.VentFlowToleranceLpm) || settings.VentFlowToleranceLpm <= 0 ||
-            settings.VentFlowStableSamples < 1 ||
-            !double.IsFinite(settings.VentAgitationRpm) ||
-            settings.VentAgitationRpm < 15 || settings.VentAgitationRpm > 1000 ||
-            !double.IsFinite(settings.MaxVentStabilizationSeconds) || settings.MaxVentStabilizationSeconds <= 0 ||
-            !double.IsFinite(settings.VentFlowStabilityStdDevLpm) || settings.VentFlowStabilityStdDevLpm < 0 ||
-            !double.IsFinite(settings.VentFlowStabilityMaxErrorLpm) || settings.VentFlowStabilityMaxErrorLpm < 0 ||
+            !double.IsFinite(settings.PrestageFlowToleranceLpm) || settings.PrestageFlowToleranceLpm <= 0 ||
+            settings.PrestageFlowStableSamples < 1 ||
+            !double.IsFinite(settings.PrestageAgitationRpm) ||
+            settings.PrestageAgitationRpm < 15 || settings.PrestageAgitationRpm > 1000 ||
+            !double.IsFinite(settings.MaxPrestageSeconds) || settings.MaxPrestageSeconds <= 0 ||
+            !double.IsFinite(settings.PrestageFlowStabilityStdDevLpm) || settings.PrestageFlowStabilityStdDevLpm < 0 ||
+            !double.IsFinite(settings.PrestageFlowStabilityMaxErrorLpm) || settings.PrestageFlowStabilityMaxErrorLpm < 0 ||
             settings.CaptureServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs ||
             settings.RestoreServoPollMs is < CommandBuilders.ServoPollMinimumMs or > CommandBuilders.ServoPollMaximumMs)
         {

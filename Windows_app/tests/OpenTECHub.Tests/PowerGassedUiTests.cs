@@ -263,23 +263,19 @@ public sealed class PowerGassedUiTests : IDisposable
         vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
         vm.LoadSelectedTestCommand.Execute(null);
 
-        vm.VentStabilizationEnabled = true;
-        vm.SelectedVentValve = PowerVentValve.Valve1;
-        vm.VentFlowToleranceLpm = 0.35;
-        vm.VentFlowStableSamples = 8;
-        vm.VentAgitationRpm = 25.0;
-        vm.MaxVentStabilizationSeconds = 90.0;
+        vm.PrestageFlowToleranceLpm = 0.35;
+        vm.PrestageFlowStableSamples = 8;
+        vm.PrestageAgitationRpm = 25.0;
+        vm.MaxPrestageSeconds = 90.0;
 
         vm.SaveSetupCommand.Execute(null);
 
         var savedDoc = _store.LoadTest(doc.FolderName);
         Assert.NotNull(savedDoc);
-        Assert.True(savedDoc.Settings.VentStabilizationEnabled);
-        Assert.Equal(PowerVentValve.Valve1, savedDoc.Settings.SelectedVentValve);
-        Assert.Equal(0.35, savedDoc.Settings.VentFlowToleranceLpm);
-        Assert.Equal(8, savedDoc.Settings.VentFlowStableSamples);
-        Assert.Equal(25.0, savedDoc.Settings.VentAgitationRpm);
-        Assert.Equal(90.0, savedDoc.Settings.MaxVentStabilizationSeconds);
+        Assert.Equal(0.35, savedDoc.Settings.PrestageFlowToleranceLpm);
+        Assert.Equal(8, savedDoc.Settings.PrestageFlowStableSamples);
+        Assert.Equal(25.0, savedDoc.Settings.PrestageAgitationRpm);
+        Assert.Equal(90.0, savedDoc.Settings.MaxPrestageSeconds);
     }
 
     [Fact]
@@ -319,42 +315,53 @@ public sealed class PowerGassedUiTests : IDisposable
         vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
         vm.LoadSelectedTestCommand.Execute(null);
 
-        // Send telemetry with flow rate and open reactor valve (valve_1 = 1)
+        // Telemetry with flow and A open — valve_2 on the default A/B/C wiring (plan §1.3.1)
         var snapshot = new SensorSnapshot
         {
             HasServoSample = true,
             ServoRpm = 300.0,
             ServoTorquePct = 5.0,
             FlowRate = 5.0, // 5 L/min
-            FlowValve1 = 1,
+            FlowSetpoint = 5.0,
+            FlowValve2 = 1,
             FlowValveMain = 0,
         };
         device.Emit(snapshot);
 
         Assert.Equal(5.0, vm.CurrentFlowLpm);
         Assert.Equal(0.5, vm.CurrentFlowVvm); // 5 L/min / 10 L = 0.5 vvm
-        Assert.Equal("Reator Aberto", vm.GasLoopStatusBadge);
+        Assert.Equal("Reator (A)", vm.GasLoopStatusBadge);
         Assert.NotNull(vm.CurrentPowerRatio);
         Assert.True(vm.CurrentPowerRatio > 0);
     }
 
     /// <summary>
-    /// §F.4: with the runner idle, v_Flow = 1 is the active-high shutoff FlowSafeStop leaves closed on
-    /// purpose — not a vent stabilising. Seen at the end of Rushton-Smith (2026-09-11): 63/63 accepted,
-    /// both valves closed, chip stuck on "Alívio Estabilizando".
+    /// The chip reads the wire the way the rig does (plan A/B/C §3.1, Etapa 5): the observed pair
+    /// and the echoed setpoint, with the hardware's names. With the runner idle, both outputs
+    /// closed and no setpoint is simply "Fechado" — the shutoff FlowSafeStop leaves on purpose,
+    /// not a vent stabilising (§F.4, Rushton-Smith 2026-09-11: chip stuck on the old text).
+    /// A setpoint with nothing open is a dead-ended line; both open is the anomaly.
     /// </summary>
     [Theory]
-    [InlineData(1, 0, 0, 0.0, 0.0, "Fechado (shutoff)")]
-    [InlineData(1, 0, 0, 2.0, 2.1, "Alívio aberto")]
-    [InlineData(1, 0, 0, 0.0, 1.5, "Alívio aberto")]
-    [InlineData(0, 1, 0, 2.0, 2.0, "Reator Aberto")]
-    [InlineData(0, 0, 1, 2.0, 2.0, "Reator Aberto")]
+    [InlineData(1, 0, 0, 0.0, 0.0, "Fechado")]
     [InlineData(0, 0, 0, 0.0, 0.0, "Fechado")]
-    public void Gas_loop_chip_names_the_shutoff_when_idle(int vFlow, int valve1, int valve2, double setpoint, double flow, string expected)
+    [InlineData(1, 0, 0, 2.0, 2.1, "Gás sem destino")]
+    [InlineData(0, 1, 0, 2.0, 2.0, "Descarga + N₂ (B/C)")]
+    [InlineData(0, 0, 1, 2.0, 2.0, "Reator (A)")]
+    [InlineData(0, 1, 1, 2.0, 2.0, "A e B/C abertas")]
+    public void Gas_loop_chip_names_the_observed_route(int vFlow, int valve1, int valve2, double setpoint, double flow, string expected)
     {
         var snapshot = new SensorSnapshot { FlowValveMain = vFlow, FlowValve1 = valve1, FlowValve2 = valve2, FlowSetpoint = setpoint, FlowRate = flow };
 
-        Assert.Equal(expected, PowerTestViewModel.GasLoopStatusFor(runner: null, snapshot));
+        Assert.Equal(expected, PowerTestViewModel.GasLoopStatusFor(runner: null, snapshot, GasRigConfiguration.Default));
+    }
+
+    /// <summary>The same pair reads the other way round on the other wiring.</summary>
+    [Fact]
+    public void Gas_loop_chip_follows_the_configured_wiring()
+    {
+        var snapshot = new SensorSnapshot { FlowValve1 = 1, FlowValve2 = 0, FlowSetpoint = 2.0, FlowRate = 2.0 };
+        Assert.Equal("Reator (A)", PowerTestViewModel.GasLoopStatusFor(runner: null, snapshot, new GasRigConfiguration(GasInput.Input1)));
     }
 
     [Fact]

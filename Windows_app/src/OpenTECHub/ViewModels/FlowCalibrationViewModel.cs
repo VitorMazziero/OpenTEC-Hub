@@ -431,9 +431,26 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         SendCalibrationSetpoint(Math.Clamp(current + (direction * step), 0.0, _maximumFlow));
     }
 
+    /// <summary>
+    /// Where the calibration gas goes. C (vent) by default: the meter is exercised without
+    /// filling the vessel — the operator keeps the N₂ shut at the source, since B shares C's
+    /// output. Reactor is the alternative when the vessel is empty anyway.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CalibrationRouteText))]
+    public partial bool CalibrateThroughReactor { get; set; }
+
+    public GasRoute CalibrationRoute => CalibrateThroughReactor ? GasRoute.Reactor : GasRoute.VentAndNitrogen;
+
+    public string CalibrationRouteText => CalibrateThroughReactor
+        ? $"{GasRouting.Describe(GasRoute.Reactor, _settings.Current.GasRig.ToConfiguration())} — o gás entra no reator."
+        : $"{GasRouting.Describe(GasRoute.VentAndNitrogen, _settings.Current.GasRig.ToConfiguration())} — mantenha o N₂ fechado na fonte.";
+
     private void SendCalibrationSetpoint(double flow)
     {
-        var result = _dispatcher.Dispatch(CommandBuilders.FlowCalibrationSetpoint(flow));
+        var route = flow > 0.0 ? CalibrationRoute : GasRoute.Closed;
+        var result = _dispatcher.Dispatch(
+            CommandBuilders.FlowCalibrationSetpoint(flow, route, _settings.Current.GasRig.ToConfiguration()));
         if (!result.Accepted)
         {
             StatusText = DispatchRefusal.Describe(result, _dispatcher);

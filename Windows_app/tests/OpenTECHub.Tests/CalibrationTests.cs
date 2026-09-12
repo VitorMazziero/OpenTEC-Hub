@@ -322,7 +322,8 @@ public sealed class GuidedCalibrationTests
         vm.SetpointText = "1.0";
         vm.SendSetpointCommand.Execute(null);
         Assert.Equal(
-            """{"flowSetpoint":1.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            // A/B/C rig: calibration blows through C = valve_1 on the default wiring (plan §1.3.1).
+            """{"flowSetpoint":1.0,"valve_1":1,"valve_2":0,"v_Flow":0}""",
             Assert.Single(device.Sent));
 
         PushFlow(device, 0.04);

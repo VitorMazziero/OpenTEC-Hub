@@ -316,18 +316,31 @@ public sealed partial class FlowControlViewModel : ObservableObject
 
     partial void OnMaxFlowTextChanged(string value) => RefreshDerivedState();
 
+    /// <summary>The A/B/C wiring; the documented default when no settings service is wired in.</summary>
+    private GasRigConfiguration Rig => _settings?.Current.GasRig.ToConfiguration() ?? GasRigConfiguration.Default;
+
     /// <summary>
-    /// Builds a normal flow setpoint while preserving the most recently observed
-    /// physical valve states. A setpoint edit in the detail pane must not close a valve
-    /// merely because the page that owns valve editing is elsewhere.
+    /// Builds a normal flow setpoint while preserving the route the flowmeter is observed
+    /// on. A setpoint edit in the detail pane must not change the gas destination merely
+    /// because the page that owns routing is elsewhere — but it must never reproduce a
+    /// dead-ended line either: an observed <c>Closed</c>/<c>DeadEnd</c> with a setpoint above
+    /// zero goes to the reactor (A).
     /// </summary>
-    public OpenTECCommand BuildSetpointUsingObservedValves(double setpoint)
-        => CommandBuilders.FlowSetpoint(
-            setpoint,
-            CommandMaximum,
-            ActualValve1 ?? _appliedValve1,
-            ActualValve2 ?? _appliedValve2,
-            ActualVentValve ?? _appliedMainValveClosed);
+    public OpenTECCommand BuildSetpointPreservingRoute(double setpoint)
+    {
+        var v1 = ActualValve1 ?? _appliedValve1;
+        var v2 = ActualValve2 ?? _appliedValve2;
+        var route = GasRouting.Interpret(v1, v2, setpoint, Rig) switch
+        {
+            ObservedGasRoute.VentAndNitrogen => GasRoute.VentAndNitrogen,
+            ObservedGasRoute.Reactor => GasRoute.Reactor,
+            ObservedGasRoute.Closed => GasRoute.Closed,
+            // DeadEnd, BothOpen: not a route anyone asked for — go to the reactor.
+            _ => setpoint > 0.0 ? GasRoute.Reactor : GasRoute.Closed,
+        };
+
+        return CommandBuilders.FlowRoute(setpoint, CommandMaximum, route, Rig);
+    }
 
     /// <summary>Builds the complete flow safe-stop using the staged valid ceiling.</summary>
     public OpenTECCommand BuildSafeStop() => CommandBuilders.FlowSafeStop(CommandMaximum);

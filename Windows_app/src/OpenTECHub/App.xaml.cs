@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using OpenTECHub.Protocol;
 using OpenTECHub.Services.Alarms;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
@@ -404,6 +405,10 @@ public partial class App : Application
         // The phase-1 power assay uses the same ownership and cultivation gates as the other
         // automatic workflows. The runner is telemetry-driven and contains no UI dependency.
         services.AddSingleton<IPowerTestInterlock, PowerTestInterlock>();
+        // The A/B/C wiring is read at each gas dispatch (runner, single-point check), so a
+        // Configurações change applies to the next command without restarting the app.
+        services.AddSingleton<Func<GasRigConfiguration>>(sp =>
+            () => sp.GetRequiredService<ISettingsService>().Current.GasRig.ToConfiguration());
         services.AddSingleton<IPowerTestRunner, PowerTestRunner>();
 
         // The safety coordinator (AUD-001) resolves ownership conflicts during safe stops,

@@ -140,6 +140,9 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
+
+    /// <summary>The A/B/C wiring, read at each actuation so a Configurações change applies live.</summary>
+    private readonly Func<GasRigConfiguration> _rig;
     private readonly IKlaProfileStore _store;
     private readonly ITelemetryHistory? _history;
     private readonly IEventJournal? _journal;
@@ -182,6 +185,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         Mode = settings.Current.Cascade.Mode;
         _gainSchedule = settings.Current.GainSchedule;
         _nominalStepSeconds = Math.Max(settings.Current.Connection.DataDelayMs, 250) / 1000.0;
+        _rig = () => settings.Current.GasRig.ToConfiguration();
         _routeCoordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.Automatic);
         _controller = Build(_configuration, Mode);
         RebuildScheduler();
@@ -638,7 +642,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
                 ? kla.KlaForEffort(Terms.Output)
                 : null;
 
-            var frame = CascadeController.BuildCommand(LastActuation);
+            var frame = CascadeController.BuildCommand(LastActuation, _rig());
             var result = _arbiter.Dispatch(CommandOwner.Automatic, frame);
             if (!result.Accepted)
             {

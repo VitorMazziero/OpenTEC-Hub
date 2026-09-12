@@ -664,7 +664,7 @@ public sealed class ControlViewModelTests
                     () => OpenTECCommand.Create().Set(CommandKeys.OxygenMonitor, 0.0),
                     Settings.Current.Setpoints.OxygenPercent),
                 Create("flow", "Vazão", "L/min", 2, 0, Flow.AppliedMaxFlow, false,
-                    value => Flow.BuildSetpointUsingObservedValves(value),
+                    value => Flow.BuildSetpointPreservingRoute(value),
                     () => Flow.BuildSafeStop(),
                     Settings.Current.Setpoints.FlowLitresPerMinute,
                     (_, enabled) => Flow.CommitFromFlowSetpoint(enabled)),

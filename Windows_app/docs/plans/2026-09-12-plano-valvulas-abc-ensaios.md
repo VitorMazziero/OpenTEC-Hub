@@ -7,9 +7,17 @@ no mesmo dia: o fluxômetro tem **duas entradas de MOSFET, 1 e 2**; **MOSFET 1 a
 (mesmo canal — abrem e fecham juntas) e **MOSFET 2 aciona A**; a nomenclatura do app deve seguir a
 do hardware (A, B, C; entradas 1 e 2); essa é a ligação **padrão**, configurável (se A for para a
 entrada 1, B/C vão para a 2).
-**Estado:** em execução — **Etapa 1 concluída em 12/09/2026** (`GasRouting.cs`,
-`CommandBuilders.FlowRoute`, `AppSettings.GasRig`; 33 testes em `GasRoutingTests`; suíte 1544).
-Nenhum produtor usa o roteador ainda (Etapa 2). Independente dos dois planos anteriores de 12/09
+**Estado:** em execução — **Etapas 1 e 2 concluídas em 12/09/2026.** Etapa 1 (`cee570a`):
+`GasRouting.cs`, `CommandBuilders.FlowRoute`, `AppSettings.GasRig`; 33 testes. Etapa 2: os doze
+produtores passam pelo roteador (runners de kLa e Potência com `RouteFrame`, receitas, cascata via
+`CascadeController.BuildCommand(result, rig)`, gás proporcional da bomba, ponto único, calibração
+por C com opção Reator, `BuildSetpointPreservingRoute` no painel de detalhe); `grep FlowSetpoint(`
+só encontra `CommandBuilders` e os toggles crus de `FlowControlViewModel` (Etapa 6); suíte 1551.
+**Desvio na Etapa 2:** `PowerTestRunner` e `PowerTestViewModel` não têm `ISettingsService` — recebem
+`Func<GasRigConfiguration>` registrado no `App` (lê `Settings.Current.GasRig` a cada despacho).
+`ShouldVentBeforeAir` do kLa deixou de comparar válvulas (a colisão "alívio = N₂" é o arranjo
+normal agora); a validação de `StartRunAsync` que ainda recusa `ventValve == nitrogenValve` cai
+na Etapa 4 junto com os campos. Independente dos dois planos anteriores de 12/09
 (identidade dos nós e configuração dos nós); compartilha com o segundo a sintonia do fluxômetro (§8).
 **Pré-leitura:** `docs/PROTOCOL.md` §3.1 (`valve_1`, `valve_2`, `v_Flow`), §4 (golden strings);
 `docs/plans/PLANO_IMPLEMENTACAO_TESTES_KLA.md`; `docs/plans/PLANO_ENSAIOS_POTENCIA_IMPELIDOR.md`

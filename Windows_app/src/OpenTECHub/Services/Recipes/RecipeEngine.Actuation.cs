@@ -87,7 +87,9 @@ public sealed partial class RecipeEngine
         SetpointVariable.Agitation => BuildAgitationSetpoint(value),
         // O2 setpoint writes the monitor only; it does NOT engage the deferred enrichment path.
         SetpointVariable.Oxygen => OpenTECCommand.Create().Set(CommandKeys.OxygenMonitor, value),
-        SetpointVariable.Flow => CommandBuilders.FlowSetpoint(value, MaxFlow),
+        // A recipe's aeration goes to the reactor; a zero setpoint closes everything.
+        SetpointVariable.Flow => CommandBuilders.FlowRoute(
+            value, MaxFlow, value > 0.0 ? GasRoute.Reactor : GasRoute.Closed, _settings.Current.GasRig.ToConfiguration()),
         SetpointVariable.Pressure => OpenTECCommand.Create().Set(CommandKeys.PressureReference, value),
         // pH sets the reference and inactive band; the dosing pump timing/intensity is the Bomba pH block.
         SetpointVariable.Ph => OpenTECCommand.Create().Set(CommandKeys.PHSetpoint, value).Set(CommandKeys.PHError, hysteresis),

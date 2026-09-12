@@ -37,6 +37,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private readonly IDialogService? _dialogs;
     private readonly IPowerAnalysisEngine _analysis;
     private readonly IKlaProfileStore? _klaStore;
+
+    /// <summary>The A/B/C wiring for the single-point check; the documented default when not injected.</summary>
+    private readonly Func<GasRigConfiguration> _rig;
     private SensorSnapshot? _latestSnapshot;
     private readonly HashSet<PowerCondition> _flowConfiguredConditions = [];
     private CancellationTokenSource? _tareCancellation;
@@ -109,7 +112,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         IDialogService? dialogs,
         IPowerAnalysisEngine? analysis,
         IKlaProfileStore? klaStore,
-        PowerMapViewModel? mapViewModel)
+        PowerMapViewModel? mapViewModel,
+        Func<GasRigConfiguration>? gasRig = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(device);
@@ -121,6 +125,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _analysis = analysis ?? new PowerAnalysisEngine();
         _klaStore = klaStore;
+        _rig = gasRig ?? (static () => GasRigConfiguration.Default);
         MapViewModel = mapViewModel;
         TestRootDirectory = store.RootDirectory;
         _routeCoordinator = runner?.RouteCoordinator ?? new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
@@ -3246,7 +3251,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.MotorSetpoint((int)SinglePointRpm));
             if (SinglePointFlowLpm > 0)
             {
-                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.FlowSetpoint(SinglePointFlowLpm, 10.0));
+                _arbiter.Dispatch(CommandOwner.PowerAssay, CommandBuilders.FlowRoute(
+                    SinglePointFlowLpm, 10.0, GasRoute.Reactor, _rig()));
             }
             IsSinglePointActive = true;
             LivePoints.Clear();

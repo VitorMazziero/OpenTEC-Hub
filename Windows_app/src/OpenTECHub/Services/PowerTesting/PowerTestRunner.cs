@@ -10,6 +10,18 @@ namespace OpenTECHub.Services.PowerTesting;
 public sealed class PowerTestRunner : IPowerTestRunner
 {
     private const double MaxFlow = 15.0;
+
+    /// <summary>The A/B/C wiring; the runner has no settings service, so the composition root passes it in.</summary>
+    private readonly Func<GasRigConfiguration> _rig;
+    private GasRigConfiguration Rig => _rig();
+
+    /// <summary>Builds the flow frame for <paramref name="route"/> and records the pair the echo must confirm.</summary>
+    private OpenTECCommand RouteFrame(double flow, GasRoute route)
+    {
+        var (v1, v2) = GasRouting.Resolve(route, Rig);
+        _targetGasState = (flow, v1, v2, flow <= 0.0);
+        return CommandBuilders.FlowRoute(flow, MaxFlow, route, Rig);
+    }
     private static readonly ActuatorId[] Phase1Actuators = [ActuatorId.Agitation];
     private static readonly ActuatorId[] GassedActuators = [ActuatorId.Agitation, ActuatorId.Aeration];
 
@@ -60,7 +72,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
         IPowerTestStore store,
         IPowerAnalysisEngine analysis,
         IPowerTestInterlock interlock,
-        TimeProvider time)
+        TimeProvider time,
+        Func<GasRigConfiguration>? gasRig = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(arbiter);
@@ -75,6 +88,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _analysis = analysis;
         _interlock = interlock;
         _time = time;
+        _rig = gasRig ?? (static () => GasRigConfiguration.Default);
 
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnConnectionStateChanged;
@@ -744,26 +758,25 @@ public sealed class PowerTestRunner : IPowerTestRunner
         if (doc.Settings.VentStabilizationEnabled)
         {
             _currentRun!.UsedVentStabilization = true;
-            var isV1 = doc.Settings.SelectedVentValve == PowerVentValve.Valve1;
-            var isV2 = doc.Settings.SelectedVentValve == PowerVentValve.Valve2;
-            _targetGasState = (targetFlow, isV1, isV2, false);
             _ventFlowStableCount = 0;
             _ventFlowDeviation = null;
             _ventFlowWindow.Clear();
 
-            DispatchMotorOrFault((int)doc.Settings.VentAgitationRpm, "reduzir agitação durante estabilização no alívio");
-            DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, isV1, isV2, mainValveClosed: false), "abrir válvula de alívio");
+            // The vent is C, which shares its output with B (N₂): the operator must have the
+            // nitrogen shut at the source (plan §3.3). SelectedVentValve is legacy and ignored.
+            var route = GasRouting.Describe(GasRoute.VentAndNitrogen, Rig);
+            DispatchMotorOrFault((int)doc.Settings.VentAgitationRpm, "reduzir agitação durante estabilização na descarga");
+            DispatchFlow(RouteFrame(targetFlow, GasRoute.VentAndNitrogen), "abrir a descarga (C)");
             SetPhase(
                 PowerRunPhase.VentStabilizing,
-                $"Alívio aberto ({doc.Settings.SelectedVentValve}); estabilizando vazão em {targetFlow:F2} ± {doc.Settings.VentFlowToleranceLpm:F2} L/min.");
-            LogEvent("VentStabilizationStarted", $"Alívio aberto ({doc.Settings.SelectedVentValve}), alvo {targetFlow:F2} L/min.");
+                $"Descarga aberta ({route}); estabilizando vazão em {targetFlow:F2} ± {doc.Settings.VentFlowToleranceLpm:F2} L/min.");
+            LogEvent("VentStabilizationStarted", $"Descarga aberta ({route}), alvo {targetFlow:F2} L/min.");
         }
         else
         {
-            _targetGasState = (targetFlow, false, false, false);
-            DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false, false), "abrir gás para o reator");
-            SetPhase(PowerRunPhase.OpeningGas, $"Abrindo fluxo para o reator ({targetFlow:F2} L/min)...");
-            LogEvent("OpeningGasDirect", $"Vazão de {targetFlow:F2} L/min direcionada diretamente ao reator.");
+            DispatchFlow(RouteFrame(targetFlow, GasRoute.Reactor), "abrir gás para o reator (A)");
+            SetPhase(PowerRunPhase.OpeningGas, $"Abrindo fluxo para o reator — A ({targetFlow:F2} L/min)...");
+            LogEvent("OpeningGasDirect", $"Vazão de {targetFlow:F2} L/min direcionada ao reator por A.");
         }
     }
 
@@ -999,10 +1012,9 @@ public sealed class PowerTestRunner : IPowerTestRunner
             {
                 var how = _ventFlowStableCount >= settings.VentFlowStableSamples ? "dentro da banda" : $"estável (σ {spread:F3} L/min, offset {offsetText} L/min)";
                 LogEvent("VentFlowStable", $"Vazão estabilizada em {snapshot.FlowRate:F2} L/min no alívio ({how}) após {PhaseElapsedSeconds:F0} s. Comutando para o reator.");
-                // max flow is constant MaxFlow
-                _targetGasState = (targetFlow, false, false, false);
-                DispatchFlow(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false, false), "comutar fluxo ao reator");
-                SetPhase(PowerRunPhase.OpeningGas, "Fechando alívio e direcionando vazão ao reator...");
+                // One frame: B/C close and A opens in the same JSON (plan §3.4).
+                DispatchFlow(RouteFrame(targetFlow, GasRoute.Reactor), "comutar fluxo ao reator (A)");
+                SetPhase(PowerRunPhase.OpeningGas, "Fechando B/C e abrindo A: vazão ao reator...");
             }
             else if (PhaseElapsedSeconds >= settings.MaxVentStabilizationSeconds)
             {

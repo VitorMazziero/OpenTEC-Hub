@@ -239,7 +239,7 @@ public sealed class FlowmeterV05SyncTests
                     new ProcessVariableViewModel("flow", "Vazão", "L/min", 2),
                     new SubsystemSpec(
                         0, 50, false,
-                        value => Flow.BuildSetpointUsingObservedValves(value),
+                        value => Flow.BuildSetpointPreservingRoute(value),
                         () => Flow.BuildSafeStop(),
                         OnCommitted: (_, enabled) => Flow.CommitFromFlowSetpoint(enabled),
                         CanApplyNow: () => Flow.CanSendFlowCommands),

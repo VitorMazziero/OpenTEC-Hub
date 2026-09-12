@@ -121,7 +121,7 @@ public sealed partial class RecipeEngine
                 var result = controller.Update(snapshot.OxygenCalibrated, dt);
                 NodeStateChanged?.Invoke(node.Id); // refresh the live P/I/D/Saída terms
 
-                if (!_arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result)).Accepted)
+                if (!_arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result, _settings.Current.GasRig.ToConfiguration())).Accepted)
                 {
                     Log(RecipeLogSeverity.Warning, "Controle de O₂: posse dos atuadores perdida; encerrando.", node.Id);
                     break;

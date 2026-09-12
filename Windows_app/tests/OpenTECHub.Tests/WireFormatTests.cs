@@ -91,7 +91,8 @@ public class WireFormatTests
     [Fact]
     public void Cascade_actuation_keeps_v6_key_order()
         => Assert.Equal(
-            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",
+            // A/B/C rig: the cascade's air goes to the reactor through A = valve_2 (default wiring).
+            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":1,"v_Flow":0,"oxygenMonitor":40.0,"motorSetpoint":300}""",
             CommandBuilders.CascadeActuation(2.5, 40.0, 300).ToJson());
 
     /// <summary>pH is echoed back as a quoted string with two decimals, not a number.</summary>
@@ -121,7 +122,8 @@ public class WireFormatTests
     public void Flow_calibration_frames_match_the_firmware_key_order()
     {
         Assert.Equal(
-            """{"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            // A/B/C rig: calibration blows through C, on the B/C output = valve_1 (default wiring).
+            """{"flowSetpoint":1.5,"valve_1":1,"valve_2":0,"v_Flow":0}""",
             CommandBuilders.FlowCalibrationSetpoint(1.5).ToJson());
 
         // a1/b1 lead the low segment: sending them opts the firmware into the quartic model,
@@ -347,7 +349,7 @@ public class CultureInvarianceTests : IDisposable
     [Fact]
     public void Cascade_actuation_is_culture_invariant()
         => Assert.Equal(
-            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":0,"v_Flow":0,"oxygenMonitor":40.5,"motorSetpoint":300}""",
+            """{"flowSetpoint":2.5,"valve_1":0,"valve_2":1,"v_Flow":0,"oxygenMonitor":40.5,"motorSetpoint":300}""",
             CommandBuilders.CascadeActuation(2.5, 40.5, 300).ToJson());
 
     [Fact]

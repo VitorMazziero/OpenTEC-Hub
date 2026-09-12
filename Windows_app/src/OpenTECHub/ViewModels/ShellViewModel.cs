@@ -319,7 +319,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                     // The loop flag rides alongside the setpoint rather than inside it: the
                     // v05 frame stays exactly the reliable keys, and the Hub still learns that
                     // the loop is on (see CommandBuilders.FlowmeterLoopEnabled).
-                    value => FlowControl.BuildSetpointUsingObservedValves(value)
+                    value => FlowControl.BuildSetpointPreservingRoute(value)
                         .Merge(CommandBuilders.FlowmeterLoopEnabled(true)),
                     // Safe-stop, not merely zero flow: both valves are forced closed,
                     // because leaving nitrogen open through a stop is a hazard.

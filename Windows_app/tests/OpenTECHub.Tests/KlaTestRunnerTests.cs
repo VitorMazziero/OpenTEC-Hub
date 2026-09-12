@@ -210,13 +210,13 @@ public sealed class KlaTestRunnerTests : IDisposable
         Assert.Equal(3, _runner.StabilityConfirmationCount);
         Assert.Equal(RunPhase.OpeningAir, _runner.Phase);
 
-        // Confirm Air opened (Flow=3.0, FlowValveMain=0) -> Reoxygenating
+        // Confirm air opened (Flow=3.0, A = valve_2 on the default A/B/C wiring, main open) -> Reoxygenating
         _device.PushTelemetry(new SensorSnapshot
         {
             OxygenCalibrated = 12.0,
             OxygenRaw = 12.0,
             FlowValve1 = 0,
-            FlowValve2 = 0,
+            FlowValve2 = 1,
             FlowValveMain = 0,
             FlowRate = 3.0,
             FlowSetpoint = 3.0,
@@ -377,11 +377,12 @@ public sealed class KlaTestRunnerTests : IDisposable
         PushGas(4.0, flow: 0.0, valve1: false, valve2: false, mainClosed: true, commandId: 1);
         Assert.Equal(RunPhase.OpeningVent, _runner.Phase);
 
-        // The vent output carries the requested airflow with the main path open.
+        // The vent (C) shares the B/C output — valve_1 on the default wiring — and carries the
+        // requested airflow with the main path open (plan §1.3.1).
         var ventCommand = _device.Sent.Last(j => j.Contains("flowSetpoint"));
         Assert.Contains("\"flowSetpoint\":3", ventCommand);
-        Assert.Contains("\"valve_1\":0", ventCommand);
-        Assert.Contains("\"valve_2\":1", ventCommand);
+        Assert.Contains("\"valve_1\":1", ventCommand);
+        Assert.Contains("\"valve_2\":0", ventCommand);
         Assert.Contains("\"v_Flow\":0", ventCommand);
 
         // The vessel is not being sparged yet, so the assay rotation must not be running:
@@ -390,37 +391,38 @@ public sealed class KlaTestRunnerTests : IDisposable
             "{\"motorSetpoint\":50}",
             _device.Sent.Last(j => j.Contains("motorSetpoint")));
 
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 6.4);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 6.4);
         Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
         Assert.True(_runner.CurrentRun?.UsedVentStabilization);
 
         // The pulse itself is out of band and must not be counted.
         Assert.Equal(0, _runner.VentFlowStableCount);
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.5);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 3.5);
         Assert.Equal(0, _runner.VentFlowStableCount);
         Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
 
         // Two in-band readings are still one short of the three required.
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.1);
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 2.85);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 3.1);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 2.85);
         Assert.Equal(2, _runner.VentFlowStableCount);
         Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
 
         // A single excursion restarts the count: the band must hold consecutively.
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.4);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 3.4);
         Assert.Equal(0, _runner.VentFlowStableCount);
 
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.05);
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 2.95);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 3.05);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 2.95);
         Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.0);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 3.0);
         Assert.Equal(RunPhase.OpeningAir, _runner.Phase);
 
-        // Closing the vent keeps the settled setpoint: no second pulse reaches the vessel.
+        // Closing B/C and opening A is one frame with the settled setpoint: no second pulse
+        // reaches the vessel, and no intermediate state is ever on the wire.
         var admitCommand = _device.Sent.Last(j => j.Contains("flowSetpoint"));
         Assert.Contains("\"flowSetpoint\":3", admitCommand);
         Assert.Contains("\"valve_1\":0", admitCommand);
-        Assert.Contains("\"valve_2\":0", admitCommand);
+        Assert.Contains("\"valve_2\":1", admitCommand);
         Assert.Contains("\"v_Flow\":0", admitCommand);
 
         // The assay rotation arrives with the gas, not before it.
@@ -428,15 +430,16 @@ public sealed class KlaTestRunnerTests : IDisposable
             "{\"motorSetpoint\":450}",
             _device.Sent.Last(j => j.Contains("motorSetpoint")));
 
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: false, mainClosed: false, commandId: 3, measured: 3.0);
+        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 3, measured: 3.0);
         Assert.Equal(RunPhase.Reoxygenating, _runner.Phase);
 
-        // The venting samples are recorded, but none of them is assay data.
+        // The venting samples are recorded, but none of them is assay data: no assay point
+        // has B/C (valve_1 on the default wiring) open.
         var points = _runner.CurrentRunPoints;
         Assert.Contains(points, p => p.Phase == RunPhase.StabilizingVentFlow);
         Assert.DoesNotContain(
             points.Where(p => p.Phase == RunPhase.Reoxygenating),
-            p => p.Valve1 || p.Valve2);
+            p => p.Valve1);
     }
 
     /// <summary>
@@ -497,7 +500,7 @@ public sealed class KlaTestRunnerTests : IDisposable
         await _runner.StartTestAsync(doc);
         await _runner.StartRunAsync(cond, 1);
         PushGas(4.0, flow: 0.0, valve1: false, valve2: false, mainClosed: true, commandId: 1);
-        PushGas(4.0, flow: 3.0, valve1: false, valve2: true, mainClosed: false, commandId: 2, measured: 3.0);
+        PushGas(4.0, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId: 2, measured: 3.0);
         Assert.Equal(RunPhase.StabilizingVentFlow, _runner.Phase);
 
         await _runner.StopRunAndReviewAsync("Parada durante o alívio");

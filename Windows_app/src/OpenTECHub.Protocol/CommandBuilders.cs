@@ -585,12 +585,32 @@ public static class CommandBuilders
     /// Both optional gas valves are closed and the inverted vent flag is derived.
     /// </summary>
     public static OpenTECCommand FlowCalibrationSetpoint(double setpoint)
+        => FlowCalibrationSetpoint(setpoint, setpoint > 0.0 ? GasRoute.VentAndNitrogen : GasRoute.Closed, GasRigConfiguration.Default);
+
+    /// <summary>
+    /// Calibration trial setpoint sent where <paramref name="route"/> says. Calibration blows
+    /// through C by default (<see cref="GasRoute.VentAndNitrogen"/>): the meter is exercised
+    /// without filling the vessel, with the nitrogen shut at the source.
+    /// </summary>
+    /// <remarks>
+    /// The frame keeps the firmware key order (<c>flowSetpoint</c>, valves, <c>v_Flow</c>) and
+    /// carries no <c>maxFlow</c>, exactly as before; only the valve pair comes from the router.
+    /// </remarks>
+    public static OpenTECCommand FlowCalibrationSetpoint(double setpoint, GasRoute route, GasRigConfiguration rig)
     {
+        ArgumentNullException.ThrowIfNull(rig);
         var safe = Math.Max(setpoint, 0.0);
+        if (route == GasRoute.Closed && safe > 0.0)
+        {
+            throw new ArgumentException(
+                "Um setpoint de calibração acima de zero exige um destino para o gás.", nameof(route));
+        }
+
+        var (valve1, valve2) = GasRouting.Resolve(route, rig);
         return OpenTECCommand.Create()
             .Set(CommandKeys.FlowSetpoint, safe)
-            .Set(CommandKeys.Valve1, false)
-            .Set(CommandKeys.Valve2, false)
+            .Set(CommandKeys.Valve1, valve1)
+            .Set(CommandKeys.Valve2, valve2)
             .Set(CommandKeys.V_Flow, safe <= 0.0);
     }
 
@@ -625,13 +645,26 @@ public static class CommandBuilders
     /// UART. Key order matches v.6 so captured traffic stays byte-comparable.
     /// </remarks>
     public static OpenTECCommand CascadeActuation(double flowSetpoint, double oxygenSetpoint, int motorRpm)
-        => OpenTECCommand.Create()
+        => CascadeActuation(flowSetpoint, oxygenSetpoint, motorRpm, GasRigConfiguration.Default);
+
+    /// <summary>
+    /// Cascade actuation frame with the aeration sent to the reactor (A) on <paramref name="rig"/>;
+    /// a zero aeration closes A. Same v.6 key order as the legacy overload.
+    /// </summary>
+    public static OpenTECCommand CascadeActuation(
+        double flowSetpoint, double oxygenSetpoint, int motorRpm, GasRigConfiguration rig)
+    {
+        ArgumentNullException.ThrowIfNull(rig);
+        var route = flowSetpoint > 0.0 ? GasRoute.Reactor : GasRoute.Closed;
+        var (valve1, valve2) = GasRouting.Resolve(route, rig);
+        return OpenTECCommand.Create()
             .Set(CommandKeys.FlowSetpoint, flowSetpoint)
-            .Set(CommandKeys.Valve1, false)
-            .Set(CommandKeys.Valve2, false)
+            .Set(CommandKeys.Valve1, valve1)
+            .Set(CommandKeys.Valve2, valve2)
             .Set(CommandKeys.V_Flow, flowSetpoint <= 0.0)
             .Set(CommandKeys.OxygenMonitor, oxygenSetpoint)
             .Set(CommandKeys.MotorSetpoint, motorRpm);
+    }
 
     /// <summary>Telemetry emission period, in milliseconds.</summary>
     public static OpenTECCommand DataDelay(int milliseconds)

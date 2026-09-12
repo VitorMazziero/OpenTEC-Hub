@@ -690,25 +690,26 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
         Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Aeration));
         Assert.Contains(h.Device.Sent, json => json.Contains("\"motorSetpoint\":15"));
-        Assert.Contains(h.Device.Sent, json => json.Contains("\"valve_2\":1"));
+        // The vent is C, on the B/C output — valve_1 on the default A/B/C wiring (plan §1.3.1).
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"valve_1\":1,\"valve_2\":0"));
 
-        // Push telemetry confirming relief state with flow stabilizing
-        h.PushGas(15, 0.5, flowRate: 4.1, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        // Push telemetry confirming the vent state with flow stabilizing
+        h.PushGas(15, 0.5, flowRate: 4.1, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
         Assert.Equal(PowerRunPhase.VentStabilizing, h.Runner.Phase);
 
-        // 2nd stable sample -> triggers switch to reactor (OpeningGas)
-        h.PushGas(15, 0.5, flowRate: 4.05, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        // 2nd stable sample -> one-frame switch to the reactor: B/C close, A (valve_2) opens
+        h.PushGas(15, 0.5, flowRate: 4.05, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
         Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
-        Assert.Contains(h.Device.Sent, json => json.Contains("\"valve_2\":0"));
+        Assert.Contains(h.Device.Sent, json => json.Contains("\"valve_1\":0,\"valve_2\":1"));
 
-        // Confirm reactor gas state (both valves 0, main 0)
-        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        // Confirm reactor gas state (A open, B/C closed, main open)
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
         Assert.Contains(h.Device.Sent, json => json.Contains("\"motorSetpoint\":300"));
 
         // Confirm speed
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 2, commandAck: 2);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
         Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
 
         // Accumulate and finish
@@ -968,13 +969,14 @@ public sealed class PowerTestRunnerTests
         var p0Captured = h.Runner.CurrentRun.ReferenceP0W.Value;
         Assert.True(p0Captured > 0);
 
-        // Confirm reactor gas for Subphase 2 (commandId 1 because first flow command was dispatched in Subphase 2)
-        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        // Confirm reactor gas for Subphase 2 — A is valve_2 on the default wiring (plan §1.3.1);
+        // commandId 1 because the first flow command was dispatched in Subphase 2.
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
         Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
 
         // Speed confirmation for Subphase 2
-        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
-        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 3.0, flowSetpoint: 3.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
         Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
 
         // Drive Subphase 2 to completion
@@ -1019,13 +1021,13 @@ public sealed class PowerTestRunnerTests
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
 
         await h.Runner.StartTestAsync(doc);
-        // Confirm gas state
-        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        // Confirm gas state: air to the reactor is A = valve_2 on the default wiring (plan §1.3.1)
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
         Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
 
         // Confirm speed
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
-        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 1, commandAck: 1);
         Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
 
         // Flowmeter drops offline!

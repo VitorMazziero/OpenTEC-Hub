@@ -600,6 +600,21 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     private double MaxFlow => _settings.Current.Setpoints.MaxFlowLitresPerMinute;
 
+    /// <summary>The A/B/C wiring in force; read at each dispatch so a Configurações change applies to the next run.</summary>
+    private GasRigConfiguration Rig => _settings.Current.GasRig.ToConfiguration();
+
+    /// <summary>
+    /// Builds the flow frame for <paramref name="route"/> and records the exact pair the
+    /// flowmeter must echo before the phase advances. The only place this runner touches the
+    /// valves: the rig has no default path, so every setpoint carries its destination.
+    /// </summary>
+    private OpenTECCommand RouteFrame(double flow, GasRoute route)
+    {
+        var (v1, v2) = GasRouting.Resolve(route, Rig);
+        _targetGasState = (flow, v1, v2, flow <= 0.0);
+        return CommandBuilders.FlowRoute(flow, MaxFlow, route, Rig);
+    }
+
     private void OnTelemetryReceived(SensorSnapshot s)
     {
         _lastTelemetryMonotonic = GetMonotonicSeconds();
@@ -862,35 +877,21 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     private void OpenNitrogen()
     {
-        var isV1 = _currentTest!.SelectedNitrogenValve == NitrogenValve.Valve1;
-        _targetGasState = (0, isV1, !isV1, true);
-        SetPhase(RunPhase.OpeningNitrogen, $"Abrindo N₂ em {(isV1 ? "valve_1" : "valve_2")}...");
-        DispatchMotorOrAbort((int)_currentTest.Settings.DegassingAgitationRpm, "ajustar agitação de desoxigenação");
-        DispatchFlowOrAbort(CommandBuilders.FlowSetpoint(0, MaxFlow, isV1, !isV1), "abrir nitrogênio");
+        // N₂ enters through B, which shares its output with C: setpoint 0 keeps the air shut.
+        var frame = RouteFrame(0, GasRoute.VentAndNitrogen);
+        SetPhase(RunPhase.OpeningNitrogen, $"Abrindo N₂ — {GasRouting.Describe(GasRoute.VentAndNitrogen, Rig)}...");
+        DispatchMotorOrAbort((int)_currentTest!.Settings.DegassingAgitationRpm, "ajustar agitação de desoxigenação");
+        DispatchFlowOrAbort(frame, "abrir nitrogênio");
     }
 
     /// <summary>
-    /// True when this test routes the flowmeter's start-up pulse through the vent valve. The
-    /// vent must sit on the output the N₂ line does not use; a collision disables the detour
-    /// rather than energising the nitrogen valve by mistake.
+    /// True when this test routes the flowmeter's start-up pulse through the vent (C) before
+    /// switching to the reactor. On the A/B/C rig the vent shares its output with the N₂
+    /// valve, so there is no "wrong valve" to collide with any more — the legacy
+    /// <c>SelectedVentValve</c>/<c>SelectedNitrogenValve</c> fields are ignored for routing.
     /// </summary>
     private bool ShouldVentBeforeAir()
-    {
-        if (_currentTest is null || !_currentTest.Settings.VentStabilizationEnabled)
-        {
-            return false;
-        }
-
-        if (_currentTest.SelectedVentValve == _currentTest.SelectedNitrogenValve)
-        {
-            LogEvent(
-                "VentSkipped",
-                "Alívio ignorado: a válvula selecionada coincide com a do N₂. O ar será admitido direto no reator.");
-            return false;
-        }
-
-        return true;
-    }
+        => _currentTest is not null && _currentTest.Settings.VentStabilizationEnabled;
 
     /// <summary>
     /// Entry point for every path that admits air. Without the vent line the flowmeter opens
@@ -916,7 +917,6 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private void OpenVent()
     {
         var targetFlow = _currentCondition!.AirflowLpm;
-        var ventIsV1 = _currentTest!.SelectedVentValve == NitrogenValve.Valve1;
         _ventFlowStableCount = 0;
         _ventFlowDeviation = null;
         if (_currentRun is not null)
@@ -924,15 +924,13 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _currentRun.UsedVentStabilization = true;
         }
 
-        _targetGasState = (targetFlow, ventIsV1, !ventIsV1, false);
+        var frame = RouteFrame(targetFlow, GasRoute.VentAndNitrogen);
         SetPhase(
             RunPhase.OpeningVent,
-            $"Abrindo alívio em {(ventIsV1 ? "valve_1" : "valve_2")} a {_currentTest.Settings.VentAgitationRpm:F0} rpm, " +
+            $"Abrindo descarga (C) a {_currentTest!.Settings.VentAgitationRpm:F0} rpm, " +
             $"levando o fluxômetro a {targetFlow:F2} L/min...");
-        DispatchMotorOrAbort((int)_currentTest.Settings.VentAgitationRpm, "ajustar agitação durante o alívio");
-        DispatchFlowOrAbort(
-            CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, ventIsV1, !ventIsV1),
-            "abrir a válvula de alívio");
+        DispatchMotorOrAbort((int)_currentTest.Settings.VentAgitationRpm, "ajustar agitação durante a descarga");
+        DispatchFlowOrAbort(frame, "abrir a descarga (C)");
     }
 
     private void BeginVentFlowStabilization()
@@ -985,12 +983,12 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private void OpenAir(bool fromVent = false)
     {
         var targetFlow = _currentCondition!.AirflowLpm;
-        _targetGasState = (targetFlow, false, false, false);
+        var frame = RouteFrame(targetFlow, GasRoute.Reactor);
         SetPhase(
             RunPhase.OpeningAir,
-            fromVent ? "Fechando o alívio e direcionando o ar ao reator..." : "Abrindo ar...");
+            fromVent ? "Fechando B/C e abrindo A: ar ao reator..." : "Abrindo ar ao reator (A)...");
         DispatchMotorOrAbort((int)_currentCondition.AgitationRpm, "ajustar agitação de reoxigenação");
-        DispatchFlowOrAbort(CommandBuilders.FlowSetpoint(targetFlow, MaxFlow, false, false), "abrir ar");
+        DispatchFlowOrAbort(frame, "abrir ar ao reator (A)");
     }
 
     private void DispatchFlowOrAbort(OpenTECCommand command, string action)

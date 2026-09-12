@@ -273,7 +273,8 @@ public sealed class BiomassPumpTests
         // Q_g = (V0 + PumpVol/1000)·vvm = (1.0 + 0)·0.5 = 0.5 L/min.
         device.PushTelemetry(new SensorSnapshot { PumpVolume = 0.0, PumpFlow = 0.0 });
         Assert.Equal(
-            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            // A/B/C rig: proportional gas is air to the reactor through A = valve_2 (default wiring).
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}""",
             Assert.Single(device.Sent));
 
         // Grows with pump volume: (1.0 + 1000/1000)·0.5 = 1.0 L/min.

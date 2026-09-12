@@ -535,7 +535,7 @@ public sealed class ExternalDeviceTests
         device.PushTelemetry(new SensorSnapshot { PumpVolume = 0.0, PumpFlow = 0.0 });
 
         Assert.Equal(
-            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}""",
             Assert.Single(dispatcher.Sent));
     }
 
@@ -569,7 +569,7 @@ public sealed class ExternalDeviceTests
 
         // 4. The pump automatically retried upon receiving OwnershipChanged, delivering the target!
         Assert.Equal(
-            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}""",
             Assert.Single(targetDevice.Sent));
         Assert.Contains("restabelecida", vm.StatusText, StringComparison.OrdinalIgnoreCase);
     }
@@ -604,7 +604,7 @@ public sealed class ExternalDeviceTests
 
         // The unchanged target is re-sent to ensure hardware has the correct flow setpoint.
         Assert.Equal(
-            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":0.5,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}""",
             Assert.Single(targetDevice.Sent));
     }
 
@@ -637,7 +637,7 @@ public sealed class ExternalDeviceTests
 
         // Pump automatically sends the updated 1.0 LPM flow setpoint.
         Assert.Equal(
-            """{"flowSetpoint":1.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":0}""",
+            """{"flowSetpoint":1.0,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}""",
             Assert.Single(targetDevice.Sent));
     }
 

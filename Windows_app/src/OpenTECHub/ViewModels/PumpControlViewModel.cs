@@ -811,8 +811,9 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var result = _dispatcher.Dispatch(
-            CommandBuilders.FlowSetpoint(qg, maxFlow, valve1: false, valve2: false));
+        // Proportional gas is air to the reactor (A); a zero coupling closes everything.
+        var result = _dispatcher.Dispatch(CommandBuilders.FlowRoute(
+            qg, maxFlow, qg > 0.0 ? GasRoute.Reactor : GasRoute.Closed, _settings.Current.GasRig.ToConfiguration()));
 
         if (!result.Accepted)
         {

@@ -108,11 +108,13 @@ public sealed class CascadeController
     /// <summary>
     /// Builds the combined cascade frame for a step's result.
     /// </summary>
-    public static OpenTECCommand BuildCommand(CascadeActuationResult result)
+    public static OpenTECCommand BuildCommand(CascadeActuationResult result, GasRigConfiguration rig)
     {
         ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(rig);
+        // The cascade's aeration is air to the reactor: A on whichever output it is wired to.
         return CommandBuilders.CascadeActuation(
-            result.AerationLpm, result.OxygenSetpoint, result.AgitationRpm);
+            result.AerationLpm, result.OxygenSetpoint, result.AgitationRpm, rig);
     }
 
     /// <summary>Applies new tuning without discarding the probe history if the window is unchanged.</summary>

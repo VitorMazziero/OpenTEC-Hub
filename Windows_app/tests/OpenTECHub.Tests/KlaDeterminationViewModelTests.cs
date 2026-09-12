@@ -133,15 +133,16 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     /// live chart must start empty, not draw the replicate on top of the rejected curve.
     /// </summary>
     [Fact]
-    public async Task Repeating_a_run_from_the_review_starts_the_live_series_empty()
+    public void Repeating_a_run_from_the_review_starts_the_live_series_empty() => OnUiThread(() =>
     {
+        // The fake runner completes every call synchronously, so the awaits below never block.
         _vm.NewTestName = "Ensaio Repetir";
         _vm.CreateNewTest();
         _vm.NewConditionRpm = 300;
         _vm.NewConditionFlow = 2.0;
         _vm.AddManualCondition();
         _vm.NitrogenSourceConfirmed = true;
-        await _vm.StartSequenceAsync();
+        _vm.StartSequenceAsync().GetAwaiter().GetResult();
 
         for (var i = 0; i < 12; i++)
         {
@@ -150,8 +151,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(12, _vm.LivePoints.Count);
         Assert.NotEmpty(_vm.InstantaneousKlaSeries);
 
-        await _vm.StopRunAsync();
-        await _vm.RepeatCurrentRunAsync();
+        _vm.StopRunAsync().GetAwaiter().GetResult();
+        _vm.RepeatCurrentRunAsync().GetAwaiter().GetResult();
 
         Assert.Empty(_vm.LivePoints);
         Assert.Empty(_vm.InstantaneousKlaSeries);
@@ -160,7 +161,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         // Points of the new run are the only ones on the chart.
         _runner.RaiseDataPoint(new KlaRawDataPoint(DateTimeOffset.UtcNow, 0, RunPhase.Deoxygenating, 50, 50, 0, 0, 700, true, false, true));
         Assert.Single(_vm.LivePoints);
-    }
+    });
 
     /// <summary>A manifest without a recorded rig opens for review and refuses a new sequence (plan §3.5).</summary>
     [Fact]

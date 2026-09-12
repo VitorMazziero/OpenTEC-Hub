@@ -3873,31 +3873,52 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         NotifyLiveText();
     }
 
+    /// <summary>
+    /// The "Malha de gás" chip. "Alívio Estabilizando" is reserved for the runner's own phase:
+    /// outside a run, <c>v_Flow = 1</c> is the active-high main shutoff that <c>FlowSafeStop</c>
+    /// leaves closed on purpose — seen on 2026-09-11 at the end of Rushton-Smith, 63/63 accepted,
+    /// both valves closed, and the chip stuck on "Alívio Estabilizando" (§F.4).
+    /// </summary>
     private void UpdateGasLoopStatus()
     {
-        if (_runner?.Phase == PowerRunPhase.VentStabilizing)
-        {
-            GasLoopStatusBadge = "Alívio Estabilizando";
-        }
-        else if (_runner is not null && _runner.IsRunning &&
-                 (_runner.Phase is PowerRunPhase.PreparingCondition or PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.HoldingForManualEnergy) &&
-                 _runner.CurrentRun?.GasMode == PowerGasMode.Gassed)
-        {
-            GasLoopStatusBadge = "Reator Aberto";
-        }
-        else if (_latestSnapshot is { } s && (s.FlowValve1 == 1 || s.FlowValve2 == 1))
-        {
-            GasLoopStatusBadge = "Reator Aberto";
-        }
-        else if (_latestSnapshot is { } s2 && s2.FlowValveMain == 1)
-        {
-            GasLoopStatusBadge = "Alívio Estabilizando";
-        }
-        else
-        {
-            GasLoopStatusBadge = "Fechado";
-        }
+        GasLoopStatusBadge = GasLoopStatusFor(_runner, _latestSnapshot);
         OnPropertyChanged(nameof(GasLoopStatusBadge));
+    }
+
+    internal static string GasLoopStatusFor(IPowerTestRunner? runner, SensorSnapshot? snapshot)
+    {
+        if (runner?.Phase == PowerRunPhase.VentStabilizing)
+        {
+            return "Alívio Estabilizando";
+        }
+
+        if (runner is not null && runner.IsRunning &&
+            runner.Phase is PowerRunPhase.PreparingCondition or PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.HoldingForManualEnergy &&
+            runner.CurrentRun?.GasMode == PowerGasMode.Gassed)
+        {
+            return "Reator Aberto";
+        }
+
+        if (snapshot is null)
+        {
+            return "Fechado";
+        }
+
+        if (snapshot.FlowValve1 == 1 || snapshot.FlowValve2 == 1)
+        {
+            return "Reator Aberto";
+        }
+
+        if (snapshot.FlowValveMain == 1)
+        {
+            // v_Flow = 1 with the reactor valves closed: either gas is venting (a setpoint is
+            // being driven) or the loop is simply shut off.
+            var venting = double.IsFinite(snapshot.FlowSetpoint) && snapshot.FlowSetpoint > 0 ||
+                          double.IsFinite(snapshot.FlowRate) && snapshot.FlowRate > 0.05;
+            return venting ? "Alívio aberto" : "Fechado (shutoff)";
+        }
+
+        return "Fechado";
     }
 
     private void OnRunnerStateChanged() => RunOnUi(UpdateRunnerState);

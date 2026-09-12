@@ -9,6 +9,18 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Menores (§F).** `SessionLogger` deixa de fazer `AutoFlush` por linha (um syscall por quadro na
+  thread da UI) e passa a descarregar a cada 1 s, no *Stop* e no fechamento — no pior caso 1 s de
+  sessão se perde num crash, que o relatório de pânico cobre. O sink de arquivo do Serilog roda
+  atrás de `Serilog.Sinks.Async`. O chip **Malha de gás** deixa de mostrar "Alívio Estabilizando"
+  com o ensaio parado: esse nome fica reservado à fase `VentStabilizing`; fora de corrida,
+  `v_Flow = 1` com as válvulas fechadas e setpoint zero é **"Fechado (shutoff)"** — o shutoff
+  principal ativo-alto que `FlowSafeStop` deixa de propósito — e com vazão ou setpoint > 0,
+  **"Alívio aberto"** (visto ao fim do Rushton-Smith, 63/63 aceitas, chip preso). Investigado o
+  `{"pHCal":…}` reenviado a cada ~30 s no log de 11/09: é o eco do pH calibrado do protocolo v.6
+  (PROTOCOL §2.2), reenviado sempre que o valor com duas casas muda — uma sonda fora do reator
+  oscilando 7,62↔7,63 dispara um eco por oscilação. Comportamento de fio congelado (D-002); não
+  é defeito e não foi alterado.
 - **Tensão editável na tabela de calibração do fluxômetro (§O).** Cada ponto só recebia a tensão
   por captura da telemetria (média de N quadros); a coluna era um `TextBlock`. Passa a ser um campo
   editável espelhado com `Voltage` (captura formata, digitar parseia com ponto ou vírgula; vazio ou

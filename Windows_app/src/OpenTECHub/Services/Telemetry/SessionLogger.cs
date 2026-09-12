@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.IO;
@@ -57,6 +58,15 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
     private StreamWriter? _writer;
     private int _rowsWritten;
 
+    /// <summary>
+    /// Rows are buffered and flushed at most once per <see cref="FlushInterval"/> (§F.1). With
+    /// <c>AutoFlush</c> every row was a write syscall on the UI thread, one per telemetry frame;
+    /// a bounded buffer costs at most one interval of rows if the process dies — the crash
+    /// reporter covers that case — and flushes on stop and close as before.
+    /// </summary>
+    public static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(1);
+    private long _lastFlushTimestamp;
+
     /// <summary>The servo sidecar, opened and closed with the main log.</summary>
     /// <remarks>
     /// Derived from the main path rather than passed in, so every caller of
@@ -110,12 +120,14 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
                 // as plain text.
                 _writer = new StreamWriter(path, append: true, new UTF8Encoding(false))
                 {
-                    AutoFlush = true,
+                    AutoFlush = false,
                 };
+                _lastFlushTimestamp = Stopwatch.GetTimestamp();
 
                 if (isNew)
                 {
                     _writer.WriteLine(SessionLogFormat.Header);
+                    _writer.Flush();
                 }
 
                 OpenServoSidecar(path);
@@ -166,6 +178,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
                 WriteServoRow(snapshot);
                 _rowsWritten++;
                 changed = true;
+                FlushIfDue();
             }
             catch (IOException ex)
             {
@@ -226,6 +239,19 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
                 CultureInfo.InvariantCulture))
               .Append('\t');
 
+    /// <summary>Flushes both files once <see cref="FlushInterval"/> has passed since the last flush.</summary>
+    private void FlushIfDue()
+    {
+        if (Stopwatch.GetElapsedTime(_lastFlushTimestamp) < FlushInterval)
+        {
+            return;
+        }
+
+        _writer?.Flush();
+        _servoWriter?.Flush();
+        _lastFlushTimestamp = Stopwatch.GetTimestamp();
+    }
+
     private void CloseWriter()
     {
         if (_writer is null)
@@ -268,7 +294,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log) : ISessionLogger
             var isNew = !File.Exists(path) || new FileInfo(path).Length == 0;
             _servoWriter = new StreamWriter(path, append: true, new UTF8Encoding(false))
             {
-                AutoFlush = true,
+                AutoFlush = false,
             };
 
             // Appending to a file that already has its preamble must not write a second one.

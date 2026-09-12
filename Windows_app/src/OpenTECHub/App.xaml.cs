@@ -221,13 +221,17 @@ public partial class App : Application
     {
         var logPath = Path.Combine(AppPaths.LogDirectory, "opentechub-.log");
 
+        // The file sink runs behind an async buffer (§F.2): a log line written from the UI thread
+        // costs an enqueue, not a disk write. Volume is low (~1 line / 30 s), so this is hygiene
+        // rather than a fix; blockWhenFull keeps a burst from dropping lines.
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
-            .WriteTo.File(
+            .WriteTo.Async(sink => sink.File(
                 logPath,
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 14,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"),
+                blockWhenFull: true)
             .CreateLogger();
 
         Log.Information("=== OpenTEC-Hub starting ===");

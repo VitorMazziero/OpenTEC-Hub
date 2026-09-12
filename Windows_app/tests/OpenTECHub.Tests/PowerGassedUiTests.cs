@@ -338,6 +338,25 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.True(vm.CurrentPowerRatio > 0);
     }
 
+    /// <summary>
+    /// §F.4: with the runner idle, v_Flow = 1 is the active-high shutoff FlowSafeStop leaves closed on
+    /// purpose — not a vent stabilising. Seen at the end of Rushton-Smith (2026-09-11): 63/63 accepted,
+    /// both valves closed, chip stuck on "Alívio Estabilizando".
+    /// </summary>
+    [Theory]
+    [InlineData(1, 0, 0, 0.0, 0.0, "Fechado (shutoff)")]
+    [InlineData(1, 0, 0, 2.0, 2.1, "Alívio aberto")]
+    [InlineData(1, 0, 0, 0.0, 1.5, "Alívio aberto")]
+    [InlineData(0, 1, 0, 2.0, 2.0, "Reator Aberto")]
+    [InlineData(0, 0, 1, 2.0, 2.0, "Reator Aberto")]
+    [InlineData(0, 0, 0, 0.0, 0.0, "Fechado")]
+    public void Gas_loop_chip_names_the_shutoff_when_idle(int vFlow, int valve1, int valve2, double setpoint, double flow, string expected)
+    {
+        var snapshot = new SensorSnapshot { FlowValveMain = vFlow, FlowValve1 = valve1, FlowValve2 = valve2, FlowSetpoint = setpoint, FlowRate = flow };
+
+        Assert.Equal(expected, PowerTestViewModel.GasLoopStatusFor(runner: null, snapshot));
+    }
+
     [Fact]
     public void PowerTestViewModel_rebuild_results_populates_gas_columns_and_flooding_summary()
     {

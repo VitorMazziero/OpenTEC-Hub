@@ -95,7 +95,7 @@ public sealed class ControlViewModelTests
         Assert.Empty(fixture.Device.Sent);
         Assert.Equal(1, fixture.Dialogs.Calls);
         Assert.Equal(
-            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.17,"pHOperation":3.0,"pHMix":10.0,"pHIntensity":0.0,"nutriOperation":999.0,"nutriMix":1.0,"nutriOpCycle":500.0,"nutriMixCycle":1.0,"nutriIntensity":0.0,"antifoamOperation":0.0,"antifoamMix":2.0,"antifoamIntensity":0.0,"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":1,"agitatorReEnablePot":0,"mode":0,"speed":0}""",
+            """{"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.17,"pHOperation":3.0,"pHMix":10.0,"pHIntensity":0.0,"nutriOperation":999.0,"nutriMix":1.0,"nutriOpCycle":500.0,"nutriMixCycle":1.0,"nutriIntensity":0.0,"antifoamOperation":0.0,"antifoamMix":2.0,"antifoamIntensity":0.0,"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":50.0,"agitatorDir":1,"agitatorReEnablePot":0,"mode":0}""",
             fixture.Dialogs.ExactCommand);
     }
 

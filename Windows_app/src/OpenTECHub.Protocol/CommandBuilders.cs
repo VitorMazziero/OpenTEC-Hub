@@ -358,7 +358,7 @@ public static class CommandBuilders
         => OpenTECCommand.Create().Set(CommandKeys.PumpComm, 1);
 
     /// <summary>
-    /// Stops the running profile: <c>{"mode":0,"speed":0}</c>.
+    /// Stops the running profile: <c>{"mode":0}</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -375,14 +375,13 @@ public static class CommandBuilders
     /// what <see cref="PumpRoutingDisabled"/> and the ordered-frame send guarantee.
     /// </para>
     /// <para>
-    /// <c>speed</c> stays for byte-parity with v.6 and is inert - the firmware forwards
-    /// <c>pump_speed</c>, not <c>speed</c>.
+    /// Per plan 2026-09-12 §3.7, <c>speed</c> is omitted so the pump node firmware
+    /// does not interpret it as a command to arm or run in speed mode.
     /// </para>
     /// </remarks>
     public static OpenTECCommand PumpStopProfile()
         => OpenTECCommand.Create()
-            .Set(CommandKeys.Mode, 0)
-            .Set(CommandKeys.Speed, 0);
+            .Set(CommandKeys.Mode, 0);
 
     /// <summary>
     /// Clears the Hub's pump routing: <c>{"pumpComm":0}</c>.
@@ -613,4 +612,151 @@ public static class CommandBuilders
     /// <summary>Restarts all controller communications.</summary>
     public static OpenTECCommand Restart()
         => OpenTECCommand.Create().Set(CommandKeys.Restart, 1);
+
+    // ── External-node configuration (Hub 10.2) ───────────────────────────────
+
+    /// <summary>
+    /// Configures distance node parameters: offset, sample period, and/or send period.
+    /// Emits only the non-null keys.
+    /// </summary>
+    public static OpenTECCommand DistanceConfig(
+        double? offsetMm = null,
+        int? samplePeriodMs = null,
+        int? sendPeriodMs = null)
+    {
+        if (offsetMm is null && samplePeriodMs is null && sendPeriodMs is null)
+        {
+            throw new ArgumentException("Pelo menos um parâmetro de distância deve ser fornecido.");
+        }
+
+        var cmd = OpenTECCommand.Create();
+        if (offsetMm.HasValue)
+        {
+            cmd.Set(CommandKeys.DistanceOffsetMm, offsetMm.Value);
+        }
+        if (samplePeriodMs.HasValue)
+        {
+            cmd.Set(CommandKeys.DistanceSamplePeriodMs, samplePeriodMs.Value);
+        }
+        if (sendPeriodMs.HasValue)
+        {
+            cmd.Set(CommandKeys.DistanceSendPeriodMs, sendPeriodMs.Value);
+        }
+        return cmd;
+    }
+
+    /// <summary>Restores distance node factory defaults in NVS: <c>{"distanceResetNvs":1}</c>.</summary>
+    public static OpenTECCommand DistanceResetNvs()
+        => OpenTECCommand.Create().Set(CommandKeys.DistanceResetNvs, 1);
+
+    /// <summary>
+    /// Configures flowmeter controller tuning parameters. Emits only the non-null keys.
+    /// </summary>
+    public static OpenTECCommand FlowTuning(
+        double? kp = null,
+        double? ki = null,
+        double? ffGain = null,
+        double? ffOffset = null,
+        double? rampRate = null)
+    {
+        if (kp is null && ki is null && ffGain is null && ffOffset is null && rampRate is null)
+        {
+            throw new ArgumentException("Pelo menos um parâmetro de sintonia deve ser fornecido.");
+        }
+
+        var cmd = OpenTECCommand.Create();
+        if (kp.HasValue)
+        {
+            cmd.Set(CommandKeys.FlowKp, kp.Value);
+        }
+        if (ki.HasValue)
+        {
+            cmd.Set(CommandKeys.FlowKi, ki.Value);
+        }
+        if (ffGain.HasValue)
+        {
+            cmd.Set(CommandKeys.FlowFfGain, ffGain.Value);
+        }
+        if (ffOffset.HasValue)
+        {
+            cmd.Set(CommandKeys.FlowFfOffset, ffOffset.Value);
+        }
+        if (rampRate.HasValue)
+        {
+            cmd.Set(CommandKeys.FlowRampRate, rampRate.Value);
+        }
+        return cmd;
+    }
+
+    /// <summary>Resets the accumulated volume on the external pump node.</summary>
+    public static OpenTECCommand PumpResetVolume()
+        => OpenTECCommand.Create().Set(CommandKeys.PumpCommand, "reset_volume");
+
+    /// <summary>Configures the external pump linear calibration: slope and intercept.</summary>
+    public static OpenTECCommand PumpCalibration(double slope, double intercept)
+        => OpenTECCommand.Create()
+            .Set(CommandKeys.PumpSlope, slope)
+            .Set(CommandKeys.PumpIntercept, intercept);
+
+    /// <summary>Configures the external pump PID gains.</summary>
+    public static OpenTECCommand PumpPid(double kp, double ki, double kd)
+        => OpenTECCommand.Create()
+            .Set(CommandKeys.PumpPidKp, kp)
+            .Set(CommandKeys.PumpPidKi, ki)
+            .Set(CommandKeys.PumpPidKd, kd);
+
+    /// <summary>Sets integration time (counts) on biomass sensor node.</summary>
+    public static OpenTECCommand BiomassIt(int it)
+        => OpenTECCommand.Create().Set(CommandKeys.BiomassIt, it);
+
+    /// <summary>Sets LED PWM drive (0-100%) on biomass sensor node.</summary>
+    public static OpenTECCommand BiomassPwm(double pwm)
+        => OpenTECCommand.Create().Set(CommandKeys.BiomassPwm, pwm);
+
+    /// <summary>Sets TIA gain gear (1-7) on biomass sensor node.</summary>
+    public static OpenTECCommand BiomassGear(int gear)
+        => OpenTECCommand.Create().Set(CommandKeys.BiomassGear, gear);
+
+    /// <summary>Sets EMA smoothing factor (0.0-1.0) on biomass sensor node.</summary>
+    public static OpenTECCommand BiomassEma(double ema)
+        => OpenTECCommand.Create().Set(CommandKeys.BiomassEma, ema);
+
+    /// <summary>Sets acquisition probe period in milliseconds on biomass sensor node.</summary>
+    public static OpenTECCommand BiomassProbePeriod(int probePeriodMs)
+        => OpenTECCommand.Create().Set(CommandKeys.BiomassProbePeriodMs, probePeriodMs);
+
+    /// <summary>
+    /// Builds a list of discrete commands for biomass tuning parameters, emitting one frame per
+    /// parameter to comply with Hub mailbox single-command-per-revision constraints (§3.5).
+    /// </summary>
+    public static IReadOnlyList<OpenTECCommand> BiomassTuning(
+        int? it = null,
+        double? pwm = null,
+        int? gear = null,
+        double? ema = null,
+        int? probePeriodMs = null)
+    {
+        var list = new List<OpenTECCommand>();
+        if (it.HasValue)
+        {
+            list.Add(BiomassIt(it.Value));
+        }
+        if (pwm.HasValue)
+        {
+            list.Add(BiomassPwm(pwm.Value));
+        }
+        if (gear.HasValue)
+        {
+            list.Add(BiomassGear(gear.Value));
+        }
+        if (ema.HasValue)
+        {
+            list.Add(BiomassEma(ema.Value));
+        }
+        if (probePeriodMs.HasValue)
+        {
+            list.Add(BiomassProbePeriod(probePeriodMs.Value));
+        }
+        return list;
+    }
 }

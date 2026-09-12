@@ -73,6 +73,13 @@ public sealed class OpenTECCommand
     /// <summary>Sets a boolean as the integer <c>1</c> or <c>0</c> - the firmware has no JSON bool inputs.</summary>
     public OpenTECCommand Set(string key, bool value) => SetRaw(key, value ? "1" : "0");
 
+    /// <summary>Sets a string value as a quoted JSON string, e.g. <c>{"pump_command":"reset_volume"}</c>.</summary>
+    public OpenTECCommand Set(string key, string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return SetRaw(key, "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"");
+    }
+
     /// <summary>
     /// Sets a value as a <b>quoted JSON string</b> with a fixed number of decimals.
     /// </summary>

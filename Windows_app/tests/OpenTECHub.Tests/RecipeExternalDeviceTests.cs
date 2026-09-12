@@ -106,7 +106,7 @@ public sealed class RecipeExternalDeviceTests
             NodeType.PumpControl, ("acao", nameof(ExternalPumpAction.Stop))));
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var stop = device.Sent.IndexOf("""{"mode":0,"speed":0}""");
+        var stop = device.Sent.IndexOf("""{"mode":0}""");
         var routing = device.Sent.IndexOf("""{"pumpComm":0}""");
 
         Assert.True(stop >= 0, "o quadro de parada do perfil não foi enviado");

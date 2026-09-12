@@ -1,4 +1,4 @@
-﻿namespace OpenTECHub.Protocol;
+namespace OpenTECHub.Protocol;
 
 /// <summary>
 /// Snapshot of the most recent good value for every telemetry channel.
@@ -204,6 +204,28 @@ public sealed class SensorReadings
     /// <inheritdoc cref="SensorSnapshot.ServoCommErr"/>
     public long ServoCommErr { get; set; } = -1;
 
+    // ---- External-node configuration echoes (Hub 10.2) -------------------
+    public double? DistanceOffsetMm { get; set; }
+    public int? DistanceSamplePeriodMs { get; set; }
+    public int? DistanceSendPeriodMs { get; set; }
+    public bool? DistanceCommandPending { get; set; }
+
+    public double? FlowKp { get; set; }
+    public double? FlowKi { get; set; }
+    public double? FlowFfGain { get; set; }
+    public double? FlowFfOffset { get; set; }
+    public double? FlowRampRate { get; set; }
+    public double? FlowOutput { get; set; }
+    public double? FlowSetpointCorrected { get; set; }
+    public long? FlowmeterBootId { get; set; }
+
+    public double? PumpSlope { get; set; }
+    public double? PumpIntercept { get; set; }
+
+    public int? BiomassGear { get; set; }
+    public double? BiomassEma { get; set; }
+    public int? BiomassProbePeriodMs { get; set; }
+
     /// <summary>Seconds since controller boot, as reported by the device.</summary>
     public double TimeRawSeconds { get; set; }
 
@@ -318,6 +340,23 @@ public sealed class SensorReadings
         ServoAlarm = ServoAlarm,
         ServoCommOk = ServoCommOk,
         ServoCommErr = ServoCommErr,
+        DistanceOffsetMm = DistanceOffsetMm,
+        DistanceSamplePeriodMs = DistanceSamplePeriodMs,
+        DistanceSendPeriodMs = DistanceSendPeriodMs,
+        DistanceCommandPending = DistanceCommandPending,
+        FlowKp = FlowKp,
+        FlowKi = FlowKi,
+        FlowFfGain = FlowFfGain,
+        FlowFfOffset = FlowFfOffset,
+        FlowRampRate = FlowRampRate,
+        FlowOutput = FlowOutput,
+        FlowSetpointCorrected = FlowSetpointCorrected,
+        FlowmeterBootId = FlowmeterBootId,
+        PumpSlope = PumpSlope,
+        PumpIntercept = PumpIntercept,
+        BiomassGear = BiomassGear,
+        BiomassEma = BiomassEma,
+        BiomassProbePeriodMs = BiomassProbePeriodMs,
         TimeRawSeconds = TimeRawSeconds,
         TimeMinutes = TimeMinutes,
     };
@@ -562,4 +601,26 @@ public sealed record SensorSnapshot
 
     public double TimeRawSeconds { get; init; }
     public double TimeMinutes { get; init; }
+
+    // ---- External-node configuration echoes (Hub 10.2) -------------------
+    public double? DistanceOffsetMm { get; init; }
+    public int? DistanceSamplePeriodMs { get; init; }
+    public int? DistanceSendPeriodMs { get; init; }
+    public bool? DistanceCommandPending { get; init; }
+
+    public double? FlowKp { get; init; }
+    public double? FlowKi { get; init; }
+    public double? FlowFfGain { get; init; }
+    public double? FlowFfOffset { get; init; }
+    public double? FlowRampRate { get; init; }
+    public double? FlowOutput { get; init; }
+    public double? FlowSetpointCorrected { get; init; }
+    public long? FlowmeterBootId { get; init; }
+
+    public double? PumpSlope { get; init; }
+    public double? PumpIntercept { get; init; }
+
+    public int? BiomassGear { get; init; }
+    public double? BiomassEma { get; init; }
+    public int? BiomassProbePeriodMs { get; init; }
 }

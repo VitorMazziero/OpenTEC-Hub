@@ -1,4 +1,4 @@
-﻿# ESP32-S3 Protocol Contract
+# ESP32-S3 Protocol Contract
 
 > **Nota de organização (2026-09-11):** os firmwares externos agora estão em
 > `External-Devices/<dispositivo>/firmware/`; seus contratos ficam nos diretórios
@@ -253,7 +253,31 @@ said about itself. All fifteen keys are **additive** — `HubProtocolVersion` st
 > `registered`, `last_*_ms` and `hub_time_ms` are 10.1; the client tolerates a 10.0 body without
 > them. Reachable only while the PC is on the Hub's SoftAP — over USB the app knows each node's
 > address from the frame but cannot get to `/nodes`, nor to the nodes' own `/diag`. Contract in
-> `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`, tests in `ESP32S3-HUB/tests/contracts/test_node_registry.py`.
+### 2.0.3 External-node configuration echoes `[hub 10.2]`
+
+Hub 10.2 publishes the parameters applied and echoed by each external node. Unlike node identity
+(which is sticky), these echoes are **strictly non-sticky**: if the node is absent or the key is
+missing from the frame, the reading resolves to null (except `FlowmeterBootId`, which is sticky).
+
+| JSON key | Type | Unit / Range | Meaning |
+|---|---|---|---|
+| `DistanceOffsetMm` | float | mm | Distance sensor surface-to-probe offset calibration |
+| `DistanceSamplePeriodMs` | int | ms | Distance sensor internal sampling period |
+| `DistanceSendPeriodMs` | int | ms | Distance sensor push period |
+| `DistanceCommandPending` | bool | — | A command is queued for the distance node and not yet acknowledged |
+| `FlowKp` | float | — | Flowmeter PID proportional gain |
+| `FlowKi` | float | — | Flowmeter PID integral gain |
+| `FlowFfGain` | float | — | Flowmeter feedforward gain |
+| `FlowFfOffset` | float | — | Flowmeter feedforward offset |
+| `FlowRampRate` | float | mL/min/s | Flowmeter setpoint ramp rate |
+| `FlowOutput` | float | V | Flowmeter controller analog output voltage |
+| `FlowSetpointCorrected` | float | mL/min | Flowmeter active setpoint after ramp |
+| `FlowmeterBootId` | int | — | Flowmeter boot cycle counter (sticky across session) |
+| `PumpSlope` | float | — | Peristaltic pump linear calibration slope |
+| `PumpIntercept` | float | — | Peristaltic pump linear calibration intercept |
+| `BiomassGear` | int | 1-7 | Biomass sensor TIA gain gear |
+| `BiomassEma` | float | 0.0-1.0 | Biomass sensor EMA smoothing filter factor |
+| `BiomassProbePeriodMs` | int | ms | Biomass sensor acquisition probe period |
 
 ### 2.0 Not every line is telemetry
 
@@ -519,10 +543,11 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > is dropped by `if (pumpCmdFound && pumpCommOn)`. The node keeps dosing; only the telemetry
 > goes quiet, which is the worst possible failure for a feed pump.
 >
-> OpenTEC-Hub therefore sends **`{"mode":0,"speed":0}` first, while routing is still on**, then
+> OpenTEC-Hub therefore sends **`{"mode":0}` first, while routing is still on**, then
 > `{"pumpComm":0}` as a separate frame. Once the first is in the Hub's mailbox it survives the
 > second — `/pumpCommand` has no routing gate, so the node still collects it on its next poll.
-> The two only have to arrive in order. `speed` remains vestigial either way (§ below).
+> The two only have to arrive in order. As decided in 2026-09-12 §3.7, `speed` is omitted because
+> the pump node (v3.9) misinterprets `speed:0` as a command to arm or run in speed mode.
 
 | `mode` | Profile | Parameters (after `mode`, `init_t`, `final_t`) |
 |---|---|---|
@@ -538,8 +563,8 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > `init_t`. The firmware holds `p0..p20` (≤ 21 coefficients) and `t0..t99`/`q0..q99` (2–100 segments);
 > those are the payload-size bounds the app validates against.
 >
-> The disable frame's `speed:0` is **vestigial**: the firmware forwards `pump_speed`, not `speed`, so
-> it is ignored — reproduced only for byte-parity with v.6. The proportional-gas coupling
+> The disable frame formerly carried `speed:0` for byte-parity with v.6, but it has been removed
+> to prevent the pump firmware from interpreting it as an armed speed command. The proportional-gas coupling
 > `Q_g = (V₀ + PumpVol/1000)·vvm` is not a pump key at all: it computes an **aeration** setpoint and is
 > sent as a flow frame through the command arbiter (owned as `Aeration`). OpenTEC-Hub closes both gas
 > valves on that frame rather than reproducing v.6's stray `valve_2:1`-at-zero-flow behaviour.
@@ -552,6 +577,34 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 | `dataDelay` | Telemetry period in **ms** (field value: 2000) |
 | `resetVariables` | `1` — reset the module's process variables |
 | `restart` | `1` — restart all controller communications |
+
+### 3.7 External-node configuration commands `[hub 10.2]`
+
+Configuration commands for external nodes pass through the Hub's reliable mailboxes. The app sends
+camelCase keys, and the Hub translates them before enqueuing to each node's mailbox:
+
+| App command key | Type | Node / Hub mailbox | Wire key on node |
+|---|---|---|---|
+| `distanceOffsetMm` | float | Distance node | `offset_mm` |
+| `distanceSamplePeriodMs` | int | Distance node | `sample_period` |
+| `distanceSendPeriodMs` | int | Distance node | `send_period` |
+| `distanceResetNvs` | int (`1`) | Distance node | `reset_nvs` |
+| `flowKp` | float | Flowmeter node | `kp_flow` |
+| `flowKi` | float | Flowmeter node | `ki_flow` |
+| `flowFfGain` | float | Flowmeter node | `ff_gain` |
+| `flowFfOffset` | float | Flowmeter node | `ff_offset` |
+| `flowRampRate` | float | Flowmeter node | `ramp_rate` |
+| `pump_command` | string | Pump node | `command` (e.g. `"reset_volume"`) |
+| `pumpSlope` | float | Pump node | `slope` |
+| `pumpIntercept` | float | Pump node | `intercept` |
+| `pumpPidKp` | float | Pump node | `pid_kp` |
+| `pumpPidKi` | float | Pump node | `pid_ki` |
+| `pumpPidKd` | float | Pump node | `pid_kd` |
+| `biomassIt` | int | Biomass node | `command:"set_it",value:N` |
+| `biomassPwm` | float | Biomass node | `command:"set_pwm",value:N` |
+| `biomassGear` | int | Biomass node | `command:"set_gear",value:N` |
+| `biomassEma` | float | Biomass node | `command:"set_ema",value:N` |
+| `biomassProbePeriodMs` | int | Biomass node | `command:"set_period",value:N` |
 
 ---
 
@@ -580,7 +633,7 @@ biomass blank      {"blank":1}
 biomass start/stop {"start":1}   /   {"stop":1}
 biomass thresholds {"low":10000,"high":40000,"opt":25000}
 pump enable        {"pumpComm":1}
-pump stop profile  {"mode":0,"speed":0}
+pump stop profile  {"mode":0}
 pump clear routing {"pumpComm":0}
 agitator on        {"agitatorOn":1,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1}
 agitator off       {"agitatorOn":0,"agitatorAuto":0,"agitatorPercent":80.0,"agitatorDir":1}
@@ -590,6 +643,17 @@ pump linear        {"mode":2,"init_t":0.0,"final_t":60.0,"lambda_linear":1.0,"ph
 pump exponential   {"mode":3,"init_t":0.0,"final_t":60.0,"lambda_exp":1.0,"phi_exp":0.1}
 pump polynomial    {"mode":4,"init_t":0.0,"final_t":60.0,"p0":1.0,"p1":0.5,"p2":0.1}
 pump piecewise     {"mode":5,"init_t":0.0,"final_t":60.0,"num_segments":3,"t0":0.0,"q0":1.0,"t1":30.0,"q1":2.0,"t2":60.0,"q2":3.0}
+distance config    {"distanceOffsetMm":25.5,"distanceSamplePeriodMs":200,"distanceSendPeriodMs":1000}
+distance reset     {"distanceResetNvs":1}
+flow tuning        {"flowKp":0.8,"flowKi":0.05,"flowFfGain":1.2,"flowFfOffset":0.1,"flowRampRate":5.0}
+pump reset vol     {"pump_command":"reset_volume"}
+pump calibration   {"pumpSlope":1.25,"pumpIntercept":0.05}
+pump PID           {"pumpPidKp":1.5,"pumpPidKi":0.2,"pumpPidKd":0.05}
+biomass IT         {"biomassIt":100}
+biomass PWM        {"biomassPwm":75.0}
+biomass gear       {"biomassGear":3}
+biomass EMA        {"biomassEma":0.25}
+biomass probe      {"biomassProbePeriodMs":500}
 ```
 
 Key order within an object is not believed to matter (the firmware parses JSON),

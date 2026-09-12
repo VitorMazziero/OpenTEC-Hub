@@ -174,7 +174,7 @@ public class WireFormatTests
         // is dropped by "if (pumpCmdFound && pumpCommOn)" and the node keeps dosing. The
         // disable is therefore two ordered frames. speed:0 stays for parity and is inert -
         // the firmware forwards pump_speed, not speed.
-        Assert.Equal("""{"mode":0,"speed":0}""", CommandBuilders.PumpStopProfile().ToJson());
+        Assert.Equal("""{"mode":0}""", CommandBuilders.PumpStopProfile().ToJson());
         Assert.Equal("""{"pumpComm":0}""", CommandBuilders.PumpRoutingDisabled().ToJson());
     }
 
@@ -539,5 +539,75 @@ public class CultureInvarianceTests : IDisposable
 
         Assert.Equal(4294967295L, readings.Snapshot().ServoCommOk);
         Assert.Equal(4294967295L, readings.Snapshot().ServoCommErr);
+    }
+
+    // ── External-node configuration builders (Hub 10.2) ──────────────────────
+
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("pt-BR")]
+    public void External_node_builders_emit_invariant_wire_format(string culture)
+    {
+        var saved = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo(culture);
+
+            // Distance
+            Assert.Equal(
+                """{"distanceOffsetMm":25.5,"distanceSamplePeriodMs":200,"distanceSendPeriodMs":1000}""",
+                CommandBuilders.DistanceConfig(25.5, 200, 1000).ToJson());
+            Assert.Equal(
+                """{"distanceOffsetMm":-10.0}""",
+                CommandBuilders.DistanceConfig(offsetMm: -10.0).ToJson());
+            Assert.Equal(
+                """{"distanceResetNvs":1}""",
+                CommandBuilders.DistanceResetNvs().ToJson());
+
+            // Flowmeter
+            Assert.Equal(
+                """{"flowKp":0.8,"flowKi":0.05,"flowFfGain":1.2,"flowFfOffset":0.1,"flowRampRate":5.0}""",
+                CommandBuilders.FlowTuning(0.8, 0.05, 1.2, 0.1, 5.0).ToJson());
+            Assert.Equal(
+                """{"flowKp":1.5}""",
+                CommandBuilders.FlowTuning(kp: 1.5).ToJson());
+
+            // Pump
+            Assert.Equal(
+                """{"pump_command":"reset_volume"}""",
+                CommandBuilders.PumpResetVolume().ToJson());
+            Assert.Equal(
+                """{"pumpSlope":1.25,"pumpIntercept":0.05}""",
+                CommandBuilders.PumpCalibration(1.25, 0.05).ToJson());
+            Assert.Equal(
+                """{"pumpPidKp":1.5,"pumpPidKi":0.2,"pumpPidKd":0.05}""",
+                CommandBuilders.PumpPid(1.5, 0.2, 0.05).ToJson());
+
+            // Biomass
+            Assert.Equal("""{"biomassIt":100}""", CommandBuilders.BiomassIt(100).ToJson());
+            Assert.Equal("""{"biomassPwm":75.0}""", CommandBuilders.BiomassPwm(75.0).ToJson());
+            Assert.Equal("""{"biomassGear":3}""", CommandBuilders.BiomassGear(3).ToJson());
+            Assert.Equal("""{"biomassEma":0.25}""", CommandBuilders.BiomassEma(0.25).ToJson());
+            Assert.Equal("""{"biomassProbePeriodMs":500}""", CommandBuilders.BiomassProbePeriod(500).ToJson());
+
+            var tuningList = CommandBuilders.BiomassTuning(it: 100, pwm: 75.0, gear: 3, ema: 0.25, probePeriodMs: 500);
+            Assert.Equal(5, tuningList.Count);
+            Assert.Equal("""{"biomassIt":100}""", tuningList[0].ToJson());
+            Assert.Equal("""{"biomassPwm":75.0}""", tuningList[1].ToJson());
+            Assert.Equal("""{"biomassGear":3}""", tuningList[2].ToJson());
+            Assert.Equal("""{"biomassEma":0.25}""", tuningList[3].ToJson());
+            Assert.Equal("""{"biomassProbePeriodMs":500}""", tuningList[4].ToJson());
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = saved;
+        }
+    }
+
+    [Fact]
+    public void External_node_builders_validate_arguments()
+    {
+        Assert.Throws<ArgumentException>(() => CommandBuilders.DistanceConfig());
+        Assert.Throws<ArgumentException>(() => CommandBuilders.FlowTuning());
     }
 }

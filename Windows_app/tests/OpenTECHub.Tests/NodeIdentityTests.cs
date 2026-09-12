@@ -32,11 +32,11 @@ public class ExternalDeviceStatusIdentityTests
     public void A_registered_node_reads_ip_and_firmware_and_points_at_its_diag()
     {
         var status = Pump();
-        status.Update(true, true, false, true, new ExternalNodeIdentity("192.168.4.3", "AA:BB:CC:DD:EE:03", "3.8"));
+        status.Update(true, true, false, true, new ExternalNodeIdentity("192.168.4.3", "AA:BB:CC:DD:EE:03", "3.9"));
 
         Assert.True(status.HasNodeIdentity);
         Assert.True(status.IsNodeReachable);
-        Assert.Equal("192.168.4.3 · fw 3.8", status.NetworkSummaryText);
+        Assert.Equal("192.168.4.3 · fw 3.9", status.NetworkSummaryText);
         Assert.Equal("AA:BB:CC:DD:EE:03", status.NodeMacText);
         Assert.Equal(new Uri("http://192.168.4.3/diag"), status.NodeDiagnosticsUri);
         Assert.Null(status.FirmwareAdvisoryText);
@@ -50,7 +50,7 @@ public class ExternalDeviceStatusIdentityTests
 
         Assert.True(status.HasFirmwareAdvisory);
         Assert.Contains("4.0", status.FirmwareAdvisoryText);
-        Assert.Contains("3.8", status.FirmwareAdvisoryText);
+        Assert.Contains("3.9", status.FirmwareAdvisoryText);
         Assert.False(status.HasStatusAlert);
         Assert.True(status.CanSend);
     }
@@ -106,13 +106,16 @@ public class ExternalDeviceStatusIdentityTests
 public class NodeFirmwareCatalogTests
 {
     [Theory]
-    [InlineData(NodeFirmwareCatalog.Distance, "v10", true)]
+    [InlineData(NodeFirmwareCatalog.Distance, "v11", true)]
     [InlineData(NodeFirmwareCatalog.Agitator, "v10", true)]
-    [InlineData(NodeFirmwareCatalog.Pump, "3.8", true)]
-    [InlineData(NodeFirmwareCatalog.Flowmeter, "v10", true)]
-    [InlineData(NodeFirmwareCatalog.Biomass, "v10", true)]
+    [InlineData(NodeFirmwareCatalog.Pump, "3.9", true)]
+    [InlineData(NodeFirmwareCatalog.Flowmeter, "v11", true)]
+    [InlineData(NodeFirmwareCatalog.Biomass, "v11", true)]
     [InlineData(NodeFirmwareCatalog.Pump, "V10", false)]
-    [InlineData(NodeFirmwareCatalog.Distance, "v11", false)]
+    [InlineData(NodeFirmwareCatalog.Pump, "3.8", false)]
+    [InlineData(NodeFirmwareCatalog.Distance, "v10", false)]
+    [InlineData(NodeFirmwareCatalog.Flowmeter, "v10", false)]
+    [InlineData(NodeFirmwareCatalog.Biomass, "v10", false)]
     public void Membership_is_what_the_five_firmwares_send_today(string device, string version, bool validated)
         => Assert.Equal(validated, NodeFirmwareCatalog.IsValidated(device, version));
 

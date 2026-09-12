@@ -173,6 +173,37 @@ public static class CommandKeys
 
     /// <summary>Piecewise flow-point key <c>q{index}</c>, in mL/min (Phase 3 WP2, mode 5).</summary>
     public static string PiecewiseFlow(int index) => "q" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // ---- External-node configuration (Hub 10.2) --------------------------
+    // The Hub translates these keys before enqueuing to each node's reliable mailbox.
+    public const string DistanceOffsetMm = "distanceOffsetMm";
+    public const string DistanceSamplePeriodMs = "distanceSamplePeriodMs";
+    public const string DistanceSendPeriodMs = "distanceSendPeriodMs";
+    public const string DistanceResetNvs = "distanceResetNvs";
+
+    public const string FlowKp = "flowKp";
+    public const string FlowKi = "flowKi";
+    public const string FlowFfGain = "flowFfGain";
+    public const string FlowFfOffset = "flowFfOffset";
+    public const string FlowRampRate = "flowRampRate";
+
+    /// <summary>
+    /// Commands forwarded to the pump node's <c>command</c> field:
+    /// <c>"start"</c>, <c>"stop"</c>, <c>"reset_volume"</c>, etc.
+    /// Renamed to <c>command</c> by the Hub.
+    /// </summary>
+    public const string PumpCommand = "pump_command";
+    public const string PumpSlope = "pumpSlope";
+    public const string PumpIntercept = "pumpIntercept";
+    public const string PumpPidKp = "pumpPidKp";
+    public const string PumpPidKi = "pumpPidKi";
+    public const string PumpPidKd = "pumpPidKd";
+
+    public const string BiomassIt = "biomassIt";
+    public const string BiomassPwm = "biomassPwm";
+    public const string BiomassGear = "biomassGear";
+    public const string BiomassEma = "biomassEma";
+    public const string BiomassProbePeriodMs = "biomassProbePeriodMs";
 }
 
 /// <summary>
@@ -402,6 +433,28 @@ public static class TelemetryKeys
 
     /// <summary>Failed Modbus samples. Alarm on the rate, never on the total.</summary>
     public const string ServoCommErr = "ServoCommErr";
+
+    // ---- External-node configuration echoes (Hub 10.2) -------------------
+    public const string DistanceOffsetMm = "DistanceOffsetMm";
+    public const string DistanceSamplePeriodMs = "DistanceSamplePeriodMs";
+    public const string DistanceSendPeriodMs = "DistanceSendPeriodMs";
+    public const string DistanceCommandPending = "DistanceCommandPending";
+
+    public const string FlowKp = "FlowKp";
+    public const string FlowKi = "FlowKi";
+    public const string FlowFfGain = "FlowFfGain";
+    public const string FlowFfOffset = "FlowFfOffset";
+    public const string FlowRampRate = "FlowRampRate";
+    public const string FlowOutput = "FlowOutput";
+    public const string FlowSetpointCorrected = "FlowSetpointCorrected";
+    public const string FlowmeterBootId = "FlowmeterBootId";
+
+    public const string PumpSlope = "PumpSlope";
+    public const string PumpIntercept = "PumpIntercept";
+
+    public const string BiomassGear = "BiomassGear";
+    public const string BiomassEma = "BiomassEma";
+    public const string BiomassProbePeriodMs = "BiomassProbePeriodMs";
 
     public const string Time = "Time";
 }

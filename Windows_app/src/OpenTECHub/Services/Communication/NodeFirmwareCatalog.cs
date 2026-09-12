@@ -32,11 +32,11 @@ public static class NodeFirmwareCatalog
 
     private static readonly Dictionary<string, HashSet<string>> Validated = new(StringComparer.OrdinalIgnoreCase)
     {
-        [Distance] = new(StringComparer.OrdinalIgnoreCase) { "v10" },
-        [Agitator] = new(StringComparer.OrdinalIgnoreCase) { "v10", "rev-h" },
-        [Pump] = new(StringComparer.OrdinalIgnoreCase) { "3.8" },
-        [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v10", "v05" },
-        [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v10" },
+        [Distance] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
+        [Agitator] = new(StringComparer.OrdinalIgnoreCase) { "v10" },
+        [Pump] = new(StringComparer.OrdinalIgnoreCase) { "3.9" },
+        [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
+        [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
     };
 
     /// <summary>Versions this build was validated with for <paramref name="device"/>; empty for an unknown name.</summary>

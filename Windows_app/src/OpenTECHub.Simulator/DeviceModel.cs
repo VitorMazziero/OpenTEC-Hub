@@ -212,6 +212,45 @@ public sealed class DeviceModel
     public bool PumpEnabled { get; set; }
 
     public bool DistanceSensorEnabled { get; set; }
+    public double DistanceOffsetMm { get; set; } = 20.0;
+    public int DistanceSamplePeriodMs { get; set; } = 500;
+    public int DistanceSendPeriodMs { get; set; } = 1000;
+    private bool _distanceCommandPending;
+    public bool DistanceCommandPending
+    {
+        get => _distanceCommandPending;
+        set => _distanceCommandPending = value;
+    }
+    public bool ConsumeDistanceCommandPending()
+    {
+        var pending = _distanceCommandPending;
+        _distanceCommandPending = false;
+        return pending;
+    }
+
+    public double FlowKp { get; set; } = 0.8;
+    public double FlowKi { get; set; } = 0.05;
+    public double FlowFfGain { get; set; } = 0.0;
+    public double FlowFfOffset { get; set; } = 0.0;
+    public double FlowRampRate { get; set; } = 1.0;
+    public double FlowOutput => Math.Round(ReadFlow() * 0.0109, 3);
+    public double FlowSetpointCorrected => FlowSetpoint;
+    public long FlowmeterBootId { get; set; } = 1001;
+
+    public double PumpSlope { get; set; } = 1.0;
+    public double PumpIntercept { get; set; } = 0.0;
+    public double PumpPidKp { get; set; } = 1.0;
+    public double PumpPidKi { get; set; } = 0.1;
+    public double PumpPidKd { get; set; } = 0.01;
+    public double PumpVolumeOffset { get; set; }
+    public double PumpVolume => Math.Max(0.0, (UptimeSeconds * 1.25 / 60.0) - PumpVolumeOffset);
+    public void ResetPumpVolume() => PumpVolumeOffset = UptimeSeconds * 1.25 / 60.0;
+
+    public int BiomassIntegrationTimeMs { get; set; } = 100;
+    public double BiomassPwmPercent { get; set; } = 50.0;
+    public int BiomassGear { get; set; } = 1;
+    public double BiomassEma { get; set; } = 0.1;
+    public int BiomassProbePeriodMs { get; set; } = 1000;
 
     /// <summary>
     /// What the Hub reports for a routing flag, which is not always what was commanded.
@@ -282,7 +321,12 @@ public sealed class DeviceModel
         => $"AA:BB:CC:DD:EE:{2 + Array.FindIndex(RegistryNodes, n => n.Device == device):X2}";
 
     /// <summary>What each firmware sends as <c>ver=</c> in its <c>/nodeHello</c> today.</summary>
-    public static string NodeVersion(string device) => device == "pump" ? "3.8" : "v10";
+    public static string NodeVersion(string device) => device switch
+    {
+        "pump" => "3.9",
+        "agitator" => "v10",
+        _ => "v11",
+    };
 
     // ------------------------------------------------------------------
     // ASDA-B2 servo drive node

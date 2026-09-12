@@ -28,10 +28,10 @@ public class SimulatorNodeIdentityTests
 
         var pump = parser.Readings.PumpNode;
         Assert.Equal("192.168.4.4", pump.Ip);
-        Assert.Equal("3.8", pump.FirmwareVersion);
+        Assert.Equal("3.9", pump.FirmwareVersion);
         Assert.Equal("AA:BB:CC:DD:EE:04", pump.Mac);
-        Assert.Equal("v10", parser.Readings.DistanceNode.FirmwareVersion);
-        Assert.Equal("v10", parser.Readings.FlowmeterNode.FirmwareVersion);
+        Assert.Equal("v11", parser.Readings.DistanceNode.FirmwareVersion);
+        Assert.Equal("v11", parser.Readings.FlowmeterNode.FirmwareVersion);
         Assert.Equal("v10", parser.Readings.AgitatorNode.FirmwareVersion);
 
         // Biomass is switched off: the Hub never got its hello.
@@ -106,7 +106,7 @@ public class SimulatorNodeIdentityTests
         Assert.Equal(5, directory.Nodes.Count);
         var pump = directory.Find("pump")!;
         Assert.Equal("192.168.4.4", pump.Identity.Ip);
-        Assert.Equal("3.8", pump.Identity.FirmwareVersion);
+        Assert.Equal("3.9", pump.Identity.FirmwareVersion);
         Assert.True(pump.Registered);
         Assert.True(pump.Online);
         var biomass = directory.Find("biomass")!;

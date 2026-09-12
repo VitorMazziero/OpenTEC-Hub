@@ -240,7 +240,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         Status.Update(
             snapshot.HasDistanceTelemetry,
             snapshot.DistanceOnline,
-            pending: null,
+            pending: snapshot.DistanceCommandPending,
             snapshot.DistanceCommEnabled,
             snapshot.DistanceNode);
 

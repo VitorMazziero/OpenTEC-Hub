@@ -368,6 +368,28 @@ public sealed class TelemetryParser
         AssignInt(root, TelemetryKeys.FlowCommandAgeMs, v => Readings.FlowCommandAgeMs = v);
         AssignInt(root, TelemetryKeys.HubStations, v => Readings.HubStations = v);
 
+        // External-node echoes (Hub 10.2) - strictly non-sticky
+        Readings.FlowKp =
+            TryGetDouble(root, TelemetryKeys.FlowKp, out var kp) ? kp : null;
+        Readings.FlowKi =
+            TryGetDouble(root, TelemetryKeys.FlowKi, out var ki) ? ki : null;
+        Readings.FlowFfGain =
+            TryGetDouble(root, TelemetryKeys.FlowFfGain, out var ffGain) ? ffGain : null;
+        Readings.FlowFfOffset =
+            TryGetDouble(root, TelemetryKeys.FlowFfOffset, out var ffOffset) ? ffOffset : null;
+        Readings.FlowRampRate =
+            TryGetDouble(root, TelemetryKeys.FlowRampRate, out var rampRate) ? rampRate : null;
+        Readings.FlowOutput =
+            TryGetDouble(root, TelemetryKeys.FlowOutput, out var flowOutput) ? flowOutput : null;
+        Readings.FlowSetpointCorrected =
+            TryGetDouble(root, TelemetryKeys.FlowSetpointCorrected, out var spCorr) ? spCorr : null;
+
+        // Sticky flowmeter boot_id (long?)
+        if (TryGetCounter(root, TelemetryKeys.FlowmeterBootId, out var bootId))
+        {
+            Readings.FlowmeterBootId = bootId;
+        }
+
         ParseDistance(root, now);
     }
 
@@ -414,6 +436,16 @@ public sealed class TelemetryParser
         {
             Readings.DistanceCommEnabled = commEnabled;
         }
+
+        // External-node echoes (Hub 10.2) - strictly non-sticky
+        Readings.DistanceOffsetMm =
+            TryGetDouble(root, TelemetryKeys.DistanceOffsetMm, out var offsetMm) ? offsetMm : null;
+        Readings.DistanceSamplePeriodMs =
+            TryGetInt(root, TelemetryKeys.DistanceSamplePeriodMs, out var sampleMs) ? sampleMs : null;
+        Readings.DistanceSendPeriodMs =
+            TryGetInt(root, TelemetryKeys.DistanceSendPeriodMs, out var sendMs) ? sendMs : null;
+        Readings.DistanceCommandPending =
+            TryGetBool(root, TelemetryKeys.DistanceCommandPending, out var distPending) ? distPending : null;
     }
 
     private void ParseBiomass(JsonElement root, DateTimeOffset now)
@@ -444,6 +476,14 @@ public sealed class TelemetryParser
         // for this device is silent about it, and silence is not a confirmation.
         Readings.BiomassCommandPending =
             TryGetBool(root, TelemetryKeys.BiomassCommandPending, out var pending) ? pending : null;
+
+        // External-node echoes (Hub 10.2) - strictly non-sticky
+        Readings.BiomassGear =
+            TryGetInt(root, TelemetryKeys.BiomassGear, out var gear) ? gear : null;
+        Readings.BiomassEma =
+            TryGetDouble(root, TelemetryKeys.BiomassEma, out var ema) ? ema : null;
+        Readings.BiomassProbePeriodMs =
+            TryGetInt(root, TelemetryKeys.BiomassProbePeriodMs, out var probeMs) ? probeMs : null;
 
         if (presence.HasTelemetry && !presence.Online)
         {
@@ -505,6 +545,12 @@ public sealed class TelemetryParser
         // for this device is silent about it, and silence is not a confirmation.
         Readings.PumpCommandPending =
             TryGetBool(root, TelemetryKeys.PumpCommandPending, out var pending) ? pending : null;
+
+        // External-node echoes (Hub 10.2) - strictly non-sticky
+        Readings.PumpSlope =
+            TryGetDouble(root, TelemetryKeys.PumpSlope, out var slope) ? slope : null;
+        Readings.PumpIntercept =
+            TryGetDouble(root, TelemetryKeys.PumpIntercept, out var intercept) ? intercept : null;
 
         if (presence.HasTelemetry && !presence.Online)
         {
@@ -1047,6 +1093,35 @@ public sealed class TelemetryParser
 
             default:
                 break;
+        }
+    }
+
+    private static bool TryGetInt(JsonElement root, string key, out int value)
+    {
+        value = 0;
+        if (!TryGetPropertyCaseInsensitive(root, key, out var element))
+        {
+            return false;
+        }
+
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Number when element.TryGetInt32(out var direct):
+                value = direct;
+                return true;
+
+            // v.6 coerces through float, so 1.0 must land as 1.
+            case JsonValueKind.Number when element.TryGetDouble(out var asDouble):
+                value = (int)asDouble;
+                return true;
+
+            case JsonValueKind.String when int.TryParse(
+                element.GetString()?.Replace(',', '.'), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed):
+                value = parsed;
+                return true;
+
+            default:
+                return false;
         }
     }
 }

@@ -824,6 +824,6 @@ public sealed class ExternalDeviceTests
         device.Send(CommandBuilders.PumpStopProfile());
         device.SendAfterCurrentFrame(CommandBuilders.PumpRoutingDisabled());
 
-        Assert.Equal(["""{"mode":0,"speed":0}""", """{"pumpComm":0}"""], ((RecordingDeviceService)device).Sent);
+        Assert.Equal(["""{"mode":0}""", """{"pumpComm":0}"""], ((RecordingDeviceService)device).Sent);
     }
 }

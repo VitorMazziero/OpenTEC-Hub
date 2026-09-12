@@ -69,6 +69,18 @@ public static class WireCodec
             AppendBool(buffer, "FlowCommandPending", model.FlowCommandPending);
             AppendBool(buffer, "FlowmeterOnline", true);
             AppendBool(buffer, "FlowControlEnabled", model.FlowmeterEnabled);
+
+            if (model.ExternalNodesOnline && model.Scenario != Scenario.LegacyHub)
+            {
+                Append(buffer, "FlowKp", model.FlowKp, 3);
+                Append(buffer, "FlowKi", model.FlowKi, 4);
+                Append(buffer, "FlowFfGain", model.FlowFfGain, 3);
+                Append(buffer, "FlowFfOffset", model.FlowFfOffset, 3);
+                Append(buffer, "FlowRampRate", model.FlowRampRate, 2);
+                Append(buffer, "FlowOutput", model.FlowOutput, 3);
+                Append(buffer, "FlowSetpointCorrected", model.FlowSetpointCorrected, 2);
+                AppendInt(buffer, "FlowmeterBootId", (int)model.FlowmeterBootId);
+            }
         }
 
         AppendExternalDevices(buffer, model);
@@ -107,12 +119,28 @@ public static class WireCodec
         AppendBool(buffer, "BiomassOnline", present && model.BiomassEnabled);
         AppendBool(buffer, "BiomassCommEnabled", model.RoutingEcho(model.BiomassEnabled));
         AppendBool(buffer, "BiomassCommandPending", false);
+        if (present && model.BiomassEnabled && model.Scenario != Scenario.LegacyHub)
+        {
+            AppendInt(buffer, "BiomassGear", model.BiomassGear);
+            Append(buffer, "BiomassEma", model.BiomassEma, 3);
+            AppendInt(buffer, "BiomassProbePeriodMs", model.BiomassProbePeriodMs);
+        }
 
         AppendBool(buffer, "DistanceOnline", present && model.DistanceSensorEnabled);
         AppendBool(buffer, "DistanceCommEnabled", model.RoutingEcho(model.DistanceSensorEnabled));
+        if (model.Scenario != Scenario.LegacyHub)
+        {
+            AppendBool(buffer, "DistanceCommandPending", model.ConsumeDistanceCommandPending());
+        }
         if (present && model.DistanceSensorEnabled)
         {
             Append(buffer, "Distance", 118.0, 2);
+            if (model.Scenario != Scenario.LegacyHub)
+            {
+                Append(buffer, "DistanceOffsetMm", model.DistanceOffsetMm, 2);
+                AppendInt(buffer, "DistanceSamplePeriodMs", model.DistanceSamplePeriodMs);
+                AppendInt(buffer, "DistanceSendPeriodMs", model.DistanceSendPeriodMs);
+            }
         }
 
         AppendBool(buffer, "PumpOnline", present && model.PumpEnabled);
@@ -124,10 +152,15 @@ public static class WireCodec
             AppendInt(buffer, "PumpPWM", 180);
             Append(buffer, "PumpSpeed", 42.5, 1);
             Append(buffer, "PumpFlow", 1.25, 3);
-            Append(buffer, "PumpVol", model.UptimeSeconds * 1.25 / 60.0, 3);
-            Append(buffer, "PumpTargetVol", model.UptimeSeconds * 1.25 / 60.0, 3);
+            Append(buffer, "PumpVol", model.PumpVolume, 3);
+            Append(buffer, "PumpTargetVol", model.PumpVolume, 3);
             AppendBool(buffer, "PumpActive", model.PumpMode > 0);
             AppendBool(buffer, "PumpWaiting", false);
+            if (model.Scenario != Scenario.LegacyHub)
+            {
+                Append(buffer, "PumpSlope", model.PumpSlope, 4);
+                Append(buffer, "PumpIntercept", model.PumpIntercept, 4);
+            }
         }
 
         // The agitator has no routing flag on the wire: the Hub forwards to it unconditionally.
@@ -418,6 +451,102 @@ public static class WireCodec
         if (TryDouble(root, CommandKeys.DataDelay, out var delay))
         {
             model.DataDelayMs = Math.Clamp((int)delay, 100, 60_000);
+        }
+
+        // External-node commands (Hub 10.2)
+        if (TryDouble(root, CommandKeys.DistanceOffsetMm, out var distOffset))
+        {
+            model.DistanceOffsetMm = distOffset;
+            model.DistanceCommandPending = true;
+        }
+        if (TryDouble(root, CommandKeys.DistanceSamplePeriodMs, out var distSample))
+        {
+            model.DistanceSamplePeriodMs = (int)distSample;
+            model.DistanceCommandPending = true;
+        }
+        if (TryDouble(root, CommandKeys.DistanceSendPeriodMs, out var distSend))
+        {
+            model.DistanceSendPeriodMs = (int)distSend;
+            model.DistanceCommandPending = true;
+        }
+        if (TryDouble(root, CommandKeys.DistanceResetNvs, out var distReset) && distReset != 0)
+        {
+            model.DistanceOffsetMm = 20.0;
+            model.DistanceSamplePeriodMs = 500;
+            model.DistanceSendPeriodMs = 1000;
+            model.DistanceCommandPending = true;
+        }
+
+        if (TryDouble(root, CommandKeys.FlowKp, out var flowKp))
+        {
+            model.FlowKp = flowKp;
+        }
+        if (TryDouble(root, CommandKeys.FlowKi, out var flowKi))
+        {
+            model.FlowKi = flowKi;
+        }
+        if (TryDouble(root, CommandKeys.FlowFfGain, out var flowFfGain))
+        {
+            model.FlowFfGain = flowFfGain;
+        }
+        if (TryDouble(root, CommandKeys.FlowFfOffset, out var flowFfOffset))
+        {
+            model.FlowFfOffset = flowFfOffset;
+        }
+        if (TryDouble(root, CommandKeys.FlowRampRate, out var flowRampRate))
+        {
+            model.FlowRampRate = flowRampRate;
+        }
+
+        if (root.TryGetProperty(CommandKeys.PumpCommand, out var pumpCmdProp) &&
+            pumpCmdProp.ValueKind == JsonValueKind.String)
+        {
+            var cmdStr = pumpCmdProp.GetString();
+            if (cmdStr == "reset_volume")
+            {
+                model.ResetPumpVolume();
+            }
+        }
+        if (TryDouble(root, CommandKeys.PumpSlope, out var pumpSlope))
+        {
+            model.PumpSlope = pumpSlope;
+        }
+        if (TryDouble(root, CommandKeys.PumpIntercept, out var pumpIntercept))
+        {
+            model.PumpIntercept = pumpIntercept;
+        }
+        if (TryDouble(root, CommandKeys.PumpPidKp, out var pumpPidKp))
+        {
+            model.PumpPidKp = pumpPidKp;
+        }
+        if (TryDouble(root, CommandKeys.PumpPidKi, out var pumpPidKi))
+        {
+            model.PumpPidKi = pumpPidKi;
+        }
+        if (TryDouble(root, CommandKeys.PumpPidKd, out var pumpPidKd))
+        {
+            model.PumpPidKd = pumpPidKd;
+        }
+
+        if (TryDouble(root, CommandKeys.BiomassIt, out var bioIt))
+        {
+            model.BiomassIntegrationTimeMs = (int)bioIt;
+        }
+        if (TryDouble(root, CommandKeys.BiomassPwm, out var bioPwm))
+        {
+            model.BiomassPwmPercent = bioPwm;
+        }
+        if (TryDouble(root, CommandKeys.BiomassGear, out var bioGear))
+        {
+            model.BiomassGear = (int)bioGear;
+        }
+        if (TryDouble(root, CommandKeys.BiomassEma, out var bioEma))
+        {
+            model.BiomassEma = bioEma;
+        }
+        if (TryDouble(root, CommandKeys.BiomassProbePeriodMs, out var bioProbeMs))
+        {
+            model.BiomassProbePeriodMs = (int)bioProbeMs;
         }
 
         return true;

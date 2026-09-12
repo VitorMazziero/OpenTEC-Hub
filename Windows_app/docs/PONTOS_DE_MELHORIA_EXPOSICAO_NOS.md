@@ -82,18 +82,42 @@
 
 ---
 
-## 4. Matriz de Prioridades e Rastreamento
+---
+
+## 5. Aplicativo Windows (`Windows_app`) — Camada de Fio e Simulador (Etapa 5)
+
+### 5.1 Remoção do Campo Vestigial `speed` em `PumpStopProfile()`
+- **Decisão (§3.7 do plano):** O comando `PumpStopProfile()` emitia historicamente `{"mode":0,"speed":0}` por paridade com o v.6. No entanto, o firmware do nó de bomba v3.9 tratava qualquer presença da chave de velocidade como solicitação de armar/operar modo de velocidade.
+- **Implementação:** O builder foi alterado para emitir estritamente `{"mode":0}`. Todos os testes de formato de fio, parada de emergência e cenários de receitas foram atualizados para validar esse comportamento seguro.
+
+### 5.2 Semântica de Ecos Não-Sticky vs Identidade Sticky
+- **Arquitetura:** `TelemetryParser` foi estruturado para que todos os novos ecos de configuração de nós externos (`Distance*`, `Flow*`, `Pump*`, `Biomass*`) sejam estritamente **não-sticky**: na ausência da chave no quadro JSON (ex.: nó desconectado ou modo de dropout), a leitura no snapshot do app é imediatamente redefinida para `null`.
+- **Exceção Confiável:** `FlowmeterBootId` é mantido intencionalmente **sticky** (`long?`), pois o `boot_id` identifica o ciclo de inicialização do nó e deve permanecer visível para auditoria de reinicializações espúrias durante a sessão.
+
+### 5.3 Sequenciamento de Comandos de Ajuste da Biomassa
+- **Implementação:** Para aderir à restrição de "um `command` por revisão" da caixa de correio do Hub, o método `CommandBuilders.BiomassTuning(...)` retorna `IReadOnlyList<OpenTECCommand>`.
+- **Recomendação para Etapa 7:** O ViewModel da Biomassa deve despachar esses comandos de maneira serializada, monitorando `BiomassCommandPending` antes de submeter o próximo elemento da lista.
+
+### 5.4 Precisão de Ponto Flutuante no Simulador (`PumpVolume`)
+- **Observação:** O acumulador de volume no simulador é baseado no tempo contínuo de uptime (`model.UptimeSeconds`). Em testes de ciclo rápido, o reset de volume e leitura imediata podem apresentar resíduos infinitesimais ($\sim 10^{-6}$ mL).
+- **Tratamento:** As asserções de teste utilizam tolerância de precisão (`< 0.001 mL`) para garantir robustez independente do jitter de temporização do sistema operacional.
+
+---
+
+## 6. Matriz de Prioridades e Rastreamento
 
 | Item | Componente | Impacto | Prioridade | Tratamento |
 |---|---|---|---|---|
 | Desacoplar eco de distância de estagnação | Hub | Telemetria | Baixa/Média | Sugerido para revisão pós-Etapa 3 |
 | Validação [-50, 200] mm no nó | Nó Distância | Consistência | Alta | **Aplicado na Etapa 2** |
 | Whitelist e tradução de chaves (Bomba/Fluxômetro/Biomassa) | Hub | Comunicação | Alta | **Aplicado na Etapa 3** |
-| Regra "um command por revisão" na biomassa | Hub / App | Confiabilidade | Alta | **Aplicado no Hub (Etapa 3); regra para App (Etapa 7)** |
+| Regra "um command por revisão" na biomassa | Hub / App | Confiabilidade | Alta | **Aplicado no Hub (Etapa 3); builders em lista (Etapa 5); regra para App (Etapa 7)** |
 | Suporte a `value` direto em `set_it`/`set_pwm`/`set_gear` | Nó Biomassa | Protocolo | Alta | **Aplicado na Etapa 4** |
 | Eco de `kp`/`ki`/`ramp` no push do fluxômetro (v11) | Nó Fluxômetro | Telemetria / Malha | Alta | **Aplicado na Etapa 4** |
 | Eco de `slope`/`intercept` no push da bomba (3.9) | Nó Bomba | Telemetria / Calibração | Alta | **Aplicado na Etapa 4** |
 | Eco de `gear`/`ema`/`probe_ms` no push da biomassa (v11)| Nó Biomassa | Telemetria / Óptica | Alta | **Aplicado na Etapa 4** |
+| Remoção de `speed` no `PumpStopProfile()` | App / Hub / Nó | Segurança de Acionamento | Alta | **Aplicado na Etapa 5** |
+| Ecos não-sticky e `FlowmeterBootId` sticky | App Protocol | Integridade de Dados | Alta | **Aplicado na Etapa 5** |
 | Botão explícito de envio (sem auto-save) | App UI | Hardware (Flash NVS) | Alta | Regra para a Etapa 6 |
 | Medição Content-Length `/readData` | Hub / Infra | Confiabilidade | Média | Executar na bancada da Etapa 4/7 |
 | FreeRTOS multi-core no sensor | Nó Distância | Desempenho | Baixa | Diferido no ROADMAP |

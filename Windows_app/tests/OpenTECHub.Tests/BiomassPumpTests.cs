@@ -141,7 +141,7 @@ public sealed class BiomassPumpTests
         vm.IsEnabled = false;
 
         Assert.Equal(
-            ["""{"mode":0,"speed":0}""", """{"pumpComm":0}"""],
+            ["""{"mode":0}""", """{"pumpComm":0}"""],
             device.Sent);
     }
 
@@ -225,7 +225,7 @@ public sealed class BiomassPumpTests
 
         // pumpComm:0 must not travel in the merged safe frame: the Hub would clear routing
         // while parsing it and then discard the mode:0 beside it.
-        Assert.Equal("""{"mode":0,"speed":0}""", vm.BuildSafeStop().ToJson());
+        Assert.Equal("""{"mode":0}""", vm.BuildSafeStop().ToJson());
         Assert.Equal("""{"pumpComm":0}""", vm.BuildRoutingDisable().ToJson());
     }
 

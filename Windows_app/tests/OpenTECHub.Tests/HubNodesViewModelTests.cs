@@ -20,15 +20,15 @@ public class HubNodesViewModelTests
         PumpOnline = true,
         HasDistanceTelemetry = true,
         DistanceOnline = false,
-        PumpNode = new ExternalNodeIdentity("192.168.4.3", "AA:BB:CC:DD:EE:03", "3.8"),
-        FlowmeterNode = new ExternalNodeIdentity("192.168.4.4", "AA:BB:CC:DD:EE:04", "v10"),
+        PumpNode = new ExternalNodeIdentity("192.168.4.3", "AA:BB:CC:DD:EE:03", "3.9"),
+        FlowmeterNode = new ExternalNodeIdentity("192.168.4.4", "AA:BB:CC:DD:EE:04", "v11"),
     };
 
     private static HubNodeDirectory Directory(long hubTime = 50_000) => new(hubTime,
     [
-        new HubNodeEntry("pump", new ExternalNodeIdentity("192.168.4.3", "AA:BB:CC:DD:EE:03", "3.8"), true, true, 40_000, 49_600, 400),
+        new HubNodeEntry("pump", new ExternalNodeIdentity("192.168.4.3", "AA:BB:CC:DD:EE:03", "3.9"), true, true, 40_000, 49_600, 400),
         new HubNodeEntry("distance", ExternalNodeIdentity.Empty, false, false, 0, 0, 999999),
-        new HubNodeEntry("biomass", new ExternalNodeIdentity(null, "AA:BB:CC:DD:EE:06", "v10"), false, true, 10_000, 0, 40_000),
+        new HubNodeEntry("biomass", new ExternalNodeIdentity(null, "AA:BB:CC:DD:EE:06", "v11"), false, true, 10_000, 0, 40_000),
     ]);
 
     [Fact]
@@ -44,7 +44,7 @@ public class HubNodesViewModelTests
         var pump = vm.Nodes.Single(n => n.Device == "pump");
         Assert.Equal(DeviceNames.ExternalPump, pump.DisplayName);
         Assert.Equal("192.168.4.3", pump.IpText);
-        Assert.Equal("3.8", pump.FirmwareText);
+        Assert.Equal("3.9", pump.FirmwareText);
         Assert.Equal("Online", pump.StateText);
         Assert.Null(pump.FirmwareAdvisoryText);
 
@@ -161,7 +161,7 @@ public class HubNodesViewModelTests
         var pump = vm.Nodes.Single(n => n.Device == "pump");
         Assert.Null(pump.Online);
         Assert.Equal("Aguardando telemetria", pump.StateText);
-        Assert.Equal("3.8", pump.FirmwareText);
+        Assert.Equal("3.9", pump.FirmwareText);
     }
 
     [Theory]
@@ -239,8 +239,8 @@ public class ConnectionNodesCountTests
 
         device.PushTelemetry(new SensorSnapshot
         {
-            PumpNode = new ExternalNodeIdentity("192.168.4.3", null, "3.8"),
-            BiomassNode = new ExternalNodeIdentity(null, "AA", "v10"),
+            PumpNode = new ExternalNodeIdentity("192.168.4.3", null, "3.9"),
+            BiomassNode = new ExternalNodeIdentity(null, "AA", "v11"),
         });
         Assert.Equal("1/5", vm.NodesText);
 

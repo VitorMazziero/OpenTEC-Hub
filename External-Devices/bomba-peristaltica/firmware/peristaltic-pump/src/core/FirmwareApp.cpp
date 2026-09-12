@@ -51,6 +51,8 @@ unsigned long lastHubPollMs = 0;
 unsigned long HUB_POLL_PERIOD_MS = 2000;
 unsigned long lastDataPushMs = 0;
 unsigned long DATA_PUSH_PERIOD_MS = 1000;
+uint8_t g_hubFailStreak = 0;
+constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
 
 uint32_t g_lastAppliedHubCommandId = 0;
 

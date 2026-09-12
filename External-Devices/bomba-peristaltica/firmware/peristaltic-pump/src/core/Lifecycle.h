@@ -100,7 +100,12 @@ void firmwareLoop() {
 
     checkWifi();
     
-    if (WiFi.status() == WL_CONNECTED && (now - lastHubPollMs >= HUB_POLL_PERIOD_MS)) {
+    unsigned long pollInterval = HUB_POLL_PERIOD_MS;
+    if (g_hubFailStreak > 0) {
+        uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+        pollInterval = min(HUB_POLL_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+    }
+    if (WiFi.status() == WL_CONNECTED && (now - lastHubPollMs >= pollInterval)) {
         lastHubPollMs = now;
         pollHubForCommands();
     }
@@ -199,7 +204,13 @@ void firmwareLoop() {
         }
     }
 
-    if (now - lastDataPushMs >= DATA_PUSH_PERIOD_MS) {
+    unsigned long pushInterval = DATA_PUSH_PERIOD_MS;
+    if (g_hubFailStreak > 0) {
+        uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+        pushInterval = min(DATA_PUSH_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+    }
+
+    if (now - lastDataPushMs >= pushInterval) {
         lastDataPushMs = now;
         if (WiFi.status() == WL_CONNECTED) {
             sendDataToHub();

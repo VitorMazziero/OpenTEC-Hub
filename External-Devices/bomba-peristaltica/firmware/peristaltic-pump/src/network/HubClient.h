@@ -143,7 +143,15 @@ void sendDataToHub() {
 
     int code;
     String body;
-    if (!httpGet(url, code, body)) {
+    if (httpGet(url, code, body)) {
+        if (g_hubFailStreak > 0) {
+            Serial.printf("[Hub] Conexao restabelecida apos %u falha(s).\n", g_hubFailStreak);
+        }
+        g_hubFailStreak = 0;
+    } else {
+        if (g_hubFailStreak < 255) {
+            g_hubFailStreak++;
+        }
         // Serial.printf("Hub data send FAILED, code %d\n", code);
     }
 }
@@ -151,7 +159,18 @@ void sendDataToHub() {
 void pollHubForCommands() {
     int code;
     String body;
-    if (!httpGet(sensorHubCommandURL, code, body)) return;
+    if (!httpGet(sensorHubCommandURL, code, body)) {
+        if (g_hubFailStreak < 255) {
+            g_hubFailStreak++;
+        }
+        return;
+    }
+
+    if (g_hubFailStreak > 0) {
+        Serial.printf("[Hub] Conexao restabelecida apos %u falha(s).\n", g_hubFailStreak);
+    }
+    g_hubFailStreak = 0;
+
     if (body.length() == 0 || body == "{}") return;
 
     // A hub command carries cmd_id. A local one (serial, or the node's own web UI)

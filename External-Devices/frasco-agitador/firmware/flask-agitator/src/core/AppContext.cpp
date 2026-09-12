@@ -20,3 +20,9 @@ uint32_t tLastScanKick = 0;
 int lastSeenRssi[2] = {-999, -999};
 int currentHubIndex = -1;
 int desiredHubIndex = -1;
+
+volatile bool g_otaInProgress = false;
+unsigned long g_otaLastChunkMs = 0;
+const unsigned long OTA_STALL_TIMEOUT_MS = 90000;
+unsigned long g_otaRebootAtMs = 0;
+String g_otaRejectReason = "";

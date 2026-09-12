@@ -25,3 +25,9 @@ extern uint32_t tLastScanKick;
 extern int lastSeenRssi[2];
 extern int currentHubIndex;
 extern int desiredHubIndex;
+
+extern volatile bool g_otaInProgress;
+extern unsigned long g_otaLastChunkMs;
+extern const unsigned long OTA_STALL_TIMEOUT_MS;
+extern unsigned long g_otaRebootAtMs;
+extern String g_otaRejectReason;

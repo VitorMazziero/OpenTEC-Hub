@@ -34,6 +34,8 @@ void firmwareSetup() {
     }
 
     server.on("/readData", HTTP_GET, handleReadData);
+    server.on("/diag", HTTP_GET, handleDiag);
+    server.on("/status", HTTP_GET, handleDiag);
     server.on("/command", HTTP_POST, handleCommand);
     server.on("/", HTTP_GET, handleReadData);
     server.on("/update", HTTP_GET, handleOtaPage);

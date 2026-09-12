@@ -2,6 +2,29 @@ void handleReadData() {
     server.send(200, "application/json", g_lastDataJson);
 }
 
+void handleDiag() {
+    char json[320];
+    snprintf(json, sizeof(json),
+             "{\"device\":\"peristaltic-pump\",\"version\":\"3.8\",\"uptime_s\":%lu,"
+             "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
+             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+             "\"op_state\":%d,\"mode\":%d,\"flow\":%.3f,\"vol\":%.3f}",
+             static_cast<unsigned long>(millis() / 1000),
+             static_cast<unsigned int>(ESP.getFreeHeap()),
+             WiFi.status(),
+             WiFi.SSID().c_str(),
+             WiFi.RSSI(),
+             WiFi.localIP().toString().c_str(),
+             WiFi.macAddress().c_str(),
+             g_hubFailStreak,
+             g_otaInProgress ? "true" : "false",
+             static_cast<int>(g_opState),
+             g_config.mode,
+             g_currentFlowRateMlMin,
+             g_cumulativeVolumeMl);
+    server.send(200, "application/json", json);
+}
+
 void handleCommand() {
     if (server.hasArg("plain")) {
         String body = server.arg("plain");

@@ -215,6 +215,7 @@ float pwmDutyToMlmin(int duty);
 bool httpGet(const String& url, int& code, String& body);
 void sendDataToHub();
 void handleReadData();
+void handleDiag();
 void handleCommand();
 void handleNotFound();
 void handleOtaPage();

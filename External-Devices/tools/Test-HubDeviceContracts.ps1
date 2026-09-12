@@ -37,9 +37,9 @@ Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance
 Require 'Agitator node' $agitator @('/agitatorHello', '/nodeHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
 
 Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")', 'hasParam("offset")', 'hasParam("sample_ms")', 'hasParam("send_ms")')
-Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")')
-Require 'Hub flow fields' $hub @('hasParam("seconds")', 'hasParam("flow_voltage")', 'hasParam("flow_rate")', 'hasParam("flow_setpoint")', 'hasParam("valve1State")', 'hasParam("valve2State")')
-Require 'Hub biomass fields' $hub @('hasParam("absorbance")', 'hasParam("raw")', 'hasParam("idle")')
+Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")', 'hasParam("slope")', 'hasParam("intercept")')
+Require 'Hub flow fields' $hub @('hasParam("seconds")', 'hasParam("flow_voltage")', 'hasParam("flow_rate")', 'hasParam("flow_setpoint")', 'hasParam("valve1State")', 'hasParam("valve2State")', 'hasParam("kp")', 'hasParam("ki")', 'hasParam("ramp")', 'hasParam("ff_gain")', 'hasParam("ff_offset")', 'hasParam("flow_output")', 'hasParam("flow_setpoint_corrected")')
+Require 'Hub biomass fields' $hub @('hasParam("absorbance")', 'hasParam("raw")', 'hasParam("idle")', 'hasParam("gear")', 'hasParam("ema")', 'hasParam("probe_ms")')
 Require 'Hub agitator fields' $hub @('hasParam("pct")', 'hasParam("dir")', 'hasParam("pot")', 'hasParam("src")')
 Require 'Hub node identity (10.1)' $hub @('appendNodeIdentity(jsonResponse, "Distance"', 'appendNodeIdentity(jsonResponse, "Agitator"', 'appendNodeIdentity(jsonResponse, "Pump"', 'appendNodeIdentity(jsonResponse, "Flowmeter"', 'appendNodeIdentity(jsonResponse, "Biomass"', 'NodeVer', 'NodeMac', 'hub_time_ms', 'last_hello_ms', 'last_data_ms')
 

@@ -209,6 +209,22 @@ void startWiFi() {
                                    ? request->getParam("reconnect_wifi")->value().toInt() != 0
                                    : true;
 
+        // Ecos de sintonia e diagnostico interno (Hub 10.2 / v11 / v10)
+        bool hasFfGain = request->hasParam("ff_gain");
+        float newFfGain = hasFfGain ? request->getParam("ff_gain")->value().toFloat() : NAN;
+        bool hasFfOffset = request->hasParam("ff_offset");
+        float newFfOffset = hasFfOffset ? request->getParam("ff_offset")->value().toFloat() : NAN;
+        bool hasFlowOutput = request->hasParam("flow_output");
+        float newFlowOutput = hasFlowOutput ? request->getParam("flow_output")->value().toFloat() : NAN;
+        bool hasSetpointCorrected = request->hasParam("flow_setpoint_corrected");
+        float newSetpointCorrected = hasSetpointCorrected ? request->getParam("flow_setpoint_corrected")->value().toFloat() : NAN;
+        bool hasKp = request->hasParam("kp");
+        float newKp = hasKp ? request->getParam("kp")->value().toFloat() : NAN;
+        bool hasKi = request->hasParam("ki");
+        float newKi = hasKi ? request->getParam("ki")->value().toFloat() : NAN;
+        bool hasRamp = request->hasParam("ramp");
+        float newRamp = hasRamp ? request->getParam("ramp")->value().toFloat() : NAN;
+
         bool ackedNow = false;
         uint32_t ackedRevision = 0;
         bool rebootDetected = false;
@@ -225,6 +241,17 @@ void startWiFi() {
           flowmeterLastUpdate = millis();
           flowmeterLastCommandSource = reportedSource;
           flowmeterReconnectWifi = reportedReconnect;
+
+          if (hasFfGain) flowmeterFfGain = newFfGain;
+          if (hasFfOffset) flowmeterFfOffset = newFfOffset;
+          if (hasFlowOutput) flowmeterOutput = newFlowOutput;
+          if (hasSetpointCorrected) flowmeterSetpointCorrected = newSetpointCorrected;
+          if (hasKp) flowmeterKp = newKp;
+          if (hasKi) flowmeterKi = newKi;
+          if (hasRamp) flowmeterRampRate = newRamp;
+          if (hasFfGain || hasFfOffset || hasFlowOutput || hasSetpointCorrected || hasKp || hasKi || hasRamp) {
+            flowmeterEchoSeen = true;
+          }
 
           // Only a CHANGE between two known ids is a restart. A first observation just
           // records it: re-asserting on first contact would let a lone hub reboot stomp
@@ -243,6 +270,8 @@ void startWiFi() {
             pendingA1 = pendingB1 = false;
             pendingK1 = pendingF1 = pendingC1 = false;
             pendingK2 = pendingF2 = pendingC2 = false;
+            pendingFlowKp = pendingFlowKi = false;
+            pendingFlowFfGain = pendingFlowFfOffset = pendingFlowRampRate = false;
             ackedNow = true;
             ackedRevision = reportedAck;
           }
@@ -316,6 +345,18 @@ void startWiFi() {
           biomassRaw        = request->getParam("raw")->value().toInt();
           if (request->hasParam("it"))  biomassIt  = request->getParam("it")->value().toInt();
           if (request->hasParam("pwm")) biomassPwm = request->getParam("pwm")->value().toFloat();
+          if (request->hasParam("gear")) {
+            biomassGear = request->getParam("gear")->value().toInt();
+            biomassEchoSeen = true;
+          }
+          if (request->hasParam("ema")) {
+            biomassEma = request->getParam("ema")->value().toFloat();
+            biomassEchoSeen = true;
+          }
+          if (request->hasParam("probe_ms")) {
+            biomassProbePeriodMs = (uint32_t)strtoul(request->getParam("probe_ms")->value().c_str(), NULL, 10);
+            biomassEchoSeen = true;
+          }
           if (!idleBeat) biomassSampleLastUpdate = millis();
           xSemaphoreGive(stateMutex);
         }
@@ -338,6 +379,14 @@ void startWiFi() {
           pumpMode = request->getParam("mode")->value().toInt();
           if (request->hasParam("pwm")) pumpPwm = request->getParam("pwm")->value().toInt();
           if (request->hasParam("speed")) pumpSpeed = request->getParam("speed")->value().toFloat();
+          if (request->hasParam("slope")) {
+            pumpSlope = request->getParam("slope")->value().toFloat();
+            pumpEchoSeen = true;
+          }
+          if (request->hasParam("intercept")) {
+            pumpIntercept = request->getParam("intercept")->value().toFloat();
+            pumpEchoSeen = true;
+          }
           pumpFlowRate = request->getParam("flow")->value().toFloat();
           pumpVolume = request->getParam("vol")->value().toFloat();
           pumpTargetVolume = request->getParam("v_tgt")->value().toFloat();

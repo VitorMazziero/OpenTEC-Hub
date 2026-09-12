@@ -290,6 +290,23 @@ float desiredA1 = 0.0f, desiredB1 = 0.0f;
 float desiredK1 = 0.0f, desiredF1 = 0.0f, desiredC1 = 0.0f;
 float desiredK2 = 0.0f, desiredF2 = 0.0f, desiredC2 = 0.0f;
 
+// Sintonia de vazao (PI, Feedforward e Rampa) pendente de ack (Hub 10.2 / v11).
+bool  pendingFlowKp = false, pendingFlowKi = false;
+bool  pendingFlowFfGain = false, pendingFlowFfOffset = false, pendingFlowRampRate = false;
+float desiredFlowKp = 0.0f, desiredFlowKi = 0.0f;
+float desiredFlowFfGain = 0.0f, desiredFlowFfOffset = 0.0f, desiredFlowRampRate = 0.0f;
+
+// Ecos de sintonia e diagnostico interno do fluxometro (Hub 10.2 / v11).
+// NAN / false = nunca ecoado neste boot.
+float flowmeterKp = NAN;
+float flowmeterKi = NAN;
+float flowmeterFfGain = NAN;
+float flowmeterFfOffset = NAN;
+float flowmeterRampRate = NAN;
+float flowmeterOutput = NAN;
+float flowmeterSetpointCorrected = NAN;
+bool  flowmeterEchoSeen = false;
+
 // ---------- Distance Sensor ----------
 bool  distanceSensorCommOn = false;
 float distanceSensorTime = 0.0;
@@ -322,6 +339,13 @@ float biomassAbsorbance = 0.0f;
 int   biomassRaw = 0;
 int   biomassIt = 0;
 float biomassPwm = 0.0f;
+
+// Ecos de configuracao da biomassa (Hub 10.2 / v11).
+// -1 / NAN / 0 / false = nunca ecoado neste boot.
+int      biomassGear = -1;
+float    biomassEma = NAN;
+uint32_t biomassProbePeriodMs = 0;
+bool     biomassEchoSeen = false;
 // Presence and freshness are separate clocks.
 //
 // From v05 the node also sends a 5 s heartbeat while it is IDLE, carrying &idle=1 and
@@ -347,6 +371,12 @@ float pumpFlowRate = 0.0f;
 float pumpVolume = 0.0f;
 bool  pumpActive = false;
 bool  pumpWaiting = false;
+
+// Ecos de calibracao da bomba peristaltica (Hub 10.2 / 3.9).
+// NAN / false = nunca ecoado neste boot.
+float pumpSlope = NAN;
+float pumpIntercept = NAN;
+bool  pumpEchoSeen = false;
 
 // ---------- Servo drive Delta ASDA-B2 ----------
 // Telemetria empurrada por um no ESP32-S3 dedicado, que le o drive por

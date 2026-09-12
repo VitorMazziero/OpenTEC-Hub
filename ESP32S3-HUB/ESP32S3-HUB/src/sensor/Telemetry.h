@@ -66,6 +66,13 @@ void readAndBroadcastSensorData() {
   uint32_t snapDistanceSamplePeriodMs = 0;
   uint32_t snapDistanceSendPeriodMs = 0;
   bool snapDistanceEchoSeen = false;
+  int snapBiomassGear = -1;
+  float snapBiomassEma = NAN;
+  uint32_t snapBiomassProbePeriodMs = 0;
+  bool snapBiomassEchoSeen = false;
+  float snapPumpSlope = NAN;
+  float snapPumpIntercept = NAN;
+  bool snapPumpEchoSeen = false;
   // 10.1: the node registry is copied whole (IP always; version/MAC only once the
   // node has said hello) so the identity keys are assembled outside the mutex too.
   DeviceNodeEntry snapNodes[DEV_COUNT];
@@ -81,6 +88,13 @@ void readAndBroadcastSensorData() {
     snapDistanceComm = distanceSensorCommOn;
     snapDistanceValue = distanceSensorValue;
     snapDistanceUpdate = distanceSensorLastUpdate;
+    if (biomassEchoSeen && (millis() - biomassLastUpdate > BIOMASS_TIMEOUT)) {
+      biomassEchoSeen = false;
+    }
+    snapBiomassEchoSeen = biomassEchoSeen;
+    snapBiomassGear = biomassGear;
+    snapBiomassEma = biomassEma;
+    snapBiomassProbePeriodMs = biomassProbePeriodMs;
     snapBiomassComm = biomassCommOn;
     snapBiomassAbs = biomassAbsorbance;
     snapBiomassRaw = biomassRaw;
@@ -88,6 +102,12 @@ void readAndBroadcastSensorData() {
     snapBiomassPwm = biomassPwm;
     snapBiomassUpdate = biomassLastUpdate;
     snapBiomassSampleUpdate = biomassSampleLastUpdate;
+    if (pumpEchoSeen && (millis() - pumpLastUpdate > PUMP_TIMEOUT)) {
+      pumpEchoSeen = false;
+    }
+    snapPumpEchoSeen = pumpEchoSeen;
+    snapPumpSlope = pumpSlope;
+    snapPumpIntercept = pumpIntercept;
     snapPumpComm = pumpCommOn;
     snapPumpMode = pumpMode;
     snapPumpPwm = pumpPwm;
@@ -156,6 +176,8 @@ void readAndBroadcastSensorData() {
       // 10.1: IP dos cinco nós (~140 bytes) e, só para nós registrados, versão e MAC
       // (~50 bytes por nó). Pior caso estimado ~2050. Mesma reserva de lastSensorJson
       // (Runtime.h), porque a cópia realoca se a origem for maior.
+      // 10.2: Ecos de configuracao dos nós (distância ~80 B, fluxômetro ~160 B, bomba ~45 B,
+      // biomassa ~60 B). Pior caso estimado ~2400 B; a reserva de 3072 B comporta com folga.
       jsonResponse.reserve(HUB_TELEMETRY_JSON_RESERVE);
       jsonReserved = true;
   }
@@ -169,10 +191,27 @@ void readAndBroadcastSensorData() {
   unsigned long snapQueuedAt = 0;
   String snapFlowSource = "unknown";
   bool snapFlowReconnect = true;
+  float snapFlowmeterKp = NAN, snapFlowmeterKi = NAN;
+  float snapFlowmeterFfGain = NAN, snapFlowmeterFfOffset = NAN, snapFlowmeterRampRate = NAN;
+  float snapFlowmeterOutput = NAN, snapFlowmeterSetpointCorrected = NAN;
+  uint32_t snapFlowmeterBootId = 0;
+  bool snapFlowEchoSeen = false;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
     if (flowmeterCommOn && (millis() - flowmeterLastUpdate > FLOWMETER_TIMEOUT)) {
       flowmeterCommOn = false;
     }
+    if (flowmeterEchoSeen && !flowmeterCommOn) {
+      flowmeterEchoSeen = false;
+    }
+    snapFlowEchoSeen = flowmeterEchoSeen;
+    snapFlowmeterKp = flowmeterKp;
+    snapFlowmeterKi = flowmeterKi;
+    snapFlowmeterFfGain = flowmeterFfGain;
+    snapFlowmeterFfOffset = flowmeterFfOffset;
+    snapFlowmeterRampRate = flowmeterRampRate;
+    snapFlowmeterOutput = flowmeterOutput;
+    snapFlowmeterSetpointCorrected = flowmeterSetpointCorrected;
+    snapFlowmeterBootId = flowmeterBootId;
     snapFlowOnline = flowmeterCommOn;
     snapFlowPending = flowCommandAwaitingAck;
     snapFlowControlEnabled = flowmeterControlEnabled;
@@ -221,6 +260,16 @@ void readAndBroadcastSensorData() {
     // Surfaces the node's own reconnect switch. A flowmeter with it off looks exactly
     // like one that is merely absent, and used to have no way back except a cable.
     jsonResponse += ",\"FlowmeterReconnectWifi\":" + String(snapFlowReconnect ? "true" : "false");
+    if (snapFlowEchoSeen) {
+      if (!isnan(snapFlowmeterKp)) jsonResponse += ",\"FlowKp\":" + String(snapFlowmeterKp, 4);
+      if (!isnan(snapFlowmeterKi)) jsonResponse += ",\"FlowKi\":" + String(snapFlowmeterKi, 4);
+      if (!isnan(snapFlowmeterFfGain)) jsonResponse += ",\"FlowFfGain\":" + String(snapFlowmeterFfGain, 4);
+      if (!isnan(snapFlowmeterFfOffset)) jsonResponse += ",\"FlowFfOffset\":" + String(snapFlowmeterFfOffset, 4);
+      if (!isnan(snapFlowmeterRampRate)) jsonResponse += ",\"FlowRampRate\":" + String(snapFlowmeterRampRate, 3);
+      if (!isnan(snapFlowmeterOutput)) jsonResponse += ",\"FlowOutput\":" + String(snapFlowmeterOutput, 4);
+      if (!isnan(snapFlowmeterSetpointCorrected)) jsonResponse += ",\"FlowSetpointCorrected\":" + String(snapFlowmeterSetpointCorrected, 4);
+      if (snapFlowmeterBootId != 0) jsonResponse += ",\"FlowmeterBootId\":" + String(snapFlowmeterBootId);
+    }
   }
 
   // Presença, roteamento e pendência de TODO dispositivo externo, sempre emitidos.
@@ -241,6 +290,11 @@ void readAndBroadcastSensorData() {
       jsonResponse += ",\"BiomassRaw\":" + String(snapBiomassRaw);
       jsonResponse += ",\"BiomassIT\":" + String(snapBiomassIt);
       jsonResponse += ",\"BiomassPWM\":" + String(snapBiomassPwm, 1);
+  }
+  if (biomassOnline && snapBiomassEchoSeen) {
+    if (snapBiomassGear >= 0) jsonResponse += ",\"BiomassGear\":" + String(snapBiomassGear);
+    if (!isnan(snapBiomassEma)) jsonResponse += ",\"BiomassEma\":" + String(snapBiomassEma, 3);
+    if (snapBiomassProbePeriodMs > 0) jsonResponse += ",\"BiomassProbePeriodMs\":" + String(snapBiomassProbePeriodMs);
   }
 
   jsonResponse += ",\"DistanceOnline\":" + String(validDistance ? "true" : "false");
@@ -267,6 +321,10 @@ void readAndBroadcastSensorData() {
     jsonResponse += ",\"PumpTargetVol\":" + String(snapPumpTarget, 3);
     jsonResponse += ",\"PumpActive\":" + String(snapPumpActive ? "true" : "false");
     jsonResponse += ",\"PumpWaiting\":" + String(snapPumpWaiting ? "true" : "false");
+    if (snapPumpEchoSeen) {
+      if (!isnan(snapPumpSlope)) jsonResponse += ",\"PumpSlope\":" + String(snapPumpSlope, 4);
+      if (!isnan(snapPumpIntercept)) jsonResponse += ",\"PumpIntercept\":" + String(snapPumpIntercept, 4);
+    }
   }
 
   jsonResponse += ",\"AgitatorOnline\":" + String(agitatorOnline ? "true" : "false");

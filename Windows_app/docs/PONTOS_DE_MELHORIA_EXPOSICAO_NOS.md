@@ -31,6 +31,10 @@
 - **Situação atual:** O contrato USB em `WIRE_CONTRACT_V9.md` delimita 1024 bytes por comando app $\rightarrow$ Hub. No sentido inverso (telemetria broadcast Hub $\rightarrow$ PC), a linha emitida por `Serial.println(lastSensorJson)` pode exceder 2000 bytes.
 - **Verificação necessária:** Confirmar que os buffers de recepção serial no `Windows_app` (`ConnectionManager` / `System.IO.Ports.SerialPort`) não impõem truncamento em 1024 B ou 2048 B para linhas recebidas.
 
+### 1.4 Regra de "Um `command` por Revisão" na Biomassa e Despacho no App
+- **Situação identificada (Etapa 3):** No Hub (`Commands.h`), os comandos de configuração da biomassa (`biomassIt`, `biomassPwm`, `biomassGear`, `biomassEma`, `biomassProbePeriodMs`) montam uma estrutura com chave `"command":"<nome>","value":<valor>`. Como o protocolo JSON do nó aceita apenas uma chave `"command"` por objeto, o Hub enfileira apenas a primeira chave encontrada e descarta quaisquer outras presentes no mesmo quadro, registrando `ESP32_EVT`.
+- **Requisito para o App (Etapas 5 e 7):** O aplicativo não deve agrupar alterações de biomassa num único payload JSON. Os `CommandBuilders` e ViewModels devem despachar os comandos sequencialmente, aguardando que `BiomassCommandPending` retorne a `false` antes de enviar o próximo parâmetro.
+
 ---
 
 ## 2. Sensor de Distância (`External-Devices/sensor-distancia`)
@@ -55,12 +59,28 @@
 
 ---
 
-## 3. Matriz de Prioridades e Rastreamento
+## 3. Sensor de Biomassa e Bomba Peristáltica
+
+### 3.1 Semântica de `set_it` e `set_pwm` no Firmware da Biomassa (`CommandCodec.h`)
+- **Situação identificada (Etapa 3):** No firmware ativo da biomassa, o comando `set_it` exige `index` (0–3) e `code` (0–5) para editar a tabela de marchas, enquanto o fio do app/Hub envia `{"command":"set_it","value":N}`.
+- **Recomendação para a Etapa 4:** No firmware `v11` da biomassa, estender `processJsonCommand` para aceitar `value` diretamente quando `index` não for fornecido, aplicando o tempo de integração ou duty cycle correspondente à operação corrente.
+
+### 3.2 Padronização de Nomenclatura nas Chaves da Bomba
+- **Situação identificada:** O firmware da bomba espera `pumpSlope` e `pumpIntercept` para calibração, mas `pid_kp`, `pid_ki`, `pid_kd` para PID.
+- **Resolução no Hub (Etapa 3):** O Hub faz a ponte traduzindo `pumpPid*` $\rightarrow$ `pid_*` e mantendo `pumpSlope`/`pumpIntercept` como *pass-through*.
+- **Oportunidade futura:** Em versões posteriores da bomba, permitir que todas as chaves aceitem o prefixo `pump_` de forma consistente.
+
+---
+
+## 4. Matriz de Prioridades e Rastreamento
 
 | Item | Componente | Impacto | Prioridade | Tratamento |
 |---|---|---|---|---|
 | Desacoplar eco de distância de estagnação | Hub | Telemetria | Baixa/Média | Sugerido para revisão pós-Etapa 3 |
 | Validação [-50, 200] mm no nó | Nó Distância | Consistência | Alta | **Aplicado na Etapa 2** |
+| Whitelist e tradução de chaves (Bomba/Fluxômetro/Biomassa) | Hub | Comunicação | Alta | **Aplicado na Etapa 3** |
+| Regra "um command por revisão" na biomassa | Hub / App | Confiabilidade | Alta | **Aplicado no Hub (Etapa 3); regra para App (Etapa 7)** |
+| Suporte a `value` direto em `set_it`/`set_pwm` | Nó Biomassa | Protocolo | Alta | **Requisito para a Etapa 4** |
 | Botão explícito de envio (sem auto-save) | App UI | Hardware (Flash NVS) | Alta | Regra para a Etapa 6 |
 | Medição Content-Length `/readData` | Hub / Infra | Confiabilidade | Média | Executar na bancada da Etapa 4/7 |
 | FreeRTOS multi-core no sensor | Nó Distância | Desempenho | Baixa | Diferido no ROADMAP |

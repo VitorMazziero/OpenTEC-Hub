@@ -168,6 +168,13 @@ void processJsonCommand(const String &json) {
       flowCommandAwaitingAck = true;
       flowCommandDeliveryCount = 0;
       flowCommandQueuedAt = millis();
+      pendingMaxFlow = false;
+      pendingReconnectWifi = false;
+      pendingA1 = pendingB1 = false;
+      pendingK1 = pendingF1 = pendingC1 = false;
+      pendingK2 = pendingF2 = pendingC2 = false;
+      pendingFlowKp = pendingFlowKi = false;
+      pendingFlowFfGain = pendingFlowFfOffset = pendingFlowRampRate = false;
       pendingFlowmeterCommand = buildFlowCommandLocked();
       xSemaphoreGive(cmdMutex);
     }
@@ -445,6 +452,32 @@ void processJsonCommand(const String &json) {
   String testVal = getValueFromJson(json, "test_period");
   if (testVal.length() > 0) { if (biomassCmdFound) biomassCommand += ","; biomassCommand += "\"test_period\":" + testVal; biomassCmdFound = true; }
 
+  struct BiomassCmdMap {
+    const char* appKey;
+    const char* cmdName;
+  };
+  const BiomassCmdMap bioNewCmds[] = {
+    { "biomassIt", "set_it" },
+    { "biomassPwm", "set_pwm" },
+    { "biomassGear", "set_gear" },
+    { "biomassEma", "ema" },
+    { "biomassProbePeriodMs", "probe_period" }
+  };
+
+  for (const auto& item : bioNewCmds) {
+    if (json.indexOf(String("\"") + item.appKey + "\"") != -1) {
+      String val = getValueFromJson(json, item.appKey);
+      if (val.length() > 0) {
+        if (!biomassCmdFound) {
+          biomassCommand = "\"command\":\"" + String(item.cmdName) + "\",\"value\":" + val;
+          biomassCmdFound = true;
+        } else {
+          ESP32_EVT(String("Biomass command descartado (um por revisao): ") + item.appKey + "=" + val);
+        }
+      }
+    }
+  }
+
   if (biomassCmdFound && biomassCommOn) {
       queueReliable(biomassBox, biomassCommand, "Biomass");
   }
@@ -547,7 +580,8 @@ void processJsonCommand(const String &json) {
 
   const char* simpleKeys[] = {
     "pump_command", "mode", "pump_speed", "init_t", "final_t",
-    "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp"
+    "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
+    "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd"
   };
   const char* polyKeys[] = {
     "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10",
@@ -559,7 +593,10 @@ void processJsonCommand(const String &json) {
     if (val.length() > 0) {
       if (pumpCmdFound) pumpCommand += ",";
       String cleanKey = String(key);
-      if (cleanKey.startsWith("pump_")) cleanKey = cleanKey.substring(5); 
+      if (cleanKey == "pumpPidKp") cleanKey = "pid_kp";
+      else if (cleanKey == "pumpPidKi") cleanKey = "pid_ki";
+      else if (cleanKey == "pumpPidKd") cleanKey = "pid_kd";
+      else if (cleanKey.startsWith("pump_")) cleanKey = cleanKey.substring(5); 
       if (cleanKey == "command") pumpCommand += "\"" + cleanKey + "\":\"" + val + "\"";
       else pumpCommand += "\"" + cleanKey + "\":" + val;
       pumpCmdFound = true;

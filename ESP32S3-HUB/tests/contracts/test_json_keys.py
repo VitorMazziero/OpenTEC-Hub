@@ -83,6 +83,26 @@ REAL_FRAMES = {
         "distanceSamplePeriodMs": "200", "distanceSendPeriodMs": "1000",
     },
     '{"distanceResetNvs":1}': {"distanceResetNvs": "1"},
+    # Comandos de sintonia do fluxometro (Hub 10.2 / v11)
+    '{"flowKp":0.8,"flowKi":0.05,"flowRampRate":1.5}': {
+        "flowKp": "0.8", "flowKi": "0.05", "flowRampRate": "1.5",
+    },
+    '{"flowFfGain":0.025,"flowFfOffset":-1.2}': {
+        "flowFfGain": "0.025", "flowFfOffset": "-1.2",
+    },
+    # Comandos de calibracao e PID da bomba (Hub 10.2 / 3.9)
+    '{"pumpSlope":0.028,"pumpIntercept":1.5}': {
+        "pumpSlope": "0.028", "pumpIntercept": "1.5",
+    },
+    '{"pumpPidKp":1.2,"pumpPidKi":0.05,"pumpPidKd":0.01}': {
+        "pumpPidKp": "1.2", "pumpPidKi": "0.05", "pumpPidKd": "0.01",
+    },
+    # Comandos de configuracao da biomassa (Hub 10.2 / v11)
+    '{"biomassIt":2}': {"biomassIt": "2"},
+    '{"biomassPwm":45.0}': {"biomassPwm": "45.0"},
+    '{"biomassGear":1}': {"biomassGear": "1"},
+    '{"biomassEma":0.85}': {"biomassEma": "0.85"},
+    '{"biomassProbePeriodMs":500}': {"biomassProbePeriodMs": "500"},
 }
 
 
@@ -134,6 +154,28 @@ class DistanceSourceContractTests(unittest.TestCase):
         self.assertIn('\\"DistanceSamplePeriodMs\\"', tel)
         self.assertIn('\\"DistanceSendPeriodMs\\"', tel)
         self.assertIn('\\"DistanceCommandPending\\"', tel)
+
+    def test_telemetry_emits_flowmeter_echoes(self):
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn('\\"FlowKp\\"', tel)
+        self.assertIn('\\"FlowKi\\"', tel)
+        self.assertIn('\\"FlowFfGain\\"', tel)
+        self.assertIn('\\"FlowFfOffset\\"', tel)
+        self.assertIn('\\"FlowRampRate\\"', tel)
+        self.assertIn('\\"FlowOutput\\"', tel)
+        self.assertIn('\\"FlowSetpointCorrected\\"', tel)
+        self.assertIn('\\"FlowmeterBootId\\"', tel)
+
+    def test_telemetry_emits_pump_echoes(self):
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn('\\"PumpSlope\\"', tel)
+        self.assertIn('\\"PumpIntercept\\"', tel)
+
+    def test_telemetry_emits_biomass_echoes(self):
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn('\\"BiomassGear\\"', tel)
+        self.assertIn('\\"BiomassEma\\"', tel)
+        self.assertIn('\\"BiomassProbePeriodMs\\"', tel)
 
 
 if __name__ == "__main__":

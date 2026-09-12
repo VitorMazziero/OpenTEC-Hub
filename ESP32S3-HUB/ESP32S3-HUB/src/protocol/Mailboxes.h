@@ -113,6 +113,11 @@ String buildFlowCommandLocked() {
   if (pendingK2) cmd += ",\"k2\":" + String(desiredK2, 9);
   if (pendingF2) cmd += ",\"f2\":" + String(desiredF2, 9);
   if (pendingC2) cmd += ",\"c2\":" + String(desiredC2, 9);
+  if (pendingFlowKp) cmd += ",\"kp_flow\":" + String(desiredFlowKp, 4);
+  if (pendingFlowKi) cmd += ",\"ki_flow\":" + String(desiredFlowKi, 4);
+  if (pendingFlowFfGain) cmd += ",\"ff_gain\":" + String(desiredFlowFfGain, 4);
+  if (pendingFlowFfOffset) cmd += ",\"ff_offset\":" + String(desiredFlowFfOffset, 4);
+  if (pendingFlowRampRate) cmd += ",\"ramp_rate\":" + String(desiredFlowRampRate, 3);
   cmd += "}";
   return cmd;
 }
@@ -200,9 +205,15 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   bool hasK2 = json.indexOf("\"k2\"") != -1;
   bool hasF2 = json.indexOf("\"f2\"") != -1;
   bool hasC2 = json.indexOf("\"c2\"") != -1;
+  bool hasKp = json.indexOf("\"flowKp\"") != -1;
+  bool hasKi = json.indexOf("\"flowKi\"") != -1;
+  bool hasFfGain = json.indexOf("\"flowFfGain\"") != -1;
+  bool hasFfOffset = json.indexOf("\"flowFfOffset\"") != -1;
+  bool hasRamp = json.indexOf("\"flowRampRate\"") != -1;
 
   if (!(hasFlow || hasV1 || hasV2 || hasVFlow || hasMax || hasReconnect ||
-        hasA1 || hasB1 || hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2)) {
+        hasA1 || hasB1 || hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2 ||
+        hasKp || hasKi || hasFfGain || hasFfOffset || hasRamp)) {
     return 0;
   }
 
@@ -232,6 +243,11 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
     if (hasK2) { desiredK2 = getValueFromJson(json, "k2").toFloat(); pendingK2 = true; }
     if (hasF2) { desiredF2 = getValueFromJson(json, "f2").toFloat(); pendingF2 = true; }
     if (hasC2) { desiredC2 = getValueFromJson(json, "c2").toFloat(); pendingC2 = true; }
+    if (hasKp) { desiredFlowKp = getValueFromJson(json, "flowKp").toFloat(); pendingFlowKp = true; }
+    if (hasKi) { desiredFlowKi = getValueFromJson(json, "flowKi").toFloat(); pendingFlowKi = true; }
+    if (hasFfGain) { desiredFlowFfGain = getValueFromJson(json, "flowFfGain").toFloat(); pendingFlowFfGain = true; }
+    if (hasFfOffset) { desiredFlowFfOffset = getValueFromJson(json, "flowFfOffset").toFloat(); pendingFlowFfOffset = true; }
+    if (hasRamp) { desiredFlowRampRate = max(0.0f, getValueFromJson(json, "flowRampRate").toFloat()); pendingFlowRampRate = true; }
 
     flowCommandRevision++;
     if (flowCommandRevision == 0) flowCommandRevision = 1;

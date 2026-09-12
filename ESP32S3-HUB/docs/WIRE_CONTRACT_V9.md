@@ -164,6 +164,46 @@ por segundo e lê o corpo da resposta. Quando há comando pendente na `distanceB
 responde `200 application/json {"cmd_id":N,"offset_mm":...}`; o nó aplica e responde com
 `&ack_cmd_id=N` no push seguinte. Sem comando pendente, o Hub responde `200 text/plain "Distance data received"`.
 
+### Fluxômetro (caixa confiável do fluxômetro via poll `/flowCommand`)
+
+| Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato |
+|---|---|---|---|
+| `FlowKp` | `flowKp` | `kp_flow` | float (%.4f) |
+| `FlowKi` | `flowKi` | `ki_flow` | float (%.4f) |
+| `FlowFfGain` | `flowFfGain` | `ff_gain` | float (%.4f) |
+| `FlowFfOffset` | `flowFfOffset` | `ff_offset` | float (%.4f) |
+| `FlowRampRate` | `flowRampRate` | `ramp_rate` | float (%.3f, >= 0.0) |
+
+Os campos de sintonia trafegam junto ao estado dos atuadores (`flow_setpoint`, `v1`, `v2`, `v_Flow`)
+e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
+
+### Bomba Peristáltica (`pumpBox` via poll `/pumpCommand`)
+
+| Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato / Ação |
+|---|---|---|---|
+| `PumpCommand` | `pump_command` | `command` | string (ex.: `"reset_volume"`) |
+| `PumpSlope` | `pumpSlope` | `pumpSlope` | float (pass-through) |
+| `PumpIntercept` | `pumpIntercept` | `pumpIntercept` | float (pass-through) |
+| `PumpPidKp` | `pumpPidKp` | `pid_kp` | float |
+| `PumpPidKi` | `pumpPidKi` | `pid_ki` | float |
+| `PumpPidKd` | `pumpPidKd` | `pid_kd` | float |
+
+Nota: `speed` desacompanhado de `pump_` é rejeitado pelo Hub (§3.7 do plano).
+O desligamento seguro da bomba utiliza `{"mode":0}`.
+
+### Sensor de Biomassa (`biomassBox` via poll `/biomassCommand`)
+
+| Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato / Ação |
+|---|---|---|---|
+| `BiomassIt` | `biomassIt` | `{"command":"set_it","value":N}` | índice de tempo de integração (0-3) |
+| `BiomassPwm` | `biomassPwm` | `{"command":"set_pwm","value":N}` | duty cycle LED (0-100%) |
+| `BiomassGear` | `biomassGear` | `{"command":"set_gear","value":N}` | marcha óptica |
+| `BiomassEma` | `biomassEma` | `{"command":"ema","value":x}` | coeficiente do filtro EMA (0.01-1.0) |
+| `BiomassProbePeriodMs` | `biomassProbePeriodMs` | `{"command":"probe_period","value":N}` | período de amostragem em ms |
+
+Regra: **Um `command` por revisão**. Se o aplicativo enviar múltiplos comandos na mesma requisição,
+o Hub enfileira o primeiro e descarta os excedentes com registro em `ESP32_EVT`.
+
 ## Ecos por nó (10.2)
 
 Valores de configuração aplicados pelo nó são ecoados em seus pushes e republicados no
@@ -171,9 +211,9 @@ quadro agregado (`GET /readData`).
 
 Regra de emissão:
 - Cada bloco de eco só entra no JSON quando o nó já o ecoou pelo menos uma vez neste boot
-  (`distanceEchoSeen = true`) e o nó está dentro da janela de presença (`DistanceOnline = true`).
-- Se o nó sai da janela de presença (`DISTANCE_PRESENCE_TIMEOUT = 3000` ms), `distanceEchoSeen`
-  é redefinido para `false` e as chaves de eco são removidas do quadro (não são *sticky*).
+  (`*EchoSeen = true`) e o nó está dentro da janela de presença (`*Online = true`).
+- Se o nó sai da janela de presença, `*EchoSeen` é redefinido para `false` e as chaves de
+  eco são removidas do quadro (não são *sticky*).
 - `*CommandPending` é publicado sempre (como os outros atuadores e periféricos).
 
 ### Sensor de distância
@@ -184,6 +224,37 @@ Regra de emissão:
 | `DistanceOffsetMm` | float (%.2f) | `DistanceOnline` e `distanceEchoSeen` | Offset em mm aplicado e mantido em NVS pelo sensor |
 | `DistanceSamplePeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de leitura do sensor em ms |
 | `DistanceSendPeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de envio HTTP em ms |
+
+### Fluxômetro
+
+| Chave no quadro | Tipo | Quando | Significado |
+|---|---|---|---|
+| `FlowCommandPending` | bool | sempre | Verdadeiro enquanto houver comando ou sintonia pendente |
+| `FlowKp` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Ganho proporcional da malha PI |
+| `FlowKi` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Ganho integral da malha PI |
+| `FlowFfGain` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Ganho do feedforward |
+| `FlowFfOffset` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Offset do feedforward |
+| `FlowRampRate` | float (%.3f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Taxa da rampa de setpoint (L/min/s) |
+| `FlowOutput` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Saída calculada do controlador |
+| `FlowSetpointCorrected` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Setpoint corrigido com feedforward |
+| `FlowmeterBootId` | uint32 | `FlowmeterOnline` e `flowmeterEchoSeen` | Identificador único de boot do nó |
+
+### Bomba Peristáltica
+
+| Chave no quadro | Tipo | Quando | Significado |
+|---|---|---|---|
+| `PumpCommandPending` | bool | sempre | Verdadeiro enquanto houver comando pendente |
+| `PumpSlope` | float (%.4f) | `PumpOnline` e `pumpEchoSeen` | Coeficiente angular de calibração |
+| `PumpIntercept` | float (%.4f) | `PumpOnline` e `pumpEchoSeen` | Coeficiente linear de calibração |
+
+### Sensor de Biomassa
+
+| Chave no quadro | Tipo | Quando | Significado |
+|---|---|---|---|
+| `BiomassCommandPending` | bool | sempre | Verdadeiro enquanto houver comando pendente |
+| `BiomassGear` | int | `BiomassOnline` e `biomassEchoSeen` | Marcha óptica ativa (IT + PWM) |
+| `BiomassEma` | float (%.3f) | `BiomassOnline` e `biomassEchoSeen` | Fator alfa do filtro EMA aplicado |
+| `BiomassProbePeriodMs` | uint32 | `BiomassOnline` e `biomassEchoSeen` | Período de amostragem em ms |
 
 ## Limite de responsabilidade
 

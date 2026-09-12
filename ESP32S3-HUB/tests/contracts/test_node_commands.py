@@ -271,5 +271,204 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         self.assertIn("distanceEchoSeen = false;", tel)
 
 
+def translate_pump_command(json_str: str, comm_on: bool = True):
+    """Espelha o bloco de comando da bomba em Commands.h."""
+    try:
+        data = json.loads(json_str)
+    except Exception:
+        return None, False
+
+    simple_keys = [
+        "pump_command", "mode", "pump_speed", "init_t", "final_t",
+        "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
+        "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd"
+    ]
+    parts = []
+    found = False
+    for k in simple_keys:
+        if k in data:
+            val = str(data[k])
+            clean_k = k
+            if clean_k == "pumpPidKp":
+                clean_k = "pid_kp"
+            elif clean_k == "pumpPidKi":
+                clean_k = "pid_ki"
+            elif clean_k == "pumpPidKd":
+                clean_k = "pid_kd"
+            elif clean_k.startswith("pump_"):
+                clean_k = clean_k[5:]
+            if clean_k == "command":
+                parts.append(f'"{clean_k}":"{val}"')
+            else:
+                parts.append(f'"{clean_k}":{val}')
+            found = True
+
+    if not found or not comm_on:
+        return None, False
+    return ",".join(parts), True
+
+
+def translate_biomass_command(json_str: str, comm_on: bool = True):
+    """Espelha o bloco de comando da biomassa em Commands.h."""
+    try:
+        data = json.loads(json_str)
+    except Exception:
+        return None, False, []
+
+    cmd_parts = []
+    found = False
+
+    for k in ["start", "stop", "blank", "low", "high", "opt", "test_period"]:
+        if k in data:
+            cmd_parts.append(f'"{k}":{data[k]}')
+            found = True
+
+    new_cmds = [
+        ("biomassIt", "set_it"),
+        ("biomassPwm", "set_pwm"),
+        ("biomassGear", "set_gear"),
+        ("biomassEma", "ema"),
+        ("biomassProbePeriodMs", "probe_period"),
+    ]
+    discarded = []
+    for app_key, cmd_name in new_cmds:
+        if app_key in data:
+            val = data[app_key]
+            if not found:
+                cmd_parts.append(f'"command":"{cmd_name}","value":{val}')
+                found = True
+            else:
+                discarded.append(app_key)
+
+    if not found or not comm_on:
+        return None, False, discarded
+    return ",".join(cmd_parts), True, discarded
+
+
+class PumpCommandTests(unittest.TestCase):
+    def test_calibration_and_pid_translations(self):
+        cmd = '{"pumpSlope":0.028,"pumpIntercept":1.5,"pumpPidKp":1.2,"pumpPidKi":0.05,"pumpPidKd":0.01}'
+        inner, ok = translate_pump_command(cmd)
+        self.assertTrue(ok)
+        self.assertEqual('"pumpSlope":0.028,"pumpIntercept":1.5,"pid_kp":1.2,"pid_ki":0.05,"pid_kd":0.01', inner)
+
+    def test_speed_alone_without_pump_prefix_is_rejected(self):
+        cmd = '{"speed":100.0}'
+        inner, ok = translate_pump_command(cmd)
+        self.assertFalse(ok)
+        self.assertIsNone(inner)
+
+    def test_pump_command_string_value_quoted(self):
+        cmd = '{"pump_command":"reset_volume"}'
+        inner, ok = translate_pump_command(cmd)
+        self.assertTrue(ok)
+        self.assertEqual('"command":"reset_volume"', inner)
+
+
+class BiomassCommandTests(unittest.TestCase):
+    def test_individual_biomass_commands(self):
+        for app_key, cmd_name, val in [
+            ("biomassIt", "set_it", 2),
+            ("biomassPwm", "set_pwm", 45.0),
+            ("biomassGear", "set_gear", 1),
+            ("biomassEma", "ema", 0.85),
+            ("biomassProbePeriodMs", "probe_period", 500),
+        ]:
+            cmd = json.dumps({app_key: val})
+            inner, ok, discarded = translate_biomass_command(cmd)
+            self.assertTrue(ok)
+            self.assertEqual(f'"command":"{cmd_name}","value":{val}', inner)
+            self.assertEqual([], discarded)
+
+    def test_one_command_per_revision_enforced(self):
+        cmd = '{"biomassIt":2,"biomassPwm":45.0,"biomassGear":1}'
+        inner, ok, discarded = translate_biomass_command(cmd)
+        self.assertTrue(ok)
+        self.assertEqual('"command":"set_it","value":2', inner)
+        self.assertEqual(["biomassPwm", "biomassGear"], discarded)
+
+
+class NodeCommandSourceContractTests(unittest.TestCase):
+    def read(self, rel: str) -> str:
+        return (SRC_ROOT / rel).read_text(encoding="utf-8")
+
+    def test_appcontext_flow_pump_biomass_echo_variables(self):
+        app = self.read("src/core/AppContext.h")
+        self.assertIn("float flowmeterKp = NAN;", app)
+        self.assertIn("float flowmeterKi = NAN;", app)
+        self.assertIn("float flowmeterFfGain = NAN;", app)
+        self.assertIn("float flowmeterFfOffset = NAN;", app)
+        self.assertIn("float flowmeterRampRate = NAN;", app)
+        self.assertIn("float flowmeterOutput = NAN;", app)
+        self.assertIn("float flowmeterSetpointCorrected = NAN;", app)
+        self.assertIn("bool  flowmeterEchoSeen = false;", app)
+        self.assertIn("float pumpSlope = NAN;", app)
+        self.assertIn("float pumpIntercept = NAN;", app)
+        self.assertIn("bool  pumpEchoSeen = false;", app)
+        self.assertIn("int      biomassGear = -1;", app)
+        self.assertIn("float    biomassEma = NAN;", app)
+        self.assertIn("uint32_t biomassProbePeriodMs = 0;", app)
+        self.assertIn("bool     biomassEchoSeen = false;", app)
+
+    def test_mailboxes_flow_tuning_serialization_and_queueing(self):
+        mb = self.read("src/protocol/Mailboxes.h")
+        self.assertIn('\\"kp_flow\\":', mb)
+        self.assertIn('\\"ki_flow\\":', mb)
+        self.assertIn('\\"ff_gain\\":', mb)
+        self.assertIn('\\"ff_offset\\":', mb)
+        self.assertIn('\\"ramp_rate\\":', mb)
+        self.assertIn('\\"flowKp\\"', mb)
+        self.assertIn('\\"flowKi\\"', mb)
+        self.assertIn('\\"flowFfGain\\"', mb)
+        self.assertIn('\\"flowFfOffset\\"', mb)
+        self.assertIn('\\"flowRampRate\\"', mb)
+
+    def test_commands_pump_and_biomass_whitelists(self):
+        cmd = self.read("src/protocol/Commands.h")
+        self.assertIn('"pumpSlope"', cmd)
+        self.assertIn('"pumpIntercept"', cmd)
+        self.assertIn('"pumpPidKp"', cmd)
+        self.assertIn('"pumpPidKi"', cmd)
+        self.assertIn('"pumpPidKd"', cmd)
+        self.assertIn('cleanKey == "pumpPidKp"', cmd)
+        self.assertIn('cleanKey = "pid_kp"', cmd)
+        self.assertIn('"biomassIt"', cmd)
+        self.assertIn('"biomassPwm"', cmd)
+        self.assertIn('"biomassGear"', cmd)
+        self.assertIn('"biomassEma"', cmd)
+        self.assertIn('"biomassProbePeriodMs"', cmd)
+
+    def test_httpserver_reads_flow_pump_biomass_parameters(self):
+        http = self.read("src/network/HttpServer.h")
+        self.assertIn('hasParam("kp")', http)
+        self.assertIn('hasParam("ki")', http)
+        self.assertIn('hasParam("ramp")', http)
+        self.assertIn('hasParam("ff_gain")', http)
+        self.assertIn('hasParam("ff_offset")', http)
+        self.assertIn('hasParam("flow_output")', http)
+        self.assertIn('hasParam("flow_setpoint_corrected")', http)
+        self.assertIn('hasParam("slope")', http)
+        self.assertIn('hasParam("intercept")', http)
+        self.assertIn('hasParam("gear")', http)
+        self.assertIn('hasParam("ema")', http)
+        self.assertIn('hasParam("probe_ms")', http)
+
+    def test_telemetry_emits_node_echo_keys(self):
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn('\\"FlowKp\\"', tel)
+        self.assertIn('\\"FlowKi\\"', tel)
+        self.assertIn('\\"FlowFfGain\\"', tel)
+        self.assertIn('\\"FlowFfOffset\\"', tel)
+        self.assertIn('\\"FlowRampRate\\"', tel)
+        self.assertIn('\\"FlowOutput\\"', tel)
+        self.assertIn('\\"FlowSetpointCorrected\\"', tel)
+        self.assertIn('\\"FlowmeterBootId\\"', tel)
+        self.assertIn('\\"PumpSlope\\"', tel)
+        self.assertIn('\\"PumpIntercept\\"', tel)
+        self.assertIn('\\"BiomassGear\\"', tel)
+        self.assertIn('\\"BiomassEma\\"', tel)
+        self.assertIn('\\"BiomassProbePeriodMs\\"', tel)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

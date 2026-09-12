@@ -904,6 +904,12 @@ public sealed class PowerTestDocument
     public List<PowerRunSummary> Runs { get; set; } = [];
     public string? InterruptionReason { get; set; }
     public Dictionary<string, string> FileHashes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// <see cref="TestId"/> of the assay this one was duplicated from (§G): same fluid, geometry,
+    /// calibration, tare, settings and plan, no runs. Null for an assay created from scratch.
+    /// </summary>
+    public Guid? DuplicatedFrom { get; set; }
 }
 
 public sealed record PowerTestSummary(

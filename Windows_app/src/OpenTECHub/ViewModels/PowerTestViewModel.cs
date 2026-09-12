@@ -623,9 +623,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         PowerTestStatus.Draft => "Rascunho",
         PowerTestStatus.Running => "Em execução",
         PowerTestStatus.Interrupted => "Interrompido · edição liberada",
-        PowerTestStatus.Completed => "Concluído",
+        PowerTestStatus.Completed => "Concluído — somente leitura. Use Novo, Duplicar ou Reabrir.",
         _ => "Nenhum ensaio",
     };
+
+    /// <summary>A finished assay can only be left through Novo, Duplicar or Reabrir (§G).</summary>
+    public bool CanReopenTest => CanManageTest && CurrentTest?.Status == PowerTestStatus.Completed;
     public string TareStatus
     {
         get
@@ -755,6 +758,127 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         ValidationMessage =
             $"Ensaio '{doc.Name}' aberto: {doc.Conditions.Count} condição(ões), {accepted} ponto(s) aceito(s).";
         StatusMessage = ValidationMessage;
+    }
+
+    /// <summary>
+    /// New assay with this one's fluid, geometry, calibration, tare, settings and plan — counters
+    /// zeroed, no runs, no flooding — so a finished assay is not a dead end that forces the operator
+    /// to redo the whole setup through Novo (bench of 2026-09-11). The manifest records the source.
+    /// </summary>
+    [RelayCommand]
+    private void DuplicateTest()
+    {
+        if (!CanManageTest || CurrentTest is null || _dialogs is null ||
+            !_dialogs.PromptInput("Duplicar ensaio de potência", "Nome do novo ensaio (mesmo setup, sem pontos):", out var name, CurrentTest.Name + " (2)"))
+        {
+            return;
+        }
+
+        if (!_store.ValidateTestName(name, out var error)) { ShowError(error ?? "Nome inválido."); return; }
+        if (_store.TestExists(name)) { ShowError($"Já existe um ensaio chamado '{name.Trim()}'."); return; }
+
+        var source = CurrentTest;
+        try
+        {
+            var conditions = source.Conditions
+                .OrderBy(c => c.OrderIndex)
+                .Select(c =>
+                {
+                    var clone = c.Clone();
+                    clone.ConditionId = Guid.NewGuid();
+                    clone.CompletedReplicates = 0;
+                    clone.AcceptedReplicates = 0;
+                    clone.RejectedReplicates = 0;
+                    clone.Status = PowerConditionStatus.Pending;
+                    clone.HasReplicateDisagreement = false;
+                    clone.ReproducibilityWarning = null;
+                    return clone;
+                })
+                .ToList();
+
+            var doc = _store.CreateTest(
+                name.Trim(),
+                source.Fluid,
+                new PowerGeometry
+                {
+                    VesselDiameterM = source.Geometry.VesselDiameterM,
+                    LiquidVolumeM3 = source.Geometry.LiquidVolumeM3,
+                    Baffled = source.Geometry.Baffled,
+                    Impellers = source.Geometry.Impellers.Select(i => i.Clone()).ToList(),
+                },
+                source.Settings,
+                conditions,
+                source.LinkedMap);
+            doc.DuplicatedFrom = source.TestId;
+            doc.MotorRatedTorqueNm = source.MotorRatedTorqueNm;
+            if (source.Calibration is { } calibration)
+            {
+                doc.Calibration = calibration;
+                _store.SaveCalibration(doc.FolderName, calibration);
+            }
+            if (source.Tare is { } tare)
+            {
+                doc.Tare = tare;
+                _store.SaveTare(doc.FolderName, tare);
+            }
+            doc.RelativeMode = doc.Calibration is null || doc.Tare is null;
+            _store.SaveTestManifest(doc);
+            _store.AppendEventLog(doc.FolderName, new PowerTestEventLogEntry(
+                DateTimeOffset.UtcNow, "TestDuplicated", $"Duplicado de '{source.Name}' ({source.TestId}).", null));
+
+            LoadDocument(_store.LoadTest(doc.FolderName) ?? doc);
+            RefreshTests();
+            SelectedTest = Tests.FirstOrDefault(t => t.FolderName == doc.FolderName);
+            ValidationMessage = $"Ensaio '{doc.Name}' criado a partir de '{source.Name}': {conditions.Count} condição(ões), tara e calibração copiadas, sem pontos.";
+            StatusMessage = ValidationMessage;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível duplicar o ensaio: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Takes a finished assay back to <see cref="PowerTestStatus.Interrupted"/> so the plan can be
+    /// edited and the sequence continued; accepted runs stay. Nothing else ever leaves
+    /// <see cref="PowerTestStatus.Completed"/> — not the app, not a reload.
+    /// </summary>
+    [RelayCommand]
+    private void ReopenTest()
+    {
+        if (!CanReopenTest || CurrentTest is null || _dialogs is null)
+        {
+            return;
+        }
+
+        var doc = CurrentTest;
+        if (!_dialogs.Confirm(
+                "Reabrir ensaio concluído",
+                $"Reabrir '{doc.Name}' para editar a tabela e continuar a sequência? Os pontos aceitos são mantidos; o ensaio deixa de constar como concluído.",
+                "Reabrir",
+                "Cancelar"))
+        {
+            return;
+        }
+
+        try
+        {
+            doc.Status = PowerTestStatus.Interrupted;
+            doc.CompletedUtc = null;
+            doc.InterruptionReason = "Reaberto pelo operador";
+            _store.SaveTestManifest(doc);
+            _store.AppendEventLog(doc.FolderName, new PowerTestEventLogEntry(DateTimeOffset.UtcNow, "TestReopened", "Reaberto pelo operador.", null));
+            _runner?.PrepareTest(doc);
+            RefreshTests();
+            NotifyDocumentState();
+            OnPropertyChanged(nameof(CanReopenTest));
+            ValidationMessage = $"Ensaio '{doc.Name}' reaberto: edição liberada, {doc.Runs.Count(r => r.Phase == PowerRunPhase.Accepted)} ponto(s) aceito(s) mantidos.";
+            StatusMessage = ValidationMessage;
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível reabrir o ensaio: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -4135,7 +4259,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private void NotifyDocumentState()
     {
-        OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest));
+        OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest)); OnPropertyChanged(nameof(CanReopenTest));
         OnPropertyChanged(nameof(CanPause)); OnPropertyChanged(nameof(CanStop)); OnPropertyChanged(nameof(CanSkipCurrent));
         OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel));
         OnPropertyChanged(nameof(TareStatus)); OnPropertyChanged(nameof(ResultModeLabel)); OnPropertyChanged(nameof(ImpellerSetHash));

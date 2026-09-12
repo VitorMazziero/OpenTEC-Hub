@@ -9,6 +9,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [Unreleased]
 
 ### Fixed — bancada de 11/09/2026 (plano `docs/plans/2026-09-11-plano-correcao-engasgos-ui-ensaios.md`)
+- **Ensaio concluído deixa de ser um beco sem saída (§G).** Nada tirava um ensaio de `Completed`
+  — nem o app, nem o recarregamento — e Montagem, Aquisição, *Salvar setup* e *Iniciar* ficavam
+  desabilitados; só *Novo* saía do estado, com geometria padrão e obrigando a refazer montagem,
+  tara e tabela. Dois botões novos no card do ensaio: **Duplicar** cria um ensaio com o mesmo
+  fluido, geometria, calibração, tara, critérios e tabela (ids novos, contadores zerados, sem
+  pontos, sem flooding) e grava `duplicatedFrom` no manifesto e `TestDuplicated` no journal;
+  **Reabrir** volta um `Completed` a `Interrompido` (confirmação, `CompletedUtc = null`,
+  `InterruptionReason = "Reaberto pelo operador"`, `TestReopened`), mantendo os pontos aceitos, e
+  *Iniciar/continuar* segue o caminho normal. O chip de status passa a dizer *Concluído — somente
+  leitura. Use Novo, Duplicar ou Reabrir.*
 - **Política de falha de sequência em modo autônomo e critério de estabilidade do alívio (§I).**
   No Rushton-Smith um único tempo limite de alívio na primeira condição com gás parou um ensaio
   autônomo de 9 h em "Revisando" — o aceite automático só é consultado após uma captura. Novo

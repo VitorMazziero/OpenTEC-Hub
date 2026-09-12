@@ -238,6 +238,15 @@
                                                 IsEnabled="{Binding CanManageTest}" Padding="8,3" Style="{StaticResource DangerButtonStyle}"
                                                 ToolTip="Move o ensaio aberto para a lixeira interna" />
                                     </Grid>
+                                    <Grid Margin="0,5,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Duplicar" Command="{Binding DuplicateTestCommand}"
+                                                IsEnabled="{Binding CanManageTest}" Padding="8,3"
+                                                ToolTip="Novo ensaio com o mesmo fluido, geometria, calibração, tara, critérios e tabela — contadores zerados, sem pontos" />
+                                        <Button Grid.Column="2" Content="Reabrir" Command="{Binding ReopenTestCommand}"
+                                                IsEnabled="{Binding CanReopenTest}" Padding="8,3"
+                                                ToolTip="Volta um ensaio concluído a 'Interrompido': tabela editável e sequência continuável, pontos aceitos mantidos" />
+                                    </Grid>
                                     <TextBlock Margin="0,7,0,0" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
                                                TextWrapping="Wrap"
                                                ToolTip="Rascunhos e ensaios interrompidos podem ter sua tabela editada enquanto estão parados" />

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.PowerTesting;
 using OpenTECHub.ViewModels;
@@ -157,6 +158,74 @@ public sealed class PowerRunWithoutCaptureTests : IDisposable
         Assert.Contains("0.42", summary, StringComparison.Ordinal);
     }
 
+    /// <summary>§G: a finished assay is not a dead end — Duplicar copies the setup without the points, Reabrir lifts Completed.</summary>
+    [Fact]
+    public void A_completed_assay_can_be_duplicated_without_runs_and_reopened()
+    {
+        var dialogs = new PromptingDialogs { NextInput = "Ensaio Sem Captura (2)" };
+        var (vm, doc) = Build(null, dialogs);
+        var condition = doc.Conditions[0];
+        doc.Runs.Add(new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(), ConditionId = condition.ConditionId, ReplicateNumber = 1, FolderName = "N0200_Q02p00_Rep01",
+            AgitationRpm = 200, GasFlowLpm = 2.0, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted,
+            StopReason = PowerStopReason.Target, SampleCount = 60, NetPowerW = 0.42,
+        });
+        condition.AcceptedReplicates = 1;
+        condition.CompletedReplicates = 1;
+        condition.Status = PowerConditionStatus.Completed;
+        doc.Tare = new TareCurve { Points = [new TarePoint(200, 0.1, 0.5)], MeasuredUtc = DateTimeOffset.UnixEpoch };
+        doc.Status = PowerTestStatus.Completed;
+        doc.CompletedUtc = DateTimeOffset.UtcNow;
+        _store.SaveConditionsTable(doc.FolderName, doc.Conditions);
+        _store.SaveTare(doc.FolderName, doc.Tare);
+        _store.SaveTestManifest(doc);
+        vm.LoadSelectedTestCommand.Execute(null);
+        Assert.False(vm.CanEditPlan);
+        Assert.False(vm.CanStartOrContinue);
+        Assert.True(vm.CanReopenTest);
+        Assert.Contains("Duplicar", vm.TestStatusLabel, StringComparison.Ordinal);
+
+        vm.DuplicateTestCommand.Execute(null);
+
+        var copy = vm.CurrentTest!;
+        Assert.NotEqual(doc.TestId, copy.TestId);
+        Assert.Equal(doc.TestId, copy.DuplicatedFrom);
+        Assert.Equal("Ensaio Sem Captura (2)", copy.Name);
+        Assert.Empty(copy.Runs);
+        Assert.Null(copy.Flooding);
+        Assert.Equal(PowerTestStatus.Draft, copy.Status);
+        Assert.Single(copy.Conditions);
+        Assert.NotEqual(condition.ConditionId, copy.Conditions[0].ConditionId);
+        Assert.Equal(200, copy.Conditions[0].AgitationRpm);
+        Assert.Equal(0, copy.Conditions[0].AcceptedReplicates);
+        Assert.Equal(PowerConditionStatus.Pending, copy.Conditions[0].Status);
+        Assert.Equal(doc.Settings, copy.Settings);
+        Assert.NotNull(copy.Tare);
+        Assert.Single(copy.Tare!.Points);
+        Assert.True(vm.CanEditPlan);
+        var reloadedCopy = _store.LoadTest(copy.FolderName)!;
+        Assert.Equal(doc.TestId, reloadedCopy.DuplicatedFrom);
+        Assert.Contains("TestDuplicated", File.ReadAllText(Path.Combine(_store.RootDirectory, copy.FolderName, PowerTestFileContracts.EventLogFileName)), StringComparison.Ordinal);
+
+        // Back to the original: Reabrir lifts Completed and keeps the accepted run.
+        vm.SelectedTest = vm.Tests.First(t => t.FolderName == doc.FolderName);
+        vm.LoadSelectedTestCommand.Execute(null);
+        Assert.True(vm.CanReopenTest);
+        vm.ReopenTestCommand.Execute(null);
+
+        Assert.Equal(PowerTestStatus.Interrupted, vm.CurrentTest!.Status);
+        Assert.Null(vm.CurrentTest.CompletedUtc);
+        Assert.True(vm.CanEditPlan);
+        Assert.True(vm.CanStartOrContinue);
+        Assert.False(vm.CanReopenTest);
+        var reloaded = _store.LoadTest(doc.FolderName)!;
+        Assert.Equal(PowerTestStatus.Interrupted, reloaded.Status);
+        Assert.Equal("Reaberto pelo operador", reloaded.InterruptionReason);
+        Assert.Single(reloaded.Runs, r => r.Phase == PowerRunPhase.Accepted);
+        Assert.Contains("TestReopened", File.ReadAllText(Path.Combine(_store.RootDirectory, doc.FolderName, PowerTestFileContracts.EventLogFileName)), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Loading_leaves_a_clean_manifest_untouched()
     {
@@ -178,7 +247,7 @@ public sealed class PowerRunWithoutCaptureTests : IDisposable
         Assert.Equal(before, File.Exists(eventsPath) ? File.ReadAllText(eventsPath) : "");
     }
 
-    private (PowerTestViewModel Vm, PowerTestDocument Doc) Build(IPowerTestRunner? runner)
+    private (PowerTestViewModel Vm, PowerTestDocument Doc) Build(IPowerTestRunner? runner, IDialogService? dialogs = null)
     {
         var impeller = PowerImpellerCatalog.Create(ImpellerType.RushtonFlatBlade);
         impeller.DiameterM = 0.065;
@@ -189,10 +258,19 @@ public sealed class PowerRunWithoutCaptureTests : IDisposable
 
         var device = new TestDeviceService();
         var arbiter = new CommandArbiter(device, TimeProvider.System);
-        var vm = new PowerTestViewModel(_store, device, arbiter, runner, null);
+        var vm = new PowerTestViewModel(_store, device, arbiter, runner, dialogs);
         vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
         vm.LoadSelectedTestCommand.Execute(null);
         return (vm, vm.CurrentTest!);
+    }
+
+    private sealed class PromptingDialogs : IDialogService
+    {
+        public string NextInput { get; set; } = "";
+        public bool ConfirmDestructive(string title, string consequence, string exactCommand) => true;
+        public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false) => true;
+        public bool PromptInput(string title, string message, out string response, string initialValue = "") { response = NextInput; return true; }
+        public RecipeStartOption PromptRecipeStart(string recipeName) => RecipeStartOption.Cancel;
     }
 
     private sealed class ReviewStubRunner : IPowerTestRunner

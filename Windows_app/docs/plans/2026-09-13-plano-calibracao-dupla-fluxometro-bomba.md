@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1, 2, 3, 4 e 5 implementadas e testadas; as etapas 6–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1, 2, 3, 4, 5 e 6 implementadas e testadas; as etapas 7–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -848,6 +848,42 @@ A biblioteca funciona isoladamente, sem emitir comandos e sem depender da interf
 ```text
 feat(pump-calibration): add hose profile store
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado nesta etapa, na camada de serviços, persistência, contratos de arquivo e testes unitários do Windows App:
+
+- **Modelos de domínio (`PumpCalibrationProfile.cs`):**
+  - `PumpCalibrationProfile`: entidade raiz versionada (`schemaVersion = 1`), com `ProfileId` único (GUID), nome amigável da mangueira (`Name`), timestamps UTC (`CreatedUtc`, `ModifiedUtc`), parâmetros da curva contínua em duas faixas (`TransitionFlowMlMin`, `TransitionSpeedUnits`, `LowSlope`, `HighSlope`), array de pontos volumétricos medidos (`CalibrationPoints`), estatísticas de ajuste (`FitStatistics`), versão do algoritmo (`AlgorithmVersion`), notas operacionais (`OptionalNotes`), e metadados de aplicação no hardware (`LastAppliedUtc`, `LastAppliedPumpFirmware`). Método de conversão `ToCurve()` para `PumpDualRangeCurve` e método estático de fábrica `FromCurve(...)`.
+  - `PumpCalibrationProfileSummary`: projeção leve para listagem rápida sem carregar coleções de pontos, incluindo flag `IsCompatible` para proteção de schema futuro e parâmetros essenciais da curva.
+  - `PumpFitStatistics`: métricas estatísticas de aderência da curva ($R^2$, RMSE, SSE) globais e discriminadas por segmento de velocidade/vazão.
+- **Regras e segurança de arquivos (`PumpProfileFileContracts.cs`):**
+  - `ValidateProfileName`: validação defensiva estrita contra nomes vazios/whitespace, tamanho fora do intervalo [2, 100], caracteres inválidos de arquivo (`*`, `?`, `:`, `<`, `>`, `|`, `"`, `/`, `\`), sequências de travessia de diretório (`..`), pontos ou espaços no final do nome e palavras reservadas de dispositivo do Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`).
+  - `ProfileFileName`: sufixo padronizado `.json`.
+  - `JsonOptions`: codec camelCase indentado com tolerância a comentários e vírgulas finais.
+- **Armazenamento atômico e seguro (`IPumpCalibrationProfileStore` e `PumpCalibrationProfileStore.cs`):**
+  - Diretório centralizado em `AppPaths.PumpProfilesDirectory` (`<Workspace>\Calibracoes\BombaExterna\Perfis`).
+  - Escrita atômica via arquivo temporário (`.tmp-<guid>`) seguido de `File.Move(..., overwrite: true)` com retentativas defensivas contra locks transitórios do SO.
+  - Rejeição de sobrescrita acidental: salvar sobre perfil existente sem `overwrite: true` lança `InvalidOperationException`.
+  - Proteção de schema futuro: arquivos com `schemaVersion > 1` são reportados com `IsCompatible = false` na listagem, rejeitados no `LoadProfile` e protegidos contra sobrescrita mesmo com `overwrite: true`.
+  - Isolamento de arquivos corrompidos: arquivos mal formatados ou com JSON corrompido são capturados e logados, sem impedir o carregamento e listagem dos perfis íntegros. `LoadProfile` encapsula erros de deserialização em `InvalidOperationException` descritivo.
+  - Migração inicial idempotente (`EnsureDefaultProfileMigrated`): converte a calibração linear legada de `AppSettings.PumpControl` (`CalibrationSlope` e `CalibrationIntercept`) em um perfil `"Padrão.json"` contínuo quando a pasta de perfis estiver vazia. Se já houver perfis cadastrados, nenhuma alteração é feita.
+- **Configurações globais e DI (`AppSettings.cs`, `App.xaml.cs`):**
+  - Adicionado `SelectedProfileName` em `PumpControlSettings` para armazenar exclusivamente o identificador/nome do perfil ativo no aplicativo.
+  - Adicionado `PumpProfilesDirectory` e sua criação automática em `AppPaths.EnsureDirectories()`.
+  - Registrado `IPumpCalibrationProfileStore` como singleton no contêiner de injeção de dependência em `App.xaml.cs`.
+- **Suíte de testes automatizados (`PumpCalibrationProfileStoreTests.cs`):**
+  - 31 testes unitários aprovados (em `[Collection("AppPaths")]` com workspace isolado via `AppPaths.OverrideForTests`):
+    - Ciclo completo de CRUD (salvar, listar, carregar, sobrescrever e excluir).
+    - Rejeição e segurança de nomes inválidos (23 cenários via teoria de testes).
+    - Tolerância a arquivos corrompidos sem contaminação dos perfis válidos.
+    - Preservação e bloqueio de sobrescrita de schema futuro.
+    - Validação de consistência física da curva na persistência.
+    - Idempotência da migração de perfil padrão a partir de configurações legadas.
+  - Suíte completa do .NET executada: 1.671 testes aprovados, 0 falhas.
+  - Verificação de regressão nos firmwares: `verify_contract.py` (87/87 OK), `test_firmware_v12_contract.py` (8/8 OK), `test_firmware_v311_contract.py` (9/9 OK).
+
+Não implementado nesta etapa: ViewModel e telas XAML (Etapas 7 e 8) e testes end-to-end de UI (Etapas 9–10).
 
 ## 17. Etapa 7 — tornar a transição do fluxômetro editável no aplicativo
 

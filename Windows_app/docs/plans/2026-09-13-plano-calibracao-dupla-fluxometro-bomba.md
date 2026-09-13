@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapa 1 implementada e testada localmente; as etapas 2–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1 e 2 implementadas e testadas; as etapas 3–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -492,6 +492,32 @@ O firmware compila, migra sem perda, usa `Vt` dinâmico e nunca aplica parcialme
 ```text
 feat(flowmeter): persist configurable calibration transition
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado nesta etapa, no firmware do fluxômetro e na suíte de testes de contrato:
+
+- Firmware promovido para `v12.0` (`#define FW_VERSION "v12.0"` em `FirmwareApp.cpp`).
+- Criada a variável ativa `flowTransitionVoltage` em RAM, inicializada a partir da EEPROM.
+- Adicionado o campo `float transition_v` no fim de `CalibrationParams` (offset 64..67, totalizando 68 bytes no registro).
+- Definido o Schema v7 com magic `0xCAFEBAC5` e preservado `CALIBRATION_MAGIC_V6 = 0xCAFEBAC4` para permitir migração limpa.
+- Implementada migração transparente v6 → v7 em `CalibrationStore.h`, preservando byte a byte todos os 64 bytes pré-existentes (`a1..c2`, PI, feedforward, rampa, `dac_hold` e `max_flow`), gravando `transition_v = 0.0545f` e recalculando o CRC32 sobre os 64 bytes de payload.
+- Adicionada validação defensiva pós-carga que restaura o padrão `0.0545 V` se o valor na EEPROM estiver fora de `(0, 3.3) V` ou corrompido.
+- Removido integralmente o literal fixo `0.0545f` de `FlowIo.h`, adotando a verificação dinâmica `readFlowVoltage <= flowTransitionVoltage`.
+- Estendida a área de staging do parser em `CommandCodec.h` com `hasTransitionV` e `stagedTransitionV`, aceitando as chaves `transition_v` e `flowTransitionVoltage` em `(0, 3.3) V`.
+- Regra de atomicidade estrita: se `hasTransitionV` estiver presente, exige obrigatoriamente ambos os segmentos completos (`a1..c1` e `k2..c2`) no mesmo quadro; comandos sem `transition_v` mantêm o limiar previamente persistido.
+- Validação matemática de continuidade antes da aplicação: rejeição de curvas completas com salto de valor $|Q_\text{alto}(V_t) - Q_\text{baixo}(V_t)| > 0.01\text{ L/min}$ ou salto de derivada $|Q'_\text{alto}(V_t) - Q'_\text{baixo}(V_t)| > 0.1\text{ L/min/V}$, ou contendo NaN/Inf.
+- Aplicação atômica de limiar e coeficientes sob `commandMutex` com persistência em escrita única na EEPROM.
+- Exposição de `transition_v` nos canais de auditoria e telemetria:
+  - push periódico `/flowData` ao Hub em `TaskRuntime.h` (`&transition_v=%.4f`);
+  - endpoint local de auditoria `/calibration` em `OtaService.h` (`"transition_v":%.4f`);
+  - telemetria serial e WebSocket em `Lifecycle.h` (`"transition_v":%.4f`);
+  - confirmação de comando direto em `WebSocketApi.h` (`"transition_v":%.4f`).
+- Criada a suíte de testes de contrato [`test_firmware_v12_contract.py`](file:///D:/OneDrive/PosDoc_Fapesp/Automacao_e_Controle/ProjetoTECNAL/External-Devices/fluxometro/tests/test_firmware_v12_contract.py) cobrindo ausência do literal em `FlowIo.h`, versão do firmware, magics v6/v7, layout binário da struct, simulação da migração v6 → v7 byte a byte, cobertura do CRC32, exposição em todos os endpoints e validações atômicas/continuidade do parser (8/8 testes aprovados).
+- Verificação de compilação: firmware compilado com sucesso no alvo ESP32 via `arduino-cli` (código 0, 87% de flash, 15% de RAM, 0 erros e 0 avisos).
+- Regressão: 43 testes de calibração do Windows App aprovados sem alterações em seu escopo.
+
+Não implementado nesta etapa: alterações no Hub 10.3 (Etapa 4), protocolo do Windows App (Etapa 5), UI do fluxômetro (Etapa 7) e calibração da bomba (Etapa 3).
 
 ## 13. Etapa 3 — implementar a calibração dupla no firmware da bomba
 

@@ -456,8 +456,6 @@ void processJsonCommand(const String &json) {
   if (highVal.length() > 0) { if (biomassCmdFound) biomassCommand += ","; biomassCommand += "\"high\":" + highVal; biomassCmdFound = true; }
   String optVal = getValueFromJson(json, "opt");
   if (optVal.length() > 0) { if (biomassCmdFound) biomassCommand += ","; biomassCommand += "\"opt\":" + optVal; biomassCmdFound = true; }
-  String testVal = getValueFromJson(json, "test_period");
-  if (testVal.length() > 0) { if (biomassCmdFound) biomassCommand += ","; biomassCommand += "\"test_period\":" + testVal; biomassCmdFound = true; }
 
   struct BiomassCmdMap {
     const char* appKey;
@@ -481,6 +479,19 @@ void processJsonCommand(const String &json) {
         } else {
           ESP32_EVT(String("Biomass command descartado (um por revisao): ") + item.appKey + "=" + val);
         }
+      }
+    }
+  }
+
+  if (json.indexOf("\"biomassAutoRange\"") != -1) {
+    String autoVal = getValueFromJson(json, "biomassAutoRange");
+    if (autoVal.length() > 0) {
+      if (!biomassCmdFound) {
+        bool isAuto = (autoVal == "1" || autoVal == "true" || autoVal == "auto");
+        biomassCommand = "\"command\":\"" + String(isAuto ? "auto" : "manual") + "\"";
+        biomassCmdFound = true;
+      } else {
+        ESP32_EVT(String("Biomass command descartado (um por revisao): biomassAutoRange=") + autoVal);
       }
     }
   }

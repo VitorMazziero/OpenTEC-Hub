@@ -568,7 +568,7 @@ void startWiFi() {
           else if (i == DEV_AGITATOR) isOnline = (agitatorLastUpdate > 0 && (now - agitatorLastUpdate <= AGITATOR_TIMEOUT));
           else if (i == DEV_PUMP) isOnline = (pumpCommOn && pumpLastUpdate > 0 && (now - pumpLastUpdate <= PUMP_TIMEOUT));
           else if (i == DEV_FLOWMETER) isOnline = (flowmeterCommOn && (now - flowmeterLastUpdate <= FLOWMETER_TIMEOUT));
-          else if (i == DEV_BIOMASS) isOnline = (biomassLastUpdate > 0 && (now - biomassLastUpdate <= BIOMASS_TIMEOUT));
+          else if (i == DEV_BIOMASS) isOnline = (biomassLastUpdate > 0 && (now - biomassLastUpdate <= biomassPresenceWindowMs(biomassProbePeriodMs)));
 
           offset += snprintf(resp + offset, sizeof(resp) - offset,
                              "%s{\"dev\":\"%s\",\"ip\":\"%s\",\"mac\":\"%s\",\"version\":\"%s\",\"online\":%s,\"age_ms\":%lu,"

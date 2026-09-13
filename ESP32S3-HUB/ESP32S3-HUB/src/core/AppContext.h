@@ -370,6 +370,20 @@ unsigned long biomassLastUpdate = 0;
 unsigned long biomassSampleLastUpdate = 0;
 const unsigned long BIOMASS_TIMEOUT = 10000;
 
+// B01 (2026-09-13): Dynamic presence window for Biomass sensor.
+// In MEASURING, the node samples every probe_period (default 25s, thermal floor ~24.3s).
+// To prevent presence flapping and false alarms, dynamic presence window is 2.5x probe_ms,
+// bounded below by the 10s floor (BIOMASS_TIMEOUT).
+inline unsigned long biomassPresenceWindowMs(int probePeriodMs) {
+  if (probePeriodMs <= 0) return BIOMASS_TIMEOUT;
+  unsigned long dynamicWin = (unsigned long)(probePeriodMs * 2.5f);
+  return (dynamicWin > BIOMASS_TIMEOUT) ? dynamicWin : BIOMASS_TIMEOUT;
+}
+
+inline unsigned long biomassPresenceWindowMs(uint32_t probePeriodMs) {
+  return biomassPresenceWindowMs((int)probePeriodMs);
+}
+
 // ---------- Pump ----------
 bool  pumpCommOn = false;
 unsigned long pumpLastUpdate = 0;

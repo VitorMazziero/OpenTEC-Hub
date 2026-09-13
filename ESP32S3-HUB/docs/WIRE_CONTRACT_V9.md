@@ -211,7 +211,8 @@ O desligamento seguro da bomba utiliza `{"mode":0}`.
 | `BiomassPwm` | `biomassPwm` | `{"command":"set_pwm","value":N}` | duty cycle LED (0-100%) |
 | `BiomassGear` | `biomassGear` | `{"command":"set_gear","value":N}` | marcha óptica |
 | `BiomassEma` | `biomassEma` | `{"command":"ema","value":x}` | coeficiente do filtro EMA (0.01-1.0) |
-| `BiomassProbePeriodMs` | `biomassProbePeriodMs` | `{"command":"probe_period","value":N}` | período de amostragem em ms |
+| `BiomassProbePeriodMs` | `biomassProbePeriodMs` | `{"command":"probe_period","value":N}` | período de amostragem em ms; o eco `probe_ms` dimensiona a janela de presença (`max(10 s, 2,5 × probe_ms)`, 2026-09-13) |
+| `BiomassAutoRange` | `biomassAutoRange` | `{"command":"auto"}` ou `{"command":"manual"}` | `"auto"`/`1`/`true` liga o auto-range; qualquer outro valor trava a marcha (2026-09-13). `test_period` deixou de ser roteado |
 
 Regra: **Um `command` por revisão**. Se o aplicativo enviar múltiplos comandos na mesma requisição,
 o Hub enfileira o primeiro e descarta os excedentes com registro em `ESP32_EVT`.
@@ -282,7 +283,7 @@ cada segundo. O filtro foi removido; a validade da leitura é responsabilidade d
 | Chave no quadro | Tipo | Quando | Significado |
 |---|---|---|---|
 | `BiomassCommandPending` | bool | sempre | Verdadeiro enquanto houver comando pendente |
-| `BiomassGear` | int | `BiomassOnline` e `biomassEchoSeen` | Marcha óptica ativa (IT + PWM) |
+| `BiomassGear` | int | `BiomassOnline` e `biomassEchoSeen` | Marcha óptica ativa (IT + PWM). `BiomassOnline` e a validade de `BiomassAbs` usam `biomassPresenceWindowMs(probe_ms)` = `max(10 s, 2,5 × probe_ms)` desde 2026-09-13 |
 | `BiomassEma` | float (%.3f) | `BiomassOnline` e `biomassEchoSeen` | Fator alfa do filtro EMA aplicado |
 | `BiomassProbePeriodMs` | uint32 | `BiomassOnline` e `biomassEchoSeen` | Período de amostragem em ms |
 

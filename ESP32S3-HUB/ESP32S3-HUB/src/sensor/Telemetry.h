@@ -91,13 +91,14 @@ void readAndBroadcastSensorData() {
     snapDistanceComm = distanceSensorCommOn;
     snapDistanceValue = distanceSensorValue;
     snapDistanceUpdate = distanceSensorLastUpdate;
-    if (biomassEchoSeen && (millis() - biomassLastUpdate > BIOMASS_TIMEOUT)) {
+    snapBiomassProbePeriodMs = biomassProbePeriodMs;
+    unsigned long bioWin = biomassPresenceWindowMs(snapBiomassProbePeriodMs);
+    if (biomassEchoSeen && (millis() - biomassLastUpdate > bioWin)) {
       biomassEchoSeen = false;
     }
     snapBiomassEchoSeen = biomassEchoSeen;
     snapBiomassGear = biomassGear;
     snapBiomassEma = biomassEma;
-    snapBiomassProbePeriodMs = biomassProbePeriodMs;
     snapBiomassComm = biomassCommOn;
     snapBiomassAbs = biomassAbsorbance;
     snapBiomassRaw = biomassRaw;
@@ -168,12 +169,13 @@ void readAndBroadcastSensorData() {
   //
   // validBiomass: there is a current reading. A node idling with routing on is online
   // with no sample, and the PC shows a dash rather than the last measurement.
+  unsigned long bioWin = biomassPresenceWindowMs(snapBiomassProbePeriodMs);
   bool biomassOnline = snapBiomassUpdate > 0 &&
-                       (millis() - snapBiomassUpdate <= BIOMASS_TIMEOUT);
+                       (millis() - snapBiomassUpdate <= bioWin);
   bool validBiomass = false;
   if (snapBiomassComm && snapBiomassSampleUpdate > 0) {
       unsigned long age = millis() - snapBiomassSampleUpdate;
-      if (age <= BIOMASS_TIMEOUT) validBiomass = true;
+      if (age <= bioWin) validBiomass = true;
   }
 
   // 2. CONSTRUÇÃO DO JSON

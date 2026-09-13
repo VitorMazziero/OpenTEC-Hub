@@ -394,9 +394,10 @@ def translate_biomass_command(json_str: str, comm_on: bool = True):
         return None, False, []
 
     cmd_parts = []
+    discarded = []
     found = False
 
-    for k in ["start", "stop", "blank", "low", "high", "opt", "test_period"]:
+    for k in ["start", "stop", "blank", "low", "high", "opt"]:
         if k in data:
             cmd_parts.append(f'"{k}":{data[k]}')
             found = True
@@ -408,7 +409,6 @@ def translate_biomass_command(json_str: str, comm_on: bool = True):
         ("biomassEma", "ema"),
         ("biomassProbePeriodMs", "probe_period"),
     ]
-    discarded = []
     for app_key, cmd_name in new_cmds:
         if app_key in data:
             val = data[app_key]
@@ -417,6 +417,15 @@ def translate_biomass_command(json_str: str, comm_on: bool = True):
                 found = True
             else:
                 discarded.append(app_key)
+
+    if "biomassAutoRange" in data:
+        auto_val = str(data["biomassAutoRange"]).lower()
+        if not found:
+            is_auto = auto_val in ("1", "true", "auto")
+            cmd_parts.append(f'"command":"{"auto" if is_auto else "manual"}"')
+            found = True
+        else:
+            discarded.append("biomassAutoRange")
 
     if not found or not comm_on:
         return None, False, discarded
@@ -493,12 +502,43 @@ class BiomassCommandTests(unittest.TestCase):
             self.assertEqual(f'"command":"{cmd_name}","value":{val}', inner)
             self.assertEqual([], discarded)
 
+    def test_biomass_autorange_routing(self):
+        # B03: auto / 1 / true -> {"command":"auto"}
+        for val in ["auto", 1, True, "true"]:
+            cmd = json.dumps({"biomassAutoRange": val})
+            inner, ok, discarded = translate_biomass_command(cmd)
+            self.assertTrue(ok, f"biomassAutoRange with {val} failed")
+            self.assertEqual('"command":"auto"', inner)
+            self.assertEqual([], discarded)
+
+        # B03: manual / 0 / false -> {"command":"manual"}
+        for val in ["manual", 0, False, "false"]:
+            cmd = json.dumps({"biomassAutoRange": val})
+            inner, ok, discarded = translate_biomass_command(cmd)
+            self.assertTrue(ok, f"biomassAutoRange with {val} failed")
+            self.assertEqual('"command":"manual"', inner)
+            self.assertEqual([], discarded)
+
+    def test_test_period_is_not_routed(self):
+        # B12: test_period key removed from Hub Commands.h
+        cmd = '{"test_period":100}'
+        inner, ok, discarded = translate_biomass_command(cmd)
+        self.assertFalse(ok)
+        self.assertIsNone(inner)
+
     def test_one_command_per_revision_enforced(self):
         cmd = '{"biomassIt":2,"biomassPwm":45.0,"biomassGear":1}'
         inner, ok, discarded = translate_biomass_command(cmd)
         self.assertTrue(ok)
         self.assertEqual('"command":"set_it","value":2', inner)
         self.assertEqual(["biomassPwm", "biomassGear"], discarded)
+
+        # biomassAutoRange is also discarded if a preceding command was already found
+        cmd = '{"biomassIt":2,"biomassAutoRange":"auto"}'
+        inner, ok, discarded = translate_biomass_command(cmd)
+        self.assertTrue(ok)
+        self.assertEqual('"command":"set_it","value":2', inner)
+        self.assertEqual(["biomassAutoRange"], discarded)
 
 
 class NodeCommandSourceContractTests(unittest.TestCase):
@@ -550,6 +590,24 @@ class NodeCommandSourceContractTests(unittest.TestCase):
         self.assertIn('"biomassGear"', cmd)
         self.assertIn('"biomassEma"', cmd)
         self.assertIn('"biomassProbePeriodMs"', cmd)
+        self.assertIn('"biomassAutoRange"', cmd)
+        self.assertNotIn('"test_period"', cmd)
+
+    def test_biomass_presence_window_and_echo_timeout(self):
+        # B01: Dynamic presence window follows probe_ms (2.5x probe_ms, floor 10 s)
+        app = self.read("src/core/AppContext.h")
+        self.assertIn("inline unsigned long biomassPresenceWindowMs(int probePeriodMs)", app)
+        self.assertIn("(unsigned long)(probePeriodMs * 2.5f)", app)
+        self.assertIn("const unsigned long BIOMASS_TIMEOUT = 10000;", app)
+
+        tel = self.read("src/sensor/Telemetry.h")
+        self.assertIn("unsigned long bioWin = biomassPresenceWindowMs(snapBiomassProbePeriodMs);", tel)
+        self.assertIn("if (biomassEchoSeen && (millis() - biomassLastUpdate > bioWin))", tel)
+        self.assertIn("millis() - snapBiomassUpdate <= bioWin", tel)
+        self.assertIn("age <= bioWin", tel)
+
+        http = self.read("src/network/HttpServer.h")
+        self.assertIn("now - biomassLastUpdate <= biomassPresenceWindowMs(biomassProbePeriodMs)", http)
 
     def test_httpserver_reads_flow_pump_biomass_parameters(self):
         http = self.read("src/network/HttpServer.h")

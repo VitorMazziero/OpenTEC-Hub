@@ -5,7 +5,7 @@
 
 **Fontes por dispositivo:** o contrato de fio detalhado continua em `<dispositivo>/docs/PROTOCOL.md` e no `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`; este documento não os substitui — ele explica o comportamento. Estado de implementação e pendências de bancada: `Windows_app/docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
 
-**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11) e §5 (agitador de frasco, firmware v10 — 2026-09-13) completos. §6 (servo drive) é esqueleto com ponteiros, a preencher com a mesma anatomia.
+**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11), §5 (agitador de frasco, firmware v10) e §6 (servo drive, driver 2.0 — fechado por decisão de projeto, 2026-09-13) completos.
 
 ---
 
@@ -18,7 +18,7 @@
 | **Fluxômetro de Ar** | v11.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§3.11) |
 | **Sensor de Biomassa** | v11 (rótulo v5.3 ⚠) | 🟢 Comandos principais | 🟢 Total | 🟡 Funcional com pendências (§4.10: janela de presença, rotinas bloqueantes, marcha manual) | 🟡 Pendente (§4.11) |
 | **Agitador de Frascos** | v10 (rótulo rev H ⚠) | 🟢 Total | 🟢 Total | 🟢 Integrado; pendências no nó (§5.10: pulso de boot, inversão sem rampa, sem NVS) | 🟡 Pendente (§5.11) |
-| **Servo Drive (RPM)** | v2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
+| **Servo Drive (RPM)** | driver 2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado — só no Módulo TECNAL 2 | 🟢 Concluída (§6.0); sem novas alterações por projeto |
 
 ## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.10)
 
@@ -1291,6 +1291,45 @@ Serial e `/read` publicam `{"time_s","duty"}` a cada 500 ms (onde `duty` é `tar
 - [ ] OTA: freio antes do upload, imagem rejeitada por nome, interrupção com watchdog de 90 s.
 - [ ] Se houver shunt de corrente montado, medir GPIO 34/35 e decidir A05.
 
-## 6. Servo drive (`ESP32S3-SERVO`, driver 2.0) — a preencher
+## 6. Servo drive (`ESP32S3-SERVO`, driver 2.0 — ASDA-B2 por Modbus RTU)
 
-Contrato: `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md` (§ Estado desejado do motor) e `ESP32S3-SERVO/`. Rota Modbus direta com `cmd_id`, ACK por readback e falha zero como pré-condição de movimento.
+### 6.0 Painel de Navegação Rápida — Estado de Prontidão e Integração
+
+> **Como navegar:** este nó **não é um dispositivo externo como os demais**. O ESP32S3-driver vive dentro do Módulo TECNAL 2, liga junto com o Hub e é o único mestre Modbus do servo ASDA-B2 que gira o eixo do reator. **Decisão de projeto (2026-09-13): totalmente implementado, em operação, sem novas alterações previstas.** O Módulo TECNAL 1 não tem servo por projeto: nele o Hub publica `ServoOnline=false` e o app oculta o cartão de potência. Esta seção existe para fechar o catálogo; o contrato completo está em `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md` (§ *Estado desejado do motor*, *Push do ESP32S3-driver*, *Campos agregados*) e a semântica em `ESP32S3-SERVO/PLANO_MIGRACAO_RPM_MODBUS.md`.
+
+#### 🟢 Implementado, Integrado e em Operação (Driver ↔ Hub 10.2 ↔ App)
+
+| Funcionalidade | Driver (ESP32S3-driver) | Hub 10.2 | App Windows | Evidência automatizada |
+|---|---|---|---|---|
+| **Setpoint de rotação (latest-wins)** | Escreve P1-09 (`10H`, 0,1 rpm), lê de volta, liga SON; ACK só após readback | `motorSetpoint` 0..1000 → `{"motor_cmd_id","motor_rpm","motor_enable","motor_lease_ms":3000}` em todo `GET /servoCommand` (500 ms); `motor_cmd_id` nunca zero; o mesmo JSON segue como heartbeat após o ACK | `MotorSetpoint`; `ServoMotorRequestedRpm`/`AppliedRpm`/`CommandPending` no cartão | `test_servo_motor_command.py`, `ServoDriveViewModelTests`, `ServoSimulatorTests` |
+| **Lease de segurança** | Sem heartbeat válido por 3 s → P1-09=0, SON off, falha 3 | Reenvia o estado desejado a cada poll; push inválido não renova presença nem ACK | Falha exibida; sem ação manual | `test_servo_presence.py`, `ServoAlarmTests` |
+| **Falha zero como pré-condição** | `motor_control_fault` 0=ok, 1=perfil, 2=aplicação, 3=lease, 4=comando inválido, 5=drive indisponível; `control_capable` só após validar perfil (DIs SON/SPD0/SPD1, P2-30=5) | `ServoControlCapable`, `ServoMotorControlFault` publicados sempre | Só libera setpoint com `ControlCapable` e falha 0 | `test_servo_motor_command.py`, `PowerPreflightReadoutTests` |
+| **Roteamento e reset** | — | `servoComm=0` cria revisão de parada e rejeita comandos não nulos; `resetVariables` cria parada e limpa a FIFO de eventos | `ServoRouting(bool)`; parada global inclui `motorSetpoint:0` | `test_servo_queue.py`, `ControlViewModelTests` |
+| **Eventos consumíveis** | `reset_energy` zera `energy_wh`; `poll_ms` 250..10000 | FIFO de 8 eventos, nunca sobrescreve o mais antigo; `ServoCommandQueueDepth` | `ResetServoEnergy()`, `ServoPollInterval()` | `test_servo_queue.py` |
+| **Telemetria de potência** | Push `/servoData` a cada 1 s: `rpm, torque_pct, power_w, state, control_capable, motor_ack, motor_applied_rpm, motor_control_active, motor_control_fault` (+ `torque_nm, load_pct, energy_wh, alarm, ok, err`) | Valida finitude/faixas (400 se inválido); `ServoOnline` expira em 6 s, independente do roteamento | Cartão do servo, gráficos, mapa de potência, ensaios kLa/potência | `ServoTelemetryParserTests`, `PowerServoSimulatorTests`, `PowerPhase3EndToEndTests` |
+| **Boot sem retomada** | Reboot do driver: se P3-06 indicar sessão direta anterior, SON off antes do Wi-Fi | Hub começa impondo parada; nunca retoma setpoint persistido | Novo movimento exige novo comando | `test_servo_motor_command.py` |
+
+#### 🔵 Diretrizes de Segurança e Decisões de Arquitetura Fechadas
+
+| Decisão | Comportamento | Estado |
+|---|---|---|
+| **Servo só no Módulo TECNAL 2** | O Módulo 1 não tem driver nem servo; `ServoOnline=false` é o estado normal dele. Não é lacuna. | 🔵 Decisão de projeto |
+| **Sem novas alterações** | Driver 2.0, Hub 10.2 e app estão em operação e validados na bancada (`ESP32S3-SERVO/Software/testes-bancada`, `PLANO_TESTES_DOIS_ESP32S3.md`). O catálogo não abre auditoria numerada para este nó. | 🔵 Decisão de projeto (2026-09-13) |
+| **Modbus não é função de segurança** | A parada de emergência física é independente; `P3-10` (timeout de comunicação) e `P3-03=1` (parada por desaceleração) são parâmetros persistentes do drive aprovados na bancada, não gravados pelo firmware. | 🔵 Decisão de projeto |
+| **ACK = readback, não "recebido"** | `motor_ack` só avança depois de P1-09 ser lido de volta com o valor escrito; falha de escrita/readback tenta parada e **não** confirma o `cmd_id` (falha 2). | 🟢 Fechado |
+| **Latest-wins para velocidade, FIFO para eventos** | Setpoint não enfileira; `reset_energy`/`poll_ms` sim. | 🟢 Fechado |
+| **Driver passivo com Hub antigo** | Sem `motor_cmd_id` no comando, o driver não toca no drive e o CN1 analógico continua no comando. | 🟢 Fechado |
+
+Não há bloco 🟡 nem 🔴: a bancada deste nó já foi feita e registrada em `ESP32S3-SERVO/`.
+
+### 6.1 Referência rápida (o que não muda)
+
+| Item | Valor |
+|---|---|
+| Rota Hub → driver | `GET /servoCommand` a cada 500 ms; sempre o estado completo do motor + evento opcional |
+| Rota driver → Hub | `GET /servoData` a cada 1 s; campos obrigatórios listados acima |
+| Chaves app → Hub | `motorSetpoint` (0..1000 rpm), `servoComm`, `resetServoEnergy`, `servoPollMs` |
+| Lease | 3000 ms; expira → parada e falha 3 |
+| Presença | `ServoOnline` expira em 6000 ms, independente de `servoComm` |
+| Modbus | RS-485, driver único mestre; P1-09 por `10H`; P2-30=5 (escritas só em RAM); P2-1x lidos para localizar SON/SPD0/SPD1 |
+| Documentos | `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`, `ESP32S3-SERVO/PLANO_MIGRACAO_RPM_MODBUS.md`, `ESP32S3-SERVO/PROTOCOLO_HUB_v9_PARA_APLICATIVO.md`, `ESP32S3-SERVO/Software/documentacao/*` |

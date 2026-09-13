@@ -1,4 +1,4 @@
-# Protocolo — Bomba Peristáltica (Firmware v3.9)
+# Protocolo — Bomba Peristáltica (Firmware v3.10)
 
 Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e vocabulário de comandos da **Bomba Peristáltica** com motor DC e ESP32.
 
@@ -9,18 +9,18 @@ Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e
 ## 1. Identidade e Registro
 
 - **Dispositivo**: Bomba Peristáltica (`peristaltic-pump` / `pump`)
-- **Versão do Firmware**: `3.9`
+- **Versão do Firmware**: `3.10` (2026-09-12; 3.9 continua compatível no fio — as chaves novas são opcionais)
 - **Protocolo de Rede**: HTTP REST / Query params (compatibilidade de fio protocolo 10)
 - **Topologia**: Nó periférico que se anuncia ao Hub e envia telemetria periódica (push) enquanto consome comandos (piggyback ou pull).
 
 ### Registro Automático (`/nodeHello`)
 Ao conectar-se ao Wi-Fi, o nó anuncia sua presença ao Hub Central:
 ```http
-GET /nodeHello?dev=pump&ver=3.9&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
+GET /nodeHello?dev=pump&ver=3.10&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
 Host: 192.168.4.1
 ```
 - `dev`: `pump`
-- `ver`: `3.9`
+- `ver`: `3.10`
 - `mac`: Endereço MAC do ESP32 da bomba.
 
 ---
@@ -29,7 +29,7 @@ Host: 192.168.4.1
 
 A cada período de telemetria (~1000 ms), o nó envia seus dados operacionais ao Hub:
 ```http
-GET /pumpData?mode=1&pwm=128&speed=45.2&flow=1.265&vol=15.420&v_tgt=15.500&active=1&waiting=0&ack_cmd_id=42&slope=0.0280&intercept=0.0000 HTTP/1.1
+GET /pumpData?mode=1&pwm=128&speed=45.2&flow=1.265&vol=15.420&v_tgt=15.500&active=1&waiting=0&ack_cmd_id=42&slope=0.0280&intercept=0.0000&kp=0.5000&ki=0.0500&kd=0.0010&pot=1&cyc_vol=15.420 HTTP/1.1
 Host: 192.168.4.1
 ```
 
@@ -48,6 +48,9 @@ Host: 192.168.4.1
 | `ack_cmd_id` | `uint32` | inteiro | ID do último comando recebido e aplicado com sucesso |
 | `slope` | `float` | (unid/passo) / (mL/min) | Eco do coeficiente angular de calibração (`g_config.pumpSlope`) |
 | `intercept`| `float` | unid/passo | Eco do coeficiente linear de calibração (`g_config.pumpIntercept`)|
+| `kp`, `ki`, `kd` | `float` | — | **3.10** Eco dos ganhos do PID de volume (`pid_kp/ki/kd`) |
+| `pot` | `int` | 0 ou 1 | **3.10** `1` = potenciômetros de bancada no comando; `0` = travados por `pot:0` ou por um `speed` recebido |
+| `cyc_vol` | `float` | mL | **3.10** Volume entregue pelo ciclo de perfil corrente (`vol − volume no início do ciclo`). `vol` passou a ser o contador da sessão |
 
 ---
 
@@ -86,13 +89,13 @@ Comandos aceitos tanto via Hub (`/pumpCommand` ou piggyback) quanto localmente v
 
 | Valor de `command` | Descrição |
 | :--- | :--- |
-| `"start"` | Inicia o ciclo de bombeamento (`OP_RUNNING`), reinicia tempo e zera contadores de volume para o novo ciclo. |
-| `"stop"` | Interrompe o bombeamento imediatamente (`OP_IDLE`), define `mode=0` e para o motor. |
-| `"reset_volume"` | Zera o volume cumulativo (`vol = 0.0 mL`) mantendo o modo e estado operacional atuais. |
+| `"start"` | Inicia o ciclo de bombeamento (`OP_RUNNING`), reinicia o tempo e marca o início do ciclo (**3.10:** não zera `vol`; o controlador fecha sobre `cyc_vol`). |
+| `"stop"` | Interrompe o bombeamento imediatamente (`OP_IDLE`), define `mode=0` e para o motor (**3.10:** `vol` é mantido). |
+| `"reset_volume"` | **Único** comando que zera o volume cumulativo (`vol = 0.0 mL`), mantendo o modo e estado operacional atuais. |
 | `"save_config"` | Força a gravação imediata da configuração atual na memória flash NVS. |
 | `"load_config"` | Recarrega as configurações salvas da memória flash NVS. |
 | `"print_config"`| Imprime no log serial a configuração completa em formato JSON. |
-| `"clear_nvs"` | Apaga todas as preferências da NVS e reinicia o microcontrolador ESP32. |
+| `"clear_nvs"` | Apaga todas as preferências da NVS e reinicia o microcontrolador ESP32. **Não passa pelo Hub** (2026-09-12: o Hub encaminha apenas `reset_volume`, `start` e `stop`); só por `POST /command` local ou serial. |
 
 ### 4.2 Configuração de Modos de Operação (`mode`)
 
@@ -124,7 +127,9 @@ Comandos aceitos tanto via Hub (`/pumpCommand` ou piggyback) quanto localmente v
 
 ### 4.6 Opções de Sensores e Hardware
 
-- `disablePot` (`float`, 1.0 ou 0.0): Desativa a leitura do potenciômetro físico da carcaça.
+- `speed` (`float`, −1000..1000): velocidade interna manual em modo ocioso (negativo = sentido inverso); `0` para. Trava os potenciômetros até `pot:1`. **3.10:** opcional `speed_ms` (`float`, ms > 0) no mesmo JSON — o nó zera a velocidade sozinho ao expirar (parada autônoma). Pelo Hub: `pump_speed`, `pump_speed_ms`.
+- `pot` (`float`, 1.0 ou 0.0) **3.10**: `1` devolve o motor aos potenciômetros de bancada e esquece qualquer `speed`; `0` trava os potenciômetros. Pelo Hub: `pump_pot`. Ecoado como `pot` no push.
+- `disablePot` (`float`, 1.0 ou 0.0): grafia 3.9 de `pot:0`/`pot:1` invertida; mantida para clientes locais.
 - `sensorEnable` (`float`, 1.0 ou 0.0): Habilita/desabilita o sensor de gotas/vazão óptico.
 - `sensorBypass` (`float`, 1.0 ou 0.0): Modo bypass para calibração sem interrupção de sensor.
 - `sensorButtonOverride` (`float`, 1.0 ou 0.0): Permite sobreposição do botão físico.

@@ -5,14 +5,16 @@ void checkAndRecoverState() {
         int savedMode = g_prefs.getInt(NVS_KEY_STATE_MODE, 0);
         float savedVol = g_prefs.getFloat(NVS_KEY_STATE_VOL, 0.0f);
         float savedTime = g_prefs.getFloat(NVS_KEY_STATE_TIME, 0.0f);
+        float savedCycleVol = g_prefs.getFloat(NVS_KEY_STATE_CVOL, 0.0f);
 
         Serial.println(">>> DETECTED UNEXPECTED RESET! RECOVERING STATE <<<");
         Serial.printf("Recovering: Mode %d at %.2f min with %.2f mL\n", savedMode, savedTime, savedVol);
 
-        // Restore Volume
+        // Restore Volume (session counter and where this cycle started)
         taskDISABLE_INTERRUPTS();
         g_cumulativeVolumeMl = savedVol;
         taskENABLE_INTERRUPTS();
+        g_cycleStartVolumeMl = savedCycleVol;
 
         // Restore Mode (ensure config matches saved state if possible, though config is usually persistent)
         if (g_config.mode != savedMode) {
@@ -48,6 +50,7 @@ void saveRuntimeState() {
         g_prefs.putFloat(NVS_KEY_STATE_VOL, vol);
         g_prefs.putFloat(NVS_KEY_STATE_TIME, g_current_t_min);
         g_prefs.putInt(NVS_KEY_STATE_MODE, g_config.mode);
+        g_prefs.putFloat(NVS_KEY_STATE_CVOL, g_cycleStartVolumeMl);
         Serial.println("[NVS] Checkpoint saved.");
     }
 }

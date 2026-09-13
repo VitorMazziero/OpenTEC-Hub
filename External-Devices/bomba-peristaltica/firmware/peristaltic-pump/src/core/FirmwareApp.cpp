@@ -99,6 +99,7 @@ constexpr char* NVS_KEY_STATE_ACTIVE = (char*)"s_active";
 constexpr char* NVS_KEY_STATE_VOL    = (char*)"s_vol";
 constexpr char* NVS_KEY_STATE_TIME   = (char*)"s_time";
 constexpr char* NVS_KEY_STATE_MODE   = (char*)"s_mode";
+constexpr char* NVS_KEY_STATE_CVOL   = (char*)"s_cvol";
 
 struct PumpConfig {
     int mode; // 0 idle, 1 const, 2 linear, 3 exp, 4 poly, 5 piecewise
@@ -154,6 +155,12 @@ float g_current_t_min = 0.0f;
 unsigned long g_motorOnLatchTimeMs = 0;
 float g_latchedSpeed = 0.0f;
 
+// 3.10: the cumulative volume is a session counter that only reset_volume clears. Each
+// profile cycle remembers where the counter stood when it started, and the volume
+// controller closes on (cumulative - cycleStart), so stopping, restarting or changing a
+// profile no longer throws the operator's running total away.
+float g_cycleStartVolumeMl = 0.0f;
+
 // PID state
 float g_pid_error_sum = 0.0f;
 float g_pid_last_error = 0.0f;
@@ -167,6 +174,9 @@ const unsigned long STATE_SAVE_INTERVAL_MS = 60000; // Save every 60s
 volatile bool  disablePot      = false;
 volatile float usbSpeedSteps = 0.0f;
 volatile bool  hasUsbSpeed   = false;
+// 3.10: optional deadline for a "speed" command (speed_ms). 0 = no deadline. When it
+// expires the motor is told 0; the potentiometers stay locked out until "pot":1.
+unsigned long  g_usbSpeedUntilMs = 0;
 
 // Sensor gate
 volatile bool  sensorEnable          = false;
@@ -201,6 +211,7 @@ void buildDataJson(bool includeArrays = false); // Modified prototype
 
 // Mode & PID
 void resetOperationState();
+void startCycle();
 float calculateTargetFlow(float t_rel_min);
 float calculateTargetVolume(float t_rel_min);
 float evalPolyIntegral(float t_rel);

@@ -1,7 +1,7 @@
 void firmwareSetup() {
     Serial.begin(115200);
     delay(100);
-    Serial.println("--- Peristaltic Pump Controller v3.9 (Robust Recovery) ---");
+    Serial.println("--- Peristaltic Pump Controller v3.10 (PID echo, speed_ms, pot, non-zeroing stop) ---");
 
     g_prefs.begin(NVS_NAMESPACE, false);
     loadConfig();
@@ -133,6 +133,13 @@ void firmwareLoop() {
     digitalWrite(SENSOR_STATUS_LED_PIN, sensorEnable ? HIGH : LOW);
     float potSpeed = 0.0f;
     if (!disablePot) potSpeed = calcPotSpeed();
+
+    // speed_ms deadline: the node stops itself even if whoever sent "speed" never sends 0.
+    if (hasUsbSpeed && g_usbSpeedUntilMs != 0 && (long)(now - g_usbSpeedUntilMs) >= 0) {
+        g_usbSpeedUntilMs = 0;
+        usbSpeedSteps = 0.0f;
+        Serial.println("[CMD] speed_ms elapsed; motor stopped.");
+    }
 
     if (g_opState == OP_IDLE) {
         g_current_t_min = 0.0f;

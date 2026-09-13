@@ -15,19 +15,29 @@ void buildDataJson(bool includeArrays) {
 
     snprintf(jsonBuffer, sizeof(jsonBuffer), 
         "{\"mode\":%d,\"pwm\":%d,\"speed\":%.1f,\"flow_rate_mlmin\":%.3f,"
-        "\"cum_volume_ml\":%.3f,\"v_target_ml\":%.3f,\"active\":%s,\"waiting\":%s,"
-        "\"current_t_min\":%.3f,\"init_t_min\":%.3f,\"final_t_min\":%.3f",
+        "\"cum_volume_ml\":%.3f,\"cycle_volume_ml\":%.3f,\"v_target_ml\":%.3f,\"active\":%s,\"waiting\":%s,"
+        "\"current_t_min\":%.3f,\"init_t_min\":%.3f,\"final_t_min\":%.3f,"
+        "\"slope\":%.4f,\"intercept\":%.4f,\"pid_kp\":%.4f,\"pid_ki\":%.4f,\"pid_kd\":%.4f,"
+        "\"pot\":%d,\"usb_speed\":%d",
         g_config.mode,
         pwm_duty,
         (double)g_cmdSpeed,
         (double)g_currentFlowRateMlMin,
         (double)vol,
+        (double)(vol - g_cycleStartVolumeMl),
         (double)v_target,
         (g_opState == OP_RUNNING) ? "true" : "false",
         (g_opState == OP_WAITING) ? "true" : "false",
         (double)g_current_t_min,
         (double)g_config.init_t_min,
-        (double)g_config.final_t_min
+        (double)g_config.final_t_min,
+        (double)g_config.pumpSlope,
+        (double)g_config.pumpIntercept,
+        (double)g_config.pid_kp,
+        (double)g_config.pid_ki,
+        (double)g_config.pid_kd,
+        disablePot ? 0 : 1,
+        hasUsbSpeed ? 1 : 0
     );
 
     String json = String(jsonBuffer);

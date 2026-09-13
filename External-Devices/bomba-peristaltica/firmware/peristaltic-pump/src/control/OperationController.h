@@ -4,9 +4,9 @@ void updateOperationState() {
         if (g_current_t_min >= g_config.init_t_min) {
             Serial.printf("[STATE] init_t (%.2f min) reached. Starting operation.\n", g_config.init_t_min);
             g_opState = OP_RUNNING;
-            // Note: We do NOT reset volume here if we are recovering, logic handled in setup
+            // Note: on recovery the cycle start was restored in setup; do not move it.
             if (!g_prefs.getBool(NVS_KEY_STATE_ACTIVE, false)) {
-                 resetOperationState(); 
+                 startCycle();
             }
         }
     } else if (g_opState == OP_RUNNING) {
@@ -15,23 +15,42 @@ void updateOperationState() {
             g_opState = OP_IDLE;
             g_config.mode = 0;
             g_configDirty = true;
-            resetOperationState();
+            startCycle();        // controller state only; the session volume is kept
             clearRuntimeState(); // Operation complete, clear recovery flag
         }
     }
 }
 
+// Only reset_volume calls this: the session counter goes to zero and the running cycle
+// (if any) starts counting from there.
 void resetOperationState() {
     Serial.println("[STATE] Resetting runtime state (Volume, PID).");
     taskDISABLE_INTERRUPTS();
     g_cumulativeVolumeMl = 0.0f;
     taskENABLE_INTERRUPTS();
+    g_cycleStartVolumeMl = 0.0f;
 
     g_pid_error_sum = 0.0f;
     g_pid_last_error = 0.0f;
     g_pid_last_time_ms = millis();
     g_motorOnLatchTimeMs = 0;
     g_latchedSpeed = 0.0f;
+}
+
+// Everything a new profile cycle needs, without touching the session counter.
+void startCycle() {
+    float vol;
+    taskDISABLE_INTERRUPTS();
+    vol = g_cumulativeVolumeMl;
+    taskENABLE_INTERRUPTS();
+    g_cycleStartVolumeMl = vol;
+
+    g_pid_error_sum = 0.0f;
+    g_pid_last_error = 0.0f;
+    g_pid_last_time_ms = millis();
+    g_motorOnLatchTimeMs = 0;
+    g_latchedSpeed = 0.0f;
+    Serial.printf("[STATE] Cycle start at %.3f mL (session counter kept).\n", (double)vol);
 }
 
 void runOperationLogic() {
@@ -45,6 +64,7 @@ void runOperationLogic() {
     taskDISABLE_INTERRUPTS();
     V_actual_ml = g_cumulativeVolumeMl;
     taskENABLE_INTERRUPTS();
+    V_actual_ml -= g_cycleStartVolumeMl;   // this cycle's delivery, not the session total
 
     float pid_adj_mlmin = updatePID(V_target_ml, V_actual_ml);
 
@@ -226,21 +246,19 @@ void processJsonCommand(String json) {
             g_configDirty = true;
             g_opState = OP_RUNNING;
             g_opTriggerTimeMs = millis();
-            resetOperationState();
+            startCycle();
             clearRuntimeState(); // New start means clear old recovery
         } else if (cmd.equals("stop")) {
-            Serial.println("[CMD] Manual stop.");
+            Serial.println("[CMD] Manual stop (session volume kept).");
             g_opState = OP_IDLE;
             g_config.mode = 0;
             g_configDirty = true;
-            resetOperationState();
+            startCycle();
             clearRuntimeState(); // Stop means we don't recover next time
         } else if (cmd.equals("reset_volume")) {
             Serial.println("[CMD] Resetting cumulative volume.");
             resetOperationState();
-            // Don't clear NVS here unless we assume mode 0, 
-            // but usually reset_volume implies staying in mode. 
-            // We'll let next 60s save update the 0 vol.
+            // The 60 s checkpoint picks the zero up; mode and state are untouched.
         } else if (cmd.equals("save_config")) {
             saveConfig();
         } else if (cmd.equals("load_config")) {
@@ -279,10 +297,34 @@ void processJsonCommand(String json) {
 
     fval = getJsonFloatValue(json, "speed");
     if (!isnan(fval)) {
-        usbSpeedSteps = fval;
+        usbSpeedSteps = constrain(fval, -V_MAX, V_MAX);
         hasUsbSpeed   = true;
         g_opState = OP_IDLE;
         g_config.mode = 0;
+        // Optional deadline. Without it the speed holds until the next command, as before.
+        float msVal = getJsonFloatValue(json, "speed_ms");
+        if (!isnan(msVal) && msVal > 0.0f && usbSpeedSteps != 0.0f) {
+            g_usbSpeedUntilMs = millis() + (unsigned long)msVal;
+            if (g_usbSpeedUntilMs == 0) g_usbSpeedUntilMs = 1;
+            Serial.printf("[CMD] speed %.1f for %lu ms\n", (double)usbSpeedSteps, (unsigned long)msVal);
+        } else {
+            g_usbSpeedUntilMs = 0;
+        }
+    }
+    // "pot":1 hands the motor back to the bench potentiometers (and forgets any "speed");
+    // "pot":0 locks them out. "disablePot" is the 3.9 spelling, kept for local clients.
+    fval = getJsonFloatValue(json, "pot");
+    if (!isnan(fval)) {
+        if (fval == 1.0f) {
+            disablePot = false;
+            hasUsbSpeed = false;
+            usbSpeedSteps = 0.0f;
+            g_usbSpeedUntilMs = 0;
+            Serial.println("[CMD] Potentiometers enabled.");
+        } else {
+            disablePot = true;
+            Serial.println("[CMD] Potentiometers disabled.");
+        }
     }
     fval = getJsonFloatValue(json, "disablePot");
     if (!isnan(fval)) {
@@ -386,8 +428,8 @@ void processJsonCommand(String json) {
     
     // Logic: If parameters changed (or mode command sent), reset the pump cycle
     if (paramChanged && cmd.isEmpty()) {
-        Serial.println("[CMD] Parameter change detected, resetting state.");
-        resetOperationState();
+        Serial.println("[CMD] Parameter change detected, starting a new cycle.");
+        startCycle();
         clearRuntimeState(); // Clear checkpoint, starting fresh
         g_opTriggerTimeMs = millis();
         

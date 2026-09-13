@@ -507,7 +507,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- External Pump linear calibration -->
+            <!-- External Pump dual-range continuous calibration -->
             <TabItem x:Name="PumpTab" Header="Bomba Externa" Style="{StaticResource SegmentedItemStyle}">
                 <Grid Margin="0,12,0,0" DataContext="{Binding Pump}">
                     <ScrollViewer x:Name="PumpLeftScroll"
@@ -525,31 +525,57 @@
 
                             <Border Grid.Row="1" Style="{StaticResource CalibrationCard}" Margin="0,12,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Curva da bomba peristáltica" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding FitSummaryText}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,8" TextWrapping="Wrap" />
+                                    <TextBlock Text="Curva da bomba peristáltica (duplo trecho contínuo)" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding FitSummaryText}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,4" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding ContinuityText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,8" TextWrapping="Wrap" />
                                     <Grid Margin="0,0,0,8">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                            <TextBlock Text="Ganho (mL/min por unidade S)" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding SlopeText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,6,6">
+                                            <TextBlock Text="Vazão de transição Qt (mL/min)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding TransitionFlowText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                            <TextBlock Text="Deslocamento (mL/min)" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding InterceptText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,6">
+                                            <TextBlock Text="Velocidade St (calculada)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding TransitionSpeedText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="Ganho baixo m_baixo (calculado)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding LowSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBlock Text="Ganho alto m_alto (calculado)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding HighSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                     </Grid>
+                                    <TextBlock Text="{Binding AppliedHardwareEchoText}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
                                     <TextBlock Text="{Binding ValidationError}"
                                                Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
                                                Style="{StaticResource CaptionTextStyle}"
                                                Foreground="{DynamicResource StateAlarmTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="{Binding FirmwareUnsupportedReason}"
+                                               Visibility="{Binding FirmwareUnsupportedReason, Converter={StaticResource NullToVis}}"
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,6" />
+                                    <TextBlock Text="{Binding HubUnsupportedReason}"
+                                               Visibility="{Binding HubUnsupportedReason, Converter={StaticResource NullToVis}}"
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
-                                        <Button Content="Salvar pontos" Command="{Binding UseFitCommand}" Margin="0,0,6,0"
-                                                ToolTip="Copia o ajuste calculado para os coeficientes antes do envio." />
-                                        <Button Content="Salvar e enviar curva" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyCommand}" />
+                                        <Button Content="Usar ajuste" Command="{Binding UseFitCommand}" Margin="0,0,6,0"
+                                                ToolTip="Copia os coeficientes calculados dos pontos para os campos antes do envio." />
+                                        <Button Content="Salvar e enviar curva" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyCommand}"
+                                                ToolTip="Envia os coeficientes de duplo trecho para o nó da bomba e salva recibo JSON rastreável." />
                                     </StackPanel>
                                     <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
                                                Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -745,34 +771,69 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" MinHeight="190" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" MinHeight="160" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0">
+                    <!-- Hose Profile Library Card -->
+                    <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Biblioteca de perfis de mangueira" FontWeight="SemiBold" />
+                            <TextBlock Text="Selecione um perfil salvo por mangueira instalada ou gerencie a biblioteca."
+                                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,6" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" ItemsSource="{Binding AvailableProfiles}"
+                                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                                          DisplayMemberPath="DisplayName" Height="30" VerticalContentAlignment="Center" />
+                                <Button Grid.Column="1" Content="Carregar" Command="{Binding LoadSelectedProfileCommand}"
+                                        Height="30" Padding="10,0" Margin="6,0,0,0"
+                                        ToolTip="Carrega os coeficientes e pontos do perfil selecionado." />
+                            </Grid>
+                            <WrapPanel Margin="0,0,0,4">
+                                <Button Content="Salvar" Command="{Binding SaveCurrentProfileCommand}" Margin="0,0,6,4"
+                                        ToolTip="Salva alterações da calibração no perfil ativo." />
+                                <Button Content="Salvar como..." Command="{Binding SaveCurrentProfileAsCommand}" Margin="0,0,6,4"
+                                        ToolTip="Cria um novo perfil de mangueira a partir da calibração atual." />
+                                <Button Content="Excluir" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedProfileCommand}" Margin="0,0,0,4"
+                                        ToolTip="Exclui o perfil selecionado da biblioteca." />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding ProfileStatusText}" Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="1">
                         <TextBlock Text="Pontos volumétricos" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
                         <TextBlock Text="Selecione velocidade e duração; ao final, informe o volume coletado para registrar o ponto."
                                    Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
                                    TextWrapping="Wrap" Margin="0,4,0,8" />
                     </StackPanel>
 
-                    <Border Grid.Row="1" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="4">
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="4">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Background="{DynamicResource SurfaceSunkenBrush}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="0.7*" />
-                                    <ColumnDefinition Width="0.8*" />
-                                    <ColumnDefinition Width="0.8*" />
-                                    <ColumnDefinition Width="1.1*" />
+                                    <ColumnDefinition Width="0.75*" />
+                                    <ColumnDefinition Width="0.75*" />
+                                    <ColumnDefinition Width="0.9*" />
+                                    <ColumnDefinition Width="0.85*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="S" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
-                                <TextBlock Grid.Column="1" Text="Δt (s)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
-                                <TextBlock Grid.Column="2" Text="V (mL)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
-                                <TextBlock Grid.Column="3" Text="Q (mL/min)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
-                                <TextBlock Grid.Column="4" Text="" Width="28" />
+                                <TextBlock Grid.Column="0" Text="S" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                <TextBlock Grid.Column="1" Text="Δt (s)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                <TextBlock Grid.Column="2" Text="V (mL)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                <TextBlock Grid.Column="3" Text="Q (mL/min)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                <TextBlock Grid.Column="4" Text="Trecho" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                <TextBlock Grid.Column="5" Text="" Width="26" />
                             </Grid>
                             <ListBox ItemsSource="{Binding Runs}" BorderThickness="0"
                                      IsEnabled="{Binding CanEditRuns}"
@@ -782,7 +843,7 @@
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                        <Setter Property="Padding" Value="5,1" />
+                                        <Setter Property="Padding" Value="3,1" />
                                     </Style>
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
@@ -790,16 +851,18 @@
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="0.7*" />
-                                                <ColumnDefinition Width="0.8*" />
-                                                <ColumnDefinition Width="0.8*" />
-                                                <ColumnDefinition Width="1.1*" />
+                                                <ColumnDefinition Width="0.75*" />
+                                                <ColumnDefinition Width="0.75*" />
+                                                <ColumnDefinition Width="0.9*" />
+                                                <ColumnDefinition Width="0.85*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding SpeedText}" Style="{StaticResource NumericTextStyle}" Margin="8,3" />
-                                            <TextBlock Grid.Column="1" Text="{Binding SecondsText}" Style="{StaticResource NumericTextStyle}" Margin="8,3" />
-                                            <TextBlock Grid.Column="2" Text="{Binding VolumeText}" Style="{StaticResource NumericTextStyle}" Margin="8,3" />
-                                            <TextBlock Grid.Column="3" Text="{Binding FlowText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" Margin="8,3" />
-                                            <Button Grid.Column="4" Content="✕" Width="28" Height="24" Padding="0" Margin="0,0,4,0"
+                                            <TextBlock Grid.Column="0" Text="{Binding SpeedText}" Style="{StaticResource NumericTextStyle}" Margin="4,3" />
+                                            <TextBlock Grid.Column="1" Text="{Binding SecondsText}" Style="{StaticResource NumericTextStyle}" Margin="4,3" />
+                                            <TextBlock Grid.Column="2" Text="{Binding VolumeText}" Style="{StaticResource NumericTextStyle}" Margin="4,3" />
+                                            <TextBlock Grid.Column="3" Text="{Binding FlowValueText}" ToolTip="{Binding FlowText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" Margin="4,3" />
+                                            <TextBlock Grid.Column="4" Text="{Binding SegmentLabel}" Style="{StaticResource CaptionTextStyle}" Margin="4,3" VerticalAlignment="Center" />
+                                            <Button Grid.Column="5" Content="✕" Width="26" Height="24" Padding="0" Margin="0,0,2,0"
                                                     ToolTip="Remover este ponto"
                                                     Command="{Binding DataContext.RemoveRunCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                     CommandParameter="{Binding}" />
@@ -810,17 +873,21 @@
                         </DockPanel>
                     </Border>
 
-                    <StackPanel Grid.Row="2" Margin="0,7,0,8">
-                        <UniformGrid Columns="3" Margin="0,0,0,7">
-                            <StackPanel Margin="0,0,4,0">
-                                <TextBlock Text="Ganho" Style="{StaticResource CalibrationLabel}" />
-                                <TextBlock Text="{Binding FitSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                    <StackPanel Grid.Row="3" Margin="0,7,0,8">
+                        <UniformGrid Columns="4" Margin="0,0,0,7">
+                            <StackPanel Margin="0,0,3,0">
+                                <TextBlock Text="m_baixo" Style="{StaticResource CalibrationLabel}" />
+                                <TextBlock Text="{Binding LowSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
                             </StackPanel>
-                            <StackPanel Margin="4,0">
-                                <TextBlock Text="Deslocamento" Style="{StaticResource CalibrationLabel}" />
-                                <TextBlock Text="{Binding FitInterceptText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                            <StackPanel Margin="3,0">
+                                <TextBlock Text="m_alto" Style="{StaticResource CalibrationLabel}" />
+                                <TextBlock Text="{Binding HighSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
                             </StackPanel>
-                            <StackPanel Margin="4,0,0,0">
+                            <StackPanel Margin="3,0">
+                                <TextBlock Text="St" Style="{StaticResource CalibrationLabel}" />
+                                <TextBlock Text="{Binding TransitionSpeedText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <StackPanel Margin="3,0,0,0">
                                 <TextBlock Text="R²" Style="{StaticResource CalibrationLabel}" />
                                 <TextBlock Text="{Binding FitRSquaredText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
                             </StackPanel>
@@ -831,7 +898,7 @@
                         <Button Content="Limpar pontos" Command="{Binding ClearRunsCommand}" HorizontalAlignment="Left" />
                     </StackPanel>
 
-                    <Border Grid.Row="3" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                    <Border Grid.Row="4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,8">
                         <StackPanel>
                             <TextBlock Text="Ensaio automático" FontWeight="SemiBold" />
                             <Grid Margin="0,7,0,7">
@@ -872,7 +939,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Row="4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8">
+                    <Border Grid.Row="5" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8">
                         <StackPanel>
                             <TextBlock Text="Controle manual · preencher mangueira" FontWeight="SemiBold" />
                             <TextBlock Text="Retire bolhas e complete a mangueira. Este acionamento não cria ponto de calibração."

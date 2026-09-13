@@ -22,6 +22,8 @@ public sealed record PumpCalibrationProfile
     /// <summary>Unique identifier for this profile across renames.</summary>
     public string ProfileId { get; init; } = Guid.NewGuid().ToString("D");
 
+    public string Id => ProfileId;
+
     /// <summary>User-visible hose name (e.g. "Silicone 2mm", "Tygon R-3603").</summary>
     public required string Name { get; init; }
 
@@ -103,7 +105,11 @@ public sealed record PumpCalibrationProfileSummary(
     double HighSlope,
     int SchemaVersion,
     bool IsCompatible,
-    DateTimeOffset? LastAppliedUtc = null);
+    DateTimeOffset? LastAppliedUtc = null)
+{
+    public string DisplayName => Name;
+    public string Id => ProfileId;
+}
 
 /// <summary>
 /// Goodness-of-fit statistics recorded alongside the profile for auditing and inspection.

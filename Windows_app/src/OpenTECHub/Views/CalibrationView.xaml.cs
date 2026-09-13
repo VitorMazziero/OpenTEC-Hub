@@ -210,7 +210,8 @@ public partial class CalibrationView : UserControl
         var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
         var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
         var accent = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);
-        var fitColor = ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen);
+        var lowColor = ToPlotColor(TryBrush("StateAlarmBrush"), MediaColors.IndianRed);
+        var highColor = ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen);
 
         plot.FigureBackground.Color = surface;
         plot.DataBackground.Color = surface;
@@ -218,7 +219,7 @@ public partial class CalibrationView : UserControl
         plot.Grid.MajorLineColor = grid.WithAlpha(0.45);
         plot.Axes.Bottom.Label.Text = "Velocidade S";
         plot.Axes.Left.Label.Text = "Vazão (mL/min)";
-        plot.Axes.Title.Label.Text = "Curva volumétrica da bomba";
+        plot.Axes.Title.Label.Text = "Curva contínua de duplo trecho da bomba";
         plot.Axes.Title.Label.ForeColor = text;
 
         var maximumFlow = 1.0;
@@ -237,16 +238,47 @@ public partial class CalibrationView : UserControl
                 maximumFlow = Math.Max(maximumFlow, runs.Max(run => run.FlowMlPerMin));
             }
 
-            if (viewModel.TryGetDisplayedCurve(out var slope, out var intercept))
+            if (viewModel.TryGetDisplayedCurve(out var curve))
             {
-                var speeds = Enumerable.Range(0, 101).Select(index => index * 10.0).ToArray();
-                var flows = speeds.Select(speed => Math.Max(0.0, (slope * speed) + intercept)).ToArray();
-                var line = plot.Add.Scatter(speeds, flows);
-                line.MarkerSize = 0;
-                line.LineWidth = 2;
-                line.Color = fitColor;
-                line.LegendText = viewModel.HasFit ? "Ajuste dos pontos" : "Curva informada";
-                maximumFlow = Math.Max(maximumFlow, flows.Max());
+                var st = Math.Clamp(curve.TransitionSpeed, 1.0, 999.0);
+
+                // Trecho inferior: [0, St]
+                const int steps = 50;
+                var lowSpeeds = new double[steps + 1];
+                var lowFlows = new double[steps + 1];
+                for (var i = 0; i <= steps; i++)
+                {
+                    var s = st * i / steps;
+                    lowSpeeds[i] = s;
+                    lowFlows[i] = Math.Max(0.0, curve.FlowFromSpeed(s));
+                }
+                var lowLine = plot.Add.Scatter(lowSpeeds, lowFlows);
+                lowLine.MarkerSize = 0;
+                lowLine.LineWidth = 2;
+                lowLine.Color = lowColor;
+                lowLine.LegendText = $"Trecho inferior (S ≤ {st:F1})";
+
+                // Trecho superior: [St, 1000]
+                var highSpeeds = new double[steps + 1];
+                var highFlows = new double[steps + 1];
+                for (var i = 0; i <= steps; i++)
+                {
+                    var s = st + ((1000.0 - st) * i / steps);
+                    highSpeeds[i] = s;
+                    highFlows[i] = Math.Max(0.0, curve.FlowFromSpeed(s));
+                }
+                var highLine = plot.Add.Scatter(highSpeeds, highFlows);
+                highLine.MarkerSize = 0;
+                highLine.LineWidth = 2;
+                highLine.Color = highColor;
+                highLine.LegendText = $"Trecho superior (S > {st:F1})";
+
+                var vLine = plot.Add.VerticalLine(st);
+                vLine.Color = grid;
+                vLine.LineWidth = 1;
+
+                var maxFlowCurve = Math.Max(0.0, curve.FlowFromSpeed(1000.0));
+                maximumFlow = Math.Max(maximumFlow, maxFlowCurve);
             }
         }
 

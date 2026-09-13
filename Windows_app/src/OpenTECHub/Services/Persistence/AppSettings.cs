@@ -545,6 +545,18 @@ public sealed record PumpControlSettings
     /// <summary>Calibration intercept: flow = slope * internal speed unit + intercept.</summary>
     public double CalibrationIntercept { get; init; } = 1.7601988934;
 
+    /// <summary>Continuous dual-range calibration: transition flow Qt in mL/min.</summary>
+    public double CalibrationQt { get; init; } = 15.7696062934;
+
+    /// <summary>Continuous dual-range calibration: transition speed St in internal speed units (0..1000).</summary>
+    public double CalibrationSt { get; init; } = 500.0;
+
+    /// <summary>Continuous dual-range calibration: low slope m_baixo (mL/min per S unit).</summary>
+    public double CalibrationMLow { get; init; } = 0.0280188148;
+
+    /// <summary>Continuous dual-range calibration: high slope m_alto (mL/min per S unit).</summary>
+    public double CalibrationMHigh { get; init; } = 0.0280188148;
+
     /// <summary>
     /// Volumetric calibration runs the operator has kept: one timed run at a fixed internal
     /// speed and the volume it delivered. The coefficients above are derived from these only

@@ -4,6 +4,7 @@ using System.Text.Json;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Calibration;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -19,51 +20,75 @@ public sealed class PumpCalibrationTests
         public void Advance(TimeSpan delta) => _now += delta;
     }
 
-    [Fact]
-    public void Pump_calibration_previews_match_linear_equation()
+    private sealed class TestDialogService : IDialogService
     {
-        var device = new RecordingDeviceService();
-        var settings = new MemorySettingsService();
-        using var vm = new PumpCalibrationViewModel(device, settings);
+        public bool ConfirmResult { get; set; } = true;
+        public bool PromptResult { get; set; } = true;
+        public string PromptText { get; set; } = "Novo Perfil";
+        public List<string> Confirmations { get; } = [];
 
-        // Q = slope * internal speed S + intercept (S is 0..1000, not raw PWM duty).
-        vm.SlopeText = "1.0";
-        vm.InterceptText = "0.0";
-        Assert.True(vm.IsValid);
-        Assert.Equal(250.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
-        Assert.Equal(500.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview500Text);
-        Assert.Equal(1000.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview1000Text);
+        public bool ConfirmDestructive(string title, string consequence, string exactCommand) => ConfirmResult;
 
-        // Slope = 0.5, Intercept = 10.0
-        vm.SlopeText = "0.5";
-        vm.InterceptText = "10.0";
-        Assert.True(vm.IsValid);
-        Assert.Equal(135.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
-        Assert.Equal(260.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview500Text);
-        Assert.Equal(510.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview1000Text);
+        public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false)
+        {
+            Confirmations.Add($"{title}: {message}");
+            return ConfirmResult;
+        }
+
+        public bool PromptInput(string title, string message, out string response, string initialValue = "")
+        {
+            response = PromptText;
+            return PromptResult;
+        }
+
+        public RecipeStartOption PromptRecipeStart(string recipeName) => RecipeStartOption.Cancel;
     }
 
     [Fact]
-    public void Pump_calibration_rejects_non_positive_slope_and_invalid_intercept()
+    public void Pump_calibration_previews_match_dual_range_equation()
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
         using var vm = new PumpCalibrationViewModel(device, settings);
 
-        vm.SlopeText = "0.0";
-        vm.InterceptText = "0.0";
+        // Continuous dual-range: Qt = 16.0 mL/min, St = 500 un, m_baixo = 0.02, m_alto = 0.03
+        // S <= 500: Q = 16.0 + 0.02 * (S - 500)
+        // S > 500:  Q = 16.0 + 0.03 * (S - 500)
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+
+        Assert.True(vm.IsValid);
+        // S = 250: Q = 16.0 + 0.02 * (-250) = 11.0 mL/min
+        Assert.Equal(11.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
+        // S = 500: Q = 16.0 mL/min
+        Assert.Equal(16.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview500Text);
+        // S = 1000: Q = 16.0 + 0.03 * 500 = 31.0 mL/min
+        Assert.Equal(31.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview1000Text);
+    }
+
+    [Fact]
+    public void Pump_calibration_rejects_non_positive_slope_and_invalid_transition()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new PumpCalibrationViewModel(device, settings);
+
+        var previous = Assert.IsType<PumpDualRangeCurve>(vm.Curve);
+        vm.TransitionFlowText = "0.0";
         Assert.False(vm.IsValid);
         Assert.False(vm.CanApply);
-        Assert.Equal("—", vm.Preview250Text);
+        Assert.Equal(previous.FlowFromSpeed(250).ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
         Assert.NotNull(vm.ValidationError);
 
-        vm.SlopeText = "-1.5";
+        vm.TransitionFlowText = "-5.0";
         Assert.False(vm.IsValid);
 
-        vm.SlopeText = "1.5";
-        vm.InterceptText = "not_a_number";
+        vm.TransitionFlowText = "16.0";
+        vm.SetCurve(new PumpDualRangeCurve(0.0, 0.03, 500.0, 16.0));
         Assert.False(vm.IsValid);
         Assert.False(vm.CanApply);
+
+        vm.SetCurve(new PumpDualRangeCurve(-0.02, 0.03, 500.0, 16.0));
+        Assert.False(vm.IsValid);
     }
 
     [Fact]
@@ -79,33 +104,46 @@ public sealed class PumpCalibrationTests
             timeProvider: clock,
             calibrationsDirectory: receiptDirectory);
 
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true });
-        Assert.True(vm.IsPumpOnline);
-
-        vm.SlopeText = "1.5";
-        vm.InterceptText = "2.5";
-        Assert.True(vm.CanApply);
-
-        vm.ApplyCommand.Execute(null);
-
-        Assert.Contains("""{"pumpSlope":1.5,"pumpIntercept":2.5}""", device.Sent[^1]);
-        Assert.True(vm.IsAwaitingCalibration);
-        Assert.NotEqual(1.5, settings.Current.PumpControl.CalibrationSlope);
-        Assert.False(Directory.Exists(receiptDirectory));
-
         device.PushTelemetry(new SensorSnapshot
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlope = 1.5,
-            PumpIntercept = 2.5,
-            HubFirmwareVersion = "10.2.0-test",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.9")
+            HubFirmwareVersion = "10.3.0-test",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+        });
+        Assert.True(vm.IsPumpOnline);
+        Assert.True(vm.IsFirmwareCompatible);
+
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+        Assert.True(vm.CanApply);
+
+        vm.ApplyCommand.Execute(null);
+
+        Assert.Equal("{\"pumpSlopeLow\":0.02,\"pumpSlopeHigh\":0.03,\"pumpTransitionSpeed\":500.0,\"pumpTransitionFlow\":16.0}", device.Sent[^1]);
+        Assert.True(vm.IsAwaitingCalibration);
+        Assert.NotEqual(0.02, settings.Current.PumpControl.CalibrationMLow);
+        Assert.False(Directory.Exists(receiptDirectory));
+
+        // Matching telemetry echo confirms calibration
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpSlopeLow = 0.02,
+            PumpSlopeHigh = 0.03,
+            PumpTransitionSpeed = 500.0,
+            PumpTransitionFlow = 16.0,
+            PumpCalCrc = 0x1234,
+            PumpCommandPending = false,
+            HubFirmwareVersion = "10.3.0-test",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
         });
 
         Assert.False(vm.IsAwaitingCalibration);
-        Assert.Equal(1.5, settings.Current.PumpControl.CalibrationSlope);
-        Assert.Equal(2.5, settings.Current.PumpControl.CalibrationIntercept);
+        Assert.Equal(0.02, settings.Current.PumpControl.CalibrationMLow);
+        Assert.Equal(0.03, settings.Current.PumpControl.CalibrationMHigh);
+        Assert.Equal(500.0, settings.Current.PumpControl.CalibrationSt);
+        Assert.Equal(16.0, settings.Current.PumpControl.CalibrationQt);
 
         // Verify JSON receipt file
         var receiptPath = Path.Combine(receiptDirectory, "bomba-externa-2026-09-12_12-00-00.json");
@@ -115,13 +153,18 @@ public sealed class PumpCalibrationTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         Assert.Equal("external_pump", root.GetProperty("node").GetString());
-        Assert.Equal(1.5, root.GetProperty("requested").GetProperty("slope").GetDouble());
-        Assert.Equal(2.5, root.GetProperty("requested").GetProperty("intercept").GetDouble());
-        Assert.Equal(1.5, root.GetProperty("applied").GetProperty("slope").GetDouble());
-        Assert.Equal(2.5, root.GetProperty("applied").GetProperty("intercept").GetDouble());
-        Assert.Equal("10.2.0-test", root.GetProperty("hubFirmwareVersion").GetString());
-        Assert.Equal("3.9", root.GetProperty("pumpNode").GetProperty("firmwareVersion").GetString());
-        Assert.Equal(1.5 * 250 + 2.5, root.GetProperty("previews").GetProperty("speed_250").GetDouble());
+        Assert.Equal("dual_range_continuous", root.GetProperty("method").GetString());
+        Assert.Equal(0.02, root.GetProperty("requested").GetProperty("m_low").GetDouble());
+        Assert.Equal(0.03, root.GetProperty("requested").GetProperty("m_high").GetDouble());
+        Assert.Equal(500.0, root.GetProperty("requested").GetProperty("st").GetDouble());
+        Assert.Equal(16.0, root.GetProperty("requested").GetProperty("qt").GetDouble());
+        Assert.Equal(0.02, root.GetProperty("applied").GetProperty("m_low").GetDouble());
+        Assert.Equal(0.03, root.GetProperty("applied").GetProperty("m_high").GetDouble());
+        Assert.Equal(500.0, root.GetProperty("applied").GetProperty("st").GetDouble());
+        Assert.Equal(16.0, root.GetProperty("applied").GetProperty("qt").GetDouble());
+        Assert.Equal("10.3.0-test", root.GetProperty("hubFirmwareVersion").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("appVersion").GetString()));
+        Assert.Equal("3.11", root.GetProperty("pumpNode").GetProperty("firmwareVersion").GetString());
     }
 
     [Fact]
@@ -137,9 +180,14 @@ public sealed class PumpCalibrationTests
             timeProvider: clock,
             calibrationsDirectory: receiptDirectory);
 
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true });
-        vm.SlopeText = "1.5";
-        vm.InterceptText = "2.5";
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            HubFirmwareVersion = "10.3.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+        });
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
         vm.ApplyCommand.Execute(null);
 
         clock.Advance(TimeSpan.FromSeconds(16));
@@ -147,13 +195,112 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlope = 1.4,
-            PumpIntercept = 2.5
+            PumpSlopeLow = 0.015,
+            PumpSlopeHigh = 0.03,
+            PumpTransitionSpeed = 500.0,
+            PumpTransitionFlow = 16.0
         });
 
         Assert.False(vm.IsAwaitingCalibration);
         Assert.False(Directory.Exists(receiptDirectory));
         Assert.Contains("nenhum recibo", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Pump_calibration_blocks_apply_on_legacy_firmware()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new PumpCalibrationViewModel(device, settings);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.10")
+        });
+
+        Assert.False(vm.IsFirmwareCompatible);
+        Assert.False(vm.CanApply);
+        Assert.Contains("3.11", vm.FirmwareUnsupportedReason);
+    }
+
+    [Theory]
+    [InlineData("10.2.9")]
+    [InlineData("v10.2.0-dev")]
+    public void Pump_calibration_blocks_apply_on_legacy_hub(string hubVersion)
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService());
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            HubFirmwareVersion = hubVersion,
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "v3.11.0-dev")
+        });
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
+
+        Assert.True(vm.IsFirmwareCompatible);
+        Assert.False(vm.IsHubCompatible);
+        Assert.False(vm.CanApply);
+        Assert.Contains("10.3", vm.HubUnsupportedReason);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Pump_calibration_blocks_apply_while_operational_profile_is_active_or_waiting(bool active, bool waiting)
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService());
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpActive = active,
+            PumpWaiting = waiting,
+            HubFirmwareVersion = "10.3.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+        });
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
+
+        Assert.False(vm.CanApply);
+    }
+
+    [Fact]
+    public void Complete_parameter_echo_without_crc_or_finished_ack_does_not_confirm()
+    {
+        var (vm, device, settings, _) = OnlinePump();
+        using var _ = vm;
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
+        vm.ApplyCommand.Execute(null);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpSlopeLow = 0.02,
+            PumpSlopeHigh = 0.03,
+            PumpTransitionSpeed = 500,
+            PumpTransitionFlow = 16,
+            PumpCommandPending = false,
+        });
+        Assert.True(vm.IsAwaitingCalibration);
+        Assert.NotEqual(0.02, settings.Current.PumpControl.CalibrationMLow);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpSlopeLow = 0.02,
+            PumpSlopeHigh = 0.03,
+            PumpTransitionSpeed = 500,
+            PumpTransitionFlow = 16,
+            PumpCalCrc = 123,
+            PumpCommandPending = true,
+        });
+        Assert.True(vm.IsAwaitingCalibration);
     }
 
     [Fact]
@@ -167,14 +314,18 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlope = 1.75,
-            PumpIntercept = 0.25,
+            PumpSlopeLow = 0.0215,
+            PumpSlopeHigh = 0.0325,
+            PumpTransitionSpeed = 480.0,
+            PumpTransitionFlow = 15.5,
             PumpFlow = 8.5,
             PumpVolume = 150.2,
         });
 
-        Assert.Equal(1.75.ToString("F4", CultureInfo.CurrentCulture), vm.AppliedSlopeText);
-        Assert.Equal(0.25.ToString("F4", CultureInfo.CurrentCulture), vm.AppliedInterceptText);
+        Assert.Equal(0.0215.ToString("F4", CultureInfo.CurrentCulture), vm.AppliedLowSlopeText);
+        Assert.Equal(0.0325.ToString("F4", CultureInfo.CurrentCulture), vm.AppliedHighSlopeText);
+        Assert.Equal(480.0.ToString("F1", CultureInfo.CurrentCulture), vm.AppliedStText);
+        Assert.Equal(15.5.ToString("F2", CultureInfo.CurrentCulture), vm.AppliedQtText);
         Assert.Contains(8.5.ToString("F3", CultureInfo.CurrentCulture), vm.CurrentFlowText);
         Assert.Contains(150.2.ToString("F3", CultureInfo.CurrentCulture), vm.CurrentVolumeText);
     }
@@ -218,11 +369,12 @@ public sealed class PumpCalibrationTests
             HasPumpTelemetry = true,
             PumpOnline = true,
             PumpVolume = 10.0,
-            PumpCommandPending = false
+            PumpCommandPending = false,
+            HubFirmwareVersion = "10.3.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
         });
 
-        vm.SlopeText = "1.5";
-        vm.InterceptText = "2.5";
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
         vm.ApplyCommand.Execute(null);
 
         Assert.False(vm.CanEditCalibration);
@@ -233,25 +385,19 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlope = 1.5,
-            PumpIntercept = 2.5,
+            PumpSlopeLow = 0.02,
+            PumpSlopeHigh = 0.03,
+            PumpTransitionSpeed = 500.0,
+            PumpTransitionFlow = 16.0,
+            PumpCalCrc = 0x789A,
             PumpVolume = 10.0,
-            PumpCommandPending = false
+            PumpCommandPending = false,
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
         });
         Assert.True(vm.CanEditCalibration);
         Assert.True(vm.CanResetVolume);
 
         vm.ResetVolumeCommand.Execute(null);
-        Assert.False(vm.CanApply);
-        Assert.False(vm.CanResetVolume);
-
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasPumpTelemetry = true,
-            PumpOnline = true,
-            PumpVolume = 0.0,
-            PumpCommandPending = true
-        });
         Assert.False(vm.CanApply);
         Assert.False(vm.CanResetVolume);
 
@@ -267,255 +413,16 @@ public sealed class PumpCalibrationTests
     }
 
     [Fact]
-    public void Pump_control_viewmodel_reset_volume_timeout_and_echo()
-    {
-        var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
-        var device = new RecordingDeviceService();
-        var settings = new MemorySettingsService();
-        using var vm = new PumpControlViewModel(device, settings, timeProvider: clock);
-
-        Assert.False(vm.CanResetVolume); // not enabled
-
-        vm.IsEnabled = true;
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpVolume = 120.0 });
-        Assert.True(vm.CanResetVolume);
-
-        vm.ResetVolumeCommand.Execute(null);
-        Assert.Contains("""{"pump_command":"reset_volume"}""", device.Sent[^1]);
-        Assert.Contains("Aguardando confirmação", vm.StatusText);
-
-        clock.Advance(TimeSpan.FromSeconds(6));
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpVolume = 120.0 });
-        Assert.Contains("Aviso: nó da bomba não confirmou zeramento", vm.StatusText);
-
-        vm.ResetVolumeCommand.Execute(null);
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpVolume = 0.01 });
-        Assert.Contains("zerado com sucesso", vm.StatusText);
-    }
-
-    [Fact]
-    public void Biomass_acquisition_queue_dispatches_sequentially_on_pending_clear()
-    {
-        var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
-        var device = new RecordingDeviceService();
-        var settings = new MemorySettingsService();
-        using var vm = new BiomassControlViewModel(device, settings, timeProvider: clock);
-
-        vm.IsEnabled = true;
-        device.PushTelemetry(new SensorSnapshot { HasBiomassTelemetry = true, BiomassOnline = true, BiomassAbsorbance = 0.5 });
-        Assert.True(vm.CanApplyAcquisition);
-
-        vm.AcquisitionIntegrationTimeText = "200";
-        vm.AcquisitionPwmText = "60.0";
-        vm.AcquisitionGainGearText = "3";
-        vm.AcquisitionEmaFactorText = "0.35";
-        vm.AcquisitionProbePeriodMsText = "2000";
-
-        vm.ApplyAcquisitionCommand.Execute(null);
-
-        // Staged values are persisted only after the node clears pending for every command.
-        Assert.NotEqual(200, settings.Current.BiomassControl.IntegrationTime);
-
-        // Gear is first because set_it/set_pwm modify the currently selected slots.
-        Assert.Contains("""{"biomassGear":3}""", device.Sent[^1]);
-        Assert.Contains("(1/5)", vm.StatusText);
-
-        // Telemetry arrives with BiomassCommandPending = true -> node still processing, does NOT send next
-        device.Sent.Clear();
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = true
-        });
-        Assert.Empty(device.Sent);
-
-        // Telemetry arrives with BiomassCommandPending = false -> dispatches IT code 3 (200 ms).
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = false
-        });
-        Assert.Contains("""{"biomassIt":3}""", Assert.Single(device.Sent));
-        Assert.Contains("(2/5)", vm.StatusText);
-
-        // Send 3rd (PWM)
-        device.Sent.Clear();
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = false
-        });
-        Assert.Contains("""{"biomassPwm":60.0}""", Assert.Single(device.Sent));
-        Assert.Contains("(3/5)", vm.StatusText);
-
-        // Send 4th (ema)
-        device.Sent.Clear();
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = false
-        });
-        Assert.Contains("""{"biomassEma":0.35}""", Assert.Single(device.Sent));
-        Assert.Contains("(4/5)", vm.StatusText);
-
-        // Send 5th (probe period)
-        device.Sent.Clear();
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = false
-        });
-        Assert.Contains("""{"biomassProbePeriodMs":2000}""", Assert.Single(device.Sent));
-        Assert.Contains("(5/5)", vm.StatusText);
-
-        // Final pending = false confirms completion
-        device.Sent.Clear();
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = false
-        });
-        Assert.Empty(device.Sent);
-        Assert.Contains("Parâmetros de aquisição confirmados pelo nó", vm.StatusText);
-        Assert.False(vm.CanCancelAcquisition);
-        Assert.Equal(200, settings.Current.BiomassControl.IntegrationTime);
-        Assert.Equal(60.0, settings.Current.BiomassControl.PwmPercent);
-        Assert.Equal(3, settings.Current.BiomassControl.GainGear);
-        Assert.Equal(0.35, settings.Current.BiomassControl.EmaFactor);
-        Assert.Equal(2000, settings.Current.BiomassControl.ProbePeriodMs);
-    }
-
-    [Fact]
-    public void Biomass_acquisition_queue_can_be_cancelled()
-    {
-        var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
-        var device = new RecordingDeviceService();
-        var settings = new MemorySettingsService();
-        using var vm = new BiomassControlViewModel(device, settings, timeProvider: clock);
-
-        vm.IsEnabled = true;
-        device.PushTelemetry(new SensorSnapshot { HasBiomassTelemetry = true, BiomassOnline = true, BiomassAbsorbance = 0.5 });
-
-        vm.ApplyAcquisitionCommand.Execute(null);
-        Assert.True(vm.CanCancelAcquisition);
-
-        vm.CancelAcquisitionCommand.Execute(null);
-        Assert.False(vm.CanCancelAcquisition);
-        Assert.Contains("Fila de aquisição cancelada", vm.StatusText);
-
-        // Further telemetry does not send any more queued commands
-        device.Sent.Clear();
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5,
-            BiomassCommandPending = false
-        });
-        Assert.Empty(device.Sent);
-    }
-
-    [Fact]
-    public void Biomass_acquisition_rejects_unsupported_it_and_accepts_combined_gear_range()
-    {
-        var device = new RecordingDeviceService();
-        var settings = new MemorySettingsService();
-        using var vm = new BiomassControlViewModel(device, settings);
-
-        vm.IsEnabled = true;
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasBiomassTelemetry = true,
-            BiomassOnline = true,
-            BiomassAbsorbance = 0.5
-        });
-
-        vm.AcquisitionIntegrationTimeText = "150";
-        Assert.False(vm.IsAcquisitionValid);
-        Assert.Contains("25, 50, 100, 200, 400 ou 800", vm.AcquisitionValidationError);
-
-        vm.AcquisitionIntegrationTimeText = "800";
-        vm.AcquisitionGainGearText = "31";
-        Assert.True(vm.IsAcquisitionValid);
-
-        vm.AcquisitionGainGearText = "32";
-        Assert.False(vm.IsAcquisitionValid);
-    }
-
-    // ------------------------------------------------------------------
-    // Volumetric runs (PONTOS §7.1, volume never mass)
-    // ------------------------------------------------------------------
-
-    [Fact]
-    public void Manual_hose_fill_runs_without_creating_a_calibration_point_and_stops_explicitly()
-    {
-        var (vm, device, _, _) = OnlinePump();
-        using var _ = vm;
-
-        vm.ManualSpeedText = "300";
-        Assert.True(vm.CanStartManual);
-
-        vm.StartManualCommand.Execute(null);
-
-        Assert.Contains("""{"pump_speed":300}""", device.Sent[^1]);
-        Assert.True(vm.IsManualRunning);
-        Assert.False(vm.CanStartRun);
-        Assert.False(vm.CanApply);
-        Assert.Empty(vm.Runs);
-
-        vm.StopManualCommand.Execute(null);
-
-        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
-        Assert.False(vm.IsManualRunning);
-        Assert.True(vm.CanStartRun);
-        Assert.Empty(vm.Runs);
-    }
-
-    [Fact]
-    public void Manual_hose_fill_validates_speed_and_owes_stop_after_link_loss()
-    {
-        var (vm, device, _, _) = OnlinePump();
-        using var _ = vm;
-
-        vm.ManualSpeedText = "0";
-        Assert.False(vm.CanStartManual);
-        Assert.NotNull(vm.ManualValidationError);
-
-        vm.ManualSpeedText = "450";
-        vm.StartManualCommand.Execute(null);
-        device.PushState(ConnectionState.Disconnected);
-
-        Assert.False(vm.IsManualRunning);
-        Assert.Contains("pode continuar girando", vm.StatusText);
-        var sentBeforeReconnect = device.Sent.Count;
-
-        device.PushState(ConnectionState.Connected);
-        Assert.Equal(sentBeforeReconnect + 1, device.Sent.Count);
-        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
-    }
-
-    [Fact]
     public void Displayed_curve_is_available_to_the_calibration_chart()
     {
         using var vm = new PumpCalibrationViewModel(new RecordingDeviceService(), new MemorySettingsService());
-        vm.SlopeText = "0.05";
-        vm.InterceptText = "1.25";
+        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
 
-        Assert.True(vm.TryGetDisplayedCurve(out var slope, out var intercept));
-        Assert.Equal(0.05, slope, 8);
-        Assert.Equal(1.25, intercept, 8);
+        Assert.True(vm.TryGetDisplayedCurve(out PumpDualRangeCurve curve));
+        Assert.Equal(0.02, curve.LowSlope, 8);
+        Assert.Equal(0.03, curve.HighSlope, 8);
+        Assert.Equal(500.0, curve.TransitionSpeed, 8);
+        Assert.Equal(16.0, curve.TransitionFlow, 8);
     }
 
     private static (PumpCalibrationViewModel Vm, RecordingDeviceService Device, MemorySettingsService Settings, TestClock Clock) OnlinePump()
@@ -525,7 +432,13 @@ public sealed class PumpCalibrationTests
         var settings = new MemorySettingsService();
         var vm = new PumpCalibrationViewModel(device, settings, timeProvider: clock,
             calibrationsDirectory: Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N")));
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true });
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            HubFirmwareVersion = "10.3.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+        });
         return (vm, device, settings, clock);
     }
 
@@ -541,8 +454,6 @@ public sealed class PumpCalibrationTests
 
         vm.StartRunCommand.Execute(null);
 
-        // The start frame is the manual-speed key the Hub forwards as "speed" to the node,
-        // plus the node-side deadline (planned + margin) that a 3.10 pump honours on its own.
         Assert.Contains("""{"pump_speed":500,"pump_speed_ms":63000}""", device.Sent[^1]);
         Assert.True(vm.IsRunning);
         Assert.False(vm.CanApply);
@@ -554,7 +465,6 @@ public sealed class PumpCalibrationTests
         Assert.Equal(50.0, vm.RunProgressPercent, 1);
         Assert.Contains("30 s", vm.RunCountdownText);
 
-        // The stop must be automatic, and the point must carry the app's measured interval.
         clock.Advance(TimeSpan.FromSeconds(30.4));
         vm.Tick();
         Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
@@ -595,13 +505,21 @@ public sealed class PumpCalibrationTests
     }
 
     [Fact]
-    public void Points_derive_flow_from_volume_and_measured_time_and_fit_a_line()
+    public void Points_derive_flow_and_fit_continuous_dual_range_curve()
     {
         var (vm, _, settings, clock) = OnlinePump();
         using var _ = vm;
 
-        // Three runs on the firmware's shipped curve Q = 0.0280·S + 1.7602, 60 s each.
-        foreach (var (speed, volume) in new[] { (250.0, 8.7649), (500.0, 15.7696), (1000.0, 29.7790) })
+        // Set Qt = 16.0
+        vm.TransitionFlowText = "16.0";
+
+        // Four points on known dual-range curve:
+        // St = 500, Qt = 16.0, m_baixo = 0.02, m_alto = 0.03
+        // S = 100: Q = 16.0 + 0.02 * (-400) = 8.0 mL/min -> in 60s: 8.0 mL
+        // S = 300: Q = 16.0 + 0.02 * (-200) = 12.0 mL/min -> in 60s: 12.0 mL
+        // S = 600: Q = 16.0 + 0.03 * (100) = 19.0 mL/min -> in 60s: 19.0 mL
+        // S = 800: Q = 16.0 + 0.03 * (300) = 25.0 mL/min -> in 60s: 25.0 mL
+        foreach (var (speed, volume) in new[] { (100.0, 8.0), (300.0, 12.0), (600.0, 19.0), (800.0, 25.0) })
         {
             vm.RunSpeedText = speed.ToString(CultureInfo.InvariantCulture);
             vm.RunDurationText = "60";
@@ -609,30 +527,38 @@ public sealed class PumpCalibrationTests
             clock.Advance(TimeSpan.FromSeconds(60));
             vm.Tick();
             Assert.True(vm.HasPendingRun);
-            Assert.False(vm.CanAddRunPoint);
 
             vm.MeasuredVolumeText = volume.ToString(CultureInfo.InvariantCulture);
             Assert.True(vm.CanAddRunPoint);
             vm.AddRunPointCommand.Execute(null);
         }
 
-        Assert.Equal(3, vm.Runs.Count);
-        Assert.Equal(15.7696, vm.Runs[1].FlowMlPerMin, 3);   // 15.7696 mL in 60 s
+        Assert.Equal(4, vm.Runs.Count);
+        Assert.Equal(12.0, vm.Runs[1].FlowMlPerMin, 3);
         Assert.True(vm.HasFit);
         Assert.Null(vm.FitWarning);
-        Assert.Equal(0.0280188148, vm.Fit!.Slope, 4);
-        Assert.Equal(1.7601988934, vm.Fit.Intercept, 3);
+        Assert.NotNull(vm.Fit?.Curve);
+
+        var fit = vm.Fit!.Curve!.Value;
+        Assert.Equal(0.02, fit.LowSlope, 4);
+        Assert.Equal(0.03, fit.HighSlope, 4);
+        Assert.Equal(500.0, fit.TransitionSpeed, 2);
+        Assert.Equal(16.0, fit.TransitionFlow, 2);
         Assert.Equal(1.0, vm.Fit.RSquared, 4);
 
-        // Points persist with the pump settings, and the coefficient fields are untouched
-        // until the operator asks for the fit explicitly (they still show what was typed).
-        Assert.Equal(3, settings.Current.PumpControl.CalibrationPoints.Length);
-        vm.SlopeText = "9.9999";
-        Assert.NotEqual(vm.Fit.Slope.ToString("F4", CultureInfo.CurrentCulture), vm.SlopeText);
+        // Check segment labels
+        Assert.Equal("Baixo", vm.Runs[0].SegmentLabel);
+        Assert.Equal("Baixo", vm.Runs[1].SegmentLabel);
+        Assert.Equal("Alto", vm.Runs[2].SegmentLabel);
+        Assert.Equal("Alto", vm.Runs[3].SegmentLabel);
 
+        // Check UseFitCommand
         Assert.True(vm.CanUseFit);
         vm.UseFitCommand.Execute(null);
-        Assert.Equal(vm.Fit.Slope.ToString("F4", CultureInfo.CurrentCulture), vm.SlopeText);
+
+        Assert.Equal(0.02.ToString("F4", CultureInfo.InvariantCulture), vm.LowSlopeText);
+        Assert.Equal(0.03.ToString("F4", CultureInfo.InvariantCulture), vm.HighSlopeText);
+        Assert.Equal(500.0.ToString("F1", CultureInfo.InvariantCulture), vm.TransitionSpeedText);
         Assert.True(vm.CanApply);
     }
 
@@ -653,7 +579,7 @@ public sealed class PumpCalibrationTests
 
         Assert.False(vm.HasFit);
         Assert.False(vm.CanUseFit);
-        Assert.Contains("mesma velocidade", vm.FitWarning);
+        Assert.Contains("velocidades distintas", vm.FitWarning);
     }
 
     [Fact]
@@ -663,37 +589,51 @@ public sealed class PumpCalibrationTests
         var device = new RecordingDeviceService();
         var receiptDirectory = Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N"));
         using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), timeProvider: clock, calibrationsDirectory: receiptDirectory);
-        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true });
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            HubFirmwareVersion = "10.3.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+        });
 
-        foreach (var (speed, volume) in new[] { (200.0, 10.0), (800.0, 40.0) })
+        vm.TransitionFlowText = "16.0";
+        foreach (var (speed, volume) in new[] { (100.0, 8.0), (300.0, 12.0), (600.0, 19.0), (800.0, 25.0) })
         {
             vm.RunSpeedText = speed.ToString(CultureInfo.InvariantCulture);
             vm.RunDurationText = "30";
             vm.StartRunCommand.Execute(null);
             clock.Advance(TimeSpan.FromSeconds(30));
             vm.Tick();
-            vm.MeasuredVolumeText = volume.ToString(CultureInfo.InvariantCulture);
+            vm.MeasuredVolumeText = (volume / 2.0).ToString(CultureInfo.InvariantCulture); // same flow in 30s
             vm.AddRunPointCommand.Execute(null);
         }
 
         vm.UseFitCommand.Execute(null);
         vm.ApplyCommand.Execute(null);
-        var fit = vm.Fit!;
+        var fit = vm.Fit!.Curve!.Value;
+
         device.PushTelemetry(new SensorSnapshot
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlope = Math.Round(fit.Slope, 4),
-            PumpIntercept = Math.Round(fit.Intercept, 4),
+            PumpSlopeLow = Math.Round(fit.LowSlope, 4),
+            PumpSlopeHigh = Math.Round(fit.HighSlope, 4),
+            PumpTransitionSpeed = Math.Round(fit.TransitionSpeed, 1),
+            PumpTransitionFlow = Math.Round(fit.TransitionFlow, 2),
+            PumpCalCrc = 0x4567,
+            PumpCommandPending = false,
+            HubFirmwareVersion = "10.3.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
         });
 
         var receipt = Directory.GetFiles(receiptDirectory, "bomba-externa-*.json").Single();
         using var doc = JsonDocument.Parse(File.ReadAllText(receipt));
         var root = doc.RootElement;
-        Assert.Equal("volumetric_runs_least_squares", root.GetProperty("method").GetString());
-        Assert.Equal(2, root.GetProperty("runs").GetArrayLength());
-        Assert.Equal(20.0, root.GetProperty("runs")[0].GetProperty("flowMlPerMin").GetDouble(), 6);   // 10 mL in 30 s
-        Assert.Equal(2, root.GetProperty("fit").GetProperty("count").GetInt32());
+        Assert.Equal("dual_range_continuous", root.GetProperty("method").GetString());
+        Assert.Equal(4, root.GetProperty("runs").GetArrayLength());
+        Assert.Equal(8.0, root.GetProperty("runs")[0].GetProperty("flowMlPerMin").GetDouble(), 6);
+        Assert.Equal(4, root.GetProperty("fit").GetProperty("count").GetInt32());
     }
 
     [Fact]
@@ -712,6 +652,71 @@ public sealed class PumpCalibrationTests
         device.PushState(ConnectionState.Connected);
         Assert.Equal(sentBeforeReconnect + 1, device.Sent.Count);
         Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+    }
+
+    [Fact]
+    public void Manual_control_does_not_create_points()
+    {
+        var (vm, device, _, _) = OnlinePump();
+        using var _ = vm;
+
+        vm.ManualSpeedText = "500";
+        Assert.True(vm.CanStartManual);
+
+        vm.StartManualCommand.Execute(null);
+        Assert.Contains("""{"pump_speed":500}""", device.Sent[^1]);
+        Assert.True(vm.IsManualRunning);
+
+        vm.StopManualCommand.Execute(null);
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+        Assert.False(vm.IsManualRunning);
+        Assert.Empty(vm.Runs);
+    }
+
+    [Fact]
+    public void Hose_profiles_workflow_load_save_and_delete()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N"));
+        var store = new PumpCalibrationProfileStore(tempDir);
+        store.SaveProfile(PumpCalibrationProfile.FromCurve("Silicone 2mm", new PumpDualRangeCurve(0.02, 0.03, 500, 16)));
+        store.SaveProfile(PumpCalibrationProfile.FromCurve("Marprene 3mm", new PumpDualRangeCurve(0.025, 0.035, 480, 18)));
+        var dialogs = new TestDialogService();
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+
+        using var vm = new PumpCalibrationViewModel(device, settings, profileStore: store, dialogs: dialogs);
+
+        // Verify initial profiles loaded
+        Assert.NotEmpty(vm.AvailableProfiles);
+        var initialCount = vm.AvailableProfiles.Count;
+
+        // Selection does not alter active editor without Load
+        var secondProfile = vm.AvailableProfiles[1];
+        vm.SelectedProfile = secondProfile;
+
+        // Load profile
+        vm.LoadSelectedProfileCommand.Execute(null);
+        Assert.Equal(secondProfile.Id, vm.ActiveProfile?.Id);
+        Assert.False(vm.IsCurrentProfileDirty);
+
+        // Edit a field -> marks dirty
+        vm.TransitionFlowText = "22.5";
+        Assert.True(vm.IsCurrentProfileDirty);
+
+        // Save current profile
+        vm.SaveCurrentProfileCommand.Execute(null);
+        Assert.False(vm.IsCurrentProfileDirty);
+
+        // Save as new profile
+        dialogs.PromptText = "Mangueira Especial 1-4";
+        vm.SaveCurrentProfileAsCommand.Execute(null);
+        Assert.Equal(initialCount + 1, vm.AvailableProfiles.Count);
+        Assert.Equal("Mangueira Especial 1-4", vm.ActiveProfile?.Name);
+
+        // Delete active profile (with confirmation)
+        dialogs.ConfirmResult = true;
+        vm.DeleteSelectedProfileCommand.Execute(null);
+        Assert.Equal(initialCount, vm.AvailableProfiles.Count);
     }
 
     [Fact]

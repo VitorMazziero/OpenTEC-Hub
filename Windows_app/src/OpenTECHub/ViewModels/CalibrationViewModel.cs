@@ -1,4 +1,6 @@
+using OpenTECHub.Services.Calibration;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.Persistence;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,13 +13,15 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     public CalibrationViewModel(
         IDeviceService device,
         ISettingsService settings,
-        PHControlViewModel phControl)
+        PHControlViewModel phControl,
+        IPumpCalibrationProfileStore? pumpProfileStore = null,
+        IDialogService? dialogs = null)
     {
         PH = new PHCalibrationViewModel(device, settings, phControl);
         Oxygen = new OxygenCalibrationViewModel(device, settings);
         Flow = new FlowCalibrationViewModel(device, settings);
         Biomass = new BiomassCalibrationViewModel(device, settings);
-        Pump = new PumpCalibrationViewModel(device, settings);
+        Pump = new PumpCalibrationViewModel(device, settings, profileStore: pumpProfileStore, dialogs: dialogs);
     }
 
     public PHCalibrationViewModel PH { get; }
@@ -29,7 +33,7 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     /// <summary>Guided biomass blank/threshold procedure (Phase 3 WP1).</summary>
     public BiomassCalibrationViewModel Biomass { get; }
 
-    /// <summary>Linear calibration for the external peristaltic pump node.</summary>
+    /// <summary>Continuous dual-range calibration and hose profiles for the external pump node.</summary>
     public PumpCalibrationViewModel Pump { get; }
 
     [ObservableProperty]

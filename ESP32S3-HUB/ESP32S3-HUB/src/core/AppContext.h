@@ -335,6 +335,16 @@ bool     distanceEchoSeen = false;
 const unsigned long DISTANCE_TIMEOUT = 1200;
 const unsigned long DISTANCE_PRESENCE_TIMEOUT = 3000;
 
+// D03 (2026-09-13): the node accepts send_period up to 60 s, so a fixed 3 s presence window
+// would flap on anything above 2.5 s. The window follows the send period the node echoes
+// (send_ms): 2.5 periods, never below the 3 s floor. Until the first echo the floor applies.
+// DISTANCE_TIMEOUT (interlock) is deliberately NOT widened: a foam reading older than 1.2 s
+// must not actuate, whatever the send period - so send_period > 1 s disables the interlock.
+inline unsigned long distancePresenceWindowMs(uint32_t sendPeriodMs) {
+  unsigned long dyn = (unsigned long)(sendPeriodMs * 2.5f);
+  return dyn > DISTANCE_PRESENCE_TIMEOUT ? dyn : DISTANCE_PRESENCE_TIMEOUT;
+}
+
 // ---------- Biomass Sensor ----------
 bool  biomassCommOn = false;
 float biomassAbsorbance = 0.0f;

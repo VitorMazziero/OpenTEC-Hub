@@ -81,7 +81,7 @@ void readAndBroadcastSensorData() {
   DeviceNodeEntry snapNodes[DEV_COUNT];
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
     for (int i = 0; i < DEV_COUNT; i++) snapNodes[i] = g_deviceRegistry[i];
-    if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > DISTANCE_PRESENCE_TIMEOUT)) {
+    if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > distancePresenceWindowMs(distanceSendPeriodMs))) {
       distanceEchoSeen = false;
     }
     snapDistanceEchoSeen = distanceEchoSeen;
@@ -144,7 +144,7 @@ void readAndBroadcastSensorData() {
   // apenas sem valor publicável. Amarrar a presença à leitura fazia o PC acusar "nó não
   // responde" com o nó respondendo a cada segundo.
   bool distanceOnline = snapDistanceComm &&
-                        (millis() - snapDistanceUpdate <= DISTANCE_PRESENCE_TIMEOUT);
+                        (millis() - snapDistanceUpdate <= distancePresenceWindowMs(snapDistanceSendPeriodMs));
   bool validDistance = distanceOnline && snapDistanceValue >= 0.0f;
 
   // Validação da Bomba e do Agitador

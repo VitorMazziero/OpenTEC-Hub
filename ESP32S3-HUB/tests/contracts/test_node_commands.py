@@ -280,7 +280,7 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         self.assertIn('\\"DistanceSamplePeriodMs\\":', tel)
         self.assertIn('\\"DistanceSendPeriodMs\\":', tel)
         # Check echo seen expiry when leaving presence window
-        self.assertIn("if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > DISTANCE_PRESENCE_TIMEOUT))", tel)
+        self.assertIn("if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > distancePresenceWindowMs(distanceSendPeriodMs)))", tel)
         self.assertIn("distanceEchoSeen = false;", tel)
 
     def test_distance_handler_has_no_stagnation_filter(self):
@@ -298,10 +298,11 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         tel = self.read("src/sensor/Telemetry.h")
         self.assertIn(
             "bool distanceOnline = snapDistanceComm &&" + chr(10) +
-            "                        (millis() - snapDistanceUpdate <= DISTANCE_PRESENCE_TIMEOUT);",
+            "                        (millis() - snapDistanceUpdate <= distancePresenceWindowMs(snapDistanceSendPeriodMs));",
             tel,
         )
         self.assertIn("bool validDistance = distanceOnline && snapDistanceValue >= 0.0f;", tel)
+
         self.assertIn('\\"DistanceOnline\\":" + String(distanceOnline ? "true" : "false")', tel)
         self.assertIn("if (distanceOnline && snapDistanceEchoSeen) {", tel)
         # A chave Distance continua condicionada à leitura válida, e os ecos não ficam
@@ -309,6 +310,18 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         distance_block = tel[tel.index("if (validDistance) {"):tel.index("if (distanceOnline && snapDistanceEchoSeen) {")]
         self.assertIn('\\"Distance\\":', distance_block)
         self.assertNotIn("DistanceOffsetMm", distance_block)
+
+    def test_distance_presence_window_follows_send_period(self):
+        # D03 (2026-09-13): 2.5 x send_ms, floor 3 s; interlock window untouched.
+        app = self.read("src/core/AppContext.h")
+        self.assertIn("inline unsigned long distancePresenceWindowMs(uint32_t sendPeriodMs)", app)
+        self.assertIn("(unsigned long)(sendPeriodMs * 2.5f)", app)
+        self.assertIn("dyn > DISTANCE_PRESENCE_TIMEOUT ? dyn : DISTANCE_PRESENCE_TIMEOUT", app)
+        self.assertIn("const unsigned long DISTANCE_TIMEOUT = 1200;", app)
+        http = self.read("src/network/HttpServer.h")
+        self.assertIn("now - distanceSensorLastUpdate <= distancePresenceWindowMs(distanceSendPeriodMs)", http)
+        for src in (app, self.read("src/sensor/Telemetry.h"), http):
+            self.assertNotIn("<= DISTANCE_PRESENCE_TIMEOUT)", src)
 
     def test_reliable_mailboxes_are_seeded_per_hub_boot(self):
         # Um no que ficou ligado durante o reboot do Hub continua ecoando o ack_cmd_id da

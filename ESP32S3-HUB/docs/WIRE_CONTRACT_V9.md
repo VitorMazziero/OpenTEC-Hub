@@ -238,7 +238,9 @@ Regra de emissão:
 | `DistanceSendPeriodMs` | uint32 | `DistanceOnline` e `distanceEchoSeen` | Período de envio HTTP em ms |
 
 `DistanceOnline` é presença pura: `distanceSensorComm` ligado e push dentro de
-`DISTANCE_PRESENCE_TIMEOUT` (a mesma expressão de `/nodes`). A chave `Distance` exige além
+`distancePresenceWindowMs(send_ms)` = `max(3 s, 2,5 × send_ms)` (a mesma expressão de `/nodes`;
+`send_ms` é o eco do push, piso de 3 s até o primeiro eco — 2026-09-13, D03). O
+intertravamento de espuma segue `DISTANCE_TIMEOUT` = 1,2 s, independente do período. A chave `Distance` exige além
 disso que o nó tenha empurrado `distance >= 0`: o nó v11 detecta falha do VL53L0X (timeout
 I²C, leitura 0 / ≥ 4000 / 8190) e empurra `distance=-1`, e o Hub honra esse sinal sem
 heurística própria. Portanto **`DistanceOnline:true` sem `Distance` é um estado legítimo**

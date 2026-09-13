@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1, 2, 3, 4, 5, 6 e 7 implementadas e testadas; as etapas 8–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1–8 implementadas e testadas; as etapas 9–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -1073,6 +1073,46 @@ A aba da bomba oferece calibração contínua em duas faixas e biblioteca de man
 ```text
 feat(pump-calibration): add dual-range profile workflow
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado e auditado nesta etapa, no aplicativo Windows:
+
+- **Curva e ajuste contínuos (`PumpCalibrationViewModel.cs`):**
+  - o editor linear foi substituído pelo modelo compartilhado `PumpDualRangeCurve`, com `Qt` editável e `St`, `m_baixo` e `m_alto` calculados por `PumpDualRangeMath`;
+  - a curva válida anterior permanece visível durante entrada temporariamente inválida, mas envio e salvamento ficam bloqueados quando os pontos atuais não produzem ajuste válido;
+  - pontos são classificados por `S ≤ St` e `S > St`, com resíduos e estatísticas globais e por segmento;
+  - a migração mantém exatamente a reta legada: `St = 500`, inclinações iguais e `Qt = slope · 500 + intercept`.
+- **Biblioteca de perfis de mangueira:**
+  - listagem usa `PumpCalibrationProfileSummary`, sem abrir arrays de pontos de todos os arquivos;
+  - selecionar não carrega, não salva e não envia; carregar substitui explicitamente curva e pontos e pede confirmação antes de descartar edição local;
+  - salvar, salvar como e excluir respeitam nomes seguros, confirmação de sobrescrita/exclusão e escrita atômica do store da etapa 6;
+  - carregar usa os coeficientes congelados no perfil, inclusive quando não há pontos suficientes para reajuste, e deixa o editor inicialmente sem marca de alteração;
+  - excluir arquivo local não envia comando nem modifica a curva ativa no nó;
+  - `lastAppliedUtc` e firmware aplicado só são atualizados depois da confirmação integral e somente quando a curva salva no perfil corresponde à curva enviada.
+- **Capacidades e segurança operacional:**
+  - envio duplo exige Hub 10.3+ e bomba 3.11+; versões com prefixo `v` e sufixo de desenvolvimento são interpretadas sem habilitação otimista;
+  - firmware ou Hub legado, identidade ainda desconhecida e bomba com perfil ativo ou aguardando execução bloqueiam o envio com explicação;
+  - o frame atômico usa `pumpSlopeLow`, `pumpSlopeHigh`, `pumpTransitionSpeed` e `pumpTransitionFlow`;
+  - aceitação do dispatcher, ACK isolado, eco parcial ou eco sem CRC não confirmam a calibração;
+  - confirmação requer fim da pendência de comando, eco correspondente dos quatro parâmetros e `PumpCalCrc`; divergência ou timeout não persistem calibração nem geram recibo;
+  - a obrigação de parada após perda de conexão e o controle manual de preenchimento sem criação de ponto foram preservados.
+- **Interface e gráfico (`CalibrationView.xaml` e `.xaml.cs`):**
+  - mantido o espelhamento da aba do fluxômetro: gráfico grande à esquerda, resumo abaixo e um único painel lateral para perfis, pontos, aquisição e preenchimento;
+  - duas retas, transição móvel e pontos volumétricos são desenhados pelo modelo compartilhado;
+  - removidos bindings para propriedades inexistentes e corrigida a tabela compacta para não exceder o painel em 936 × 534 DIP;
+  - textos de ajuda foram alinhados à equação `Q = Qt + m · (S − St)` e às chaves reais do protocolo, sem a formulação incorreta de trecho passando pela origem.
+- **Persistência e recibo:**
+  - settings passam a manter a curva dupla confirmada com defaults numericamente equivalentes à reta legada;
+  - recibo inclui perfil, pontos, estatísticas, curva solicitada e ecoada, CRC, versões do aplicativo, Hub e bomba e instante UTC.
+- **Verificações antes do commit funcional `918ed15`:**
+  - 65/65 testes direcionados de bomba, store de perfis, contrato do painel e layout próprio aprovados;
+  - 109/109 testes combinados de bomba, perfis, documentação, recursos XAML, painel e layout próprio aprovados;
+  - `git diff --check` aprovado para os arquivos da etapa.
+
+Correções da auditoria sobre a implementação parcial recebida: removida a fórmula documental divergente, corrigido o estado sujo após carregar, carregada a curva congelada do perfil, adicionados os bloqueios de capacidade/operação, exigidos ACK concluído e CRC, corrigido o timeout sem eco, eliminado fallback silencioso ao salvar curva inválida e reparados bindings/layout da aba.
+
+Não implementado nesta etapa: validação ponta a ponta e execução Release (Etapa 9), atualização documental ampla (Etapa 10) e validações físicas (Etapas 11–12).
 
 ## 19. Etapa 9 — validar a integração ponta a ponta em software
 

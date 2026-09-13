@@ -340,11 +340,44 @@
                                            Style="{StaticResource CaptionTextStyle}"
                                            Foreground="{DynamicResource TextMutedBrush}"
                                            TextWrapping="Wrap" Margin="0,7,0,0" />
+
+                                <Grid Margin="0,10,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock Text="Limiar de transição (V)" Style="{StaticResource CalibrationLabel}" />
+                                        <TextBox Text="{Binding TransitionVoltageText, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanEditTransitionVoltage}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding PointDistributionText}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding TransitionFlowText, StringFormat='Vazão no limiar: {0}'}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="{Binding TransitionVoltageError}"
+                                           Visibility="{Binding TransitionVoltageError, Converter={StaticResource NullToVis}}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Foreground="{DynamicResource StateAlarmTextBrush}" TextWrapping="Wrap" Margin="0,2,0,4" />
+
+                                <TextBlock Text="{Binding TransitionVoltageUnsupportedReason}"
+                                           Visibility="{Binding TransitionVoltageUnsupportedReason, Converter={StaticResource NullToVis}}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" Margin="0,2,0,4" />
+
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                     <Button Content="Restaurar padrão de fábrica" Command="{Binding RestoreFirmwareDefaultCommand}" Margin="0,0,6,0" />
                                     <Button Content="Salvar pontos" Command="{Binding SavePointsCommand}" Margin="0,0,6,0" />
                                     <Button Content="Salvar e enviar curva" Style="{StaticResource AccentButtonStyle}" Command="{Binding SendCurveCommand}" />
                                 </StackPanel>
+                                <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
                             </StackPanel>
                         </Border>
                     </Grid>

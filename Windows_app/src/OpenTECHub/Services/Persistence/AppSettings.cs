@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Calibration;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.KlaTesting;
 
@@ -212,6 +213,12 @@ public sealed record CalibrationSettings
     /// points and curve the flowmeter is actually running.
     /// </remarks>
     public FlowCalibrationPoint[] FlowCalibrationPoints { get; init; } = CertifiedReferencePoints;
+
+    /// <summary>
+    /// Transition voltage threshold (V) between low and high curve segments of the flowmeter.
+    /// Default is 0.0545 V.
+    /// </summary>
+    public double FlowTransitionVoltage { get; init; } = FlowCalibrationCurve.DefaultTransitionVoltage;
 
     /// <summary>
     /// Provenance of the points above: the A/B/C wiring and the route the air took while they

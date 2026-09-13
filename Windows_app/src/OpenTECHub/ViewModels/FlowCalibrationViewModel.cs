@@ -132,6 +132,8 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private SensorSnapshot? _latest;
     private double? _commandedSetpoint;
     private string? _pendingConfirmationText;
+    private double? _pendingTransitionVoltage;
+    private bool _syncingTransitionVoltage;
 
     public FlowCalibrationViewModel(
         IDeviceService device,
@@ -145,6 +147,14 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _settings = settings;
         _maximumFlow = settings.Current.Setpoints.MaxFlowLitresPerMinute;
         _captureTarget = Math.Clamp(settings.Current.Calibration.FlowCaptureSamples, 1, 100);
+
+        var storedVt = settings.Current.Calibration.FlowTransitionVoltage;
+        if (storedVt <= 0.0 || storedVt >= 3.3 || !double.IsFinite(storedVt))
+        {
+            storedVt = FlowCalibrationCurve.DefaultTransitionVoltage;
+        }
+        TransitionVoltage = storedVt;
+        TransitionVoltageText = storedVt.ToString("F4", CultureInfo.CurrentCulture);
 
         // A settings file written before the reference run existed carries an empty array, which
         // overrides the record's default. Fall back to the certified points so the workspace
@@ -220,6 +230,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [NotifyPropertyChangedFor(nameof(CurveStateText))]
     [NotifyPropertyChangedFor(nameof(ContinuityText))]
     [NotifyPropertyChangedFor(nameof(CanSendCurve))]
+    [NotifyPropertyChangedFor(nameof(TransitionFlowText))]
     public partial FlowCalibrationCurve Curve { get; set; } = CalibrationMath.FirmwareDefault;
 
     /// <summary>True while the shown curve is the V05 factory curve rather than one fitted here.</summary>
@@ -227,10 +238,50 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [NotifyPropertyChangedFor(nameof(CurveStateText))]
     public partial bool IsUsingFirmwareDefault { get; set; } = true;
 
-    public string LowEquationText => Equation("V ≤ 0,0545", Curve.LowVoltage,
+    [ObservableProperty]
+    public partial string TransitionVoltageText { get; set; } = FlowCalibrationCurve.DefaultTransitionVoltage.ToString("F4", CultureInfo.CurrentCulture);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LowEquationText))]
+    [NotifyPropertyChangedFor(nameof(HighEquationText))]
+    [NotifyPropertyChangedFor(nameof(ContinuityText))]
+    [NotifyPropertyChangedFor(nameof(PointDistributionText))]
+    [NotifyPropertyChangedFor(nameof(TransitionFlowText))]
+    [NotifyPropertyChangedFor(nameof(LowPointCount))]
+    [NotifyPropertyChangedFor(nameof(HighPointCount))]
+    public partial double TransitionVoltage { get; set; } = FlowCalibrationCurve.DefaultTransitionVoltage;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTransitionVoltageValid))]
+    [NotifyPropertyChangedFor(nameof(CanSendCurve))]
+    public partial string? TransitionVoltageError { get; set; }
+
+    public bool IsTransitionVoltageValid => TransitionVoltageError is null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEditTransitionVoltage))]
+    public partial bool IsTransitionVoltageEditable { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string? TransitionVoltageUnsupportedReason { get; set; }
+
+    public bool CanEditTransitionVoltage => !IsCapturing && IsTransitionVoltageEditable;
+
+    public string TransitionFlowText => Curve.Evaluate(TransitionVoltage) is { } flow
+        ? $"{flow:F3} L/min"
+        : "indisponível";
+
+    public int LowPointCount => Points.Count(p => p.Voltage is { } v && v <= TransitionVoltage);
+    public int HighPointCount => Points.Count(p => p.Voltage is { } v && v > TransitionVoltage);
+
+    public string PointDistributionText =>
+        $"Inferior (V ≤ {TransitionVoltage.ToString("F4", CultureInfo.CurrentCulture)}): {LowPointCount} | " +
+        $"Superior (V > {TransitionVoltage.ToString("F4", CultureInfo.CurrentCulture)}): {HighPointCount}";
+
+    public string LowEquationText => Equation($"V ≤ {TransitionVoltage.ToString("F4", CultureInfo.CurrentCulture)}", Curve.LowVoltage,
         "requer ao menos 1 ponto abaixo do limiar e o segmento alto");
 
-    public string HighEquationText => Equation("V > 0,0545", Curve.HighVoltage,
+    public string HighEquationText => Equation($"V > {TransitionVoltage.ToString("F4", CultureInfo.CurrentCulture)}", Curve.HighVoltage,
         "requer 2 pontos no segmento alto");
 
     public string CurveStateText => (IsUsingFirmwareDefault, Curve) switch
@@ -243,7 +294,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
     /// <summary>The jump at the split — the defect the anchored quartic exists to remove.</summary>
     public string ContinuityText => Curve.DiscontinuityAtSplit is { } jump
-        ? $"Salto no limiar (0,0545 V): {Math.Abs(jump):F6} L/min"
+        ? $"Salto no limiar ({TransitionVoltage.ToString("F4", CultureInfo.CurrentCulture)} V): {Math.Abs(jump):F6} L/min"
         : "Salto no limiar: indisponível (curva incompleta)";
 
     /// <summary>
@@ -275,7 +326,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
                               _commandedSetpoint is not null &&
                               SelectedPoint is not null;
 
-    public bool CanSendCurve => !IsCapturing && Curve.HasAny &&
+    public bool CanSendCurve => !IsCapturing && Curve.IsComplete && IsTransitionVoltageValid &&
                                 CanSendFlowCommands;
 
     public bool CanEditPoints => !IsCapturing;
@@ -328,10 +379,69 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         SendCalibrationSetpoint(flow);
     }
 
+    partial void OnTransitionVoltageChanged(double value)
+    {
+        if (_syncingTransitionVoltage)
+        {
+            return;
+        }
+
+        _syncingTransitionVoltage = true;
+        try
+        {
+            TransitionVoltageText = value.ToString("F4", CultureInfo.CurrentCulture);
+            TransitionVoltageError = null;
+            RecalculateCurve();
+        }
+        finally
+        {
+            _syncingTransitionVoltage = false;
+        }
+    }
+
+    partial void OnTransitionVoltageTextChanged(string value)
+    {
+        if (_syncingTransitionVoltage)
+        {
+            return;
+        }
+
+        if (TryParseDouble(value, out var parsed))
+        {
+            if (parsed <= 0.0 || parsed >= 3.3)
+            {
+                TransitionVoltageError = "A tensão de transição deve estar entre 0 e 3.3 V.";
+                return;
+            }
+
+            TransitionVoltageError = null;
+            if (Math.Abs(parsed - TransitionVoltage) > 1e-6)
+            {
+                _syncingTransitionVoltage = true;
+                try
+                {
+                    TransitionVoltage = parsed;
+                    RecalculateCurve();
+                }
+                finally
+                {
+                    _syncingTransitionVoltage = false;
+                }
+            }
+        }
+        else
+        {
+            TransitionVoltageError = "Valor de tensão inválido.";
+        }
+    }
+
     /// <summary>Loads the V05 factory curve back into the workspace without sending anything.</summary>
     [RelayCommand(CanExecute = nameof(CanEditPoints))]
     private void RestoreFirmwareDefault()
     {
+        TransitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage;
+        TransitionVoltageText = FlowCalibrationCurve.DefaultTransitionVoltage.ToString("F4", CultureInfo.CurrentCulture);
+        TransitionVoltageError = null;
         Curve = CalibrationMath.FirmwareDefault;
         IsUsingFirmwareDefault = true;
         StatusText = "Curva padrão de fábrica (V05) carregada; use “Salvar e enviar curva” para gravá-la.";
@@ -379,22 +489,38 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     [RelayCommand(CanExecute = nameof(CanSendCurve))]
     private void SendCurve()
     {
-        var command = OpenTECCommand.Create().Set(CommandKeys.MaxFlow, _maximumFlow);
-        if (Curve.LowVoltage is { } low)
+        if (!IsTransitionVoltageValid)
         {
-            command.Merge(CommandBuilders.FlowCalibrationLow(low.K, low.F, low.C, low.A, low.B));
-        }
-
-        if (Curve.HighVoltage is { } high)
-        {
-            command.Merge(CommandBuilders.FlowCalibrationHigh(high.K, high.F, high.C));
-        }
-
-        if (command.IsEmpty)
-        {
-            StatusText = "Nenhum segmento válido para enviar.";
+            StatusText = "Tensão de transição inválida. Corrija antes de enviar a curva.";
             return;
         }
+
+        if (!Curve.IsComplete)
+        {
+            StatusText = "A calibração em duas faixas exige ambos os segmentos completos para envio.";
+            return;
+        }
+
+        if (Math.Abs(Curve.DiscontinuityAtSplit ?? 0.0) > 0.01)
+        {
+            StatusText = "A curva apresenta descontinuidade no limiar e não pode ser enviada.";
+            return;
+        }
+
+        var low = Curve.LowVoltage!.Value;
+        var high = Curve.HighVoltage!.Value;
+
+        var command = CommandBuilders.FlowCalibration(
+            maxFlow: _maximumFlow,
+            a1: low.A,
+            b1: low.B,
+            k1: low.K,
+            f1: low.F,
+            c1: low.C,
+            k2: high.K,
+            f2: high.F,
+            c2: high.C,
+            transitionVoltage: TransitionVoltage);
 
         var result = _dispatcher.Dispatch(command);
         if (!result.Accepted)
@@ -403,10 +529,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
+        _pendingTransitionVoltage = TransitionVoltage;
         PersistPoints();
-        MarkAwaitingAck(Curve.IsComplete
-            ? "Dois segmentos enviados ao fluxômetro; pontos salvos no app."
-            : "Segmento parcial enviado ao fluxômetro; complete o outro antes do uso em toda a faixa.");
+        MarkAwaitingAck("Dois segmentos e limiar de transição enviados ao fluxômetro; pontos salvos no app.");
     }
 
     public IReadOnlyList<(double Voltage, double Flow)> GetValidPoints()
@@ -471,10 +596,22 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _latest = snapshot;
         IsFlowmeterOnline = snapshot.FlowmeterOnline;
         IsFlowCommandPending = snapshot.FlowCommandPending;
-        IsAwaitingAck = snapshot.FlowCommandPending;
+        var isPendingAck = snapshot.FlowCommandPending || (_pendingTransitionVoltage is not null && snapshot.FlowTransitionVoltage is null);
+        IsAwaitingAck = isPendingAck;
         LiveVoltageText = HasValidVoltage(snapshot)
             ? snapshot.FlowVoltage.ToString("F6", CultureInfo.CurrentCulture) + " V"
             : "—";
+
+        if (snapshot.FlowmeterOnline && snapshot.FlowmeterNode.FirmwareVersion is { } fw && IsLegacyFlowmeterFirmware(fw))
+        {
+            IsTransitionVoltageEditable = false;
+            TransitionVoltageUnsupportedReason = $"O fluxômetro conectado (firmware {fw}) não suporta limiar editável. O limiar padrão de 0,0545 V é mantido.";
+        }
+        else
+        {
+            IsTransitionVoltageEditable = true;
+            TransitionVoltageUnsupportedReason = null;
+        }
 
         if (!IsAwaitingAck)
         {
@@ -492,6 +629,33 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         if (!IsFlowmeterOnline)
         {
             StatusText = "Fluxômetro Desconectado da Central.";
+        }
+        else if (wasAwaiting && !snapshot.FlowCommandPending && _pendingTransitionVoltage is { } requested)
+        {
+            if (snapshot.FlowTransitionVoltage is { } echoed)
+            {
+                if (Math.Abs(echoed - requested) < 1e-4)
+                {
+                    StatusText = $"Curva completa e limiar ({echoed.ToString("F4", CultureInfo.CurrentCulture)} V) confirmados pelo fluxômetro.";
+                    _pendingTransitionVoltage = null;
+                    _pendingConfirmationText = null;
+                }
+                else
+                {
+                    StatusText = $"Aviso: o fluxômetro confirmou com limiar divergente ({echoed.ToString("F4", CultureInfo.CurrentCulture)} V vs solicitado {requested.ToString("F4", CultureInfo.CurrentCulture)} V). A calibração não foi confirmada.";
+                    _pendingTransitionVoltage = null;
+                    _pendingConfirmationText = null;
+                }
+            }
+            else if (IsAckOverdue)
+            {
+                StatusText = $"Sem confirmação do fluxômetro há {_time.GetElapsedTime(_awaitingAckSinceTimestamp).TotalSeconds:F0} s. " +
+                             "O Hub continuará reenviando até o link voltar; você pode reenviar a curva ou o setpoint.";
+            }
+            else
+            {
+                StatusText = "Aguardando confirmação do fluxômetro com eco do limiar...";
+            }
         }
         else if (IsAwaitingAck && IsAckOverdue)
         {
@@ -532,10 +696,29 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         RecalculateCurve();
     }
 
+    private static bool IsLegacyFlowmeterFirmware(string? fw)
+    {
+        if (string.IsNullOrWhiteSpace(fw))
+        {
+            return false;
+        }
+
+        var cleaned = fw.Trim();
+        if (cleaned.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = cleaned[1..];
+        }
+
+        var prefix = cleaned.Split('-')[0].Trim();
+        var parts = prefix.Split('.');
+        return parts.Length > 0 && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var major) && major < 12;
+    }
+
     private void OnStateChanged(ConnectionStateChange change)
     {
         if (change.State != ConnectionState.Connected)
         {
+            _pendingTransitionVoltage = null;
             if (IsCapturing)
             {
                 _capture.Clear();
@@ -570,6 +753,9 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     {
         point.PropertyChanged += OnPointChanged;
         Points.Add(point);
+        OnPropertyChanged(nameof(LowPointCount));
+        OnPropertyChanged(nameof(HighPointCount));
+        OnPropertyChanged(nameof(PointDistributionText));
     }
 
     private void OnPointChanged(object? sender, PropertyChangedEventArgs e)
@@ -582,6 +768,10 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             // expected to type while the setpoint stays put.
             RecalculateCurve();
             NotifyCommandState();
+            OnPropertyChanged(nameof(LowPointCount));
+            OnPropertyChanged(nameof(HighPointCount));
+            OnPropertyChanged(nameof(PointDistributionText));
+            OnPropertyChanged(nameof(TransitionFlowText));
             if (sender is FlowCalibrationPointViewModel { IsVoltageOutOfRange: true })
             {
                 StatusText = $"Tensão fora de 0–{FlowCalibrationPointViewModel.MaximumVoltage:0.0} V: o ponto fica fora do ajuste até ser corrigido.";
@@ -600,7 +790,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     {
         try
         {
-            var fitted = CalibrationMath.FitFlowCurve(GetValidPoints());
+            var fitted = CalibrationMath.FitFlowCurve(GetValidPoints(), TransitionVoltage);
 
             // Without enough certified points there is nothing to fit; showing the factory
             // curve is more useful than an empty plot, and it is what the flowmeter is running.
@@ -624,6 +814,10 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
 
         CurveChanged?.Invoke();
         NotifyCommandState();
+        OnPropertyChanged(nameof(LowPointCount));
+        OnPropertyChanged(nameof(HighPointCount));
+        OnPropertyChanged(nameof(PointDistributionText));
+        OnPropertyChanged(nameof(TransitionFlowText));
     }
 
     private void PersistPoints()
@@ -646,6 +840,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
             {
                 FlowCalibrationPoints = persisted,
                 FlowCaptureSamples = _captureTarget,
+                FlowTransitionVoltage = TransitionVoltage,
                 // Provenance: the wiring and the route the air took while these were captured.
                 FlowCalibrationGasRig = settings.GasRig,
                 FlowCalibrationRoute = CalibrationRoute,
@@ -674,6 +869,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(CanCapture));
         OnPropertyChanged(nameof(CanSendCurve));
         OnPropertyChanged(nameof(CanEditPoints));
+        OnPropertyChanged(nameof(CanEditTransitionVoltage));
         SendSetpointCommand.NotifyCanExecuteChanged();
         IncreaseSetpointCommand.NotifyCanExecuteChanged();
         DecreaseSetpointCommand.NotifyCanExecuteChanged();

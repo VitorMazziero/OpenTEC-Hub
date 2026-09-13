@@ -142,15 +142,16 @@ public partial class CalibrationView : UserControl
         {
             var points = viewModel.GetValidPoints();
             hasCalibrationData = points.Count > 0;
+            var vt = viewModel.TransitionVoltage;
 
             // Each segment is drawn only across the voltages it was actually fitted for.
             // Extrapolating the low quartic down to 0 V used to plot an unphysical negative
             // flow, and stubbing the high curve just past the split hid its whole range.
-            var lowMinimum = points.Where(point => point.Voltage <= FlowCalibrationCurve.DefaultTransitionVoltage)
+            var lowMinimum = points.Where(point => point.Voltage <= vt)
                                    .Select(point => point.Voltage)
                                    .DefaultIfEmpty(FirstMeasuredVoltage)
                                    .Min();
-            var highMaximum = points.Where(point => point.Voltage > FlowCalibrationCurve.DefaultTransitionVoltage)
+            var highMaximum = points.Where(point => point.Voltage > vt)
                                     .Select(point => point.Voltage)
                                     .DefaultIfEmpty(FullScaleVoltage)
                                     .Max();
@@ -158,15 +159,15 @@ public partial class CalibrationView : UserControl
             // The two fitted segments are the generated curves; the scatter is the measured
             // data. Naming all three puts the legend to work distinguishing them.
             DrawSegment(plot, viewModel.Curve.LowVoltage,
-                lowMinimum, FlowCalibrationCurve.DefaultTransitionVoltage,
+                lowMinimum, vt,
                 ToPlotColor(TryBrush("StateAlarmBrush"), MediaColors.IndianRed),
-                "Curva inferior (V ≤ 0,0545)");
+                $"Curva inferior (V ≤ {vt:F4})");
 
             DrawSegment(plot, viewModel.Curve.HighVoltage,
-                FlowCalibrationCurve.DefaultTransitionVoltage,
-                Math.Max(highMaximum, FlowCalibrationCurve.DefaultTransitionVoltage + 0.01),
+                vt,
+                Math.Max(highMaximum, vt + 0.01),
                 ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen),
-                "Curva superior (V > 0,0545)");
+                $"Curva superior (V > {vt:F4})");
 
             if (hasCalibrationData)
             {
@@ -193,7 +194,8 @@ public partial class CalibrationView : UserControl
             plot.Axes.SetLimits(0, voltageLimit * 1.04, 0, Math.Max(flowLimit * 1.08, 1.0));
         }
 
-        var split = plot.Add.VerticalLine(FlowCalibrationCurve.DefaultTransitionVoltage);
+        var splitVt = _flowSubscribed?.TransitionVoltage ?? FlowCalibrationCurve.DefaultTransitionVoltage;
+        var split = plot.Add.VerticalLine(splitVt);
         split.Color = grid;
         split.LineWidth = 1;
         _flowPlot.Refresh();

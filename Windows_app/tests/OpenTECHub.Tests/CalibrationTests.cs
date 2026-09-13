@@ -653,9 +653,10 @@ public sealed class GuidedCalibrationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        // maxFlow + a1/b1/k1/f1/c1 + k2/f2/c2: the quartic low model of firmware V05.
-        Assert.Equal(9, root.EnumerateObject().Count());
+        // maxFlow + a1/b1/k1/f1/c1 + k2/f2/c2 + flowTransitionVoltage: atomic 10-parameter command.
+        Assert.Equal(10, root.EnumerateObject().Count());
         Assert.Equal(50.0, root.GetProperty("maxFlow").GetDouble(), precision: 6);
+        Assert.Equal(0.0545, root.GetProperty("flowTransitionVoltage").GetDouble(), precision: 4);
         var low = new PolynomialCalibration(
             root.GetProperty("k1").GetDouble(),
             root.GetProperty("f1").GetDouble(),
@@ -791,14 +792,263 @@ public sealed class GuidedCalibrationTests
             OxygenCalibrated = calibrated,
         });
 
-    private static void PushFlow(RecordingDeviceService device, double voltage, bool pending = false)
+    private static void PushFlow(RecordingDeviceService device, double voltage, bool pending = false, double? transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage)
         => device.PushTelemetry(new SensorSnapshot
         {
             SensorCommOk = true,
             FlowVoltage = voltage,
             FlowmeterOnline = true,
             FlowCommandPending = pending,
+            FlowTransitionVoltage = transitionVoltage,
         });
+
+    [Fact]
+    public void TransitionVoltage_Editing_RefitsCurve_AndMovesPointsBetweenSegments()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+
+        // Initial default threshold is 0.0545 V
+        Assert.Equal(0.0545, vm.TransitionVoltage);
+        var initialLowCount = vm.LowPointCount;
+        var initialHighCount = vm.HighPointCount;
+        Assert.True(initialLowCount > 0);
+        Assert.True(initialHighCount > 0);
+
+        // Change transition voltage to 0.1000 V (above several points previously in the high segment)
+        vm.TransitionVoltageText = "0.1000";
+
+        Assert.Equal(0.1000, vm.TransitionVoltage);
+        Assert.Null(vm.TransitionVoltageError);
+        Assert.True(vm.IsTransitionVoltageValid);
+        Assert.Equal(0.1000, vm.Curve.TransitionVoltage);
+        Assert.True(vm.LowPointCount > initialLowCount);
+        Assert.True(vm.HighPointCount < initialHighCount);
+        Assert.Contains("0,1000", vm.PointDistributionText);
+    }
+
+    [Fact]
+    public void TransitionVoltage_InvalidText_PreservesLastValidCurve_AndShowsError()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+
+        var previousCurve = vm.Curve;
+        var previousVt = vm.TransitionVoltage;
+
+        vm.TransitionVoltageText = "invalid";
+        Assert.NotNull(vm.TransitionVoltageError);
+        Assert.False(vm.IsTransitionVoltageValid);
+        Assert.False(vm.CanSendCurve);
+        Assert.Equal(previousVt, vm.TransitionVoltage);
+        Assert.Equal(previousCurve, vm.Curve);
+
+        vm.TransitionVoltageText = "-0.01";
+        Assert.NotNull(vm.TransitionVoltageError);
+        Assert.False(vm.IsTransitionVoltageValid);
+        Assert.False(vm.CanSendCurve);
+        Assert.Equal(previousVt, vm.TransitionVoltage);
+
+        vm.TransitionVoltageText = "3.5";
+        Assert.NotNull(vm.TransitionVoltageError);
+        Assert.False(vm.IsTransitionVoltageValid);
+        Assert.False(vm.CanSendCurve);
+        Assert.Equal(previousVt, vm.TransitionVoltage);
+    }
+
+    [Fact]
+    public void SavePoints_PersistsTransitionVoltage_WithoutSendingCommands()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+
+        vm.TransitionVoltageText = "0.0650";
+        vm.SavePointsCommand.Execute(null);
+
+        Assert.Empty(device.Sent);
+        Assert.Equal(0.0650, settings.Current.Calibration.FlowTransitionVoltage, precision: 4);
+    }
+
+    [Fact]
+    public void SendCurve_SendsAtomic10ParameterCommand_WithTransitionVoltage()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+        PushFlow(device, 0.04);
+
+        vm.TransitionVoltageText = "0.0620";
+        vm.SendCurveCommand.Execute(null);
+
+        var json = Assert.Single(device.Sent);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal(10, root.EnumerateObject().Count());
+        Assert.Equal(0.0620, root.GetProperty("flowTransitionVoltage").GetDouble(), precision: 4);
+        Assert.True(root.TryGetProperty("maxFlow", out _));
+        Assert.True(root.TryGetProperty("a1", out _));
+        Assert.True(root.TryGetProperty("b1", out _));
+        Assert.True(root.TryGetProperty("k1", out _));
+        Assert.True(root.TryGetProperty("f1", out _));
+        Assert.True(root.TryGetProperty("c1", out _));
+        Assert.True(root.TryGetProperty("k2", out _));
+        Assert.True(root.TryGetProperty("f2", out _));
+        Assert.True(root.TryGetProperty("c2", out _));
+    }
+
+    [Fact]
+    public void SendCurve_RejectsPartialOrDiscontinuousCurve()
+    {
+        var device = new RecordingDeviceService();
+        var initial = new AppSettings
+        {
+            Calibration = new CalibrationSettings
+            {
+                // 2 points in high segment, 0 points in low segment: partial curve
+                FlowCalibrationPoints =
+                [
+                    new() { FlowLitresPerMinute = 2.0, Voltage = 0.20 },
+                    new() { FlowLitresPerMinute = 4.0, Voltage = 0.40 },
+                ],
+            },
+        };
+        var settings = new MemorySettingsService(initial);
+        using var vm = new FlowCalibrationViewModel(device, settings);
+        PushFlow(device, 0.04);
+
+        Assert.False(vm.Curve.IsComplete);
+        Assert.False(vm.CanSendCurve);
+
+        vm.SendCurveCommand.Execute(null);
+
+        Assert.Empty(device.Sent);
+        Assert.Contains("exige ambos os segmentos", vm.StatusText);
+    }
+
+    [Fact]
+    public void Telemetry_AckWithoutEcho_KeepsPendingState()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+        PushFlow(device, 0.04);
+
+        vm.TransitionVoltageText = "0.0545";
+        vm.SendCurveCommand.Execute(null);
+        Assert.True(vm.IsAwaitingAck);
+
+        // Telemetry arriving with FlowCommandPending = false, but NO FlowTransitionVoltage echo
+        device.PushTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowCommandPending = false,
+            FlowTransitionVoltage = null,
+            SensorCommOk = true,
+            FlowVoltage = 0.04,
+        });
+
+        // Remains pending ack!
+        Assert.True(vm.IsAwaitingAck);
+        Assert.Contains("Aguardando confirmação", vm.StatusText);
+    }
+
+    [Fact]
+    public void Telemetry_AckWithMismatchedEcho_EmitsWarningAndRefusesConfirmation()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+        PushFlow(device, 0.04);
+
+        vm.TransitionVoltageText = "0.0545";
+        vm.SendCurveCommand.Execute(null);
+        Assert.True(vm.IsAwaitingAck);
+
+        // Telemetry arriving with mismatched echo
+        device.PushTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowCommandPending = false,
+            FlowTransitionVoltage = 0.0800,
+            SensorCommOk = true,
+            FlowVoltage = 0.04,
+        });
+
+        Assert.False(vm.IsAwaitingAck);
+        Assert.Contains("divergente", vm.StatusText);
+    }
+
+    [Fact]
+    public void Telemetry_AckWithMatchingEcho_ConfirmsCurveAndThreshold()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+        PushFlow(device, 0.04);
+
+        vm.TransitionVoltageText = "0.0545";
+        vm.SendCurveCommand.Execute(null);
+        Assert.True(vm.IsAwaitingAck);
+
+        // Telemetry arriving with matching echo
+        device.PushTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowCommandPending = false,
+            FlowTransitionVoltage = 0.0545,
+            SensorCommOk = true,
+            FlowVoltage = 0.04,
+        });
+
+        Assert.False(vm.IsAwaitingAck);
+        Assert.Contains("confirmados pelo fluxômetro", vm.StatusText);
+    }
+
+    [Fact]
+    public void LegacyNode_DisablesTransitionVoltageEditing_WithExplanation()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new FlowCalibrationViewModel(device, settings);
+
+        // Legacy node with firmware v11
+        device.PushTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowmeterNode = new ExternalNodeIdentity("192.168.4.4", "AA:BB:CC:DD:EE:04", "v11"),
+            SensorCommOk = true,
+            FlowVoltage = 0.04,
+        });
+
+        Assert.False(vm.IsTransitionVoltageEditable);
+        Assert.False(vm.CanEditTransitionVoltage);
+        Assert.NotNull(vm.TransitionVoltageUnsupportedReason);
+        Assert.Contains("não suporta limiar editável", vm.TransitionVoltageUnsupportedReason);
+
+        // Upgrade to firmware v12
+        device.PushTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowmeterNode = new ExternalNodeIdentity("192.168.4.4", "AA:BB:CC:DD:EE:04", "v12"),
+            SensorCommOk = true,
+            FlowVoltage = 0.04,
+        });
+
+        Assert.True(vm.IsTransitionVoltageEditable);
+        Assert.True(vm.CanEditTransitionVoltage);
+        Assert.Null(vm.TransitionVoltageUnsupportedReason);
+    }
+
+    [Fact]
+    public void Settings_DefaultTransitionVoltage_MigratesLegacySettings()
+    {
+        var legacy = new CalibrationSettings();
+        Assert.Equal(0.0545, legacy.FlowTransitionVoltage, precision: 4);
+    }
 }
 
 public sealed class CalibrationSimulatorTests

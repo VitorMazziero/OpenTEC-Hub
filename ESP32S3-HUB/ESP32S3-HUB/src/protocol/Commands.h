@@ -564,10 +564,14 @@ void processJsonCommand(const String &json) {
 
   if (json.indexOf("\"distanceResetNvs\"") != -1) {
     String val = getValueFromJson(json, "distanceResetNvs");
-    if (val.length() > 0) {
+    // So o valor 1 significa algo para o no; desde D02 (2026-09-13) ele nao confirma um
+    // payload sem chave valida, e um "reset_nvs":0 ficaria preso na caixa ate a proxima revisao.
+    if (val.length() > 0 && val.toInt() == 1) {
       if (distCmdFound) distInner += ",";
-      distInner += "\"reset_nvs\":" + val;
+      distInner += "\"reset_nvs\":1";
       distCmdFound = true;
+    } else if (val.length() > 0) {
+      ESP32_AVISO(String("distanceResetNvs ignorado (so 1 e aceito): ") + val);
     }
   }
 

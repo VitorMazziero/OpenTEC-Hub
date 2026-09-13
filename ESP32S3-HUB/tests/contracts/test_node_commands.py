@@ -86,8 +86,13 @@ def translate_distance_command(json_str: str, comm_on: bool = True):
             pass
 
     if "distanceResetNvs" in data:
-        inner_parts.append(f'"reset_nvs":{data["distanceResetNvs"]}')
-        found = True
+        # Mirrors Commands.h: only the value 1 is forwarded (D02, 2026-09-13).
+        try:
+            if int(data["distanceResetNvs"]) == 1:
+                inner_parts.append('"reset_nvs":1')
+                found = True
+        except (ValueError, TypeError):
+            pass
 
     if not found or not comm_on:
         return None, False
@@ -209,6 +214,14 @@ class DistanceCommandValidationTests(unittest.TestCase):
         inner, ok = translate_distance_command(cmd)
         self.assertTrue(ok)
         self.assertEqual('"offset_mm":15.0,"sample_period":500,"send_period":1000', inner)
+
+    def test_reset_nvs_zero_is_not_forwarded(self):
+        inner, ok = translate_distance_command('{"distanceResetNvs":0}')
+        self.assertFalse(ok)
+        self.assertIsNone(inner)
+        src = (SRC_ROOT / "src/protocol/Commands.h").read_text(encoding="utf-8")
+        self.assertIn('val.toInt() == 1', src)
+        self.assertIn('"reset_nvs\\":1', src)
 
     def test_reset_nvs_command(self):
         inner, ok = translate_distance_command('{"distanceResetNvs":1}')

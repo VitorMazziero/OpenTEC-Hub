@@ -164,7 +164,7 @@ do dispositivo, e o Hub valida as faixas e traduz para as chaves nativas do nó:
 | `DistanceOffsetMm` | `distanceOffsetMm` | `offset_mm` | `[-50.0, 200.0]` mm | Carona na resposta de `GET /distance` |
 | `DistanceSamplePeriodMs` | `distanceSamplePeriodMs` | `sample_period` | `[100, 60000]` ms | Idem |
 | `DistanceSendPeriodMs` | `distanceSendPeriodMs` | `send_period` | `[100, 60000]` ms | Idem |
-| `DistanceResetNvs` | `distanceResetNvs` | `reset_nvs` | inteiro | Idem |
+| `DistanceResetNvs` | `distanceResetNvs` | `reset_nvs` | inteiro | Idem; **só o valor 1 é encaminhado** (2026-09-13) — o nó v11 não confirma payload sem chave válida e um `0` prenderia a caixa |
 
 Valores fora da faixa são descartados no Hub com `ESP32_EVT`.
 

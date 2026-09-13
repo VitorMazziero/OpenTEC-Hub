@@ -558,10 +558,13 @@ This is independent of the quoted `pHCal` display echo in §2.2.
 > separate frame. The outgoing buffer merges by default, so the second frame goes through the
 > ordered-frame path (`IDeviceService.SendAfterCurrentFrame`) rather than a plain `Send`.
 
-> **The hub's biomass mailbox holds exactly one command, and reading it clears it.** The node
-> polls `/biomassCommand` every 2 s and never acknowledges, and `setPending` overwrites — so a
-> `blank` issued just before a `start` is silently replaced. The app serialises the three
-> momentary actions behind a pending lock rather than offering all of them at once.
+> **The hub's biomass mailbox holds exactly one revision.** Since Hub 10.2 it is a
+> `ReliableMailbox`: the node polls `/biomassCommand` every 2 s, the Hub keeps re-delivering
+> until the node's push carries the matching `ack_cmd_id`, and `BiomassCommandPending` says so.
+> A new order still *replaces* a revision the node has not fetched yet — so a `blank` followed
+> within 2 s by a `start` is silently replaced. The app serialises the three momentary actions
+> behind `BiomassCommandPending` rather than offering all of them at once. Note the node does not
+> poll while it blanks or searches gears (20–40 s), so a queued order lands only afterwards.
 
 > **`start`/`stop` were not in v.6's Python `send_command` table** — v.6's biomass block issues
 > them (`send_biomass_start`/`send_biomass_stop`) and the firmware forwards them
@@ -644,8 +647,8 @@ camelCase keys, and the Hub translates them before enqueuing to each node's mail
 | `biomassIt` | int | Biomass node | `command:"set_it",value:N` |
 | `biomassPwm` | float | Biomass node | `command:"set_pwm",value:N` |
 | `biomassGear` | int | Biomass node | `command:"set_gear",value:N` |
-| `biomassEma` | float | Biomass node | `command:"set_ema",value:N` |
-| `biomassProbePeriodMs` | int | Biomass node | `command:"set_period",value:N` |
+| `biomassEma` | float | Biomass node | `command:"ema",value:N` |
+| `biomassProbePeriodMs` | int | Biomass node | `command:"probe_period",value:N` — the node clamps to its LED thermal floor and does not persist it (see `External-Devices/docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` §4.10 B05) |
 
 ---
 

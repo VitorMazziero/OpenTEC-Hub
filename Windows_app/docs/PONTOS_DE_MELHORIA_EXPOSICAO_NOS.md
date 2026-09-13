@@ -283,6 +283,11 @@ Os itens diferidos por decisão (⏸️ §2.4, §8.4-autenticação) e o não im
 | Arbitragem de comandos de sintonia via `ActuatorId.Aeration` | App Árbitro | Segurança de Processo | Alta | **Aplicado na Etapa 6** |
 | Confirmação destrutiva no reset de NVS do sensor de distância | App UI | Prevenção de Falha | Alta | **Aplicado na Etapa 6** |
 | Zeramento não-otimista do volume da bomba | App / Nó Bomba | Integridade operacional | Alta | **Aplicado na Etapa 7; validação física pendente** |
+| Janela de presença da biomassa (10 s) menor que `probe_ms` (25 s) em MEASURING | Hub / Nó Biomassa | Telemetria / Alarme falso | Alta | **Aberto — decisão (2026-09-13, `COMANDOS_DISPOSITIVOS_EXTERNOS.md` §4.10 B01): preferir janela no Hub dimensionada pelo eco `probe_ms`** |
+| Branco e busca de marcha não servem o Hub (sem push/poll; `stop` não aborta) | Nó Biomassa | Presença / Comando | Média | **Aberto — decisão (§4.10 B02); custo de flash a medir** |
+| `set_gear` pelo Hub não trava a marcha; `auto`/`manual` não roteados | Hub / App | Óptica / UI enganosa | Média | **Aberto — recomendado rotear `biomassAutoRange` (§4.10 B03); só Hub/app, sem flash no nó** |
+| Reinício silencioso da aquisição após queda de energia do nó | App (alarme) | Integridade de dados | Alta | **Aberto — decisão (§4.10 B06): alarme "habilitado, online, sem amostra"** |
+| `low/high/opt` e `probe_period` sem `saveConfig()` no nó | Nó Biomassa | Persistência | Média | **Aberto (§4.10 B05)** |
 | Calibração linear manual com recibo após eco | App / Nó Bomba | Rastreabilidade | Alta | **Aplicado na Etapa 7; assistente gravimétrico diferido** |
 | Assistente gravimétrico multiponto da bomba | App / Bancada | Calibração física | Alta | **Diferido; especificado em §7.1** |
 | Conversão IT ms → código e Gear 0–31 | App / Nó Biomassa | Contrato de fio | Alta | **Corrigido na Etapa 7** |

@@ -268,7 +268,7 @@ Os itens diferidos por decisão (⏸️ §2.4, §8.4-autenticação) e o não im
 | Dedupe de `cmd_id` e gravação NVS só em mudança real | Nó Distância | Flash / Idempotência | Média | **Aplicado em 2026-09-12 (§2.2); bancada pendente** |
 | Faixa $[100, 60000]$ ms de períodos também por `/config` e serial | Nó Distância | Consistência | Média | **Aplicado em 2026-09-12 (§2.1)** |
 | Prefixo `pump_*` uniforme na bomba | Nó Bomba | Nomenclatura | Baixa | **Não implementar (§3.2): a ponte no Hub já resolve; aliases só somariam superfície** |
-| Headroom da biomassa a 5 kB do piso de 160 kB | Nó Biomassa | Memória | Média | **Medido em 2026-09-12 (§3.3); condicionar novas funções a remedição** |
+| Headroom da biomassa a 5 kB do piso de 160 kB | Nó Biomassa | Memória | Média | **Remedido em 2026-09-13 após v11.1: 1 129 932 B, 5,1 kB do piso; B02/B14 ficam condicionados à revisão de partições** |
 | Validação [-50, 200] mm no nó | Nó Distância | Consistência | Alta | **Aplicado na Etapa 2** |
 | Whitelist e tradução de chaves (Bomba/Fluxômetro/Biomassa) | Hub | Comunicação | Alta | **Aplicado na Etapa 3** |
 | Regra "um command por revisão" na biomassa | Hub / App | Confiabilidade | Alta | **Aplicado no Hub (Etapa 3); builders em lista (Etapa 5); regra para App (Etapa 7)** |
@@ -285,11 +285,11 @@ Os itens diferidos por decisão (⏸️ §2.4, §8.4-autenticação) e o não im
 | Resoluções e sincronização do fluxômetro v11.0 (F01 a F16) | Firmware / Hub / App | Metrologia e Segurança | Alta | **Aplicado (2026-09-13, `COMANDOS_DISPOSITIVOS_EXTERNOS.md` §3.10): F01–F16 integrados; ensaio físico de bancada pendente (§3.11)** |
 | Zeramento não-otimista do volume da bomba | App / Nó Bomba | Integridade operacional | Alta | **Aplicado na Etapa 7; validação física pendente** |
 | Janela de presença da distância proporcional a `send_ms` (D03) | Hub | Telemetria / Alarme falso | Média | **Aplicado no Hub em 2026-09-13: `max(3 s, 2,5 × send_ms)`; intertravamento mantido em 1,2 s** |
-| Janela de presença da biomassa (10 s) menor que `probe_ms` (25 s) em MEASURING | Hub / Nó Biomassa | Telemetria / Alarme falso | Alta | **Aberto — decisão (2026-09-13, `COMANDOS_DISPOSITIVOS_EXTERNOS.md` §4.10 B01): preferir janela no Hub dimensionada pelo eco `probe_ms`, como feito para a distância (D03)** |
-| Branco e busca de marcha não servem o Hub (sem push/poll; `stop` não aborta) | Nó Biomassa | Presença / Comando | Média | **Aberto — decisão (§4.10 B02); custo de flash a medir** |
-| `set_gear` pelo Hub não trava a marcha; `auto`/`manual` não roteados | Hub / App | Óptica / UI enganosa | Média | **Aberto — recomendado rotear `biomassAutoRange` (§4.10 B03); só Hub/app, sem flash no nó** |
-| Reinício silencioso da aquisição após queda de energia do nó | App (alarme) | Integridade de dados | Alta | **Aberto — decisão (§4.10 B06): alarme "habilitado, online, sem amostra"** |
-| `low/high/opt` e `probe_period` sem `saveConfig()` no nó | Nó Biomassa | Persistência | Média | **Aberto (§4.10 B05)** |
+| Janela de presença da biomassa (10 s) menor que `probe_ms` (25 s) em MEASURING | Hub | Telemetria / Alarme falso | Alta | **Aplicado no Hub em 2026-09-13 (B01): `max(10 s, 2,5 × probe_ms)`; bancada pendente** |
+| Branco e busca de marcha não servem o Hub (sem push/poll; `stop` não aborta) | Nó Biomassa | Presença / Comando | Média | **Aberto por decisão (B02): flash a 5,1 kB do piso; B01 cobre a presença; receita instrui temporizador ≥ 60 s** |
+| `set_gear` pelo Hub não trava a marcha; `auto`/`manual` não roteados | Nó / Hub / App | Óptica / UI enganosa | Média | **Aplicado em 2026-09-13 (B03/B04): nó v11.1 trava a marcha e apaga o LED; Hub roteia `biomassAutoRange`; app com interruptor** |
+| Reinício silencioso da aquisição após queda de energia do nó | App (alarme) | Integridade de dados | Alta | **Aplicado no app em 2026-09-13 (B06): alarme *Aquisição de biomassa interrompida*** |
+| `low/high/opt` e `probe_period` sem `saveConfig()` no nó | Nó Biomassa | Persistência | Média | **Aplicado no nó v11.1 (B05)** |
 | Calibração linear manual com recibo após eco | App / Nó Bomba | Rastreabilidade | Alta | **Aplicado na Etapa 7; assistente gravimétrico diferido** |
 | Assistente gravimétrico multiponto da bomba | App / Bancada | Calibração física | Alta | **Diferido; especificado em §7.1** |
 | Conversão IT ms → código e Gear 0–31 | App / Nó Biomassa | Contrato de fio | Alta | **Corrigido na Etapa 7** |

@@ -2295,6 +2295,16 @@
                                                                Style="{StaticResource CaptionTextStyle}"
                                                                Foreground="{DynamicResource StateWarningTextBrush}"
                                                                TextWrapping="Wrap" Margin="0,6,0,0" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                        <TextBlock Text="Auto-range" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                                  IsChecked="{Binding IsAutoRange, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding CanActuate}"
+                                                                  ToolTip="Ligado: o nó procura sozinho a marcha quando o sinal sai da faixa. Desligado: a marcha gravada fica travada. Gravar uma marcha desliga o auto-range." />
+                                                        <TextBlock Text="{Binding AutoRangeModeText}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                                   Style="{StaticResource CaptionTextStyle}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Expander>
                                         </StackPanel>

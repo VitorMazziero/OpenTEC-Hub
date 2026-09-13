@@ -648,7 +648,8 @@ camelCase keys, and the Hub translates them before enqueuing to each node's mail
 | `biomassPwm` | float | Biomass node | `command:"set_pwm",value:N` |
 | `biomassGear` | int | Biomass node | `command:"set_gear",value:N` |
 | `biomassEma` | float | Biomass node | `command:"ema",value:N` |
-| `biomassProbePeriodMs` | int | Biomass node | `command:"probe_period",value:N` — the node clamps to its LED thermal floor and does not persist it (see `External-Devices/docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` §4.10 B05) |
+| `biomassProbePeriodMs` | int | Biomass node | `command:"probe_period",value:N` — the node clamps to its LED thermal floor; persisted on v11.1+. The Hub sizes the biomass presence window from the echoed `probe_ms` (`max(10 s, 2.5 × probe_ms)`) |
+| `biomassAutoRange` | `"auto"`/`"manual"` | Biomass node | `command:"auto"` / `command:"manual"` — the node persists it but does not echo it; `biomassGear` implies `manual` on v11.1+ |
 
 ---
 
@@ -705,6 +706,7 @@ biomass PWM        {"biomassPwm":75.0}
 biomass gear       {"biomassGear":3}
 biomass EMA        {"biomassEma":0.25}
 biomass probe      {"biomassProbePeriodMs":500}
+biomass auto-range {"biomassAutoRange":"manual"}                      (lock the selected gear; "auto" hunts again)
 ```
 
 Key order within an object is not believed to matter (the firmware parses JSON),

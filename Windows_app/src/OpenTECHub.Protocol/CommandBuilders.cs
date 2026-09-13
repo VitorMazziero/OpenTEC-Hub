@@ -877,6 +877,18 @@ public static class CommandBuilders
     }
 
     /// <summary>
+    /// Auto-range on the biomass node: <c>{"biomassAutoRange":"auto"|"manual"}</c>. The Hub
+    /// translates it to the node's <c>auto</c>/<c>manual</c> command (one command per revision).
+    /// </summary>
+    /// <remarks>
+    /// The node persists the choice and does not echo it, so the card tracks what it sent.
+    /// <c>biomassGear</c> implies <c>manual</c> on a v11.1 node - selecting a gear is asking for
+    /// that gear - so <see cref="BiomassTuning"/> with a gear leaves the node in manual mode.
+    /// </remarks>
+    public static OpenTECCommand BiomassAutoRange(bool enabled)
+        => OpenTECCommand.Create().Set(CommandKeys.BiomassAutoRange, enabled ? "auto" : "manual");
+
+    /// <summary>
     /// Builds a list of discrete commands for biomass tuning parameters, emitting one frame per
     /// parameter to comply with Hub mailbox single-command-per-revision constraints (§3.5).
     /// </summary>

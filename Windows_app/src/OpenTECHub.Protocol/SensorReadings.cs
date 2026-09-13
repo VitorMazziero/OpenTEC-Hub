@@ -19,6 +19,26 @@ public sealed class SensorReadings
     /// <summary>Sentinel meaning "never received". Matches v.6's -1.0.</summary>
     public const double NotReceived = -1.0;
 
+    /// <summary>
+    /// Biomass node sentinel: the blank for the current gear is 0 or saturated (-99.0 AU).
+    /// Anything at or below <see cref="BiomassBlankInvalidThreshold"/> reads as this state.
+    /// </summary>
+    public const double BiomassBlankInvalid = -99.0;
+    public const double BiomassBlankInvalidThreshold = -90.0;
+
+    /// <summary>
+    /// Biomass node sentinel: the detector read zero counts, i.e. dark or blocked (9.9 AU).
+    /// Anything at or above <see cref="BiomassDarkThreshold"/> reads as this state.
+    /// </summary>
+    public const double BiomassDark = 9.9;
+    public const double BiomassDarkThreshold = 9.0;
+
+    /// <summary>True when an absorbance is a real reading rather than absent or a sentinel.</summary>
+    public static bool IsBiomassAbsorbanceMeasured(double absorbance)
+        => absorbance > NotReceived &&
+           absorbance > BiomassBlankInvalidThreshold &&
+           absorbance < BiomassDarkThreshold;
+
     public double Temperature { get; set; } = NotReceived;
 
     /// <summary>Accepted raw ADC count for oxygen, after spike filtering.</summary>

@@ -226,6 +226,8 @@ public sealed class AlarmService : IAlarmService
         // to ride out one late frame, not enough to hide a real outage.
         new(AlarmId.BiomassOffline, "Absorbância offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        new(AlarmId.BiomassAcquisitionStalled, "Aquisição de biomassa interrompida", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.ExternalPumpOffline, "Bomba externa offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.DistanceSensorOffline, "Distância offline", AlarmSeverity.Warning,
@@ -296,6 +298,26 @@ public sealed class AlarmService : IAlarmService
     /// alarm could never fire.
     /// </remarks>
     private bool _gasOpenWhenLastSeen;
+
+    /// <summary>
+    /// Whether the biomass sensor was actively acquiring fresh samples before becoming silent.
+    /// Only trigger the silent-reboot / sampling-stalled alarm if the sensor was actively
+    /// acquiring samples before becoming silent (B06).
+    /// </summary>
+    private bool _biomassAcquisitionActiveWhenLastSeen;
+    private DateTimeOffset? _lastBiomassSampleAt;
+
+    /// <summary>
+    /// Silence between biomass samples that reads as a stalled acquisition (B06: the node
+    /// reboots into IDLE after a brownout and keeps heartbeating, so it looks online).
+    /// </summary>
+    /// <remarks>
+    /// 2.5 sampling periods, never below 65 s (2.5 x the 25 s default). The period comes from
+    /// the node's own <c>BiomassProbePeriodMs</c> echo, so a slow assay does not trip it.
+    /// </remarks>
+    public TimeSpan BiomassStallTimeout { get; private set; } = DefaultBiomassStallTimeout;
+
+    private static readonly TimeSpan DefaultBiomassStallTimeout = TimeSpan.FromSeconds(65);
     private DateTimeOffset _silencedUntil = DateTimeOffset.MinValue;
     private bool _wasAudible;
 
@@ -416,7 +438,7 @@ public sealed class AlarmService : IAlarmService
 
         foreach (var (id, condition) in _conditions.Select(kv => (kv.Key, kv.Value)))
         {
-            var (active, detail) = Condition(id, connected, stale);
+            var (active, detail) = Condition(id, connected, stale, now);
             var transition = condition.Evaluate(active, detail, now);
 
             switch (transition)
@@ -479,7 +501,7 @@ public sealed class AlarmService : IAlarmService
         return now - last > budget;
     }
 
-    private (bool Active, string Detail) Condition(AlarmId id, bool connected, bool stale) => id switch
+    private (bool Active, string Detail) Condition(AlarmId id, bool connected, bool stale, DateTimeOffset now) => id switch
     {
         AlarmId.LinkLost => (_state is ConnectionState.Faulted or ConnectionState.Reconnecting,
             $"Estado do enlace: {_state}."),
@@ -530,6 +552,13 @@ public sealed class AlarmService : IAlarmService
             connected && RoutingRequested(DeviceNames.Routing.Absorbance) &&
             _lastSnapshot is { BiomassCommEnabled: true, BiomassOnline: false, HasBiomassTelemetry: true },
             "O sensor de biomassa não está respondendo à Central, embora esteja habilitado no Hub."),
+
+        AlarmId.BiomassAcquisitionStalled => (
+            connected && RoutingRequested(DeviceNames.Routing.Absorbance) &&
+            _biomassAcquisitionActiveWhenLastSeen &&
+            _lastSnapshot is { BiomassCommEnabled: true, BiomassOnline: true } &&
+            IsBiomassAcquisitionStalled(now),
+            "Aquisição de biomassa interrompida: o sensor está online mas parou de enviar amostras (possível reinício em repouso pós-queda)."),
 
         AlarmId.ExternalPumpOffline => (
             connected && RoutingRequested(DeviceNames.Routing.ExternalPump) &&
@@ -631,7 +660,14 @@ public sealed class AlarmService : IAlarmService
     /// <param name="device">The device label, matching the one used in the condition above.</param>
     /// <param name="requested">True when the operator has the device switched on.</param>
     public void SetRoutingRequested(string device, bool requested)
-        => _routingRequested[device] = requested;
+    {
+        _routingRequested[device] = requested;
+        if (string.Equals(device, DeviceNames.Routing.Absorbance, StringComparison.OrdinalIgnoreCase) && !requested)
+        {
+            _biomassAcquisitionActiveWhenLastSeen = false;
+            _lastBiomassSampleAt = null;
+        }
+    }
 
     /// <summary>
     /// Whether the operator has this external device switched on in Controle.
@@ -671,6 +707,8 @@ public sealed class AlarmService : IAlarmService
             // flowmeter re-establishes this, and until then the app knows nothing.
             _gasOpenWhenLastSeen = false;
             _journalledRoute = null;
+            _biomassAcquisitionActiveWhenLastSeen = false;
+            _lastBiomassSampleAt = null;
         }
 
         Poll();
@@ -694,6 +732,27 @@ public sealed class AlarmService : IAlarmService
             _gasOpenWhenLastSeen = GasPathIsOpen(snapshot);
             JournalRouteChange(snapshot);
         }
+
+        if (snapshot.BiomassProbePeriodMs is > 0 and var probeMs)
+        {
+            var fromEcho = TimeSpan.FromMilliseconds(probeMs * 2.5);
+            BiomassStallTimeout = fromEcho > DefaultBiomassStallTimeout ? fromEcho : DefaultBiomassStallTimeout;
+        }
+
+        if (snapshot.BiomassOnline && snapshot.BiomassCommEnabled == true && RoutingRequested(DeviceNames.Routing.Absorbance))
+        {
+            if (SensorReadings.IsBiomassAbsorbanceMeasured(snapshot.BiomassAbsorbance))
+            {
+                _biomassAcquisitionActiveWhenLastSeen = true;
+                _lastBiomassSampleAt = _time.GetUtcNow();
+            }
+        }
+        else if (snapshot.BiomassCommEnabled == false || !RoutingRequested(DeviceNames.Routing.Absorbance))
+        {
+            _biomassAcquisitionActiveWhenLastSeen = false;
+            _lastBiomassSampleAt = null;
+        }
+
         Poll();
     }
 
@@ -759,6 +818,16 @@ public sealed class AlarmService : IAlarmService
         return measuring || commanded || routed;
     }
 
+    private bool IsBiomassAcquisitionStalled(DateTimeOffset now)
+    {
+        if (!_biomassAcquisitionActiveWhenLastSeen || _lastBiomassSampleAt is not { } lastSample)
+        {
+            return false;
+        }
+
+        return now - lastSample > BiomassStallTimeout;
+    }
+
     private void OnCommandTracked(CommandLifecycleEntry entry)
     {
         switch (entry.Phase)
@@ -772,6 +841,14 @@ public sealed class AlarmService : IAlarmService
                 break;
             default:
                 break;
+        }
+
+        // An operator stop ends the acquisition on purpose; silence after it is not a stall.
+        if (entry.Actuator == ActuatorId.Biomass &&
+            entry.Summary.Contains(CommandKeys.BiomassStop, StringComparison.OrdinalIgnoreCase))
+        {
+            _biomassAcquisitionActiveWhenLastSeen = false;
+            _lastBiomassSampleAt = null;
         }
 
         Poll();

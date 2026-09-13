@@ -94,12 +94,14 @@ public sealed partial class RecipeEngine
                 break;
 
             case BiomassAction.Blank:
-                // No observable confirmation: the node blanks for ~15 s and publishes nothing that
-                // distinguishes a fresh reference from the previous one. The block does not hold,
-                // and a recipe that needs the sweep to finish should follow this with a timer.
+                // No observable confirmation: the node blanks for 20-40 s (4 IT x 8 PWM, less
+                // when a row saturates) and answers neither the Hub's push nor its poll while
+                // it sweeps. The block does not hold; a recipe that needs the sweep to finish
+                // follows this with a timer of at least 60 s before Start.
                 Log(RecipeLogSeverity.Info,
-                    "Biomassa: capturando o branco. A varredura leva cerca de 15 s e não é confirmada " +
-                    "pela telemetria — use um temporizador antes de iniciar a aquisição.",
+                    "Biomassa: capturando o branco. A varredura leva de 20 a 40 s, o nó fica mudo " +
+                    "para o Hub enquanto varre e nada confirma o término — use um temporizador de " +
+                    "pelo menos 60 s antes de iniciar a aquisição.",
                     node.Id);
                 DispatchRecipe(CommandBuilders.BiomassBlank(), node.Id);
                 break;

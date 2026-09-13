@@ -387,7 +387,7 @@ public sealed class PumpCalibrationTests
             BiomassCommandPending = false
         });
         Assert.Empty(device.Sent);
-        Assert.Contains("Todos os parâmetros de aquisição foram confirmados", vm.StatusText);
+        Assert.Contains("Parâmetros de aquisição confirmados pelo nó", vm.StatusText);
         Assert.False(vm.CanCancelAcquisition);
         Assert.Equal(200, settings.Current.BiomassControl.IntegrationTime);
         Assert.Equal(60.0, settings.Current.BiomassControl.PwmPercent);

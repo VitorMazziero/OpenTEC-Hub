@@ -123,13 +123,20 @@ public sealed partial class RecipeEngine
     /// separate clocks - so an arriving sample means the acquisition loop really is running,
     /// which an online flag alone would not.
     /// </remarks>
+    /// <summary>
+    /// A genuine absorbance sample: online and neither absent nor one of the node's
+    /// sentinels (-99 invalid blank, 9.9 dark). A recipe must not start timing a feed on a
+    /// sentinel that merely proves the loop is running.
+    /// </summary>
+    public static bool IsBiomassMeasuring(SensorSnapshot s)
+        => s.BiomassOnline && SensorReadings.IsBiomassAbsorbanceMeasured(s.BiomassAbsorbance);
+
     private Task AwaitBiomassMeasuringAsync(RecipeNode node, CancellationToken ct)
         => AwaitDeviceAsync(
             node,
             "Sensor de biomassa",
             "a aquisição não começou: nenhuma leitura de absorbância chegou.",
-            s => !s.HasBiomassTelemetry ||
-                 (s.BiomassOnline && s.BiomassAbsorbance > SensorReadings.NotReceived),
+            s => !s.HasBiomassTelemetry || IsBiomassMeasuring(s),
             ct);
 
     /// <summary>Holds until the agitator node reports the magnitude it was told to hold.</summary>

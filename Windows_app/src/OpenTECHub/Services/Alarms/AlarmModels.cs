@@ -50,6 +50,9 @@ public enum AlarmId
     /// <summary>The biomass node stopped answering the Hub while its routing is on.</summary>
     BiomassOffline,
 
+    /// <summary>The biomass node was actively acquiring, but fresh samples stopped arriving while online (silent reboot to IDLE).</summary>
+    BiomassAcquisitionStalled,
+
     /// <summary>The external pump node stopped answering the Hub while its routing is on.</summary>
     ExternalPumpOffline,
 

@@ -141,6 +141,19 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     public partial string AppliedProbePeriodText { get; set; } = "—";
 
+    /// <summary>
+    /// Auto-range on the node: <c>true</c> = the node hunts for a gear when the signal leaves
+    /// the low/high band; <c>false</c> = the selected gear is locked. Sent on change as
+    /// <c>biomassAutoRange</c>. The node persists it but does not echo it, so this is what the
+    /// card last sent (or inferred: applying a gear puts the node in manual).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutoRangeModeText))]
+    public partial bool IsAutoRange { get; set; } = true;
+
+    /// <summary>Text representation of the active auto-range mode.</summary>
+    public string AutoRangeModeText => IsAutoRange ? "Automático" : "Manual (marcha travada)";
+
     public string AppliedITText => IntegrationTimeText;
     public string AppliedPwmText => PwmText;
 
@@ -190,6 +203,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         StartCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ApplyAcquisitionCommand.NotifyCanExecuteChanged();
+        ToggleAutoRangeCommand.NotifyCanExecuteChanged();
 
         if (!_initialised || _revertingEnable)
         {
@@ -542,6 +556,44 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
     [RelayCommand(CanExecute = nameof(CanActuate))]
     private void Stop() => SendMomentary(CommandBuilders.BiomassStop(), "parada");
 
+    /// <summary>Toggles auto-range between auto and manual (B03).</summary>
+    [RelayCommand(CanExecute = nameof(CanActuate))]
+    private void ToggleAutoRange() => IsAutoRange = !IsAutoRange;
+
+    private bool _revertingAutoRange;
+
+    /// <summary>Moves the switch without sending: the node changed mode by itself.</summary>
+    private void ReflectAutoRange(bool value)
+    {
+        _revertingAutoRange = true;
+        IsAutoRange = value;
+        _revertingAutoRange = false;
+    }
+
+    partial void OnIsAutoRangeChanged(bool value)
+    {
+        if (!_initialised || _revertingAutoRange)
+        {
+            return;
+        }
+
+        if (IsOwnedByOther)
+        {
+            RevertAutoRange(!value);
+            StatusText = OwnerLockReason ?? "Sensor de biomassa sob controle de outro processo.";
+            return;
+        }
+
+        SendMomentary(CommandBuilders.BiomassAutoRange(value), value ? "auto-range automático" : "marcha travada (manual)");
+    }
+
+    private void RevertAutoRange(bool attempted)
+    {
+        _revertingAutoRange = true;
+        IsAutoRange = !attempted;
+        _revertingAutoRange = false;
+    }
+
     /// <summary>
     /// Sends one momentary action and holds the others until it is confirmed.
     /// </summary>
@@ -679,6 +731,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         BlankCommand.NotifyCanExecuteChanged();
         StartCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
+        ToggleAutoRangeCommand.NotifyCanExecuteChanged();
         NotifyAcquisitionAvailability();
     }
 
@@ -758,7 +811,14 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         }
         else
         {
-            AbsorbanceText = snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture);
+            // B13: the node's sentinels (-99 invalid blank for this gear, 9.9 dark or blocked)
+            // are states, not readings; the echoes below are still real and still shown.
+            AbsorbanceText = snapshot.BiomassAbsorbance switch
+            {
+                <= SensorReadings.BiomassBlankInvalidThreshold => "Branco inválido nesta marcha",
+                >= SensorReadings.BiomassDarkThreshold => "Escuro / bloqueado",
+                _ => snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture)
+            };
             RawText = snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture);
             IntegrationTimeText = snapshot.BiomassIntegrationTimeMs.ToString(CultureInfo.CurrentCulture);
             PwmText = snapshot.BiomassPwmPercent.ToString("F1", CultureInfo.CurrentCulture);
@@ -813,7 +873,10 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         _requestedAcquisitionSettings = null;
         _isSendingAcquisitionQueue = false;
         NotifyAcquisitionAvailability();
-        StatusText = "Todos os parâmetros de aquisição foram confirmados pelo nó e salvos no app.";
+        // set_gear is a manual lock on the node (v11.1): the switch follows without resending.
+        ReflectAutoRange(false);
+        StatusText = "Parâmetros de aquisição confirmados pelo nó e salvos no app. Marcha travada (manual); " +
+                     "use o interruptor para voltar ao auto-range.";
     }
 
     public void Dispose()

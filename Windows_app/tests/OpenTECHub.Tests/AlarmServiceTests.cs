@@ -589,6 +589,138 @@ public sealed class AlarmServiceTests
     }
 
     [Fact]
+    public void Biomass_acquisition_stalled_latches_when_active_sensor_stops_reporting_samples_while_online()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
+
+        // Actively measuring: node online, comm enabled, valid absorbance reading.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = 1.25,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+
+        // Sensor brownouts/reboots silently into IDLE: stays online with comm enabled,
+        // but no new sample arrives (absorbance reverts to sentinel/NotReceived).
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = SensorReadings.NotReceived,
+        });
+
+        // 60 seconds of silence is within the default 65s stall window: no alarm yet.
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(60));
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+
+        // Crossing the 65 s stall window makes the condition active; the 2 s on-debounce
+        // then needs a second poll before the alarm latches.
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(8));
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.True(h.Latched(AlarmId.BiomassAcquisitionStalled));
+
+        // When fresh sample resumes, alarm clears after off-debounce.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = 1.30,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+    }
+
+    [Fact]
+    public void Biomass_acquisition_stalled_does_not_latch_when_sensor_is_initially_in_idle()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
+
+        // Sensor online before an assay, but has never reported a sample (deliberately in IDLE).
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = SensorReadings.NotReceived,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(100));
+
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+    }
+
+    [Fact]
+    public void Biomass_acquisition_stalled_does_not_latch_when_acquisition_is_explicitly_stopped()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
+
+        // Actively measuring.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = 1.25,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+
+        // Operator commands stop.
+        h.Arbiter.Dispatch(CommandOwner.Manual, CommandBuilders.BiomassStop());
+
+        // Sensor now silent in IDLE.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = SensorReadings.NotReceived,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(100));
+
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+    }
+
+    [Fact]
+    public void Biomass_acquisition_stalled_does_not_latch_when_routing_is_disabled()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, true);
+
+        // Actively measuring.
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = true,
+            BiomassAbsorbance = 1.25,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+
+        // Operator disables routing in Controle.
+        h.Service.SetRoutingRequested(DeviceNames.Absorbance, false);
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasBiomassTelemetry = true,
+            BiomassOnline = true,
+            BiomassCommEnabled = false,
+            BiomassAbsorbance = SensorReadings.NotReceived,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(100));
+
+        Assert.False(h.Latched(AlarmId.BiomassAcquisitionStalled));
+    }
+
+    [Fact]
     public void Frozen_data_latches_when_telemetry_stops()
     {
         using var h = new Harness();

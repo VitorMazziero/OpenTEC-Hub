@@ -145,6 +145,7 @@ public static class CommandActuators
             [CommandKeys.Low] = ActuatorId.Biomass,
             [CommandKeys.High] = ActuatorId.Biomass,
             [CommandKeys.Opt] = ActuatorId.Biomass,
+            [CommandKeys.BiomassAutoRange] = ActuatorId.Biomass,
 
             // External pump (WP2): enable and the profile frame. The dynamic p{i}/t{i}/q{i}
             // coefficient keys are matched by pattern in ForKey rather than enumerated here.

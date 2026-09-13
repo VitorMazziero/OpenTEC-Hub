@@ -37,7 +37,7 @@ public static class NodeFirmwareCatalog
         [Agitator] = new(StringComparer.OrdinalIgnoreCase) { "v10" },
         [Pump] = new(StringComparer.OrdinalIgnoreCase) { "3.9", "3.10" },
         [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.0" },
-        [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
+        [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.1" },
     };
 
     /// <summary>Versions this build was validated with for <paramref name="device"/>; empty for an unknown name.</summary>

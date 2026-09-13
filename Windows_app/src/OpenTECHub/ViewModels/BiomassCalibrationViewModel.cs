@@ -206,12 +206,28 @@ public sealed partial class BiomassCalibrationViewModel : ObservableObject, IDis
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
-        CurrentAbsorbanceText = snapshot.BiomassAbsorbance > SensorReadings.NotReceived
-            ? snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture)
-            : "—";
-        CurrentRawText = snapshot.BiomassAbsorbance > SensorReadings.NotReceived
-            ? snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture)
-            : "—";
+        // B13: the node's sentinels (-99 invalid blank, 9.9 dark) are states, not readings.
+        if (snapshot.BiomassAbsorbance > SensorReadings.NotReceived &&
+            snapshot.BiomassAbsorbance <= SensorReadings.BiomassBlankInvalidThreshold)
+        {
+            CurrentAbsorbanceText = "Branco inválido nesta marcha";
+            CurrentRawText = snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture);
+        }
+        else if (snapshot.BiomassAbsorbance >= SensorReadings.BiomassDarkThreshold)
+        {
+            CurrentAbsorbanceText = "Escuro / bloqueado";
+            CurrentRawText = snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture);
+        }
+        else if (snapshot.BiomassAbsorbance <= SensorReadings.NotReceived)
+        {
+            CurrentAbsorbanceText = "—";
+            CurrentRawText = "—";
+        }
+        else
+        {
+            CurrentAbsorbanceText = snapshot.BiomassAbsorbance.ToString("F3", CultureInfo.CurrentCulture);
+            CurrentRawText = snapshot.BiomassRaw.ToString(CultureInfo.CurrentCulture);
+        }
     }
 
     private void OnStateChanged(ConnectionStateChange change)

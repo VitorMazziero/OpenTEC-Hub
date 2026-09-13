@@ -222,7 +222,7 @@ public enum BiomassAction
     /// <summary>Switch the Hub's routing on. Everything else needs this first.</summary>
     Enable,
 
-    /// <summary>Capture the zero-absorbance reference. Blocks the node for roughly 15 s.</summary>
+    /// <summary>Capture the zero-absorbance reference. The sweep takes 20-40 s and is not confirmed; follow with a timer of at least 60 s.</summary>
     Blank,
 
     /// <summary>Start the acquisition loop.</summary>

@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1, 2, 3, 4, 5 e 6 implementadas e testadas; as etapas 7–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1, 2, 3, 4, 5, 6 e 7 implementadas e testadas; as etapas 8–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -941,6 +941,44 @@ A calibração do fluxômetro deixa de depender de `0.0545` hardcoded em todo o 
 ```text
 feat(flow-calibration): make transition voltage editable
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado nesta etapa, na interface de usuário, ViewModel, persistência e testes do Windows App:
+
+- **Configurações e persistência (`AppSettings.cs`):**
+  - Adicionada a propriedade `FlowTransitionVoltage` (com valor padrão `FlowCalibrationCurve.DefaultTransitionVoltage = 0.0545 V`) dentro de `CalibrationSettings`.
+  - Migração implícita de arquivos de configuração pré-existentes: caso o campo esteja ausente, o valor padrão `0.0545` é atribuído sem perda de integridade.
+  - O método `PersistPoints` em `FlowCalibrationViewModel` salva `FlowTransitionVoltage` localmente junto com os pontos medidos sem emitir comandos ao hardware.
+- **ViewModel reativo (`FlowCalibrationViewModel.cs`):**
+  - Adicionadas as propriedades observáveis: `TransitionVoltageText`, `TransitionVoltage`, `TransitionVoltageError`, `IsTransitionVoltageValid`, `IsTransitionVoltageEditable`, `TransitionVoltageUnsupportedReason`, `CanEditTransitionVoltage`, `TransitionFlowText`, `LowPointCount`, `HighPointCount` e `PointDistributionText`.
+  - Validação de entrada: aceita números positivos no intervalo estrito $(0, 3.3)\text{ V}$. Formatações inválidas ou números fora da faixa exibem mensagem de erro sem destruir ou sobrescrever a última curva válida em memória.
+  - Reatividade e recálculo contínuo: ao alterar `TransitionVoltage`, os pontos são redistribuídos dinamicamente entre as faixas baixa e alta, o ajuste polinomial duplo é recalculado imediatamente e a interface é atualizada (equações dinâmicas e indicador de continuidade no ponto exato $V_t$).
+  - Detecção de capacidade do nó legado: ao receber telemetria de nó com versão de firmware inferior a `12.0` ou sem suporte a calibração com limiar, desabilita a edição com mensagem explicativa e mantém o padrão `0.0545 V`.
+  - Envio atômico de 10 parâmetros (`SendCurve`): monta o payload completo via `CommandBuilders.FlowCalibration` (`flowA`, `flowB`, `flowC`, `flowD`, `flowK`, `flowHighA`, `flowHighB`, `flowHighC`, `flowHighK`, `flowTransitionVoltage`).
+  - Bloqueio de curvas parciais e verificação de continuidade: rejeita envio se faltarem coeficientes em qualquer dos segmentos ou se a descontinuidade na transição for superior a $0.01\text{ L/min}$.
+  - Confirmação rigorosa por telemetria: retenção do estado de envio pendente caso o firmware envie ACK sem ecoar os parâmetros; emissão de aviso visual e recusa de confirmação se o eco de `flowTransitionVoltage` divergir do valor solicitado; confirmação exibida apenas após correspondência integral de ACK e parâmetros ecoados.
+  - Ação `Restaurar padrão`: redefine `TransitionVoltage` para `0.0545 V` e atualiza a curva.
+- **Visualização gráfica e interface (`CalibrationView.xaml`, `CalibrationView.xaml.cs`):**
+  - Adicionado controle numérico com label de unidade para $V_t$, contadores dinâmicos de pontos por faixa, vazão teórica no limiar e indicadores visuais de erro ou aviso de compatibilidade.
+  - Atualização do ScottPlot (`RedrawFlowCurve`): o traçado segmentado é dividido exatamente em `TransitionVoltage`, e a linha vertical tracejada indicativa de transição acompanha dinamicamente o valor de $V_t$ configurado.
+- **Suíte de testes automatizados (`CalibrationTests.cs`):**
+  - Adicionados testes unitários cobrindo o fluxo completo de $V_t$:
+    - `TransitionVoltage_Editing_RefitsCurve_AndMovesPointsBetweenSegments`
+    - `TransitionVoltage_InvalidText_PreservesLastValidCurve_AndShowsError`
+    - `SavePoints_PersistsTransitionVoltage_WithoutSendingCommands`
+    - `SendCurve_SendsAtomic10ParameterCommand_WithTransitionVoltage`
+    - `SendCurve_RejectsPartialOrDiscontinuousCurve`
+    - `Telemetry_AckWithoutEcho_KeepsPendingState`
+    - `Telemetry_AckWithMismatchedEcho_EmitsWarningAndRefusesConfirmation`
+    - `Telemetry_AckWithMatchingEcho_ConfirmsCurveAndThreshold`
+    - `LegacyNode_DisablesTransitionVoltageEditing_WithExplanation`
+    - `Settings_DefaultTransitionVoltage_MigratesLegacySettings`
+  - Atualização de testes existentes para o frame atômico de 10 parâmetros.
+  - Verificação de layout compacto aprovada em 1024 × 640 DIP (e no limite de 936 × 534 DIP).
+  - 55/55 testes de calibração aprovados; 87/87 testes de contrato do Hub e contratos de firmware mantidos 100% íntegros.
+
+Não implementado nesta etapa: Tela e ViewModel de calibração da bomba com perfis de mangueira (Etapa 8).
 
 ## 18. Etapa 8 — integrar curvas e perfis na calibração da bomba
 

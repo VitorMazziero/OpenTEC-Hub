@@ -67,8 +67,8 @@ Quando o operador altera uma configuração no aplicativo (ou via `POST /command
 Ao receber a resposta:
 1. O nó avalia: `code == 200 && body.length() > 1 && body[0] == '{'`.
 2. Chama `processConfigUpdate(body.c_str())`.
-3. Extrai `cmd_id`. Se for igual a `g_lastCmdId` (reentrega da mesma revisão — o Hub reenvia até ver o `ack_cmd_id` no push seguinte), o corpo é ignorado e a chamada retorna sucesso sem tocar em nada. Caso contrário grava em `g_lastCmdId`. Após reboot `g_lastCmdId` volta a 0, e uma reentrega é aplicada de novo, o que é o comportamento desejado.
-4. Aplica os parâmetros recebidos validando faixas: offset $[-50, 200]$ mm, `sample_period`/`send_period` $[100, 60000]$ ms (as mesmas faixas do Hub; aqui elas também cobrem `POST /config` local e a serial, que não passam pelo Hub). Valores fora da faixa são ignorados individualmente.
+3. Extrai `cmd_id`. Se for igual a `g_lastCmdId` (reentrega da mesma revisão — o Hub reenvia até ver o `ack_cmd_id` no push seguinte), o corpo é ignorado e a chamada retorna sucesso sem tocar em nada. Caso contrário o `cmd_id` só é gravado em `g_lastCmdId` **depois** que ao menos uma chave válida foi reconhecida (2026-09-13, D02): um payload só com chaves desconhecidas ou fora de faixa não é confirmado e o Hub continua reentregando até substituí-lo por outra revisão. Após reboot `g_lastCmdId` volta a 0, e uma reentrega é aplicada de novo, o que é o comportamento desejado.
+4. Aplica os parâmetros recebidos validando faixas: offset $[-50, 200]$ mm, `sample_period`/`send_period` $[100, 60000]$ ms (as mesmas faixas do Hub; aqui elas também cobrem `POST /config` local e a serial, que não passam pelo Hub), `l1_reinit` $[1, 50]$, `l2_clear` $[1, 100]$, `l3_xshut` $[1, 200]$ (D05). Valores fora da faixa são ignorados individualmente.
 5. Persiste na NVS (`saveNvsConfig()`) **somente se algum valor mudou**. Um comando que repete os valores vigentes é sucesso (o ack sai no push seguinte de qualquer forma) mas não gasta um ciclo de escrita na flash.
 6. Se `reset_nvs == 1`, restaura padrões de fábrica (`offset = 20.0 mm`), limpa a NVS e mantém o `cmd_id` em `g_lastCmdId`.
 
@@ -107,7 +107,7 @@ Retorna a configuração atual em formato JSON:
 ```
 
 ### 5.2 `POST /config`
-Aceita atualização de configuração local direta via JSON no corpo. Não requer `cmd_id`. Exemplo:
+Aceita atualização de configuração local direta via JSON no corpo. Não requer `cmd_id`. Responde `200 Config Updated` quando ao menos uma chave válida foi reconhecida e `400 Bad Request - Invalid Keys or Range` caso contrário (D06). Exemplo:
 ```json
 {"offset_mm": 25.5, "sample_period": 500}
 ```
@@ -130,7 +130,7 @@ Retorna telemetria de saúde e diagnóstico:
   "ip": "192.168.4.2",
   "mac": "AA:BB:CC:DD:EE:02",
   "hub_fail_streak": 0,
-  "ota": "false",
+  "ota": false,
   "distance": 125,
   "sample_time": 345.1,
   "offset_mm": 20.00,

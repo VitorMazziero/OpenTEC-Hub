@@ -48,8 +48,12 @@ void handleConfig() {
 
   const String body = server.arg("plain");
   Serial.printf("[HTTP] Body: %s\n", body.c_str());
-  processConfigUpdate(body.c_str());
-  server.send(200, "text/plain", "Config Updated");
+  const bool ok = processConfigUpdate(body.c_str());
+  if (ok) {
+    server.send(200, "text/plain", "Config Updated");
+  } else {
+    server.send(400, "text/plain", "Bad Request - Invalid Keys or Range");
+  }
 }
 
 void handleNotFound() {
@@ -58,7 +62,9 @@ void handleNotFound() {
 
 void handleOtaPage() {
   server.sendHeader("Connection", "close");
-  server.send(200, "text/html", otaPage);
+  String page = otaPage;
+  page.replace("DistanceClient r10", BoardConfig::FirmwareTag);
+  server.send(200, "text/html", page);
 }
 
 void handleOtaUploadDone() {

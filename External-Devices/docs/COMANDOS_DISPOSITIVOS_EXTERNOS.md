@@ -269,7 +269,7 @@ Decisões do operador em 2026-09-12 sobre a auditoria; o que foi feito em cada u
 
 ### 2.0 Painel de Navegação Rápida — Estado de Prontidão e Integração (v11)
 
-> **Como navegar:** Esta matriz resume o estado real de cada funcionalidade do sensor de distância laser ToF (VL53L0X), separando o que já opera de ponta a ponta no software integrado, o que depende de ensaios com bancada e anteparo físico, e as inconsistências/lacunas identificadas na auditoria técnica do firmware v11.
+> **Como navegar:** Esta matriz resume o estado real de cada funcionalidade do sensor de distância laser ToF (VL53L0X), separando claramente o que já funciona no software integrado (🟢), o que aguarda validação com hardware/sensor na bancada (🟡), as diretrizes de segurança e decisões de arquitetura fechadas (🔵) e as lacunas e inconsistências identificadas na auditoria técnica do firmware v11 para correção futura (🔴).
 
 #### 🟢 Totalmente Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
 *Código compilado no nó (ESP32 core 3.3.11), roteado pelo Hub 10.2 via carona no push, exposto na interface do Windows App e aprovado na suíte de testes de contrato.*
@@ -307,20 +307,34 @@ Decisões do operador em 2026-09-12 sobre a auditoria; o que foi feito em cada u
 
 ---
 
-#### 🔵 Lacunas, Inconsistências e Diretrizes de Arquitetura (§2.10)
-*Resumo navegável dos desvios identificados na auditoria técnica entre firmware, contrato `PROTOCOL.md` e Hub 10.2.*
+#### 🔵 Diretrizes de Segurança e Decisões de Arquitetura Fechadas
+*Decisões de engenharia aprovadas que definem o comportamento seguro do sistema.*
 
-| ID | Tema | Inconsistência Identificada | Impacto Operacional | Correção Proposta |
-|---|---|---|---|---|
-| **D01** | **Acoplamento de laço** | O envio HTTP está aninhado dentro do laço de amostragem (`FirmwareApp.cpp`). | Se `sample_period > send_period`, o nó não respeita a taxa de envio pedida. | Desacoplar os temporizadores de amostragem e envio no `firmwareLoop()`. |
-| **D02** | **Avanço de `cmd_id`** | `g_lastCmdId` é atualizado antes de validar o conteúdo das chaves (`ConfigCodec.cpp`). | Comandos inválidos ou desconhecidos são confirmados com ACK falso. | Atualizar `g_lastCmdId` somente quando `seen == true` ou `reset_nvs == 1`. |
-| **D03** | **Faixa de envio vs Presença** | Hub aceita `send_period` até 60 s, mas derruba presença em 3 s (`DISTANCE_PRESENCE_TIMEOUT`). | Configurar envio $> 2,5\text{ s}$ faz o nó alternar ciclicamente entre online e offline. | Limitar o teto de envio para 2500 ms ou tornar o timeout do Hub proporcional a `send_period`. |
-| **D04** | **Identidade OTA** | Página HTML `/update` hardcodeia `DistanceClient r10` (`LocalHttpApi.cpp`). | Inconsistência visual para o operador em bancada que acredita rodar v10. | Utilizar `BoardConfig::FirmwareTag` dinamicamente no HTML. |
-| **D05** | **Validação de inteiros** | `applyInt` para parâmetros de recuperação I²C aceita qualquer valor $> 0$ sem teto. | Permite valores astronômicos via serial ou `POST /config` local. | Definir faixas lógicas plausíveis (ex: L1: 1..50, L2: 1..100, L3: 1..200). |
-| **D06** | **Código HTTP em POST** | `handleConfig()` sempre responde HTTP 200 "Config Updated" mesmo em caso de erro. | Cliente local não sabe se as chaves foram aceitas ou rejeitadas. | Retornar HTTP 400 Bad Request se nenhuma chave válida for processada. |
-| **D07** | **Tipo do campo `ota`** | Código emite booleano `{"ota":false}` enquanto `PROTOCOL.md` §5.3 documentava string `"false"`. | Discrepância de schema estrito em parsers externos. | Atualizar o schema de `PROTOCOL.md` para refletir o booleano real emitido. |
-| **D08** | **Variável residual** | `lastGoodRawMm` é atualizada a cada leitura boa, mas nunca é exposta ou consumida. | Código morto que consome RAM e gera falsa expectativa de deglitch. | Documentar resquício ou integrar em filtro de mediana/filtro passa-baixas. |
-| **D09** | **Sombreamento da escada I²C** | `maybeRecover()` avalia `failStreak >= L1` primeiro com `return;` sob cooldown compartilhado (`DistanceSensor.cpp`). | L1 intercepta sempre: Nível 2 (Bus Clear) e Nível 3 (XSHUT) são código inalcançável (morto). | Inverter a ordem de avaliação para decrescente (`L3 -> L2 -> L1`) ou individualizar cooldowns. |
+| Decisão / Recurso | Onde Opera | Comportamento e Justificativa Técnica | Estado |
+|---|---|---|:---:|
+| **Gravação seletiva na NVS (proteção de flash)** | Firmware v11 (`ConfigCodec.cpp:138-143`) | O firmware compara cada parâmetro recebido com o valor vigente na RAM antes de persistir. Apenas se pelo menos um parâmetro tiver valor novo, `saveNvsConfig()` abre a partição NVS para escrita. Reenvios cíclicos de comandos idênticos (ex: Hub reenviando até ACK) **não consomem ciclos de escrita** na flash NOR. | 🟢 Fechado (§2.7.1) |
+| **Sentinela de falha segura (`distance = -1`)** | Firmware v11 / Hub 10.2 / App | Em qualquer falha de leitura I²C, timeout ou bloqueio óptico, o firmware atribui `-1.0f` a `distance`. O Hub omite a chave `Distance` do quadro JSON quando `newDistance < 0` (preservando `DistanceOnline` e os ecos de configuração). O App suprime a leitura numérica sem disparar queda de conexão. | 🟢 Fechado (§2.2, §2.8) |
+| **Restauração de fábrica sem reboot (`reset_nvs`)** | Firmware v11 / Hub / App | O comando `distanceResetNvs: 1` limpa o namespace `dist_cfg` na NVS e restaura variáveis padrão na RAM ($\text{offset} = 20{,}0\text{ mm}$, períodos $= 1000\text{ ms}$) **sem reiniciar o microcontrolador**. A deduplicação de `cmd_id` é preservada (`g_lastCmdId` mantido). | 🟢 Fechado (§2.6.1, §2.7.1) |
+| **Link Watchdog e backoff exponencial** | Firmware v11 | A cada falha de push HTTP, o intervalo entre tentativas dobra ($1 \to 2 \to 4 \to 8 \to 15\text{ s}$, teto $15\text{ s}$). Após 8 falhas consecutivas (`g_hubFailStreak >= 8`), o firmware força `WiFi.disconnect()` e reinicia a varredura não-bloqueante, preservando o AP local `Distance Sensor` (192.168.5.1) ativo para acesso direto de bancada. | 🟢 Fechado (§2.7.3) |
+| **Abertura de SoftAP e endpoints sem credenciais** | Firmware v11 | O ponto de acesso `Distance Sensor` e os endpoints HTTP (`/config`, `/diag`, `/update`) operam abertos sem senhas WPA2 ou autenticação HTTP Basic, facilitando acesso de bancada e manutenção em campo sem bloqueios operacionais. | 🟢 Fechado (análogo a §3.10 F13) |
+| **Piso de saturação em zero ($\max(0, \dots)$)** | Firmware v11 | Se o nível do líquido ou da espuma ultrapassar a linha de referência do offset ($\text{raw} < \text{offset}$), o valor calculado resulta negativo. O firmware trava explicitamente em `0.0f`. O app e o controle **nunca** receberão uma distância negativa válida — apenas o sentinela `-1` em falha de hardware. | 🟢 Fechado (§2.2) |
+
+---
+
+#### 🔴 Lacunas e Inconsistências (auditoria D01–D09 — aplicada em 2026-09-13)
+*Resumo navegável dos achados detalhados em §2.10. Os patches de firmware D01, D02, D04, D05, D06 e D09 foram aplicados e compilados (`docs/IMPLEMENTATION_PLAN_DISTANCIA.md`); D03 e D08 ficaram como decisão; D07 é documental. O que resta é bancada.*
+
+| Tema | Situação | Referência |
+|---|---|---|
+| **Acoplamento temporal de laços** | ✅ Amostragem e envio são laços irmãos; o push leva a última distância válida e o `time` do envio | D01 |
+| **Avanço prematuro de `cmd_id`** | ✅ `g_lastCmdId` só avança com ao menos uma chave válida (ou `reset_nvs:1`); o Hub passou a encaminhar `distanceResetNvs` só quando vale 1 | D02 |
+| **Faixa de envio vs presença no Hub** | 🔵 Decisão: operar com `send_period` $\le 2500$ ms; o app valida a faixa; janela dinâmica no Hub fica como evolução | D03 |
+| **Identidade OTA desatualizada** | ✅ Página `/update` usa `BoardConfig::FirmwareTag` | D04 |
+| **Validação de inteiros sem teto** | ✅ `l1_reinit` 1–50, `l2_clear` 1–100, `l3_xshut` 1–200 | D05 |
+| **HTTP 200 incondicional em POST** | ✅ `POST /config` responde 400 quando nenhuma chave válida é reconhecida | D06 |
+| **Tipo do campo `ota` em `/diag`** | ✅ `PROTOCOL.md` mostra o booleano | D07 |
+| **Variável residual sem consumo** | 🔵 Decisão: `lastGoodRawMm` mantida (4 B) como gancho de deglitch futuro | D08 |
+| **Escada de recuperação I²C inalcançável** | ✅ Degrau escolhido pelo streak (L3 → L2 → L1) com o cooldown **desse** degrau — a simples inversão de ordem ainda deixava L3 morto (§2.7.2) | D09 |
 
 ---
 
@@ -497,11 +511,8 @@ failStreak
 2. **Nível 2 — Bus Clear + Re-init (`failStreak >= 10`):** Se o barramento estiver travado (escravo retendo SDA em nível baixo), o firmware configura SCL como saída e emite até 16 pulsos manuais de clock para forçar o escravo a liberar a linha de dados. Em seguida, gera uma condição de STOP, encerra o driver com `Wire.end()`, reinicializa a porta I²C com `Wire.begin(21, 22, 50000)` e chama `sensorInit()`.
 3. **Nível 3 — Hardware Power-Cycle via XSHUT (`failStreak >= 20`):** Se o sensor estiver com a máquina de estados interna em latch-up, o firmware puxa o pino GPIO 5 (`SensorXshutPin`) para `LOW` por 10 ms (forçando o silício do sensor em shutdown), religa com `HIGH` por 10 ms, reinicia o periférico I²C do ESP32 e reexecuta `sensorInit()`.
 
-> [!WARNING]
-> **⚠ Inconsistência Crítica de Implementação no Firmware v11 (D09):**  
-> No código ativo de `DistanceSensor.cpp:57-93`, a rotina `maybeRecover()` avalia os níveis em ordem ascendente (`if (failStreak >= L1) ... return;` seguido de L2 e L3) utilizando a variável única de tempo `lastRecovery`. Como qualquer sequência de falhas $\ge 10$ ou $\ge 20$ é estritamente maior que 5, e `COOLDOWN_SOFT_MS` (15 s) $\le$ `COOLDOWN_BUS_MS` (15 s) $<$ `COOLDOWN_XSHUT_MS` (30 s), a condição de L1 é **sempre** satisfeita primeiro, executando o `return;`.  
-> Consequência: no firmware v11 atual, **L2 (Bus Clear) e L3 (XSHUT Power-Cycle) são código morto/inalcançável**. Travamentos elétricos de barramento que exijam pulsos de clock em SCL ou reset físico de hardware no pino XSHUT nunca são recuperados autonomamente. A correção (prevista no plano) requer avaliar os degraus em ordem decrescente de severidade (`L3 -> L2 -> L1`) ou segregar cronômetros de cooldown individuais.
-
+> [!NOTE]
+> **D09 — corrigido em 2026-09-13.** Até então `maybeRecover()` avaliava L1 primeiro com `return;` sobre um único `lastRecovery`, e L2/L3 nunca corriam. A correção aplicada vai além da inversão de ordem proposta no plano: **o degrau é escolhido pelo tamanho do `failStreak` (L3 → L2 → L1) e o cooldown exigido é o desse degrau**. Só inverter a ordem não bastava — com `lastRecovery` compartilhado, L2 (15 s) recarregava o relógio a cada disparo e L3 (30 s) continuava inalcançável. Com os padrões (1 amostra/s, falha contínua): L1 aos 5 s, L2 aos 20 s, L3 aos 50 s e depois a cada 30 s; uma vez escalado, o nó não volta a um degrau mais suave até o streak zerar.
 #### 2.7.3 Resiliência de Rede (Link Watchdog e Backoff)
 - **Backoff exponencial:** a cada falha de envio HTTP para o Hub, o intervalo entre tentativas dobra gradativamente ($1\text{ s} \rightarrow 2\text{ s} \rightarrow 4\text{ s} \rightarrow 8\text{ s} \rightarrow 15\text{ s}$), com teto máximo de $15\text{ s}$ (`MAX_HUB_BACKOFF_MS`), evitando saturar a CPU e a rede.
 - **Link Watchdog:** se ocorrerem 8 falhas consecutivas de comunicação com o Hub (`g_hubFailStreak >= 8`), o firmware detecta enlace fantasma/zumbi, desconecta explicitamente o rádio Wi-Fi (`WiFi.disconnect(true, false)`), zera flags de presença e reinicia o processo assíncrono de varredura e reconexão.
@@ -541,21 +552,19 @@ A telemetria é transmitida pelo nó via requisição HTTP GET periódica para `
 
 ---
 
-### 2.10 Limitações, inconsistências e decisões (auditoria do firmware v11 vs contrato)
+### 2.10 Inconsistências, Decisões e Status da Implementação (D01 a D09)
 
-Esta seção documenta formalmente os desvios encontrados entre o código-fonte ativo (`FirmwareApp.cpp`, `ConfigCodec.cpp`, `LocalHttpApi.cpp`), o contrato de protocolo (`PROTOCOL.md`) e a integração no Hub 10.2:
-
-| # | Achado na Auditoria | Consequência no Sistema | Justificativa / Decisão Técnica | Ação Corretiva Proposta |
+| ID | Inconsistência | Consequência | Resolução Implementada | Status |
 |---|---|---|---|---|
-| **D01** | **Aninhamento do envio na amostragem** (`FirmwareApp.cpp:118,151`) | O bloco de verificação `now - lastSendMs >= currentSendInterval` está indentado dentro de `now - lastSampleMs >= SAMPLE_PERIOD_MS`. Se o operador configurar `sample_period = 5000` e `send_period = 1000`, o nó **só transmitirá a cada 5 segundos**. | Erro de controle de fluxo de laço: o envio de telemetria ficou escravo do ciclo do sensor óptico em vez de ser um timer independente. | Desacoplar os dois temporizadores no `firmwareLoop()`, tornando a máquina de amostragem e a máquina de envio laços paralelos independentes. |
-| **D02** | **Avanço prematuro de `g_lastCmdId`** (`ConfigCodec.cpp:94`) | `g_lastCmdId = static_cast<uint32_t>(cmdId)` é executado antes de processar as chaves do payload. Se um payload contiver `cmd_id:5` com chaves desconhecidas ou inválidas, o nó devolve `ack_cmd_id=5` no push seguinte. | O Hub considera o comando aprovado e remove da caixa (`distanceBox`), mas nenhuma alteração física foi aplicada no nó. | Atualizar `g_lastCmdId` apenas no final do processamento, condicionando a `seen == true` (ao menos uma chave válida aplicada) ou `reset_nvs == 1`. |
-| **D03** | **Incompatibilidade de teto de `send_period` vs Presença** | Nó e Hub aceitam `send_period` de até $60000\text{ ms}$, porém o Hub derruba a presença (`DistanceOnline=false`) se ficar $> 3000\text{ ms}$ sem push (`DISTANCE_PRESENCE_TIMEOUT`). | Se o operador configurar `send_period` para $5000\text{ ms}$, o nó passará 2 segundos offline a cada ciclo de 5 segundos, gerando falsos alarmes e perda dos ecos de telemetria. | Documentar limitação operacional ($\le 2500\text{ ms}$). No Hub/App, restringir a validação para $[100, 2500]\text{ ms}$, ou tornar o timeout do Hub proporcional a $2,5 \times \text{send\_period}$. |
-| **D04** | **Versão hardcoded no template HTML OTA** (`LocalHttpApi.cpp:17`) | A página Web servida em `GET /update` contém fixo o texto `<p>Running: <b>DistanceClient r10</b></p>`, enquanto o nó roda `v11` (`DistanceClient r11`). | Induz o operador em bancada a supor que o upload do firmware v11 falhou ou não foi gravado. | Substituir a literal estática pela constante já definida `BoardConfig::FirmwareTag`. |
-| **D05** | **Falta de teto superior em `applyInt`** (`ConfigCodec.cpp:70`) | Parâmetros de recuperação `l1_reinit`, `l2_clear`, `l3_xshut` validam apenas `value <= 0 return false;`. Aceitam valores arbitrários como $2 \times 10^9$. | Não há risco imediato de crash, mas valores aberrantes desabilitam na prática a escada de recuperação do sensor. | Definir tetos seguros: `l1_reinit` $\in [1, 50]$, `l2_clear` $\in [1, 100]$, `l3_xshut` $\in [1, 200]$. |
-| **D06** | **HTTP 200 incondicional no POST local** (`LocalHttpApi.cpp:52`) | `handleConfig()` sempre responde `HTTP 200 "Config Updated"`, sem avaliar o retorno booleano de `processConfigUpdate()`. | Clientes HTTP ou scripts de calibração locais não detectam envio de JSON inválido ou valores fora de faixa. | Responder `HTTP 400 "Bad Request - Invalid Keys or Range"` quando `processConfigUpdate()` retornar `false`. |
-| **D07** | **Discrepância de tipo no campo `ota` em `/diag`** | `snprintf` formata `"\"ota\":%s"` com `true/false`, gerando JSON booleano `{"ota":false}`. O documento `PROTOCOL.md` §5.3 mostrava `"ota":"false"` (string). | Inconsistência de documentação formal de contrato. O App e simuladores consomem sem falha. | Atualizar o exemplo em `PROTOCOL.md` para refletir o booleano emitido no código real. |
-| **D08** | **Variável residual sem consumo** (`FirmwareApp.cpp:28,125`) | A variável `lastGoodRawMm` é alimentada a cada leitura válida, mas nunca é transmitida no push, nem exposta em `/diag`, nem usada para deglitch. | Resquício de versões legadas de caracterização em bancada. | Documentar o estado inócuo da variável no plano de implementação e mantê-la ou integrá-la a filtro de deglitch futuro. |
-| **D09** | **Sombreamento da escada de recuperação I²C** (`DistanceSensor.cpp:57-93`) | `maybeRecover()` avalia `failStreak >= L1` primeiro e chama `return;`. Sob parâmetros padrão com `lastRecovery` compartilhado, a condição de L1 é sempre satisfeita antes de L2 e L3. | **Nível 2 (Bus Clear) e Nível 3 (XSHUT Power-Cycle) são inalcançáveis (código morto)**. Se a linha I²C travar ou o sensor entrar em latch-up, o nó nunca recupera. | Inverter a ordem de avaliação para decrescente (`L3 -> L2 -> L1`) ou segregar cronômetros de cooldown individuais para cada degrau. |
+| D01 | Envio HTTP aninhado no laço de amostragem (`FirmwareApp.cpp`): o bloco `now - lastSendMs >= currentSendInterval` estava dentro de `now - lastSampleMs >= SAMPLE_PERIOD_MS` | Com `sample_period = 5000` e `send_period = 1000`, o nó só transmitia a cada 5 s | Laços irmãos no `firmwareLoop()`: a amostragem grava `g_lastValidDistance`; o envio corre no seu próprio relógio, leva a última distância válida e carimba `time` com o instante do envio. Com `send_period < sample_period` o mesmo valor é reenviado — o Hub aceita (o filtro de estagnação foi removido em 2026-09-12) | **Resolvido** |
+| D02 | `g_lastCmdId` avançado antes de validar as chaves (`ConfigCodec.cpp`) | Payload com `cmd_id:5` e chaves desconhecidas gerava `ack_cmd_id=5`; o Hub esvaziava a `distanceBox` sem alteração no nó | `g_lastCmdId` só avança quando `seen == true` ou `reset_nvs == 1`. Corolário no Hub 10.2: `distanceResetNvs` só é encaminhado quando vale 1 (um `reset_nvs:0` nunca seria confirmado e prenderia a caixa até a próxima revisão); teste `test_reset_nvs_zero_is_not_forwarded` | **Resolvido (nó + Hub)** |
+| D03 | Teto de `send_period` ($60000\text{ ms}$) incompatível com `DISTANCE_PRESENCE_TIMEOUT` do Hub ($3000\text{ ms}$) | `send_period > 2500 ms` faz `DistanceOnline` oscilar, com falsos alarmes e perda de ecos | Decisão de Projeto: operar com `send_period` $\le 2500$ ms (documentado em §2.6.1; o app valida a faixa). Janela dinâmica no Hub (`max(3 s, 2,5 × send_ms)`) fica como evolução junto com B01 da biomassa, que é o mesmo problema | **Decisão de Projeto (Hub pendente)** |
+| D04 | Página HTML `/update` hardcodeava `DistanceClient r10` | Operador em bancada acreditava rodar v10 | `handleOtaPage()` substitui o rótulo por `BoardConfig::FirmwareTag` | **Resolvido** |
+| D05 | `applyInt` sem teto superior para `l1_reinit`, `l2_clear`, `l3_xshut` | Valores extremos via serial/POST local desabilitavam a escada de recuperação | `applyInt(min, max)`: L1 $[1, 50]$, L2 $[1, 100]$, L3 $[1, 200]$. Essas chaves continuam só locais (o Hub não as roteia) | **Resolvido** |
+| D06 | `handleConfig()` respondia `HTTP 200` incondicionalmente | Clientes locais não detectavam JSON inválido ou chaves rejeitadas | `400 Bad Request - Invalid Keys or Range` quando `processConfigUpdate()` retorna `false` | **Resolvido** |
+| D07 | `/diag` emite `"ota":false` (booleano); `PROTOCOL.md` mostrava string | Só documental | `PROTOCOL.md` §5.3 corrigido | **Resolvido (doc)** |
+| D08 | `lastGoodRawMm` alimentada e nunca consumida | 4 B de RAM sem efeito | Decisão de Projeto: manter como gancho de deglitch futuro | **Decisão de Projeto** |
+| D09 | `maybeRecover()` avaliava L1 primeiro com `return;` sobre um único `lastRecovery` | L2 e L3 nunca corriam: barramento travado ou latch-up do VL53L0X ficava em `sensorInit()` a cada 15 s para sempre | Degrau escolhido pelo `failStreak` (L3 → L2 → L1) e cooldown do degrau escolhido; a inversão pura de ordem proposta no plano foi descartada porque L2 (15 s) recarregava o relógio antes de L3 (30 s) vencer. Serial passa a registrar o nível e o streak. Compilado: 1 100 796 B (83 %), 50 680 B RAM | **Resolvido (bancada pendente, §2.11)** |
 
 ---
 
@@ -566,7 +575,8 @@ Esta seção documenta formalmente os desvios encontrados entre o código-fonte 
 - [ ] **Leitura Nominal de Bancada:** Posicionar anteparo plano branco a $200\text{ mm}$ do sensor; verificar se `Distance` estabiliza em $180\text{ mm}$ ($\pm 5\text{ mm}$) com offset padrão de $20\text{ mm}$.
 - [ ] **Piso Zero (Clamping):** Posicionar o anteparo a $10\text{ mm}$ do sensor (menor que o offset de $20\text{ mm}$); confirmar se `Distance` exibe exatamente `0 mm` e nunca valor negativo.
 - [ ] **Sinalização de Falha (-1):** Bloquear a janela óptica do VL53L0X com fita opaca; confirmar no log serial e no push a emissão de `distance=-1`, e no app a supressão segura da leitura sem queda de `DistanceOnline`.
-- [ ] **Escada de Recuperação I²C (Níveis L1, L2, L3) ⚠ D09:** Com o sensor em falha induzida, monitorar no log serial os disparos. *Nota de bancada:* no firmware v11 original (sem patch D09), apenas o Nível 1 dispara devido ao sombreamento; após aplicação do patch D09, verificar o escalonamento nominal: `[RECOVER] soft re-init` (L1, 5 falhas), `[RECOVER] bus clear` (L2, 10 falhas) e `[RECOVER] XSHUT power-cycle` (L3, 20 falhas).
+- [ ] **Escada de Recuperação I²C (D09, aplicado):** Curto SDA–GND por 60 s a 1 amostra/s; esperar no serial `[RECOVER] L1 soft re-init (streak=5)` ≈ 5 s, `[RECOVER] L2 bus clear + re-init (streak=…)` ≈ 20 s e `[RECOVER] L3 XSHUT power-cycle + re-init (streak=…)` ≈ 50 s, depois L3 a cada 30 s; remover o curto e confirmar leitura de volta e `failStreak` zerado.
+- [ ] **Rejeição de payload sem chave válida (D02):** `POST /config` com `{"chave_invalida":123}` → HTTP 400; pelo serial `{"cmd_id":99,"chave_invalida":123}` → o push seguinte mantém o `ack_cmd_id` anterior.
 - [ ] **Deduplicação de Comandos:** Disparar comando `{"distanceOffsetMm":25.5}` duas vezes consecutivas; confirmar no monitor serial que a segunda requisição emite `[CMD] cmd_id=... ja aplicado; ignorando reentrega.`
 - [ ] **Desgaste de Flash (NVS idempotente):** Enviar novo comando com o mesmo offset já vigente ($25,5\text{ mm}$); conferir log `[CMD] Parametros ja vigentes; nada persistido.` e ausência de ciclos de escrita flash.
 - [ ] **Persistência Pós-Queda de Energia:** Alterar offset para $32,0\text{ mm}$, desconectar cabo de alimentação do nó, aguardar 10 s, religar e confirmar se o push HTTP reenvia `offset=32.00` automaticamente.

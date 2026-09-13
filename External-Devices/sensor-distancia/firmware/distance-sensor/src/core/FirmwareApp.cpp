@@ -115,6 +115,7 @@ void firmwareLoop() {
     sendHubHello();
   }
 
+  // --- Laço 1: Amostragem óptica independente (D01) ---
   if (now - lastSampleMs >= SAMPLE_PERIOD_MS) {
     lastSampleMs = now;
 
@@ -141,37 +142,39 @@ void firmwareLoop() {
     Serial.printf("{\"time\":%.1f,\"distance\":%.0f}\n", seconds, distance);
     g_lastValidDistance = distance;
     g_lastSampleTimeSec = seconds;
+  }
 
-    unsigned long currentSendInterval = SEND_PERIOD_MS;
-    if (g_hubFailStreak > 0) {
-      uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
-      currentSendInterval = min(SEND_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
-    }
+  // --- Laço 2: Envio periódico de telemetria (Push HTTP) desacoplado (D01) ---
+  unsigned long currentSendInterval = SEND_PERIOD_MS;
+  if (g_hubFailStreak > 0) {
+    uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+    currentSendInterval = min(SEND_PERIOD_MS * (1UL << shift), MAX_HUB_BACKOFF_MS);
+  }
 
-    if (WiFi.status() == WL_CONNECTED && now - lastSendMs >= currentSendInterval) {
-      lastSendMs = now;
-      char url[192];
-      snprintf(url, sizeof(url), "%s?distance=%d&time=%.1f&offset=%.2f&sample_ms=%lu&send_ms=%lu&ack_cmd_id=%lu",
-               sensorHubURL.c_str(), static_cast<int>(distance), seconds,
-               g_offsetMm, SAMPLE_PERIOD_MS, SEND_PERIOD_MS, static_cast<unsigned long>(g_lastCmdId));
-      Serial.print("HTTP GET: ");
-      Serial.println(url);
-      int code;
-      String body;
-      if (httpGet(url, code, body)) {
-        if (g_hubFailStreak > 0) {
-          Serial.printf("[Hub] Conexao restabelecida apos %u falha(s).\n", g_hubFailStreak);
-        }
-        g_hubFailStreak = 0;
-        Serial.printf("Response: %d\n", code);
-        if (code == 200 && body.length() > 1 && body[0] == '{') {
-          processConfigUpdate(body.c_str());
-        }
-      } else {
-        if (g_hubFailStreak < 255) g_hubFailStreak++;
-        Serial.printf("HTTP error: %d \"%s\" (streak=%u, backoff=%lu ms)\n",
-                      code, body.c_str(), g_hubFailStreak, currentSendInterval);
+  if (WiFi.status() == WL_CONNECTED && now - lastSendMs >= currentSendInterval) {
+    lastSendMs = now;
+    const float sendSeconds = now / 1000.0f;
+    char url[192];
+    snprintf(url, sizeof(url), "%s?distance=%d&time=%.1f&offset=%.2f&sample_ms=%lu&send_ms=%lu&ack_cmd_id=%lu",
+             sensorHubURL.c_str(), static_cast<int>(g_lastValidDistance), sendSeconds,
+             g_offsetMm, SAMPLE_PERIOD_MS, SEND_PERIOD_MS, static_cast<unsigned long>(g_lastCmdId));
+    Serial.print("HTTP GET: ");
+    Serial.println(url);
+    int code;
+    String body;
+    if (httpGet(url, code, body)) {
+      if (g_hubFailStreak > 0) {
+        Serial.printf("[Hub] Conexao restabelecida apos %u falha(s).\n", g_hubFailStreak);
       }
+      g_hubFailStreak = 0;
+      Serial.printf("Response: %d\n", code);
+      if (code == 200 && body.length() > 1 && body[0] == '{') {
+        processConfigUpdate(body.c_str());
+      }
+    } else {
+      if (g_hubFailStreak < 255) g_hubFailStreak++;
+      Serial.printf("HTTP error: %d \"%s\" (streak=%u, backoff=%lu ms)\n",
+                    code, body.c_str(), g_hubFailStreak, currentSendInterval);
     }
   }
 

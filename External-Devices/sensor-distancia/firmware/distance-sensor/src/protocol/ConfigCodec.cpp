@@ -67,9 +67,10 @@ bool applyUlong(const char* payload, const char* key, unsigned long& target,
   return true;
 }
 
-bool applyInt(const char* payload, const char* key, int& target, bool& seen) {
+bool applyInt(const char* payload, const char* key, int& target,
+              int minVal, int maxVal, bool& seen) {
   const long value = getJsonValue(payload, key);
-  if (value <= 0) return false;
+  if (value < minVal || value > maxVal) return false;
   seen = true;
   if (static_cast<int>(value) == target) return false;
   target = static_cast<int>(value);
@@ -90,9 +91,6 @@ bool processConfigUpdate(const char* payload) {
     Serial.printf("[CMD] cmd_id=%ld ja aplicado; ignorando reentrega.\n", cmdId);
     return true;
   }
-  if (cmdId > 0) {
-    g_lastCmdId = static_cast<uint32_t>(cmdId);
-  }
 
   if (getJsonValue(payload, "reset_nvs") == 1) {
     resetNvsConfig();
@@ -105,6 +103,9 @@ bool processConfigUpdate(const char* payload) {
     L2_BUS_CLEAR = 10;
     L3_XSHUT = 20;
     g_offsetMm = BoardConfig::OffsetMm;
+    if (cmdId > 0) {
+      g_lastCmdId = static_cast<uint32_t>(cmdId);
+    }
     Serial.println("[CMD] Reset NVS e restaurou parametros padroes.");
     return true;
   }
@@ -116,9 +117,9 @@ bool processConfigUpdate(const char* payload) {
   changed |= applyUlong(payload, "cooldown_soft",  COOLDOWN_SOFT_MS,  1, LONG_MAX, seen);
   changed |= applyUlong(payload, "cooldown_bus",   COOLDOWN_BUS_MS,   1, LONG_MAX, seen);
   changed |= applyUlong(payload, "cooldown_xshut", COOLDOWN_XSHUT_MS, 1, LONG_MAX, seen);
-  changed |= applyInt(payload, "l1_reinit", L1_SOFT_REINIT, seen);
-  changed |= applyInt(payload, "l2_clear",  L2_BUS_CLEAR,   seen);
-  changed |= applyInt(payload, "l3_xshut",  L3_XSHUT,       seen);
+  changed |= applyInt(payload, "l1_reinit", L1_SOFT_REINIT, 1, 50,  seen);
+  changed |= applyInt(payload, "l2_clear",  L2_BUS_CLEAR,   1, 100, seen);
+  changed |= applyInt(payload, "l3_xshut",  L3_XSHUT,       1, 200, seen);
 
   float offsetVal = 0.0f;
   if (getJsonFloat(payload, "offset_mm", offsetVal)) {
@@ -133,6 +134,11 @@ bool processConfigUpdate(const char* payload) {
       Serial.printf("offset_mm=%.2f fora da faixa [%.0f, %.0f]; ignorado.\n",
                     offsetVal, OFFSET_MIN_MM, OFFSET_MAX_MM);
     }
+  }
+
+  // Avanca o ACK somente se ao menos uma chave valida foi reconhecida (D02)
+  if (seen && cmdId > 0) {
+    g_lastCmdId = static_cast<uint32_t>(cmdId);
   }
 
   // Grava na flash so quando algo mudou. Um comando que repete os valores vigentes e

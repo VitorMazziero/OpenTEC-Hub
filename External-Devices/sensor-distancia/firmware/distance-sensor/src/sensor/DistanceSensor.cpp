@@ -54,27 +54,28 @@ bool readSingleShot(int& mm) {
 void maybeRecover() {
   const unsigned long now = millis();
 
-  if (failStreak >= L1_SOFT_REINIT && now - lastRecovery >= COOLDOWN_SOFT_MS) {
-    Serial.println("[RECOVER] soft re-init");
-    sensorInit();
-    lastRecovery = now;
-    return;
+  // Escada de recuperacao (D09). O degrau e escolhido pelo tamanho do streak, do mais
+  // drastico para o mais suave, e o cooldown aplicado e o DESSE degrau. Avaliar L1
+  // primeiro (r10) nunca deixava L2/L3 correr; so inverter a ordem tambem nao bastava:
+  // com um unico lastRecovery, L2 (15 s) recarregava o relogio antes de L3 (30 s)
+  // vencer. Uma vez escalado, o no nao volta a um degrau mais suave ate o streak zerar.
+  int level = 0;
+  unsigned long cooldown = 0;
+  if (failStreak >= L3_XSHUT) {
+    level = 3;
+    cooldown = COOLDOWN_XSHUT_MS;
+  } else if (failStreak >= L2_BUS_CLEAR) {
+    level = 2;
+    cooldown = COOLDOWN_BUS_MS;
+  } else if (failStreak >= L1_SOFT_REINIT) {
+    level = 1;
+    cooldown = COOLDOWN_SOFT_MS;
   }
+  if (level == 0 || now - lastRecovery < cooldown) return;
 
-  if (failStreak >= L2_BUS_CLEAR && now - lastRecovery >= COOLDOWN_BUS_MS) {
-    Serial.println("[RECOVER] bus clear + re-init");
-    i2cBusClear();
-    Wire.end();
-    delay(2);
-    Wire.begin(BoardConfig::I2cSda, BoardConfig::I2cScl, BoardConfig::I2cFrequencyHz);
-    Wire.setTimeOut(BoardConfig::WireTimeoutMs);
-    sensorInit();
-    lastRecovery = now;
-    return;
-  }
-
-  if (failStreak >= L3_XSHUT && now - lastRecovery >= COOLDOWN_XSHUT_MS) {
-    Serial.println("[RECOVER] XSHUT power-cycle + re-init");
+  if (level == 3) {
+    // Nivel 3: power-cycle pelo XSHUT (ou bus clear onde nao ha XSHUT) + re-init
+    Serial.printf("[RECOVER] L3 XSHUT power-cycle + re-init (streak=%d)\n", failStreak);
     if (BoardConfig::SensorXshutPin >= 0) {
       digitalWrite(BoardConfig::SensorXshutPin, LOW);
       delay(10);
@@ -88,8 +89,21 @@ void maybeRecover() {
     Wire.begin(BoardConfig::I2cSda, BoardConfig::I2cScl, BoardConfig::I2cFrequencyHz);
     Wire.setTimeOut(BoardConfig::WireTimeoutMs);
     sensorInit();
-    lastRecovery = now;
+  } else if (level == 2) {
+    // Nivel 2: libera o barramento I2C (9 clocks) + re-init
+    Serial.printf("[RECOVER] L2 bus clear + re-init (streak=%d)\n", failStreak);
+    i2cBusClear();
+    Wire.end();
+    delay(2);
+    Wire.begin(BoardConfig::I2cSda, BoardConfig::I2cScl, BoardConfig::I2cFrequencyHz);
+    Wire.setTimeOut(BoardConfig::WireTimeoutMs);
+    sensorInit();
+  } else {
+    // Nivel 1: so re-init do sensor
+    Serial.printf("[RECOVER] L1 soft re-init (streak=%d)\n", failStreak);
+    sensorInit();
   }
+  lastRecovery = now;
 }
 
 bool i2cBusClear() {

@@ -471,6 +471,6 @@ Seguir rigorosamente o checklist da Seção 2.11 de `COMANDOS_DISPOSITIVOS_EXTER
 ## 5. Cronograma de Aplicação dos Patches
 
 1. **Fase 1 (Documentação & Auditoria):** ✅ Concluída — Seção 2 de `COMANDOS_DISPOSITIVOS_EXTERNOS.md` preenchida com catálogo completo e 9 desvios (D01 a D09) catalogados.
-2. **Fase 2 (Correção de Firmware):** Aplicação dos patches D01, D02, D04, D05, D06 e D09 no repositório de firmware do nó (`src/core/FirmwareApp.cpp`, `src/protocol/ConfigCodec.cpp`, `src/api/LocalHttpApi.cpp`, `src/sensor/DistanceSensor.cpp`).
-3. **Fase 3 (Compilação & Teste Local):** Compilação via Arduino CLI / ESP-IDF (verificação de tamanho de partição flash e RAM).
-4. **Fase 4 (Ensaio em Bancada Física):** Execução do checklist físico (§2.11).
+2. **Fase 2 (Correção de Firmware):** ✅ Concluída em 2026-09-13 — D01, D02, D04, D05, D06 e D09 aplicados. **Desvio em D09:** a inversão pura de ordem (§3.6) foi substituída por seleção do degrau pelo `failStreak` com o cooldown do próprio degrau, porque, com `lastRecovery` compartilhado, L2 (15 s) recarregava o relógio antes de L3 (30 s) vencer e L3 continuaria inalcançável. Corolário de D02 no Hub 10.2: `distanceResetNvs` só é encaminhado quando vale 1 (teste `test_reset_nvs_zero_is_not_forwarded`). D07 aplicado em `PROTOCOL.md`; D03 e D08 registrados como decisão de projeto.
+3. **Fase 3 (Compilação & Teste Local):** ✅ Nó: 1 100 796 B (83 %), 50 680 B RAM. Hub: 1 124 868 B (85 %); 82/82 testes de contrato.
+4. **Fase 4 (Ensaio em Bancada Física):** ⏳ Checklist §2.11 (escada I²C com curto SDA–GND por 60 s; rejeição de payload sem chave válida; desacoplamento de períodos).

@@ -19,12 +19,21 @@ void updateSensorGate() {
 }
 
 float mlminToSpeedUnits(float mlMin) {
-    if (fabsf(g_config.pumpSlope) < 1e-6f) return 0.0f;
-    return (mlMin - g_config.pumpIntercept) / g_config.pumpSlope;
+    if (mlMin <= g_pumpCal.q_t) {
+        if (fabsf(g_pumpCal.m_low) < 1e-6f) return 0.0f;
+        return g_pumpCal.s_t + (mlMin - g_pumpCal.q_t) / g_pumpCal.m_low;
+    } else {
+        if (fabsf(g_pumpCal.m_high) < 1e-6f) return 0.0f;
+        return g_pumpCal.s_t + (mlMin - g_pumpCal.q_t) / g_pumpCal.m_high;
+    }
 }
 
 float speedUnitsToMlmin(float speedUnits) {
-    return speedUnits * g_config.pumpSlope + g_config.pumpIntercept;
+    if (speedUnits <= g_pumpCal.s_t) {
+        return g_pumpCal.q_t + g_pumpCal.m_low * (speedUnits - g_pumpCal.s_t);
+    } else {
+        return g_pumpCal.q_t + g_pumpCal.m_high * (speedUnits - g_pumpCal.s_t);
+    }
 }
 
 float pwmDutyToMlmin(int duty) {

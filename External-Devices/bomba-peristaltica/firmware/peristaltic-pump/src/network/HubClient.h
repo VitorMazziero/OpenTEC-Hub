@@ -5,7 +5,7 @@ void handleReadData() {
 void handleDiag() {
     char json[320];
     snprintf(json, sizeof(json),
-             "{\"device\":\"peristaltic-pump\",\"version\":\"3.10\",\"uptime_s\":%lu,"
+             "{\"device\":\"peristaltic-pump\",\"version\":\"3.11\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
              "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
              "\"op_state\":%d,\"mode\":%d,\"flow\":%.3f,\"vol\":%.3f}",
@@ -39,7 +39,7 @@ const char otaPage[] PROGMEM = R"rawliteral(<!DOCTYPE html><html><head><meta cha
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Bomba Peristaltica OTA</title>
 <style>body{font-family:sans-serif;max-width:520px;margin:2em auto;padding:0 1em}progress{width:100%}code{background:#eee;padding:0 .3em}</style>
 </head><body><h2>Bomba Peristaltica &ndash; Firmware Update</h2>
-<p>Running: <b>Peristaltic Pump Controller v3.10</b></p>
+<p>Running: <b>Peristaltic Pump Controller v3.11</b></p>
 <p>Selecione a imagem <code>peristaltic-pump.ino.bin</code> (Arduino IDE: <i>Sketch &gt; Export Compiled Binary</i>). Nao envie <code>.merged.bin</code>, <code>.bootloader.bin</code> ou <code>.partitions.bin</code>.</p>
 <form id="f"><input type="file" name="firmware" accept=".bin" required> <input type="submit" value="Flash"></form>
 <progress id="p" value="0" max="100" hidden></progress><p id="s"></p>
@@ -140,7 +140,7 @@ void handleNotFound() {
 void sendHubHello() {
     if (WiFi.status() != WL_CONNECTED) return;
     char url[140];
-    snprintf(url, sizeof(url), "%s?dev=pump&ver=3.10&mac=%s",
+    snprintf(url, sizeof(url), "%s?dev=pump&ver=3.11&mac=%s",
              sensorHubHelloURL.c_str(), WiFi.macAddress().c_str());
     int code;
     String body;
@@ -164,12 +164,13 @@ void sendDataToHub() {
     if (t_rel < 0.0f) t_rel = 0.0f;
     float v_target = calculateTargetVolume(t_rel);
 
-    // 3.10 adds the PID gains, the potentiometer state and the cycle volume so the Hub can
-    // echo them; a 3.9 Hub ignores the extra parameters.
-    char url[420];
+    // 3.11 adds continuous dual-range calibration parameters and CRC;
+    // preserves slope & intercept for backwards compatibility.
+    char url[576];
     snprintf(url, sizeof(url),
              "%s?mode=%d&pwm=%d&speed=%.1f&flow=%.3f&vol=%.3f&v_tgt=%.3f&active=%d&waiting=%d&ack_cmd_id=%lu&slope=%.4f&intercept=%.4f"
-             "&kp=%.4f&ki=%.4f&kd=%.4f&pot=%d&cyc_vol=%.3f",
+             "&kp=%.4f&ki=%.4f&kd=%.4f&pot=%d&cyc_vol=%.3f"
+             "&slope_low=%.6f&slope_high=%.6f&trans_speed=%.2f&trans_flow=%.4f&cal_crc=%08X",
              sensorHubDataURL.c_str(),
              g_config.mode,
              pwm_duty,
@@ -186,7 +187,12 @@ void sendDataToHub() {
              g_config.pid_ki,
              g_config.pid_kd,
              (disablePot || hasUsbSpeed) ? 0 : 1,
-             vol - g_cycleStartVolumeMl);
+             vol - g_cycleStartVolumeMl,
+             g_pumpCal.m_low,
+             g_pumpCal.m_high,
+             g_pumpCal.s_t,
+             g_pumpCal.q_t,
+             static_cast<unsigned int>(g_pumpCal.crc32));
 
     int code;
     String body;

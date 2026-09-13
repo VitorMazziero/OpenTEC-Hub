@@ -18,6 +18,8 @@ void buildDataJson(bool includeArrays) {
         "\"cum_volume_ml\":%.3f,\"cycle_volume_ml\":%.3f,\"v_target_ml\":%.3f,\"active\":%s,\"waiting\":%s,"
         "\"current_t_min\":%.3f,\"init_t_min\":%.3f,\"final_t_min\":%.3f,"
         "\"slope\":%.4f,\"intercept\":%.4f,\"pid_kp\":%.4f,\"pid_ki\":%.4f,\"pid_kd\":%.4f,"
+        "\"slope_low\":%.6f,\"slope_high\":%.6f,\"transition_speed\":%.2f,\"transition_flow\":%.4f,\"cal_crc\":\"%08X\","
+        "\"pumpSlopeLow\":%.6f,\"pumpSlopeHigh\":%.6f,\"pumpTransitionSpeed\":%.2f,\"pumpTransitionFlow\":%.4f,\"pumpCalCrc\":\"%08X\","
         "\"pot\":%d,\"usb_speed\":%d",
         g_config.mode,
         pwm_duty,
@@ -36,6 +38,16 @@ void buildDataJson(bool includeArrays) {
         (double)g_config.pid_kp,
         (double)g_config.pid_ki,
         (double)g_config.pid_kd,
+        (double)g_pumpCal.m_low,
+        (double)g_pumpCal.m_high,
+        (double)g_pumpCal.s_t,
+        (double)g_pumpCal.q_t,
+        g_pumpCal.crc32,
+        (double)g_pumpCal.m_low,
+        (double)g_pumpCal.m_high,
+        (double)g_pumpCal.s_t,
+        (double)g_pumpCal.q_t,
+        g_pumpCal.crc32,
         disablePot ? 0 : 1,
         hasUsbSpeed ? 1 : 0
     );

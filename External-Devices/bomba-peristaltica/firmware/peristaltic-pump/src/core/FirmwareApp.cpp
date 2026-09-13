@@ -9,6 +9,8 @@
 #include <WebServer.h>
 #include <Update.h>
 
+#define PUMP_FW_VERSION "3.11"
+
 static const bool     DEBUG_ENABLE      = true;
 static const uint32_t DEBUG_INTERVAL_MS = 1000;
 
@@ -133,8 +135,21 @@ struct PumpConfig {
     uint32_t crc32;
 };
 
+#ifndef PUMP_DUAL_RANGE_CAL_DEFINED
+#define PUMP_DUAL_RANGE_CAL_DEFINED
+struct PumpDualRangeCal {
+    uint32_t magic;
+    float m_low;              // slope do segmento inferior (mL/min por speed unit)
+    float m_high;             // slope do segmento superior (mL/min por speed unit)
+    float s_t;                // velocidade de transicao (speed units)
+    float q_t;                // vazao na transicao (mL/min)
+    uint32_t crc32;           // CRC32 IEEE 802.3 dos 4 floats (16 bytes)
+};
+#endif
+
 PumpConfig g_config;
 bool g_configDirty = false;
+PumpDualRangeCal g_pumpCal;
 
 TaskHandle_t pwmTaskHandle = nullptr;
 
@@ -191,6 +206,8 @@ void setupADC();
 void setupSensorPin();
 void loadConfig();
 void saveConfig();
+void loadPumpCalibration();
+void savePumpCalibration();
 uint32_t calculateCRC32(const uint8_t *data, size_t length);
 
 // Persistence
@@ -250,6 +267,7 @@ inline String getJsonStringValue(const String& json, const String& key) { return
 
 
 #include "../hardware/PwmRuntime.h"
+#include "../storage/CalibrationStore.h"
 #include "../core/Lifecycle.h"
 #include "../storage/RuntimeStateStore.h"
 #include "../control/OperationController.h"

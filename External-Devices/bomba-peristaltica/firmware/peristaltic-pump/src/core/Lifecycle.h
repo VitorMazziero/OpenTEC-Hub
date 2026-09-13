@@ -1,10 +1,11 @@
 void firmwareSetup() {
     Serial.begin(115200);
     delay(100);
-    Serial.println("--- Peristaltic Pump Controller v3.10 (PID echo, speed_ms, pot, non-zeroing stop) ---");
+    Serial.println("--- Peristaltic Pump Controller v3.11 (dual-range continuous calibration) ---");
 
     g_prefs.begin(NVS_NAMESPACE, false);
     loadConfig();
+    loadPumpCalibration();
 
     pinMode(R_EN_PIN, OUTPUT);
     pinMode(L_EN_PIN, OUTPUT);

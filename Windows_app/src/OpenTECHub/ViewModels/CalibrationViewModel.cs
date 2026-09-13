@@ -42,8 +42,8 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
             "ph" => 0,
             "oxygen" => 1,
             "flow" => 2,
-            "biomass" => 3,
-            "pump" => 4,
+            "pump" => 3,
+            "biomass" => 4,
             _ => SelectedTabIndex,
         };
     }

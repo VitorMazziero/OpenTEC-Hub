@@ -90,7 +90,7 @@ public sealed class CompactLayoutTests
         var issues = WpfRenderingHost.Run(() =>
         {
             var shell = WpfRenderingHost.Services.GetRequiredService<ShellViewModel>();
-            shell.Calibration.SelectedTabIndex = 4;
+            shell.Calibration.SelectedTabIndex = 3;
             try
             {
                 var view = new CalibrationView { DataContext = shell.Calibration };

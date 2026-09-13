@@ -24,13 +24,20 @@ public partial class CalibrationView : UserControl
     private const double FirstMeasuredVoltage = 0.01;
 
     private readonly WpfPlot _flowPlot = new();
-    private FlowCalibrationViewModel? _subscribed;
+    private readonly WpfPlot _pumpPlot = new();
+    private FlowCalibrationViewModel? _flowSubscribed;
+    private PumpCalibrationViewModel? _pumpSubscribed;
 
 
     public CalibrationView()
     {
         InitializeComponent();
+        // Keep the external-pump calibration immediately to the right of airflow while
+        // preserving the existing XAML blocks and their design-time readability.
+        CalibrationTabs.Items.Remove(PumpTab);
+        CalibrationTabs.Items.Insert(3, PumpTab);
         FlowPlotHost.Child = _flowPlot;
+        PumpPlotHost.Child = _pumpPlot;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         DataContextChanged += (_, _) => Attach();
@@ -74,26 +81,39 @@ public partial class CalibrationView : UserControl
             if (IsLoaded)
             {
                 RedrawFlowCurve();
+                RedrawPumpCurve();
             }
         });
 
     private void Attach()
     {
         Detach();
-        _subscribed = (DataContext as CalibrationViewModel)?.Flow;
-        if (_subscribed is not null)
+        var calibration = DataContext as CalibrationViewModel;
+        _flowSubscribed = calibration?.Flow;
+        _pumpSubscribed = calibration?.Pump;
+        if (_flowSubscribed is not null)
         {
-            _subscribed.CurveChanged += RedrawFlowCurve;
+            _flowSubscribed.CurveChanged += RedrawFlowCurve;
+        }
+        if (_pumpSubscribed is not null)
+        {
+            _pumpSubscribed.CurveChanged += RedrawPumpCurve;
         }
         RedrawFlowCurve();
+        RedrawPumpCurve();
     }
 
     private void Detach()
     {
-        if (_subscribed is not null)
+        if (_flowSubscribed is not null)
         {
-            _subscribed.CurveChanged -= RedrawFlowCurve;
-            _subscribed = null;
+            _flowSubscribed.CurveChanged -= RedrawFlowCurve;
+            _flowSubscribed = null;
+        }
+        if (_pumpSubscribed is not null)
+        {
+            _pumpSubscribed.CurveChanged -= RedrawPumpCurve;
+            _pumpSubscribed = null;
         }
     }
 
@@ -118,7 +138,7 @@ public partial class CalibrationView : UserControl
         plot.Axes.Title.Label.Text = "Curva de calibração da vazão";
         plot.Axes.Title.Label.ForeColor = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
 
-        if (_subscribed is { } viewModel)
+        if (_flowSubscribed is { } viewModel)
         {
             var points = viewModel.GetValidPoints();
             hasCalibrationData = points.Count > 0;
@@ -177,6 +197,65 @@ public partial class CalibrationView : UserControl
         split.Color = grid;
         split.LineWidth = 1;
         _flowPlot.Refresh();
+    }
+
+    private void RedrawPumpCurve()
+    {
+        var plot = _pumpPlot.Plot;
+        plot.Clear();
+
+        var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
+        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
+        var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
+        var accent = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);
+        var fitColor = ToPlotColor(TryBrush("StateOkBrush"), MediaColors.SeaGreen);
+
+        plot.FigureBackground.Color = surface;
+        plot.DataBackground.Color = surface;
+        plot.Axes.Color(text);
+        plot.Grid.MajorLineColor = grid.WithAlpha(0.45);
+        plot.Axes.Bottom.Label.Text = "Velocidade S";
+        plot.Axes.Left.Label.Text = "Vazão (mL/min)";
+        plot.Axes.Title.Label.Text = "Curva volumétrica da bomba";
+        plot.Axes.Title.Label.ForeColor = text;
+
+        var maximumFlow = 1.0;
+        if (_pumpSubscribed is { } viewModel)
+        {
+            var runs = viewModel.Runs.ToArray();
+            if (runs.Length > 0)
+            {
+                var scatter = plot.Add.Scatter(
+                    runs.Select(run => run.SpeedUnits).ToArray(),
+                    runs.Select(run => run.FlowMlPerMin).ToArray());
+                scatter.LineWidth = 0;
+                scatter.MarkerSize = 8;
+                scatter.Color = accent;
+                scatter.LegendText = "Volumes medidos";
+                maximumFlow = Math.Max(maximumFlow, runs.Max(run => run.FlowMlPerMin));
+            }
+
+            if (viewModel.TryGetDisplayedCurve(out var slope, out var intercept))
+            {
+                var speeds = Enumerable.Range(0, 101).Select(index => index * 10.0).ToArray();
+                var flows = speeds.Select(speed => Math.Max(0.0, (slope * speed) + intercept)).ToArray();
+                var line = plot.Add.Scatter(speeds, flows);
+                line.MarkerSize = 0;
+                line.LineWidth = 2;
+                line.Color = fitColor;
+                line.LegendText = viewModel.HasFit ? "Ajuste dos pontos" : "Curva informada";
+                maximumFlow = Math.Max(maximumFlow, flows.Max());
+            }
+        }
+
+        plot.Legend.IsVisible = true;
+        plot.Legend.Alignment = Alignment.UpperLeft;
+        plot.Legend.FontSize = 10;
+        plot.Legend.BackgroundColor = surface;
+        plot.Legend.FontColor = text;
+        plot.Legend.OutlineColor = grid;
+        plot.Axes.SetLimits(0, 1020, 0, maximumFlow * 1.1);
+        _pumpPlot.Refresh();
     }
 
     private static void DrawSegment(

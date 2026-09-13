@@ -104,6 +104,9 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     private PumpLinearFit? _fit;
     private PumpLinearFit? _fitBehindCoefficients;
 
+    /// <summary>Raised whenever measured points or the displayed calibration line change.</summary>
+    public event Action? CurveChanged;
+
     public PumpCalibrationViewModel(
         IDeviceService device,
         ISettingsService settings,
@@ -195,6 +198,23 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     [ObservableProperty]
     public partial string MeasuredVolumeText { get; set; } = "";
 
+    // ---- manual hose fill / purge ----
+
+    [ObservableProperty]
+    public partial string ManualSpeedText { get; set; } = "250";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartManual))]
+    [NotifyPropertyChangedFor(nameof(CanStopManual))]
+    [NotifyPropertyChangedFor(nameof(CanStartRun))]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(CanResetVolume))]
+    public partial bool IsManualRunning { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartManual))]
+    public partial string? ManualValidationError { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStartRun))]
     public partial string? RunValidationError { get; set; }
@@ -254,13 +274,13 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     public bool IsAwaitingCalibration => _requestedCalibration.HasValue;
 
-    public bool CanEditCalibration => !IsAwaitingCalibration && !_isPumpCommandPending;
+    public bool CanEditCalibration => !IsAwaitingCalibration && !_isPumpCommandPending && !IsManualRunning;
 
-    public bool CanApply => IsConnected && IsPumpOnline && IsValid && CanEditCalibration && !_awaitingResetVolume && !IsRunning;
+    public bool CanApply => IsConnected && IsPumpOnline && IsValid && CanEditCalibration && !_awaitingResetVolume && !IsRunning && !IsManualRunning;
 
-    public bool CanResetVolume => IsConnected && IsPumpOnline && !_awaitingResetVolume && !IsAwaitingCalibration && !_isPumpCommandPending && !IsRunning;
+    public bool CanResetVolume => IsConnected && IsPumpOnline && !_awaitingResetVolume && !IsAwaitingCalibration && !_isPumpCommandPending && !IsRunning && !IsManualRunning;
 
-    public bool CanStartRun => IsConnected && IsPumpOnline && !IsRunning && RunValidationError is null &&
+    public bool CanStartRun => IsConnected && IsPumpOnline && !IsRunning && !IsManualRunning && RunValidationError is null &&
                                !_isPumpCommandPending && !IsAwaitingCalibration && !_awaitingResetVolume;
 
     public bool CanAbortRun => IsRunning;
@@ -271,8 +291,24 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     public bool CanUseFit => HasFit && FitWarning is null && CanEditCalibration && !IsRunning;
 
+    public bool CanStartManual => IsConnected && IsPumpOnline && !IsRunning && !IsManualRunning &&
+                                  ManualValidationError is null && !_isPumpCommandPending &&
+                                  !IsAwaitingCalibration && !_awaitingResetVolume;
+
+    public bool CanStopManual => IsManualRunning;
+
     /// <summary>The current least squares line over <see cref="Runs"/>, or null.</summary>
     public PumpLinearFit? Fit => _fit;
+
+    /// <summary>Returns the finite, positive-slope curve currently displayed in the coefficient fields.</summary>
+    public bool TryGetDisplayedCurve(out double slope, out double intercept)
+    {
+        slope = 0.0;
+        intercept = 0.0;
+        return DosingInput.TryParseDouble(SlopeText, out slope) && slope > 0.0 &&
+               DosingInput.TryParseDouble(InterceptText, out intercept) &&
+               double.IsFinite(slope) && double.IsFinite(intercept);
+    }
 
     partial void OnSlopeTextChanged(string value) => ValidateAndRefresh();
 
@@ -286,6 +322,14 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     {
         OnPropertyChanged(nameof(CanAddRunPoint));
         AddRunPointCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnManualSpeedTextChanged(string value)
+    {
+        ManualValidationError = TryParseSpeed(value, out _)
+            ? null
+            : "Velocidade manual: inteiro entre 1 e 1000.";
+        StartManualCommand.NotifyCanExecuteChanged();
     }
 
     private void ValidateAndRefresh()
@@ -302,6 +346,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             OnPropertyChanged(nameof(IsValid));
             OnPropertyChanged(nameof(CanApply));
             ApplyCommand.NotifyCanExecuteChanged();
+            CurveChanged?.Invoke();
             return;
         }
 
@@ -312,6 +357,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             OnPropertyChanged(nameof(IsValid));
             OnPropertyChanged(nameof(CanApply));
             ApplyCommand.NotifyCanExecuteChanged();
+            CurveChanged?.Invoke();
             return;
         }
 
@@ -335,6 +381,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(IsValid));
         OnPropertyChanged(nameof(CanApply));
         ApplyCommand.NotifyCanExecuteChanged();
+        CurveChanged?.Invoke();
     }
 
     private void ValidateRunInputs()
@@ -379,6 +426,18 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     private bool TryParseVolume(out double volumeMl)
         => DosingInput.TryParseDouble(MeasuredVolumeText, out volumeMl) && volumeMl > 0.0 && double.IsFinite(volumeMl);
+
+    private static bool TryParseSpeed(string text, out int speed)
+    {
+        speed = 0;
+        if (!DosingInput.TryParseDouble(text, out var parsed) || parsed < 1.0 || parsed > 1000.0)
+        {
+            return false;
+        }
+
+        speed = (int)Math.Round(parsed);
+        return true;
+    }
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
@@ -429,6 +488,42 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         _awaitingResetVolume = true;
         NotifyCommandAvailability();
         StatusText = "Comando de zerar volume enviado. Aguardando confirmação do nó...";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStartManual))]
+    private void StartManual()
+    {
+        if (!TryParseSpeed(ManualSpeedText, out var speed))
+        {
+            ManualValidationError = "Velocidade manual: inteiro entre 1 e 1000.";
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(speed));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        IsManualRunning = true;
+        StatusText = $"Controle manual ativo em S = {speed}. Pare assim que o líquido completar a mangueira.";
+        NotifyCommandAvailability();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStopManual))]
+    private void StopManual()
+    {
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(0));
+        if (!result.Accepted)
+        {
+            StatusText = "PARADA RECUSADA - a bomba pode continuar girando: " + DispatchRefusal.Describe(result);
+            return;
+        }
+
+        IsManualRunning = false;
+        StatusText = "Controle manual encerrado; bomba parada.";
+        NotifyCommandAvailability();
     }
 
     // ------------------------------------------------------------------
@@ -627,6 +722,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                 ? "Nenhum acionamento registrado."
                 : $"{Runs.Count} acionamento(s); ajuste indisponível.";
             NotifyCommandAvailability();
+            CurveChanged?.Invoke();
             return;
         }
 
@@ -639,6 +735,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             : null;
         FitSummaryText = $"Q = {FitSlopeText} · S + {FitInterceptText} (n = {fit.Count}, S de {fit.MinSpeed:F0} a {fit.MaxSpeed:F0})";
         NotifyCommandAvailability();
+        CurveChanged?.Invoke();
     }
 
     private static string FormatR2(double r2)
@@ -838,13 +935,14 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         IsConnected = change.State == ConnectionState.Connected;
         if (!IsConnected)
         {
-            if (IsRunning)
+            if (IsRunning || IsManualRunning)
             {
                 // No link, no stop frame. The node keeps S until someone tells it otherwise, so
                 // the app owes it a stop the moment the link is back, and the operator has to
                 // hear that the pump may still be turning.
                 _runTimer?.Stop();
                 IsRunning = false;
+                IsManualRunning = false;
                 _lastRun = null;
                 HasPendingRun = false;
                 RunSummaryText = "";
@@ -888,6 +986,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(CanAddRunPoint));
         OnPropertyChanged(nameof(CanEditRuns));
         OnPropertyChanged(nameof(CanUseFit));
+        OnPropertyChanged(nameof(CanStartManual));
+        OnPropertyChanged(nameof(CanStopManual));
         ApplyCommand.NotifyCanExecuteChanged();
         RevertCommand.NotifyCanExecuteChanged();
         ResetVolumeCommand.NotifyCanExecuteChanged();
@@ -897,15 +997,18 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         RemoveRunCommand.NotifyCanExecuteChanged();
         ClearRunsCommand.NotifyCanExecuteChanged();
         UseFitCommand.NotifyCanExecuteChanged();
+        StartManualCommand.NotifyCanExecuteChanged();
+        StopManualCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()
     {
-        if (IsRunning)
+        if (IsRunning || IsManualRunning)
         {
             // Best effort: the workspace is going away with the pump still at S.
             _runTimer?.Stop();
             IsRunning = false;
+            IsManualRunning = false;
             _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(0));
         }
 

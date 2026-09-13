@@ -59,8 +59,14 @@ public sealed class DetailPaneContractTests
         Assert.Contains("\"ph\" => 0", vm, StringComparison.Ordinal);
         Assert.Contains("\"oxygen\" => 1", vm, StringComparison.Ordinal);
         Assert.Contains("\"flow\" => 2", vm, StringComparison.Ordinal);
-        Assert.Contains("\"biomass\" => 3", vm, StringComparison.Ordinal);
-        Assert.Contains("\"pump\" => 4", vm, StringComparison.Ordinal);
+        Assert.Contains("\"pump\" => 3", vm, StringComparison.Ordinal);
+        Assert.Contains("\"biomass\" => 4", vm, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PumpPlotHost\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PumpRightScroll\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{StaticResource CalibrationSidePanelStyle}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Controle manual · preencher mangueira", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Leitura e ecos do nó", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pré-visualização da vazão calculada", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

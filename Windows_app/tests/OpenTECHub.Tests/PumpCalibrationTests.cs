@@ -457,6 +457,66 @@ public sealed class PumpCalibrationTests
     // Volumetric runs (PONTOS §7.1, volume never mass)
     // ------------------------------------------------------------------
 
+    [Fact]
+    public void Manual_hose_fill_runs_without_creating_a_calibration_point_and_stops_explicitly()
+    {
+        var (vm, device, _, _) = OnlinePump();
+        using var _ = vm;
+
+        vm.ManualSpeedText = "300";
+        Assert.True(vm.CanStartManual);
+
+        vm.StartManualCommand.Execute(null);
+
+        Assert.Contains("""{"pump_speed":300}""", device.Sent[^1]);
+        Assert.True(vm.IsManualRunning);
+        Assert.False(vm.CanStartRun);
+        Assert.False(vm.CanApply);
+        Assert.Empty(vm.Runs);
+
+        vm.StopManualCommand.Execute(null);
+
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+        Assert.False(vm.IsManualRunning);
+        Assert.True(vm.CanStartRun);
+        Assert.Empty(vm.Runs);
+    }
+
+    [Fact]
+    public void Manual_hose_fill_validates_speed_and_owes_stop_after_link_loss()
+    {
+        var (vm, device, _, _) = OnlinePump();
+        using var _ = vm;
+
+        vm.ManualSpeedText = "0";
+        Assert.False(vm.CanStartManual);
+        Assert.NotNull(vm.ManualValidationError);
+
+        vm.ManualSpeedText = "450";
+        vm.StartManualCommand.Execute(null);
+        device.PushState(ConnectionState.Disconnected);
+
+        Assert.False(vm.IsManualRunning);
+        Assert.Contains("pode continuar girando", vm.StatusText);
+        var sentBeforeReconnect = device.Sent.Count;
+
+        device.PushState(ConnectionState.Connected);
+        Assert.Equal(sentBeforeReconnect + 1, device.Sent.Count);
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+    }
+
+    [Fact]
+    public void Displayed_curve_is_available_to_the_calibration_chart()
+    {
+        using var vm = new PumpCalibrationViewModel(new RecordingDeviceService(), new MemorySettingsService());
+        vm.SlopeText = "0.05";
+        vm.InterceptText = "1.25";
+
+        Assert.True(vm.TryGetDisplayedCurve(out var slope, out var intercept));
+        Assert.Equal(0.05, slope, 8);
+        Assert.Equal(1.25, intercept, 8);
+    }
+
     private static (PumpCalibrationViewModel Vm, RecordingDeviceService Device, MemorySettingsService Settings, TestClock Clock) OnlinePump()
     {
         var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));

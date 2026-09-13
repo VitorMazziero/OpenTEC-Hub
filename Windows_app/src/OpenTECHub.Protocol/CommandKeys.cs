@@ -53,6 +53,7 @@ public static class CommandKeys
     /// See <c>docs/PROTOCOL.md</c> section 3.1.
     /// </summary>
     public const string V_Flow = "v_Flow";
+    public const string ReconnectWifi = "reconnectWifi";
 
     // ---- Flow calibration: two-segment curve split at 0.0545 V ------------
     // The low segment is quartic: a1/b1 opt the firmware into the x⁴/x³ terms, and

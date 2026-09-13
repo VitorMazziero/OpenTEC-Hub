@@ -100,6 +100,12 @@ public static class CommandBuilders
         => OpenTECCommand.Create().Set(CommandKeys.FlowmeterComm, enabled ? 1 : 0);
 
     /// <summary>
+    /// Commands the flowmeter to enable or disable its automatic Wi-Fi reconnection logic.
+    /// </summary>
+    public static OpenTECCommand FlowmeterReconnectWifi(bool enable)
+        => OpenTECCommand.Create().Set(CommandKeys.ReconnectWifi, enable ? 1 : 0);
+
+    /// <summary>
     /// Disables the flow subsystem and closes everything.
     /// </summary>
     /// <remarks>

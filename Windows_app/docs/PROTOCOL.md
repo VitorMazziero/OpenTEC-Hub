@@ -278,9 +278,11 @@ missing from the frame, the reading resolves to null (except `FlowmeterBootId`, 
 | `FlowFfGain` | float | — | Flowmeter feedforward gain |
 | `FlowFfOffset` | float | — | Flowmeter feedforward offset |
 | `FlowRampRate` | float | mL/min/s | Flowmeter setpoint ramp rate |
-| `FlowOutput` | float | V | Flowmeter controller analog output voltage |
+| `FlowOutput` | float | L/min | Flowmeter controller output equivalent flow rate (FMA-5400) |
 | `FlowSetpointCorrected` | float | mL/min | Flowmeter active setpoint after ramp |
 | `FlowmeterBootId` | int | — | Flowmeter boot cycle counter (sticky across session) |
+| `FlowmeterCalCrc` | int | — | Calibration parameters CRC32 hash (v11.0+) |
+| `FlowmeterHwStatus` | int | 0-7 | Hardware health bitmask (bit 0=ADS, bit 1=DAC, bit 2=healthy latch) |
 | `PumpSlope` | float | — | Peristaltic pump linear calibration slope |
 | `PumpIntercept` | float | — | Peristaltic pump linear calibration intercept |
 | `PumpPidKp`, `PumpPidKi`, `PumpPidKd` | float | — | Volume-PID gains the pump node runs (pump 3.10+; absent on 3.9). Non-sticky. The PID expander unlocks only while these are present, and a sent triple is persisted only when echoed back |

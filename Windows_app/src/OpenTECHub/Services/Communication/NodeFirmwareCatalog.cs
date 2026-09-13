@@ -36,7 +36,7 @@ public static class NodeFirmwareCatalog
         [Distance] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
         [Agitator] = new(StringComparer.OrdinalIgnoreCase) { "v10" },
         [Pump] = new(StringComparer.OrdinalIgnoreCase) { "3.9" },
-        [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
+        [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.0" },
         [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v11" },
     };
 

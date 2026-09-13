@@ -220,6 +220,95 @@ public sealed class FlowmeterV05SyncTests
         Assert.Equal("Fluxômetro Desconectado da Central.", calibration.StatusText);
     }
 
+    [Fact]
+    public void TryBuildRequested_rejects_sub_cutoff_setpoints()
+    {
+        var flow = new FlowControlViewModel(50);
+        flow.UpdateTelemetry(new SensorSnapshot { FlowmeterOnline = true, FlowControlEnabled = true });
+
+        // Zero is accepted (safe cutoff)
+        Assert.True(flow.TryBuildRequested(0.0, flowEnabled: true, out var cmdZero));
+        Assert.Contains("flowSetpoint", cmdZero.ToJson());
+
+        // >= 0.10 is accepted
+        Assert.True(flow.TryBuildRequested(0.10, flowEnabled: true, out var cmdCutoff));
+        Assert.True(flow.TryBuildRequested(1.5, flowEnabled: true, out var cmdNormal));
+
+        // Sub-cutoff range (0.00, 0.10) is rejected
+        Assert.False(flow.TryBuildRequested(0.01, flowEnabled: true, out _));
+        Assert.False(flow.TryBuildRequested(0.05, flowEnabled: true, out _));
+        Assert.False(flow.TryBuildRequested(0.09, flowEnabled: true, out _));
+    }
+
+    [Fact]
+    public void EnableWifiReconnect_dispatches_reconnectWifi_command()
+    {
+        var dispatcher = new StubDispatcher();
+        var flow = new FlowControlViewModel(50, dispatcher: dispatcher);
+
+        flow.EnableWifiReconnectCommand.Execute(null);
+
+        Assert.Single(dispatcher.Sent);
+        Assert.Contains("\"reconnectWifi\":1", dispatcher.Sent[0]);
+    }
+
+    [Fact]
+    public void Flowmeter_plausibility_diagnostic_detects_valve_flow_mismatch()
+    {
+        var flow = new FlowControlViewModel(50);
+
+        // Nominal: open route, active flow
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowValveMain = 0,
+            FlowValve1 = 1,
+            FlowValve2 = 0,
+            FlowSetpoint = 3.0,
+            FlowRate = 2.9,
+        });
+        Assert.Null(flow.FlowPlausibilityWarning);
+
+        // Anomaly 1: commanded open with target >= 2.0, but zero flow (< 0.2)
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowValveMain = 0,
+            FlowValve1 = 1,
+            FlowValve2 = 0,
+            FlowSetpoint = 3.0,
+            FlowRate = 0.05,
+        });
+        Assert.NotNull(flow.FlowPlausibilityWarning);
+        Assert.Contains("alimentação elétrica", flow.FlowPlausibilityWarning);
+
+        // Anomaly 2: commanded shut, but unintended flow detected (> 0.5)
+        flow.UpdateTelemetry(new SensorSnapshot
+        {
+            FlowmeterOnline = true,
+            FlowValveMain = 1,
+            FlowValve1 = 0,
+            FlowValve2 = 0,
+            FlowSetpoint = 0.0,
+            FlowRate = 1.2,
+        });
+        Assert.NotNull(flow.FlowPlausibilityWarning);
+        Assert.Contains("vedação mecânica", flow.FlowPlausibilityWarning);
+    }
+
+    [Fact]
+    public void NodeFirmwareCatalog_validates_v11_and_v11_0()
+    {
+        Assert.True(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
+            OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v11"));
+        Assert.True(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
+            OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v11.0"));
+        Assert.False(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
+            OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v10"));
+        Assert.False(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
+            OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v9.0"));
+    }
+
     private sealed class SyncFixture : IDisposable
     {
         public SyncFixture()

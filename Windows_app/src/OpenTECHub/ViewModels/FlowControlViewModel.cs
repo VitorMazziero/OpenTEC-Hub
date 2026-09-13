@@ -398,6 +398,9 @@ public sealed partial class FlowControlViewModel : ObservableObject
     public partial string? TuningValidationError { get; set; }
 
     [ObservableProperty]
+    public partial string? FlowPlausibilityWarning { get; set; }
+
+    [ObservableProperty]
     public partial string TuningStatusText { get; set; } =
         "Sintonia restaurada para revisão; nenhum comando foi enviado.";
 
@@ -541,7 +544,8 @@ public sealed partial class FlowControlViewModel : ObservableObject
     {
         if (!CanSendFlowCommands ||
             !TryGetStagedMaxFlow(out var maximum) ||
-            (flowEnabled && setpoint > maximum))
+            (flowEnabled && setpoint > maximum) ||
+            (flowEnabled && setpoint > 0.0 && setpoint < 0.10))
         {
             command = OpenTECCommand.Create();
             return false;
@@ -687,8 +691,34 @@ public sealed partial class FlowControlViewModel : ObservableObject
         AppliedFfGainText = snapshot.FlowFfGain is { } ffg ? FormatTuning(ffg) : "—";
         AppliedFfOffsetText = snapshot.FlowFfOffset is { } ffo ? FormatTuning(ffo) : "—";
         AppliedRampRateText = snapshot.FlowRampRate is { } ramp ? FormatTuning(ramp) : "—";
-        FlowOutputText = snapshot.FlowOutput is { } vo ? vo.ToString("F2", CultureInfo.CurrentCulture) + " V" : "—";
+        FlowOutputText = snapshot.FlowOutput is { } vo ? vo.ToString("F2", CultureInfo.CurrentCulture) + " L/min" : "—";
         FlowSetpointCorrectedText = snapshot.FlowSetpointCorrected is { } spc ? spc.ToString("0.##", CultureInfo.CurrentCulture) + " L/min" : "—";
+
+        // F16: Cross-check plausibility diagnostic
+        if (snapshot.FlowmeterOnline)
+        {
+            bool cutActive = snapshot.FlowValveMain == 1;
+            bool routeOpen = snapshot.FlowValve1 == 1 || snapshot.FlowValve2 == 1;
+            double actualRate = snapshot.FlowRate;
+            double target = snapshot.FlowSetpoint;
+
+            if (!cutActive && routeOpen && target >= 2.0 && actualRate < 0.2)
+            {
+                FlowPlausibilityWarning = "Comando de vazão ativo, mas vazão nula detectada. Verifique alimentação elétrica das solenoides.";
+            }
+            else if ((cutActive || !routeOpen) && actualRate > 0.5)
+            {
+                FlowPlausibilityWarning = "Vazão detectada com válvulas comandadas fechadas. Verifique vedação mecânica das válvulas.";
+            }
+            else
+            {
+                FlowPlausibilityWarning = null;
+            }
+        }
+        else
+        {
+            FlowPlausibilityWarning = null;
+        }
 
         CanEditTuning = snapshot.FlowKp is not null;
         OnPropertyChanged(nameof(TuningUnavailableText));
@@ -760,6 +790,17 @@ public sealed partial class FlowControlViewModel : ObservableObject
             }
         });
         TuningStatusText = "Sintonia do fluxômetro enviada; aguardando confirmação.";
+    }
+
+    [RelayCommand]
+    private void EnableWifiReconnect()
+    {
+        if (_dispatcher is null)
+        {
+            return;
+        }
+
+        _dispatcher.Dispatch(CommandBuilders.FlowmeterReconnectWifi(true));
     }
 
     public bool TryGetStagedTuning(out double kp, out double ki, out double ffGain, out double ffOffset, out double rampRate)

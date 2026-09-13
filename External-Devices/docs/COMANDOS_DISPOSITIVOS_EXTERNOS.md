@@ -318,23 +318,27 @@ Decisões do operador em 2026-09-12 sobre a auditoria; o que foi feito em cada u
 | **Link Watchdog e backoff exponencial** | Firmware v11 | A cada falha de push HTTP, o intervalo entre tentativas dobra ($1 \to 2 \to 4 \to 8 \to 15\text{ s}$, teto $15\text{ s}$). Após 8 falhas consecutivas (`g_hubFailStreak >= 8`), o firmware força `WiFi.disconnect()` e reinicia a varredura não-bloqueante, preservando o AP local `Distance Sensor` (192.168.5.1) ativo para acesso direto de bancada. | 🟢 Fechado (§2.7.3) |
 | **Abertura de SoftAP e endpoints sem credenciais** | Firmware v11 | O ponto de acesso `Distance Sensor` e os endpoints HTTP (`/config`, `/diag`, `/update`) operam abertos sem senhas WPA2 ou autenticação HTTP Basic, facilitando acesso de bancada e manutenção em campo sem bloqueios operacionais. | 🟢 Fechado (análogo a §3.10 F13) |
 | **Piso de saturação em zero ($\max(0, \dots)$)** | Firmware v11 | Se o nível do líquido ou da espuma ultrapassar a linha de referência do offset ($\text{raw} < \text{offset}$), o valor calculado resulta negativo. O firmware trava explicitamente em `0.0f`. O app e o controle **nunca** receberão uma distância negativa válida — apenas o sentinela `-1` em falha de hardware. | 🟢 Fechado (§2.2) |
+| **Laços de amostragem e envio independentes (D01)** | Firmware v11 (`FirmwareApp.cpp`) | O push HTTP corre no seu próprio relógio (`send_period`), levando a última distância válida e o `time` do envio; a amostragem (`sample_period`) não o bloqueia. Com `send_period < sample_period` o mesmo valor é reenviado — o Hub aceita, pois o filtro de estagnação foi removido em 2026-09-12. | 🟢 Fechado 2026-09-13 (§2.10) |
+| **ACK só com chave válida (D02)** | Firmware v11 / Hub 10.2 | `g_lastCmdId` avança apenas quando ao menos uma chave válida foi aplicada (ou `reset_nvs:1`); payload desconhecido não é confirmado. Corolário no Hub: `distanceResetNvs` só é encaminhado quando vale 1, para nunca prender a `distanceBox`. | 🟢 Fechado 2026-09-13 (§2.10) |
+| **`send_period` ≤ 2500 ms (D03)** | Hub 10.2 / App | `DISTANCE_PRESENCE_TIMEOUT` é 3 s; o app valida a faixa e o operador não deve configurar envio acima de 2,5 s por canal local. Janela dinâmica no Hub fica como evolução, junto com B01 da biomassa. | 🔵 Decisão de projeto |
+| **Identidade única `DistanceClient r11` (D04)** | Firmware v11 (`LocalHttpApi.cpp`) | Banner serial, `/nodeHello`, `/diag` e página OTA usam `BoardConfig::FirmwareTag`. | 🟢 Fechado 2026-09-13 |
+| **Faixas dos parâmetros locais de recuperação (D05)** | Firmware v11 (`ConfigCodec.cpp`) | `l1_reinit` 1–50, `l2_clear` 1–100, `l3_xshut` 1–200; só por `POST /config` e serial (o Hub não os roteia). | 🟢 Fechado 2026-09-13 |
+| **`POST /config` responde 400 sem chave válida (D06)** | Firmware v11 (`LocalHttpApi.cpp`) | Clientes locais distinguem JSON aceito de JSON rejeitado. | 🟢 Fechado 2026-09-13 |
+| **`ota` booleano em `/diag` (D07)** | `PROTOCOL.md` | Documento alinhado ao que o firmware emite. | 🟢 Fechado (doc) |
+| **`lastGoodRawMm` mantida (D08)** | Firmware v11 (`AppContext.cpp`) | 4 B de RAM como gancho para deglitch futuro; sem consumidor hoje. | 🔵 Decisão de projeto |
+| **Escada I²C por degrau com cooldown do degrau (D09)** | Firmware v11 (`DistanceSensor.cpp`) | O nível é escolhido pelo `failStreak` (L3 → L2 → L1) e o cooldown exigido é o desse nível; uma vez escalado, não regride até o streak zerar. Com os padrões: L1 aos 5 s, L2 aos 20 s, L3 aos 50 s e depois a cada 30 s (§2.7.2). | 🟢 Fechado 2026-09-13 (bancada §2.11) |
 
 ---
 
 #### 🔴 Lacunas e Inconsistências (auditoria D01–D09 — aplicada em 2026-09-13)
-*Resumo navegável dos achados detalhados em §2.10. Os patches de firmware D01, D02, D04, D05, D06 e D09 foram aplicados e compilados (`docs/IMPLEMENTATION_PLAN_DISTANCIA.md`); D03 e D08 ficaram como decisão; D07 é documental. O que resta é bancada.*
+*Os nove achados da auditoria estão fechados em código, documento ou decisão (🔵 acima e §2.10). Resta o que só a bancada comprova.*
 
-| Tema | Situação | Referência |
+| Tema | O que ainda não foi executado | Referência |
 |---|---|---|
-| **Acoplamento temporal de laços** | ✅ Amostragem e envio são laços irmãos; o push leva a última distância válida e o `time` do envio | D01 |
-| **Avanço prematuro de `cmd_id`** | ✅ `g_lastCmdId` só avança com ao menos uma chave válida (ou `reset_nvs:1`); o Hub passou a encaminhar `distanceResetNvs` só quando vale 1 | D02 |
-| **Faixa de envio vs presença no Hub** | 🔵 Decisão: operar com `send_period` $\le 2500$ ms; o app valida a faixa; janela dinâmica no Hub fica como evolução | D03 |
-| **Identidade OTA desatualizada** | ✅ Página `/update` usa `BoardConfig::FirmwareTag` | D04 |
-| **Validação de inteiros sem teto** | ✅ `l1_reinit` 1–50, `l2_clear` 1–100, `l3_xshut` 1–200 | D05 |
-| **HTTP 200 incondicional em POST** | ✅ `POST /config` responde 400 quando nenhuma chave válida é reconhecida | D06 |
-| **Tipo do campo `ota` em `/diag`** | ✅ `PROTOCOL.md` mostra o booleano | D07 |
-| **Variável residual sem consumo** | 🔵 Decisão: `lastGoodRawMm` mantida (4 B) como gancho de deglitch futuro | D08 |
-| **Escada de recuperação I²C inalcançável** | ✅ Degrau escolhido pelo streak (L3 → L2 → L1) com o cooldown **desse** degrau — a simples inversão de ordem ainda deixava L3 morto (§2.7.2) | D09 |
+| **Escada de recuperação I²C** | Ensaio com curto SDA–GND por 60 s: comprovar L1 ≈ 5 s, L2 ≈ 20 s, L3 ≈ 50 s e a retomada da leitura | D09 → §2.11 |
+| **Desacoplamento de períodos** | Comprovar push a 1 Hz com `sample_period = 500 ms` e a repetição de valor com `send_period < sample_period` | D01 → §2.11 |
+| **Rejeição de payload sem chave válida** | `POST /config` inválido → 400; `cmd_id` com chave desconhecida não avança o `ack_cmd_id` | D02 → §2.11 |
+| **Janela dinâmica de presença no Hub** | Evolução não iniciada: `max(3 s, 2,5 × send_ms)` no Hub, a decidir junto com B01 da biomassa | D03 |
 
 ---
 

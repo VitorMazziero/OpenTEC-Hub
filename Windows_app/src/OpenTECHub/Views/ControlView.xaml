@@ -1949,11 +1949,16 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <Expander Header="PID do nó (firmware 3.9)" Margin="0,8,0,0" IsExpanded="False">
+                                    <Expander Header="PID de volume do nó" Margin="0,8,0,0" IsExpanded="False">
                                         <StackPanel Margin="0,6,0,0">
-                                            <TextBlock Text="{Binding PidUnavailableText}"
+                                            <TextBlock Text="O nó fecha a malha sobre o volume estimado do ciclo (integral do perfil × volume integrado do duty). Corrige a execução, não a calibração. Padrões de fábrica: Kp 0,5 · Ki 0,05 · Kd 0,001."
                                                        Style="{StaticResource CaptionTextStyle}"
                                                        Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <TextBlock Text="{Binding PidUnavailableText}"
+                                                       Visibility="{Binding PidUnavailableText, Converter={StaticResource NullToVis}}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource StateWarningTextBrush}"
                                                        TextWrapping="Wrap" Margin="0,0,0,6" />
                                             <WrapPanel IsEnabled="{Binding CanEditPid}">
                                                 <StackPanel Width="120" Margin="0,0,10,6">
@@ -1969,8 +1974,24 @@
                                                     <TextBox Text="{Binding PidKdText, UpdateSourceTrigger=PropertyChanged}" />
                                                 </StackPanel>
                                             </WrapPanel>
+                                            <DockPanel Margin="0,2,0,0">
+                                                <Button DockPanel.Dock="Right" Content="Enviar PID" Command="{Binding SendPidCommand}" />
+                                                <TextBlock Text="{Binding AppliedPidText}" VerticalAlignment="Center"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                            </DockPanel>
                                         </StackPanel>
                                     </Expander>
+
+                                    <!-- Bench potentiometers: a calibration run locks them out on the node
+                                         until the operator hands the motor back. -->
+                                    <DockPanel Margin="0,8,0,0">
+                                        <Button DockPanel.Dock="Right" Content="Potenciômetros" Command="{Binding TogglePotentiometersCommand}"
+                                                ToolTip="Alterna o comando manual de bancada. Ligar devolve o motor aos potenciômetros e esquece a velocidade manual; desligar trava os potenciômetros." />
+                                        <TextBlock Text="{Binding PotentiometersText}" VerticalAlignment="Center"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                                    </DockPanel>
 
                                     <TextBlock Text="{Binding ValidationError}"
                                                Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"

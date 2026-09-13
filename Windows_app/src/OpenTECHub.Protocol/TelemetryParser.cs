@@ -559,6 +559,16 @@ public sealed class TelemetryParser
             TryGetDouble(root, TelemetryKeys.PumpSlope, out var slope) ? slope : null;
         Readings.PumpIntercept =
             TryGetDouble(root, TelemetryKeys.PumpIntercept, out var intercept) ? intercept : null;
+        Readings.PumpPidKp =
+            TryGetDouble(root, TelemetryKeys.PumpPidKp, out var kp) ? kp : null;
+        Readings.PumpPidKi =
+            TryGetDouble(root, TelemetryKeys.PumpPidKi, out var ki) ? ki : null;
+        Readings.PumpPidKd =
+            TryGetDouble(root, TelemetryKeys.PumpPidKd, out var kd) ? kd : null;
+        Readings.PumpPotEnabled =
+            TryGetBool(root, TelemetryKeys.PumpPotEnabled, out var pot) ? pot : null;
+        Readings.PumpCycleVolume =
+            TryGetDouble(root, TelemetryKeys.PumpCycleVolume, out var cycleVolume) ? cycleVolume : null;
 
         if (presence.HasTelemetry && !presence.Online)
         {

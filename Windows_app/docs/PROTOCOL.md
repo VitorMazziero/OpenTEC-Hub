@@ -283,6 +283,9 @@ missing from the frame, the reading resolves to null (except `FlowmeterBootId`, 
 | `FlowmeterBootId` | int | — | Flowmeter boot cycle counter (sticky across session) |
 | `PumpSlope` | float | — | Peristaltic pump linear calibration slope |
 | `PumpIntercept` | float | — | Peristaltic pump linear calibration intercept |
+| `PumpPidKp`, `PumpPidKi`, `PumpPidKd` | float | — | Volume-PID gains the pump node runs (pump 3.10+; absent on 3.9). Non-sticky. The PID expander unlocks only while these are present, and a sent triple is persisted only when echoed back |
+| `PumpPotEnabled` | bool | — | Bench potentiometers in command of the motor (3.10+). False after a `pump_speed` run until `pump_pot:1` |
+| `PumpCycleVol` | float | mL | Volume of the current profile cycle (3.10+). `PumpVol` is the session counter: on 3.10 it survives stop/profile changes and only `reset_volume` zeroes it |
 | `BiomassGear` | int | 0-31 | Biomass combined optical gear (`IT index × 8 + PWM index`); the node also echoes `BiomassIT` (ms) and `BiomassPWM` (%) from §2.0.1 |
 | `BiomassEma` | float | 0.0-1.0 | Biomass sensor EMA smoothing filter factor |
 | `BiomassProbePeriodMs` | int | ms | Biomass sensor acquisition probe period |
@@ -627,8 +630,10 @@ camelCase keys, and the Hub translates them before enqueuing to each node's mail
 | `flowFfGain` | float | Flowmeter node | `ff_gain` |
 | `flowFfOffset` | float | Flowmeter node | `ff_offset` |
 | `flowRampRate` | float | Flowmeter node | `ramp_rate` |
-| `pump_command` | string | Pump node | `command` (e.g. `"reset_volume"`) |
-| `pump_speed` | int 0..1000 | Pump node | `speed` — hold the motor at S in idle mode; `0` stops. No node-side timer: the sender owns the stop (the volumetric calibration sends `0` from the app clock). `speed` without the prefix is rejected by the Hub |
+| `pump_command` | string | Pump node | `command` — the Hub forwards only `reset_volume`, `start`, `stop` (2026-09-12). On pump 3.10 `stop` and `mode:0` keep the session volume; only `reset_volume` zeroes it |
+| `pump_speed` | int 0..1000 | Pump node | `speed` — hold the motor at S in idle mode; `0` stops. The sender owns the stop (the volumetric calibration sends `0` from the app clock). `speed` without the prefix is rejected by the Hub |
+| `pump_speed_ms` | int ms | Pump node | `speed_ms` — node-side deadline for `pump_speed` (pump 3.10+); the calibration sends duration + 3 s as the safety net |
+| `pump_pot` | `1`/`0` | Pump node | `pot` — hand the motor back to the bench potentiometers (forgets any manual speed) / lock them out (pump 3.10+) |
 | `pumpSlope` | float | Pump node | `slope` |
 | `pumpIntercept` | float | Pump node | `intercept` |
 | `pumpPidKp` | float | Pump node | `pid_kp` |
@@ -686,7 +691,8 @@ distance config    {"distanceOffsetMm":25.5,"distanceSamplePeriodMs":200,"distan
 distance reset     {"distanceResetNvs":1}
 flow tuning        {"flowKp":0.8,"flowKi":0.05,"flowFfGain":1.2,"flowFfOffset":0.1,"flowRampRate":5.0}
 pump reset vol     {"pump_command":"reset_volume"}
-pump manual speed  {"pump_speed":500}          (calibration run; {"pump_speed":0} stops)
+pump manual speed  {"pump_speed":500,"pump_speed_ms":63000}   (calibration run; {"pump_speed":0} stops; node stops itself at 63 s)
+pump potentiometers {"pump_pot":1}                              (hand the motor back to the bench knobs)
 pump calibration   {"pumpSlope":1.25,"pumpIntercept":0.05}
 pump PID           {"pumpPidKp":1.5,"pumpPidKi":0.2,"pumpPidKd":0.05}
 biomass IT         {"biomassIt":100}

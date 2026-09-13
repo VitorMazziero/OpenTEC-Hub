@@ -264,6 +264,9 @@ public sealed class DeviceModel
     public double PumpPidKp { get; set; } = 0.5;
     public double PumpPidKi { get; set; } = 0.05;
     public double PumpPidKd { get; set; } = 0.001;
+
+    /// <summary>Bench potentiometers in command (3.10 echo). Cleared by <c>pump_speed</c>, restored by <c>pump_pot:1</c>.</summary>
+    public bool PumpPotEnabled { get; set; } = true;
     public double PumpVolumeOffset { get; set; }
     public double PumpVolume => Math.Max(0.0, (UptimeSeconds * 1.25 / 60.0) - PumpVolumeOffset);
     public void ResetPumpVolume() => PumpVolumeOffset = UptimeSeconds * 1.25 / 60.0;

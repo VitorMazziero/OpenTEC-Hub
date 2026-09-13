@@ -257,17 +257,160 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     public bool CanResetVolume => IsEnabled && Status.CanSend && !IsOwnedByOther && !_awaitingResetVolume;
 
     [ObservableProperty]
-    public partial string PidKpText { get; set; } = "1.000";
+    [NotifyPropertyChangedFor(nameof(CanSendPid))]
+    public partial string PidKpText { get; set; } = "0.500";
 
     [ObservableProperty]
-    public partial string PidKiText { get; set; } = "0.000";
+    [NotifyPropertyChangedFor(nameof(CanSendPid))]
+    public partial string PidKiText { get; set; } = "0.050";
 
     [ObservableProperty]
-    public partial string PidKdText { get; set; } = "0.000";
+    [NotifyPropertyChangedFor(nameof(CanSendPid))]
+    public partial string PidKdText { get; set; } = "0.001";
 
-    public bool CanEditPid => false;
+    // ---- PID of the node (pump 3.10 echoes kp/ki/kd; 3.9 does not) ----------------
+    // The gains are sent on their own frame and taken as applied only when the node echoes
+    // the same three numbers; the persisted copy follows the echo, never the click.
 
-    public string PidUnavailableText => "O firmware atual da bomba (3.9) não ecoa ganhos PID. Edição desativada temporariamente.";
+    /// <summary>Gains as the node last reported them; null until a 3.10 pump echoes them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPidEcho))]
+    [NotifyPropertyChangedFor(nameof(CanEditPid))]
+    [NotifyPropertyChangedFor(nameof(CanSendPid))]
+    [NotifyPropertyChangedFor(nameof(PidUnavailableText))]
+    [NotifyPropertyChangedFor(nameof(AppliedPidText))]
+    public partial (double Kp, double Ki, double Kd)? AppliedPid { get; set; }
+
+    public bool HasPidEcho => AppliedPid.HasValue;
+
+    public bool CanEditPid => HasPidEcho && !_awaitingPidEcho;
+
+    public bool CanSendPid => CanEditPid && IsEnabled && Status.CanSend && !IsOwnedByOther && TryParsePid(out _, out _, out _);
+
+    public string? PidUnavailableText => HasPidEcho
+        ? null
+        : "A bomba não ecoou os ganhos PID (firmware 3.9 ou nó ausente). Edição liberada quando o eco chegar (3.10+).";
+
+    public string AppliedPidText => AppliedPid is { } p
+        ? $"Nó: Kp {p.Kp.ToString("0.###", CultureInfo.CurrentCulture)} · Ki {p.Ki.ToString("0.###", CultureInfo.CurrentCulture)} · Kd {p.Kd.ToString("0.###", CultureInfo.CurrentCulture)}"
+        : "Nó: —";
+
+    private bool _awaitingPidEcho;
+    private (double Kp, double Ki, double Kd)? _requestedPid;
+    private DateTime? _pidRequestedAt;
+
+    private bool TryParsePid(out double kp, out double ki, out double kd)
+    {
+        kp = ki = kd = 0.0;
+        return DosingInput.TryParseDouble(PidKpText, out kp) && kp >= 0.0 &&
+               DosingInput.TryParseDouble(PidKiText, out ki) && ki >= 0.0 &&
+               DosingInput.TryParseDouble(PidKdText, out kd) && kd >= 0.0;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSendPid))]
+    private void SendPid()
+    {
+        if (!TryParsePid(out var kp, out var ki, out var kd))
+        {
+            StatusText = "Ganhos PID: números ≥ 0.";
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpPid(kp, ki, kd));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        _requestedPid = (kp, ki, kd);
+        _pidRequestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        _awaitingPidEcho = true;
+        Status.MarkCommandDispatched();
+        NotifyPidAvailability();
+        StatusText = "Ganhos PID enviados ao nó; aguardando eco.";
+    }
+
+    private void TrackPidEcho(SensorSnapshot snapshot)
+    {
+        if (snapshot.PumpPidKp is { } kp && snapshot.PumpPidKi is { } ki && snapshot.PumpPidKd is { } kd)
+        {
+            var echoed = (kp, ki, kd);
+            if (AppliedPid != echoed)
+            {
+                AppliedPid = echoed;
+            }
+
+            if (_requestedPid is { } requested &&
+                Math.Abs(kp - requested.Kp) <= 0.0005 && Math.Abs(ki - requested.Ki) <= 0.0005 && Math.Abs(kd - requested.Kd) <= 0.0005)
+            {
+                _requestedPid = null;
+                _pidRequestedAt = null;
+                _awaitingPidEcho = false;
+                _committed = _committed with { PidKp = kp, PidKi = ki, PidKd = kd };
+                _settings.Update(settings => settings with { PumpControl = _committed });
+                NotifyPidAvailability();
+                StatusText = "Ganhos PID confirmados pelo nó.";
+            }
+        }
+        else if (AppliedPid is not null && !snapshot.PumpOnline)
+        {
+            AppliedPid = null;
+        }
+
+        if (_awaitingPidEcho && _pidRequestedAt.HasValue &&
+            (_timeProvider.GetUtcNow().UtcDateTime - _pidRequestedAt.Value).TotalSeconds > 15.0)
+        {
+            _requestedPid = null;
+            _pidRequestedAt = null;
+            _awaitingPidEcho = false;
+            NotifyPidAvailability();
+            StatusText = "Aviso: o nó não ecoou os ganhos PID pedidos em 15 s.";
+        }
+    }
+
+    private void NotifyPidAvailability()
+    {
+        OnPropertyChanged(nameof(CanEditPid));
+        OnPropertyChanged(nameof(CanSendPid));
+        SendPidCommand.NotifyCanExecuteChanged();
+    }
+
+    // ---- Bench potentiometers (pump 3.10) ------------------------------------------
+    // A manual-speed run (calibration) locks the knobs out on the node until "pot":1. The
+    // echo says which side owns the motor; the toggle hands it back or takes it away.
+
+    /// <summary>True when the node reports the potentiometers in command; null on a 3.9 node.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PotentiometersText))]
+    [NotifyPropertyChangedFor(nameof(CanTogglePotentiometers))]
+    public partial bool? PotentiometersEnabled { get; set; }
+
+    public string PotentiometersText => PotentiometersEnabled switch
+    {
+        true => "Potenciômetros de bancada no comando (modo ocioso).",
+        false => "Potenciômetros travados: velocidade manual do app ou trava explícita.",
+        null => "Estado dos potenciômetros desconhecido (firmware 3.9 ou nó ausente).",
+    };
+
+    public bool CanTogglePotentiometers => PotentiometersEnabled.HasValue && IsEnabled && Status.CanSend && !IsOwnedByOther;
+
+    [RelayCommand(CanExecute = nameof(CanTogglePotentiometers))]
+    private void TogglePotentiometers()
+    {
+        var enable = PotentiometersEnabled != true;
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpPotentiometers(enable));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        Status.MarkCommandDispatched();
+        StatusText = enable
+            ? "Devolvendo o motor aos potenciômetros de bancada; a velocidade manual é esquecida."
+            : "Travando os potenciômetros de bancada.";
+    }
 
     public string StateText => IsEnabled ? "Ativa" : "Desligada";
 
@@ -742,6 +885,11 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             snapshot.PumpNode);
 
         UpdateNodeStateReadouts(snapshot);
+        TrackPidEcho(snapshot);
+        PotentiometersEnabled = snapshot.PumpOnline ? snapshot.PumpPotEnabled : null;
+        OnPropertyChanged(nameof(CanTogglePotentiometers));
+        TogglePotentiometersCommand.NotifyCanExecuteChanged();
+        NotifyPidAvailability();
 
         _lastPumpVolumeMl = snapshot.PumpVolume > SensorReadings.NotReceived ? snapshot.PumpVolume : 0.0;
 

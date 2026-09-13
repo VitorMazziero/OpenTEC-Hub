@@ -154,6 +154,18 @@ public static class CommandKeys
     /// </summary>
     public const string PumpManualSpeed = "pump_speed";
 
+    /// <summary>
+    /// Optional deadline for <see cref="PumpManualSpeed"/>, in ms: the node stops the motor
+    /// by itself when it elapses (pump 3.10+). A 3.9 node ignores it.
+    /// </summary>
+    public const string PumpManualSpeedMs = "pump_speed_ms";
+
+    /// <summary>
+    /// <c>{"pump_pot":1}</c> hands the motor back to the bench potentiometers and forgets any
+    /// manual speed; <c>0</c> locks them out (pump 3.10+).
+    /// </summary>
+    public const string PumpPotentiometers = "pump_pot";
+
     /// <summary>Absolute start time of the profile, in minutes (<c>t' = t − init_t</c>).</summary>
     public const string InitT = "init_t";
 
@@ -462,6 +474,14 @@ public static class TelemetryKeys
 
     public const string PumpSlope = "PumpSlope";
     public const string PumpIntercept = "PumpIntercept";
+
+    // Pump 3.10 echoes (Hub 2026-09-12): PID gains, whether the bench potentiometers are in
+    // command, and the volume delivered by the current profile cycle.
+    public const string PumpPidKp = "PumpPidKp";
+    public const string PumpPidKi = "PumpPidKi";
+    public const string PumpPidKd = "PumpPidKd";
+    public const string PumpPotEnabled = "PumpPotEnabled";
+    public const string PumpCycleVolume = "PumpCycleVol";
 
     public const string BiomassGear = "BiomassGear";
     public const string BiomassEma = "BiomassEma";

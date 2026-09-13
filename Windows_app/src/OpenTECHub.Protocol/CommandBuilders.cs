@@ -773,6 +773,25 @@ public static class CommandBuilders
         return OpenTECCommand.Create().Set(CommandKeys.PumpManualSpeed, speedUnits);
     }
 
+    /// <summary>
+    /// <see cref="PumpManualSpeed(int)"/> with a node-side deadline: a 3.10 pump stops the
+    /// motor by itself after <paramref name="deadlineMs"/>. The caller still owns the
+    /// primary stop; the deadline is the safety net for a link that drops mid-run.
+    /// </summary>
+    public static OpenTECCommand PumpManualSpeed(int speedUnits, int deadlineMs)
+    {
+        if (deadlineMs <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(deadlineMs), "Deadline must be positive.");
+        }
+
+        return PumpManualSpeed(speedUnits).Set(CommandKeys.PumpManualSpeedMs, deadlineMs);
+    }
+
+    /// <summary>Hands the motor to the bench potentiometers (<c>true</c>) or locks them out: <c>{"pump_pot":1|0}</c>.</summary>
+    public static OpenTECCommand PumpPotentiometers(bool enabled)
+        => OpenTECCommand.Create().Set(CommandKeys.PumpPotentiometers, enabled ? 1 : 0);
+
     /// <summary>Resets the accumulated volume on the external pump node.</summary>
     public static OpenTECCommand PumpResetVolume()
         => OpenTECCommand.Create().Set(CommandKeys.PumpCommand, "reset_volume");

@@ -405,4 +405,71 @@ public sealed class BiomassPumpTests
         Assert.True(accepted.Accepted);
         Assert.Equal("""{"blank":1}""", Assert.Single(device.Sent));
     }
+
+    [Fact]
+    public void Pid_is_editable_only_after_the_node_echoes_it_and_persists_on_echo()
+    {
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        using var vm = new PumpControlViewModel(device, settings);
+        vm.IsEnabled = true;
+        device.Sent.Clear();
+
+        // A 3.9 pump: online but no gains in the frame.
+        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpCommEnabled = true });
+        Assert.False(vm.CanEditPid);
+        Assert.NotNull(vm.PidUnavailableText);
+        Assert.Null(vm.PotentiometersEnabled);
+
+        // A 3.10 pump echoes the factory gains and the potentiometer state.
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true, PumpOnline = true, PumpCommEnabled = true,
+            PumpPidKp = 0.5, PumpPidKi = 0.05, PumpPidKd = 0.001, PumpPotEnabled = true,
+        });
+        Assert.True(vm.CanEditPid);
+        Assert.Null(vm.PidUnavailableText);
+        Assert.Contains("0,5", vm.AppliedPidText.Replace("0.5", "0,5"));
+        Assert.True(vm.PotentiometersEnabled);
+
+        vm.PidKpText = "0.8";
+        vm.PidKiText = "0.05";
+        vm.PidKdText = "0.001";
+        Assert.True(vm.CanSendPid);
+        vm.SendPidCommand.Execute(null);
+        Assert.Contains("""{"pumpPidKp":0.8,"pumpPidKi":0.05,"pumpPidKd":0.001}""", device.Sent[^1]);
+        Assert.False(vm.CanEditPid);                      // locked until the echo
+        Assert.NotEqual(0.8, settings.Current.PumpControl.PidKp);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true, PumpOnline = true, PumpCommEnabled = true,
+            PumpPidKp = 0.8, PumpPidKi = 0.05, PumpPidKd = 0.001, PumpPotEnabled = true,
+        });
+        Assert.True(vm.CanEditPid);
+        Assert.Equal(0.8, settings.Current.PumpControl.PidKp);
+        Assert.Contains("confirmados", vm.StatusText);
+    }
+
+    [Fact]
+    public void Potentiometer_toggle_sends_pump_pot_and_reads_the_echo()
+    {
+        var device = new RecordingDeviceService();
+        using var vm = new PumpControlViewModel(device, new MemorySettingsService());
+        vm.IsEnabled = true;
+        device.Sent.Clear();
+
+        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpCommEnabled = true, PumpPotEnabled = false });
+        Assert.False(vm.PotentiometersEnabled);
+        Assert.Contains("travados", vm.PotentiometersText);
+        Assert.True(vm.CanTogglePotentiometers);
+
+        vm.TogglePotentiometersCommand.Execute(null);
+        Assert.Contains("""{"pump_pot":1}""", device.Sent[^1]);
+
+        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpCommEnabled = true, PumpPotEnabled = true });
+        Assert.True(vm.PotentiometersEnabled);
+        vm.TogglePotentiometersCommand.Execute(null);
+        Assert.Contains("""{"pump_pot":0}""", device.Sent[^1]);
+    }
 }

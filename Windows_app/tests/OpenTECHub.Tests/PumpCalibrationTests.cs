@@ -480,8 +480,9 @@ public sealed class PumpCalibrationTests
 
         vm.StartRunCommand.Execute(null);
 
-        // The start frame is the manual-speed key the Hub forwards as "speed" to the node.
-        Assert.Contains("""{"pump_speed":500}""", device.Sent[^1]);
+        // The start frame is the manual-speed key the Hub forwards as "speed" to the node,
+        // plus the node-side deadline (planned + margin) that a 3.10 pump honours on its own.
+        Assert.Contains("""{"pump_speed":500,"pump_speed_ms":63000}""", device.Sent[^1]);
         Assert.True(vm.IsRunning);
         Assert.False(vm.CanApply);
         Assert.False(vm.CanStartRun);

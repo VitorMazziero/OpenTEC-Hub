@@ -78,6 +78,9 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     private static readonly TimeSpan RunTickInterval = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>Seconds added to the node-side <c>speed_ms</c> deadline beyond the app's own stop.</summary>
+    public const double RunDeadlineMarginSeconds = 3.0;
+
     private readonly IDeviceService _device;
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
@@ -441,7 +444,11 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed((int)speed));
+        // The app stops the pump from its own clock (that is the measured dt). The node-side
+        // deadline (3.10+) is the safety net for a link that drops mid-run: a few seconds
+        // later than the app's stop so it never pre-empts it.
+        var deadlineMs = (int)Math.Ceiling((seconds + RunDeadlineMarginSeconds) * 1000.0);
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed((int)speed, deadlineMs));
         if (!result.Accepted)
         {
             StatusText = DispatchRefusal.Describe(result);

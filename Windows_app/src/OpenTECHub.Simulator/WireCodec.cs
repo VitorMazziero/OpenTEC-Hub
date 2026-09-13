@@ -173,6 +173,10 @@ public static class WireCodec
             {
                 Append(buffer, "PumpSlope", model.PumpSlope, 4);
                 Append(buffer, "PumpIntercept", model.PumpIntercept, 4);
+                Append(buffer, "PumpPidKp", model.PumpPidKp, 4);
+                Append(buffer, "PumpPidKi", model.PumpPidKi, 4);
+                Append(buffer, "PumpPidKd", model.PumpPidKd, 4);
+                AppendBool(buffer, "PumpPotEnabled", model.PumpPotEnabled);
             }
         }
 
@@ -422,6 +426,16 @@ public static class WireCodec
         {
             model.PumpMode = 0;
             model.PumpManualSpeed = Math.Clamp(manualSpeed, 0.0, 1000.0);
+            model.PumpPotEnabled = false;
+        }
+
+        if (model.PumpEnabled && TryDouble(root, CommandKeys.PumpPotentiometers, out var potEnabled))
+        {
+            model.PumpPotEnabled = potEnabled != 0;
+            if (model.PumpPotEnabled)
+            {
+                model.PumpManualSpeed = 0.0;
+            }
         }
 
         if (TryDouble(root, CommandKeys.AgitatorPercent, out var agitatorPercent))

@@ -152,6 +152,8 @@ public static class CommandActuators
             [CommandKeys.Mode] = ActuatorId.ExternalPump,
             [CommandKeys.Speed] = ActuatorId.ExternalPump,
             [CommandKeys.PumpManualSpeed] = ActuatorId.ExternalPump,
+            [CommandKeys.PumpManualSpeedMs] = ActuatorId.ExternalPump,
+            [CommandKeys.PumpPotentiometers] = ActuatorId.ExternalPump,
             [CommandKeys.InitT] = ActuatorId.ExternalPump,
             [CommandKeys.FinalT] = ActuatorId.ExternalPump,
             [CommandKeys.LambdaConst] = ActuatorId.ExternalPump,

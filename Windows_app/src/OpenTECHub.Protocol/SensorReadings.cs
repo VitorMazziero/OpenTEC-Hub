@@ -221,6 +221,11 @@ public sealed class SensorReadings
 
     public double? PumpSlope { get; set; }
     public double? PumpIntercept { get; set; }
+    public double? PumpPidKp { get; set; }
+    public double? PumpPidKi { get; set; }
+    public double? PumpPidKd { get; set; }
+    public bool? PumpPotEnabled { get; set; }
+    public double? PumpCycleVolume { get; set; }
 
     public int? BiomassGear { get; set; }
     public double? BiomassEma { get; set; }
@@ -354,6 +359,11 @@ public sealed class SensorReadings
         FlowmeterBootId = FlowmeterBootId,
         PumpSlope = PumpSlope,
         PumpIntercept = PumpIntercept,
+        PumpPidKp = PumpPidKp,
+        PumpPidKi = PumpPidKi,
+        PumpPidKd = PumpPidKd,
+        PumpPotEnabled = PumpPotEnabled,
+        PumpCycleVolume = PumpCycleVolume,
         BiomassGear = BiomassGear,
         BiomassEma = BiomassEma,
         BiomassProbePeriodMs = BiomassProbePeriodMs,
@@ -619,6 +629,17 @@ public sealed record SensorSnapshot
 
     public double? PumpSlope { get; init; }
     public double? PumpIntercept { get; init; }
+
+    /// <summary>PID gains the pump node reports running (3.10+); null on a 3.9 node.</summary>
+    public double? PumpPidKp { get; init; }
+    public double? PumpPidKi { get; init; }
+    public double? PumpPidKd { get; init; }
+
+    /// <summary>True when the bench potentiometers drive the motor; false after <c>pump_speed</c> or <c>pump_pot:0</c>; null on a 3.9 node.</summary>
+    public bool? PumpPotEnabled { get; init; }
+
+    /// <summary>Volume delivered by the current profile cycle, mL; <see cref="PumpVolume"/> is the session total.</summary>
+    public double? PumpCycleVolume { get; init; }
 
     public int? BiomassGear { get; init; }
     public double? BiomassEma { get; init; }

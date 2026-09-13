@@ -67,6 +67,10 @@ void brakeMotor() {
   ledcWrite(BoardConfig::LeftPwmPin, 0);
 }
 
+bool getAppliedDirectionRight() {
+  return appliedDirectionRight;
+}
+
 uint16_t getEffectiveDuty(float percent) {
   constexpr float PwmScale = 40.95f;
   constexpr float OffThreshold = 1.0f;

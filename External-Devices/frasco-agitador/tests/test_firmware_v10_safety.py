@@ -23,6 +23,8 @@ def test_boot_is_braked_and_potentiometer_starts_locked() -> None:
 def test_direction_change_ramps_to_zero_before_switching_leg() -> None:
     motor = read("motor/MotorDriver.cpp")
     config = read("config/BoardConfig.h")
+    hub = read("network/HubClient.cpp")
+    api = read("api/LocalHttpApi.cpp")
 
     assert "DirectionRampDurationMs = 200" in config
     assert "if (targetDirRight != appliedDirectionRight)" in motor
@@ -31,6 +33,8 @@ def test_direction_change_ramps_to_zero_before_switching_leg() -> None:
         "appliedDirectionRight = targetDirRight;"
     )
     assert "writeBridge(appliedDuty, appliedDirectionRight);" in motor
+    assert "getAppliedDirectionRight() ? 1 : 0" in hub
+    assert "getAppliedDirectionRight() ? 1 : 0" in api
 
 
 def test_identity_has_one_v10_source_for_hello_diag_and_ota() -> None:

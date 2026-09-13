@@ -5,4 +5,5 @@
 bool attachPwmPin(int pin);
 void serviceMotor(uint16_t targetDuty12, bool targetDirRight, uint32_t nowMs);
 void brakeMotor();
+bool getAppliedDirectionRight();
 uint16_t getEffectiveDuty(float percent);

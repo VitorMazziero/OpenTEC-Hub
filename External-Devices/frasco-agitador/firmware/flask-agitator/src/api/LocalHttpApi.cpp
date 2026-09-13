@@ -141,7 +141,7 @@ void handleDiag() {
            g_hubFailStreak,
            g_otaInProgress ? "true" : "false",
            targetPercent,
-           dirRight ? 1 : 0,
+           getAppliedDirectionRight() ? 1 : 0,
            potEnabled ? "true" : "false");
   server.send(200, "application/json", json);
 }

@@ -5,6 +5,7 @@
 
 #include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
+#include "../motor/MotorDriver.h"
 #include "../protocol/CommandCodec.h"
 
 void hubHello() {
@@ -98,7 +99,7 @@ void pushTelemetryToHub() {
            "http://%s/agitatorData?pct=%.1f&dir=%d&pot=%d&src=%s&secs=%lu&ack_cmd_id=%lu",
            hubIp.toString().c_str(),
            targetPercent,
-           dirRight ? 1 : 0,
+           getAppliedDirectionRight() ? 1 : 0,
            potEnabled ? 1 : 0,
            srcName(lastSource),
            static_cast<unsigned long>(millis() / 1000),

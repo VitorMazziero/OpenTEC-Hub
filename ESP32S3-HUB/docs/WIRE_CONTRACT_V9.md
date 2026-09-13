@@ -190,8 +190,10 @@ e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
 
 | Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato / Ação |
 |---|---|---|---|
-| `PumpCommand` | `pump_command` | `command` | string (ex.: `"reset_volume"`) |
-| `PumpManualSpeed` | `pump_speed` | `speed` | inteiro 0..1000; o nó cai para modo 0 (ocioso) e mantém a velocidade S até o próximo `speed` ou perfil; `0` para o motor. **Sem temporizador no nó**: quem envia é responsável pela parada (a calibração volumétrica do app envia `0` do próprio relógio). Chave `speed` sem prefixo é rejeitada pelo Hub por desenho. |
+| `PumpCommand` | `pump_command` | `command` | string; **o Hub só encaminha `reset_volume`, `start` e `stop`** (2026-09-12) — `clear_nvs`, `save_config`, `load_config` e `print_config` são recusados com `ESP32_AVISO` |
+| `PumpManualSpeed` | `pump_speed` | `speed` | inteiro 0..1000; o nó cai para modo 0 (ocioso) e mantém a velocidade S até o próximo `speed`, perfil ou `pot:1`; `0` para o motor. Chave `speed` sem prefixo é rejeitada pelo Hub por desenho. |
+| `PumpManualSpeedMs` | `pump_speed_ms` | `speed_ms` | ms > 0, junto com `pump_speed`: a bomba 3.10 zera a velocidade sozinha ao expirar. A calibração volumétrica envia duração + 3 s como rede de segurança; a parada primária continua sendo o `0` do app. |
+| `PumpPotentiometers` | `pump_pot` | `pot` | `1` devolve o motor aos potenciômetros de bancada (e esquece `speed`); `0` trava. Bomba 3.10. |
 | `PumpSlope` | `pumpSlope` | `pumpSlope` | float (pass-through) |
 | `PumpIntercept` | `pumpIntercept` | `pumpIntercept` | float (pass-through) |
 | `PumpPidKp` | `pumpPidKp` | `pid_kp` | float |
@@ -269,6 +271,9 @@ cada segundo. O filtro foi removido; a validade da leitura é responsabilidade d
 | `PumpCommandPending` | bool | sempre | Verdadeiro enquanto houver comando pendente |
 | `PumpSlope` | float (%.4f) | `PumpOnline` e `pumpEchoSeen` | Coeficiente angular de calibração |
 | `PumpIntercept` | float (%.4f) | `PumpOnline` e `pumpEchoSeen` | Coeficiente linear de calibração |
+| `PumpPidKp`, `PumpPidKi`, `PumpPidKd` | float (%.4f) | idem, só bomba 3.10 (push com `kp/ki/kd`) | Ganhos do PID de volume vigentes no nó |
+| `PumpPotEnabled` | bool | idem, só 3.10 (push com `pot`) | Potenciômetros de bancada no comando do motor |
+| `PumpCycleVol` | float (%.3f) | idem, só 3.10 (push com `cyc_vol`) | Volume do ciclo de perfil corrente; `PumpVol` é o contador da sessão e só zera com `reset_volume` |
 
 ### Sensor de Biomassa
 

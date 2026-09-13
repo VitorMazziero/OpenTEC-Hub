@@ -586,10 +586,14 @@ void processJsonCommand(const String &json) {
   bool pumpCmdFound = false;
 
   const char* simpleKeys[] = {
-    "pump_command", "mode", "pump_speed", "init_t", "final_t",
+    "pump_command", "mode", "pump_speed", "pump_speed_ms", "pump_pot", "init_t", "final_t",
     "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
     "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd"
   };
+  // O firmware da bomba tambem entende save_config, load_config, print_config e clear_nvs.
+  // clear_nvs apaga calibracao, perfil e PID e reinicia o no; nenhum deles e operacao de
+  // processo. Pelo Hub so passam os tres que o aplicativo e as receitas usam.
+  const char* allowedPumpCommands[] = { "reset_volume", "start", "stop" };
   const char* polyKeys[] = {
     "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10",
     "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20"
@@ -598,6 +602,16 @@ void processJsonCommand(const String &json) {
   for (const char* key : simpleKeys) {
     String val = getValueFromJson(json, key);
     if (val.length() > 0) {
+      if (strcmp(key, "pump_command") == 0) {
+        bool allowed = false;
+        for (const char* ok : allowedPumpCommands) {
+          if (val == ok) { allowed = true; break; }
+        }
+        if (!allowed) {
+          ESP32_AVISO(String("pump_command recusado pelo Hub: ") + val);
+          continue;
+        }
+      }
       if (pumpCmdFound) pumpCommand += ",";
       String cleanKey = String(key);
       if (cleanKey == "pumpPidKp") cleanKey = "pid_kp";

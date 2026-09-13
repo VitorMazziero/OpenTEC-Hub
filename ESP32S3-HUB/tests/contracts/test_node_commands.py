@@ -328,15 +328,18 @@ def translate_pump_command(json_str: str, comm_on: bool = True):
         return None, False
 
     simple_keys = [
-        "pump_command", "mode", "pump_speed", "init_t", "final_t",
+        "pump_command", "mode", "pump_speed", "pump_speed_ms", "pump_pot", "init_t", "final_t",
         "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
         "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd"
     ]
+    allowed_commands = ("reset_volume", "start", "stop")
     parts = []
     found = False
     for k in simple_keys:
         if k in data:
             val = str(data[k])
+            if k == "pump_command" and val not in allowed_commands:
+                continue
             clean_k = k
             if clean_k == "pumpPidKp":
                 clean_k = "pid_kp"
@@ -395,11 +398,46 @@ def translate_biomass_command(json_str: str, comm_on: bool = True):
 
 
 class PumpCommandTests(unittest.TestCase):
+    def read(self, rel: str) -> str:
+        return (SRC_ROOT / rel).read_text(encoding="utf-8")
+
     def test_calibration_and_pid_translations(self):
         cmd = '{"pumpSlope":0.028,"pumpIntercept":1.5,"pumpPidKp":1.2,"pumpPidKi":0.05,"pumpPidKd":0.01}'
         inner, ok = translate_pump_command(cmd)
         self.assertTrue(ok)
         self.assertEqual('"pumpSlope":0.028,"pumpIntercept":1.5,"pid_kp":1.2,"pid_ki":0.05,"pid_kd":0.01', inner)
+
+    def test_pump_command_whitelist_blocks_clear_nvs_and_config_verbs(self):
+        # COMANDOS_DISPOSITIVOS_EXTERNOS §1.10: clear_nvs apaga calibracao e reinicia o no;
+        # save/load/print_config nao sao operacao. Pelo Hub so passam os tres do app.
+        for verb in ("clear_nvs", "save_config", "load_config", "print_config"):
+            inner, ok = translate_pump_command('{"pump_command":"%s"}' % verb)
+            self.assertFalse(ok, verb)
+        for verb in ("reset_volume", "start", "stop"):
+            inner, ok = translate_pump_command('{"pump_command":"%s"}' % verb)
+            self.assertTrue(ok, verb)
+            self.assertEqual('"command":"%s"' % verb, inner)
+        cmd = self.read("src/protocol/Commands.h")
+        self.assertIn('allowedPumpCommands[] = { "reset_volume", "start", "stop" };', cmd)
+        self.assertIn('pump_command recusado pelo Hub', cmd)
+
+    def test_pump_speed_ms_and_pot_are_forwarded_without_prefix(self):
+        inner, ok = translate_pump_command('{"pump_speed":500,"pump_speed_ms":63000}')
+        self.assertTrue(ok)
+        self.assertEqual('"speed":500,"speed_ms":63000', inner)
+        inner, ok = translate_pump_command('{"pump_pot":1}')
+        self.assertTrue(ok)
+        self.assertEqual('"pot":1', inner)
+        cmd = self.read("src/protocol/Commands.h")
+        self.assertIn('"pump_speed_ms", "pump_pot"', cmd)
+
+    def test_hub_echoes_pump_pid_pot_and_cycle_volume(self):
+        http = self.read("src/network/HttpServer.h")
+        tel = self.read("src/sensor/Telemetry.h")
+        for param in ("kp", "ki", "kd", "pot", "cyc_vol"):
+            self.assertIn('hasParam("%s")' % param, http)
+        for key in ("PumpPidKp", "PumpPidKi", "PumpPidKd", "PumpPotEnabled", "PumpCycleVol"):
+            self.assertIn('\\"%s\\":' % key, tel)
 
     def test_speed_alone_without_pump_prefix_is_rejected(self):
         cmd = '{"speed":100.0}'

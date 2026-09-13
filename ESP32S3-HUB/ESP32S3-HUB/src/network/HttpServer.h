@@ -372,6 +372,12 @@ void startWiFi() {
             pumpIntercept = request->getParam("intercept")->value().toFloat();
             pumpEchoSeen = true;
           }
+          // 3.10: PID gains, potentiometer state and cycle volume. Absent on 3.9 pushes.
+          if (request->hasParam("kp")) pumpPidKp = request->getParam("kp")->value().toFloat();
+          if (request->hasParam("ki")) pumpPidKi = request->getParam("ki")->value().toFloat();
+          if (request->hasParam("kd")) pumpPidKd = request->getParam("kd")->value().toFloat();
+          if (request->hasParam("pot")) pumpPotEnabled = request->getParam("pot")->value().toInt() != 0 ? 1 : 0;
+          if (request->hasParam("cyc_vol")) pumpCycleVolume = request->getParam("cyc_vol")->value().toFloat();
           pumpFlowRate = request->getParam("flow")->value().toFloat();
           pumpVolume = request->getParam("vol")->value().toFloat();
           pumpTargetVolume = request->getParam("v_tgt")->value().toFloat();

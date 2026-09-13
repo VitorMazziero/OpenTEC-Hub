@@ -375,6 +375,13 @@ bool  pumpWaiting = false;
 // Ecos de calibracao da bomba peristaltica (Hub 10.2 / 3.9).
 // NAN / false = nunca ecoado neste boot.
 float pumpSlope = NAN;
+// 3.10 echoes (NAN / -1 = nunca ecoado neste boot): ganhos PID, potenciometros em comando
+// (1) ou travados por "pot":0 / "speed" (0), e o volume do ciclo corrente.
+float pumpPidKp = NAN;
+float pumpPidKi = NAN;
+float pumpPidKd = NAN;
+int   pumpPotEnabled = -1;
+float pumpCycleVolume = NAN;
 float pumpIntercept = NAN;
 bool  pumpEchoSeen = false;
 

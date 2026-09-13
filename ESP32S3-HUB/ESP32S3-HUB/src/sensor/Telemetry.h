@@ -73,6 +73,9 @@ void readAndBroadcastSensorData() {
   float snapPumpSlope = NAN;
   float snapPumpIntercept = NAN;
   bool snapPumpEchoSeen = false;
+  float snapPumpPidKp = NAN, snapPumpPidKi = NAN, snapPumpPidKd = NAN;
+  int snapPumpPotEnabled = -1;
+  float snapPumpCycleVolume = NAN;
   // 10.1: the node registry is copied whole (IP always; version/MAC only once the
   // node has said hello) so the identity keys are assembled outside the mutex too.
   DeviceNodeEntry snapNodes[DEV_COUNT];
@@ -108,6 +111,11 @@ void readAndBroadcastSensorData() {
     snapPumpEchoSeen = pumpEchoSeen;
     snapPumpSlope = pumpSlope;
     snapPumpIntercept = pumpIntercept;
+    snapPumpPidKp = pumpPidKp;
+    snapPumpPidKi = pumpPidKi;
+    snapPumpPidKd = pumpPidKd;
+    snapPumpPotEnabled = pumpPotEnabled;
+    snapPumpCycleVolume = pumpCycleVolume;
     snapPumpComm = pumpCommOn;
     snapPumpMode = pumpMode;
     snapPumpPwm = pumpPwm;
@@ -329,6 +337,12 @@ void readAndBroadcastSensorData() {
     if (snapPumpEchoSeen) {
       if (!isnan(snapPumpSlope)) jsonResponse += ",\"PumpSlope\":" + String(snapPumpSlope, 4);
       if (!isnan(snapPumpIntercept)) jsonResponse += ",\"PumpIntercept\":" + String(snapPumpIntercept, 4);
+      // 3.10 only; a 3.9 pump never sets these and the keys stay out of the frame.
+      if (!isnan(snapPumpPidKp)) jsonResponse += ",\"PumpPidKp\":" + String(snapPumpPidKp, 4);
+      if (!isnan(snapPumpPidKi)) jsonResponse += ",\"PumpPidKi\":" + String(snapPumpPidKi, 4);
+      if (!isnan(snapPumpPidKd)) jsonResponse += ",\"PumpPidKd\":" + String(snapPumpPidKd, 4);
+      if (snapPumpPotEnabled >= 0) jsonResponse += ",\"PumpPotEnabled\":" + String(snapPumpPotEnabled ? "true" : "false");
+      if (!isnan(snapPumpCycleVolume)) jsonResponse += ",\"PumpCycleVol\":" + String(snapPumpCycleVolume, 3);
     }
   }
 

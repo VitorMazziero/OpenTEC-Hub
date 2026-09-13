@@ -5,7 +5,7 @@
 
 **Fontes por dispositivo:** o contrato de fio detalhado continua em `<dispositivo>/docs/PROTOCOL.md` e no `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`; este documento não os substitui — ele explica o comportamento. Estado de implementação e pendências de bancada: `Windows_app/docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
 
-**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro) e §4 (sensor de biomassa, firmware v11 — 2026-09-13) completos. §5–§6 são esqueletos com ponteiros, a preencher um dispositivo por vez com a mesma anatomia.
+**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11) e §5 (agitador de frasco, firmware v10 — 2026-09-13) completos. §6 (servo drive) é esqueleto com ponteiros, a preencher com a mesma anatomia.
 
 ---
 
@@ -17,7 +17,7 @@
 | **Sensor de Distância** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§2.11) |
 | **Fluxômetro de Ar** | v11.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§3.11) |
 | **Sensor de Biomassa** | v11 (rótulo v5.3 ⚠) | 🟢 Comandos principais | 🟢 Total | 🟡 Funcional com pendências (§4.10: janela de presença, rotinas bloqueantes, marcha manual) | 🟡 Pendente (§4.11) |
-| **Agitador de Frascos** | v10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
+| **Agitador de Frascos** | v10 (rótulo rev H ⚠) | 🟢 Total | 🟢 Total | 🟢 Integrado; pendências no nó (§5.10: pulso de boot, inversão sem rampa, sem NVS) | 🟡 Pendente (§5.11) |
 | **Servo Drive (RPM)** | v2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
 
 ## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.10)
@@ -1071,9 +1071,225 @@ Regra vigente do Hub (mantida): **um `command` por revisão** — o segundo mape
 - [ ] OTA com `.ino.bin` válido, com `merged.bin` (rejeitado) e com upload interrompido (watchdog 90 s); confirmar LED apagado durante a gravação.
 - [ ] Decidir B01/B02/B03/B06 e registrar em `PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md` antes de alterar o nó (remedir flash a cada acréscimo).
 
-## 5. Agitador de frasco (`frasco-agitador`) — a preencher
+## 5. Agitador de frasco (`frasco-agitador`, firmware v10 — rótulo interno rev H)
 
-Contrato: `frasco-agitador/docs/PROTOCOL.md`. Particularidade: o potenciômetro de bancada **sobrepõe** o app (`AgitatorPotActive`).
+### 5.0 Painel de Navegação Rápida — Estado de Prontidão e Integração
+
+> **Como navegar:** 🟢 é caminho de software presente e integrado (nó ↔ Hub 10.2 ↔ App), 🟡 é código pronto à espera de bancada, 🔵 é decisão fechada, 🔴 é lacuna registrada em §5.10. Conferido em `firmware/flask-agitator/src/**`, `Commands.h`/`AgitatorFoam.h`/`HttpServer.h`/`Telemetry.h` do Hub e `CommandBuilders`/`FlaskAgitatorViewModel`/`RecipeEngine.ExternalDevices` do app. É o nó mais simples da frota: um motor DC, um potenciômetro, três chaves de comando, **nenhuma persistência**.
+
+#### 🟢 Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
+
+| Funcionalidade | Nó | Hub 10.2 | App Windows | Onde opera | Evidência automatizada |
+|---|---|---|---|---|---|
+| **Comando confiável com ACK** | Deduplica `cmd_id`; ACKa mesmo payload sem chave útil | `agitatorBox` (`ReliableMailbox`) retém a última revisão até o `ack_cmd_id` do push | `AgitatorCommandPending` bloqueia nova ordem | Controle, receitas | `test_node_commands.py`, `ExternalDeviceTests` |
+| **Ligar / desligar / magnitude / sentido** | `RPM_percent` 0–100, `Dir` 0/1 aplicados no laço de 10 ms | `agitatorOn/Percent/Dir` → `{"RPM_percent","Dir","ActivePot"}`; persiste os quatro parâmetros em NVS | Slider + sentido + interruptor; sentido e magnitude viram um `signedPercent` que o builder separa de novo | *Controle › Agitador de frasco* e receita *Agitador* | `ExternalDeviceTests`, `RecipeExternalDeviceTests` |
+| **Potenciômetro de bancada** | `ActivePot` 0/1; com 1 o knob reescreve o alvo a cada laço | `agitatorOn:0` vira `ActivePot = agitatorReEnablePot` (persistido); `agitatorOn:1` sempre trava o knob | Aviso quando `AgitatorPotActive`/`Source=Pot`; parada segura trava; botão momentâneo re-habilita | *Controle › Agitador de frasco* | `ExternalDeviceTests` |
+| **Automação de espuma** | — (recebe o mesmo quadro) | `agitatorAuto`: `checkDistanceSensorReference()` liga o agitador ao detectar espuma pelo sensor de distância e desliga ao normalizar | Modo *automático* no cartão; parâmetros de espuma em *Antiespumante* | Hub (laço de espuma) | `AlarmServiceTests`, `DosingAuxiliariesTests` |
+| **Monitoramento e presença** | Push `/agitatorData` a cada 1 s (`pct`, `dir`, `pot`, `src`, `secs`, `ack_cmd_id`); hello a cada 30 s; `/diag` | `AgitatorOnline` (3 s), `AgitatorPercent/Dir/PotActive/Source`, `AgitatorNodeVer/Mac/IP`, cache de `/diag` | Magnitude/sentido/fonte reais, chips de pendência/offline, alarme *Agitador de frasco offline* | *Controle*, *Configurações › Rede* | `TelemetryParserTests`, `HubNodesViewModelTests`, `ExternalNodeIdentityTests` |
+| **Parada segura global** | Executa `RPM_percent:0, ActivePot:0` | Enfileira como qualquer revisão | `FlaskAgitatorSafeStop` entra no quadro da parada global (sem `resetVariables`, que apagaria a própria ordem) | Botão de parada | `ControlViewModelTests` |
+
+---
+
+#### 🟡 Implementado no Software, Aguardando Ensaio Físico na Bancada
+
+| Ensaio físico | O que deve ser comprovado | Checklist (§5.11) | Estado |
+|---|---|---:|:---:|
+| **Sentido e ponte H** | GPIO 25 (direita) / 26 (esquerda) com enables 27/13 sempre altos; `Dir:1` = horário na bancada | Item 1 | 🟡 Pendente |
+| **Pulso de partida** | 200 ms a 100 % de duty no boot, antes de qualquer comando (§5.10 A01) | Item 2 | 🟡 Pendente |
+| **Faixa efetiva** | `RPM_percent` 1,5 → 10 % de duty; 100 → 100 %; histerese 1,0/1,5 % | Item 3 | 🟡 Pendente |
+| **Inversão a quente** | `Dir` trocado com o motor girando: inversão instantânea, sem rampa (§5.10 A02) | Item 4 | 🟡 Pendente |
+| **Potenciômetro** | Banda morta de 2 %, suavização α=0,5, rejeição do rail (> 4080); knob reassume após `ActivePot:1` | Item 5 | 🟡 Pendente |
+| **Parada segura vs knob** | Com knob em 60 %: parada comum religa, parada segura não; `re-habilitar` religa | Item 6 | 🟡 Pendente |
+| **Queda de energia** | Nó volta com knob no comando (sem NVS): motor gira no valor do knob mesmo após parada segura (§5.10 A03) | Item 7 | 🟡 Pendente |
+| **Espuma automática** | Laço do Hub liga/desliga o agitador pelo sensor de distância; `agitatorAuto` desligado o ignora | Item 8 | 🟡 Pendente |
+| **OTA** | Freio antes de gravar; imagem válida/rejeitada; watchdog 90 s | Item 9 | 🟡 Pendente |
+
+---
+
+#### 🔵 Diretrizes de Segurança e Decisões de Arquitetura Fechadas
+
+*Legenda: 🟢 Fechado = em código e conferido; 🔵 Decisão de projeto = escolha registrada.*
+
+| Decisão / Recurso | Onde Opera | Comportamento e Justificativa Técnica | Estado |
+|---|---|---|:---:|
+| **Potenciômetro sobrepõe o app** | Nó (`Potentiometer.cpp`) | Com `ActivePot=1`, qualquer variação > 2 % do knob reescreve `targetPercent` e `lastSource=POT`. É a intenção original do equipamento de bancada: o operador ao lado do frasco manda. O app **vê** isso (`AgitatorPotActive`, `AgitatorSource`) e avisa. | 🔵 Decisão de projeto |
+| **Ligar pelo app trava o knob** | Hub (`Commands.h`) | `agitatorOn:1` sempre envia `ActivePot:0`; senão o knob desfaria a ordem no laço seguinte. | 🟢 Fechado |
+| **Desligar comum devolve ao knob; parada segura não** | Hub + App | `agitatorOn:0` → `ActivePot = agitatorReEnablePot` (persistido no Hub). `FlaskAgitatorOff` deixa o flag como está; `FlaskAgitatorSafeStop` força `agitatorReEnablePot:0` no mesmo quadro (o Hub lê o flag antes de agir sobre `agitatorOn`). Re-armar é ato explícito (`FlaskAgitatorReEnablePot`). | 🟢 Fechado |
+| **Presença sem roteamento** | Hub | Não existe `agitatorComm`: o Hub nunca responde 403 ao agitador e `AgitatorOnline` é presença pura (push há ≤ 3 s). Um nó sem push (firmware anterior à rev H) fica "sem telemetria" e o app diz isso em vez de fingir. | 🟢 Fechado |
+| **ACK de payload sem chave útil** | Nó (`HubClient.cpp`) | Como a biomassa: confirma para não prender a caixa do Hub; um valor fora de faixa (`RPM_percent` > 100, `Dir` 2) é logado e ignorado, mas ACKado. O Hub já limita 0–100 e 0/1 antes de enfileirar. | 🔵 Decisão de projeto |
+| **Sem NVS no nó** | Nó | Alvo, sentido e `ActivePot` vivem em RAM; o Hub é quem persiste os parâmetros de espuma e o flag do knob. Consequência em A03. | 🔵 Decisão de projeto (ver A03) |
+| **Piso de 10 % de duty** | Nó (`MotorDriver.cpp`) | `RPM_percent` ≥ 1,5 % mapeia para 10–100 % de duty (histerese: desliga < 1,0 %). Evita zumbido do motor DC parado sob PWM baixo. `AgitatorPercent` ecoa o pedido, não o duty. | 🟢 Fechado |
+| **OTA com freio** | Nó (`LocalHttpApi.cpp`) | Ao iniciar upload: `targetPercent=0`, `brakeMotor()`; rejeita `merged`/`bootloader`/`partitions`; watchdog 90 s. | 🟢 Fechado |
+| **`resetVariables` só esvazia a caixa** | Hub | O reset global descarta a ordem pendente do agitador mas **não** envia parada; quem para o agitador é a parada segura do app (que não carrega `resetVariables`). | 🔵 Decisão de projeto |
+
+---
+
+#### 🔴 Lacunas e Inconsistências (§5.10)
+
+| Tema | O que não está consistente ou integrado | Referência |
+|---|---|---|
+| **Pulso de partida** | 200 ms a 100 % no boot, com `Dir` padrão direita, antes de ler knob ou Hub | A01 |
+| **Inversão sem rampa** | `Dir` trocado com motor girando inverte instantaneamente a 15 kHz | A02 |
+| **Parada segura não sobrevive a reboot do nó** | `ActivePot` volta a 1 na energização; o knob religa o motor | A03 |
+| **Identidade** | `/nodeHello` diz `v10`, `/diag` diz `"1.0"`, página OTA sem versão, documentos dizem "rev H" | A04 |
+| **Pinos de corrente sem uso** | GPIO 34/35 definidos como sensor de corrente e nunca lidos | A05 |
+| **Comentário defasado no app** | `FlaskAgitatorViewModel` ainda diz que o Hub "não reporta nada" do agitador | A06 |
+| **Timeout do app vs Hub** | App 4 s, Hub 3 s: o Hub declara ausente primeiro (correto), mas o push é de 1 s com backoff até 15 s em falha | A07 |
+
+---
+
+### 5.1 O que o firmware assume do hardware
+
+| Elemento | Pino / recurso | Ação do firmware | O que o hardware deve fazer |
+|---|---|---|---|
+| Motor DC em ponte H (PWM duplo) | PWM direita GPIO 25, PWM esquerda GPIO 26, LEDC 15 kHz, 12 bits | Um lado recebe o duty, o outro 0; freio = ambos 0 | Girar no sentido do lado energizado. Qual lado é "horário" é da montagem |
+| Enables da ponte | GPIO 27 (direita), GPIO 13 (esquerda) | `HIGH` no boot e em todo `applyDuty()`; nunca baixados | Manter a ponte habilitada; a parada é por duty 0, não por enable |
+| Potenciômetro de bancada | GPIO 36 (ADC1, 12 bits, atenuação 11 dB) | Suavização α=0,5; ignora amostras > 4080 (rail); banda morta 2 % | Entregar 0–3,3 V; o firmware descarta o topo da escala |
+| Sensores de corrente | GPIO 34/35 (`RightCurrentSensePin`/`LeftCurrentSensePin`) | **Não lidos** (A05) | — |
+| Wi-Fi | AP+STA canal 6 | AP `MotorBoeco` (senha `MotorBoeco`); STA procura `ModuloTECNAL_1`/`_2` com roaming por RSSI (Δ 10 dB, varredura a cada 10 s) | Servir controle local e Hub com um rádio |
+| Watchdog | `esp_task_wdt` 15 s | Alimentado no laço | Reiniciar se o laço travar |
+| Persistência | **nenhuma** | Alvo, sentido, `ActivePot` em RAM | Ver A03 |
+
+No boot: enables altos → `applyDuty(4095)` por **200 ms** → `brakeMotor()` → "Ready". O pulso acontece antes de qualquer leitura de knob ou comando (A01).
+
+### 5.2 Como o alvo vira duty
+
+```text
+fonte      = último a escrever targetPercent: POT (knob, se ActivePot) | HUB | WIFI (POST /cmd) | USB (serial)
+alvo       = RPM_percent 0–100 (knob: raw·100/4095 após suavização e banda morta de 2 %)
+duty(%)    = 0                         se alvo < 1,0 (ou ainda desligado e alvo < 1,5)
+           = 10 + alvo·0,9             caso contrário   → 12 bits: duty·40,95
+sentido    = Dir 1 → PWM em GPIO 25; Dir 0 → PWM em GPIO 26   (troca imediata, sem rampa — A02)
+laço       = a cada 10 ms
+```
+
+- Não há malha de velocidade: `RPM_percent` é duty, não RPM. A telemetria devolve o **pedido** (`pct`), não uma medição.
+- Não há rampa de aceleração nem de inversão.
+- A histerese 1,0/1,5 % evita oscilar entre parado e 10 % com o knob perto de zero.
+
+### 5.3 Máquina de estados
+
+Não há estados nomeados; o comportamento é definido por dois bits e uma fonte:
+
+| Situação | `ActivePot` | Quem manda | Como muda |
+|---|---|---|---|
+| Boot | 1 | Knob (após o pulso de 200 ms) | — |
+| Ordem do app "ligar" | 0 | Hub (`RPM_percent`, `Dir`) | Knob ignorado até `ActivePot:1` |
+| Ordem do app "desligar" (comum) | `agitatorReEnablePot` do Hub (padrão: o que estiver persistido) | Se 1, o knob reassume no próximo laço — **o motor pode religar** | — |
+| Parada segura | 0 | Ninguém: alvo 0 e knob travado | Só `FlaskAgitatorReEnablePot` devolve ao knob |
+| Espuma automática | 0 ao ligar; `agitatorReEnablePot` ao desligar | Hub (`agitatorPercentFoam`, `agitatorDirFoam`) | Segue o sensor de distância (histerese ±0,5 mm em torno da referência) |
+| Queda de energia | volta a 1 | Knob | Estado anterior perdido (A03) |
+
+### 5.4 Por onde um comando pode chegar
+
+| Canal | Formato / endereço | Capacidade | Confirmação |
+|---|---|---|---|
+| Hub → nó | o nó faz `GET http://192.168.4.1/agitatorCommand` a cada 500 ms (backoff até 15 s) | `{"cmd_id":N,"RPM_percent":x,"Dir":d,"ActivePot":p}` — sempre o **estado completo** | `ack_cmd_id` no push seguinte (1 s); Hub retém até o ACK; nova ordem substitui a não entregue |
+| HTTP direto | `POST /cmd` no AP `MotorBoeco` (sem `softAPConfig`: IP padrão `192.168.4.1`, o mesmo endereço que o Hub usa na rede dele — o PC nunca deve estar nas duas ao mesmo tempo); corpo JSON | Mesmas três chaves | `200 OK` ou `422` com a gramática esperada |
+| Serial USB | 115200, `{...}\n` até 180 caracteres | Mesmas três chaves | Log `[USB] Cmd:` |
+| Potenciômetro | GPIO 36 | Só magnitude (0–100), nunca sentido nem `ActivePot` | Log `[Pot ] Cmd:` e `src=Pot` no push |
+| HTTP de leitura | `GET /read` (`time_s`, `duty`), `GET /diag`/`/status` | Somente leitura | JSON |
+| OTA | `GET /update` + `POST /update` `.ino.bin` | Freia o motor, grava, reinicia | HTTP 200/400/500 |
+| Energia/reset | — | Pulso de 200 ms, knob no comando | novo hello em até 30 s |
+
+O Hub **não** encaminha JSON arbitrário: ele constrói o quadro a partir de `agitatorOn/Auto/Percent/Dir/ReEnablePot` e sempre envia as três chaves juntas. `agitatorAuto` fica no Hub (liga o laço de espuma); não chega ao nó.
+
+### 5.5 Catálogo de chaves e o que cada uma faz
+
+#### 5.5.1 App → Hub (`CommandKeys`) e o que o Hub faz
+
+| Chave no app | Efeito no Hub | Quadro ao nó |
+|---|---|---|
+| `agitatorPercent` | Guarda `agitatorPercentFoam` (0–100, NVS) | Só junto com `agitatorOn:1` ou pelo laço de espuma |
+| `agitatorDir` | Guarda `agitatorDirFoam` (0/1, NVS) | idem |
+| `agitatorReEnablePot` | Guarda o flag (NVS). Lido **antes** de `agitatorOn`, qualquer que seja a ordem das chaves | Vira `ActivePot` do próximo desligar |
+| `agitatorOn:1` | Enfileira `{"RPM_percent":pct,"Dir":dir,"ActivePot":0}` | Liga e trava o knob |
+| `agitatorOn:0` | Enfileira `{"RPM_percent":0,"Dir":dir,"ActivePot":reEnablePot}` | Para; devolve (ou não) ao knob |
+| `agitatorAuto` | Liga/desliga o laço de espuma (NVS) | Nada direto; o laço enfileira ligar/desligar sozinho |
+| `foamStartDelay_s`, `foamPulse_s`, `foamInterval_s` | Temporização do antiespumante no mesmo laço | — |
+
+#### 5.5.2 Nó (`parseAndApplyJson`)
+
+| Chave | Valor aceito | Execução | Hardware |
+|---|---|---|---|
+| `RPM_percent` | float 0–100 | `targetPercent`; fora de faixa ignora com log | Duty no laço de 10 ms |
+| `Dir` | 0 ou 1 | `dirRight`; 2+ ignora | Troca o lado da ponte imediatamente |
+| `ActivePot` | 0 ou 1 | `potEnabled`; com 1 o knob reescreve o alvo no próximo laço em que variar > 2 % | — |
+| `cmd_id` | uint32 | Igual ao último aplicado → ignora; senão aplica e grava mesmo sem chave útil | — |
+
+Qualquer chave válida marca `lastSource` com o canal que a enviou (`Hub`, `Wi-Fi`, `USB`); o knob marca `Pot`.
+
+### 5.6 Aplicação, ACK e concorrência
+
+1. O quadro do Hub é sempre estado completo; não há comando "só sentido".
+2. `cmd_id` igual ao último é ignorado; diferente é aplicado e ACKado **mesmo que nenhuma chave seja utilizável** (o Hub já validou as faixas).
+3. O knob e o Hub escrevem a mesma `targetPercent`: com `ActivePot=1`, o knob vence no laço seguinte a qualquer ordem. Por isso "ligar" sempre manda `ActivePot:0`.
+4. `POST /cmd` e serial competem em pé de igualdade com o Hub; se uma revisão do Hub ainda estiver pendente, ela pode sobrescrever a intervenção local no próximo poll.
+5. O laço de espuma do Hub só age com `agitatorAuto=1`, referência de distância > 0 e leitura fresca (`DISTANCE_TIMEOUT` 1,2 s); dados velhos desligam tudo.
+6. O app não permite ordem nova enquanto `AgitatorCommandPending`; a receita *Agitador* espera `AgitatorPercent` igual ao pedido (para zero, prova que o knob não reassumiu).
+
+### 5.7 Persistência e recuperação
+
+| Dado | Onde | Após reboot do nó | Após reboot do Hub |
+|---|---|---|---|
+| `targetPercent`, `dirRight`, `potEnabled` | RAM do nó | Perdidos: 0 %, direita, knob ativo | Mantidos no nó |
+| `agitatorPercentFoam`, `agitatorDirFoam`, `agitatorReEnablePot`, `agitatorAuto`, `foam*` | NVS do Hub | — | Restaurados; o Hub **não** reenvia nada ao nó |
+| Revisão pendente | `agitatorBox` | O nó ACKa a próxima que receber | Semente aleatória; a primeira ordem não colide |
+
+Consequência: um nó que reinicia durante uma ordem "ligado a 40 %" volta parado com o knob ativo; se o knob estiver em 60 %, o motor gira a 60 % sem ninguém ter mandado (A03). O Hub não detecta o reboot (não há `boot_id`).
+
+### 5.8 Telemetria: o que sai do nó e como chega ao app
+
+| Campo no push (`/agitatorData`, 1 s) | Hub → app | Significado real |
+|---|---|---|
+| `pct` | `AgitatorPercent` (%.1f) | `targetPercent` — o pedido em vigor, não duty nem RPM |
+| `dir` | `AgitatorDir` (0/1) | Lado da ponte energizado |
+| `pot` | `AgitatorPotActive` (bool) | `potEnabled`: o knob **pode** reassumir |
+| `src` | `AgitatorSource` (`Pot`/`Hub`/`Wi-Fi`/`USB`) | Quem escreveu o alvo por último |
+| `secs` | — | uptime |
+| `ack_cmd_id` | `AgitatorCommandPending` (derivado) | Última revisão aplicada |
+| — | `AgitatorOnline` | push há ≤ 3 s (`AGITATOR_TIMEOUT`) |
+| — | `AgitatorNodeVer/Mac/IP` | `v10` |
+
+Serial e `/read` publicam `{"time_s","duty"}` a cada 500 ms (onde `duty` é `targetPercent`, não o duty efetivo). `/diag` acrescenta `dir` e `pot`.
+
+### 5.9 Procedimentos do operador no aplicativo (e o que acontece no fio)
+
+| Procedimento | Quadro(s) | O que confirmar |
+|---|---|---|
+| Ligar a X % no sentido S | `{"agitatorOn":1,"agitatorAuto":0,"agitatorPercent":X,"agitatorDir":S}` | `AgitatorPercent = X`, `AgitatorSource = Hub`, `AgitatorPotActive = false` |
+| Desligar (comum) | `{"agitatorOn":0,...}` | `AgitatorPercent = 0`; **se `AgitatorPotActive` voltar `true`, o knob manda** — o cartão avisa |
+| Parada segura | `{"agitatorOn":0,"agitatorAuto":0,...,"agitatorReEnablePot":0}` | `AgitatorPercent = 0` e `AgitatorPotActive = false` |
+| Devolver ao knob | `{"agitatorReEnablePot":1}` e depois um desligar | `AgitatorPotActive = true`, `AgitatorSource = Pot` |
+| Modo automático (espuma) | `agitatorAuto:1` + `agitatorPercent/Dir` | Hub liga/desliga conforme o sensor de distância; o cartão mostra o que o laço fez |
+| Receita *Agitador* | mesmos quadros | Segura até `AgitatorPercent` igual ao pedido |
+| Diagnóstico | `nodeDiag agitator` | versão (`1.0` ⚠), heap, RSSI, `duty`, `dir`, `pot` |
+
+### 5.10 Limitações, inconsistências e decisões (auditoria do firmware v10 vs Hub 10.2 vs app)
+
+| ID | Achado | Consequência | Resolução proposta | Status |
+|---|---|---|---|---|
+| A01 | `firmwareSetup()` aplica `BoostDuty` (4095) por 200 ms e só então freia — antes de ler knob ou Hub | Todo boot (energização, OTA, watchdog) dá um pulso a 100 % para a direita | Remover o pulso ou condicioná-lo a um comando explícito de teste; se for "destrava mecânica", documentar e limitar a duty menor | **Aberto — decisão** |
+| A02 | Troca de `Dir` com motor girando inverte o lado da ponte no mesmo laço, sem rampa | Pico de corrente e choque mecânico no frasco; a ponte H fica com os dois enables altos o tempo todo | Rampa curta (ex.: 200 ms a zero, troca, rampa até o alvo) no `applyDuty()` | **Aberto — nó** |
+| A03 | Sem NVS: `ActivePot` volta a 1 na energização | Parada segura (knob travado) não sobrevive a queda de energia; o knob religa o motor no valor em que estiver | Nó: iniciar com `potEnabled=false` até o primeiro comando/hello, ou persistir `ActivePot`; Hub: reenviar o último estado desejado ao ver hello novo (custa `boot_id` no push) | **Aberto — decisão** |
+| A04 | `/nodeHello` anuncia `v10`; `/diag` responde `"version":"1.0"`; página OTA não mostra versão; `README`/`CURRENT_STATUS` dizem "rev H" | O cache `/nodeDiag` mostra `1.0` para um nó que o catálogo do app valida como `v10` | Unificar em `v10` nos três lugares e citar "rev H" só como histórico | **Aberto — documental/nó** |
+| A05 | `RightCurrentSensePin`/`LeftCurrentSensePin` (GPIO 34/35) definidos e nunca lidos | Sem detecção de travamento nem sobrecorrente | Ler e publicar (`i_r`, `i_l`) só se o hardware tiver o shunt montado; senão remover as constantes | **Aberto — bancada decide** |
+| A06 | `FlaskAgitatorViewModel` ainda descreve o agitador como "o único nó de que o Hub não reporta nada" | Comentário defasado (o push existe desde a rev H / Hub 10.x) | Atualizar o `<remarks>` | **Aberto — app (cosmético)** |
+| A07 | `AgitatorTimeout` do app 4 s vs `AGITATOR_TIMEOUT` do Hub 3 s; push de 1 s vira até 15 s em backoff | Em falha de push o Hub oscila presença; sem `send_ms` configurável não há eco para dimensionar a janela (como D03) | Aceitar: o backoff só acontece quando o Hub já não responde ao nó; documentado | **Decisão de projeto** |
+| A08 | `AgitatorPercent` é o pedido, não medida | O app pode mostrar 40 % com o eixo travado | Só resolúvel com A05 ou um sensor de rotação | **Decisão de projeto** |
+
+### 5.11 Checklist de bancada (fecha os itens acima)
+
+- [ ] Confirmar que `Dir:1` (GPIO 25) é o sentido horário na montagem e que os enables 27/13 ficam altos.
+- [ ] Filmar o boot: medir o pulso de 200 ms a 100 % (A01) e decidir se fica.
+- [ ] Levantar duty × rotação: 1,5 % → 10 % de duty até 100 %; conferir a histerese 1,0/1,5 %.
+- [ ] Inverter `Dir` a 60 %: medir corrente de pico e comportamento mecânico (A02).
+- [ ] Girar o knob: banda morta de 2 %, `src=Pot` no push, rail (> 4080) ignorado.
+- [ ] Knob em 60 %: desligar comum religa? parada segura não religa? `re-habilitar` religa? Conferir `AgitatorPotActive` em cada passo.
+- [ ] Cortar energia com parada segura ativa e knob em 60 %: registrar o que o motor faz ao voltar (A03).
+- [ ] Espuma automática: baixar o anteparo abaixo da referência; agitador liga; subir; desliga. Desligar `agitatorAuto` e repetir.
+- [ ] OTA: freio antes do upload, imagem rejeitada por nome, interrupção com watchdog de 90 s.
+- [ ] Se houver shunt de corrente montado, medir GPIO 34/35 e decidir A05.
 
 ## 6. Servo drive (`ESP32S3-SERVO`, driver 2.0) — a preencher
 

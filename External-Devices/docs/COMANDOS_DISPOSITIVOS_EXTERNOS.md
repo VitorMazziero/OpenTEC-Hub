@@ -1328,8 +1328,64 @@ Não há bloco 🟡 nem 🔴: a bancada deste nó já foi feita e registrada em 
 |---|---|
 | Rota Hub → driver | `GET /servoCommand` a cada 500 ms; sempre o estado completo do motor + evento opcional |
 | Rota driver → Hub | `GET /servoData` a cada 1 s; campos obrigatórios listados acima |
-| Chaves app → Hub | `motorSetpoint` (0..1000 rpm), `servoComm`, `resetServoEnergy`, `servoPollMs` |
+| Chaves app → Hub | `motorSetpoint` (0..1000 rpm), `motorControlMode`, `servoComm`, `resetServoEnergy`, `servoPollMs` — detalhe em §6.2 |
 | Lease | 3000 ms; expira → parada e falha 3 |
 | Presença | `ServoOnline` expira em 6000 ms, independente de `servoComm` |
 | Modbus | RS-485, driver único mestre; P1-09 por `10H`; P2-30=5 (escritas só em RAM); P2-1x lidos para localizar SON/SPD0/SPD1 |
 | Documentos | `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`, `ESP32S3-SERVO/PLANO_MIGRACAO_RPM_MODBUS.md`, `ESP32S3-SERVO/PROTOCOLO_HUB_v9_PARA_APLICATIVO.md`, `ESP32S3-SERVO/Software/documentacao/*` |
+
+### 6.2 Catálogo de comandos usados na integração
+
+#### 6.2.1 App → Hub (`CommandKeys`) e o que o Hub faz
+
+| Chave no app | Valor | Efeito no Hub | O que chega ao driver |
+|---|---|---|---|
+| `motorSetpoint` | 0..1000 rpm | Estado desejado **latest-wins** (não enfileira): `setMotorDesired(rpm, enable = rpm > 0)` gera novo `motor_cmd_id`. Na via Modbus vai direto ao driver; na via UART/CN1 vai por `<N>A` à placa tradicional | `motor_rpm`, `motor_enable` no próximo `/servoCommand` |
+| `motorControlMode` | `0` UART/CN1, `1` Modbus | Troca de via *break-before-make*: primeiro `0V/0A` na UART, depois `setMotorDesired(0, false, via)`; nunca reaproveita a rotação anterior — o operador precisa emitir novo setpoint. Persistido; ecoado como `ServoMotorRouteAck` | `motor_route` + parada |
+| `servoComm` | `0`/`1` | Roteamento persistido em NVS; `0` cria imediatamente uma revisão de parada e rejeita `motorSetpoint` não nulo; ecoado como `ServoCommEnabled`. **Não** afeta presença | Revisão de parada |
+| `resetServoEnergy` | `1` | Evento na FIFO (8 posições, nunca sobrescreve o mais antigo); consumido na entrega. Confirmação é `ServoEnergyWh` cair a zero — não há ACK | `"reset_energy":1` no mesmo JSON |
+| `servoPollMs` | 250..10000 ms | Evento na FIFO; atualiza o evento ainda não entregue mais recente em vez de acumular | `"poll_ms":N` |
+| `resetVariables` | — | Cria parada (`rpm 0, enable 0`) e limpa a FIFO de eventos | Revisão de parada |
+| Parada segura global (`CoreSafeStop`) | inclui `motorSetpoint:0` | Nova revisão de parada | `motor_rpm:0, motor_enable:0` |
+
+#### 6.2.2 Hub → driver (`GET /servoCommand`, o driver puxa a cada 500 ms)
+
+Sempre o estado completo; o mesmo JSON continua sendo entregue após o ACK como **heartbeat do lease**:
+
+```json
+{"motor_cmd_id":123,"motor_rpm":800,"motor_enable":1,"motor_route":1,"motor_lease_ms":3000,"reset_energy":1,"poll_ms":1000}
+```
+
+| Campo | Valor | O que o driver faz |
+|---|---|---|
+| `motor_cmd_id` | uint32, nunca 0; muda a cada novo estado | Igual ao último aplicado → só renova o lease. Diferente → aplica e, após readback, passa a ecoar em `motor_ack` |
+| `motor_rpm` | 0..1000 | Escreve P1-09 (`10H`, 2 words, 0,1 rpm), lê de volta; só então liga/mantém SON |
+| `motor_enable` | 0/1; coerente com `motor_rpm` (`1` ⇔ rpm > 0) | `0` → P1-09 = 0 e SON off. Combinação incoerente → falha 4 (`comando inválido`) e o lease **não** é renovado |
+| `motor_route` | `1` Modbus, `0` UART/CN1 | `1`: assume `P3-06` (DIs SON/SPD0/SPD1 por software). `0`: só aceita parada; devolve `P3-06 = 0` e o CN1 volta a mandar |
+| `motor_lease_ms` | 1000..10000 (o Hub envia 3000) | Sem resposta válida dentro do prazo → P1-09 = 0, SON off, falha 3 |
+| `reset_energy` | `1`, opcional | Zera `energy_wh` |
+| `poll_ms` | 250..10000, opcional | Período de amostragem Modbus |
+
+Resposta vazia/curta (Hub antigo, sem `motor_cmd_id`) deixa o driver **passivo**: não toca no drive e o CN1 continua no comando.
+
+#### 6.2.3 Driver → Hub (`GET /servoData`, a cada 1 s) e o que o app vê
+
+| Parâmetro | Obrigatório | Hub → app | Significado |
+|---|---|---|---|
+| `rpm`, `torque_pct`, `power_w` | sim | `ServoRpm`, `ServoTorquePct`, `ServoPowerW` | Medidos por Modbus (P0-xx) |
+| `state` | sim, 0..3 | `ServoState` | Estado do drive |
+| `control_capable` | sim | `ServoControlCapable` | Perfil validado (DIs localizadas, P2-30 = 5): pré-condição para o app liberar setpoint |
+| `motor_ack` | sim | `ServoMotorCommandAck` (+ `ServoMotorCommandPending` derivado) | Último `motor_cmd_id` **confirmado por readback** |
+| `motor_applied_rpm` | sim, 0..1000 | `ServoMotorAppliedRpm` | P1-09 lido de volta |
+| `motor_control_active` | sim | `ServoMotorControlActive` | SON comandado pelo driver |
+| `motor_control_fault` | sim, ≥ 0 | `ServoMotorControlFault` | 0 ok · 1 perfil · 2 aplicação · 3 lease · 4 comando inválido · 5 drive indisponível. **Diferente de zero bloqueia novo movimento no app** |
+| `motor_route_ack` | sim | `ServoMotorRouteAck` | Via efetivamente assumida |
+| `torque_nm`, `load_pct`, `energy_wh`, `alarm`, `ok`, `err` | não | `ServoTorqueNm`, `ServoLoadPct`, `ServoEnergyWh`, `ServoAlarm`, `ServoCommOk`, `ServoCommErr` | Complementos; `ok`/`err` são contadores Modbus |
+
+Push com float não finito, faixa inválida ou campo obrigatório ausente → **400**, não renova presença nem ACK. O Hub publica ainda `ServoOnline` (push válido há ≤ 6 s), `ServoCommandQueueDepth` (só eventos), `ServoMotorCommandId`, `ServoMotorCommandDeliveries`, `ServoMotorCommandAgeMs`, `ServoMotorRequestedRpm`, `ServoMotorLeaseMs`, `ServoMotorEnabled`.
+
+#### 6.2.4 Reconexão e retomada (comportamento conhecido)
+
+- O driver reassocia sozinho ao SoftAP (`WiFi.begin` a cada 5 s; SSID fixo em compilação, IP do Hub fixo); não há `/nodeHello`. `ServoOnline` volta no primeiro push válido.
+- **Reboot do Hub:** nasce impondo parada; novo movimento exige novo `motorSetpoint`.
+- **Reboot só do driver, com o Hub vivo:** o Hub continua publicando o estado desejado como heartbeat; o driver, sem comando anterior, o trata como novo e, após validar o perfil, **retoma a rotação que o Hub ainda segura** (ex.: 800 rpm) sem novo comando do aplicativo. Registrado como comportamento conhecido e aceito (2026-09-13); a alternativa — o Hub rebaixar o estado desejado a zero ao ver `ServoOnline` cair — fica documentada aqui caso a operação passe a exigi-la.

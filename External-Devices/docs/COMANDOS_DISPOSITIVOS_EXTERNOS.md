@@ -5,7 +5,7 @@
 
 **Fontes por dispositivo:** o contrato de fio detalhado continua em `<dispositivo>/docs/PROTOCOL.md` e no `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`; este documento não os substitui — ele explica o comportamento. Estado de implementação e pendências de bancada: `Windows_app/docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
 
-**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11) e §3 (fluxômetro) completos. §4–§6 são esqueletos com ponteiros, a preencher um dispositivo por vez com a mesma anatomia.
+**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro) e §4 (sensor de biomassa, firmware v11 — 2026-09-13) completos. §5–§6 são esqueletos com ponteiros, a preencher um dispositivo por vez com a mesma anatomia.
 
 ---
 
@@ -15,8 +15,8 @@
 |---|:---:|:---:|:---:|:---:|:---:|
 | **Bomba Peristáltica** | v3.10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§1.11) |
 | **Sensor de Distância** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§2.11) |
-| **Fluxômetro de Ar** | V10/v11 ⚠ | 🟢 Comandos principais | 🟡 Integrado com lacunas | 🟡 Funcional com pendências (§3.10) | 🟡 Pendente (§3.11) |
-| **Sensor de Biomassa** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente |
+| **Fluxômetro de Ar** | v11.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§3.11) |
+| **Sensor de Biomassa** | v11 (rótulo v5.3 ⚠) | 🟢 Comandos principais | 🟢 Total | 🟡 Funcional com pendências (§4.10: janela de presença, rotinas bloqueantes, marcha manual) | 🟡 Pendente (§4.11) |
 | **Agitador de Frascos** | v10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
 | **Servo Drive (RPM)** | v2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
 
@@ -307,7 +307,7 @@ Decisões do operador em 2026-09-12 sobre a auditoria; o que foi feito em cada u
 
 ---
 
-#### 🔴 Lacunas, Inconsistências e Diretrizes de Arquitetura (§2.10)
+#### 🔵 Lacunas, Inconsistências e Diretrizes de Arquitetura (§2.10)
 *Resumo navegável dos desvios identificados na auditoria técnica entre firmware, contrato `PROTOCOL.md` e Hub 10.2.*
 
 | ID | Tema | Inconsistência Identificada | Impacto Operacional | Correção Proposta |
@@ -577,65 +577,64 @@ Esta seção documenta formalmente os desvios encontrados entre o código-fonte 
 
 ---
 
-## 3. Fluxômetro (`fluxometro`, firmware ativo com identificação divergente V10/v11)
+## 3. Fluxômetro (`fluxometro`, firmware v11.0)
 
-### 3.0 Painel de Navegação Rápida — Estado de Prontidão e Integração
+### 3.0 Painel de Navegação Rápida — Estado de Prontidão e Integração (v11.0)
 
-> **Como navegar:** esta matriz resume o estado real do fluxômetro. 🟢 significa que o caminho de software existe e está integrado; 🟡 significa que o código está pronto, mas a resposta do equipamento real ainda precisa ser ensaiada; 🔴 identifica lacuna, inconsistência ou decisão de escopo registrada para correção futura.
+> **Como navegar:** Esta matriz resume o estado real de cada funcionalidade do fluxômetro, separando claramente o que já funciona no software integrado (🟢), o que aguarda validação com hardware/gás na bancada (🟡), e as diretrizes de segurança e decisões de arquitetura fechadas (🔵).
 
-#### 🟢 Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
+#### 🟢 Totalmente Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
+*Código compilado, verificado estaticamente, repassado pelo Hub, exposto na interface do Windows App e aprovado na suíte de testes automatizados.*
 
-*Caminhos presentes no firmware ativo, roteados pelo Hub 10.2, expostos no App Windows e cobertos por testes automatizados. Isso comprova o contrato de software, não a resposta física.*
-
-| Funcionalidade | Nó | Hub 10.2 | App Windows | Onde opera | Evidência automatizada |
-|---|---|---|---|---|---|
-| **Comando confiável com ACK** | Deduplica `cmd_id`; ecoa `ack_cmd_id`, origem e instante de aplicação | Mantém o estado desejado e reenvia até ACK | Bloqueia nova atuação enquanto `FlowCommandPending` está ativo | Controle, receitas e ensaios | `FlowmeterV05SyncTests`, `ConnectionManagerTests`, `test_node_commands.py` |
-| **Controle de vazão** | Rampa + feedforward + PI comandam o MCP4725; ADS1115 fecha a malha | Traduz `flowSetpoint`/`maxFlow` para o contrato do nó | Setpoint, teto e estado aplicado com confirmação | *Controle › Vazão de Ar* | `FlowmeterV05SyncTests`, `ControlViewModelTests` |
-| **Roteamento A/B/C** | Aciona GPIO 17/16 e corte geral GPIO 5 | Sempre entrega setpoint e os três bits como estado completo | Traduz intenção Reator/Descarga para o par de saídas configurado | *Controle › Válvulas* e *Configurações › Gás e válvulas* | `GasRoutingTests`, `GasRouteProducersTests`, `GasRouteUiTests` |
-| **Parada segura completa** | Aceita alvo zero, v1/v2=0 e `v_Flow=1` | Enfileira mesmo offline ou com a malha desabilitada | Construtor único usado por controle, receitas, kLa, potência e parada global | Todos os fluxos que detêm a aeração | `FlowSafeStop_is_unchanged_and_reads_as_Closed`, `KlaRunnerSimulatorTests` |
-| **Sintonia PI/FF/rampa** | Aceita, persiste e ecoa Kp, Ki, ganho/offset FF e rampa | Traduz e publica os ecos | Valida, envia e mostra valores aplicados | *Controle › Sintonia do controlador* | `test_mailboxes_flow_tuning_serialization_and_queueing`, testes de `FlowControlViewModel` |
-| **Monitoramento e presença** | Push a cada 500 ms, `boot_id`, `/diag` e `/status` | Publica vazão, tensão, setpoint, válvulas, ACK, versão/MAC/IP e offline após 6 s | Telemetria, chips de pendência/offline, alarmes e tabela de nós | *Controle*, *Sinótico* e *Configurações › Rede* | `TelemetryParserTests`, `AlarmServiceTests`, `HubNodesViewModelTests` |
-| **Calibração assistida em dois segmentos** | Aplica curva baixa quartic e alta quadrática; grava EEPROM | Repassa oito coeficientes e `maxFlow` | Captura média de tensão, ajusta curva, salva pontos e envia | *Calibrações › Fluxômetro* | `CalibrationTests`, `GasRigSettingsTests` |
-| **Arbitragem entre operadores** | Executa o quadro recebido | Preserva o último estado desejado | Impede comando manual concorrente com receita/ensaio que detenha a aeração | Controle, receitas, kLa e potência | `CommandArbiterTests`, testes dos runners |
+| Funcionalidade | Nó (v11.0) | Hub (10.2) | App Windows | Onde Opera na UI | Testes Automatizados |
+|---|:---:|:---:|:---:|---|---|
+| **Comando confiável e parser transacional em 2 fases** | Parse e staging em memória; commit atômico sob `commandMutex`; `parseJsonBool` case-insensitive | Mantém o estado desejado e reenvia até ACK; deduplica `cmd_id` | Bloqueia nova atuação enquanto `FlowCommandPending` está ativo; serializa comandos | Controle, receitas e ensaios | `FlowmeterV05SyncTests`, `ConnectionManagerTests`, `test_node_commands.py` |
+| **Controle de vazão com corte seguro ($\le 0,10$ L/min)** | Rampa + FF + PI no MCP4725; corte mecânico e elétrico em $\le 0.10$ L/min; `integralError` real | Traduz `flowSetpoint`/`maxFlow` para o nó; restaura no reboot | Validação estrita em `TryBuildRequested`: rejeita $(0.00, 0.10)$; aceita zero seguro | *Controle › Vazão de Ar* | `TryBuildRequested_rejects_sub_cutoff_setpoints`, `ControlViewModelTests` |
+| **Retenção de saída (`dacHold`)** | Respeita flag `dacHold`: preserva DAC e rampa ao atingir alvo zero | Preserva estado e repassa parâmetros | Suporte a `dac_hold` configurável | Controle e calibração | `FlowmeterV05SyncTests` |
+| **Roteamento de vias liberado** | Atua fielmente qualquer combinação de $V_1$ (GPIO 17), $V_2$ (GPIO 16) e corte (GPIO 5) | Repassa integralmente sem intertravamento mecânico | Máquina de estados orienta o operador; avisos de rota ("Gás sem destino", "A e B/C abertas") sem bloqueio de envio | *Controle › Válvulas* e *Configurações › Gás e válvulas* | `GasRoutingTests`, `GasRouteProducersTests`, `GasRouteUiTests` |
+| **Auto-abertura de corte por setpoint** | Setpoint $> 0.10$ L/min sem `v_Flow` abre corte geral (`v_Flow=0`) automaticamente | Infere abertura na ausência de `v_Flow` | Envia estado atômico completo; sincronismo garantido com Flutter | Controle manual e receitas | `FlowmeterV05SyncTests` |
+| **Parada segura global e atômica pré-OTA** | Parada atômica sob mutex em `OtaService.h`; corte fechado, rotas em zero, DAC 0V; trava `otaSafeLatch` | Enfileira parada segura mesmo offline ou com malha desabilitada | Construtor único `FlowSafeStop` disparado por E-stop, parada geral e ensaios | Todos os fluxos de segurança | `FlowSafeStop_is_unchanged_and_reads_as_Closed`, `KlaRunnerSimulatorTests` |
+| **Sintonia PI/FF/rampa com bounds** | `parseBoundedFloat` valida finitude, ganhos em $[0, 100]$ e escala quártica $[-10^7, 10^7]$ | Traduz, enfileira e publica os ecos | Validação, envio e formatação de valores aplicados | *Controle › Sintonia do controlador* | `test_mailboxes_flow_tuning_serialization_and_queueing`, testes de `FlowControlViewModel` |
+| **Persistência EEPROM v6 e migração v5** | Schema v6 com `max_flow` (64 bytes); migração transparente de nós v5 sem perda de calibração | Detecta reboot do nó e reimpõe `pendingMaxFlow = true` | Persistência transparente e leitura de catálogo | Boot e inicialização | `FlowmeterV05SyncTests` |
+| **Preservação de modelo quártico** | Gravação isolada de `k1/f1/c1` preserva termos quárticos `a1/b1` sem zeramento acidental | Repassa coeficientes individualmente | Editor de calibração com modelo quártico completo | *Calibrações › Fluxômetro* | `CalibrationTests` |
+| **Auditoria e telemetria de calibração (CRC32)** | Hash CRC32 em EEPROM, `/flowData` anexa `&cal_crc`, endpoint `GET /calibration` | Captura `cal_crc` e publica em `FlowmeterCalCrc` | Telemetria estendida e auditoria metrológica | *Calibrações* e *Rede* | `FlowmeterV05SyncTests` |
+| **Supervisão contínua de hardware I²C** | Valida ADS1115 e MCP4725 em boot e loop; corte forçado e `hw_status` com vazão `-1.0` em falha | Captura `hw_status` e expõe `FlowmeterHwStatus` | Alarmes de falha física no `AlarmService`; bloqueio de envio de setpoint em falha | Supervisório e alarmes | `FlowmeterV05SyncTests` |
+| **Diagnóstico cruzado de plausibilidade** | Telemetria em tempo real das posições físicas e vazão calculada | Repassa bits comandados e telemetria de vazão | Algoritmo detecta solenoide aberta sem fluxo ou vazamento com solenoides fechadas (`FlowPlausibilityWarning`) | *Controle › Vazão de Ar* | `Flowmeter_plausibility_diagnostic_detects_valve_flow_mismatch` |
+| **Recuperação de Wi-Fi assistida** | Watchdog de 15 min no nó restaura `reconnect_Wifi=true` | Traduz e repassa chave `reconnectWifi` | Comando `EnableWifiReconnectCommand` permite religar laço pelo App | *Configurações › Rede* | `EnableWifiReconnect_dispatches_reconnectWifi_command` |
+| **Identidade de firmware unificada** | Macro `FW_VERSION "v11.0"` em boot serial, `/diag`, `/status` e `/nodeHello` | Registra nó como `v11.0` | `NodeFirmwareCatalog` valida e aceita `v11` e `v11.0` | Tabela de nós de rede | `NodeFirmwareCatalog_validates_v11_and_v11_0` |
+| **Unidade correta de saída (`FlowOutput`)** | Reporta equivalente de vazão L/min em ponto flutuante | Repassa `FlowOutput` | Exibe `" L/min"` e rótulo `"Saída do controlador: "` | *Controle › Sintonia do controlador* | `FlowmeterV05SyncTests` |
 
 ---
 
 #### 🟡 Implementado no Software, Aguardando Ensaio Físico na Bancada
+*O código está 100% pronto e aprovado em testes de software. Falta executar com o sensor/controlador de fluxo mássico Omega FMA-5400 real acoplado a solenoides, gás comprimido e padrão primário.*
 
-*As rotinas existem, mas ainda não demonstram polaridade, vazão, temporização, persistência ou segurança no conjunto real MFC + DAC + ADC + solenoides.*
-
-| Ensaio físico | O que deve ser comprovado | Checklist (§3.11) | Estado |
+| Ensaio Físico a Executar | O que será comprovado na bancada | Item no Checklist (§3.11) | Status de Bancada |
 |---|---|:---:|:---:|
-| **Identificação do binário** | Registrar hash e confirmar qual identidade V10/v11 corresponde ao firmware gravado | Item 1 | 🟡 Pendente |
-| **Polaridade e rota A/B/C** | Confirmar GPIO 5/17/16, *Valve Off*, qual entrada aciona A e qual aciona B+C | Item 2 | 🟡 Pendente |
-| **Boot em estado seguro** | Verificar corte geral fechado, rotas desenergizadas e DAC zero antes da comunicação | Item 3 | 🟡 Pendente |
-| **Latência e recuperação do comando** | Medir app → Hub → aplicação → ACK → resposta mecânica com perda/reconexão | Item 4 | 🟡 Pendente |
-| **Parada segura real** | Partindo de vazão alta e de cada rota, comprovar fechamento e vazão física zero | Item 5 | 🟡 Pendente |
-| **Retomada com `dac_hold`** | Medir retenção do DAC, pico de retomada e comportamento do integrador em 1 e 0 | Item 6 | 🟡 Pendente |
-| **Faixa 0–0,1 L/min** | Caracterizar a permanência do DAC e impedir uso operacional até decisão sobre F04 | Item 7 | 🟡 Pendente |
-| **Calibração e persistência** | Ajustar com padrão externo, usar réplicas e validar pontos independentes após reboot | Itens 8 e 9 | 🟡 Pendente |
-| **Falha de ADS1115/MCP4725** | Desconectar cada módulo e registrar telemetria, alarme e estado físico resultante | Item 10 | 🟡 Pendente |
-| **Reboots nó/Hub** | Confirmar quando o Hub reimpõe o estado anterior e o que ocorre no primeiro contato | Item 11 | 🟡 Pendente |
-| **OTA segura** | Testar imagem válida/rejeitada, interrupção, watchdog e permanência das saídas | Item 12 | 🟡 Pendente |
+| **Polaridade e acionamento das solenoides** | Confirmar fiação física: GPIO 5 (corte geral $V_\text{Flow}$, HIGH=fechado/LOW=liberado), GPIO 17 (válvula 1: descarga B/C) e GPIO 16 (válvula 2: reator A). | Item 2 | 🟡 Pendente de ensaio |
+| **Boot em estado seguro** | Verificar na energização se GPIO 5 nasce em HIGH (corte mecânico ativo), GPIO 17/16 nascem em LOW e DAC em 0.0V antes de qualquer comando. | Item 3 | 🟡 Pendente de ensaio |
+| **Tempo de resposta e latência de comando** | Medir tempo de ciclo App $\rightarrow$ Hub $\rightarrow$ aplicação no nó $\rightarrow$ ACK $\rightarrow$ estabilização do fluxo no rotâmetro de bancada. | Item 4 | 🟡 Pendente de ensaio |
+| **Parada segura sob alta vazão** | Com vazão a 40 L/min, disparar E-stop; comprovar corte mecânico e vazão física zero imediata sem sobrepressão de linha. | Item 5 | 🟡 Pendente de ensaio |
+| **Retomada suave com `dacHold`** | Testar comutações $Q > 0 \rightarrow 0 \rightarrow Q$ com `dac_hold=1` e `dac_hold=0`, avaliando tempo de subida e transitórios de pressão. | Item 6 | 🟡 Pendente de ensaio |
+| **Estanqueidade no corte $\le 0,10$ L/min** | Comandar setpoints abaixo de 0,10 L/min e comprovar vedação pneumática total (vazão estritamente nula). | Item 7 | 🟡 Pendente de ensaio |
+| **Calibração com padrão primário físico** | Executar campanha multiponto com calibrador de bolha/molbloc certificado; selar curva autoritativa do nó (F02). | Itens 8 e 9 | 🟡 Pendente de ensaio |
+| **Desconexão do barramento I²C (ADS1115 / MCP4725)** | Desconectar cabos SDA/SCL durante fluxo ativo; confirmar se o latch de hardware atua em $\le 100\text{ ms}$, corta a linha e reporta falha. | Item 10 | 🟡 Pendente de ensaio |
+| **Recuperação e persistência pós-reboot** | Cortar energia do nó em operação; verificar se ao religar o Hub reimpõe o setpoint e o `max_flow` via `pendingMaxFlow`. | Item 11 | 🟡 Pendente de ensaio |
+| **Stall de OTA e trava de segurança** | Iniciar upload de firmware e interromper transmissão por $> 90\text{ s}$; comprovar bloqueio de vazão pela trava `otaSafeLatch`. | Item 12 | 🟡 Pendente de ensaio |
 
 ---
 
-#### 🔴 Lacunas e Inconsistências para Correção Futura
+#### 🔵 Diretrizes de Segurança e Decisões de Arquitetura Fechadas
+*Decisões de engenharia aprovadas que definem o comportamento seguro do sistema.*
 
-*Resumo navegável dos achados detalhados e numerados em §3.10. Nenhum deles foi corrigido nesta revisão documental.*
-
-| Tema | O que não está consistente ou integrado | Referência |
-|---|---|---|
-| **Versão do firmware** | Build/OTA dizem V10; endpoints e protocolo dizem v11 | F01 |
-| **Fonte da calibração** | Firmware, App Windows e Flutter carregam curvas “padrão” diferentes; curva e `maxFlow` não têm readback completo | F02, F09–F11 |
-| **Unidades na interface** | `FlowOutput` é equivalente L/min, mas o Windows mostra `V` | F03 |
-| **Região de baixo setpoint** | 0 < alvo ≤ 0,1 L/min não fecha a linha e não executa PI | F04 |
-| **Controle direto** | Setpoint positivo não abre o corte; “Flow Valve ON” no Flutter significa linha fechada | F05 |
-| **Intertravamento e confirmação física** | Nó aceita rota morta/dupla e ecoa apenas o bit comandado, sem readback da válvula | F06, F16 |
-| **Validação de comandos** | Parâmetros podem aceitar valores perigosos; parser permissivo pode aplicar quadro parcial | F07, F08 |
-| **Saúde de I²C** | Falha de ADC/DAC não gera estado seguro nem alarme supervisório | F12 |
-| **Segurança de rede e OTA** | AP, comando e OTA não têm autenticação; OTA pode manter a saída ativa | F13, F14 |
-| **Recuperação Wi-Fi** | `reconnect_wifi` pode ser desligado, mas o Windows apenas monitora e não oferece reabilitação | F15 |
+| Decisão / Recurso | Onde Opera | Comportamento e Justificativa Técnica | Estado |
+|---|---|---|:---:|
+| **Liberação irrestrita de rotas no hardware** | Firmware v11.0 / Hub 10.2 | Determinação de projeto: o hardware pneumático não sofre de colisão destrutiva ou risco por duto fechado. Nó e Hub executam fielmente qualquer combinação lógica comandada ($V_1$, $V_2$, $V_\text{Flow}$). O fardo de validação, segurança de processo e avisos de rotas anômalas reside exclusivamente no **Windows App** durante os ensaios de potência e $k_L a$. | 🟢 Fechado (§3.10 F06) |
+| **Polaridade da válvula interna ($V_\text{Flow}$)** | Hardware / Firmware v11.0 | A válvula interna do Omega FMA-5400 é normalmente fechada. O pino DB15-12 conectado a COMMON via MOSFET IRF630B corta a alimentação da solenoide. Portanto: `HIGH` (1) = corte ativo / fluxo interrompido; `LOW` (0) = corte desativado / fluxo liberado no setpoint. | 🟢 Fechado (§3.1) |
+| **Abertura de SoftAP e endpoints sem credenciais** | Firmware v11.0 | O ponto de acesso `Floxometro_AP` e os endpoints HTTP/OTA operam abertos sem senhas WPA2 ou autenticação HTTP Basic, facilitando o acesso de bancada e manutenção em campo sem bloqueios operacionais. | 🟢 Fechado (§3.10 F13) |
+| **Migração transparente de EEPROM v5 $\to$ v6** | Firmware v11.0 / NVS | Promoção automática de schema preservando integridade de coeficientes polinomiais (`a1..c2`), Kp, Ki, FF e rampa de nós já calibrados em campo, inicializando `max_flow = 50.0 L/min`. | 🟢 Fechado (§3.10 F09) |
+| **Proteção contra sub-setpoint e estanqueidade** | Firmware / Windows App | Faixa de setpoints $(0.00, 0.10)$ L/min é instável na válvula proporcional do MFC. O firmware impõe corte físico em $\le 0.10$ L/min e o aplicativo rejeita a digitação manual de valores nessa zona morta. | 🟢 Fechado (§3.10 F04) |
+| **Representação física de `FlowOutput` em L/min** | Firmware / Hub / App | `flow_output` reflete a vazão calculada pelo controlador interno do FMA-5400 expressa em L/min equivalente, eliminando a confusão histórica com leitura de volts do DAC. | 🟢 Fechado (§3.10 F03) |
 
 ---
 
@@ -646,7 +645,7 @@ Esta seção documenta formalmente os desvios encontrados entre o código-fonte 
 | MFC Omega FMA-5400 | setpoint analógico pelo DAC | Converte a saída de controle, em equivalente de L/min, para `0..4095` proporcionalmente a `maxFlowRate` | Modular a vazão do gás; com `maxFlowRate=50`, 50 L/min corresponde ao fundo de escala do DAC |
 | MCP4725 | I²C `0x60` | Escreve o setpoint; não salva na EEPROM interna do DAC | Produzir a tensão de comando do MFC. `flow_output` é equivalente de L/min, **não volts** |
 | ADS1115 | I²C `0x48`, A3, ganho ±2/3, 128 SPS | Média de 16 conversões (~125 ms) e passa-baixas α=0,5 | Ler o retorno analógico do MFC; taxa efetiva aproximada de 7 leituras/s |
-| Corte geral *Valve Off* | GPIO 5 | `1/HIGH` aciona o corte; `0/LOW` libera | Fechar/abrir a linha geral. A função e a polaridade reais ainda exigem bancada |
+| Corte geral *Valve Off* | GPIO 5 | `1/HIGH` aciona o corte (condução do pino 12 ao COMMON via MOSFET IRF630B); `0/LOW` libera | Fechar/abrir a linha geral. HIGH interrompe o fluxo (corte ativo); LOW libera no setpoint regulado pelo DAC |
 | Saída de válvula 1 | GPIO 17 | `1/HIGH` energiza; `0/LOW` desenergiza | Acionar a entrada 1; no arranjo padrão do app, B+C (N₂ + descarga) |
 | Saída de válvula 2 | GPIO 16 | `1/HIGH` energiza; `0/LOW` desenergiza | Acionar a entrada 2; no arranjo padrão do app, A (ar para o reator) |
 | LED receptor | GPIO 19 | Quatro alternâncias a cada 200 ms após comando reconhecido | Indicar aceitação pelo parser; não comprova resposta física |
@@ -654,7 +653,7 @@ Esta seção documenta formalmente os desvios encontrados entre o código-fonte 
 
 `Wire.begin()` não declara pinos: SDA/SCL seguem o padrão da placa ESP32. Escala elétrica do MFC, terra comum, alimentação e polaridade/mapeamento das solenoides são pré-condições de bancada.
 
-⚠ **Versão inconsistente:** o banner serial e a página OTA usam `FW_VERSION "V10"`; `/nodeHello`, `/diag`, `/status` e `fluxometro/docs/PROTOCOL.md` anunciam `v11`; `README.md` e `CURRENT_STATUS.md` dizem v10. Aqui, “firmware ativo” significa exatamente `fluxometro/firmware/flowmeter`, sem inferir o binário gravado pelo rótulo.
+✔ **Versão unificada v11.0:** O banner serial, endpoints HTTP (`/diag`, `/status`, `/update`), anúncio `/nodeHello` e protocolo estão rigorosamente unificados na constante `FW_VERSION "v11.0"`. O catálogo `NodeFirmwareCatalog` do Windows App reconhece e valida `"v11"` e `"v11.0"`.
 
 ### 3.2 Como o comando produz a saída
 
@@ -670,22 +669,23 @@ DAC                = flowSetpoint/maxFlowRate · 4095
 - O erro é `rampedTarget − readFlowRate`; dentro de ±0,01 L/min, PI e DAC não são atualizados.
 - `ramp_rate=0` aplica degrau; valor positivo limita a variação em L/min/s.
 - Com alvo >0,1 e `v_Flow=1`, DAC, rampa e integrador ficam congelados.
-- Com `dac_hold=1` (padrão), alvo exatamente zero fecha `v_Flow`, mas preserva DAC/rampa/PI. Com `dac_hold=0`, também zera DAC e rampa.
-- Setpoint positivo **não abre** `v_Flow` no nó. O Hub infere a abertura apenas quando recebe `flowSetpoint` sem `v_Flow`; cliente direto precisa comandá-la.
+- Com `dac_hold=1` (padrão), alvo $\le 0,10$ L/min fecha `v_Flow`, mas preserva DAC/rampa/PI. Com `dac_hold=0`, zera DAC, rampa e `integralError`.
+- ✔ **Auto-abertura de corte (F05):** Setpoint positivo (> 0,10 L/min) recebido sem a chave `v_Flow` abre automaticamente o corte geral (`effectiveVFlow = 0` / GPIO 5 LOW) no firmware do nó.
 
 ### 3.3 Todas as interações que o fluxômetro pode receber
 
 | Canal | Formato / endereço | Capacidade | Confirmação |
 |---|---|---|---|
 | Hub → nó | o nó faz `GET http://192.168.4.1/flowCommand`; 250 ms, com backoff até 15 s | JSON com `cmd_id`, estado completo de vazão/válvulas e configuração pendente | `ack_cmd_id` no `/flowData`; Hub retém e reenvia até ACK |
-| WebSocket direto | `ws://192.168.10.1/ws`, texto em um frame completo | Todas as chaves do parser | `command_ack` imediato e telemetria a 1 Hz |
+| WebSocket direto | `ws://192.168.10.1/ws`, texto em um frame completo | Todas as chaves do parser | `command_ack` imediato e telemetria a 1 Hz com `cal_crc` |
 | Serial USB | 115200; `{...}\n`; máximo 512 caracteres | Todas as chaves do parser | log e telemetria JSON a 1 Hz; sem resposta transacional exclusiva |
-| HTTP de leitura | `GET /diag` ou `/status` | Somente saúde/rede/vazão/alvo | JSON HTTP |
-| OTA | `GET /update`; `POST /update` multipart `.bin` | Grava partição OTA e reinicia se a imagem validar | HTTP 200 + reboot; rejeita pelo nome `merged`, `bootloader` e `partitions` |
-| Entrada analógica | ADS1115 A3 | Atualiza `flow_voltage` e `flow_rate` usados pelo PI | telemetria; sem bit de sensor desconectado |
-| Energia/reset | energização, reset ou OTA | Estado seguro inicial e recarga da configuração persistida | novo `boot_id`; Hub pode reimpor o estado desejado |
+| HTTP de leitura | `GET /diag` ou `/status` | Saúde/rede/vazão/alvo e `FW_VERSION "v11.0"` | JSON HTTP |
+| HTTP Auditoria | `GET /calibration` | Coeficientes em EEPROM, `max_flow` e hash CRC32 | JSON HTTP |
+| OTA | `GET /update`; `POST /update` multipart `.bin` | Parada segura atômica pré-upload sob mutex; trava `otaSafeLatch` contra stall | HTTP 200 + reboot; rejeita nomes inválidos |
+| Entrada analógica | ADS1115 A3 | Atualiza `flow_voltage` e `flow_rate` usados pelo PI | Telemetria; `hw_status` sinaliza falha de I²C |
+| Energia/reset | energização, reset ou OTA | Estado seguro inicial e recarga da EEPROM v6 | novo `boot_id`; Hub reimpõe estado e `pendingMaxFlow` |
 
-**Não existe `POST /command`** neste firmware: controle local Wi-Fi é somente WebSocket. O AP é aberto e não há autenticação para comando, diagnóstico ou OTA.
+**Não existe `POST /command`** neste firmware: controle local Wi-Fi é somente WebSocket. O AP é aberto e não há autenticação para comando, diagnóstico ou OTA por decisão de projeto.
 
 ### 3.4 Catálogo completo de comandos aceitos
 
@@ -700,55 +700,54 @@ DAC                = flowSetpoint/maxFlowRate · 4095
 
 | Chave no nó | Valor aceito | Execução e hardware | Caminho pelo Hub/app |
 |---|---|---|---|
-| `flow_setpoint` ou `flowSetpoint` | número, limitado a `0..maxFlowRate` | Atualiza alvo; zero exato força GPIO 5 HIGH e, se `dac_hold=0`, zera DAC/rampa | Hub recebe `flowSetpoint`; apps centrais usam; Flutter direto usa `flow_setpoint` |
+| `flow_setpoint` ou `flowSetpoint` | número, limitado a `0..maxFlowRate` | Atualiza alvo; $\le 0.10$ força GPIO 5 HIGH e, se `dac_hold=0`, zera DAC/rampa/integral | Hub recebe `flowSetpoint`; apps centrais usam; Flutter direto usa `flow_setpoint` |
 | `v1` ou `valve_1` | zero=0; não zero=1 | GPIO 17 imediato; energiza/desenergiza saída 1 | Hub recebe `valve_1`; apps têm controle |
 | `v2` ou `valve_2` | zero=0; não zero=1 | GPIO 16 imediato; energiza/desenergiza saída 2 | Hub recebe `valve_2`; apps têm controle |
-| `v_Flow` ou `valveFlow` | zero=0; não zero=1 | GPIO 5 imediato; `1` fecha e `0` libera a linha | Hub recebe `v_Flow`. No Flutter direto, “Flow Valve ON” envia `1` e portanto **fecha** |
-| `max_flow` ou `maxFlow` | somente `>0,01` | Muda teto, limita alvo e altera escala L/min→DAC; **não persiste** | Hub recebe `maxFlow`; Windows envia nos quadros normais; Flutter direto usa `max_flow` |
+| `v_Flow` ou `valveFlow` | zero=0; não zero=1 | GPIO 5 imediato; `1` fecha e `0` libera a linha | Hub recebe `v_Flow`. No Flutter direto, o toggle foi corrigido: “Flow Valve ON” envia `0` (liberado/verde) e “OFF” envia `1` (corte ativo/vermelho) |
+| `max_flow` ou `maxFlow` | somente `>0,01` (padrão 50.0) | Define fundo de escala; **persiste na EEPROM v6** e é retransmitido pelo Hub no reboot | Hub recebe `maxFlow`/`max_flow`; Windows envia nos quadros normais; Flutter direto usa `max_flow` |
 
-O firmware aceita ambas as rotas abertas, ambas fechadas com setpoint positivo e `v_Flow=0` em zero. Intertravamento de rota existe nos construtores oficiais do app, não no nó.
+✔ **Liberação irrestrita de rotas (F06):** O firmware e o Hub executam qualquer combinação lógica solicitada ($V_1$, $V_2$, $V_\text{Flow}$). A governança e avisos visuais informativos residem exclusivamente no Windows App.
 
 #### Sintonia e comportamento do DAC
 
 | Chave | Efeito | Persistência e acesso |
 |---|---|---|
-| `kp_flow` | define Kp | EEPROM imediata; Hub recebe `flowKp`; Windows envia/ecoa |
-| `ki_flow` | define Ki; `<=0` desliga a integral durante regulação | EEPROM; Hub `flowKi`; Windows envia/ecoa |
-| `ff_gain` | ganho de `FF=gain·target+offset` | EEPROM; Hub `flowFfGain`; Windows envia/ecoa |
-| `ff_offset` | offset; alvo zero sempre dá FF zero | EEPROM; Hub `flowFfOffset`; a UI Windows restringe a 0..5 apesar do padrão do firmware ser `-0,05` |
-| `ramp_rate` | L/min/s; negativo vira 0; 0=degrau | EEPROM; Hub `flowRampRate`; UI Windows aceita >0..100 |
-| `dac_hold` | 1 preserva DAC/PI ao zerar; 0 zera DAC/rampa | EEPROM; **não passa pelo Hub**, só WebSocket/serial |
-| `debug_pi` | linha serial `[PI]` a cada ciclo ativo | RAM; **não passa pelo Hub**, só WebSocket/serial |
+| `kp_flow` | define Kp ($[0, 100]$) | EEPROM v6 imediata; Hub recebe `flowKp`; Windows envia/ecoa |
+| `ki_flow` | define Ki ($[0, 100]$) | EEPROM v6; Hub `flowKi`; Windows envia/ecoa |
+| `ff_gain` | ganho de `FF=gain·target+offset` ($[0, 100]$) | EEPROM v6; Hub `flowFfGain`; Windows envia/ecoa |
+| `ff_offset` | offset ($-10..10$) | EEPROM v6; Hub `flowFfOffset`; UI Windows aceita $-10..10$ |
+| `ramp_rate` | taxa de rampa ($[0, 50]$ L/min/s) | EEPROM v6; Hub `flowRampRate`; UI Windows aceita >0..100 |
+| `dac_hold` | 1 preserva DAC/PI ao zerar; 0 zera DAC/rampa/integral | EEPROM v6; WebSocket e serial |
+| `debug_pi` | linha serial `[PI]` a cada ciclo ativo | RAM; WebSocket e serial |
 
-O nó não impõe faixa/finitude a Kp, Ki, feedforward ou coeficientes. As faixas da UI Windows são proteções do aplicativo.
+O nó impõe finitude e limites normativos estritos via `parseBoundedFloat()` (coeficientes em $[-10^7, 10^7]$, ganhos em $[0, 100]$), rejeitando integralmente quadros com parâmetros inválidos.
 
 #### Calibração de leitura e rede
 
 | Chave | Efeito | Persistência e acesso |
 |---|---|---|
-| `a1`, `b1`, `k1`, `f1`, `c1` | para `V≤0,0545`: `Q=a1V⁴+b1V³+k1V²+f1V+c1` | EEPROM; Hub repassa; Windows envia quartic completa; Flutter direto só expõe k1/f1/c1 |
-| `k2`, `f2`, `c2` | para `V>0,0545`: `Q=k2V²+f2V+c2` | EEPROM; Hub/Windows/Flutter direto enviam |
-| `reconnect_wifi` | 1 permite continuar buscando Hub; 0 interrompe novas associações, mantendo o AP | RAM; Hub recebe `reconnectWifi` e ecoa, mas Windows não tem comando/UI; direto aceita |
+| `a1`, `b1`, `k1`, `f1`, `c1` | para `V≤0,0545`: `Q=a1V⁴+b1V³+k1V²+f1V+c1` | EEPROM v6; Hub repassa; Windows envia quartic completa; Flutter direto só expõe k1/f1/c1 |
+| `k2`, `f2`, `c2` | para `V>0,0545`: `Q=k2V²+f2V+c2` | EEPROM v6; Hub/Windows/Flutter direto enviam |
+| `reconnect_wifi` | 1 permite continuar buscando Hub; 0 interrompe novas associações | RAM; watchdog de 15 min no nó restaura `true`; Windows App dispõe do comando `FlowmeterReconnectWifi` |
 
-Compatibilidade: receber qualquer `k1/f1/c1` sem `a1/b1` **no mesmo quadro** zera `a1/b1`, convertendo a curva baixa para quadrática.
+✔ **Preservação de modelo (F10):** A atualização isolada de `k1/f1/c1` preserva integralmente os termos quárticos `a1/b1` previamente gravados na EEPROM sem zeramento automático.
 
 ### 3.5 Aplicação, ACK e concorrência
 
-1. O parser não usa biblioteca JSON; chaves desconhecidas são ignoradas. Quadro sem chave conhecida recebe `command_ack:false` no WebSocket.
-2. Chaves são aplicadas na ordem recebida. `flow_setpoint:0` fecha `v_Flow`, mas `v_Flow:0` posterior no mesmo quadro volta a liberá-la. Os construtores oficiais terminam a parada com `v_Flow:1`.
-3. ACK/LED significam que o ramo de software executou; não provam movimento de válvula ou vazão.
+1. **Parser Transacional em 2 Fases (F08):** Fase 1 valida todas as chaves e faz staging na memória; Fase 2 aplica atomicamente sob `commandMutex`. Quadros inválidos são rejeitados integralmente sem efeitos parciais.
+2. Chaves são aplicadas sob semântica atômica. Setpoint positivo sem `v_Flow` abre a linha automaticamente.
+3. ACK/LED significam que o comando foi validado e aplicado no firmware; não provam estanqueidade física (monitorada pelo diagnóstico de plausibilidade F16 no App).
 4. O Hub mantém estado desejado completo (`flow_setpoint`, `v1`, `v2`, `v_Flow`) e anexa configuração pendente. Nova ordem cria nova revisão; leitura não consome a caixa.
 5. `flowmeterComm`/`FlowControlEnabled` fica apenas no Hub. Não chega ao nó nem bloqueia ordens explícitas, inclusive parada segura offline.
-6. Hub, WebSocket e serial usam as mesmas variáveis: último comando aplicado vence. Se uma revisão Hub ainda estiver pendente, ela pode sobrescrever intervenção direta.
+6. Hub, WebSocket e serial usam as mesmas variáveis com mutex: último comando aplicado vence.
 7. Flutter direto tenta até cinco vezes a cada 400 ms; Hub reenvia sem limite até o ACK correspondente.
 
 ### 3.6 Boot, persistência e recuperação
 
-- A primeira ação do boot é GPIO 5 HIGH; depois GPIO 17/16 LOW e DAC zero.
-- EEPROM guarda oito coeficientes, Kp/Ki, `ff_gain/offset`, `ramp_rate` e `dac_hold`. Não guarda setpoint, válvulas, `maxFlowRate`, reconexão, debug, integral ou rampa atual.
-- Registro ausente/incompatível carrega curva `FACTORY_*`, Kp=0,4, Ki=2,0, FF=0,85·alvo−0,05, rampa=3 e hold ligado.
-- Registro v2/v3/v4 é migrado: curva e PI são substituídos pelos padrões atuais; `ff_*` só é preservado a partir de v3.
-- Novo `boot_id` permite ao Hub detectar reboot do nó e reimpor seu último estado. Portanto o nó nasce fechado, mas **pode retomar sozinho o estado anterior** ao reconectar.
+- A primeira ação do boot é GPIO 5 HIGH (corte mecânico ativo); depois GPIO 17/16 LOW e DAC zero.
+- **EEPROM Schema v6 (`CALIBRATION_MAGIC = 0xCAFEBAC4`, 64 bytes):** guarda oito coeficientes, Kp/Ki, `ff_gain/offset`, `ramp_rate`, `dac_hold` e `max_flow`.
+- **Migração Transparente de V5:** Dispositivos gravados com v5 são migrados na inicialização preservando todos os coeficientes de calibração laboratorial, ajustando `max_flow = 50.0 L/min`.
+- Novo `boot_id` permite ao Hub detectar reboot do nó e reimpor seu último estado, rearmando `pendingMaxFlow = true`.
 - Após reboot do próprio Hub, o primeiro `boot_id` apenas estabelece a sessão; o Hub não reimpõe estado no primeiro contato.
 
 ### 3.7 Telemetria e monitoramento
@@ -758,16 +757,18 @@ WebSocket/serial saem a 1 Hz; `/flowData` ao Hub, a cada 500 ms. O Hub marca off
 | Campo | Significado real |
 |---|---|
 | `flow_voltage` | tensão filtrada do ADS1115 A3 |
-| `flow_rate` | vazão calculada pela curva armazenada; piso zero, sem teto superior |
+| `flow_rate` | vazão calculada pela curva armazenada; piso zero (reporta `-1.0` se `hardwareFaultLatched`) |
 | `flow_setpoint` | alvo pedido, não saída DAC |
 | `flow_setpoint_corrected` | feedforward; pode ficar no valor anterior em zero com hold |
-| `flow_output` | comando final PI em equivalente L/min. ⚠ Windows mostra sufixo `V` incorretamente |
-| `valve1State/valve2State/valveFlowState` | bits escritos nos GPIOs, sem readback físico |
+| `flow_output` | comando final PI em equivalente L/min. Exibido no Windows App com sufixo `" L/min"` e rótulo `"Saída do controlador: "` |
+| `valve1State/valve2State/valveFlowState` | bits escritos nos GPIOs |
+| `cal_crc` | hash CRC32 dos parâmetros de calibração em EEPROM |
+| `hw_status` | bitmask de integridade de hardware (bit 0=ADS, 1=DAC, 2=healthy latch) |
 | `ack_cmd_id`, `ack_direct_*`, `last_apply_ms`, `command_source` | recibo de aplicação no software |
 | `Kp`, `Ki`, `ff_gain`, `ff_offset`, `ramp_rate`, `dac_hold`, `reconnect_wifi` | configuração vigente; Hub publica Kp/Ki/FF/rampa/reconexão |
 | `boot_id` | sessão de energização, somente no push ao Hub |
 
-`/diag` e `/status` mostram uptime, heap, Wi-Fi, sequência de falhas HTTP, OTA, vazão e alvo. Não mostram válvulas, DAC, coeficientes, ACKs nem falha de inicialização do ADC/DAC.
+`/diag` e `/status` mostram uptime, heap, Wi-Fi, sequência de falhas HTTP, OTA, vazão e alvo na versão `v11.0`. Endpoint `GET /calibration` expõe todos os coeficientes em EEPROM e hash CRC32.
 
 ### 3.8 Procedimentos de operação
 
@@ -779,9 +780,10 @@ WebSocket/serial saem a 1 Hz; `/flowData` ao Hub, a cada 500 ms. O Hub marca off
 | Fechar linha preservando ponto | setpoint vigente + `v_Flow:1` | GPIO 5 fecha; DAC/PI congelam com hold; `v_Flow:0` retoma |
 | Parada segura | `flowSetpoint:0`, `maxFlow`, `valve_1:0`, `valve_2:0`, `v_Flow:1` | ACK, três ecos e `FlowRate` caindo a zero |
 | Reset global Hub | `resetVariables` | Hub cria internamente a parada completa e desliga `FlowControlEnabled` |
-| Controle direto | comandos separados no Flutter | Abrir com `v_Flow=0`; o toggle “Flow Valve ON” faz o oposto do que o nome sugere |
+| Controle direto | comandos no Flutter | Toggle de corte corrigido: “ON” libera vazão (`v_Flow=0`, verde) e “OFF” aciona o corte (`v_Flow=1`, vermelho) |
 | Sintonia | `flowKp/Ki/FfGain/FfOffset/RampRate` | ACK e ecos aplicados antes de testar resposta |
-| OTA | `/update`, `.ino.bin` simples | Fazer parada segura antes; comunicação pausa durante upload |
+| Reconexão Wi-Fi | botão *Reconectar Wi-Fi* no App | Despacha `reconnectWifi: 1` rearmando o laço de associação |
+| OTA | `/update`, `.ino.bin` simples | Parada segura automática pré-upload sob mutex; comunicação pausa durante gravação |
 
 ### 3.9 Procedimento de calibração da medição
 
@@ -831,9 +833,241 @@ WebSocket/serial saem a 1 Hz; `/flowData` ao Hub, a cada 500 ms. O Hub marca off
 - [ ] Reiniciar só o nó durante fluxo e verificar reimposição pelo Hub; reiniciar só o Hub e verificar o primeiro contato.
 - [ ] OTA somente após parada segura: imagem válida, nomes rejeitados, interrupção e watchdog de 90 s.
 
-## 4. Sensor de biomassa (`sensor-biomassa`, v11) — a preencher
+## 4. Sensor de biomassa (`sensor-biomassa`, firmware v11 — rótulo interno v5.3)
 
-Contrato: `sensor-biomassa/docs/PROTOCOL.md`; regra do Hub: **um `command` por revisão** (`set_it`, `set_pwm`, `set_gear`, `ema`, `probe_period`); headroom de flash a 5,3 kB do piso (não acrescentar eco sem remedir).
+### 4.0 Painel de Navegação Rápida — Estado de Prontidão e Integração
+
+> **Como navegar:** 🟢 é caminho de software presente e integrado (nó ↔ Hub 10.2 ↔ App), 🟡 é código pronto à espera de bancada, 🔴 é lacuna ou decisão registrada em §4.10. Tudo abaixo foi conferido em `firmware/biomass-sensor/src/**`, `Commands.h`/`HttpServer.h`/`Telemetry.h` do Hub e `CommandBuilders`/`BiomassControlViewModel`/`RecipeEngine.ExternalDevices` do app.
+
+#### 🟢 Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
+
+| Funcionalidade | Nó | Hub 10.2 | App Windows | Onde opera | Evidência automatizada |
+|---|---|---|---|---|---|
+| **Comando confiável com ACK** | Deduplica `cmd_id`, aplica e ecoa `ack_cmd_id` no push seguinte | `ReliableMailbox` (`biomassBox`) retém até o ACK; semente aleatória por boot | Serializa as ações momentâneas atrás de `BiomassCommandPending` | Controle, calibração e receitas | `test_node_commands.py::test_individual_biomass_commands`, `BiomassPumpTests` |
+| **Habilitar/desabilitar roteamento** | — (o nó não sabe) | `biomassComm` persistido em NVS; com `0` descarta os sub-comandos do mesmo quadro e responde 403 ao push | Liga em um quadro; desliga em dois quadros ordenados (`stop` → `biomassComm:0`) | *Controle › Biomassa* e receita *Habilitar/Desabilitar* | `BiomassPumpTests`, `AlarmServiceTests` |
+| **Branco, início e parada** | `blank` varre 4×8 células e grava `I₀`; `start` faz *Smart Start*; `stop` volta a IDLE ou aborta rotina em curso | `{"blank":1}`, `{"start":1}`, `{"stop":1}` como chaves curtas | Botões momentâneos; receita *Iniciar* espera a primeira amostra | *Controle › Biomassa*, *Calibrações › Biomassa*, receitas | `BiomassPumpTests`, `ReceitasViewModelTests` |
+| **Limiares de auto-range** | `low`/`high`/`opt` aplicados ao vivo | Repassados no mesmo quadro | Enviados juntos (`BiomassThresholds`) | *Controle › Biomassa* e receita *Limiares* | `BiomassPumpTests` |
+| **Parâmetros de aquisição com eco** | `set_gear`, `set_it`, `set_pwm`, `ema`, `probe_period` com `value`; ecoa `gear`, `ema`, `probe_ms` | Um `command` por revisão; traduz `biomassGear/It/Pwm/Ema/ProbePeriodMs` | Fila de um comando por vez, avança quando `BiomassCommandPending` cai, persiste no app após o último eco | *Controle › Biomassa › Aquisição* | `test_json_keys.py::test_telemetry_emits_biomass_echoes`, `BiomassPumpTests` |
+| **Monitoramento e presença** | Push `/biomassData` a cada amostra; heartbeat `idle=1` a cada 5 s fora de MEASURING; `/nodeHello` a cada 30 s; `/diag` | `BiomassOnline` (10 s), `BiomassAbs/Raw/IT/PWM` só com amostra fresca, `BiomassNodeVer/Mac/IP`, cache de `/diag` | Leituras, chips de pendência/offline, alarme *Absorbância offline*, tabela de nós | *Controle*, *Sinótico*, *Configurações › Rede* | `TelemetryParserTests`, `HubNodesViewModelTests`, `ExternalNodeIdentityTests` |
+| **Arbitragem entre operadores** | Executa o que recebe | Retém a última revisão | `ActuatorId` próprio; receita e operador não disputam o branco | Controle e receitas | `CommandArbiterTests` |
+
+---
+
+#### 🟡 Implementado no Software, Aguardando Ensaio Físico na Bancada
+
+| Ensaio físico | O que deve ser comprovado | Checklist (§4.11) | Estado |
+|---|---|:---:|:---:|
+| **Óptica e VEML7700** | Endereço `0x10`, ganho 2×, leitura de 16 bits em `0x04`, saturação em 65 530 contagens | Item 1 | 🟡 Pendente |
+| **LED e limite térmico** | Duty efetivo ≤ 8 % com o período mínimo calculado; deriva com LED contínuo (`led`, `set_gear` em MEASURING) | Itens 2 e 8 | 🟡 Pendente |
+| **Duração real do branco** | Medir `sweep_ms` (`/api/status`) na tabela padrão; confirmar o intervalo em que o Hub declara o nó ausente | Item 3 | 🟡 Pendente |
+| **Janela de presença em MEASURING** | Com `probe_ms` = 25 000, registrar o comportamento de `BiomassOnline` e do alarme no app (§4.10 B01) | Item 4 | 🟡 Pendente |
+| **Fluxo completo pelo Hub** | Habilitar → branco → início → amostras → parada → desabilitar, com `ack_cmd_id` visível no serial | Item 5 | 🟡 Pendente |
+| **Parâmetros de aquisição** | Enviar marcha/IT/PWM/EMA/período pelo app e conferir eco, invalidação do branco e reinício | Item 6 | 🟡 Pendente |
+| **Persistência e reboot** | Cortar energia do nó em MEASURING e do Hub separadamente; conferir branco, EMA, auto-range, `hub_en` e o estado resultante | Item 7 | 🟡 Pendente |
+| **Falha de I²C** | Desconectar o VEML7700 durante medição; observar contadores, reset e queda para IDLE | Item 9 | 🟡 Pendente |
+| **OTA** | Imagem válida/rejeitada, intertravamento (LED apagado, IDLE) e watchdog de 90 s | Item 10 | 🟡 Pendente |
+
+---
+
+#### 🔴 Lacunas, Inconsistências e Decisões (§4.10)
+
+| Tema | O que não está consistente ou integrado | Referência |
+|---|---|---|
+| **Janela de presença** | Período de amostragem padrão (25 s) e piso térmico (~24,3 s) são maiores que a janela de 10 s do Hub; em MEASURING o nó fica "ausente" entre amostras | B01 |
+| **Rotinas bloqueantes** | Branco, busca de marcha e diagnóstico de período não servem o Hub: sem push, sem poll, `stop` pelo Hub não aborta | B02 |
+| **Marcha manual pelo Hub** | `set_gear` não trava nada: `start` recalcula a marcha e o auto-range a troca; `manual`/`auto` não são roteados | B03 |
+| **LED após `set_gear`** | Em MEASURING o LED fica aceso na nova marcha até o próximo pulso | B04 |
+| **Persistência parcial** | `low/high/opt` e `probe_period` só persistem se outro comando salvar a configuração depois | B05 |
+| **Reinício silencioso** | Após queda de energia o nó volta em IDLE, o Hub não reimpõe `start` e o app não alarma | B06 |
+| **Identidade** | `v11` no fio, `v5.3` na página OTA e nos documentos do nó, `analog_v04_direct` no nome interno | B07 |
+| **Documento do app** | `PROTOCOL.md` do app citava `set_ema`/`set_period` e uma caixa sem ACK | B08 (corrigido) |
+| **Branco pelo Hub** | Sempre a varredura não cadenciada; duração estimada 20–40 s, sem confirmação na telemetria; a receita assume ~15 s | B09 |
+| **Valores-sentinela** | Absorbância `−99` (branco inválido) e `9,9` (leitura zero) chegam ao app como números | B13 |
+
+---
+
+### 4.1 O que o firmware assume do hardware
+
+| Elemento | Pino / recurso | Ação do firmware | O que o hardware deve fazer |
+|---|---|---|---|
+| VEML7700 (sensor de luz ambiente) | I²C `0x10`, SDA GPIO 8, SCL GPIO 9, 100 kHz | Ganho fixo 2×; tempo de integração por slot (25–800 ms); lê o canal ALS de 16 bits em `0x04` (`0x05` é o canal WHITE, não o byte alto) | Entregar contagens proporcionais à luz transmitida; saturação declarada a partir de 65 530 |
+| LED emissor | GPIO 18, LEDC 2 kHz, 8 bits | `analogWrite` com duty 0–100 %; apagado por padrão; pulsado só durante a leitura | Iluminar o caminho óptico. Comprimento de onda e corrente são do projeto de hardware, não do firmware |
+| Limite térmico do LED | `LED_DUTY_LIMIT = 0,08` | Piso de período: `ledOn(IT_max)/0,08`; com IT 800 ms → 1 946 ms ligado → ≥ 24 325 ms entre pulsos | Manter o LED dentro de 8 % de duty médio; o ensaio `tests/evidence/characterization/` mediu deriva térmica |
+| Wi-Fi | AP+STA canal 6 | AP aberto `BiomassSensor` em `192.168.7.1`; STA procura `ModuloTECNAL_1`/`_2` (SSID = senha) | Servir a UI local e o Hub com um único rádio |
+| Watchdog | `esp_task_wdt` 10 s, pânico | Alimentado no laço e em `delayServiced()` | Reiniciar o nó se uma rotina bloqueante travar |
+| NVS | namespace `biomass_sensor` | Configuração (CRC de soma), branco (CRC + época 3), `ema`, `autorange`, `hub_en`, `boot_id` | Sobreviver a reboot; o branco é descartado se a época do firmware mudar |
+
+Motor, válvula ou saída de potência: nenhum. O sensor é **somente medição**; por isso o app o exclui da parada segura global e a receita nunca o "desliga" por segurança.
+
+### 4.2 Como a absorbância é calculada
+
+```text
+pulso      = espera escuro ≥ guard(IT) → LED na marcha → 10 ms → baseline
+             → detecta fronteira de conversão (Δ > 32) → espera guard(IT) → lê ALS → LED off
+guard(IT)  = 1,2·IT + 8 ms
+mediana    = janela de 5 pulsos (reinicia a cada troca de marcha)
+EMA        = α·mediana + (1−α)·EMA_anterior          (α = ema, padrão 0,8)
+raw        = EMA arredondado
+A          = −log10( min(raw, I₀) / I₀ ),  I₀ = branco[IT_idx][PWM_idx]
+```
+
+- **Marcha** = par (slot de IT 0–3, slot de PWM 0–7); no fio, `gear = IT_idx × 8 + PWM_idx` (0–31). As tabelas padrão são IT {100, 200, 400, 800} ms e PWM {2; 3,5; 6; 10,5; 18; 32; 57; 100} %.
+- **Auto-range** (padrão ligado): 10 leituras seguidas abaixo de `low` (10 000) ou acima de `high` (40 000) disparam uma busca de marcha (`SEARCHING`), que testa cada célula com branco válido e escolhe a mais próxima de `opt` (25 000). Três buscas falhas seguidas ativam o **modo de alta densidade**: marcha mais clara com branco válido, sem novas buscas até `raw > opt`.
+- **Branco válido** = `500 ≤ I₀ < 65 530`. Célula sem branco válido nunca é escolhida.
+- **Sentinelas**: `A = −99,0` quando `I₀` é 0 ou saturado; `A = 9,9` quando a leitura é zero. Saem no push como números comuns (§4.10 B13).
+- `read_once` pula mediana e EMA e marca a amostra com `single` no histórico local.
+
+### 4.3 Máquina de estados
+
+| Estado | Como entra | O que faz | Como sai |
+|---|---|---|---|
+| `IDLE` | boot, `stop`, fim de branco, erro I²C, `set_it`/`set_pwm`/`pwm_preset`/`factory` (invalidam o branco) | LED apagado (salvo `led`/`test_on`); heartbeat `idle=1` a cada 5 s ao Hub | `blank`, `start`, `read_once`, `probe_period` sem `value` |
+| `BLANKING` | `blank` em IDLE | Varre 4 IT × 8 PWM, células após saturação são marcadas 65 535 sem pulsar; grava NVS ao final. **Bloqueante**: só serve servidor local e serial | Fim → IDLE com `blank_done`; abort (`stop` local/serial) → IDLE com o branco anterior restaurado |
+| `MEASURING` | `start` com branco válido (Smart Start escolhe a marcha mais clara com `I₀ ≤ high`) | Um pulso a cada `probe_ms`; publica amostra (serial, histórico, push ao Hub) | `stop`, erro I²C, invalidação do branco, ou busca de marcha |
+| `SEARCHING` | auto-range fora da faixa por 10 leituras | Testa as células com branco válido (bloqueante, LED pulsando) | Volta a `MEASURING` na melhor marcha; abort local → IDLE |
+
+Não há retomada automática: após reboot o nó nasce em `IDLE` mesmo que estivesse medindo (§4.10 B06).
+
+### 4.4 Por onde um comando pode chegar
+
+| Canal | Formato / endereço | Capacidade | Confirmação |
+|---|---|---|---|
+| Hub → nó | o nó faz `GET http://192.168.4.1/biomassCommand` a cada 2 s (backoff até 15 s) | JSON `{"cmd_id":N, ...}`; **um `command` por revisão** | `ack_cmd_id` no push seguinte; Hub reentrega até o ACK; ACK mesmo para payload não reconhecido |
+| HTTP direto | `POST /command` ou `/api/command` em `192.168.7.1`, corpo JSON | Todo o vocabulário; rotinas bloqueantes são adiadas ao laço principal (uma vaga; segunda pedida é recusada) | HTTP 200 com `/api/status` |
+| Serial USB | 115200, `{...}\n`, até 255 caracteres | Todo o vocabulário | Log e JSON de amostra por linha |
+| UI web local | `GET /` (`web_ui.h`) | Usa as rotas acima | — |
+| App Python (`apps/desktop-python`) | HTTP direto às rotas `/api/*` | Controle, gráficos, backfill por `/api/history?since=` | — |
+| HTTP de leitura | `/readData`, `/api/data`, `/api/status`, `/diag`, `/status`, `/api/history`, `/api/blank` | Somente leitura | JSON |
+| OTA | `GET /update` + `POST /update` multipart `.ino.bin` | Apaga LED, força IDLE, grava e reinicia; rejeita `merged`/`bootloader`/`partitions`; watchdog de 90 s | HTTP 200/400/500 |
+| Energia/reset | energização, reset, OTA | Recarrega NVS; `boot_id` incrementa; estado IDLE | novo hello em até 30 s |
+
+O Hub **não** encaminha `command` arbitrário: só as chaves curtas `blank`, `start`, `stop`, os numéricos `low`, `high`, `opt`, `test_period` e os cinco mapeados de `biomassIt/Pwm/Gear/Ema/ProbePeriodMs`. Tudo o mais é somente direto/serial.
+
+### 4.5 Catálogo de chaves e o que cada uma faz
+
+#### 4.5.1 Roteadas pelo Hub
+
+| Chave no app | Fio Hub → nó | Execução no nó | Efeito no hardware / estado |
+|---|---|---|---|
+| `biomassComm` | — (fica no Hub) | — | Hub descarta sub-comandos de biomassa enquanto `0`, responde 403 ao push (a presença continua registrada e o ACK é lido antes da recusa); o nó conta o 403 como falha, mas o poll zera o contador |
+| `blank:1` | `{"blank":1}` | Varredura **não cadenciada** (sem `duty_pct`); recusada se ocupado ou fora de IDLE | LED pulsa em todas as marchas até a primeira saturação por IT; grava `I₀` e época 3 |
+| `start:1` | `{"start":1}` | Exige branco válido e IDLE; Smart Start; primeiro pulso imediato | Inicia medição periódica |
+| `stop:1` | `{"stop":1}` | MEASURING → IDLE, LED apagado, HD desligado; em BLANKING/SEARCHING pede abort — **mas só é lido depois que a rotina termina** (§4.10 B02) | Para de pulsar |
+| `low`, `high`, `opt` | idem | Aplicados ao vivo à configuração em RAM | Mudam os disparos de busca; **não gravam NVS** (B05) |
+| `biomassGear` | `{"command":"set_gear","value":N}` | `setManualGear(N/8, N%8)`: escreve IT no sensor, liga o LED na marcha; apaga se IDLE | Não trava a marcha (B03); em MEASURING o LED fica aceso até o pulso seguinte (B04) |
+| `biomassIt` | `{"command":"set_it","value":c}` | Reescreve o slot de IT **corrente** com o código `c` (0–5 → 25…800 ms); grava NVS; **invalida o branco** e derruba a medição para IDLE | Nova tabela de integração; exige novo branco |
+| `biomassPwm` | `{"command":"set_pwm","value":p}` | Reescreve o slot de PWM **corrente** com `p` %; grava NVS; **invalida o branco** | Nova escada de potência; exige novo branco |
+| `biomassEma` | `{"command":"ema","value":a}` | `α` limitado a 0,01–1,0; grava NVS | Só o filtro |
+| `biomassProbePeriodMs` | `{"command":"probe_period","value":ms}` | Limita a 3 600 000 e eleva até o piso térmico; aplica aos 4 slots; **não grava NVS** (B05) | Novo intervalo entre pulsos |
+| `test_period` | idem | Só o período do sweep de teste do LED; `test_on` não é roteado | Sem efeito prático pelo Hub |
+
+A ordem que o app usa no *Aplicar aquisição* é `gear → it → pwm → ema → probe_period`, um quadro por vez, porque `set_it`/`set_pwm` escrevem no slot corrente selecionado pelo `set_gear` anterior.
+
+#### 4.5.2 Somente canal direto / serial
+
+| Chave | Efeito | Observação |
+|---|---|---|
+| `blank` com `duty_pct` (1–60) | Varredura cadenciada: cada célula espera o descanso térmico correspondente ao duty | Mais lenta, mas todas as células sob a mesma carga térmica |
+| `auto` / `manual` | Liga/desliga o auto-range (persistem); `manual` também desliga HD | Único jeito de travar uma marcha |
+| `read_once` | Um pulso em IDLE, publica amostra `single` | Não passa pelo Hub |
+| `probe_period` sem `value` | Diagnóstico: mede o período real de conversão em cada IT (6 tentativas), imprime JSON no serial | Bloqueante |
+| `set_gear` com `it`+`pwm` | Mesma coisa que o índice linear | — |
+| `set_pwm`/`set_it` com `index` | Escreve num slot específico em vez do corrente | — |
+| `led` (`duty`) / `led_off` | LED contínuo em IDLE (teste óptico) | Mantido entre leituras `read_once` |
+| `test_on` / `test_off` | Sweep triangular de duty em IDLE | — |
+| `pwm_preset` | Restaura a escada recomendada de PWM; grava; invalida o branco | — |
+| `hub_on` / `hub_off` | Liga/desliga a busca do Hub (persistente) | `hub_off` deixa o nó só em AP até um `hub_on` direto (B11) |
+| `factory` | Apaga configuração, restaura padrões, invalida branco, auto-range ligado, `α = 0,8` | Não apaga `hub_en` nem `boot_id` |
+| `save_config` / `load_config` | Persistência manual | Único jeito de gravar `low/high/opt`/`probe_period` sem tocar nas tabelas |
+| `reset_health` | Zera erros I²C, saturações, resets do sensor e faltas de fronteira | — |
+| `print_blank` / `print_config` / `print_health` / `status` / `history` / `clear_history` | Relatórios no serial | — |
+
+### 4.6 Aplicação, ACK e concorrência
+
+1. O parser é caseiro (`strstr`); chaves desconhecidas são ignoradas; primeira chave curta reconhecida vence (`blank` antes de `start` antes de `stop`).
+2. Comandos que bloqueiam (`blank`, `start`, `read_once`, `set_gear`, `probe_period`) vindos de HTTP local são adiados ao laço principal; do Hub e do serial rodam na hora.
+3. Durante `BLANKING`/`SEARCHING`/diagnóstico o nó **só** atende servidor local e serial: nenhum push, nenhum poll ao Hub (B02).
+4. O nó grava `g_lastAppliedHubCmdId` **depois** de executar; um `blank` de 30 s é ACKado só ao terminar, e o Hub reentrega a mesma revisão nesse intervalo — o nó a ignora por igualdade de `cmd_id`.
+5. Payload sem chave reconhecida também é ACKado, para não prender a caixa do Hub.
+6. Hub, HTTP local e serial escrevem nas mesmas variáveis: último vence. Uma revisão do Hub ainda pendente pode sobrescrever uma intervenção direta.
+7. `biomassComm:0` no Hub não chega ao nó: quem estava medindo continua medindo. Por isso o app manda `stop` antes.
+
+### 4.7 Persistência e recuperação
+
+| Dado | Onde | Quando grava | Após reboot |
+|---|---|---|---|
+| Tabelas de IT/PWM, `low/high/opt`, `probe_ms` por slot | `config` (CRC de soma) | `set_it`, `set_pwm`, `pwm_preset`, `factory`, `save_config`, reparo automático de IT | Recarregado; período elevado ao piso térmico se preciso |
+| Branco 4×8 + timestamp | `blanking` + `blank_fw` (época 3) | Fim de varredura completa | Aceito só se a época bater; senão descartado com aviso |
+| `ema`, `autorange`, `hub_en`, `boot_id` | chaves próprias | Na hora | Restaurados |
+| Estado (`MEASURING`), marcha corrente, HD, histórico de 1 024 amostras | RAM | — | Perdidos: o nó nasce em IDLE |
+
+O Hub não reimpõe nada ao nó de biomassa: sua caixa guarda só a última revisão não ACKada. Depois de um reboot do próprio Hub, o `cmd_id` recomeça numa base aleatória e a primeira ordem não colide com o último ACK do nó.
+
+### 4.8 Telemetria: o que sai do nó e como chega ao app
+
+| Campo no push (`/biomassData`) | Hub → app | Quando existe | Significado real |
+|---|---|---|---|
+| `absorbance`, `raw`, `it`, `pwm` | `BiomassAbs`, `BiomassRaw`, `BiomassIT`, `BiomassPWM` | Só com amostra recebida há ≤ 10 s **e** roteamento ligado | `pwm` é 0,0 em IDLE; em BLANKING/SEARCHING o push não acontece |
+| `idle` | — (decide freshness) | sempre (v05+) | `1` = heartbeat, não renova a amostra |
+| `ack_cmd_id` | `BiomassCommandPending` (derivado) | sempre | Última revisão aplicada |
+| `gear`, `ema`, `probe_ms` | `BiomassGear`, `BiomassEma`, `BiomassProbePeriodMs` | `BiomassOnline` e eco já visto neste boot do Hub | Marcha corrente, α e período por slot |
+| `hd_mode` | ⚠ ignorado pelo Hub | — | O app não sabe que o nó está em alta densidade |
+| `seq`, `t_ms`, `boot_id`, `i0`, `sat`, `single`, `manual`, `blank_done` | ⚠ só no JSON local/serial | — | Não chegam ao Hub; `blank_done` só é visível em `/api/status` |
+| — | `BiomassOnline` | sempre | Push há ≤ 10 s, independente do roteamento |
+| — | `BiomassCommEnabled` | sempre | Eco do `biomassComm` persistido no Hub |
+| — | `BiomassNodeVer/Mac/IP` | após hello | `v11` |
+
+Cadência: em IDLE um heartbeat a cada 5 s; em MEASURING um push por amostra (a cada `probe_ms`, padrão 25 000). O app limpa as quatro leituras quando o Hub deixa de publicá-las e alarma *Absorbância offline* quando `BiomassCommEnabled` e não `BiomassOnline`.
+
+### 4.9 Procedimentos do operador no aplicativo (e o que acontece no fio)
+
+| Procedimento | Quadro(s) | O que confirmar |
+|---|---|---|
+| Habilitar | `{"biomassComm":1}` | `BiomassCommEnabled=true`; `BiomassOnline` indica o nó presente |
+| Capturar branco | `{"blank":1}` | Meio limpo no caminho óptico **antes**; nó some da telemetria durante a varredura (B02); depois, `Abs ≈ 0` na primeira amostra. Não há eco de "branco pronto" pelo Hub |
+| Iniciar | `{"start":1}` | Primeira amostra em até `probe_ms`; a receita *Iniciar* segura até ela chegar |
+| Parar | `{"stop":1}` | Leituras somem após 10 s (heartbeat `idle=1` não renova amostra); nó continua online |
+| Desabilitar | `{"stop":1}` e depois `{"biomassComm":0}` em quadro separado | `BiomassCommEnabled=false`; o nó segue presente (hello/push) |
+| Limiares | `{"low":L,"high":H,"opt":O}` | Nenhum eco; valem até o próximo reboot (B05) |
+| Aquisição | `biomassGear` → `biomassIt` → `biomassPwm` → `biomassEma` → `biomassProbePeriodMs`, um por vez | Ecos `BiomassGear/Ema/ProbePeriodMs`; IT/PWM invalidam o branco: **refazer branco e iniciar** |
+| Calibração (`Calibrações › Biomassa`) | mesmos `blank`/`start`/`stop`/limiares | O app não constrói curva OD↔biomassa: a "calibração" é o branco no nó; correlação com peso seco fica fora do app |
+| Diagnóstico | `nodeDiag biomass` | Cache de `/diag`: versão, heap, RSSI, `hub_fail_streak`, estado numérico (0 IDLE, 1 BLANKING, 2 MEASURING, 3 SEARCHING) |
+
+### 4.10 Limitações, inconsistências e decisões (auditoria do firmware v11 vs Hub 10.2 vs app)
+
+| ID | Achado | Consequência | Resolução proposta | Status |
+|---|---|---|---|---|
+| B01 | Em MEASURING o nó só empurra dados a cada `probe_ms` (padrão 25 000 ms; piso térmico 24 325 ms com IT 800 na tabela), mas o Hub declara o nó ausente após 10 s e só publica a amostra se ela tiver ≤ 10 s | `BiomassOnline` oscila a cada amostra; o app apaga as leituras e o alarme *Absorbância offline* pisca; a receita *Iniciar* só passa na janela em que a amostra chega | **Hub**: dimensionar a janela pelo `probe_ms` ecoado (`max(10 s, 2·probe_ms + 5 s)`) para presença e freshness — sem tocar no nó. Alternativa no nó: heartbeat também em MEASURING com `idle=1` (poucos bytes, mas exige remedição do flash) | **Aberto — decisão** |
+| B02 | `runBlankingRoutine`, `findAndSetOptimalGear` e `probeConversionPeriod` chamam `delayServiced()`, que só atende servidor local e serial | Sem push nem poll por 20–40 s: Hub marca ausente; `stop` pelo Hub não aborta, é aplicado ao final (no-op). Um `start` enfileirado durante o branco só é lido ao terminar (o que, por acaso, o torna seguro) — mas a caixa do Hub guarda **uma** revisão: um `start` enviado antes de o nó buscar o `blank` (poll de 2 s) substitui a revisão e o branco nunca acontece. O app serializa atrás de `BiomassCommandPending`; a receita *Branco* não segura | Incluir `sendDataToHub()`/`pollHubForCommands()` em `delayServiced()` a cada 5 s (custo de flash a medir), ou tratar como B01 no Hub e aceitar o abort só local | **Aberto — decisão** |
+| B03 | `start` sempre executa Smart Start e o auto-range troca de marcha; `manual`/`auto` não têm chave no Hub | `biomassGear` enviado antes do `start` é sobrescrito; enviado durante, dura até 10 leituras fora da faixa; a UI sugere um controle que o fio não honra | Rotear `biomassAutoRange` (`{"command":"auto"|"manual"}`) no Hub e no app (alteração só no Hub/app: o nó já entende) e documentar que a marcha manual se aplica após o `start` | **Aberto — recomendado** |
+| B04 | `setManualGear()` chama `pwmSetLevel()` e só apaga o LED se IDLE | Em MEASURING o LED fica aceso na nova marcha até o próximo pulso (até 25 s), fora do limite térmico e com baseline claro (`boundary_misses` sobe) | No nó: apagar o LED após `set_gear` quando não IDLE e reprogramar `g_nextReadTime` | **Aberto — nó** |
+| B05 | `low/high/opt` e `probe_period`/`refresh_ms` escrevem em `g_config` sem `saveConfig()`; `save_config` não é roteado | Persistem apenas se um `set_it`/`set_pwm`/`pwm_preset` gravar depois; o app guarda período e limiares nas suas configurações, mas **não os reenvia sozinho** ao reconectar — após reboot do nó valem os últimos gravados na NVS | No nó: `saveConfig()` nesses ramos (uma gravação por comando). Até lá, reenviar limiares e período pelo app após qualquer reboot do nó (o `boot_id` não chega ao Hub, então o operador precisa saber que houve reboot) | **Aberto — nó** |
+| B06 | Queda de energia em MEASURING: o nó volta em IDLE, bate heartbeat e o Hub não reimpõe `start` | O app mostra o nó online e sem amostras, sem alarme: parada silenciosa de aquisição numa cultura longa | No app: alarme "habilitado e online, mas sem amostra há > 2·`probe_ms`"; opcionalmente o Hub reenviar `start` ao detectar hello novo com roteamento ligado — mas isso reiniciaria uma medição que o operador parou de propósito, então preferir o alarme | **Aberto — decisão** |
+| B07 | `FW_VERSION "v11"` (serial, hello, `/diag`), página OTA "v5.3", `README`/`CURRENT_STATUS`/`CHANGELOG` "v5.3", `FW_NAME "biomass_sensor_analog_v04_direct"` | Catálogo do app aceita só `v11`; a página OTA e os documentos do nó confundem quem grava | Unificar rótulo em `v11` (ou `v11.0`) na página OTA e nos documentos; `v5.3` fica como histórico da reorganização | **Aberto — documental** |
+| B08 | `Windows_app/docs/PROTOCOL.md` listava `set_ema`/`set_period` e descrevia a caixa como "consome ao ler, sem ACK" | Divergia do Hub 10.2 (`ema`, `probe_period`, `ReliableMailbox`) | Linhas corrigidas nesta revisão | **Resolvido (doc)** |
+| B09 | Pelo Hub o branco é sempre não cadenciado; duração estimada pelo código ≈ Σ 8·(2,5·guard(IT)+10 ms) ≈ 20–40 s na tabela padrão (menos com saturação); a receita *Branco* diz "~15 s" e não segura | Temporizador de receita curto demais dispara `start` com o nó ocupado (`Busy`) | Medir `sweep_ms` em bancada e ajustar o texto/temporizador da receita; considerar rotear `duty_pct` | **Aberto — bancada** |
+| B10 | `set_it`/`set_pwm` invalidam o branco e derrubam a medição | Esperado: as tabelas mudam o `I₀` | App já avisa; receitas não expõem IT/PWM. Sem ação | **Decisão de projeto** |
+| B11 | `hub_off` e `factory` só pelo canal direto; `hub_off` persiste | Nó "sumido" do Hub após um `hub_off` de bancada exige acesso ao AP ou serial | Documentado; sem roteamento por desenho (evita desligar a própria rota) | **Decisão de projeto** |
+| B12 | Hub roteia `test_period` mas não `test_on`/`test_off` | Chave inútil pelo Hub | Remover do Hub quando houver outra alteração no bloco | **Aberto — cosmético** |
+| B13 | `absorbance = −99,0` (branco 0/saturado na marcha corrente) e `9,9` (leitura zero) são publicados como valores | O app mostra "−99,000" como leitura e a receita *Iniciar* aceita como amostra válida | No app: tratar `≤ −90` e `≥ 9,9` como "branco inválido"/"escuro" com aviso; no Hub, nada | **Aberto — app** |
+| B14 | `hd_mode`, `i0`, `sat`, `single`, `manual`, `boot_id` não chegam ao Hub | O app não distingue alta densidade nem saturação; reboot do nó é invisível | Acrescentar ecos só após decidir o headroom de flash (§3.3 do `PONTOS_DE_MELHORIA`): o nó está a 5,3 kB do piso | **Aberto — condicionado à remedição** |
+| B15 | `set_it`/`set_pwm` pelo Hub escrevem no slot **corrente** (`value` sem `index`) | Sem `set_gear` antes, o app altera um slot que não é o pretendido | Ordem `gear → it → pwm` já garantida por `CommandBuilders.BiomassTuning` | **Resolvido (app)** |
+
+Regra vigente do Hub (mantida): **um `command` por revisão** — o segundo mapeado no mesmo quadro é descartado com `ESP32_EVT`. Regra vigente do nó: **nenhuma chave nova de eco sem remedir o flash** (1 129 728 B de 1 310 720 B em 2026-09-12).
+
+### 4.11 Checklist de bancada (fecha os itens acima)
+
+- [ ] Confirmar VEML7700 em `0x10`, ganho 2×, saturação e leitura de `0x04` (não `0x05`) com LED em 100 % e IT 800.
+- [ ] Medir duty médio real do LED no piso térmico e a deriva com LED contínuo por 60 s (`led`, `duty 100`).
+- [ ] Rodar `blank` pelo Hub e pelo canal direto (`duty_pct` 30) e registrar `sweep_ms`, células saturadas e o tempo em que `BiomassOnline` fica falso (B02/B09).
+- [ ] Com `probe_ms` 25 000, registrar `BiomassOnline` e o alarme do app por 5 min em MEASURING (B01); repetir com 5 000 e marcha manual de IT 100.
+- [ ] Fluxo completo pelo app: habilitar → branco → início → 10 amostras → parada → desabilitar; conferir `ack_cmd_id` no serial e `BiomassCommandPending` no app.
+- [ ] Enviar marcha/IT/PWM/EMA/período pelo *Aplicar aquisição*; confirmar ecos, invalidação do branco, e que `start` recalcula a marcha (B03).
+- [ ] Cortar energia do nó em MEASURING: confirmar volta em IDLE, branco preservado, ausência de alarme (B06); reiniciar só o Hub e confirmar que o próximo comando é aplicado.
+- [ ] Enviar `set_gear` em MEASURING e medir quanto tempo o LED fica aceso (B04).
+- [ ] Desconectar o VEML7700 durante medição: contadores em `/api/status`, reset após 5 erros, queda para IDLE, recuperação com `start`.
+- [ ] OTA com `.ino.bin` válido, com `merged.bin` (rejeitado) e com upload interrompido (watchdog 90 s); confirmar LED apagado durante a gravação.
+- [ ] Decidir B01/B02/B03/B06 e registrar em `PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md` antes de alterar o nó (remedir flash a cada acréscimo).
 
 ## 5. Agitador de frasco (`frasco-agitador`) — a preencher
 

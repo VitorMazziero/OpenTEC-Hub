@@ -288,6 +288,7 @@
                                        TextWrapping="Wrap" Margin="0,6,0,0"
                                        Visibility="{Binding ShowLegacyHubNotice, Converter={StaticResource BoolToVis}}" />
                             <ListView Grid.Row="2" ItemsSource="{Binding Nodes}" Margin="0,8,0,0"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                       AutomationProperties.Name="Nós na rede do Hub">
                                 <ListView.View>
                                     <GridView>
@@ -754,6 +755,5 @@
         </Border>
     </Grid>
 </UserControl>
-
 
 

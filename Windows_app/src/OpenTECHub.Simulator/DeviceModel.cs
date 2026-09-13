@@ -258,9 +258,49 @@ public sealed class DeviceModel
     public double FlowOutput => Math.Round(ReadFlow() * 0.0109, 3);
     public double FlowSetpointCorrected => FlowSetpoint;
     public long FlowmeterBootId { get; set; } = 1001;
+    public double FlowTransitionVoltage { get; set; } = 0.0545;
 
     public double PumpSlope { get; set; } = 0.0280188148;
     public double PumpIntercept { get; set; } = 1.7601988934;
+    public double PumpSlopeLow { get; set; } = 0.0280188148;
+    public double PumpSlopeHigh { get; set; } = 0.0280188148;
+    public double PumpTransitionSpeed { get; set; } = 500.0;
+    public double PumpTransitionFlow { get; set; } = 15.7696062934;
+    public long PumpCalCrc { get; set; } = CalculatePumpCalibrationCrc(0.0280188148, 0.0280188148, 500.0, 15.7696062934);
+
+    private bool _pumpCommandPending;
+    public bool PumpCommandPending
+    {
+        get => _pumpCommandPending;
+        set => _pumpCommandPending = value;
+    }
+    public bool ConsumePumpCommandPending()
+    {
+        var pending = _pumpCommandPending;
+        _pumpCommandPending = false;
+        return pending;
+    }
+
+    public static uint CalculatePumpCalibrationCrc(double mLow, double mHigh, double sT, double qT)
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        BitConverter.TryWriteBytes(bytes[0..4], (float)mLow);
+        BitConverter.TryWriteBytes(bytes[4..8], (float)mHigh);
+        BitConverter.TryWriteBytes(bytes[8..12], (float)sT);
+        BitConverter.TryWriteBytes(bytes[12..16], (float)qT);
+
+        uint crc = 0xFFFFFFFF;
+        for (int i = 0; i < 16; i++)
+        {
+            crc ^= bytes[i];
+            for (int j = 0; j < 8; j++)
+            {
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320 : crc >> 1;
+            }
+        }
+        return ~crc;
+    }
+
     public double PumpPidKp { get; set; } = 0.5;
     public double PumpPidKi { get; set; } = 0.05;
     public double PumpPidKd { get; set; } = 0.001;

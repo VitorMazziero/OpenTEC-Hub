@@ -644,6 +644,46 @@ public static class CommandBuilders
             .Set(CommandKeys.C2, c);
 
     /// <summary>
+    /// Builds an atomic flowmeter calibration command containing both segments, maxFlow, and the transition voltage.
+    /// Emits keys in the order: maxFlow, a1, b1, k1, f1, c1, k2, f2, c2, flowTransitionVoltage.
+    /// </summary>
+    public static OpenTECCommand FlowCalibration(
+        double maxFlow,
+        double a1, double b1, double k1, double f1, double c1,
+        double k2, double f2, double c2,
+        double transitionVoltage)
+    {
+        if (!double.IsFinite(maxFlow) || maxFlow <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxFlow), "MaxFlow must be finite and greater than zero.");
+        }
+        if (!double.IsFinite(a1)) throw new ArgumentOutOfRangeException(nameof(a1), "a1 must be finite.");
+        if (!double.IsFinite(b1)) throw new ArgumentOutOfRangeException(nameof(b1), "b1 must be finite.");
+        if (!double.IsFinite(k1)) throw new ArgumentOutOfRangeException(nameof(k1), "k1 must be finite.");
+        if (!double.IsFinite(f1)) throw new ArgumentOutOfRangeException(nameof(f1), "f1 must be finite.");
+        if (!double.IsFinite(c1)) throw new ArgumentOutOfRangeException(nameof(c1), "c1 must be finite.");
+        if (!double.IsFinite(k2)) throw new ArgumentOutOfRangeException(nameof(k2), "k2 must be finite.");
+        if (!double.IsFinite(f2)) throw new ArgumentOutOfRangeException(nameof(f2), "f2 must be finite.");
+        if (!double.IsFinite(c2)) throw new ArgumentOutOfRangeException(nameof(c2), "c2 must be finite.");
+        if (!double.IsFinite(transitionVoltage) || transitionVoltage <= 0.0 || transitionVoltage >= 3.3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transitionVoltage), "Transition voltage must be finite and in (0.0, 3.3) V.");
+        }
+
+        return OpenTECCommand.Create()
+            .Set(CommandKeys.MaxFlow, maxFlow)
+            .Set(CommandKeys.A1, a1)
+            .Set(CommandKeys.B1, b1)
+            .Set(CommandKeys.K1, k1)
+            .Set(CommandKeys.F1, f1)
+            .Set(CommandKeys.C1, c1)
+            .Set(CommandKeys.K2, k2)
+            .Set(CommandKeys.F2, f2)
+            .Set(CommandKeys.C2, c2)
+            .Set(CommandKeys.FlowTransitionVoltage, transitionVoltage);
+    }
+
+    /// <summary>
     /// Combined cascade actuation: flow, oxygen and motor in one frame.
     /// </summary>
     /// <remarks>
@@ -817,6 +857,45 @@ public static class CommandBuilders
         return OpenTECCommand.Create()
             .Set(CommandKeys.PumpSlope, slope)
             .Set(CommandKeys.PumpIntercept, intercept);
+    }
+
+    /// <summary>
+    /// Configures the external pump continuous dual-range calibration:
+    /// pumpSlopeLow, pumpSlopeHigh, pumpTransitionSpeed, pumpTransitionFlow.
+    /// </summary>
+    public static OpenTECCommand PumpDualRangeCalibration(
+        double slopeLow,
+        double slopeHigh,
+        double transitionSpeed,
+        double transitionFlow)
+    {
+        if (!double.IsFinite(slopeLow) || slopeLow <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slopeLow), "Pump low slope must be finite and greater than zero.");
+        }
+        if (!double.IsFinite(slopeHigh) || slopeHigh <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slopeHigh), "Pump high slope must be finite and greater than zero.");
+        }
+        if (!double.IsFinite(transitionSpeed) || transitionSpeed <= 0.0 || transitionSpeed >= 1000.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transitionSpeed), "Transition speed must be finite and in (0, 1000) speed units.");
+        }
+        if (!double.IsFinite(transitionFlow) || transitionFlow <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transitionFlow), "Transition flow must be finite and greater than zero.");
+        }
+        var flowAtZero = transitionFlow - slopeLow * transitionSpeed;
+        if (flowAtZero < -1e-9)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transitionFlow), "Transition flow and slope produce negative flow at zero speed.");
+        }
+
+        return OpenTECCommand.Create()
+            .Set(CommandKeys.PumpSlopeLow, slopeLow)
+            .Set(CommandKeys.PumpSlopeHigh, slopeHigh)
+            .Set(CommandKeys.PumpTransitionSpeed, transitionSpeed)
+            .Set(CommandKeys.PumpTransitionFlow, transitionFlow);
     }
 
     /// <summary>Configures the external pump PID gains.</summary>

@@ -207,6 +207,7 @@ public static class CommandKeys
     public const string FlowFfGain = "flowFfGain";
     public const string FlowFfOffset = "flowFfOffset";
     public const string FlowRampRate = "flowRampRate";
+    public const string FlowTransitionVoltage = "flowTransitionVoltage";
 
     /// <summary>
     /// Commands forwarded to the pump node's <c>command</c> field:
@@ -219,6 +220,10 @@ public static class CommandKeys
     public const string PumpPidKp = "pumpPidKp";
     public const string PumpPidKi = "pumpPidKi";
     public const string PumpPidKd = "pumpPidKd";
+    public const string PumpSlopeLow = "pumpSlopeLow";
+    public const string PumpSlopeHigh = "pumpSlopeHigh";
+    public const string PumpTransitionSpeed = "pumpTransitionSpeed";
+    public const string PumpTransitionFlow = "pumpTransitionFlow";
 
     public const string BiomassIt = "biomassIt";
     public const string BiomassPwm = "biomassPwm";
@@ -473,6 +478,7 @@ public static class TelemetryKeys
     public const string FlowOutput = "FlowOutput";
     public const string FlowSetpointCorrected = "FlowSetpointCorrected";
     public const string FlowmeterBootId = "FlowmeterBootId";
+    public const string FlowTransitionVoltage = "FlowTransitionVoltage";
 
     public const string PumpSlope = "PumpSlope";
     public const string PumpIntercept = "PumpIntercept";
@@ -484,6 +490,13 @@ public static class TelemetryKeys
     public const string PumpPidKd = "PumpPidKd";
     public const string PumpPotEnabled = "PumpPotEnabled";
     public const string PumpCycleVolume = "PumpCycleVol";
+
+    // Pump 3.11 dual-range continuous calibration echoes (Hub 10.3)
+    public const string PumpSlopeLow = "PumpSlopeLow";
+    public const string PumpSlopeHigh = "PumpSlopeHigh";
+    public const string PumpTransitionSpeed = "PumpTransitionSpeed";
+    public const string PumpTransitionFlow = "PumpTransitionFlow";
+    public const string PumpCalCrc = "PumpCalCrc";
 
     public const string BiomassGear = "BiomassGear";
     public const string BiomassEma = "BiomassEma";

@@ -238,6 +238,7 @@ public sealed class SensorReadings
     public double? FlowOutput { get; set; }
     public double? FlowSetpointCorrected { get; set; }
     public long? FlowmeterBootId { get; set; }
+    public double? FlowTransitionVoltage { get; set; }
 
     public double? PumpSlope { get; set; }
     public double? PumpIntercept { get; set; }
@@ -246,6 +247,11 @@ public sealed class SensorReadings
     public double? PumpPidKd { get; set; }
     public bool? PumpPotEnabled { get; set; }
     public double? PumpCycleVolume { get; set; }
+    public double? PumpSlopeLow { get; set; }
+    public double? PumpSlopeHigh { get; set; }
+    public double? PumpTransitionSpeed { get; set; }
+    public double? PumpTransitionFlow { get; set; }
+    public long? PumpCalCrc { get; set; }
 
     public int? BiomassGear { get; set; }
     public double? BiomassEma { get; set; }
@@ -377,6 +383,7 @@ public sealed class SensorReadings
         FlowOutput = FlowOutput,
         FlowSetpointCorrected = FlowSetpointCorrected,
         FlowmeterBootId = FlowmeterBootId,
+        FlowTransitionVoltage = FlowTransitionVoltage,
         PumpSlope = PumpSlope,
         PumpIntercept = PumpIntercept,
         PumpPidKp = PumpPidKp,
@@ -384,6 +391,11 @@ public sealed class SensorReadings
         PumpPidKd = PumpPidKd,
         PumpPotEnabled = PumpPotEnabled,
         PumpCycleVolume = PumpCycleVolume,
+        PumpSlopeLow = PumpSlopeLow,
+        PumpSlopeHigh = PumpSlopeHigh,
+        PumpTransitionSpeed = PumpTransitionSpeed,
+        PumpTransitionFlow = PumpTransitionFlow,
+        PumpCalCrc = PumpCalCrc,
         BiomassGear = BiomassGear,
         BiomassEma = BiomassEma,
         BiomassProbePeriodMs = BiomassProbePeriodMs,
@@ -646,6 +658,7 @@ public sealed record SensorSnapshot
     public double? FlowOutput { get; init; }
     public double? FlowSetpointCorrected { get; init; }
     public long? FlowmeterBootId { get; init; }
+    public double? FlowTransitionVoltage { get; init; }
 
     public double? PumpSlope { get; init; }
     public double? PumpIntercept { get; init; }
@@ -660,6 +673,21 @@ public sealed record SensorSnapshot
 
     /// <summary>Volume delivered by the current profile cycle, mL; <see cref="PumpVolume"/> is the session total.</summary>
     public double? PumpCycleVolume { get; init; }
+
+    /// <summary>Dual-range low slope echo (pump 3.11, Hub 10.3).</summary>
+    public double? PumpSlopeLow { get; init; }
+
+    /// <summary>Dual-range high slope echo (pump 3.11, Hub 10.3).</summary>
+    public double? PumpSlopeHigh { get; init; }
+
+    /// <summary>Dual-range transition speed echo (pump 3.11, Hub 10.3).</summary>
+    public double? PumpTransitionSpeed { get; init; }
+
+    /// <summary>Dual-range transition flow echo (pump 3.11, Hub 10.3).</summary>
+    public double? PumpTransitionFlow { get; init; }
+
+    /// <summary>Dual-range calibration CRC32 echo (pump 3.11, Hub 10.3).</summary>
+    public long? PumpCalCrc { get; init; }
 
     public int? BiomassGear { get; init; }
     public double? BiomassEma { get; init; }

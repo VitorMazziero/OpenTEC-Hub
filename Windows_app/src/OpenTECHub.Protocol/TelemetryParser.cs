@@ -391,6 +391,8 @@ public sealed class TelemetryParser
             TryGetDouble(root, TelemetryKeys.FlowOutput, out var flowOutput) ? flowOutput : null;
         Readings.FlowSetpointCorrected =
             TryGetDouble(root, TelemetryKeys.FlowSetpointCorrected, out var spCorr) ? spCorr : null;
+        Readings.FlowTransitionVoltage =
+            TryGetDouble(root, TelemetryKeys.FlowTransitionVoltage, out var transVolt) ? transVolt : null;
 
         // Sticky flowmeter boot_id (long?)
         if (TryGetCounter(root, TelemetryKeys.FlowmeterBootId, out var bootId))
@@ -569,6 +571,18 @@ public sealed class TelemetryParser
             TryGetBool(root, TelemetryKeys.PumpPotEnabled, out var pot) ? pot : null;
         Readings.PumpCycleVolume =
             TryGetDouble(root, TelemetryKeys.PumpCycleVolume, out var cycleVolume) ? cycleVolume : null;
+
+        // Dual-range continuous calibration echoes (pump 3.11, Hub 10.3) - strictly non-sticky
+        Readings.PumpSlopeLow =
+            TryGetDouble(root, TelemetryKeys.PumpSlopeLow, out var slopeLow) ? slopeLow : null;
+        Readings.PumpSlopeHigh =
+            TryGetDouble(root, TelemetryKeys.PumpSlopeHigh, out var slopeHigh) ? slopeHigh : null;
+        Readings.PumpTransitionSpeed =
+            TryGetDouble(root, TelemetryKeys.PumpTransitionSpeed, out var transSpeed) ? transSpeed : null;
+        Readings.PumpTransitionFlow =
+            TryGetDouble(root, TelemetryKeys.PumpTransitionFlow, out var transFlow) ? transFlow : null;
+        Readings.PumpCalCrc =
+            TryGetCounter(root, TelemetryKeys.PumpCalCrc, out var calCrc) ? calCrc : null;
 
         if (presence.HasTelemetry && !presence.Online)
         {

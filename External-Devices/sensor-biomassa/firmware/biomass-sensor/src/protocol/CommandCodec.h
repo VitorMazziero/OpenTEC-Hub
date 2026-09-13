@@ -70,6 +70,11 @@ void setAutoRange(bool enabled) {
   enforceRefreshFloor(true);
 }
 
+inline uint32_t currentRefreshFloor() {
+  uint32_t floorMs = minSafeRefreshMs();
+  return (g_config.itRefreshTimes[g_currentItIndex] > floorMs) ? g_config.itRefreshTimes[g_currentItIndex] : floorMs;
+}
+
 void setManualGear(int itIndex, int pwmIndex) {
   if (itIndex < 0 || itIndex >= g_config.IT_COUNT ||
       pwmIndex < 0 || pwmIndex >= g_config.PWM_COUNT) {
@@ -78,7 +83,18 @@ void setManualGear(int itIndex, int pwmIndex) {
   }
   vemlSetConfig(itIndex);
   pwmSetLevel(pwmIndex);
-  if (g_state == IDLE) pwmSetDutyPercent(g_manualLedOn ? g_manualLedPct : 0.0f);
+  // B04: pwmSetLevel() lit the LED at the new duty. Off again at once - in MEASURING the
+  // old code left it on until the next pulse (up to a whole probe period at 100 %).
+  pwmSetDutyPercent(0.0f);
+  // B03: choosing a gear is asking for that gear. Lock it (persisted) so neither the
+  // auto-ranger nor the next start's Smart Start overrides it; "auto" unlocks.
+  if (g_autoRange) {
+    g_autoRange = false;
+    g_prefs.putBool(NVS_KEY_AUTO, false);
+  }
+  g_highDensityMode = false;
+  enforceRefreshFloor(true);
+  g_nextReadTime = millis() + currentRefreshFloor();
   Serial.print("Manual gear set: IT ");
   Serial.print(g_config.itDelays[itIndex]);
   Serial.print("ms, PWM ");
@@ -217,8 +233,11 @@ void processJsonCommand(String json, bool allowBlocking) {
       else if (g_state == IDLE) {
         Serial.println("--- Starting Measurement ---");
 
-        int startIt, startPwm;
-        findOptimalBlankGear(startIt, startPwm); // Smart Start
+        int startIt = g_currentItIndex;
+        int startPwm = g_currentPwmIndex;
+        if (g_autoRange || !blankIsValid(startIt, startPwm)) {
+          findOptimalBlankGear(startIt, startPwm); // Smart Start
+        }
 
         g_state        = MEASURING;
         g_nextReadTime = millis(); // Start first read immediately
@@ -270,9 +289,14 @@ void processJsonCommand(String json, bool allowBlocking) {
           Serial.println(" ms.");
           periodVal = floorMs;
         }
+        bool periodChanged = false;
         for (int i = 0; i < g_config.IT_COUNT; i++) {
-          g_config.itRefreshTimes[i] = (uint32_t)periodVal;
+          if (g_config.itRefreshTimes[i] != (uint32_t)periodVal) {
+            g_config.itRefreshTimes[i] = (uint32_t)periodVal;
+            periodChanged = true;
+          }
         }
+        if (periodChanged) saveConfig();  // B05: persist, but never burn a cycle on a repeat
         Serial.print("Sampling interval set to ");
         Serial.print(periodVal);
         Serial.println(" ms");
@@ -400,23 +424,34 @@ void processJsonCommand(String json, bool allowBlocking) {
   } // end if(cmd)
 
   // Check for numeric settings
+  bool configModified = false;
+
   long val = getJsonValue(json, "low");
   if (val != -999999) {
-    g_config.LOW_THRESHOLD_RAW = (uint16_t)val;
+    if (g_config.LOW_THRESHOLD_RAW != (uint16_t)val) {
+      g_config.LOW_THRESHOLD_RAW = (uint16_t)val;
+      configModified = true;
+    }
     Serial.print("Live config: LOW_THRESHOLD_RAW set to ");
     Serial.println(g_config.LOW_THRESHOLD_RAW);
   }
 
   val = getJsonValue(json, "high");
   if (val != -999999) {
-    g_config.HIGH_THRESHOLD_RAW = (uint16_t)val;
+    if (g_config.HIGH_THRESHOLD_RAW != (uint16_t)val) {
+      g_config.HIGH_THRESHOLD_RAW = (uint16_t)val;
+      configModified = true;
+    }
     Serial.print("Live config: HIGH_THRESHOLD_RAW set to ");
     Serial.println(g_config.HIGH_THRESHOLD_RAW);
   }
 
   val = getJsonValue(json, "opt");
   if (val != -999999) {
-    g_config.OPTIMAL_TARGET_RAW = (uint16_t)val;
+    if (g_config.OPTIMAL_TARGET_RAW != (uint16_t)val) {
+      g_config.OPTIMAL_TARGET_RAW = (uint16_t)val;
+      configModified = true;
+    }
     Serial.print("Live config: OPTIMAL_TARGET_RAW set to ");
     Serial.println(g_config.OPTIMAL_TARGET_RAW);
   }
@@ -445,11 +480,18 @@ void processJsonCommand(String json, bool allowBlocking) {
       val = floorMs;
     }
     for (int i = 0; i < g_config.IT_COUNT; i++) {
-      g_config.itRefreshTimes[i] = (uint32_t)val;
+      if (g_config.itRefreshTimes[i] != (uint32_t)val) {
+        g_config.itRefreshTimes[i] = (uint32_t)val;
+        configModified = true;
+      }
     }
     Serial.print("Sampling interval set to ");
     Serial.print(val);
     Serial.println(" ms");
+  }
+
+  if (configModified) {
+    saveConfig();
   }
 
   bool foundF;

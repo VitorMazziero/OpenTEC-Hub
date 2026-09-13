@@ -77,7 +77,7 @@ const char otaPage[] PROGMEM = R"rawliteral(<!DOCTYPE html><html><head><meta cha
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Sensor de Biomassa OTA</title>
 <style>body{font-family:sans-serif;max-width:520px;margin:2em auto;padding:0 1em}progress{width:100%}code{background:#eee;padding:0 .3em}</style>
 </head><body><h2>Sensor de Biomassa &ndash; Firmware Update</h2>
-<p>Running: <b>Biomass Sensor Firmware v5.3</b></p>
+<p>Running: <b>Biomass Sensor Firmware v11.1</b></p>
 <p>Selecione a imagem <code>biomass-sensor.ino.bin</code> (Arduino IDE: <i>Sketch &gt; Export Compiled Binary</i>). Nao envie <code>.merged.bin</code>, <code>.bootloader.bin</code> ou <code>.partitions.bin</code>.</p>
 <form id="f"><input type="file" name="firmware" accept=".bin" required> <input type="submit" value="Flash"></form>
 <progress id="p" value="0" max="100" hidden></progress><p id="s"></p>

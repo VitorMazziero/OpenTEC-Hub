@@ -57,7 +57,7 @@ bool httpGet(const String& url, int& code, String& body) {
 void sendHubHello() {
   if (WiFi.status() != WL_CONNECTED) return;
   char url[140];
-  snprintf(url, sizeof(url), "%s?dev=biomass&ver=v11&mac=%s",
+  snprintf(url, sizeof(url), "%s?dev=biomass&ver=v11.1&mac=%s",
            sensorHubHelloURL.c_str(), WiFi.macAddress().c_str());
   int code;
   String body;

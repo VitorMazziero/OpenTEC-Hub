@@ -22,7 +22,7 @@ unsigned long g_otaRebootAtMs = 0;
 String g_otaRejectReason = "";
 
 // Firmware Identity
-static const char* FW_VERSION = "v11";
+static const char* FW_VERSION = "v11.1";
 static const char* FW_NAME    = "biomass_sensor_analog_v04_direct";
 
 // Sensor Configuration

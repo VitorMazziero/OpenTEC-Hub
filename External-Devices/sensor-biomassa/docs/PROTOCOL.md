@@ -1,4 +1,4 @@
-# Protocolo — Sensor de Biomassa (Firmware v11)
+# Protocolo — Sensor de Biomassa (Firmware v11.1)
 
 Especificação completa do protocolo de comunicação, telemetria, rotas HTTP, malha óptica e vocabulário de comandos do **Sensor de Biomassa (Turbidímetro/Fotômetro Óptico)** com ESP32-S3 e sensor de luz ambiente de alta faixa dinâmica (VEML7700).
 
@@ -7,18 +7,18 @@ Especificação completa do protocolo de comunicação, telemetria, rotas HTTP, 
 ## 1. Identidade e Registro
 
 - **Dispositivo**: Sensor de Biomassa (`biomass-sensor` / `biomass`)
-- **Versão do Firmware**: `v11`
+- **Versão do Firmware**: `v11.1` (2026-09-13; fio compatível com v11)
 - **Protocolo de Rede**: HTTP REST / Query params (compatibilidade de fio protocolo 10)
 - **Hardware Óptico**: Sensor de luz ambiente VEML7700 (I2C) + LED emissor com controle PWM (2 kHz)
 
 ### Registro Automático (`/nodeHello`)
 Ao conectar-se ao Wi-Fi, o nó anuncia sua presença ao Hub Central:
 ```http
-GET /nodeHello?dev=biomass&ver=v11&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
+GET /nodeHello?dev=biomass&ver=v11.1&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
 Host: 192.168.4.1
 ```
 - `dev`: `biomass`
-- `ver`: `v11`
+- `ver`: `v11.1`
 - `mac`: Endereço MAC do ESP32-S3 do sensor.
 
 ---
@@ -92,11 +92,11 @@ Comandos aceitos via Hub (`/biomassCommand` ou piggyback) ou localmente via `POS
 | `"start"` | Inicia o ciclo contínuo de medição óptica (`MEASURING`). Executa o *Smart Start* para escolher a melhor marcha e pulsa o LED a cada período. |
 | `"stop"` | Interrompe medições contínuas, desliga o LED e retorna ao estado de repouso (`IDLE`). |
 | `"blank"` | Executa a varredura completa da matriz de calibração de branco ($4 \times 8 = 32$ células) em meio limpo. |
-| `"auto"` | Habilita auto-ranging contínuo (ajuste automático de marcha se sinal sair da faixa linear). |
-| `"manual"` | Desabilita auto-ranging e trava a marcha óptica manual selecionada. |
+| `"auto"` | Habilita auto-ranging contínuo (ajuste automático de marcha se sinal sair da faixa linear). Pelo Hub: `biomassAutoRange:"auto"`. |
+| `"manual"` | Desabilita auto-ranging e trava a marcha óptica manual selecionada. Pelo Hub: `biomassAutoRange:"manual"`. **v11.1:** `set_gear` também trava (equivale a `manual` + marcha); `start` mantém a marcha travada se ela tiver branco válido. |
 | `"read_once"` | Executa uma leitura única de pulso no estado `IDLE` sem iniciar medição periódica contínua. |
 | `"probe_period"`| Sem `value`: executa diagnóstico de conversão real de hardware. Com `value`: define o período de amostragem em ms. |
-| `"set_gear"` | Seleciona a marcha óptica: aceita `{"gear": N}` ou `{"value": N}` ($0 \le N \le 31$), ou `{"it": i, "pwm": j}`. |
+| `"set_gear"` | Seleciona a marcha óptica: aceita `{"gear": N}` ou `{"value": N}` ($0 \le N \le 31$), ou `{"it": i, "pwm": j}`. **v11.1:** desliga o auto-range (persistido), apaga o LED de imediato e reprograma a próxima leitura. |
 | `"set_pwm"` | Ajusta tabela de potências PWM: `{"index": 0..7, "value": 0..100}` ou `{"value": 0..100}` para a marcha atual. |
 | `"set_it"` | Ajusta tabela de tempos de integração: `{"index": 0..3, "code": 0..5}` (ou `value`). |
 | `"ema"` | Ajusta coeficiente do filtro EMA: `{"value": 0.01..1.00}` ou `{"ema": ...}`. |
@@ -112,11 +112,12 @@ Comandos aceitos via Hub (`/biomassCommand` ou piggyback) ou localmente via `POS
 ### 4.2 Parâmetros Diretos (Propriedades JSON)
 
 Parâmetros numéricos podem ser enviados em um objeto JSON sem o campo `command`:
-- `refresh_ms`, `probe_ms`, `probe_period` (`long`, ms): Intervalo entre pulsos de leitura periódicos (mínimo respeita o limite térmico do LED).
+- `refresh_ms`, `probe_ms`, `probe_period` (`long`, ms): Intervalo entre pulsos de leitura periódicos (mínimo respeita o limite térmico do LED). **v11.1:** persiste em NVS quando muda. O Hub 10.2 dimensiona a janela de presença por este valor (`max(10 s, 2,5 × probe_ms)`).
 - `ema` (`float`, 0.01 a 1.00): Coeficiente alfa de filtragem exponencial.
 - `low` (`uint16`): Limiar inferior de contagens RAW para disparo de subida de marcha óptica.
 - `high` (`uint16`): Limiar superior de contagens RAW para disparo de descida de marcha óptica.
 - `opt` (`uint16`): Alvo ótimo de contagens no centro da escala linear do fotodetector.
+- **v11.1:** `low`, `high` e `opt` persistem em NVS quando mudam.
 
 ---
 
@@ -140,7 +141,7 @@ O nó executa um servidor Web na porta 80:
 ```json
 {
   "device": "biomass-sensor",
-  "version": "v11",
+  "version": "v11.1",
   "uptime_s": 7200,
   "free_heap": 248190,
   "wifi_status": 3,

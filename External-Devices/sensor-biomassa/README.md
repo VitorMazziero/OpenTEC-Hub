@@ -1,6 +1,6 @@
 # Sensor de biomassa
 
-Versão ativa: **v5.3**. Placa de compilação: **ESP32-S3**.
+Versão ativa: **v11.1** (rótulo interno da reorganização de 2026-09-11: v5.3). Placa de compilação: **ESP32-S3**.
 
 - Firmware: `firmware/biomass-sensor`
 - Aplicativo ativo: `apps/desktop-python`.

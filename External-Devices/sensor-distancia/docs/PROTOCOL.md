@@ -67,9 +67,9 @@ Quando o operador altera uma configuração no aplicativo (ou via `POST /command
 Ao receber a resposta:
 1. O nó avalia: `code == 200 && body.length() > 1 && body[0] == '{'`.
 2. Chama `processConfigUpdate(body.c_str())`.
-3. Extrai `cmd_id` e grava em `g_lastCmdId`.
-4. Aplica os parâmetros recebidos (validando faixas: offset $[-50, 200]$ mm, períodos $[100, 60000]$ ms).
-5. Se houver alteração válida, persiste na NVS (`saveNvsConfig()`).
+3. Extrai `cmd_id`. Se for igual a `g_lastCmdId` (reentrega da mesma revisão — o Hub reenvia até ver o `ack_cmd_id` no push seguinte), o corpo é ignorado e a chamada retorna sucesso sem tocar em nada. Caso contrário grava em `g_lastCmdId`. Após reboot `g_lastCmdId` volta a 0, e uma reentrega é aplicada de novo, o que é o comportamento desejado.
+4. Aplica os parâmetros recebidos validando faixas: offset $[-50, 200]$ mm, `sample_period`/`send_period` $[100, 60000]$ ms (as mesmas faixas do Hub; aqui elas também cobrem `POST /config` local e a serial, que não passam pelo Hub). Valores fora da faixa são ignorados individualmente.
+5. Persiste na NVS (`saveNvsConfig()`) **somente se algum valor mudou**. Um comando que repete os valores vigentes é sucesso (o ack sai no push seguinte de qualquer forma) mas não gasta um ciclo de escrita na flash.
 6. Se `reset_nvs == 1`, restaura padrões de fábrica (`offset = 20.0 mm`), limpa a NVS e mantém o `cmd_id` em `g_lastCmdId`.
 
 ### 4.3 Confirmação (ACK) e Fechamento de Laço

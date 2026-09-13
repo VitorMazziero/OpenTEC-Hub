@@ -1,5 +1,7 @@
 #include "ConfigCodec.h"
 
+#include <climits>
+
 #include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
 #include "../storage/NvsConfig.h"
@@ -42,10 +44,52 @@ bool getJsonFloat(const char* json, const char* key, float& outVal) {
   return true;
 }
 
+namespace {
+// Faixas alinhadas com a validacao do Hub (Commands.h) e com PROTOCOL.md §4.2. O Hub ja
+// filtra o que vem por carona; estas checagens cobrem POST /config local e a serial, que
+// nao passam por ele, e garantem que os tres caminhos aceitem exatamente o mesmo conjunto.
+constexpr long  PERIOD_MIN_MS = 100;
+constexpr long  PERIOD_MAX_MS = 60000;
+constexpr float OFFSET_MIN_MM = -50.0f;
+constexpr float OFFSET_MAX_MM = 200.0f;
+
+// Aplica `value` em `target` so se estiver na faixa e for diferente do atual. Devolve true
+// quando houve mudanca real; `seen` marca que a chave existia e era valida, para separar
+// "nada para fazer" de "nada reconhecido" no log.
+bool applyUlong(const char* payload, const char* key, unsigned long& target,
+                long minVal, long maxVal, bool& seen) {
+  const long value = getJsonValue(payload, key);
+  if (value < minVal || value > maxVal) return false;
+  seen = true;
+  if (static_cast<unsigned long>(value) == target) return false;
+  target = static_cast<unsigned long>(value);
+  Serial.printf("Set %s = %lu\n", key, target);
+  return true;
+}
+
+bool applyInt(const char* payload, const char* key, int& target, bool& seen) {
+  const long value = getJsonValue(payload, key);
+  if (value <= 0) return false;
+  seen = true;
+  if (static_cast<int>(value) == target) return false;
+  target = static_cast<int>(value);
+  Serial.printf("Set %s = %d\n", key, target);
+  return true;
+}
+}  // namespace
+
 bool processConfigUpdate(const char* payload) {
   if (!payload) return false;
 
+  // Entrega duplicada da mesma revisao (o Hub reentrega ate ver o ack no push seguinte;
+  // apos reboot g_lastCmdId volta a 0 e a reentrega e aplicada de novo, o que e correto).
+  // Reaplicar seria inofensivo para os parametros, mas nao para reset_nvs, e cada
+  // reaplicacao custaria uma passagem pela NVS.
   long cmdId = getJsonValue(payload, "cmd_id");
+  if (cmdId > 0 && static_cast<uint32_t>(cmdId) == g_lastCmdId) {
+    Serial.printf("[CMD] cmd_id=%ld ja aplicado; ignorando reentrega.\n", cmdId);
+    return true;
+  }
   if (cmdId > 0) {
     g_lastCmdId = static_cast<uint32_t>(cmdId);
   }
@@ -65,78 +109,42 @@ bool processConfigUpdate(const char* payload) {
     return true;
   }
 
-  bool updated = false;
-  long value = getJsonValue(payload, "sample_period");
-  if (value > 0) {
-    SAMPLE_PERIOD_MS = value;
-    updated = true;
-    Serial.printf("Set SAMPLE_PERIOD_MS = %lu\n", value);
-  }
-
-  value = getJsonValue(payload, "send_period");
-  if (value > 0) {
-    SEND_PERIOD_MS = value;
-    updated = true;
-    Serial.printf("Set SEND_PERIOD_MS = %lu\n", value);
-  }
-
-  value = getJsonValue(payload, "cooldown_soft");
-  if (value > 0) {
-    COOLDOWN_SOFT_MS = value;
-    updated = true;
-    Serial.printf("Set COOLDOWN_SOFT_MS = %lu\n", value);
-  }
-
-  value = getJsonValue(payload, "cooldown_bus");
-  if (value > 0) {
-    COOLDOWN_BUS_MS = value;
-    updated = true;
-    Serial.printf("Set COOLDOWN_BUS_MS = %lu\n", value);
-  }
-
-  value = getJsonValue(payload, "cooldown_xshut");
-  if (value > 0) {
-    COOLDOWN_XSHUT_MS = value;
-    updated = true;
-    Serial.printf("Set COOLDOWN_XSHUT_MS = %lu\n", value);
-  }
-
-  value = getJsonValue(payload, "l1_reinit");
-  if (value > 0) {
-    L1_SOFT_REINIT = value;
-    updated = true;
-    Serial.printf("Set L1_SOFT_REINIT = %d\n", static_cast<int>(value));
-  }
-
-  value = getJsonValue(payload, "l2_clear");
-  if (value > 0) {
-    L2_BUS_CLEAR = value;
-    updated = true;
-    Serial.printf("Set L2_BUS_CLEAR = %d\n", static_cast<int>(value));
-  }
-
-  value = getJsonValue(payload, "l3_xshut");
-  if (value > 0) {
-    L3_XSHUT = value;
-    updated = true;
-    Serial.printf("Set L3_XSHUT = %d\n", static_cast<int>(value));
-  }
+  bool seen = false;
+  bool changed = false;
+  changed |= applyUlong(payload, "sample_period", SAMPLE_PERIOD_MS, PERIOD_MIN_MS, PERIOD_MAX_MS, seen);
+  changed |= applyUlong(payload, "send_period",   SEND_PERIOD_MS,   PERIOD_MIN_MS, PERIOD_MAX_MS, seen);
+  changed |= applyUlong(payload, "cooldown_soft",  COOLDOWN_SOFT_MS,  1, LONG_MAX, seen);
+  changed |= applyUlong(payload, "cooldown_bus",   COOLDOWN_BUS_MS,   1, LONG_MAX, seen);
+  changed |= applyUlong(payload, "cooldown_xshut", COOLDOWN_XSHUT_MS, 1, LONG_MAX, seen);
+  changed |= applyInt(payload, "l1_reinit", L1_SOFT_REINIT, seen);
+  changed |= applyInt(payload, "l2_clear",  L2_BUS_CLEAR,   seen);
+  changed |= applyInt(payload, "l3_xshut",  L3_XSHUT,       seen);
 
   float offsetVal = 0.0f;
   if (getJsonFloat(payload, "offset_mm", offsetVal)) {
-    if (offsetVal >= -50.0f && offsetVal <= 200.0f) {
-      g_offsetMm = offsetVal;
-      updated = true;
-      Serial.printf("Set g_offsetMm = %.2f\n", offsetVal);
+    if (offsetVal >= OFFSET_MIN_MM && offsetVal <= OFFSET_MAX_MM) {
+      seen = true;
+      if (offsetVal != g_offsetMm) {
+        g_offsetMm = offsetVal;
+        changed = true;
+        Serial.printf("Set g_offsetMm = %.2f\n", offsetVal);
+      }
+    } else {
+      Serial.printf("offset_mm=%.2f fora da faixa [%.0f, %.0f]; ignorado.\n",
+                    offsetVal, OFFSET_MIN_MM, OFFSET_MAX_MM);
     }
   }
 
-  if (updated) {
+  // Grava na flash so quando algo mudou. Um comando que repete os valores vigentes e
+  // sucesso (o ack sai no push seguinte de qualquer forma), mas nao custa um ciclo de NVS.
+  if (changed) {
     saveNvsConfig();
+  } else if (seen) {
+    Serial.println("[CMD] Parametros ja vigentes; nada persistido.");
   } else {
     Serial.println("Failed to parse any valid keys from payload.");
   }
-  return updated;
+  return seen;
 }
 
 String getConfigAsJson() {

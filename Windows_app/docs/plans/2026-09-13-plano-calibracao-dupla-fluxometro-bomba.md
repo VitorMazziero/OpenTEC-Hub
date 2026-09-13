@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1 e 2 implementadas e testadas; as etapas 3–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1, 2 e 3 implementadas e testadas; as etapas 4–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -584,6 +584,38 @@ A bomba v3.11 executa a curva dupla com continuidade e compatibilidade, sem perd
 ```text
 feat(pump): support continuous dual-range calibration
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado nesta etapa, no firmware da bomba peristáltica e na suíte de testes de contrato:
+
+- Firmware promovido para `v3.11` (`#define PUMP_FW_VERSION "3.11"` em `FirmwareApp.cpp`, `"version":"3.11"` em `handleDiag`, banner em `Lifecycle.h` e `sendHubHello` em `HubClient.h`).
+- Preservação estrita do layout binário de `PumpConfig` v3.10 (chave NVS `"config"` intacta com 18 campos legados), prevenindo qualquer corrupção de perfis salvos, PID, checkpoints e evitando reset para padrões de fábrica.
+- Criado o módulo `CalibrationStore.h` com a struct `PumpDualRangeCal` (24 bytes) sob a chave NVS isolada `"pump_cal"`, magic `PUMP_CAL_MAGIC_V2 = 0x504D5032` ("PMP2") e cálculo determinístico de CRC32 IEEE 802.3 padrão (`0xEDB88320`) sobre os 16 bytes de floats de calibração.
+- Implementada migração transparente de calibração linear legada (`g_config.pumpSlope` e `pumpIntercept`):
+  - na ausência de registro v2 válido na chave `"pump_cal"`, gera $S_t = 500$, $m_\text{low} = m_\text{high} = \text{slope}$ e $Q_t = \text{slope} \cdot 500 + \text{intercept}$;
+  - persiste o novo registro v2 em `"pump_cal"` com CRC32 sem tocar nos demais campos de `PumpConfig`.
+- Atualizadas as conversões matemáticas em `SensorAndConversion.h`:
+  - `mlminToSpeedUnits`: contínua por partes, bifurcando em $Q \le Q_t$ ($m_\text{low}$) e $Q > Q_t$ ($m_\text{high}$);
+  - `speedUnitsToMlmin`: contínua por partes, bifurcando em $S \le S_t$ ($m_\text{low}$) e $S > S_t$ ($m_\text{high}$);
+  - `pwmDutyToMlmin`: atualizado para usar `speedUnitsToMlmin`, garantindo estimativa contínua de vazão e integração de volume sem salto ao cruzar $S_t$.
+- Staging e validação atômica no parser JSON em `OperationController.h`:
+  - suporte às chaves `pumpSlopeLow` (`slope_low`), `pumpSlopeHigh` (`slope_high`), `pumpTransitionSpeed` (`transition_speed`), `pumpTransitionFlow` (`transition_flow`);
+  - regra de atomicidade estrita: exige obrigatoriamente os 4 parâmetros no mesmo quadro, rejeitando quadros parciais;
+  - validação defensiva: $m_\text{low} > 0$, $m_\text{high} > 0$, $S_t \in (0, 1000)$, $Q_t > 0$ e $Q(0) = Q_t - m_\text{low} \cdot S_t \ge 0$;
+  - interlock de segurança: rejeita qualquer alteração de calibração durante operação ativa da bomba (`g_opState == OP_RUNNING || g_opState == OP_WAITING`).
+- Suporte a comandos legados:
+  - comandos com `pumpSlope` e `pumpIntercept` são transparentemente mapeados para $m_\text{low} = m_\text{high} = \text{slope}$ e $S_t = 500$, atualizando `g_pumpCal` e mantendo a persistência sincronizada.
+- Exposição nos canais de auditoria e telemetria:
+  - push periódico ao Hub em `HubClient.h` estendido para incluir `slope_low`, `slope_high`, `trans_speed`, `trans_flow` e `cal_crc` mantendo `slope` e `intercept` legados;
+  - endpoint local `/readData` e serial em `TelemetryCodec.h` serializando os 5 campos (em snake_case e camelCase) no JSON de telemetria;
+  - `/diag` e OTA identificados como `v3.11`.
+- Preservados integralmente: controle por potenciômetro, comando por tempo `speed_ms`, watchdog de comunicação do Hub com backoff exponencial, tarefas assíncronas do FreeRTOS e rotinas de salvamento/recuperação de checkpoint de dosagem.
+- Criada a suíte de testes de contrato [`test_firmware_v311_contract.py`](file:///D:/OneDrive/PosDoc_Fapesp/Automacao_e_Controle/ProjetoTECNAL/External-Devices/bomba-peristaltica/tests/test_firmware_v311_contract.py) cobrindo integridade da struct `PumpConfig`, tamanho da struct `PumpDualRangeCal`, cálculo de CRC32, equivalência exata da migração da reta linear para $S \in \{0, 1, 250, 500, 750, 1000\}$, continuidade $C^0$ em $(S_t, Q_t)$, bi-direcionalidade $S \leftrightarrow Q$, validações defensivas e interlocks do controlador (9/9 testes aprovados).
+- Verificação de compilação: firmware compilado com sucesso no alvo ESP32 via `arduino-cli` (código 0, 83% de flash, 16% de RAM, 0 erros e 0 avisos).
+- Regressão: suíte de contrato do fluxômetro v12 (8/8 testes aprovados) e 43 testes de calibração do Windows App aprovados.
+
+Não implementado nesta etapa: contratos de transporte no Hub 10.3 (Etapa 4), integração no protocolo do Windows App (Etapa 5) e UI da bomba com biblioteca de mangueiras (Etapas 8 e 9).
 
 ## 14. Etapa 4 — integrar os contratos no Hub
 

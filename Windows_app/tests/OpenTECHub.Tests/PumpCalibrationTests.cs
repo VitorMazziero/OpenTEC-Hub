@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Calibration;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.ViewModels;
@@ -712,4 +713,87 @@ public sealed class PumpCalibrationTests
         Assert.Equal(sentBeforeReconnect + 1, device.Sent.Count);
         Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
     }
+
+    [Fact]
+    public void Dual_range_curve_is_continuous_and_uses_low_segment_at_transition()
+    {
+        var curve = new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0);
+
+        Assert.True(curve.Validate(out var error), error);
+        Assert.Equal(16.0, curve.FlowFromSpeed(500.0), 10);
+        Assert.Equal(16.0, curve.FlowFromSpeed(500.0 - 1e-9), 8);
+        Assert.Equal(16.0, curve.FlowFromSpeed(500.0 + 1e-9), 8);
+        Assert.Equal(500.0, curve.SpeedFromFlow(16.0), 10);
+    }
+
+    [Fact]
+    public void Dual_range_curve_round_trips_flow_and_speed_in_both_ranges()
+    {
+        var curve = new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0);
+
+        foreach (var speed in new[] { 100.0, 500.0, 800.0 })
+        {
+            Assert.Equal(speed, curve.SpeedFromFlow(curve.FlowFromSpeed(speed)), 10);
+        }
+    }
+
+    [Fact]
+    public void Dual_range_fit_recovers_known_continuous_curve()
+    {
+        var points = new[]
+        {
+            Point(100.0, 8.0), Point(300.0, 12.0),
+            Point(600.0, 19.0), Point(800.0, 25.0),
+        };
+
+        var result = PumpDualRangeMath.FitDualRange(points, transitionFlow: 16.0);
+
+        Assert.True(result.IsValid, result.Error);
+        var curve = Assert.IsType<PumpDualRangeCurve>(result.Curve);
+        Assert.Equal(500.0, curve.TransitionSpeed, 4);
+        Assert.Equal(0.02, curve.LowSlope, 5);
+        Assert.Equal(0.03, curve.HighSlope, 5);
+        Assert.Equal(0.0, result.SSE, 8);
+        Assert.Equal(2, result.LowPointCount);
+        Assert.Equal(2, result.HighPointCount);
+    }
+
+    [Fact]
+    public void Dual_range_fit_rejects_invalid_transition_or_insufficient_ranges()
+    {
+        var validPoints = new[]
+        {
+            Point(100.0, 8.0), Point(300.0, 12.0),
+            Point(600.0, 19.0), Point(800.0, 25.0),
+        };
+
+        var invalidTransition = PumpDualRangeMath.FitDualRange(validPoints, 0.0);
+        Assert.False(invalidTransition.IsValid);
+        Assert.Contains("Qt", invalidTransition.Error);
+
+        var insufficientRanges = PumpDualRangeMath.FitDualRange(
+            new[] { Point(100.0, 8.0), Point(200.0, 10.0), Point(200.0, 10.0), Point(300.0, 12.0) },
+            16.0);
+        Assert.False(insufficientRanges.IsValid);
+    }
+
+    [Fact]
+    public void Linear_migration_preserves_the_legacy_equation()
+    {
+        var curve = PumpDualRangeCurve.FromLinear(0.028, 1.7602);
+
+        foreach (var speed in new[] { 0.0, 250.0, 500.0, 1000.0 })
+        {
+            Assert.Equal(0.028 * speed + 1.7602, curve.FlowFromSpeed(speed), 10);
+        }
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PumpDualRangeCurve.FromLinear(0.01, -100.0));
+    }
+
+    private static PumpCalibrationPoint Point(double speed, double flow) => new()
+    {
+        SpeedUnits = speed,
+        Seconds = 60.0,
+        VolumeMl = flow,
+    };
 }

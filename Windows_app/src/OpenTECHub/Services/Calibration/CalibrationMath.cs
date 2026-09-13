@@ -33,12 +33,18 @@ public readonly record struct PolynomialCalibration(double K, double F, double C
     public double Derivative(double x) => (((4.0 * A * x) + (3.0 * B)) * x + (2.0 * K)) * x + F;
 }
 
-/// <summary>The two flowmeter curve segments, split at <see cref="SplitVoltage"/>.</summary>
+/// <summary>The two flowmeter curve segments, split at <see cref="TransitionVoltage"/>.</summary>
 public sealed record FlowCalibrationCurve(
     PolynomialCalibration? LowVoltage,
-    PolynomialCalibration? HighVoltage)
+    PolynomialCalibration? HighVoltage,
+    double TransitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage)
 {
-    public const double SplitVoltage = 0.0545;
+    /// <summary>Legacy migration value (volts). Use as default only, never as an operational rule.</summary>
+    public const double DefaultTransitionVoltage = 0.0545;
+
+    /// <summary>Backward-compatible alias. Prefer <see cref="DefaultTransitionVoltage"/> or <see cref="TransitionVoltage"/>.</summary>
+    [Obsolete($"Use {nameof(TransitionVoltage)} (instance) ou {nameof(DefaultTransitionVoltage)} (default).")]
+    public static double SplitVoltage => DefaultTransitionVoltage;
 
     public bool HasAny => LowVoltage is not null || HighVoltage is not null;
 
@@ -47,15 +53,26 @@ public sealed record FlowCalibrationCurve(
     /// <summary>The flow the curve reports at a voltage, picking the segment the firmware would.</summary>
     public double? Evaluate(double voltage)
     {
-        var segment = voltage <= SplitVoltage ? LowVoltage : HighVoltage;
+        var segment = voltage <= TransitionVoltage ? LowVoltage : HighVoltage;
         return segment?.Evaluate(voltage);
     }
 
-    /// <summary>The jump at the split, or null when a segment is missing.</summary>
+    /// <summary>The jump at the transition, or null when a segment is missing.</summary>
     public double? DiscontinuityAtSplit =>
         LowVoltage is { } low && HighVoltage is { } high
-            ? high.Evaluate(SplitVoltage) - low.Evaluate(SplitVoltage)
+            ? high.Evaluate(TransitionVoltage) - low.Evaluate(TransitionVoltage)
             : null;
+
+    /// <summary>Validates that the transition voltage is within the firmware's ADC range.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">When <paramref name="vt"/> is outside (0, 3.3) V or not finite.</exception>
+    public static void ValidateTransitionVoltage(double vt)
+    {
+        if (vt <= 0.0 || vt >= 3.3 || !double.IsFinite(vt))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(vt), vt, "A tensão de transição deve estar em (0, 3.3) V.");
+        }
+    }
 }
 
 /// <summary>
@@ -81,7 +98,8 @@ public static class CalibrationMath
             A = 321791.345936369,
             B = -32589.073104291,
         },
-        new PolynomialCalibration(-0.854551899, 11.814453070, 0.192231954));
+        new PolynomialCalibration(-0.854551899, 11.814453070, 0.192231954),
+        FlowCalibrationCurve.DefaultTransitionVoltage);
 
     /// <summary>
     /// Fits the low segment so it meets <paramref name="highCurve"/> at the split with the same
@@ -97,11 +115,13 @@ public static class CalibrationMath
     /// </remarks>
     public static PolynomialCalibration FitLowSegmentContinuous(
         IReadOnlyList<(double Voltage, double Flow)> lowPoints,
-        PolynomialCalibration highCurve)
+        PolynomialCalibration highCurve,
+        double transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage)
     {
         ArgumentNullException.ThrowIfNull(lowPoints);
+        FlowCalibrationCurve.ValidateTransitionVoltage(transitionVoltage);
 
-        var split = FlowCalibrationCurve.SplitVoltage;
+        var split = transitionVoltage;
         var valueAtSplit = highCurve.Evaluate(split);
         var slopeAtSplit = highCurve.Derivative(split);
 
@@ -190,7 +210,7 @@ public static class CalibrationMath
     /// <summary>
     /// Fits both segments: a quadratic above the split (two points for a line, three for a
     /// quadratic) and, below it, a quartic anchored to that curve so the pair is continuous
-    /// and smooth at 0.0545 V.
+    /// and smooth at <paramref name="transitionVoltage"/>.
     /// </summary>
     /// <remarks>
     /// The low segment can only be anchored once the high segment exists, because the anchors
@@ -198,17 +218,19 @@ public static class CalibrationMath
     /// fall back to a free quadratic, which still needs three points.
     /// </remarks>
     public static FlowCalibrationCurve FitFlowCurve(
-        IEnumerable<(double Voltage, double Flow)> points)
+        IEnumerable<(double Voltage, double Flow)> points,
+        double transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage)
     {
         ArgumentNullException.ThrowIfNull(points);
+        FlowCalibrationCurve.ValidateTransitionVoltage(transitionVoltage);
 
         var finite = points
             .Where(point => double.IsFinite(point.Voltage) && double.IsFinite(point.Flow))
             .ToArray();
 
-        var low = finite.Where(point => point.Voltage <= FlowCalibrationCurve.SplitVoltage)
+        var low = finite.Where(point => point.Voltage <= transitionVoltage)
                         .ToArray();
-        var high = finite.Where(point => point.Voltage > FlowCalibrationCurve.SplitVoltage)
+        var high = finite.Where(point => point.Voltage > transitionVoltage)
                          .ToArray();
 
         PolynomialCalibration? highCurve = high.Length switch
@@ -220,12 +242,12 @@ public static class CalibrationMath
 
         PolynomialCalibration? lowCurve = (low.Length, highCurve) switch
         {
-            ( > 0, { } anchor) => FitLowSegmentContinuous(low, anchor),
+            ( > 0, { } anchor) => FitLowSegmentContinuous(low, anchor, transitionVoltage),
             ( >= 3, null) => FitPolynomial(low, degree: 2),
             _ => null,
         };
 
-        return new FlowCalibrationCurve(lowCurve, highCurve);
+        return new FlowCalibrationCurve(lowCurve, highCurve, transitionVoltage);
     }
 
     private static PolynomialCalibration FitPolynomial(

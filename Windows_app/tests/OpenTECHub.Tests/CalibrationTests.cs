@@ -66,7 +66,7 @@ public sealed class CalibrationMathTests
         var fit = CalibrationMath.FitFlowCurve(points);
         var low = Assert.IsType<PolynomialCalibration>(fit.LowVoltage);
         var high = Assert.IsType<PolynomialCalibration>(fit.HighVoltage);
-        var split = FlowCalibrationCurve.SplitVoltage;
+        var split = FlowCalibrationCurve.DefaultTransitionVoltage;
 
         // The two anchors that replace the old ~0.17 L/min step at the threshold.
         Assert.Equal(high.Evaluate(split), low.Evaluate(split), precision: 9);
@@ -139,12 +139,112 @@ public sealed class CalibrationMathTests
 
         // The documented values at the threshold: 0,83358133 vs 0,83358145 L/min and
         // slopes 11,7213108 vs 11,7213070 — negligible in float32.
-        var split = FlowCalibrationCurve.SplitVoltage;
+        var split = FlowCalibrationCurve.DefaultTransitionVoltage;
         Assert.Equal(0.83358133, low.Evaluate(split), precision: 6);
         Assert.Equal(0.83358145, high.Evaluate(split), precision: 6);
         Assert.Equal(11.7213108, low.Derivative(split), precision: 4);
         Assert.Equal(11.7213070, high.Derivative(split), precision: 4);
         Assert.True(Math.Abs(curve.DiscontinuityAtSplit!.Value) < 1e-6);
+    }
+
+    [Fact]
+    public void Different_Vt_changes_point_classification()
+    {
+        // A point at 0.06 V is above the default 0.0545, but below 0.10.
+        var points = new[]
+        {
+            (Voltage: 0.01, Flow: 0.0),
+            (Voltage: 0.03, Flow: 0.5),
+            (Voltage: 0.06, Flow: 0.9),   // between default and 0.10
+            (Voltage: 0.15, Flow: 2.0),
+            (Voltage: 0.30, Flow: 4.0),
+        };
+
+        // With default Vt = 0.0545, point 0.06 is in the high segment.
+        var defaultFit = CalibrationMath.FitFlowCurve(points);
+        Assert.Equal(FlowCalibrationCurve.DefaultTransitionVoltage, defaultFit.TransitionVoltage);
+
+        // With Vt = 0.10, point 0.06 should now be in the low segment.
+        var customFit = CalibrationMath.FitFlowCurve(points, transitionVoltage: 0.10);
+        Assert.Equal(0.10, customFit.TransitionVoltage);
+
+        // The two fits should produce different curves because the point classification changed.
+        Assert.NotNull(customFit.LowVoltage);
+        Assert.NotNull(customFit.HighVoltage);
+        Assert.NotEqual(defaultFit.LowVoltage, customFit.LowVoltage);
+    }
+
+    [Fact]
+    public void Continuity_holds_at_non_default_Vt()
+    {
+        var vt = 0.08;
+        var points = new[]
+        {
+            (Voltage: 0.01, Flow: 0.0),
+            (Voltage: 0.03, Flow: 0.5),
+            (Voltage: 0.06, Flow: 0.9),
+            (Voltage: 0.15, Flow: 2.0),
+            (Voltage: 0.30, Flow: 4.0),
+            (Voltage: 0.50, Flow: 6.0),
+        };
+
+        var fit = CalibrationMath.FitFlowCurve(points, transitionVoltage: vt);
+        var low = Assert.IsType<PolynomialCalibration>(fit.LowVoltage);
+        var high = Assert.IsType<PolynomialCalibration>(fit.HighVoltage);
+
+        // Value continuity.
+        Assert.Equal(high.Evaluate(vt), low.Evaluate(vt), precision: 9);
+
+        // Derivative continuity.
+        Assert.Equal(high.Derivative(vt), low.Derivative(vt), precision: 9);
+    }
+
+    [Fact]
+    public void V_equal_to_Vt_uses_the_low_segment()
+    {
+        var low = new PolynomialCalibration(0, 10.0, 0.5);
+        var high = new PolynomialCalibration(0, 20.0, 1.0);
+        var vt = 0.1;
+        var curve = new FlowCalibrationCurve(low, high, vt);
+
+        // At V = Vt, the low curve should be selected (low.Evaluate(0.1) = 10*0.1 + 0.5 = 1.5).
+        Assert.Equal(low.Evaluate(vt), curve.Evaluate(vt));
+
+        // Just above Vt, the high curve should be selected.
+        var justAbove = vt + 1e-10;
+        Assert.Equal(high.Evaluate(justAbove), curve.Evaluate(justAbove));
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.0)]
+    [InlineData(3.3)]
+    [InlineData(5.0)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void Vt_below_zero_or_above_3_3_is_rejected(double badVt)
+        => Assert.Throws<ArgumentOutOfRangeException>(
+            () => FlowCalibrationCurve.ValidateTransitionVoltage(badVt));
+
+    [Fact]
+    public void FitFlowCurve_with_Vt_produces_curve_with_that_transition()
+    {
+        var vt = 0.12;
+        var points = new[]
+        {
+            (Voltage: 0.01, Flow: 0.0),
+            (Voltage: 0.05, Flow: 0.75),
+            (Voltage: 0.10, Flow: 1.2),
+            (Voltage: 0.20, Flow: 3.0),
+            (Voltage: 0.40, Flow: 5.0),
+        };
+
+        var fit = CalibrationMath.FitFlowCurve(points, transitionVoltage: vt);
+
+        Assert.Equal(vt, fit.TransitionVoltage);
+        Assert.NotNull(fit.LowVoltage);
+        Assert.NotNull(fit.HighVoltage);
+        Assert.True(Math.Abs(fit.DiscontinuityAtSplit!.Value) < 1e-6);
     }
 }
 
@@ -570,7 +670,7 @@ public sealed class GuidedCalibrationTests
             root.GetProperty("c2").GetDouble());
 
         // What actually reaches the flowmeter has to be continuous at the threshold.
-        var split = FlowCalibrationCurve.SplitVoltage;
+        var split = FlowCalibrationCurve.DefaultTransitionVoltage;
         Assert.Equal(high.Evaluate(split), low.Evaluate(split), precision: 6);
         Assert.Equal(high.Derivative(split), low.Derivative(split), precision: 6);
         Assert.Equal(0.5, low.Evaluate(0.0244), precision: 6);

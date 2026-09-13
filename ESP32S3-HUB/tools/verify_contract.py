@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OLD = ROOT / "_old"
+OLD = ROOT / "old" if (ROOT / "old").exists() else ROOT / "_old"
 V9 = ROOT / "ESP32S3-HUB"
 
 ENDPOINTS = {
@@ -43,6 +43,8 @@ V10_KEYS = {
     "ServoMotorLeaseMs", "ServoMotorEnabled", "ServoMotorControlActive",
     "ServoMotorControlFault", "ServoMotorRouteAck", "MotorControlViaModbus",
     "FlowmeterReconnectWifi",
+    "FlowTransitionVoltage",
+    "PumpSlopeLow", "PumpSlopeHigh", "PumpTransitionSpeed", "PumpTransitionFlow", "PumpCalCrc",
 }
 
 

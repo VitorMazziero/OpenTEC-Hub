@@ -135,6 +135,7 @@ String buildFlowCommandLocked() {
   if (pendingFlowFfGain) cmd += ",\"ff_gain\":" + String(desiredFlowFfGain, 4);
   if (pendingFlowFfOffset) cmd += ",\"ff_offset\":" + String(desiredFlowFfOffset, 4);
   if (pendingFlowRampRate) cmd += ",\"ramp_rate\":" + String(desiredFlowRampRate, 3);
+  if (pendingFlowTransitionVoltage) cmd += ",\"transition_v\":" + String(desiredFlowTransitionVoltage, 4);
   cmd += "}";
   return cmd;
 }
@@ -227,10 +228,11 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   bool hasFfGain = json.indexOf("\"flowFfGain\"") != -1;
   bool hasFfOffset = json.indexOf("\"flowFfOffset\"") != -1;
   bool hasRamp = json.indexOf("\"flowRampRate\"") != -1;
+  bool hasTransV = json.indexOf("\"flowTransitionVoltage\"") != -1 || json.indexOf("\"transition_v\"") != -1;
 
   if (!(hasFlow || hasV1 || hasV2 || hasVFlow || hasMax || hasReconnect ||
         hasA1 || hasB1 || hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2 ||
-        hasKp || hasKi || hasFfGain || hasFfOffset || hasRamp)) {
+        hasKp || hasKi || hasFfGain || hasFfOffset || hasRamp || hasTransV)) {
     return 0;
   }
 
@@ -272,6 +274,14 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
     if (hasFfGain) { desiredFlowFfGain = getValueFromJson(json, "flowFfGain").toFloat(); pendingFlowFfGain = true; }
     if (hasFfOffset) { desiredFlowFfOffset = getValueFromJson(json, "flowFfOffset").toFloat(); pendingFlowFfOffset = true; }
     if (hasRamp) { desiredFlowRampRate = max(0.0f, getValueFromJson(json, "flowRampRate").toFloat()); pendingFlowRampRate = true; }
+    if (hasTransV) {
+      String tvVal = getValueFromJson(json, "flowTransitionVoltage");
+      if (tvVal.length() == 0) tvVal = getValueFromJson(json, "transition_v");
+      if (tvVal.length() > 0) {
+        desiredFlowTransitionVoltage = tvVal.toFloat();
+        pendingFlowTransitionVoltage = true;
+      }
+    }
 
     flowCommandRevision++;
     if (flowCommandRevision == 0) flowCommandRevision = 1;

@@ -213,6 +213,8 @@ void startWiFi() {
         uint32_t newCalCrc = hasCalCrc ? (uint32_t)strtoul(request->getParam("cal_crc")->value().c_str(), NULL, 16) : 0;
         bool hasHwStatus = request->hasParam("hw_status");
         uint8_t newHwStatus = hasHwStatus ? (uint8_t)request->getParam("hw_status")->value().toInt() : 7;
+        bool hasTransitionV = request->hasParam("transition_v");
+        float newTransitionV = hasTransitionV ? request->getParam("transition_v")->value().toFloat() : NAN;
 
         bool ackedNow = false;
         uint32_t ackedRevision = 0;
@@ -240,7 +242,8 @@ void startWiFi() {
           if (hasRamp) flowmeterRampRate = newRamp;
           if (hasCalCrc) flowmeterCalCrc = newCalCrc;
           if (hasHwStatus) flowmeterHwStatus = newHwStatus;
-          if (hasFfGain || hasFfOffset || hasFlowOutput || hasSetpointCorrected || hasKp || hasKi || hasRamp || hasCalCrc || hasHwStatus) {
+          if (hasTransitionV) flowmeterTransitionVoltage = newTransitionV;
+          if (hasFfGain || hasFfOffset || hasFlowOutput || hasSetpointCorrected || hasKp || hasKi || hasRamp || hasCalCrc || hasHwStatus || hasTransitionV) {
             flowmeterEchoSeen = true;
           }
 
@@ -263,6 +266,7 @@ void startWiFi() {
             pendingK2 = pendingF2 = pendingC2 = false;
             pendingFlowKp = pendingFlowKi = false;
             pendingFlowFfGain = pendingFlowFfOffset = pendingFlowRampRate = false;
+            pendingFlowTransitionVoltage = false;
             ackedNow = true;
             ackedRevision = reportedAck;
           }
@@ -272,6 +276,7 @@ void startWiFi() {
             // Adopting that would silently discard the operator's last command and
             // report the zero as if it had been asked for. Re-assert instead.
             pendingMaxFlow = true;
+            pendingFlowTransitionVoltage = true;
             flowCommandRevision++;
             if (flowCommandRevision == 0) flowCommandRevision = 1;
             flowCommandAwaitingAck = true;
@@ -385,6 +390,27 @@ void startWiFi() {
           if (request->hasParam("kd")) pumpPidKd = request->getParam("kd")->value().toFloat();
           if (request->hasParam("pot")) pumpPotEnabled = request->getParam("pot")->value().toInt() != 0 ? 1 : 0;
           if (request->hasParam("cyc_vol")) pumpCycleVolume = request->getParam("cyc_vol")->value().toFloat();
+          // 3.11: Dual-range continuous calibration parameters and CRC (Hub 10.3)
+          if (request->hasParam("slope_low")) {
+            pumpSlopeLow = request->getParam("slope_low")->value().toFloat();
+            pumpEchoSeen = true;
+          }
+          if (request->hasParam("slope_high")) {
+            pumpSlopeHigh = request->getParam("slope_high")->value().toFloat();
+            pumpEchoSeen = true;
+          }
+          if (request->hasParam("trans_speed")) {
+            pumpTransitionSpeed = request->getParam("trans_speed")->value().toFloat();
+            pumpEchoSeen = true;
+          }
+          if (request->hasParam("trans_flow")) {
+            pumpTransitionFlow = request->getParam("trans_flow")->value().toFloat();
+            pumpEchoSeen = true;
+          }
+          if (request->hasParam("cal_crc")) {
+            pumpCalCrc = (uint32_t)strtoul(request->getParam("cal_crc")->value().c_str(), NULL, 16);
+            pumpEchoSeen = true;
+          }
           pumpFlowRate = request->getParam("flow")->value().toFloat();
           pumpVolume = request->getParam("vol")->value().toFloat();
           pumpTargetVolume = request->getParam("v_tgt")->value().toFloat();

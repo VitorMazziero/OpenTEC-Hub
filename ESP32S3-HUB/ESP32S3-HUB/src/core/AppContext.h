@@ -296,7 +296,11 @@ bool  pendingFlowFfGain = false, pendingFlowFfOffset = false, pendingFlowRampRat
 float desiredFlowKp = 0.0f, desiredFlowKi = 0.0f;
 float desiredFlowFfGain = 0.0f, desiredFlowFfOffset = 0.0f, desiredFlowRampRate = 0.0f;
 
-// Ecos de sintonia e diagnostico interno do fluxometro (Hub 10.2 / v11).
+// Transicao de calibracao dupla do fluxometro (Hub 10.3 / v12).
+bool  pendingFlowTransitionVoltage = false;
+float desiredFlowTransitionVoltage = 0.0545f;
+
+// Ecos de sintonia e diagnostico interno do fluxometro (Hub 10.2 / v11, v12).
 // NAN / false = nunca ecoado neste boot.
 float flowmeterKp = NAN;
 float flowmeterKi = NAN;
@@ -305,6 +309,7 @@ float flowmeterFfOffset = NAN;
 float flowmeterRampRate = NAN;
 float flowmeterOutput = NAN;
 float flowmeterSetpointCorrected = NAN;
+float flowmeterTransitionVoltage = NAN;
 uint8_t flowmeterHwStatus = 7;
 uint32_t flowmeterCalCrc = 0;
 bool  flowmeterEchoSeen = false;
@@ -409,6 +414,12 @@ float pumpPidKd = NAN;
 int   pumpPotEnabled = -1;
 float pumpCycleVolume = NAN;
 float pumpIntercept = NAN;
+// 3.11 echoes (Hub 10.3): calibracao continua em duas faixas e CRC da calibracao.
+float pumpSlopeLow = NAN;
+float pumpSlopeHigh = NAN;
+float pumpTransitionSpeed = NAN;
+float pumpTransitionFlow = NAN;
+uint32_t pumpCalCrc = 0;
 bool  pumpEchoSeen = false;
 
 // ---------- Servo drive Delta ASDA-B2 ----------

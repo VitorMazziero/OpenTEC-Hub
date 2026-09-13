@@ -72,6 +72,11 @@ void readAndBroadcastSensorData() {
   bool snapBiomassEchoSeen = false;
   float snapPumpSlope = NAN;
   float snapPumpIntercept = NAN;
+  float snapPumpSlopeLow = NAN;
+  float snapPumpSlopeHigh = NAN;
+  float snapPumpTransitionSpeed = NAN;
+  float snapPumpTransitionFlow = NAN;
+  uint32_t snapPumpCalCrc = 0;
   bool snapPumpEchoSeen = false;
   float snapPumpPidKp = NAN, snapPumpPidKi = NAN, snapPumpPidKd = NAN;
   int snapPumpPotEnabled = -1;
@@ -112,6 +117,11 @@ void readAndBroadcastSensorData() {
     snapPumpEchoSeen = pumpEchoSeen;
     snapPumpSlope = pumpSlope;
     snapPumpIntercept = pumpIntercept;
+    snapPumpSlopeLow = pumpSlopeLow;
+    snapPumpSlopeHigh = pumpSlopeHigh;
+    snapPumpTransitionSpeed = pumpTransitionSpeed;
+    snapPumpTransitionFlow = pumpTransitionFlow;
+    snapPumpCalCrc = pumpCalCrc;
     snapPumpPidKp = pumpPidKp;
     snapPumpPidKi = pumpPidKi;
     snapPumpPidKd = pumpPidKd;
@@ -210,6 +220,7 @@ void readAndBroadcastSensorData() {
   uint8_t snapFlowmeterHwStatus = 7;
   uint32_t snapFlowmeterCalCrc = 0;
   uint32_t snapFlowmeterBootId = 0;
+  float snapFlowmeterTransitionVoltage = NAN;
   bool snapFlowEchoSeen = false;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
     if (flowmeterCommOn && (millis() - flowmeterLastUpdate > FLOWMETER_TIMEOUT)) {
@@ -226,6 +237,7 @@ void readAndBroadcastSensorData() {
     snapFlowmeterRampRate = flowmeterRampRate;
     snapFlowmeterOutput = flowmeterOutput;
     snapFlowmeterSetpointCorrected = flowmeterSetpointCorrected;
+    snapFlowmeterTransitionVoltage = flowmeterTransitionVoltage;
     snapFlowmeterHwStatus = flowmeterHwStatus;
     snapFlowmeterCalCrc = flowmeterCalCrc;
     snapFlowmeterBootId = flowmeterBootId;
@@ -285,6 +297,7 @@ void readAndBroadcastSensorData() {
       if (!isnan(snapFlowmeterRampRate)) jsonResponse += ",\"FlowRampRate\":" + String(snapFlowmeterRampRate, 3);
       if (!isnan(snapFlowmeterOutput)) jsonResponse += ",\"FlowOutput\":" + String(snapFlowmeterOutput, 4);
       if (!isnan(snapFlowmeterSetpointCorrected)) jsonResponse += ",\"FlowSetpointCorrected\":" + String(snapFlowmeterSetpointCorrected, 4);
+      if (!isnan(snapFlowmeterTransitionVoltage)) jsonResponse += ",\"FlowTransitionVoltage\":" + String(snapFlowmeterTransitionVoltage, 4);
       if (snapFlowmeterCalCrc != 0) jsonResponse += ",\"FlowmeterCalCrc\":" + String(snapFlowmeterCalCrc);
       jsonResponse += ",\"FlowmeterHwStatus\":" + String(snapFlowmeterHwStatus);
       if (snapFlowmeterBootId != 0) jsonResponse += ",\"FlowmeterBootId\":" + String(snapFlowmeterBootId);
@@ -351,6 +364,12 @@ void readAndBroadcastSensorData() {
       if (!isnan(snapPumpPidKd)) jsonResponse += ",\"PumpPidKd\":" + String(snapPumpPidKd, 4);
       if (snapPumpPotEnabled >= 0) jsonResponse += ",\"PumpPotEnabled\":" + String(snapPumpPotEnabled ? "true" : "false");
       if (!isnan(snapPumpCycleVolume)) jsonResponse += ",\"PumpCycleVol\":" + String(snapPumpCycleVolume, 3);
+      // 3.11 only: dual-range continuous calibration (Hub 10.3)
+      if (!isnan(snapPumpSlopeLow)) jsonResponse += ",\"PumpSlopeLow\":" + String(snapPumpSlopeLow, 6);
+      if (!isnan(snapPumpSlopeHigh)) jsonResponse += ",\"PumpSlopeHigh\":" + String(snapPumpSlopeHigh, 6);
+      if (!isnan(snapPumpTransitionSpeed)) jsonResponse += ",\"PumpTransitionSpeed\":" + String(snapPumpTransitionSpeed, 2);
+      if (!isnan(snapPumpTransitionFlow)) jsonResponse += ",\"PumpTransitionFlow\":" + String(snapPumpTransitionFlow, 4);
+      if (snapPumpCalCrc != 0) jsonResponse += ",\"PumpCalCrc\":" + String(snapPumpCalCrc);
     }
   }
 

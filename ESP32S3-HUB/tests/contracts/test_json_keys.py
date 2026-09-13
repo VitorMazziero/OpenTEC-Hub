@@ -103,6 +103,11 @@ REAL_FRAMES = {
     '{"biomassGear":1}': {"biomassGear": "1"},
     '{"biomassEma":0.85}': {"biomassEma": "0.85"},
     '{"biomassProbePeriodMs":500}': {"biomassProbePeriodMs": "500"},
+    # Comandos de transicao do fluxometro v12 e calibracao dupla da bomba v3.11 (Hub 10.3)
+    '{"flowTransitionVoltage":1.85}': {"flowTransitionVoltage": "1.85"},
+    '{"pumpSlopeLow":0.025,"pumpSlopeHigh":0.035,"pumpTransitionSpeed":150.0,"pumpTransitionFlow":20.0}': {
+        "pumpSlopeLow": "0.025", "pumpSlopeHigh": "0.035", "pumpTransitionSpeed": "150.0", "pumpTransitionFlow": "20.0",
+    },
 }
 
 
@@ -165,11 +170,17 @@ class DistanceSourceContractTests(unittest.TestCase):
         self.assertIn('\\"FlowOutput\\"', tel)
         self.assertIn('\\"FlowSetpointCorrected\\"', tel)
         self.assertIn('\\"FlowmeterBootId\\"', tel)
+        self.assertIn('\\"FlowTransitionVoltage\\"', tel)
 
     def test_telemetry_emits_pump_echoes(self):
         tel = self.read("src/sensor/Telemetry.h")
         self.assertIn('\\"PumpSlope\\"', tel)
         self.assertIn('\\"PumpIntercept\\"', tel)
+        self.assertIn('\\"PumpSlopeLow\\"', tel)
+        self.assertIn('\\"PumpSlopeHigh\\"', tel)
+        self.assertIn('\\"PumpTransitionSpeed\\"', tel)
+        self.assertIn('\\"PumpTransitionFlow\\"', tel)
+        self.assertIn('\\"PumpCalCrc\\"', tel)
 
     def test_telemetry_emits_biomass_echoes(self):
         tel = self.read("src/sensor/Telemetry.h")

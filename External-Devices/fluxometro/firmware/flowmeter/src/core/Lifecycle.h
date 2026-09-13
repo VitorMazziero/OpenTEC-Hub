@@ -277,14 +277,15 @@ void firmwareLoop() {
              ",\"ack_direct_cmd_id\":%lu"
              ",\"last_apply_ms\":%lu,\"command_source\":\"%s\""
              ",\"Kp\":%.2f,\"Ki\":%.2f,\"ff_gain\":%.4f,\"ff_offset\":%.4f"
-             ",\"ramp_rate\":%.2f,\"dac_hold\":%d,\"reconnect_wifi\":%d,\"cal_crc\":\"%08X\"}",
+             ",\"ramp_rate\":%.2f,\"dac_hold\":%d,\"reconnect_wifi\":%d"
+             ",\"transition_v\":%.4f,\"cal_crc\":\"%08X\"}",
              seconds, readFlowVoltage, readFlowRate,
              snapTarget, snapFF, snapOutput, snapValve1, snapValve2, snapValveFlow,
              (unsigned long)snapAck, (unsigned long)snapDirectSession,
              (unsigned long)snapDirectAck,
              snapApplyMs, snapSource.c_str(),
              Kp_flow, Ki_flow, ffGain, ffOffset, rampRate, dacHold ? 1 : 0, reconnect_Wifi,
-             currentCalCrc);
+             flowTransitionVoltage, currentCalCrc);
 
     // Comentar para limpar o serial se estiver muito poluído
     Serial.println(outputMessage);

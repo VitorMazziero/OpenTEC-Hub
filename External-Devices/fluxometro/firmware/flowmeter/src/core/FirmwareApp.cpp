@@ -13,7 +13,7 @@
 #include <EEPROM.h>
 #include <Update.h>      // OTA: writes the inactive app slot, see setupOTA()
 
-#define FW_VERSION "v11.0"
+#define FW_VERSION "v12.0"
 #define FW_BUILD FW_VERSION " (" __DATE__ " " __TIME__ ")"
 
 const char* ap_ssid = "Floxometro_AP";
@@ -109,6 +109,7 @@ String lastCommandSource = "boot";
 // through the three measured points and matches curve 2 in value and slope.
 float a1, b1, k1, f1, c1;
 float k2, f2, c2;
+float flowTransitionVoltage = 0.0545f; // Limiar de transicao ativo (V)
 
 float readFlowVoltage = 0.0;
 float readFlowRate = 0.0;
@@ -150,7 +151,7 @@ const unsigned long blinkInterval = 200;
 uint8_t blinkCount = 0;
 float lowPassPreviousFilteredValue = 0;
 
-char outputMessage[512];   // V07: flow_output added, keep headroom
+char outputMessage[640];   // V12: transition_v added, keep headroom
 String sensorHubURL = "http://192.168.4.1";
 unsigned long lastHTTPDataTime = 0;
 unsigned long lastCommandPollTime = 0;
@@ -175,6 +176,7 @@ struct CalibrationParams {
   float ff_gain, ff_offset;   // V08 (schema v3), appended so v2 records migrate in place
   float ramp_rate, dac_hold;  // V10 (schema v5); dac_hold stored as 0/1 in a float
   float max_flow;             // V11 (schema v6); fundo de escala em L/min (offset 60..63)
+  float transition_v;         // V12 (schema v7); tensao de transicao das curvas em V (offset 64..67)
 };
 CalibrationParams calParams;
 uint32_t currentCalCrc = 0;
@@ -182,7 +184,8 @@ const uint32_t CALIBRATION_MAGIC_V2 = 0xCAFEBAC0;
 const uint32_t CALIBRATION_MAGIC_V3 = 0xCAFEBAC1;
 const uint32_t CALIBRATION_MAGIC_V4 = 0xCAFEBAC2;
 const uint32_t CALIBRATION_MAGIC_V5 = 0xCAFEBAC3;
-const uint32_t CALIBRATION_MAGIC    = 0xCAFEBAC4; // Schema v6
+const uint32_t CALIBRATION_MAGIC_V6 = 0xCAFEBAC4;
+const uint32_t CALIBRATION_MAGIC    = 0xCAFEBAC5; // Schema v7
 const float FF_GAIN_DEFAULT = 0.85f;
 const float FF_OFFSET_DEFAULT = -0.05f;
 const float KP_DEFAULT = 0.4f;
@@ -190,6 +193,9 @@ const float KI_DEFAULT = 2.0f;
 const float RAMP_RATE_DEFAULT = 3.0f;
 const float DAC_HOLD_DEFAULT = 1.0f;
 const float MAX_FLOW_DEFAULT = 50.0f;
+const float TRANSITION_V_DEFAULT = 0.0545f;
+const float CAL_MAX_VALUE_DISCONTINUITY = 0.01f;     // Salto maximo de valor no limiar (L/min)
+const float CAL_MAX_DERIVATIVE_DISCONTINUITY = 0.1f; // Salto maximo de derivada no limiar (L/min/V)
 
 const float FACTORY_A1 = -1353785.3f;
 const float FACTORY_B1 = 246663.69f;
@@ -204,6 +210,7 @@ static void applyFactoryCurve(CalibrationParams &cp) {
   cp.a1 = FACTORY_A1; cp.b1 = FACTORY_B1; cp.k1 = FACTORY_K1;
   cp.f1 = FACTORY_F1; cp.c1 = FACTORY_C1;
   cp.k2 = FACTORY_K2; cp.f2 = FACTORY_F2; cp.c2 = FACTORY_C2;
+  cp.transition_v = TRANSITION_V_DEFAULT;
 }
 
 // Forward declarations

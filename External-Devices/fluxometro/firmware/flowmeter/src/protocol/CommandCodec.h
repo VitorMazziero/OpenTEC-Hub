@@ -133,6 +133,7 @@ struct StagedCommands {
   bool hasK2 = false; float stagedK2 = 0.0f;
   bool hasF2 = false; float stagedF2 = 0.0f;
   bool hasC2 = false; float stagedC2 = 0.0f;
+  bool hasTransitionV = false; float stagedTransitionV = 0.0f;
 
   bool frameHasErrors = false;
   bool recognizedAny = false;
@@ -392,9 +393,42 @@ bool processReceivedData(const String& rawData, CommandSource source) {
         staged.frameHasErrors = true;
       }
     }
+    else if (strcmp(keyBuf, "transition_v") == 0 || strcmp(keyBuf, "flowTransitionVoltage") == 0) {
+      if (parseBoundedFloat(valBuf, 0.0001f, 3.2999f, &fVal)) {
+        staged.hasTransitionV = true; staged.stagedTransitionV = fVal; staged.recognizedAny = true;
+      } else {
+        Serial.printf("[REJECT] transition_v fora de faixa (0..3.3): %s\n", valBuf);
+        staged.frameHasErrors = true;
+      }
+    }
 
     while (cursor < lastBrace && *cursor != ',') cursor++;
     if (cursor < lastBrace && *cursor == ',') cursor++;
+  }
+
+  // F16: Validacao de atomicidade e continuidade da calibracao dupla (Etapa 2)
+  bool hasFullLow = staged.hasA1 && staged.hasB1 && staged.hasK1 && staged.hasF1 && staged.hasC1;
+  bool hasFullHigh = staged.hasK2 && staged.hasF2 && staged.hasC2;
+
+  if (staged.hasTransitionV && (!hasFullLow || !hasFullHigh)) {
+    Serial.println("[REJECT] transition_v exige os dois segmentos completos (a1..c1, k2..c2) no mesmo quadro.");
+    staged.frameHasErrors = true;
+  }
+
+  if (hasFullLow && hasFullHigh) {
+    float vt = staged.hasTransitionV ? staged.stagedTransitionV : flowTransitionVoltage;
+    float qLow = ((((staged.stagedA1 * vt + staged.stagedB1) * vt + staged.stagedK1) * vt + staged.stagedF1) * vt + staged.stagedC1);
+    float qHigh = staged.stagedK2 * vt * vt + staged.stagedF2 * vt + staged.stagedC2;
+    float dLow = (((4.0f * staged.stagedA1 * vt + 3.0f * staged.stagedB1) * vt + 2.0f * staged.stagedK1) * vt + staged.stagedF1);
+    float dHigh = 2.0f * staged.stagedK2 * vt + staged.stagedF2;
+
+    if (isnan(qLow) || isnan(qHigh) || isinf(qLow) || isinf(qHigh) ||
+        fabsf(qHigh - qLow) > CAL_MAX_VALUE_DISCONTINUITY ||
+        fabsf(dHigh - dLow) > CAL_MAX_DERIVATIVE_DISCONTINUITY) {
+      Serial.printf("[REJECT] Descontinuidade no limiar %.4f V fora da tolerancia (delta_q=%.6f, delta_d=%.6f)\n",
+                    vt, fabsf(qHigh - qLow), fabsf(dHigh - dLow));
+      staged.frameHasErrors = true;
+    }
   }
 
   // =========================================================================
@@ -501,6 +535,13 @@ bool processReceivedData(const String& rawData, CommandSource source) {
   if (staged.hasK2) { k2 = calParams.k2 = staged.stagedK2; calParamsUpdated = true; }
   if (staged.hasF2) { f2 = calParams.f2 = staged.stagedF2; calParamsUpdated = true; }
   if (staged.hasC2) { c2 = calParams.c2 = staged.stagedC2; calParamsUpdated = true; }
+
+  // Limiar de transicao (Etapa 2)
+  if (staged.hasTransitionV) {
+    flowTransitionVoltage = calParams.transition_v = staged.stagedTransitionV;
+    calParamsUpdated = true;
+    Serial.printf("[CMD] Atualizado e persistido transition_v: %.4f V\n", flowTransitionVoltage);
+  }
 
   lastCommandApplyMs = millis();
   lastCommandSource = (source == COMMAND_HUB) ? "hub" : "direct";

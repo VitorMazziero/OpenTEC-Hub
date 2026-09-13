@@ -51,7 +51,7 @@ void readAndProcessADC() {
 
   readFlowVoltage = lowPassFilter(avgVolts, flowFilterAlpha);
 
-  if (readFlowVoltage <= 0.0545f) {
+  if (readFlowVoltage <= flowTransitionVoltage) {
     // Horner form reduces floating-point cancellation at millivolt inputs.
     readFlowRate = ((((a1 * readFlowVoltage + b1) * readFlowVoltage + k1)
                     * readFlowVoltage + f1) * readFlowVoltage + c1);

@@ -9,7 +9,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       if (info->opcode == WS_TEXT) {
         String message((char*)data, len);
         bool accepted = processReceivedData(message, COMMAND_DIRECT);
-        float snapTarget;
+        float snapTarget, snapTransitionV;
         uint8_t snapValve1, snapValve2, snapValveFlow;
         uint32_t snapDirectAck;
         uint32_t snapDirectSession;
@@ -22,20 +22,21 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         snapDirectAck = lastAppliedDirectCommandId;
         snapDirectSession = lastAppliedDirectSessionId;
         snapApplyMs = lastCommandApplyMs;
+        snapTransitionV = flowTransitionVoltage;
         xSemaphoreGive(commandMutex);
 
-        char ackMessage[320];
+        char ackMessage[384];
         snprintf(ackMessage, sizeof(ackMessage),
                  "{\"command_ack\":%s,\"ack_direct_session_id\":%lu"
                  ",\"ack_direct_cmd_id\":%lu"
                  ",\"last_apply_ms\":%lu,\"command_source\":\"direct\""
                  ",\"flow_setpoint\":%.6f,\"valve1State\":%d"
                  ",\"valve2State\":%d,\"valveFlowState\":%d"
-                 ",\"cal_crc\":\"%08X\"}",
+                 ",\"transition_v\":%.4f,\"cal_crc\":\"%08X\"}",
                  accepted ? "true" : "false", (unsigned long)snapDirectSession,
                  (unsigned long)snapDirectAck,
                  snapApplyMs, snapTarget, snapValve1, snapValve2, snapValveFlow,
-                 currentCalCrc);
+                 snapTransitionV, currentCalCrc);
         client->text(ackMessage);
       }
     }

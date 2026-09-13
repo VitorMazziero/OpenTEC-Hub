@@ -104,7 +104,7 @@ void telemetryTask(void *parameter) {
     if (!otaInProgress && WiFi.status() == WL_CONNECTED && now - lastHTTPDataTime >= currentTelemetryInterval) {
       lastHTTPDataTime = now;
 
-      float snapTarget, snapOutput, snapFF;
+      float snapTarget, snapOutput, snapFF, snapTransitionV;
       uint8_t snapValve1, snapValve2, snapValveFlow;
       uint32_t snapAck;
       unsigned long snapApplyMs;
@@ -119,19 +119,20 @@ void telemetryTask(void *parameter) {
       snapAck = lastAppliedHubCommandId;
       snapApplyMs = lastCommandApplyMs;
       snapSource = lastCommandSource;
+      snapTransitionV = flowTransitionVoltage;
       xSemaphoreGive(commandMutex);
 
       uint8_t hwStatus = (adsHealthy ? 1 : 0) | (dacHealthy ? 2 : 0) | (!hardwareFaultLatched ? 4 : 0);
       float reportedFlowRate = hardwareFaultLatched ? -1.0f : readFlowRate;
 
-      char url[512];
+      char url[640];
       snprintf(url, sizeof(url),
                "%s/flowData?seconds=%.3f&flow_voltage=%.6f&flow_rate=%.6f"
                "&flow_setpoint=%.6f&flow_setpoint_corrected=%.6f&flow_output=%.6f"
                "&ff_gain=%.4f&ff_offset=%.4f&valve1State=%u&valve2State=%u"
                "&valveFlowState=%u&ack_cmd_id=%lu&last_apply_ms=%lu"
                "&command_source=%s&boot_id=%lu&reconnect_wifi=%d"
-               "&kp=%.4f&ki=%.4f&ramp=%.3f&cal_crc=%08X&hw_status=%u",
+               "&kp=%.4f&ki=%.4f&ramp=%.3f&transition_v=%.4f&cal_crc=%08X&hw_status=%u",
                sensorHubURL.c_str(),
                now / 1000.0,
                readFlowVoltage,
@@ -152,6 +153,7 @@ void telemetryTask(void *parameter) {
                Kp_flow,
                Ki_flow,
                rampRate,
+               snapTransitionV,
                currentCalCrc,
                hwStatus);
       if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {

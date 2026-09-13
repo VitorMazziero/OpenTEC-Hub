@@ -52,12 +52,14 @@ void setupOTA() {
 
   // F11: Endpoint dedicado para leitura e auditoria de coeficientes em EEPROM
   server.on("/calibration", HTTP_GET, [](AsyncWebServerRequest *request) {
-    char buf[384];
+    char buf[448];
     snprintf(buf, sizeof(buf),
       "{\"a1\":%.6e,\"b1\":%.6e,\"k1\":%.6e,\"f1\":%.6e,\"c1\":%.6e,"
-      "\"k2\":%.6e,\"f2\":%.6e,\"c2\":%.6e,\"max_flow\":%.2f,\"crc\":\"%08X\"}",
+      "\"k2\":%.6e,\"f2\":%.6e,\"c2\":%.6e,\"transition_v\":%.4f,"
+      "\"max_flow\":%.2f,\"crc\":\"%08X\"}",
       calParams.a1, calParams.b1, calParams.k1, calParams.f1, calParams.c1,
-      calParams.k2, calParams.f2, calParams.c2, maxFlowRate, currentCalCrc);
+      calParams.k2, calParams.f2, calParams.c2, calParams.transition_v,
+      maxFlowRate, currentCalCrc);
     request->send(200, "application/json", buf);
   });
 

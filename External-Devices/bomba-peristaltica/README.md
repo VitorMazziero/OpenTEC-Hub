@@ -1,6 +1,6 @@
 # Bomba peristáltica
 
-Versão ativa: **v4**. Placa de compilação: **ESP32**.
+Versão ativa: **v3.11**. Placa de compilação: **ESP32**.
 
 - Firmware: `firmware/peristaltic-pump`
 - Aplicativo ativo: `apps/flutter`.
@@ -12,4 +12,4 @@ Versão ativa: **v4**. Placa de compilação: **ESP32**.
 
     Leia `docs/CURRENT_STATUS.md` antes de gravar hardware, `docs/PROTOCOL.md` antes de tocar em comunicação e `docs/VALIDATION.md` para os gates. Compile todos os dispositivos com `tools\Compile-ExternalDevices.ps1` a partir de `External-Devices`.
 
-O código ativo foi reorganizado sem mudança intencional de comportamento. O monólito original permanece em `archive/active-baseline` para comparação e os hashes importados estão em `archive/IMPORT_MANIFEST.sha256`.
+O firmware v3.11 usa uma calibração contínua em duas faixas definida por `(m_baixo, m_alto, St, Qt)`, persistida separadamente em `pump_cal` com CRC32. A reta 3.10 é migrada para dois trechos equivalentes. Perfis nomeados por mangueira pertencem ao aplicativo no PC; o nó mantém somente a última curva enviada. A integração de software foi testada com Hub 10.3 e OpenTEC-Hub; a validação volumétrica física continua pendente.

@@ -1,12 +1,14 @@
 # Contrato HTTP do Hub 10
 
 > O nome deste arquivo é histórico. A identidade emitida atualmente é firmware
-> `10.2.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
+> `10.3.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
 > manifesto de cada ensaio, por isso toda mudança de comportamento do Hub sobe a versão
 > — `10.0.1-dev` é o leitor serial em linhas e o repasse de `a1`/`b1` (2026-09-11);
 > `10.1.0-dev` é a identidade dos nós externos no quadro agregado e o `/nodes` completo
 > (2026-09-12); `10.2.0-dev` é a caixa confiável da distância por carona no push e
-> os ecos de configuração dos nós externos. Chaves aditivas não sobem o protocolo.
+> os ecos de configuração dos nós externos; `10.3.0-dev` acrescenta a transição
+> editável do fluxômetro v12.0 e a calibração dupla da bomba v3.11. Chaves aditivas
+> não sobem o protocolo.
 
 ## Compatibilidade com o aplicativo
 
@@ -182,6 +184,7 @@ responde `200 application/json {"cmd_id":N,"offset_mm":...}`; o nó aplica e res
 | `FlowFfGain` | `flowFfGain` | `ff_gain` | float (%.4f) |
 | `FlowFfOffset` | `flowFfOffset` | `ff_offset` | float (%.4f) |
 | `FlowRampRate` | `flowRampRate` | `ramp_rate` | float (%.3f, >= 0.0) |
+| `FlowTransitionVoltage` | `flowTransitionVoltage` | `transition_v` | float (%.4f, `0 < Vt < 3.3`); enviado com os dois segmentos completos |
 
 Os campos de sintonia trafegam junto ao estado dos atuadores (`flow_setpoint`, `v1`, `v2`, `v_Flow`)
 e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
@@ -194,8 +197,11 @@ e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
 | `PumpManualSpeed` | `pump_speed` | `speed` | inteiro 0..1000; o nó cai para modo 0 (ocioso) e mantém a velocidade S até o próximo `speed`, perfil ou `pot:1`; `0` para o motor. Chave `speed` sem prefixo é rejeitada pelo Hub por desenho. |
 | `PumpManualSpeedMs` | `pump_speed_ms` | `speed_ms` | ms > 0, junto com `pump_speed`: a bomba 3.10 zera a velocidade sozinha ao expirar. A calibração volumétrica envia duração + 3 s como rede de segurança; a parada primária continua sendo o `0` do app. |
 | `PumpPotentiometers` | `pump_pot` | `pot` | `1` devolve o motor aos potenciômetros de bancada (e esquece `speed`); `0` trava. Bomba 3.10. |
-| `PumpSlope` | `pumpSlope` | `pumpSlope` | float (pass-through) |
-| `PumpIntercept` | `pumpIntercept` | `pumpIntercept` | float (pass-through) |
+| `PumpSlopeLow` | `pumpSlopeLow` | `slope_low` | float > 0; parte do conjunto atômico 3.11 |
+| `PumpSlopeHigh` | `pumpSlopeHigh` | `slope_high` | float > 0; parte do conjunto atômico 3.11 |
+| `PumpTransitionSpeed` | `pumpTransitionSpeed` | `transition_speed` | float, `0 < St < 1000`; parte do conjunto atômico 3.11 |
+| `PumpTransitionFlow` | `pumpTransitionFlow` | `transition_flow` | float > 0; parte do conjunto atômico 3.11 |
+| `PumpSlope`, `PumpIntercept` | `pumpSlope`, `pumpIntercept` | mesmos nomes | compatibilidade com bomba 3.10; não confirmam calibração dupla |
 | `PumpPidKp` | `pumpPidKp` | `pid_kp` | float |
 | `PumpPidKi` | `pumpPidKi` | `pid_ki` | float |
 | `PumpPidKd` | `pumpPidKd` | `pid_kd` | float |
@@ -217,7 +223,7 @@ O desligamento seguro da bomba utiliza `{"mode":0}`.
 Regra: **Um `command` por revisão**. Se o aplicativo enviar múltiplos comandos na mesma requisição,
 o Hub enfileira o primeiro e descarta os excedentes com registro em `ESP32_EVT`.
 
-## Ecos por nó (10.2)
+## Ecos por nó (10.3)
 
 Valores de configuração aplicados pelo nó são ecoados em seus pushes e republicados no
 quadro agregado (`GET /readData`).
@@ -266,6 +272,7 @@ cada segundo. O filtro foi removido; a validade da leitura é responsabilidade d
 | `FlowOutput` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Saída calculada do controlador |
 | `FlowSetpointCorrected` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Setpoint corrigido com feedforward |
 | `FlowmeterBootId` | uint32 | `FlowmeterOnline` e `flowmeterEchoSeen` | Identificador único de boot do nó |
+| `FlowTransitionVoltage` | float (%.4f) | `FlowmeterOnline` e `flowmeterEchoSeen` | Tensão de transição vigente no nó v12.0 |
 
 ### Bomba Peristáltica
 
@@ -274,6 +281,10 @@ cada segundo. O filtro foi removido; a validade da leitura é responsabilidade d
 | `PumpCommandPending` | bool | sempre | Verdadeiro enquanto houver comando pendente |
 | `PumpSlope` | float (%.4f) | `PumpOnline` e `pumpEchoSeen` | Coeficiente angular de calibração |
 | `PumpIntercept` | float (%.4f) | `PumpOnline` e `pumpEchoSeen` | Coeficiente linear de calibração |
+| `PumpSlopeLow`, `PumpSlopeHigh` | float (%.6f) | `PumpOnline` e `pumpEchoSeen` | Inclinações da curva dupla vigente |
+| `PumpTransitionSpeed` | float (%.2f) | idem | Velocidade `St` do ponto comum |
+| `PumpTransitionFlow` | float (%.4f) | idem | Vazão `Qt` do ponto comum |
+| `PumpCalCrc` | uint32 | idem, quando diferente de zero | CRC32 do registro `pump_cal` |
 | `PumpPidKp`, `PumpPidKi`, `PumpPidKd` | float (%.4f) | idem, só bomba 3.10 (push com `kp/ki/kd`) | Ganhos do PID de volume vigentes no nó |
 | `PumpPotEnabled` | bool | idem, só 3.10 (push com `pot`) | Potenciômetros de bancada no comando do motor |
 | `PumpCycleVol` | float (%.3f) | idem, só 3.10 (push com `cyc_vol`) | Volume do ciclo de perfil corrente; `PumpVol` é o contador da sessão e só zera com `reset_volume` |
@@ -287,7 +298,7 @@ cada segundo. O filtro foi removido; a validade da leitura é responsabilidade d
 | `BiomassEma` | float (%.3f) | `BiomassOnline` e `biomassEchoSeen` | Fator alfa do filtro EMA aplicado |
 | `BiomassProbePeriodMs` | uint32 | `BiomassOnline` e `biomassEchoSeen` | Período de amostragem em ms |
 
-## Diagnóstico dos nós: `/nodeDiag` e serial `nodeDiag` (10.2)
+## Diagnóstico dos nós: `/nodeDiag` e serial `nodeDiag` (10.3)
 
 O Hub mantém um cache com o `GET /diag` de cada nó registrado (corpo até 511 B, código
 HTTP e instante da coleta). A coleta vive **só** na tarefa `NodeDiag` (núcleo 1, pilha

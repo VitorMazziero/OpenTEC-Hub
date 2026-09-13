@@ -55,6 +55,14 @@ presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardwa
     a resposta de espuma deve iniciar no primeiro push. Em seguida desconectar o
     VL53L0X (ou tampar a óptica): o nó deve empurrar `distance=-1`, `Distance` some
     do quadro com `DistanceOnline=true`, a lógica de espuma pausa com o aviso.
+15. Fluxômetro v12.0 / Hub 10.3: enviar curva completa com `transition_v=0.0545`,
+    confirmar ACK, `FlowTransitionVoltage` e CRC; repetir com outro `Vt` tecnicamente
+    justificável, reiniciar nó e Hub e comparar `/calibration` com o recibo do app.
+16. Bomba v3.11 / Hub 10.3: com a bomba ociosa, enviar os quatro parâmetros no mesmo
+    quadro e confirmar `PumpCommandPending=false`, quatro ecos e `PumpCalCrc`. Rejeitar
+    quadro parcial e envio em `RUNNING`/`WAITING`; reiniciar e confirmar persistência.
+17. Compatibilidade: conectar fluxômetro v11 e bomba 3.10, confirmar leitura dos campos
+    legados e bloqueio explícito das funções modernas, sem chave ausente tratada como zero.
 
 ## Gate de liberação
 

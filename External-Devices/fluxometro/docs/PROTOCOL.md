@@ -1,6 +1,6 @@
 # Protocolo de Comunicação — Nó Fluxômetro
 
-**Versão de Firmware:** `v11.0`  
+**Versão de Firmware:** `v12.0`
 **Dispositivo:** `flowmeter` (ESP32)  
 **Papel no Sistema:** Medição e controle de vazão de gases (ar/N₂) via sensor/controlador de fluxo mássico (MFC Omega FMA-5400) com DAC I2C MCP4725, ADC I2C ADS1115 e acionamento de válvulas solenoides.
 
@@ -10,14 +10,14 @@
 
 O nó fluxômetro opera em rede Wi-Fi associado ao SoftAP do Hub ESP32-S3 ou em rede local compartilhada. A troca de dados com o Hub é estritamente cliente-servidor HTTP em três vias:
 
-1. **Anúncio de Presença (`/nodeHello`):** Notifica o Hub sobre identidade, versão (`v11.0`) e MAC a cada 30 segundos ou na recuperação de enlace.
+1. **Anúncio de Presença (`/nodeHello`):** Notifica o Hub sobre identidade, versão (`v12.0`) e MAC a cada 30 segundos ou na recuperação de enlace.
 2. **Push de Telemetria (`/flowData`):** Periódico a cada 500 ms (ou sob backoff exponencial em caso de falha), enviando leitura de processo, diagnóstico interno, ecos de sintonia, `cal_crc` e `hw_status`.
 3. **Pull de Comandos (`/flowCommand`):** O nó consulta o Hub periodicamente buscando comandos pendentes sob máquina de confirmação `cmd_id` / `ack_cmd_id`.
 
 ```
-  Fluxômetro (v11.0)                           Hub (10.2)
+  Fluxômetro (v12.0)                           Hub (10.3)
        │                                            │
-       ├──── GET /nodeHello?dev=flowmeter&ver=v11.0>│ (Registro dinâmico)
+       ├──── GET /nodeHello?dev=flowmeter&ver=v12.0>│ (Registro dinâmico)
        │                                            │
        ├──── GET /flowData?seconds=...&kp=... ─────>│ (Push de telemetria e ecos)
        │<─── 200 "Flowmeter data received" ─────────┤
@@ -36,7 +36,7 @@ O nó fluxômetro opera em rede Wi-Fi associado ao SoftAP do Hub ESP32-S3 ou em 
 - **Frequência:** A cada 30 segundos ou quando `hubAnnounced == false`.
 - **Formato da URL:**
   ```http
-  GET /nodeHello?dev=flowmeter&ver=v11.0&mac=XX:XX:XX:XX:XX:XX
+  GET /nodeHello?dev=flowmeter&ver=v12.0&mac=XX:XX:XX:XX:XX:XX
   ```
 
 ### 2.2 Push de Telemetria e Ecos (`GET /flowData`)
@@ -64,6 +64,7 @@ O nó fluxômetro opera em rede Wi-Fi associado ao SoftAP do Hub ESP32-S3 ou em 
   | `ki` *(novo v11)* | float (%.4f) | `0.0500` | Ganho integral PI ativo |
   | `ramp` *(novo v11)* | float (%.3f) | `3.000` | Taxa da rampa de aceleração (L/min/s) |
   | `cal_crc` *(v11.0)* | hex uint32 | `A1B2C3D4` | CRC32 dos coeficientes de calibração em EEPROM |
+  | `transition_v` *(v12.0)* | float (%.4f) | `0.0545` | Tensão de transição vigente; é tensão em volts, não vazão |
   | `hw_status` *(v11.0)* | uint8 | `7` | Bitmask de saúde de hardware (bit 0=ADS, 1=DAC, 2=NoLatch) |
 
 ---
@@ -88,10 +89,12 @@ O nó faz poll em `/flowCommand`. O corpo JSON de resposta do Hub pode conter um
 | `max_flow` / `maxFlow` | float | `> 0.01` (padrão 50.0)| Fundo de escala do sensor |
 | `a1`, `b1`, `k1`, `f1`, `c1` | float | coeficientes | Curva baixa de calibração (polinômio quártico ancorado) |
 | `k2`, `f2`, `c2` | float | coeficientes | Curva alta de calibração (polinômio quadrático) |
+| `transition_v` / `flowTransitionVoltage` | float | `0 < Vt < 3.3` | Tensão de transição em volts; exige os dois segmentos completos no mesmo quadro |
 | `reconnect_wifi` | int (0/1) | `1` | Habilita/desabilita laço de reconexão Wi-Fi |
 
 ### 3.1 Comportamento de Aplicação e Persistência
-- **Sintonia e Calibração:** Quando `kp_flow`, `ki_flow`, `ff_gain`, `ff_offset`, `ramp_rate` ou os coeficientes de curva são recebidos, eles são gravados na partição NVS através de `saveCalibration()`.
+- **Sintonia e Calibração:** Quando `kp_flow`, `ki_flow`, `ff_gain`, `ff_offset`, `ramp_rate` ou uma curva completa com `transition_v` são recebidos, eles são gravados na EEPROM através de `saveCalibration()`.
+- **Aplicação atômica v12.0:** um quadro que altera `transition_v` deve conter os dois segmentos completos. O parser rejeita curva com descontinuidade de valor ou derivada acima dos limites do firmware; não há aplicação parcial.
 - **Setpoints Dinâmicos:** `flow_setpoint` e comandos de válvula são aplicados imediatamente em RAM e não desgastam a memória flash.
 - **Liberação Lógica de Rotas (F06):** O hardware pneumático não impõe restrição física de rota; qualquer combinação lógica de solenoides ($V_1$, $V_2$, $V_\text{Flow}$) é executada fielmente pelo firmware e repassada pelo Hub. A governança de rotas e segurança de processo residem no Windows App.
 - **Confirmação:** O nó registra `snapAck = lastAppliedHubCommandId = cmd_id`. No próximo push de `/flowData`, o parâmetro `&ack_cmd_id=<cmd_id>` fecha a transação no Hub.
@@ -107,7 +110,7 @@ Devolve status de saúde e conectividade em JSON:
 ```json
 {
   "device": "flowmeter",
-  "version": "v11.0",
+  "version": "v12.0",
   "uptime_s": 1420,
   "free_heap": 172400,
   "wifi_status": 3,
@@ -138,15 +141,15 @@ Endpoint JSON de auditoria que retorna todos os coeficientes polinomiais ativos 
   "f2": 1.079730e+01,
   "c2": 2.847579e-01,
   "max_flow": 50.00,
+  "transition_v": 0.0545,
   "crc": "A1B2C3D4"
 }
 ```
 
 ---
 
-## 5. Persistência EEPROM (Schema v6)
+## 5. Persistência EEPROM (Schema v7)
 
-A partir da versão `v11.0`, o nó adota o Schema v6 (`CALIBRATION_MAGIC = 0xCAFEBAC4`, 64 bytes) com inclusão de `max_flow`.
-- **Migração Transparente de V5:** Dispositivos com Schema V5 (`0xCAFEBAC3`) são migrados na inicialização sem perda dos coeficientes de calibração laboratorial (`a1..c2`), parâmetros de sintonia PI (`kp`, `ki`), feedforward (`ff_gain`, `ff_offset`) e taxa de rampa (`ramp_rate`). Apenas `max_flow` é inicializado no padrão de 50.0 L/min.
+A partir da versão `v12.0`, o nó adota o Schema v7 (`CALIBRATION_MAGIC = 0xCAFEBAC5`, 68 bytes), acrescentando `transition_v` ao final do registro e ao CRC32.
+- **Migração transparente:** schemas v5 e v6 preservam coeficientes, PI, feedforward, rampa e `max_flow`; o novo campo recebe o default legado `0.0545 V`. Esse número não é vazão nem limiar imutável: é apenas o valor inicial/migrado.
 - **Fail-Safe Pneumático:** A função de quantização do DAC é protegida contra divisão por zero e normalizada estritamente em ponto flutuante $[0.0, 1.0]$.
-

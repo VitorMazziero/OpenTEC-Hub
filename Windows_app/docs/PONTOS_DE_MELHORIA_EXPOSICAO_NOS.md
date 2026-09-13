@@ -282,6 +282,7 @@ Os itens diferidos por decisão (⏸️ §2.4, §8.4-autenticação) e o não im
 | Formatação com precisão 5 casas decimais para `flowFfOffset` | App UI | Exibição / Calibração | Média | **Aplicado na Etapa 6** |
 | Arbitragem de comandos de sintonia via `ActuatorId.Aeration` | App Árbitro | Segurança de Processo | Alta | **Aplicado na Etapa 6** |
 | Confirmação destrutiva no reset de NVS do sensor de distância | App UI | Prevenção de Falha | Alta | **Aplicado na Etapa 6** |
+| Resoluções e sincronização do fluxômetro v11.0 (F01 a F16) | Firmware / Hub / App | Metrologia e Segurança | Alta | **Aplicado (2026-09-13, `COMANDOS_DISPOSITIVOS_EXTERNOS.md` §3.10): F01–F16 integrados; ensaio físico de bancada pendente (§3.11)** |
 | Zeramento não-otimista do volume da bomba | App / Nó Bomba | Integridade operacional | Alta | **Aplicado na Etapa 7; validação física pendente** |
 | Janela de presença da biomassa (10 s) menor que `probe_ms` (25 s) em MEASURING | Hub / Nó Biomassa | Telemetria / Alarme falso | Alta | **Aberto — decisão (2026-09-13, `COMANDOS_DISPOSITIVOS_EXTERNOS.md` §4.10 B01): preferir janela no Hub dimensionada pelo eco `probe_ms`** |
 | Branco e busca de marcha não servem o Hub (sem push/poll; `stop` não aborta) | Nó Biomassa | Presença / Comando | Média | **Aberto — decisão (§4.10 B02); custo de flash a medir** |

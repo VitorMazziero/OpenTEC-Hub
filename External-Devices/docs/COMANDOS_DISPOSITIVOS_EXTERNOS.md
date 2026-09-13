@@ -15,7 +15,7 @@
 |---|:---:|:---:|:---:|:---:|:---:|
 | **Bomba Peristáltica** | v3.10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§1.11) |
 | **Sensor de Distância** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente |
-| **Fluxômetro de Ar** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente |
+| **Fluxômetro de Ar** | V10/v11 ⚠ | 🟢 Comandos principais | 🟡 Integrado com lacunas | 🟡 Funcional com pendências (§3.10) | 🟡 Pendente (§3.11) |
 | **Sensor de Biomassa** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente |
 | **Agitador de Frascos** | v10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
 | **Servo Drive (RPM)** | v2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Em andamento |
@@ -60,15 +60,15 @@
 
 ---
 
-#### 🔴 Lacunas Técnicas e Decisões de Escopo (Não Integradas ou Adiadas)
-*Funcionalidades que NÃO estão no App/Hub ou operam apenas localmente no nó.*
+#### 🔵 Diretrizes de Segurança e Decisões de Arquitetura Fechadas
+*Decisões de engenharia aprovadas que definem o comportamento seguro do sistema.*
 
-| Item / Recurso | Onde Existe | Por que não está no App/Hub | Decisão Técnica (§1.10) |
-|---|---|---|---|
-| **Porta lógica do sensor de tubo (`sensorEnable` / `sensorBypass`)** | Apenas no firmware local do nó (`POST /command` ou botão físico) | O sensor óptico de bolha/líquido no tubo de dosagem é uma proteção de hardware local. Não há chave no Hub nem botão no app para ligar/desligar a porta. | **Adiado** (Decisão #7): manter apenas local no nó; avaliar integração futura se houver demanda de processo. |
-| **Leitura da posição angular dos potenciômetros** | ADC do ESP32 local (`POT_INT`, `POT_GAIN`) | O nó não transmite a leitura bruta dos ADCs dos potenciômetros; transmite apenas o booleano `pot` (`PumpPotEnabled`). | **Mantido**: o app precisa saber apenas se os knobs têm o controle ou não; posições analógicas não agregam ao controle supervisório. |
-| **Curvas não-lineares multiponto de vazão** | Firmware suporta interpolação por partes | A calibração assistida do app modela a bomba pela reta padrão $Q = \text{slope} \cdot S + \text{intercept}$. | **Mantido**: o cabeçote peristáltico opera de forma linear na faixa útil de 155 a 1023 de PWM; desvios são tratados pelo PID de volume. |
-| **Comandos de configuração interna (`save_config`, `load_config`, `clear_nvs`)** | Apenas no firmware local | O Hub filtra ativamente essas chaves para impedir que scripts ou clientes remotos corrompam a NVS ou apaguem a calibração da bomba. | **Bloqueado por segurança** (Decisão #5): permitido apenas via USB direta com a bancada. |
+| Decisão / Recurso | Onde Opera | Comportamento e Justificativa Técnica | Estado |
+|---|---|---|:---:|
+| **Proteção de NVS (`clear_nvs`, `save_config`)** | Hub 10.2 / Nó | O Hub bloqueia ativamente comandos de formatação e escrita bruta de NVS pela rede. Apenas comandos de processo (`reset_volume`, `start`, `stop`) são repassados. Acesso a `clear_nvs` apenas por USB local de bancada. | 🟢 Fechado (§1.10 #5) |
+| **Arbitragem dos potenciômetros de bancada** | Firmware 3.10 / App | Os potenciômetros operam exclusivamente em controle manual local. O app supervisiona e comuta quem está no comando através da variável interna `pot` ecoada pelo nó (`PumpPotEnabled`). Não há telemetria nem sentido em ler ângulos brutos de ADC. | 🟢 Fechado (§1.10 #3) |
+| **Modo de ativação física por presença de líquido** | Hardware local da bomba | Modo de segurança e operação física ativado por botão no hardware. Com o botão acionado, a bomba opera exclusivamente em **modo manual local** (liga/desliga por contato com líquido, na velocidade e sentido dos potenciômetros) e **não deve receber comandos externos de perfil**. No software, uma futura integração seria apenas telemetria passiva de identificação de estado travado. | 🟢 Fechado (§1.10 #7) |
+| **Curvas de calibração (Linear vs Multiponto)** | Firmware 3.10 / App | A bomba peristáltica tem resposta predominantemente linear ($R^2 > 0,99$). A calibração assistida do app calcula a reta e resíduos sobre múltiplos pontos ($S = 250, 500, 1000$). Pequenos desvios dinâmicos são corrigidos pelo PID de volume do nó. **Diretriz:** manter calibração linear atual; só evoluir para tabela de lookup se a bancada física demonstrar $R^2 < 0,98$. | 🟢 Fechado (§1.3) |
 
 ---
 
@@ -78,11 +78,11 @@
 |---|---|---|---|
 | Ponte H com PWM duplo | `R_EN`=25, `L_EN`=26 (sempre HIGH após o boot); `R_PWM`=14, `L_PWM`=27 (LEDC 7,5 kHz, 10 bits) | Velocidade = duty numa das saídas; a outra fica em 0. Sentido = qual saída recebe o PWM (`s ≥ 0` → `R_PWM`) | **Motor DC escovado** (confirmado pelo operador em 2026-09-12) em ponte H tipo BTS7960/IBT-2. O NEMA 17HS4401 do CAD é referência mecânica, não o motor montado |
 | Cabeçote | CAD Watson-Marlow: rotor de 5 roletes, mancais LM6UU | — | A relação duty → mL/min é inteiramente empírica (calibração) |
-| Potenciômetro de velocidade | `POT_INT`=34 (ADC 12 bits, filtro passa-baixas α=0,10) | Magnitude 0..1 × `V_MAX` | Só vale em `OP_IDLE` com os potenciômetros no comando (`pot=1`, §1.6) |
-| Potenciômetro de sentido + ganho | `POT_GAIN`=35 | Fator `(ADC − centro)/centro` ∈ [−1, 1] que multiplica a velocidade: o sinal dá o sentido e o módulo escala a velocidade (centro = parado, extremos = velocidade plena no sentido escolhido) | Velocidade final = velocidade × fator; os dois knobs juntos dão sentido e ganho sobre a velocidade |
-| Sensor de líquido | `SENSOR_PIN`=15 (`INPUT_PULLUP`, debounce 50 ms; **LOW = molhado**) | Porta lógica: com `sensorEnable && !sensorBypass`, o motor só gira se molhado | **Não é medidor de vazão.** Suporte em `suporte_sensor_liquido/` |
-| Botão do sensor | `SENSOR_ENABLE_BUTTON_PIN`=32 (pull-up) | A cada laço, `sensorEnable = !botão` **enquanto `sensorButtonOverride == false`** | ⚠ O padrão de fábrica é `sensorButtonOverride = true`, ou seja, **o botão físico é ignorado até alguém enviar `sensorButtonOverride:0`**, e `sensorEnable` nasce `false` (sem porta). Mantido como está em 3.10 |
-| LED de estado do sensor | 33 | Acende com `sensorEnable` | — |
+| Potenciômetro de velocidade | `POT_INT`=34 (ADC 12 bits, filtro passa-baixas α=0,10) | Magnitude 0..1 × `V_MAX` | Só vale no modo manual local de bancada (`pot=1`, §1.6) |
+| Potenciômetro de sentido + ganho | `POT_GAIN`=35 | Fator `(ADC − centro)/centro` ∈ [−1, 1] que multiplica a velocidade: o sinal dá o sentido e o módulo escala a velocidade (centro = parado, extremos = velocidade plena no sentido escolhido) | Velocidade manual = magnitude × fator; ajuste local exclusivo de bancada |
+| Sensor de presença de líquido | `SENSOR_PIN`=15 (`INPUT_PULLUP`, debounce 50 ms; **LOW = molhado**) | Chave de contato: quando ativado pelo botão físico, o motor só gira na presença de líquido | **Modo de contato físico.** Não é medidor de vazão. Aciona a bomba na velocidade dos potenciômetros |
+| Botão do modo de contato | `SENSOR_ENABLE_BUTTON_PIN`=32 (pull-up) | Ativa o modo manual de acionamento por líquido | Quando ligado, o modo manual local assume e comandos remotos de perfil são ignorados |
+| LED de estado do sensor | 33 | Acende quando o modo de contato por líquido está ativo | — |
 | Wi-Fi | STA para `ModuloTECNAL_1`/`_2` (canal 6) + AP próprio `FeedPump` em 192.168.6.1 | Push a 1 s, poll a 2 s, hello a 30 s; backoff até 15 s; queda forçada após 8 falhas | Servidor local na porta 80 (§1.5) |
 | Núcleos | Core 0: tarefa `pwmTask` (2 ms) — escreve LEDC e integra volume. Core 1: `loop()` — rede, comandos, máquina de estados, WDT 15 s | Comunicação por `volatile` (`g_cmdSpeed`, `g_driverEnabled` → Core 0; `g_cumulativeVolumeMl`, `g_actualPwmDuty` → Core 1) | — |
 
@@ -270,6 +270,66 @@ Decisões do operador em 2026-09-12 sobre a auditoria; o que foi feito em cada u
 Fontes já auditadas em 2026-09-12: `firmware/distance-sensor/src/protocol/ConfigCodec.cpp` (dedupe de `cmd_id`, faixas, NVS só em mudança), `FirmwareApp.cpp` (push `distance=-1` em falha do VL53L0X, escada de recuperação). Contrato: `sensor-distancia/docs/PROTOCOL.md`. Chaves pelo Hub: `distanceOffsetMm`, `distanceSamplePeriodMs`, `distanceSendPeriodMs`, `distanceResetNvs` (carona na resposta do push).
 
 ## 3. Fluxômetro (`fluxometro`, firmware ativo com identificação divergente V10/v11)
+
+### 3.0 Painel de Navegação Rápida — Estado de Prontidão e Integração
+
+> **Como navegar:** esta matriz resume o estado real do fluxômetro. 🟢 significa que o caminho de software existe e está integrado; 🟡 significa que o código está pronto, mas a resposta do equipamento real ainda precisa ser ensaiada; 🔴 identifica lacuna, inconsistência ou decisão de escopo registrada para correção futura.
+
+#### 🟢 Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
+
+*Caminhos presentes no firmware ativo, roteados pelo Hub 10.2, expostos no App Windows e cobertos por testes automatizados. Isso comprova o contrato de software, não a resposta física.*
+
+| Funcionalidade | Nó | Hub 10.2 | App Windows | Onde opera | Evidência automatizada |
+|---|---|---|---|---|---|
+| **Comando confiável com ACK** | Deduplica `cmd_id`; ecoa `ack_cmd_id`, origem e instante de aplicação | Mantém o estado desejado e reenvia até ACK | Bloqueia nova atuação enquanto `FlowCommandPending` está ativo | Controle, receitas e ensaios | `FlowmeterV05SyncTests`, `ConnectionManagerTests`, `test_node_commands.py` |
+| **Controle de vazão** | Rampa + feedforward + PI comandam o MCP4725; ADS1115 fecha a malha | Traduz `flowSetpoint`/`maxFlow` para o contrato do nó | Setpoint, teto e estado aplicado com confirmação | *Controle › Vazão de Ar* | `FlowmeterV05SyncTests`, `ControlViewModelTests` |
+| **Roteamento A/B/C** | Aciona GPIO 17/16 e corte geral GPIO 5 | Sempre entrega setpoint e os três bits como estado completo | Traduz intenção Reator/Descarga para o par de saídas configurado | *Controle › Válvulas* e *Configurações › Gás e válvulas* | `GasRoutingTests`, `GasRouteProducersTests`, `GasRouteUiTests` |
+| **Parada segura completa** | Aceita alvo zero, v1/v2=0 e `v_Flow=1` | Enfileira mesmo offline ou com a malha desabilitada | Construtor único usado por controle, receitas, kLa, potência e parada global | Todos os fluxos que detêm a aeração | `FlowSafeStop_is_unchanged_and_reads_as_Closed`, `KlaRunnerSimulatorTests` |
+| **Sintonia PI/FF/rampa** | Aceita, persiste e ecoa Kp, Ki, ganho/offset FF e rampa | Traduz e publica os ecos | Valida, envia e mostra valores aplicados | *Controle › Sintonia do controlador* | `test_mailboxes_flow_tuning_serialization_and_queueing`, testes de `FlowControlViewModel` |
+| **Monitoramento e presença** | Push a cada 500 ms, `boot_id`, `/diag` e `/status` | Publica vazão, tensão, setpoint, válvulas, ACK, versão/MAC/IP e offline após 6 s | Telemetria, chips de pendência/offline, alarmes e tabela de nós | *Controle*, *Sinótico* e *Configurações › Rede* | `TelemetryParserTests`, `AlarmServiceTests`, `HubNodesViewModelTests` |
+| **Calibração assistida em dois segmentos** | Aplica curva baixa quartic e alta quadrática; grava EEPROM | Repassa oito coeficientes e `maxFlow` | Captura média de tensão, ajusta curva, salva pontos e envia | *Calibrações › Fluxômetro* | `CalibrationTests`, `GasRigSettingsTests` |
+| **Arbitragem entre operadores** | Executa o quadro recebido | Preserva o último estado desejado | Impede comando manual concorrente com receita/ensaio que detenha a aeração | Controle, receitas, kLa e potência | `CommandArbiterTests`, testes dos runners |
+
+---
+
+#### 🟡 Implementado no Software, Aguardando Ensaio Físico na Bancada
+
+*As rotinas existem, mas ainda não demonstram polaridade, vazão, temporização, persistência ou segurança no conjunto real MFC + DAC + ADC + solenoides.*
+
+| Ensaio físico | O que deve ser comprovado | Checklist (§3.11) | Estado |
+|---|---|:---:|:---:|
+| **Identificação do binário** | Registrar hash e confirmar qual identidade V10/v11 corresponde ao firmware gravado | Item 1 | 🟡 Pendente |
+| **Polaridade e rota A/B/C** | Confirmar GPIO 5/17/16, *Valve Off*, qual entrada aciona A e qual aciona B+C | Item 2 | 🟡 Pendente |
+| **Boot em estado seguro** | Verificar corte geral fechado, rotas desenergizadas e DAC zero antes da comunicação | Item 3 | 🟡 Pendente |
+| **Latência e recuperação do comando** | Medir app → Hub → aplicação → ACK → resposta mecânica com perda/reconexão | Item 4 | 🟡 Pendente |
+| **Parada segura real** | Partindo de vazão alta e de cada rota, comprovar fechamento e vazão física zero | Item 5 | 🟡 Pendente |
+| **Retomada com `dac_hold`** | Medir retenção do DAC, pico de retomada e comportamento do integrador em 1 e 0 | Item 6 | 🟡 Pendente |
+| **Faixa 0–0,1 L/min** | Caracterizar a permanência do DAC e impedir uso operacional até decisão sobre F04 | Item 7 | 🟡 Pendente |
+| **Calibração e persistência** | Ajustar com padrão externo, usar réplicas e validar pontos independentes após reboot | Itens 8 e 9 | 🟡 Pendente |
+| **Falha de ADS1115/MCP4725** | Desconectar cada módulo e registrar telemetria, alarme e estado físico resultante | Item 10 | 🟡 Pendente |
+| **Reboots nó/Hub** | Confirmar quando o Hub reimpõe o estado anterior e o que ocorre no primeiro contato | Item 11 | 🟡 Pendente |
+| **OTA segura** | Testar imagem válida/rejeitada, interrupção, watchdog e permanência das saídas | Item 12 | 🟡 Pendente |
+
+---
+
+#### 🔴 Lacunas e Inconsistências para Correção Futura
+
+*Resumo navegável dos achados detalhados e numerados em §3.10. Nenhum deles foi corrigido nesta revisão documental.*
+
+| Tema | O que não está consistente ou integrado | Referência |
+|---|---|---|
+| **Versão do firmware** | Build/OTA dizem V10; endpoints e protocolo dizem v11 | F01 |
+| **Fonte da calibração** | Firmware, App Windows e Flutter carregam curvas “padrão” diferentes; curva e `maxFlow` não têm readback completo | F02, F09–F11 |
+| **Unidades na interface** | `FlowOutput` é equivalente L/min, mas o Windows mostra `V` | F03 |
+| **Região de baixo setpoint** | 0 < alvo ≤ 0,1 L/min não fecha a linha e não executa PI | F04 |
+| **Controle direto** | Setpoint positivo não abre o corte; “Flow Valve ON” no Flutter significa linha fechada | F05 |
+| **Intertravamento e confirmação física** | Nó aceita rota morta/dupla e ecoa apenas o bit comandado, sem readback da válvula | F06, F16 |
+| **Validação de comandos** | Parâmetros podem aceitar valores perigosos; parser permissivo pode aplicar quadro parcial | F07, F08 |
+| **Saúde de I²C** | Falha de ADC/DAC não gera estado seguro nem alarme supervisório | F12 |
+| **Segurança de rede e OTA** | AP, comando e OTA não têm autenticação; OTA pode manter a saída ativa | F13, F14 |
+| **Recuperação Wi-Fi** | `reconnect_wifi` pode ser desligado, mas o Windows apenas monitora e não oferece reabilitação | F15 |
+
+---
 
 ### 3.1 Hardware assumido pelo firmware
 

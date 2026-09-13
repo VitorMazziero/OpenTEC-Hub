@@ -553,6 +553,11 @@ public sealed record PumpControlSettings
 
     /// <summary>Derivative gain staged for pump controller.</summary>
     public double PidKd { get; init; } = 0.001;
+
+    /// <summary>
+    /// Currently active external pump hose calibration profile name, if any.
+    /// </summary>
+    public string? SelectedProfileName { get; init; } = null;
 }
 
 /// <summary>
@@ -1290,6 +1295,9 @@ public static class AppPaths
     /// <summary>Peristaltic pump and sensor calibration receipts, saved as JSON.</summary>
     public static string CalibrationsDirectory => Path.Combine(DataDirectory, "Calibracoes");
 
+    /// <summary>External peristaltic pump hose calibration profiles directory.</summary>
+    public static string PumpProfilesDirectory => Path.Combine(CalibrationsDirectory, "BombaExterna", "Perfis");
+
     public static void InitializeWorkspace(string workspacePath, bool persist = true)
     {
         _customDataDirectory = workspacePath;
@@ -1329,6 +1337,7 @@ public static class AppPaths
         Directory.CreateDirectory(SessionsDirectory);
         Directory.CreateDirectory(BackupsDirectory);
         Directory.CreateDirectory(CalibrationsDirectory);
+        Directory.CreateDirectory(PumpProfilesDirectory);
     }
 
     public static string? ReadConfiguredWorkspace()

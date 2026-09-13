@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Alarms;
+using OpenTECHub.Services.Calibration;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Diagnostics;
@@ -327,6 +328,7 @@ public partial class App : Application
         services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();
         services.AddSingleton<IPowerMapEngine, PowerMapEngine>();
         services.AddSingleton<IKlaPowerIntegrationService, KlaPowerIntegrationService>();
+        services.AddSingleton<IPumpCalibrationProfileStore>(sp => new PumpCalibrationProfileStore(AppPaths.PumpProfilesDirectory, sp.GetService<ILogger<PumpCalibrationProfileStore>>()));
 
         // The dispatcher captured here is the UI one, because the container is built
         // on the UI thread during OnStartup. DeviceService uses it to marshal

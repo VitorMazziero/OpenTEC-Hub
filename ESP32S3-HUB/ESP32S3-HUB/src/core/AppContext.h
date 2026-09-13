@@ -437,6 +437,8 @@ struct NodeDiagCache {
   char body[512];
   unsigned long fetchedMs;
   int code;
+  size_t bodyBytes;   // tamanho real da resposta do nó, antes do corte em 511 B
+  bool truncated;     // bodyBytes > 511: o corpo guardado não é o documento inteiro
 };
 
 NodeDiagCache g_nodeDiagCache[DEV_COUNT] = {};

@@ -32,6 +32,10 @@ inline String buildNodeDiagEntry(int index, unsigned long now) {
   entry += g_deviceRegistry[index].name;
   entry += "\",\"code\":" + String(cached.code);
   entry += ",\"age_ms\":" + String(age);
+  // Separa "HTTP 200 sem métricas" de "resposta maior que o contrato": com truncated o
+  // diag abaixo sai null mesmo com code 200, e o PC pode orientar a atualização certa.
+  entry += ",\"truncated\":" + String(cached.truncated ? "true" : "false");
+  entry += ",\"body_bytes\":" + String(cached.bodyBytes);
   entry += ",\"diag\":";
   const size_t bodyLen = strnlen(cached.body, sizeof(cached.body));
   if (bodyLen >= 2 && cached.body[0] == '{' && cached.body[bodyLen - 1] == '}') {
@@ -73,7 +77,7 @@ inline void printNodeDiagResponse(const String& requested) {
     Serial.println(String("{\"NodeDiag\":") + buildNodeDiagEntry(index, now) + "}");
   } else {
     Serial.println(String("{\"NodeDiag\":{\"dev\":\"") + requested +
-                   "\",\"code\":404,\"age_ms\":999999,\"diag\":null}}");
+                   "\",\"code\":404,\"age_ms\":999999,\"truncated\":false,\"body_bytes\":0,\"diag\":null}}");
   }
 }
 
@@ -103,6 +107,8 @@ inline void nodeDiagTask(void*) {
         NodeDiagCache& cache = g_nodeDiagCache[i];
         cache.code = code;
         cache.fetchedMs = millis();
+        cache.bodyBytes = body.length();
+        cache.truncated = body.length() > sizeof(cache.body) - 1;
         const size_t copyLen = body.length() < sizeof(cache.body) - 1
             ? body.length()
             : sizeof(cache.body) - 1;

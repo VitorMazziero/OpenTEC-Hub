@@ -294,6 +294,14 @@ void firmwareSetup() {
   flowCommandAck = flowCommandRevision;
   ESP32_INFO(String("Flow command session seed: ") + flowCommandRevision);
 
+  // Mesma regra para as quatro caixas confiáveis. Sem isso cada boot do Hub recomeça em
+  // cmd_id=1 enquanto o nó, que continuou ligado, ainda ecoa ack_cmd_id=1 da sessão
+  // anterior: o primeiro comando depois do reboot era dado como confirmado antes de ser
+  // entregue (ackReliable roda antes de takeReliable no push) e se perdia em silêncio.
+  // Base múltipla de 1000 mantém os ids legíveis no log e garante que dois boots só
+  // colidam se sortearem a mesma base (1 em 900 000).
+  seedReliableMailboxes();
+
   sensorSerial.begin(9600, SERIAL_8N1, SENSOR_RX_PIN, SENSOR_TX_PIN);
   ESP32_INFO("UART do Módulo TECNAL iniciada em 9600 baud");
 

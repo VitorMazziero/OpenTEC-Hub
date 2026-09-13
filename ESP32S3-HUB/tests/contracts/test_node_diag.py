@@ -13,11 +13,14 @@ class NodeDiagCacheModel:
         self.rows = {device: {"body": "", "fetched_ms": 0, "code": 0} for device in DEVICES}
 
     def store(self, device, code, body, fetched_ms):
-        encoded = body.encode("utf-8")[:511]
+        raw = body.encode("utf-8")
+        encoded = raw[:511]
         self.rows[device] = {
             "body": encoded.decode("utf-8", errors="ignore"),
             "fetched_ms": fetched_ms,
             "code": code,
+            "body_bytes": len(raw),
+            "truncated": len(raw) > 511,
         }
 
     def entry(self, device, now_ms):
@@ -27,15 +30,42 @@ class NodeDiagCacheModel:
             diag = json.loads(cached["body"]) if cached["body"] else None
         except json.JSONDecodeError:
             diag = None
-        return {"dev": device, "code": cached["code"], "age_ms": age, "diag": diag}
+        return {
+            "dev": device,
+            "code": cached["code"],
+            "age_ms": age,
+            "truncated": cached.get("truncated", False),
+            "body_bytes": cached.get("body_bytes", 0),
+            "diag": diag,
+        }
 
 
 class NodeDiagModelTests(unittest.TestCase):
     def test_never_seen_is_code_zero_and_age_sentinel(self):
         self.assertEqual(
-            {"dev": "pump", "code": 0, "age_ms": 999999, "diag": None},
+            {"dev": "pump", "code": 0, "age_ms": 999999, "truncated": False, "body_bytes": 0, "diag": None},
             NodeDiagCacheModel().entry("pump", 1200),
         )
+
+    def test_truncated_body_is_flagged_with_real_size(self):
+        # PONTOS §8.3: HTTP 200 com corpo maior que o contrato deve ser distinguível de
+        # HTTP 200 sem métricas. diag continua null; truncated e body_bytes dizem por quê.
+        model = NodeDiagCacheModel()
+        model.store("biomass", 200, '{"a":' + "1" * 900 + "}", 10)
+        row = model.entry("biomass", 20)
+        self.assertEqual(200, row["code"])
+        self.assertIsNone(row["diag"])
+        self.assertTrue(row["truncated"])
+        self.assertEqual(906, row["body_bytes"])
+
+    def test_source_emits_truncated_and_body_bytes(self):
+        task = (SRC / "src/network/NodeDiagTask.h").read_text(encoding="utf-8")
+        app = (SRC / "src/core/AppContext.h").read_text(encoding="utf-8")
+        self.assertIn("size_t bodyBytes;", app)
+        self.assertIn("bool truncated;", app)
+        self.assertIn("cache.truncated = body.length() > sizeof(cache.body) - 1;", task)
+        self.assertIn('\\"truncated\\":', task)
+        self.assertIn('\\"body_bytes\\":', task)
 
     def test_age_and_exact_diagnostic_object(self):
         model = NodeDiagCacheModel()

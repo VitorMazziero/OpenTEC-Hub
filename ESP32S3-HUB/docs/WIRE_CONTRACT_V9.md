@@ -144,6 +144,15 @@ curva enviada chegava ao nó como quadrática. Chaves do aplicativo: `a1`, `b1`,
 
 ## Comandos por nó (tradução app→nó)
 
+**Sessão de `cmd_id` por boot do Hub (2026-09-12).** As quatro caixas confiáveis (`distanceBox`,
+`biomassBox`, `pumpBox`, `agitatorBox`) começam cada boot numa base aleatória múltipla de 1000
+(`seedReliableMailboxes()` em `Mailboxes.h`), como o fluxômetro e o servo já faziam. Motivo: um
+nó que permanece ligado durante um reboot do Hub continua ecoando o `ack_cmd_id` da sessão
+anterior; com o contador recomeçando em 1, o primeiro comando novo era dado como confirmado
+antes de ser entregue (`ackReliable` roda antes de `takeReliable` no push) e se perdia em
+silêncio. Nada muda para os nós: eles continuam ecoando o último `cmd_id` aplicado e ignorando
+reentregas da mesma revisão.
+
 Todo comando destinado a um nó externo passa pelo Hub e pelo `CommandArbiter` (D-015),
 usando caixas confiáveis (`ReliableMailbox`). O aplicativo envia chaves planas com prefixo
 do dispositivo, e o Hub valida as faixas e traduz para as chaves nativas do nó:
@@ -182,6 +191,7 @@ e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
 | Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato / Ação |
 |---|---|---|---|
 | `PumpCommand` | `pump_command` | `command` | string (ex.: `"reset_volume"`) |
+| `PumpManualSpeed` | `pump_speed` | `speed` | inteiro 0..1000; o nó cai para modo 0 (ocioso) e mantém a velocidade S até o próximo `speed` ou perfil; `0` para o motor. **Sem temporizador no nó**: quem envia é responsável pela parada (a calibração volumétrica do app envia `0` do próprio relógio). Chave `speed` sem prefixo é rejeitada pelo Hub por desenho. |
 | `PumpSlope` | `pumpSlope` | `pumpSlope` | float (pass-through) |
 | `PumpIntercept` | `pumpIntercept` | `pumpIntercept` | float (pass-through) |
 | `PumpPidKp` | `pumpPidKp` | `pid_kp` | float |
@@ -195,7 +205,7 @@ O desligamento seguro da bomba utiliza `{"mode":0}`.
 
 | Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato / Ação |
 |---|---|---|---|
-| `BiomassIt` | `biomassIt` | `{"command":"set_it","value":N}` | índice de tempo de integração (0-3) |
+| `BiomassIt` | `biomassIt` | `{"command":"set_it","value":N}` | código de tempo de integração 0-5 → 25/50/100/200/400/800 ms, aplicado ao slot de IT corrente (o Hub não valida; o nó rejeita fora de 0-5) |
 | `BiomassPwm` | `biomassPwm` | `{"command":"set_pwm","value":N}` | duty cycle LED (0-100%) |
 | `BiomassGear` | `biomassGear` | `{"command":"set_gear","value":N}` | marcha óptica |
 | `BiomassEma` | `biomassEma` | `{"command":"ema","value":x}` | coeficiente do filtro EMA (0.01-1.0) |
@@ -281,15 +291,20 @@ serial faz requisição de saída — eles só leem o cache.
 
 ```json
 {"hub_time_ms":91234,"nodes":[
-  {"dev":"pump","code":200,"age_ms":1200,
+  {"dev":"pump","code":200,"age_ms":1200,"truncated":false,"body_bytes":121,
    "diag":{"uptime_s":812,"free_heap":211000,"rssi":-58,"hub_fail_streak":0,"ota":false,"flow":1.25,"vol":12.4,"mode":2}}
 ]}
 ```
 
 - `code` é o código HTTP do último `GET /diag` (`0` = nunca coletado: nó nunca registrado
   ou sem IP); `age_ms` é `hub_time_ms − fetchedMs` ou `999999` quando nunca coletado.
-- `diag` é o corpo do nó **tal qual**; `null` quando `code ≠ 200`, quando o corpo foi
-  truncado em 511 B (não termina em `}`) ou quando ainda não houve coleta. O conteúdo é
+- `body_bytes` é o tamanho real da resposta do nó e `truncated` é `true` quando ela
+  excedeu os 511 B do cache (2026-09-12). Servem para separar "HTTP 200 sem métricas"
+  de "resposta maior que o contrato": no segundo caso `diag` sai `null` com `code 200`,
+  e o PC orienta a atualizar o Hub em vez de acusar o nó. Ambos são `0`/`false` antes da
+  primeira coleta.
+- `diag` é o corpo do nó **tal qual**; `null` quando `code ≠ 200`, quando `truncated`
+  (o corpo guardado não termina em `}`) ou quando ainda não houve coleta. O conteúdo é
   o `/diag` de cada firmware (`uptime_s`, `free_heap`, `rssi`, `hub_fail_streak`, `ota`
   e as métricas próprias do nó).
 - Serial: `{"nodeDiag":"<dev>"}` → uma linha `{"NodeDiag":{...uma entrada...}}`;

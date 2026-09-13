@@ -1,5 +1,22 @@
 // ============ CAIXA DE COMANDO CONFIÁVEL ============
 
+// Every Hub boot starts each box in its own cmd_id region (see Runtime.h). The node keeps
+// its last applied id across a Hub reboot and echoes it on every push; a fresh counter
+// restarting at 1 would collide with that echo and lose the first command silently.
+void seedReliableMailboxes() {
+  ReliableMailbox* boxes[] = { &distanceBox, &biomassBox, &pumpBox, &agitatorBox };
+  for (ReliableMailbox* box : boxes) {
+    const uint32_t base = ((esp_random() % 900000UL) + 100000UL) * 1000UL;
+    box->revision = base;
+    box->ack = 0;
+    box->awaiting = false;
+    box->payload = "";
+  }
+  ESP32_INFO(String("Reliable mailbox seeds: distance=") + distanceBox.revision +
+             " biomass=" + biomassBox.revision + " pump=" + pumpBox.revision +
+             " agitator=" + agitatorBox.revision);
+}
+
 // Queues one command for a node, retained until it acknowledges this revision.
 // innerJson carries the key/value pairs WITHOUT the surrounding braces.
 uint32_t queueReliable(ReliableMailbox &box, const String &innerJson, const char *label) {

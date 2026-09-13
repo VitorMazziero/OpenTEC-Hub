@@ -297,6 +297,20 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         self.assertIn('\\"Distance\\":', distance_block)
         self.assertNotIn("DistanceOffsetMm", distance_block)
 
+    def test_reliable_mailboxes_are_seeded_per_hub_boot(self):
+        # Um no que ficou ligado durante o reboot do Hub continua ecoando o ack_cmd_id da
+        # sessao anterior. Se o contador recomecasse em 1, o primeiro comando novo seria
+        # dado como confirmado antes da entrega (ackReliable roda antes de takeReliable).
+        mail = self.read("src/protocol/Mailboxes.h")
+        runtime = self.read("src/core/Runtime.h")
+        self.assertIn("void seedReliableMailboxes()", mail)
+        self.assertIn("&distanceBox, &biomassBox, &pumpBox, &agitatorBox", mail)
+        self.assertIn("esp_random()", mail[mail.index("void seedReliableMailboxes()"):])
+        self.assertIn("seedReliableMailboxes();", runtime)
+        # A semeadura precisa vir depois da criacao de cmdMutex e antes do Wi-Fi subir.
+        self.assertLess(runtime.index("cmdMutex = xSemaphoreCreateMutex();"), runtime.index("seedReliableMailboxes();"))
+        self.assertLess(runtime.index("seedReliableMailboxes();"), runtime.index("startWiFi();"))
+
     def test_telemetry_reports_frame_high_water_mark(self):
         # PONTOS §1.2: a marca d'água do quadro agregado sai na serial para a medição de
         # bancada, e avisa quando ultrapassa a reserva (realocação a cada ciclo).

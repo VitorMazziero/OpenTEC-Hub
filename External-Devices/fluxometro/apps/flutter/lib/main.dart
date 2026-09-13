@@ -567,9 +567,9 @@ class MyHomePageState extends State<MyHomePage> {
               valueColor: valve2State == 1 ? Colors.green : Colors.red,
             ),
             _buildDataRow(
-              'Flow Valve State',
-              valveFlowState == 1 ? 'ON' : 'OFF',
-              valueColor: valveFlowState == 1 ? Colors.green : Colors.red,
+              'Corte Geral (v_Flow)',
+              valveFlowState == 1 ? 'ATIVO (Linha Fechada)' : 'INATIVO (Fluxo Liberado)',
+              valueColor: valveFlowState == 1 ? Colors.red : Colors.green,
             ),
           ],
         ),
@@ -604,10 +604,10 @@ class MyHomePageState extends State<MyHomePage> {
                   : null,
             ),
             SwitchListTile(
-              title: const Text('Flow Valve'),
+              title: const Text('Fechar Linha / Corte (v_Flow)'),
               value: valveFlowState == 1,
               onChanged: _isConnected
-                  ? (val) => _updateValveState('v_Flow', val)
+                  ? (val) => _updateValveState('v_Flow', val ? 1 : 0)
                   : null,
             ),
           ],

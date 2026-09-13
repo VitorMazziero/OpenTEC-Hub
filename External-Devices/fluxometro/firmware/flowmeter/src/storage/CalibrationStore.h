@@ -1,12 +1,29 @@
+static inline uint32_t calculateCalibrationCrc(const CalibrationParams& p) {
+  const uint8_t* data = (const uint8_t*)&p + sizeof(p.magic);
+  size_t length = sizeof(p) - sizeof(p.magic);
+  uint32_t crc = 0xFFFFFFFF;
+  for (size_t i = 0; i < length; i++) {
+    crc ^= data[i];
+    for (uint8_t j = 0; j < 8; j++) {
+      crc = (crc >> 1) ^ (0xEDB88320 & (-(crc & 1)));
+    }
+  }
+  return ~crc;
+}
+
 void loadParameters() {
   EEPROM.get(0, calParams);
-  bool oldRecord = calParams.magic == CALIBRATION_MAGIC_V2 ||
-                   calParams.magic == CALIBRATION_MAGIC_V3 ||
-                   calParams.magic == CALIBRATION_MAGIC_V4;
-  if (oldRecord) {
-    // Same layout prefix. ff_* is valid from v3 on; the curve is deliberately
-    // replaced by the factory one and the PI gains are re-seeded for the V07
-    // measurement chain (the old Ki=0.1 needed a minute to remove 3 L/min).
+  if (calParams.magic == CALIBRATION_MAGIC_V5) {
+    // Migracao limpa de V5 para V6:
+    // Preserva coeficientes de calibracao laboratorial (a1..c2), sintonia PI e feedforward.
+    calParams.max_flow = MAX_FLOW_DEFAULT;
+    calParams.magic = CALIBRATION_MAGIC;
+    EEPROM.put(0, calParams);
+    EEPROM.commit();
+    Serial.println("[EEPROM] Migrado de V5 para V6: calibracao preservada; max_flow=50.0 L/min.");
+  } else if (calParams.magic == CALIBRATION_MAGIC_V2 ||
+             calParams.magic == CALIBRATION_MAGIC_V3 ||
+             calParams.magic == CALIBRATION_MAGIC_V4) {
     if (calParams.magic == CALIBRATION_MAGIC_V2) {
       calParams.ff_gain = FF_GAIN_DEFAULT;
       calParams.ff_offset = FF_OFFSET_DEFAULT;
@@ -16,11 +33,13 @@ void loadParameters() {
     calParams.ki = KI_DEFAULT;
     calParams.ramp_rate = RAMP_RATE_DEFAULT;
     calParams.dac_hold = DAC_HOLD_DEFAULT;
+    calParams.max_flow = MAX_FLOW_DEFAULT;
     calParams.magic = CALIBRATION_MAGIC;
     EEPROM.put(0, calParams);
     EEPROM.commit();
-    Serial.println("Calibration record migrated to v5: factory curve, Kp/Ki, ramp and hold defaults applied; ff_* kept.");
+    Serial.println("[EEPROM] Registro legado migrado para V6 com defaults.");
   } else if (calParams.magic != CALIBRATION_MAGIC) {
+    // Fallback flash virgem: inicializacao explicita obrigatoria
     calParams.magic = CALIBRATION_MAGIC;
     applyFactoryCurve(calParams);
     calParams.kp = KP_DEFAULT;
@@ -29,13 +48,23 @@ void loadParameters() {
     calParams.ff_offset = FF_OFFSET_DEFAULT;
     calParams.ramp_rate = RAMP_RATE_DEFAULT;
     calParams.dac_hold = DAC_HOLD_DEFAULT;
+    calParams.max_flow = MAX_FLOW_DEFAULT;
 
     EEPROM.put(0, calParams);
     EEPROM.commit();
-    Serial.println("Calibration parameters reset to defaults.");
+    Serial.println("[EEPROM] Parametros reinicializados para padrao de fabrica (Schema V6).");
   } else {
-    Serial.println("Calibration parameters loaded.");
+    Serial.println("[EEPROM] Parametros de calibracao carregados com sucesso.");
   }
+
+  // Validacao defensiva pos-carga contra flash degradada
+  if (isnan(calParams.max_flow) || calParams.max_flow <= 0.01f || calParams.max_flow > 500.0f) {
+    calParams.max_flow = MAX_FLOW_DEFAULT;
+    EEPROM.put(0, calParams);
+    EEPROM.commit();
+  }
+
+  // Propagacao obrigatoria para as variaveis ativas em RAM
   a1 = calParams.a1; b1 = calParams.b1;
   k1 = calParams.k1; f1 = calParams.f1; c1 = calParams.c1;
   k2 = calParams.k2; f2 = calParams.f2; c2 = calParams.c2;
@@ -46,9 +75,13 @@ void loadParameters() {
   ffOffset = calParams.ff_offset;
   rampRate = calParams.ramp_rate;
   dacHold = calParams.dac_hold != 0.0f;
+  maxFlowRate = calParams.max_flow;
+
+  currentCalCrc = calculateCalibrationCrc(calParams);
+
   Serial.printf("Feedforward: corrected = %.4f * real + %.4f\n", ffGain, ffOffset);
-  Serial.printf("PI: Kp=%.3f Ki=%.3f  ramp_rate=%.2f L/min/s  dac_hold=%s\n",
-                Kp_flow, Ki_flow, rampRate, dacHold ? "ON" : "OFF");
+  Serial.printf("PI: Kp=%.3f Ki=%.3f  ramp_rate=%.2f L/min/s  dac_hold=%s  max_flow=%.2f L/min (CRC:%08X)\n",
+                Kp_flow, Ki_flow, rampRate, dacHold ? "ON" : "OFF", maxFlowRate, currentCalCrc);
 }
 
 // Setpoint corrigido for a given setpoint real. Zero stays zero: the MFC must be
@@ -57,8 +90,10 @@ float feedforwardSetpoint(float target) {
   if (target <= 0.0f) return 0.0f;
   return constrain(ffGain * target + ffOffset, 0.0f, maxFlowRate);
 }
+
 void saveParameters() {
+  currentCalCrc = calculateCalibrationCrc(calParams);
   EEPROM.put(0, calParams);
   EEPROM.commit();
-  Serial.println("Params Saved.");
+  Serial.printf("[EEPROM] Params Saved. CRC: %08X\n", currentCalCrc);
 }

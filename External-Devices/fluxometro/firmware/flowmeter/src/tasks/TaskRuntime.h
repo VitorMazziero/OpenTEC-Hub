@@ -82,8 +82,8 @@ void telemetryTask(void *parameter) {
     if (!otaInProgress && WiFi.status() == WL_CONNECTED && (!hubAnnounced || now - lastHelloCheckMs >= 30000)) {
       lastHelloCheckMs = now;
       char helloUrl[140];
-      snprintf(helloUrl, sizeof(helloUrl), "%s/nodeHello?dev=flowmeter&ver=v11&mac=%s",
-               sensorHubURL.c_str(), WiFi.macAddress().c_str());
+      snprintf(helloUrl, sizeof(helloUrl), "%s/nodeHello?dev=flowmeter&ver=%s&mac=%s",
+               sensorHubURL.c_str(), FW_VERSION, WiFi.macAddress().c_str());
       if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
         static HTTPClient httpHello;
         httpHello.begin(helloUrl);
@@ -121,18 +121,21 @@ void telemetryTask(void *parameter) {
       snapSource = lastCommandSource;
       xSemaphoreGive(commandMutex);
 
-      char url[448];
+      uint8_t hwStatus = (adsHealthy ? 1 : 0) | (dacHealthy ? 2 : 0) | (!hardwareFaultLatched ? 4 : 0);
+      float reportedFlowRate = hardwareFaultLatched ? -1.0f : readFlowRate;
+
+      char url[512];
       snprintf(url, sizeof(url),
                "%s/flowData?seconds=%.3f&flow_voltage=%.6f&flow_rate=%.6f"
                "&flow_setpoint=%.6f&flow_setpoint_corrected=%.6f&flow_output=%.6f"
                "&ff_gain=%.4f&ff_offset=%.4f&valve1State=%u&valve2State=%u"
                "&valveFlowState=%u&ack_cmd_id=%lu&last_apply_ms=%lu"
                "&command_source=%s&boot_id=%lu&reconnect_wifi=%d"
-               "&kp=%.4f&ki=%.4f&ramp=%.3f",
+               "&kp=%.4f&ki=%.4f&ramp=%.3f&cal_crc=%08X&hw_status=%u",
                sensorHubURL.c_str(),
                now / 1000.0,
                readFlowVoltage,
-               readFlowRate,
+               reportedFlowRate,
                snapTarget,
                snapFF,
                snapOutput,
@@ -148,7 +151,9 @@ void telemetryTask(void *parameter) {
                reconnect_Wifi ? 1 : 0,
                Kp_flow,
                Ki_flow,
-               rampRate);
+               rampRate,
+               currentCalCrc,
+               hwStatus);
       if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
         http.begin(url);
         http.setConnectTimeout(hubConnectTimeoutMs);
@@ -206,6 +211,19 @@ void wifiTask(void *parameter) {
 
   for (;;) {
     unsigned long now = millis();
+
+    // Watchdog de 15 minutos para auto-restaurar reconnect_Wifi se desligado (F15)
+    static unsigned long wifiDisabledSinceMs = 0;
+    if (!reconnect_Wifi) {
+      if (wifiDisabledSinceMs == 0) wifiDisabledSinceMs = now;
+      if (now - wifiDisabledSinceMs > 900000UL) {
+        Serial.println("[WIFI SAFETY] Auto-restaurando reconnect_Wifi = true apos timeout de 15 min!");
+        reconnect_Wifi = true;
+        wifiDisabledSinceMs = 0;
+      }
+    } else {
+      wifiDisabledSinceMs = 0;
+    }
 
     // No association attempts while an OTA image is streaming in over the AP.
     if (!reconnect_Wifi || otaInProgress) {

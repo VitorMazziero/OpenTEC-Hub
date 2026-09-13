@@ -65,20 +65,29 @@ void firmwareSetup() {
   }
 
   Serial.print("6. Init ADS1115... ");
-  if (ads.begin(0x48)) {
+  adsHealthy = ads.begin(0x48);
+  if (adsHealthy) {
     ads.setGain(GAIN_TWOTHIRDS);
     ads.setDataRate(RATE_ADS1115_128SPS);
     Serial.println("OK");
   } else {
     Serial.println("FAILED (Check wiring!)");
-    // Não travamos aqui com while(1) para permitir debug do resto
   }
 
   Serial.print("7. Init MCP4725... ");
-  if (mcp.begin(0x60)) {
+  dacHealthy = mcp.begin(0x60);
+  if (dacHealthy) {
     Serial.println("OK");
   } else {
     Serial.println("FAILED (Check wiring!)");
+  }
+
+  // Intertravamento Mandatorio de Falha de Hardware no Boot (F12)
+  if (!adsHealthy || !dacHealthy) {
+    hardwareFaultLatched = true;
+    valveFlowState = 1; // Garante corte mecanico fechado (GPIO 5 HIGH)
+    digitalWrite(VALVE_FLOW_PIN, HIGH);
+    Serial.println("[HARDWARE FAULT] Latch ativado no boot: corte fechado e malha PI desativada!");
   }
 
   loadParameters();
@@ -130,19 +139,52 @@ void firmwareLoop() {
     ESP.restart();
   }
   if (otaInProgress && now - otaLastChunkMs > otaStallTimeoutMs) {
-    Serial.printf("[OTA] No data for %lus after %u bytes. Hub link resumes; upload may still continue.\n",
+    Serial.printf("[OTA] Sem dados por %lus apos %u bytes. STALL DETECTADO: travando em SAFE LATCH!\n",
                   otaStallTimeoutMs / 1000, (unsigned)Update.progress());
     otaStalled = true;
+    otaSafeLatch = true; // Trava persistente impedindo retomada desgovernada de fluxo (F14)
     otaInProgress = false;
+
+    // Garante parada segura mecanica e eletrica sob mutex
+    if (commandMutex != NULL && xSemaphoreTake(commandMutex, pdMS_TO_TICKS(200)) == pdTRUE) {
+      valveFlowState = 1;
+      digitalWrite(VALVE_FLOW_PIN, HIGH);
+      valve1State = 0;
+      digitalWrite(VALVE1_PIN, LOW);
+      valve2State = 0;
+      digitalWrite(VALVE2_PIN, LOW);
+      targetFlowSetpoint = 0.0f;
+      rampedTarget = 0.0f;
+      flowSetpoint = 0.0f;
+      integralError = 0.0f;
+      flowFeedforward = 0.0f;
+      writeFlowSetpointToDAC(0.0f);
+      xSemaphoreGive(commandMutex);
+    }
   }
 
   if (now - lastControlUpdate >= controlInterval) {
     lastControlUpdate = now;
     xSemaphoreTake(commandMutex, portMAX_DELAY);
 
+    // Intertravamento continuo de hardware (F12): bloqueia PI e mantem corte seguro
+    if (hardwareFaultLatched || !adsHealthy || !dacHealthy) {
+      if (valveFlowState == 0) {
+        valveFlowState = 1;
+        digitalWrite(VALVE_FLOW_PIN, HIGH);
+      }
+      targetFlowSetpoint = 0.0f;
+      rampedTarget = 0.0f;
+      flowSetpoint = 0.0f;
+      integralError = 0.0f;
+      flowFeedforward = 0.0f;
+      xSemaphoreGive(commandMutex);
+      return; // Pula integralmente a execucao da malha PI
+    }
+
     // Slew the reference. Zero is applied at once; with dacHold a zero target
-    // leaves rampedTarget where it was, so the restart resumes from that point.
-    if (targetFlowSetpoint <= 0.0f) {
+    // leaves rampedTarget where it was, so the restart resumes from that point (F04).
+    if (targetFlowSetpoint <= MIN_FLOW_CUTOFF_THRESHOLD) {
       if (!dacHold) rampedTarget = 0.0f;
     } else if (rampRate > 0.0f) {
       float step = rampRate * controlInterval / 1000.0f;
@@ -152,12 +194,12 @@ void firmwareLoop() {
       rampedTarget = targetFlowSetpoint;
     }
 
-    if (targetFlowSetpoint > 0.1f && valveFlowState == 0) {
+    if (targetFlowSetpoint > MIN_FLOW_CUTOFF_THRESHOLD && valveFlowState == 0) {
       float error = rampedTarget - readFlowRate;
       flowFeedforward = feedforwardSetpoint(rampedTarget);
 
       // Deadband: below one DAC LSB the integral would only chase sensor noise.
-      if (abs(error) > 0.01) {
+      if (abs(error) > 0.01f) {
         integralError += error * integralIntervalScale;
 
         // Anti-windup in output units: the integral may take the output anywhere
@@ -187,14 +229,16 @@ void firmwareLoop() {
                         error, P_term, I_term, flowSetpoint);
         }
       }
-    } else if (targetFlowSetpoint > 0.1f) {
+    } else if (targetFlowSetpoint > MIN_FLOW_CUTOFF_THRESHOLD) {
       // Live target but Valve Off asserted: no flow can exist and the error is not
       // the output's fault. Integral and DAC stay frozen until the valve opens.
     } else if (!dacHold) {
-      // Legacy behaviour: a zero target drops the DAC to zero as well.
+      // Setpoint sub-limiar com dacHold desligado: zera atuador e limpa acumulador (F04)
       flowFeedforward = 0.0f;
-      if (flowSetpoint > 0) {
-        if (writeFlowSetpointToDAC(0)) flowSetpoint = 0;
+      integralError = 0.0f;
+      rampedTarget = 0.0f;
+      if (flowSetpoint > 0.0f) {
+        if (writeFlowSetpointToDAC(0.0f)) flowSetpoint = 0.0f;
       }
     }
     xSemaphoreGive(commandMutex);
@@ -233,13 +277,14 @@ void firmwareLoop() {
              ",\"ack_direct_cmd_id\":%lu"
              ",\"last_apply_ms\":%lu,\"command_source\":\"%s\""
              ",\"Kp\":%.2f,\"Ki\":%.2f,\"ff_gain\":%.4f,\"ff_offset\":%.4f"
-             ",\"ramp_rate\":%.2f,\"dac_hold\":%d,\"reconnect_wifi\":%d}",
+             ",\"ramp_rate\":%.2f,\"dac_hold\":%d,\"reconnect_wifi\":%d,\"cal_crc\":\"%08X\"}",
              seconds, readFlowVoltage, readFlowRate,
              snapTarget, snapFF, snapOutput, snapValve1, snapValve2, snapValveFlow,
              (unsigned long)snapAck, (unsigned long)snapDirectSession,
              (unsigned long)snapDirectAck,
              snapApplyMs, snapSource.c_str(),
-             Kp_flow, Ki_flow, ffGain, ffOffset, rampRate, dacHold ? 1 : 0, reconnect_Wifi);
+             Kp_flow, Ki_flow, ffGain, ffOffset, rampRate, dacHold ? 1 : 0, reconnect_Wifi,
+             currentCalCrc);
 
     // Comentar para limpar o serial se estiver muito poluído
     Serial.println(outputMessage);

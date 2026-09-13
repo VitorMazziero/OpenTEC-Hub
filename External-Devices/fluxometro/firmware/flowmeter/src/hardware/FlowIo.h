@@ -1,7 +1,30 @@
 bool writeFlowSetpointToDAC(float flowSetpointVal) {
-  uint16_t dacValue = (flowSetpointVal / maxFlowRate) * 4095;
-  dacValue = constrain(dacValue, 0, 4095);
+  if (hardwareFaultLatched || !dacHealthy) return false;
+
+  if (isnan(flowSetpointVal) || flowSetpointVal <= 0.0f) {
+    flowSetpointVal = 0.0f;
+  }
+  float effectiveMax = maxFlowRate;
+  if (isnan(effectiveMax) || effectiveMax <= 0.01f) {
+    effectiveMax = 50.0f; // Safe fallback para evitar divisao por zero
+    Serial.println("[DAC] Aviso: maxFlowRate invalido <= 0.01, adotado fallback 50.0 L/min");
+  }
+
+  // Normalizacao estrita no dominio float [0.0, 1.0] antes de conversao para DAC 12 bits
+  float fraction = flowSetpointVal / effectiveMax;
+  fraction = constrain(fraction, 0.0f, 1.0f);
+  uint16_t dacValue = (uint16_t)constrain((fraction * 4095.0f) + 0.5f, 0.0f, 4095.0f);
+
   if (i2cMutex != NULL && xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(250)) == pdTRUE) {
+    Wire.beginTransmission(0x60);
+    byte err = Wire.endTransmission();
+    if (err != 0) {
+      Serial.printf("[DAC] Falha de comunicacao I2C (%d). Latched!\n", err);
+      dacHealthy = false;
+      hardwareFaultLatched = true;
+      xSemaphoreGive(i2cMutex);
+      return false;
+    }
     mcp.setVoltage(dacValue, false);
     xSemaphoreGive(i2cMutex);
     return true;

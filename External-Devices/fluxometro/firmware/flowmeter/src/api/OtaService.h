@@ -9,10 +9,11 @@ void setupOTA() {
   server.on("/diag", HTTP_GET, [](AsyncWebServerRequest *request) {
     char json[320];
     snprintf(json, sizeof(json),
-             "{\"device\":\"flowmeter\",\"version\":\"v11\",\"uptime_s\":%lu,"
+             "{\"device\":\"flowmeter\",\"version\":\"%s\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
              "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
              "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
+             FW_VERSION,
              static_cast<unsigned long>(millis() / 1000),
              static_cast<unsigned int>(ESP.getFreeHeap()),
              WiFi.status(),
@@ -30,10 +31,11 @@ void setupOTA() {
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     char json[320];
     snprintf(json, sizeof(json),
-             "{\"device\":\"flowmeter\",\"version\":\"v11\",\"uptime_s\":%lu,"
+             "{\"device\":\"flowmeter\",\"version\":\"%s\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
              "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
              "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
+             FW_VERSION,
              static_cast<unsigned long>(millis() / 1000),
              static_cast<unsigned int>(ESP.getFreeHeap()),
              WiFi.status(),
@@ -46,6 +48,17 @@ void setupOTA() {
              readFlowRate,
              flowSetpoint);
     request->send(200, "application/json", json);
+  });
+
+  // F11: Endpoint dedicado para leitura e auditoria de coeficientes em EEPROM
+  server.on("/calibration", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char buf[384];
+    snprintf(buf, sizeof(buf),
+      "{\"a1\":%.6e,\"b1\":%.6e,\"k1\":%.6e,\"f1\":%.6e,\"c1\":%.6e,"
+      "\"k2\":%.6e,\"f2\":%.6e,\"c2\":%.6e,\"max_flow\":%.2f,\"crc\":\"%08X\"}",
+      calParams.a1, calParams.b1, calParams.k1, calParams.f1, calParams.c1,
+      calParams.k2, calParams.f2, calParams.c2, maxFlowRate, currentCalCrc);
+    request->send(200, "application/json", buf);
   });
 
   server.on("/update", HTTP_POST,
@@ -82,8 +95,38 @@ void setupOTA() {
           return;
         }
         Serial.printf("[OTA] Upload start: %s\n", filename.c_str());
+
+        // --- F14: Safe Stop Atomico Protegido por commandMutex ---
+        if (commandMutex != NULL && xSemaphoreTake(commandMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+          valveFlowState = 1;
+          digitalWrite(VALVE_FLOW_PIN, HIGH); // Corte geral fechado
+          valve1State = 0;
+          digitalWrite(VALVE1_PIN, LOW);       // Rota 1 fechada
+          valve2State = 0;
+          digitalWrite(VALVE2_PIN, LOW);       // Rota 2 fechada
+
+          targetFlowSetpoint = 0.0f;
+          rampedTarget = 0.0f;
+          flowSetpoint = 0.0f;
+          integralError = 0.0f;
+          flowFeedforward = 0.0f;
+
+          writeFlowSetpointToDAC(0.0f);        // Zero V no DAC
+
+          xSemaphoreGive(commandMutex);
+          Serial.println("[OTA SAFETY] Safe Stop executado com sucesso sob commandMutex!");
+        } else {
+          // Fallback de emergencia caso haja timeout no mutex
+          digitalWrite(VALVE_FLOW_PIN, HIGH);
+          digitalWrite(VALVE1_PIN, LOW);
+          digitalWrite(VALVE2_PIN, LOW);
+          writeFlowSetpointToDAC(0.0f);
+          Serial.println("[OTA SAFETY] Timeout de mutex: pinos de hardware forcados para estado seguro!");
+        }
+
         if (Update.isRunning()) Update.abort();   // safe here: same task that writes
         otaStalled = false;
+        otaSafeLatch = false;
         otaNextProgressLog = 0;
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
       }

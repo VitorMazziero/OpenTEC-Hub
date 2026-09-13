@@ -13,11 +13,11 @@
 #include <EEPROM.h>
 #include <Update.h>      // OTA: writes the inactive app slot, see setupOTA()
 
-#define FW_VERSION "V10"
+#define FW_VERSION "v11.0"
 #define FW_BUILD FW_VERSION " (" __DATE__ " " __TIME__ ")"
 
 const char* ap_ssid = "Floxometro_AP";
-const char* ap_password = NULL; // Rede aberta (sem senha)
+const char* ap_password = NULL; // Rede aberta por decisao de projeto (F13)
 
 String currentSSID = "";
 String currentPassword = "";
@@ -42,6 +42,7 @@ AsyncWebSocket ws("/ws");
 
 volatile bool otaInProgress = false;
 volatile bool otaStalled = false;    // watchdog fired; next chunk logs the resume
+volatile bool otaSafeLatch = false;  // F14: Trava persistente de seguranca pos-stall de OTA
 unsigned long otaLastChunkMs = 0;
 // Generous on purpose: block erases stall the Wi-Fi driver and the PC may roam
 // off a no-internet AP for a while. TCP rides that out; the watchdog must too.
@@ -71,6 +72,9 @@ x.send(new FormData(f))};
 
 Adafruit_ADS1115 ads;
 Adafruit_MCP4725 mcp;
+bool adsHealthy = false;
+bool dacHealthy = false;
+bool hardwareFaultLatched = false;
 SemaphoreHandle_t commandMutex = NULL;
 SemaphoreHandle_t i2cMutex = NULL;
 // ESP-IDF's Wi-Fi stack must not be driven by two HTTPClient transactions at
@@ -97,6 +101,9 @@ String lastCommandSource = "boot";
 // integration window one 8 SPS conversion had, so 50/60 Hz rejection is unchanged
 // while averaging lowers the noise. The sample rate goes from 2.7 Hz to ~7 Hz.
 #define ADC_SAMPLES_PER_CYCLE 16
+
+// Limiar operacional minimo controlavel do sensor FMA-5400 (F04)
+#define MIN_FLOW_CUTOFF_THRESHOLD 0.10f
 
 // Global calibration parameters. The low range uses a quartic so it passes
 // through the three measured points and matches curve 2 in value and slope.
@@ -167,18 +174,22 @@ struct CalibrationParams {
   float kp, ki;
   float ff_gain, ff_offset;   // V08 (schema v3), appended so v2 records migrate in place
   float ramp_rate, dac_hold;  // V10 (schema v5); dac_hold stored as 0/1 in a float
+  float max_flow;             // V11 (schema v6); fundo de escala em L/min (offset 60..63)
 };
 CalibrationParams calParams;
+uint32_t currentCalCrc = 0;
 const uint32_t CALIBRATION_MAGIC_V2 = 0xCAFEBAC0;
 const uint32_t CALIBRATION_MAGIC_V3 = 0xCAFEBAC1;
 const uint32_t CALIBRATION_MAGIC_V4 = 0xCAFEBAC2;
-const uint32_t CALIBRATION_MAGIC = 0xCAFEBAC3;
+const uint32_t CALIBRATION_MAGIC_V5 = 0xCAFEBAC3;
+const uint32_t CALIBRATION_MAGIC    = 0xCAFEBAC4; // Schema v6
 const float FF_GAIN_DEFAULT = 0.85f;
 const float FF_OFFSET_DEFAULT = -0.05f;
 const float KP_DEFAULT = 0.4f;
 const float KI_DEFAULT = 2.0f;
 const float RAMP_RATE_DEFAULT = 3.0f;
 const float DAC_HOLD_DEFAULT = 1.0f;
+const float MAX_FLOW_DEFAULT = 50.0f;
 
 const float FACTORY_A1 = -1353785.3f;
 const float FACTORY_B1 = 246663.69f;

@@ -24,16 +24,18 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         snapApplyMs = lastCommandApplyMs;
         xSemaphoreGive(commandMutex);
 
-        char ackMessage[280];
+        char ackMessage[320];
         snprintf(ackMessage, sizeof(ackMessage),
                  "{\"command_ack\":%s,\"ack_direct_session_id\":%lu"
                  ",\"ack_direct_cmd_id\":%lu"
                  ",\"last_apply_ms\":%lu,\"command_source\":\"direct\""
                  ",\"flow_setpoint\":%.6f,\"valve1State\":%d"
-                 ",\"valve2State\":%d,\"valveFlowState\":%d}",
+                 ",\"valve2State\":%d,\"valveFlowState\":%d"
+                 ",\"cal_crc\":\"%08X\"}",
                  accepted ? "true" : "false", (unsigned long)snapDirectSession,
                  (unsigned long)snapDirectAck,
-                 snapApplyMs, snapTarget, snapValve1, snapValve2, snapValveFlow);
+                 snapApplyMs, snapTarget, snapValve1, snapValve2, snapValveFlow,
+                 currentCalCrc);
         client->text(ackMessage);
       }
     }

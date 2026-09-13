@@ -209,7 +209,7 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   bool hasV1 = json.indexOf("\"valve_1\"") != -1;
   bool hasV2 = json.indexOf("\"valve_2\"") != -1;
   bool hasVFlow = json.indexOf("\"v_Flow\"") != -1;
-  bool hasMax = json.indexOf("\"maxFlow\"") != -1;
+  bool hasMax = json.indexOf("\"maxFlow\"") != -1 || json.indexOf("\"max_flow\"") != -1;
   // The node's own "keep looking for a hub" switch. It can be turned off over the
   // flowmeter's USB serial or its private AP, and nothing here could turn it back on,
   // so a flowmeter parked that way never returned without someone walking to it.
@@ -247,7 +247,14 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
     if (hasV2) desiredFlowValve2 = getValueFromJson(json, "valve_2").toInt() != 0;
     if (hasVFlow) desiredFlowValveFlow = getValueFromJson(json, "v_Flow").toInt() != 0;
 
-    if (hasMax) { desiredMaxFlow = getValueFromJson(json, "maxFlow").toFloat(); pendingMaxFlow = true; }
+    if (hasMax) {
+      String mfVal = getValueFromJson(json, "maxFlow");
+      if (mfVal.length() == 0) mfVal = getValueFromJson(json, "max_flow");
+      if (mfVal.length() > 0) {
+        desiredMaxFlow = mfVal.toFloat();
+        pendingMaxFlow = true;
+      }
+    }
     if (hasReconnect) {
       desiredReconnectWifi = getValueFromJson(json, "reconnectWifi").toInt() != 0 ? 1 : 0;
       pendingReconnectWifi = true;

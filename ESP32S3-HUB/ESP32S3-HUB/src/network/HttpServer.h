@@ -209,6 +209,10 @@ void startWiFi() {
         float newKi = hasKi ? request->getParam("ki")->value().toFloat() : NAN;
         bool hasRamp = request->hasParam("ramp");
         float newRamp = hasRamp ? request->getParam("ramp")->value().toFloat() : NAN;
+        bool hasCalCrc = request->hasParam("cal_crc");
+        uint32_t newCalCrc = hasCalCrc ? (uint32_t)strtoul(request->getParam("cal_crc")->value().c_str(), NULL, 16) : 0;
+        bool hasHwStatus = request->hasParam("hw_status");
+        uint8_t newHwStatus = hasHwStatus ? (uint8_t)request->getParam("hw_status")->value().toInt() : 7;
 
         bool ackedNow = false;
         uint32_t ackedRevision = 0;
@@ -234,7 +238,9 @@ void startWiFi() {
           if (hasKp) flowmeterKp = newKp;
           if (hasKi) flowmeterKi = newKi;
           if (hasRamp) flowmeterRampRate = newRamp;
-          if (hasFfGain || hasFfOffset || hasFlowOutput || hasSetpointCorrected || hasKp || hasKi || hasRamp) {
+          if (hasCalCrc) flowmeterCalCrc = newCalCrc;
+          if (hasHwStatus) flowmeterHwStatus = newHwStatus;
+          if (hasFfGain || hasFfOffset || hasFlowOutput || hasSetpointCorrected || hasKp || hasKi || hasRamp || hasCalCrc || hasHwStatus) {
             flowmeterEchoSeen = true;
           }
 
@@ -265,6 +271,7 @@ void startWiFi() {
             // The node came back with its own defaults - setpoint zero, valves shut.
             // Adopting that would silently discard the operator's last command and
             // report the zero as if it had been asked for. Re-assert instead.
+            pendingMaxFlow = true;
             flowCommandRevision++;
             if (flowCommandRevision == 0) flowCommandRevision = 1;
             flowCommandAwaitingAck = true;

@@ -205,6 +205,8 @@ void readAndBroadcastSensorData() {
   float snapFlowmeterKp = NAN, snapFlowmeterKi = NAN;
   float snapFlowmeterFfGain = NAN, snapFlowmeterFfOffset = NAN, snapFlowmeterRampRate = NAN;
   float snapFlowmeterOutput = NAN, snapFlowmeterSetpointCorrected = NAN;
+  uint8_t snapFlowmeterHwStatus = 7;
+  uint32_t snapFlowmeterCalCrc = 0;
   uint32_t snapFlowmeterBootId = 0;
   bool snapFlowEchoSeen = false;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
@@ -222,6 +224,8 @@ void readAndBroadcastSensorData() {
     snapFlowmeterRampRate = flowmeterRampRate;
     snapFlowmeterOutput = flowmeterOutput;
     snapFlowmeterSetpointCorrected = flowmeterSetpointCorrected;
+    snapFlowmeterHwStatus = flowmeterHwStatus;
+    snapFlowmeterCalCrc = flowmeterCalCrc;
     snapFlowmeterBootId = flowmeterBootId;
     snapFlowOnline = flowmeterCommOn;
     snapFlowPending = flowCommandAwaitingAck;
@@ -279,6 +283,8 @@ void readAndBroadcastSensorData() {
       if (!isnan(snapFlowmeterRampRate)) jsonResponse += ",\"FlowRampRate\":" + String(snapFlowmeterRampRate, 3);
       if (!isnan(snapFlowmeterOutput)) jsonResponse += ",\"FlowOutput\":" + String(snapFlowmeterOutput, 4);
       if (!isnan(snapFlowmeterSetpointCorrected)) jsonResponse += ",\"FlowSetpointCorrected\":" + String(snapFlowmeterSetpointCorrected, 4);
+      if (snapFlowmeterCalCrc != 0) jsonResponse += ",\"FlowmeterCalCrc\":" + String(snapFlowmeterCalCrc);
+      jsonResponse += ",\"FlowmeterHwStatus\":" + String(snapFlowmeterHwStatus);
       if (snapFlowmeterBootId != 0) jsonResponse += ",\"FlowmeterBootId\":" + String(snapFlowmeterBootId);
     }
   }

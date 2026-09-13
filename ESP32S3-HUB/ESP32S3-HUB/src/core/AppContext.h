@@ -305,6 +305,8 @@ float flowmeterFfOffset = NAN;
 float flowmeterRampRate = NAN;
 float flowmeterOutput = NAN;
 float flowmeterSetpointCorrected = NAN;
+uint8_t flowmeterHwStatus = 7;
+uint32_t flowmeterCalCrc = 0;
 bool  flowmeterEchoSeen = false;
 
 // ---------- Distance Sensor ----------

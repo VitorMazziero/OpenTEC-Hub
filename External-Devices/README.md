@@ -10,6 +10,11 @@ Este diretório reúne firmware, aplicativos, hardware, evidências e histórico
 | Sensor de biomassa | `sensor-biomassa/firmware/biomass-sensor` | Desktop Python |
 | Sensor de distância | `sensor-distancia/firmware/distance-sensor` | — |
 
+## Documentação transversal
+
+- `docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` — por dispositivo: interações que o nó aceita, o que o firmware faz com cada uma e o que o hardware deve fazer; conferido no código, não nos protocolos. Bomba peristáltica completa em 2026-09-12; demais nós a preencher.
+- `docs/HUB_PROTOCOL_IMPROVEMENTS.md`, `docs/OPTIMIZATION_OPPORTUNITIES.md`, `docs/TOOLCHAIN.md`.
+
 ## Regras
 
 - `firmware/` contém somente a versão ativa e compilável.

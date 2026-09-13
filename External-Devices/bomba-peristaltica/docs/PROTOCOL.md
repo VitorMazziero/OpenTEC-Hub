@@ -2,6 +2,8 @@
 
 Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e vocabulário de comandos da **Bomba Peristáltica** com motor DC e ESP32.
 
+> **Comportamento explicado:** este arquivo é o contrato de fio. O que cada chave faz no firmware, o que o hardware faz em consequência, o que é estimado e não medido, e as pegadinhas operacionais (`mode:0` zera o volume, `speed` é pegajoso, recuperação automática após queda de energia) estão em `../../docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` §1, conferido no código em 2026-09-12.
+
 ---
 
 ## 1. Identidade e Registro

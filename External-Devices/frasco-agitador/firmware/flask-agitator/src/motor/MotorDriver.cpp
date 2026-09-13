@@ -1,7 +1,34 @@
 #include "MotorDriver.h"
 
 #include "../config/BoardConfig.h"
-#include "../core/AppContext.h"
+
+namespace {
+constexpr uint32_t ControlPeriodMs = 10;
+constexpr uint16_t MaximumDuty = (1U << BoardConfig::PwmResolutionBits) - 1U;
+constexpr uint16_t RampStep =
+    (MaximumDuty * ControlPeriodMs + BoardConfig::DirectionRampDurationMs - 1U) /
+    BoardConfig::DirectionRampDurationMs;
+
+uint16_t appliedDuty = 0;
+bool appliedDirectionRight = true;
+uint32_t lastControlMs = 0;
+
+void writeBridge(uint16_t duty12, bool directionRight) {
+  // Always clear the inactive leg before energising the requested leg.
+  ledcWrite(directionRight ? BoardConfig::LeftPwmPin : BoardConfig::RightPwmPin, 0);
+  ledcWrite(directionRight ? BoardConfig::RightPwmPin : BoardConfig::LeftPwmPin, duty12);
+}
+
+uint16_t moveTowards(uint16_t current, uint16_t target) {
+  if (current < target) {
+    return static_cast<uint16_t>(min<uint32_t>(current + RampStep, target));
+  }
+  if (current > target) {
+    return (current - target <= RampStep) ? target : current - RampStep;
+  }
+  return current;
+}
+}  // namespace
 
 bool attachPwmPin(int pin) {
   if (!ledcAttach(pin, BoardConfig::PwmFrequencyHz, BoardConfig::PwmResolutionBits)) {
@@ -12,19 +39,30 @@ bool attachPwmPin(int pin) {
   return true;
 }
 
-void applyDuty(uint16_t duty12) {
+void serviceMotor(uint16_t targetDuty12, bool targetDirRight, uint32_t nowMs) {
+  if (nowMs - lastControlMs < ControlPeriodMs) return;
+  lastControlMs = nowMs;
+
   digitalWrite(BoardConfig::RightEnablePin, HIGH);
   digitalWrite(BoardConfig::LeftEnablePin, HIGH);
-  if (dirRight) {
-    ledcWrite(BoardConfig::RightPwmPin, duty12);
-    ledcWrite(BoardConfig::LeftPwmPin, 0);
-  } else {
-    ledcWrite(BoardConfig::RightPwmPin, 0);
-    ledcWrite(BoardConfig::LeftPwmPin, duty12);
+
+  // Direction changes are non-blocking: ramp fully to zero, switch the active
+  // bridge leg on the next control tick, then ramp to the requested duty.
+  if (targetDirRight != appliedDirectionRight) {
+    if (appliedDuty > 0) {
+      appliedDuty = moveTowards(appliedDuty, 0);
+      writeBridge(appliedDuty, appliedDirectionRight);
+      return;
+    }
+    appliedDirectionRight = targetDirRight;
   }
+
+  appliedDuty = moveTowards(appliedDuty, targetDuty12);
+  writeBridge(appliedDuty, appliedDirectionRight);
 }
 
 void brakeMotor() {
+  appliedDuty = 0;
   ledcWrite(BoardConfig::RightPwmPin, 0);
   ledcWrite(BoardConfig::LeftPwmPin, 0);
 }

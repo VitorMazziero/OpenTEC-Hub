@@ -51,8 +51,7 @@ void firmwareSetup() {
   kickAsyncScanIfDue();
   setupLocalHttpApi();
 
-  applyDuty(BoardConfig::BoostDuty);
-  delay(BoardConfig::BoostDurationMs);
+  // A reset must never energize the bridge before an explicit command.
   brakeMotor();
   Serial.println("Ready.");
 
@@ -103,7 +102,7 @@ void firmwareLoop() {
 
   servicePotentiometer();
   if (millis() - tPwmMs >= 10) {
-    applyDuty(getEffectiveDuty(targetPercent));
+    serviceMotor(getEffectiveDuty(targetPercent), dirRight, millis());
     tPwmMs = millis();
   }
 
@@ -126,4 +125,3 @@ void firmwareLoop() {
     pushTelemetryToHub();
   }
 }
-

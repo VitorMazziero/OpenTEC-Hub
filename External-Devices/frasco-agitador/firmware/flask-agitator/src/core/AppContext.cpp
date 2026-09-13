@@ -6,7 +6,9 @@ IPAddress hubIp(192, 168, 4, 1);
 volatile Source lastSource = Source::POT;
 volatile float targetPercent = 0.0f;
 volatile bool dirRight = true;
-volatile bool potEnabled = true;
+// Safe after every reset: the local knob only regains authority through an
+// explicit ActivePot:1 command from the Hub, local HTTP, or USB.
+volatile bool potEnabled = false;
 String latestTelemetry;
 
 bool hubAnnounced = false;

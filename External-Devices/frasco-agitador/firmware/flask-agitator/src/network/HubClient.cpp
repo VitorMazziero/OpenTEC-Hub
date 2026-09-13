@@ -3,6 +3,7 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
+#include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
 #include "../protocol/CommandCodec.h"
 
@@ -19,8 +20,8 @@ void hubHello() {
 
   HTTPClient http;
   char url[140];
-  snprintf(url, sizeof(url), "http://%s/nodeHello?dev=agitator&ver=v10&mac=%s",
-           hubIp.toString().c_str(), WiFi.macAddress().c_str());
+  snprintf(url, sizeof(url), "http://%s/nodeHello?dev=agitator&ver=%s&mac=%s",
+           hubIp.toString().c_str(), BoardConfig::FirmwareVersion, WiFi.macAddress().c_str());
   http.begin(url);
   http.setTimeout(800);
   int responseCode = http.GET();
@@ -112,4 +113,3 @@ void pushTelemetryToHub() {
   }
   http.end();
 }
-

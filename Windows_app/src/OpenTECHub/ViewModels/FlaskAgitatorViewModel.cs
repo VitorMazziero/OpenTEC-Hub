@@ -20,10 +20,10 @@ namespace OpenTECHub.ViewModels;
 /// reaches the wire (<c>docs/PROTOCOL.md</c> §3.3).
 /// </para>
 /// <para>
-/// It is also the <b>only external device the Hub reports nothing about</b> until its push
-/// handler is flashed: the node polls for commands and never answers. So the card stays
-/// usable with <see cref="ExternalDeviceStatus.HasTelemetry"/> false and says
-/// <i>awaiting telemetry</i> rather than pretending either success or failure.
+/// Firmware v10 pushes magnitude, direction, potentiometer authority, source and command ACK
+/// through the Hub. Before that first push the card stays usable with
+/// <see cref="ExternalDeviceStatus.HasTelemetry"/> false and says <i>awaiting telemetry</i>
+/// rather than pretending either success or failure.
 /// </para>
 /// <para>
 /// The potentiometer is the safety subtlety. The Hub turns an off command into

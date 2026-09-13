@@ -4,6 +4,7 @@
 #include <Update.h>
 #include <WiFi.h>
 
+#include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
 #include "../motor/MotorDriver.h"
 #include "../protocol/CommandCodec.h"
@@ -14,7 +15,7 @@ const char otaPage[] PROGMEM = R"rawliteral(<!DOCTYPE html><html><head><meta cha
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Frasco Agitador OTA</title>
 <style>body{font-family:sans-serif;max-width:520px;margin:2em auto;padding:0 1em}progress{width:100%}code{background:#eee;padding:0 .3em}</style>
 </head><body><h2>Frasco Agitador &ndash; Firmware Update</h2>
-<p>Running: <b>Frasco Agitador Firmware</b></p>
+<p>Running: <b>Frasco Agitador Firmware %VERSION%</b></p>
 <p>Selecione a imagem <code>flask-agitator.ino.bin</code> (Arduino IDE: <i>Sketch &gt; Export Compiled Binary</i>). Nao envie <code>.merged.bin</code>, <code>.bootloader.bin</code> ou <code>.partitions.bin</code>.</p>
 <form id="f"><input type="file" name="firmware" accept=".bin" required> <input type="submit" value="Flash"></form>
 <progress id="p" value="0" max="100" hidden></progress><p id="s"></p>
@@ -47,8 +48,10 @@ void handleRead() {
 }
 
 void handleOtaPage() {
+  String page = otaPage;
+  page.replace("%VERSION%", BoardConfig::FirmwareVersion);
   server.sendHeader("Connection", "close");
-  server.send(200, "text/html", otaPage);
+  server.send(200, "text/html", page);
 }
 
 void handleOtaUploadDone() {
@@ -123,10 +126,11 @@ void handleOtaChunk() {
 void handleDiag() {
   char json[320];
   snprintf(json, sizeof(json),
-           "{\"device\":\"flask-agitator\",\"version\":\"1.0\",\"uptime_s\":%lu,"
+           "{\"device\":\"flask-agitator\",\"version\":\"%s\",\"uptime_s\":%lu,"
            "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
            "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
            "\"duty\":%.1f,\"dir\":%d,\"pot\":%s}",
+           BoardConfig::FirmwareVersion,
            static_cast<unsigned long>(millis() / 1000),
            static_cast<unsigned int>(ESP.getFreeHeap()),
            WiFi.status(),

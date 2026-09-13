@@ -26,7 +26,7 @@ public sealed partial class RecipeEngine
         switch (node.Enum<ExternalPumpAction>("acao"))
         {
             case ExternalPumpAction.Enable:
-                Log(RecipeLogSeverity.Info, "Bomba externa: ativando o roteamento do Hub.", node.Id);
+                Log(RecipeLogSeverity.Info, "Bomba externa: habilitando no Hub.", node.Id);
                 DispatchRecipe(CommandBuilders.PumpEnable(), node.Id);
                 await AwaitPumpRoutingAsync(node, enabled: true, ct).ConfigureAwait(false);
                 break;
@@ -39,7 +39,7 @@ public sealed partial class RecipeEngine
                 // Two frames, in this order. A combined {"pumpComm":0,"mode":0} does not stop the
                 // pump: the Hub parses the routing flag before it reaches the pump block and then
                 // drops its own mode:0, so the node keeps dosing and only its telemetry goes quiet.
-                Log(RecipeLogSeverity.Info, "Bomba externa: parando o perfil e desativando o roteamento.", node.Id);
+                Log(RecipeLogSeverity.Info, "Bomba externa: parando o perfil e desabilitando no Hub.", node.Id);
                 DispatchRecipe(CommandBuilders.PumpStopProfile(), node.Id);
                 DispatchRecipeSeparateFrame(CommandBuilders.PumpRoutingDisabled(), node.Id);
                 await AwaitPumpRoutingAsync(node, enabled: false, ct).ConfigureAwait(false);
@@ -88,7 +88,7 @@ public sealed partial class RecipeEngine
         switch (node.Enum<BiomassAction>("acao"))
         {
             case BiomassAction.Enable:
-                Log(RecipeLogSeverity.Info, "Biomassa: ativando o roteamento do Hub.", node.Id);
+                Log(RecipeLogSeverity.Info, "Biomassa: habilitando no Hub.", node.Id);
                 DispatchRecipe(CommandBuilders.BiomassComm(true), node.Id);
                 await AwaitBiomassRoutingAsync(node, enabled: true, ct).ConfigureAwait(false);
                 break;
@@ -130,7 +130,7 @@ public sealed partial class RecipeEngine
             case BiomassAction.Disable:
                 // Stop first, while the Hub is still routing. The same frame carrying biomassComm:0
                 // would have its stop discarded and the node would keep acquiring.
-                Log(RecipeLogSeverity.Info, "Biomassa: parando a aquisição e desativando o roteamento.", node.Id);
+                Log(RecipeLogSeverity.Info, "Biomassa: parando a aquisição e desabilitando no Hub.", node.Id);
                 DispatchRecipe(CommandBuilders.BiomassStop(), node.Id);
                 DispatchRecipeSeparateFrame(CommandBuilders.BiomassComm(false), node.Id);
                 await AwaitBiomassRoutingAsync(node, enabled: false, ct).ConfigureAwait(false);

@@ -82,8 +82,8 @@ public sealed partial class RecipeEngine
             node,
             "Bomba externa",
             enabled
-                ? "o Hub não confirmou o roteamento da bomba como ativo."
-                : "o Hub não confirmou o roteamento da bomba como desligado.",
+                ? "o Hub não confirmou a bomba como habilitada."
+                : "o Hub não confirmou a bomba como desabilitada.",
             s => s.PumpCommEnabled is not { } routed || routed == enabled,
             ct);
 
@@ -109,8 +109,8 @@ public sealed partial class RecipeEngine
             node,
             "Sensor de biomassa",
             enabled
-                ? "o Hub não confirmou o roteamento do sensor de biomassa como ativo."
-                : "o Hub não confirmou o roteamento do sensor de biomassa como desligado.",
+                ? "o Hub não confirmou o sensor de biomassa como habilitado."
+                : "o Hub não confirmou o sensor de biomassa como desabilitado.",
             s => s.BiomassCommEnabled is not { } routed || routed == enabled,
             ct);
 

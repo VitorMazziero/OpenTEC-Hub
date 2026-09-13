@@ -249,6 +249,25 @@ public sealed record CalibrationSettings
 }
 
 /// <summary>A real-flow / measured-voltage pair used by the two-segment curve fit.</summary>
+/// <summary>One volumetric run of the external pump: S held for a measured time, V collected.</summary>
+public sealed record PumpCalibrationPoint
+{
+    /// <summary>Internal speed S (0..1000) the run was held at.</summary>
+    public double SpeedUnits { get; init; }
+
+    /// <summary>How long the pump actually ran, from the start frame to the stop frame, in seconds.</summary>
+    public double Seconds { get; init; }
+
+    /// <summary>Volume collected in the graduated vessel, in mL.</summary>
+    public double VolumeMl { get; init; }
+
+    /// <summary>The run's flow, mL/min. Derived, never typed.</summary>
+    public double FlowMlPerMin => Seconds > 0.0 ? VolumeMl / (Seconds / 60.0) : 0.0;
+
+    /// <summary>When the run was added, UTC ISO-8601; null on points imported without one.</summary>
+    public string? CapturedAtUtc { get; init; }
+}
+
 public sealed record FlowCalibrationPoint
 {
     public double FlowLitresPerMinute { get; init; }
@@ -518,6 +537,13 @@ public sealed record PumpControlSettings
 
     /// <summary>Calibration intercept: flow = slope * internal speed unit + intercept.</summary>
     public double CalibrationIntercept { get; init; } = 1.7601988934;
+
+    /// <summary>
+    /// Volumetric calibration runs the operator has kept: one timed run at a fixed internal
+    /// speed and the volume it delivered. The coefficients above are derived from these only
+    /// through the explicit "usar ajuste" action, never on save.
+    /// </summary>
+    public PumpCalibrationPoint[] CalibrationPoints { get; init; } = [];
 
     /// <summary>Proportional gain staged for pump controller.</summary>
     public double PidKp { get; init; } = 0.5;

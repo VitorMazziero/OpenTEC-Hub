@@ -335,14 +335,14 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         var disable = _dispatcher.DispatchSeparateFrame(CommandBuilders.PumpRoutingDisabled());
         if (!disable.Accepted)
         {
-            StatusText = "Perfil interrompido, mas o roteamento do Hub não foi desligado: " +
+            StatusText = "Perfil interrompido, mas a bomba continua habilitada no Hub: " +
                          DispatchRefusal.Describe(disable);
             return;
         }
 
         Status.IsCommRequested = false;
         Status.MarkCommandDispatched();
-        StatusText = "Bomba externa desativada (perfil parado e roteamento desligado).";
+        StatusText = "Bomba externa desativada (perfil parado e desabilitada no Hub).";
     }
 
     /// <summary>Puts the switch back after a refused toggle, without resending anything.</summary>

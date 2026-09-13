@@ -47,6 +47,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         _dialogs = dialogs ?? new DialogService();
         _committed = settings.Current.FoamControl;
         Status = new ExternalDeviceStatus("Sensor de distância", "do sensor de distância", timeProvider) { NodeKind = NodeFirmwareCatalog.Distance };
+        _time = timeProvider ?? TimeProvider.System;
         Status.PropertyChanged += OnStatusChanged;
 
         Load(_committed);
@@ -135,6 +136,24 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string NodeConfigStatusText { get; set; } =
         "Configurações do nó restauradas para revisão; nenhum comando foi enviado.";
+
+    /// <summary>
+    /// The node was told to write its NVS and the frame has not echoed the new values yet
+    /// (PONTOS §6.1). The Hub's ack says the node <i>received</i> the command; only the echo
+    /// says it <i>applied</i> it, and a reset makes the node reboot in between.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NodeConfigSyncText))]
+    public partial bool IsNodeConfigSyncing { get; set; }
+
+    public string NodeConfigSyncText => IsNodeConfigSyncing ? "Gravando na NVS do nó… aguardando o eco na telemetria" : "";
+
+    /// <summary>How long the echo may take before the operator is told it did not come. Covers the node's 15 s backoff.</summary>
+    public static readonly TimeSpan NodeConfigEchoTimeout = TimeSpan.FromSeconds(20);
+
+    private readonly TimeProvider _time;
+    private (double Offset, int Sample, int Send)? _expectedNodeConfig;
+    private DateTimeOffset _nodeConfigSentAt;
 
     public bool IsValidNodeConfig => NodeConfigValidationError is null;
 
@@ -235,6 +254,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
             DistanceSendPeriodMs = sendPeriod,
         };
         _settings.Update(settings => settings with { FoamControl = _committed });
+        BeginNodeConfigSync((offset, samplePeriod, sendPeriod));
         NodeConfigStatusText = "Configuração do sensor de distância enviada; aguardando confirmação.";
     }
 
@@ -259,7 +279,43 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
         }
 
         Status.MarkCommandDispatched();
+        // Factory values the node restores (ConfigCodec.cpp reset_nvs): offset 20 mm, 1000/1000 ms.
+        BeginNodeConfigSync((20.0, 1000, 1000));
         NodeConfigStatusText = "Restauração de padrões do sensor enviada; aguardando confirmação.";
+    }
+
+    private void BeginNodeConfigSync((double Offset, int Sample, int Send) expected)
+    {
+        _expectedNodeConfig = expected;
+        _nodeConfigSentAt = _time.GetUtcNow();
+        IsNodeConfigSyncing = true;
+    }
+
+    private void TrackNodeConfigEcho(SensorSnapshot snapshot)
+    {
+        if (_expectedNodeConfig is not { } expected)
+        {
+            return;
+        }
+
+        if (snapshot.DistanceOffsetMm is { } offset && snapshot.DistanceSamplePeriodMs is { } sample &&
+            snapshot.DistanceSendPeriodMs is { } send &&
+            Math.Abs(offset - expected.Offset) < 0.005 && sample == expected.Sample && send == expected.Send)
+        {
+            _expectedNodeConfig = null;
+            IsNodeConfigSyncing = false;
+            NodeConfigStatusText = $"Nó confirmou e gravou: offset {offset.ToString("F1", CultureInfo.CurrentCulture)} mm, " +
+                                   $"amostragem {sample} ms, envio {send} ms.";
+            return;
+        }
+
+        if (_time.GetUtcNow() - _nodeConfigSentAt > NodeConfigEchoTimeout)
+        {
+            _expectedNodeConfig = null;
+            IsNodeConfigSyncing = false;
+            NodeConfigStatusText = $"Aviso: o nó não ecoou a configuração pedida em {NodeConfigEchoTimeout.TotalSeconds:F0} s. " +
+                                   "Compare os valores aplicados acima com o pedido antes de reenviar.";
+        }
     }
 
     public bool TryGetStagedSettings(out FoamControlSettings settings)
@@ -429,6 +485,7 @@ public sealed partial class FoamControlViewModel : ObservableObject, IDisposable
             : "—";
 
         CanEditNodeConfig = snapshot.DistanceOffsetMm is not null;
+        TrackNodeConfigEcho(snapshot);
         OnPropertyChanged(nameof(NodeConfigUnavailableText));
         SendNodeConfigCommand.NotifyCanExecuteChanged();
         ResetNodeConfigCommand.NotifyCanExecuteChanged();

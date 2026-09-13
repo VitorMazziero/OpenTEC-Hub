@@ -240,7 +240,7 @@ public sealed class ReceitasViewModelTests
         var node = Tab(vm).Nodes.First(n => n.Type == NodeType.PumpControl);
 
         // Default action is Enable, which uses no profile fields at all.
-        Assert.Contains("Ativar roteamento", node.Summary, StringComparison.Ordinal);
+        Assert.Contains("Habilitar no Hub", node.Summary, StringComparison.Ordinal);
         Assert.DoesNotContain("λ", node.Summary, StringComparison.Ordinal);
         Assert.DoesNotContain("Segmentos", node.Summary, StringComparison.Ordinal);
 

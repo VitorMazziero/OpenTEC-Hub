@@ -166,6 +166,32 @@ public class HubNodesViewModelTests
     }
 
     [Fact]
+    public void Truncated_diag_is_reported_as_a_hub_limit_not_as_missing_metrics()
+    {
+        // PONTOS §8.3: HTTP 200 with diag null because the body outgrew the Hub's 511 B
+        // cache must not read as "Sem métricas específicas" - the fix is on the Hub side.
+        var device = new RecordingDeviceService { Medium = TransportMedium.Usb };
+        using var vm = new HubNodesViewModel(device, (_, _) => Task.FromResult<HubNodeDirectory?>(null));
+        device.PushState(ConnectionState.Connected);
+        device.PushNodeDiag(
+            """{"NodeDiag":{"dev":"biomass","code":200,"age_ms":400,"truncated":true,"body_bytes":907,"diag":null}}""");
+
+        var biomass = vm.Nodes.Single(n => n.Device == "biomass");
+        Assert.True(biomass.Diagnostic!.Truncated);
+        Assert.Equal(907, biomass.Diagnostic.BodyBytes);
+        Assert.Contains("907 B", biomass.DiagnosticText);
+        Assert.Contains("atualize o Hub", biomass.DiagnosticText);
+
+        // A Hub that predates the field still parses; the flag simply stays false.
+        device.PushNodeDiag(
+            """{"NodeDiag":{"dev":"pump","code":200,"age_ms":400,"diag":null}}""");
+        var pump = vm.Nodes.Single(n => n.Device == "pump");
+        Assert.False(pump.Diagnostic!.Truncated);
+        Assert.Null(pump.Diagnostic.BodyBytes);
+        Assert.Equal("Sem métricas específicas", pump.DiagnosticText);
+    }
+
+    [Fact]
     public async Task A_silent_hub_changes_nothing_but_the_footer()
     {
         var device = new RecordingDeviceService { Medium = TransportMedium.WiFi };

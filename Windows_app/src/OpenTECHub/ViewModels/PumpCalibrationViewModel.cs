@@ -1,6 +1,8 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Protocol;
@@ -9,13 +11,73 @@ using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.ViewModels;
 
+/// <summary>One volumetric run in the table: S held for a measured time, V collected, Q derived.</summary>
+public sealed partial class PumpCalibrationRunViewModel : ObservableObject
+{
+    public PumpCalibrationRunViewModel(PumpCalibrationPoint point)
+    {
+        Point = point;
+    }
+
+    public PumpCalibrationPoint Point { get; }
+
+    public double SpeedUnits => Point.SpeedUnits;
+
+    public double Seconds => Point.Seconds;
+
+    public double VolumeMl => Point.VolumeMl;
+
+    public double FlowMlPerMin => Point.FlowMlPerMin;
+
+    public string SpeedText => SpeedUnits.ToString("F0", CultureInfo.CurrentCulture);
+
+    public string SecondsText => Seconds.ToString("F1", CultureInfo.CurrentCulture) + " s";
+
+    public string VolumeText => VolumeMl.ToString("F1", CultureInfo.CurrentCulture) + " mL";
+
+    public string FlowText => FlowMlPerMin.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
+
+    /// <summary>Q − (a·S + b) against the current fit, mL/min; null before a fit exists.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResidualText))]
+    public partial double? Residual { get; set; }
+
+    public string ResidualText => Residual is { } r
+        ? (r >= 0 ? "+" : "") + r.ToString("F2", CultureInfo.CurrentCulture)
+        : "—";
+}
+
 /// <summary>
-/// Linear calibration procedure for the external peristaltic pump node:
-/// stages slope and intercept, calculates flow previews for internal speed references (250, 500, 1000),
-/// monitors applied telemetry echoes, writes auditable JSON receipts, and dispatches to the node.
+/// Calibration of the external peristaltic pump: <c>Q = slope · S + intercept</c>, S the
+/// node's internal speed (0..1000).
 /// </summary>
+/// <remarks>
+/// <para>
+/// Two ways in. The coefficient fields can be typed directly (the original Etapa 7 flow) or
+/// derived from <b>volumetric runs</b>: the operator picks S and a duration, the app holds
+/// the pump at S with <c>pump_speed</c>, stops it from its own clock, and the operator types
+/// the volume collected in a graduated vessel. Each run is a point (S, Q = V/Δt); a least
+/// squares line over the runs fills the coefficient fields on request. Volume, never mass:
+/// this bench has no balance in the loop, and the vessel is the reference.
+/// </para>
+/// <para>
+/// The stop is automatic on purpose. The node has no timer on <c>pump_speed</c>, so the app
+/// is the only party that knows how long the pump ran; the elapsed time recorded on the
+/// point is the interval between the start frame and the stop frame leaving this process,
+/// not the nominal duration. Applying coefficients still goes through the node's echo and
+/// writes the receipt only on confirmation, exactly as before.
+/// </para>
+/// </remarks>
 public sealed partial class PumpCalibrationViewModel : ObservableObject, IDisposable
 {
+    /// <summary>Shortest run the UI accepts. Below this the vessel reading dominates the error.</summary>
+    public const double MinRunSeconds = 5.0;
+
+    /// <summary>Longest run the UI accepts; ten minutes fills any bench vessel at full speed.</summary>
+    public const double MaxRunSeconds = 600.0;
+
+    private static readonly TimeSpan RunTickInterval = TimeSpan.FromMilliseconds(250);
+
     private readonly IDeviceService _device;
     private readonly IManualDispatcher _dispatcher;
     private readonly ISettingsService _settings;
@@ -28,6 +90,16 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     private DateTime? _calibrationRequestedAt;
     private (double Slope, double Intercept)? _requestedCalibration;
     private bool _isPumpCommandPending;
+
+    // ---- volumetric run state ----
+    private DispatcherTimer? _runTimer;
+    private DateTimeOffset _runStartedAt;
+    private double _runSpeed;
+    private double _runPlannedSeconds;
+    private (double Speed, double Seconds)? _lastRun;
+    private bool _stopPendingOnReconnect;
+    private PumpLinearFit? _fit;
+    private PumpLinearFit? _fitBehindCoefficients;
 
     public PumpCalibrationViewModel(
         IDeviceService device,
@@ -45,6 +117,10 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         var pumpSettings = settings.Current.PumpControl;
         SlopeText = DosingInput.Format(pumpSettings.CalibrationSlope, 4);
         InterceptText = DosingInput.Format(pumpSettings.CalibrationIntercept, 4);
+        foreach (var point in pumpSettings.CalibrationPoints)
+        {
+            Runs.Add(new PumpCalibrationRunViewModel(point));
+        }
 
         IsConnected = _device.State == ConnectionState.Connected;
 
@@ -53,16 +129,20 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
         _initialised = true;
         ValidateAndRefresh();
+        ValidateRunInputs();
+        RecomputeFit();
     }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
     [NotifyPropertyChangedFor(nameof(CanResetVolume))]
+    [NotifyPropertyChangedFor(nameof(CanStartRun))]
     public partial bool IsConnected { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
     [NotifyPropertyChangedFor(nameof(CanResetVolume))]
+    [NotifyPropertyChangedFor(nameof(CanStartRun))]
     public partial bool IsPumpOnline { get; set; }
 
     [ObservableProperty]
@@ -96,7 +176,76 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     public partial string? ValidationError { get; set; }
 
     [ObservableProperty]
-    public partial string StatusText { get; set; } = "Ajuste o ganho (slope) e o deslocamento (intercept) da bomba peristáltica.";
+    public partial string StatusText { get; set; } = "Ajuste o ganho (slope) e o deslocamento (intercept) da bomba peristáltica, ou construa a curva com acionamentos volumétricos.";
+
+    // ---- volumetric run: inputs ----
+
+    /// <summary>Internal speed S for the next run, 1..1000.</summary>
+    [ObservableProperty]
+    public partial string RunSpeedText { get; set; } = "500";
+
+    /// <summary>How long the next run holds S, in seconds.</summary>
+    [ObservableProperty]
+    public partial string RunDurationText { get; set; } = "60";
+
+    /// <summary>Volume read on the graduated vessel after the last run, mL.</summary>
+    [ObservableProperty]
+    public partial string MeasuredVolumeText { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartRun))]
+    public partial string? RunValidationError { get; set; }
+
+    // ---- volumetric run: progress ----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartRun))]
+    [NotifyPropertyChangedFor(nameof(CanAbortRun))]
+    [NotifyPropertyChangedFor(nameof(CanAddRunPoint))]
+    [NotifyPropertyChangedFor(nameof(CanEditRuns))]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(CanResetVolume))]
+    public partial bool IsRunning { get; set; }
+
+    [ObservableProperty]
+    public partial double RunProgressPercent { get; set; }
+
+    [ObservableProperty]
+    public partial string RunCountdownText { get; set; } = "";
+
+    /// <summary>A run finished and its volume has not been entered yet.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAddRunPoint))]
+    public partial bool HasPendingRun { get; set; }
+
+    /// <summary>"S 500 durante 60,2 s" for the run awaiting its volume.</summary>
+    [ObservableProperty]
+    public partial string RunSummaryText { get; set; } = "";
+
+    // ---- volumetric run: table and fit ----
+
+    public ObservableCollection<PumpCalibrationRunViewModel> Runs { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUseFit))]
+    public partial bool HasFit { get; set; }
+
+    [ObservableProperty]
+    public partial string FitSlopeText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string FitInterceptText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string FitRSquaredText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string FitSummaryText { get; set; } = "Nenhum acionamento registrado.";
+
+    /// <summary>Why the fit cannot be used yet (too few runs, single speed, non-positive slope); null when usable.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUseFit))]
+    public partial string? FitWarning { get; set; }
 
     public bool IsValid => ValidationError is null;
 
@@ -104,13 +253,37 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     public bool CanEditCalibration => !IsAwaitingCalibration && !_isPumpCommandPending;
 
-    public bool CanApply => IsConnected && IsPumpOnline && IsValid && CanEditCalibration && !_awaitingResetVolume;
+    public bool CanApply => IsConnected && IsPumpOnline && IsValid && CanEditCalibration && !_awaitingResetVolume && !IsRunning;
 
-    public bool CanResetVolume => IsConnected && IsPumpOnline && !_awaitingResetVolume && !IsAwaitingCalibration && !_isPumpCommandPending;
+    public bool CanResetVolume => IsConnected && IsPumpOnline && !_awaitingResetVolume && !IsAwaitingCalibration && !_isPumpCommandPending && !IsRunning;
+
+    public bool CanStartRun => IsConnected && IsPumpOnline && !IsRunning && RunValidationError is null &&
+                               !_isPumpCommandPending && !IsAwaitingCalibration && !_awaitingResetVolume;
+
+    public bool CanAbortRun => IsRunning;
+
+    public bool CanAddRunPoint => HasPendingRun && !IsRunning && TryParseVolume(out _);
+
+    public bool CanEditRuns => !IsRunning;
+
+    public bool CanUseFit => HasFit && FitWarning is null && CanEditCalibration && !IsRunning;
+
+    /// <summary>The current least squares line over <see cref="Runs"/>, or null.</summary>
+    public PumpLinearFit? Fit => _fit;
 
     partial void OnSlopeTextChanged(string value) => ValidateAndRefresh();
 
     partial void OnInterceptTextChanged(string value) => ValidateAndRefresh();
+
+    partial void OnRunSpeedTextChanged(string value) => ValidateRunInputs();
+
+    partial void OnRunDurationTextChanged(string value) => ValidateRunInputs();
+
+    partial void OnMeasuredVolumeTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(CanAddRunPoint));
+        AddRunPointCommand.NotifyCanExecuteChanged();
+    }
 
     private void ValidateAndRefresh()
     {
@@ -148,10 +321,61 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         Preview500Text = q500.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
         Preview1000Text = q1000.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
 
+        // Typing over the fitted coefficients breaks their provenance; the receipt must not
+        // claim a fit that is no longer what is being applied.
+        if (_fitBehindCoefficients is { } behind &&
+            (!NearlyEqual(slope, behind.Slope) || !NearlyEqual(intercept, behind.Intercept)))
+        {
+            _fitBehindCoefficients = null;
+        }
+
         OnPropertyChanged(nameof(IsValid));
         OnPropertyChanged(nameof(CanApply));
         ApplyCommand.NotifyCanExecuteChanged();
     }
+
+    private void ValidateRunInputs()
+    {
+        if (!_initialised)
+        {
+            return;
+        }
+
+        if (!TryParseRunInputs(out _, out _, out var error))
+        {
+            RunValidationError = error;
+        }
+        else
+        {
+            RunValidationError = null;
+        }
+
+        StartRunCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool TryParseRunInputs(out double speed, out double seconds, out string? error)
+    {
+        speed = 0;
+        seconds = 0;
+        if (!DosingInput.TryParseDouble(RunSpeedText, out speed) || speed < 1.0 || speed > 1000.0)
+        {
+            error = "Velocidade S: inteiro entre 1 e 1000 (unidade interna da bomba).";
+            return false;
+        }
+
+        if (!DosingInput.TryParseDouble(RunDurationText, out seconds) || seconds < MinRunSeconds || seconds > MaxRunSeconds)
+        {
+            error = $"Duração: entre {MinRunSeconds:F0} e {MaxRunSeconds:F0} s.";
+            return false;
+        }
+
+        speed = Math.Round(speed);
+        error = null;
+        return true;
+    }
+
+    private bool TryParseVolume(out double volumeMl)
+        => DosingInput.TryParseDouble(MeasuredVolumeText, out volumeMl) && volumeMl > 0.0 && double.IsFinite(volumeMl);
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
@@ -204,6 +428,236 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         StatusText = "Comando de zerar volume enviado. Aguardando confirmação do nó...";
     }
 
+    // ------------------------------------------------------------------
+    // Volumetric runs
+    // ------------------------------------------------------------------
+
+    [RelayCommand(CanExecute = nameof(CanStartRun))]
+    private void StartRun()
+    {
+        if (!TryParseRunInputs(out var speed, out var seconds, out var error))
+        {
+            StatusText = error ?? "Parâmetros do acionamento inválidos.";
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed((int)speed));
+        if (!result.Accepted)
+        {
+            StatusText = DispatchRefusal.Describe(result);
+            return;
+        }
+
+        _runStartedAt = _timeProvider.GetUtcNow();
+        _runSpeed = speed;
+        _runPlannedSeconds = seconds;
+        _lastRun = null;
+        HasPendingRun = false;
+        RunSummaryText = "";
+        MeasuredVolumeText = "";
+        RunProgressPercent = 0;
+        RunCountdownText = $"{seconds.ToString("F0", CultureInfo.CurrentCulture)} s restantes";
+        IsRunning = true;
+        StatusText = $"Bomba a S = {speed:F0} por {seconds:F0} s. A parada é automática; recolha o volume no recipiente graduado.";
+        NotifyCommandAvailability();
+        EnsureRunTimer().Start();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanAbortRun))]
+    private void AbortRun() => FinishRun(aborted: true);
+
+    /// <summary>
+    /// Advances the run clock. The dispatcher timer calls it every 250 ms while a run is on;
+    /// tests call it directly after moving their <see cref="TimeProvider"/>.
+    /// </summary>
+    public void Tick()
+    {
+        if (!IsRunning)
+        {
+            return;
+        }
+
+        var elapsed = (_timeProvider.GetUtcNow() - _runStartedAt).TotalSeconds;
+        RunProgressPercent = Math.Clamp(elapsed / _runPlannedSeconds * 100.0, 0.0, 100.0);
+        RunCountdownText = $"{Math.Max(0.0, _runPlannedSeconds - elapsed).ToString("F0", CultureInfo.CurrentCulture)} s restantes";
+
+        if (elapsed >= _runPlannedSeconds)
+        {
+            FinishRun(aborted: false);
+        }
+    }
+
+    private void FinishRun(bool aborted)
+    {
+        if (!IsRunning)
+        {
+            return;
+        }
+
+        // The stop frame is what ends the run. If the arbiter refuses it (something else took
+        // the pump meanwhile) the run stays open and the next tick tries again - a refused stop
+        // must never be reported as a stop.
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(0));
+        if (!result.Accepted)
+        {
+            StatusText = "PARADA RECUSADA - a bomba pode continuar girando: " + DispatchRefusal.Describe(result);
+            return;
+        }
+
+        var elapsed = (_timeProvider.GetUtcNow() - _runStartedAt).TotalSeconds;
+        _runTimer?.Stop();
+        IsRunning = false;
+        RunProgressPercent = aborted ? RunProgressPercent : 100.0;
+        RunCountdownText = "";
+
+        if (aborted)
+        {
+            _lastRun = null;
+            HasPendingRun = false;
+            RunSummaryText = "";
+            StatusText = $"Acionamento abortado após {elapsed.ToString("F1", CultureInfo.CurrentCulture)} s; nenhum ponto foi criado.";
+        }
+        else
+        {
+            _lastRun = (_runSpeed, elapsed);
+            RunSummaryText = $"S {_runSpeed:F0} durante {elapsed.ToString("F1", CultureInfo.CurrentCulture)} s";
+            HasPendingRun = true;
+            StatusText = $"Bomba parada após {elapsed.ToString("F1", CultureInfo.CurrentCulture)} s. Leia o volume no recipiente graduado e informe abaixo.";
+        }
+
+        NotifyCommandAvailability();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanAddRunPoint))]
+    private void AddRunPoint()
+    {
+        if (_lastRun is not { } run || !TryParseVolume(out var volume))
+        {
+            StatusText = "Informe o volume coletado (mL, maior que zero) do último acionamento.";
+            return;
+        }
+
+        var point = new PumpCalibrationPoint
+        {
+            SpeedUnits = run.Speed,
+            Seconds = run.Seconds,
+            VolumeMl = volume,
+            CapturedAtUtc = _timeProvider.GetUtcNow().ToString("o"),
+        };
+        Runs.Add(new PumpCalibrationRunViewModel(point));
+        _lastRun = null;
+        HasPendingRun = false;
+        RunSummaryText = "";
+        MeasuredVolumeText = "";
+        PersistRuns();
+        RecomputeFit();
+        StatusText = $"Ponto registrado: S {point.SpeedUnits:F0} → {point.FlowMlPerMin.ToString("F2", CultureInfo.CurrentCulture)} mL/min " +
+                     $"({point.VolumeMl.ToString("F1", CultureInfo.CurrentCulture)} mL em {point.Seconds.ToString("F1", CultureInfo.CurrentCulture)} s).";
+        NotifyCommandAvailability();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditRuns))]
+    private void RemoveRun(PumpCalibrationRunViewModel? run)
+    {
+        if (run is null || !Runs.Remove(run))
+        {
+            return;
+        }
+
+        PersistRuns();
+        RecomputeFit();
+        StatusText = "Ponto removido.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditRuns))]
+    private void ClearRuns()
+    {
+        if (Runs.Count == 0)
+        {
+            return;
+        }
+
+        Runs.Clear();
+        PersistRuns();
+        RecomputeFit();
+        StatusText = "Todos os acionamentos foram removidos.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseFit))]
+    private void UseFit()
+    {
+        if (_fit is not { } fit)
+        {
+            return;
+        }
+
+        SlopeText = DosingInput.Format(fit.Slope, 4);
+        InterceptText = DosingInput.Format(fit.Intercept, 4);
+        _fitBehindCoefficients = fit;
+        StatusText = $"Coeficientes do ajuste copiados (n = {fit.Count}, R² = {FormatR2(fit.RSquared)}). " +
+                     "Confira a pré-visualização e use \"Aplicar calibração\" para enviar ao nó.";
+    }
+
+    private void RecomputeFit()
+    {
+        _fit = PumpLinearFit.TryFit(Runs.Select(r => r.Point).ToList());
+        foreach (var run in Runs)
+        {
+            run.Residual = _fit is { } f ? run.FlowMlPerMin - f.Predict(run.SpeedUnits) : null;
+        }
+
+        if (_fit is not { } fit)
+        {
+            HasFit = false;
+            FitSlopeText = FitInterceptText = FitRSquaredText = "—";
+            FitWarning = Runs.Count switch
+            {
+                0 => null,
+                1 => "São necessários ao menos dois acionamentos em velocidades diferentes.",
+                _ => "Os acionamentos estão todos na mesma velocidade; a inclinação não pode ser calculada.",
+            };
+            FitSummaryText = Runs.Count == 0
+                ? "Nenhum acionamento registrado."
+                : $"{Runs.Count} acionamento(s); ajuste indisponível.";
+            NotifyCommandAvailability();
+            return;
+        }
+
+        HasFit = true;
+        FitSlopeText = fit.Slope.ToString("F4", CultureInfo.CurrentCulture);
+        FitInterceptText = fit.Intercept.ToString("F4", CultureInfo.CurrentCulture);
+        FitRSquaredText = FormatR2(fit.RSquared);
+        FitWarning = fit.Slope <= 0.0
+            ? "A inclinação ajustada não é positiva; verifique os volumes informados."
+            : null;
+        FitSummaryText = $"Q = {FitSlopeText} · S + {FitInterceptText} (n = {fit.Count}, S de {fit.MinSpeed:F0} a {fit.MaxSpeed:F0})";
+        NotifyCommandAvailability();
+    }
+
+    private static string FormatR2(double r2)
+        => double.IsFinite(r2) ? r2.ToString("F4", CultureInfo.CurrentCulture) : "—";
+
+    private void PersistRuns()
+    {
+        var points = Runs.Select(r => r.Point).ToArray();
+        _settings.Update(s => s with { PumpControl = s.PumpControl with { CalibrationPoints = points } });
+    }
+
+    private DispatcherTimer EnsureRunTimer()
+    {
+        if (_runTimer is null)
+        {
+            _runTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = RunTickInterval };
+            _runTimer.Tick += (_, _) => Tick();
+        }
+
+        return _runTimer;
+    }
+
+    // ------------------------------------------------------------------
+    // Receipt and telemetry
+    // ------------------------------------------------------------------
+
     private string? WriteCalibrationReceipt(
         double requestedSlope,
         double requestedIntercept,
@@ -218,6 +672,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             {
                 timestampUtc = now.ToString("o"),
                 node = "external_pump",
+                method = _fitBehindCoefficients is not null ? "volumetric_runs_least_squares" : "manual_coefficients",
                 requested = new { slope = requestedSlope, intercept = requestedIntercept },
                 applied = new { slope = appliedSlope, intercept = appliedIntercept },
                 hubFirmwareVersion = snapshot.HubFirmwareVersion,
@@ -232,7 +687,18 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                     speed_250 = (appliedSlope * 250.0) + appliedIntercept,
                     speed_500 = (appliedSlope * 500.0) + appliedIntercept,
                     speed_1000 = (appliedSlope * 1000.0) + appliedIntercept
-                }
+                },
+                fit = _fitBehindCoefficients is { } fit
+                    ? new { slope = fit.Slope, intercept = fit.Intercept, rSquared = fit.RSquared, count = fit.Count, minSpeed = fit.MinSpeed, maxSpeed = fit.MaxSpeed }
+                    : null,
+                runs = Runs.Select(r => new
+                {
+                    speedUnits = r.SpeedUnits,
+                    seconds = r.Seconds,
+                    volumeMl = r.VolumeMl,
+                    flowMlPerMin = r.FlowMlPerMin,
+                    capturedAtUtc = r.Point.CapturedAtUtc,
+                }).ToArray(),
             };
 
             Directory.CreateDirectory(_calibrationsDirectory);
@@ -304,6 +770,10 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             }
         }
 
+        // Telemetry is the other clock: a frame arriving after the deadline ends the run even
+        // if the dispatcher timer is late.
+        Tick();
+
         NotifyCommandAvailability();
     }
 
@@ -361,6 +831,22 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         IsConnected = change.State == ConnectionState.Connected;
         if (!IsConnected)
         {
+            if (IsRunning)
+            {
+                // No link, no stop frame. The node keeps S until someone tells it otherwise, so
+                // the app owes it a stop the moment the link is back, and the operator has to
+                // hear that the pump may still be turning.
+                _runTimer?.Stop();
+                IsRunning = false;
+                _lastRun = null;
+                HasPendingRun = false;
+                RunSummaryText = "";
+                RunCountdownText = "";
+                _stopPendingOnReconnect = true;
+                StatusText = "Conexão perdida durante o acionamento: a bomba pode continuar girando. " +
+                             "A parada será enviada ao reconectar; se necessário, pare a bomba no próprio nó.";
+            }
+
             IsPumpOnline = false;
             AppliedSlopeText = "—";
             AppliedInterceptText = "—";
@@ -371,7 +857,14 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             _requestedCalibration = null;
             _calibrationRequestedAt = null;
             _isPumpCommandPending = false;
-            NotifyCommandAvailability();
+        }
+        else if (_stopPendingOnReconnect)
+        {
+            _stopPendingOnReconnect = false;
+            var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(0));
+            StatusText = result.Accepted
+                ? "Reconectado: parada da bomba enviada após o acionamento interrompido."
+                : "Reconectado, mas a parada da bomba foi recusada: " + DispatchRefusal.Describe(result);
         }
 
         NotifyCommandAvailability();
@@ -383,14 +876,78 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(CanEditCalibration));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanResetVolume));
+        OnPropertyChanged(nameof(CanStartRun));
+        OnPropertyChanged(nameof(CanAbortRun));
+        OnPropertyChanged(nameof(CanAddRunPoint));
+        OnPropertyChanged(nameof(CanEditRuns));
+        OnPropertyChanged(nameof(CanUseFit));
         ApplyCommand.NotifyCanExecuteChanged();
         RevertCommand.NotifyCanExecuteChanged();
         ResetVolumeCommand.NotifyCanExecuteChanged();
+        StartRunCommand.NotifyCanExecuteChanged();
+        AbortRunCommand.NotifyCanExecuteChanged();
+        AddRunPointCommand.NotifyCanExecuteChanged();
+        RemoveRunCommand.NotifyCanExecuteChanged();
+        ClearRunsCommand.NotifyCanExecuteChanged();
+        UseFitCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()
     {
+        if (IsRunning)
+        {
+            // Best effort: the workspace is going away with the pump still at S.
+            _runTimer?.Stop();
+            IsRunning = false;
+            _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(0));
+        }
+
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnDeviceStateChanged;
+    }
+}
+
+/// <summary>Ordinary least squares line <c>Q = Slope · S + Intercept</c> over volumetric runs.</summary>
+public sealed record PumpLinearFit(double Slope, double Intercept, double RSquared, int Count, double MinSpeed, double MaxSpeed)
+{
+    public double Predict(double speedUnits) => (Slope * speedUnits) + Intercept;
+
+    /// <summary>Null with fewer than two runs or when every run is at the same speed.</summary>
+    public static PumpLinearFit? TryFit(IReadOnlyList<PumpCalibrationPoint> points)
+    {
+        if (points.Count < 2)
+        {
+            return null;
+        }
+
+        var n = points.Count;
+        var meanS = points.Average(p => p.SpeedUnits);
+        var meanQ = points.Average(p => p.FlowMlPerMin);
+        var sxx = 0.0;
+        var sxy = 0.0;
+        var syy = 0.0;
+        foreach (var p in points)
+        {
+            var dx = p.SpeedUnits - meanS;
+            var dy = p.FlowMlPerMin - meanQ;
+            sxx += dx * dx;
+            sxy += dx * dy;
+            syy += dy * dy;
+        }
+
+        if (sxx <= 1e-9)
+        {
+            return null;
+        }
+
+        var slope = sxy / sxx;
+        var intercept = meanQ - (slope * meanS);
+        var r2 = syy <= 1e-12 ? 1.0 : (sxy * sxy) / (sxx * syy);
+        if (!double.IsFinite(slope) || !double.IsFinite(intercept))
+        {
+            return null;
+        }
+
+        return new PumpLinearFit(slope, intercept, r2, n, points.Min(p => p.SpeedUnits), points.Max(p => p.SpeedUnits));
     }
 }

@@ -753,6 +753,26 @@ public static class CommandBuilders
         return cmd;
     }
 
+    /// <summary>
+    /// Holds the pump motor at internal speed <paramref name="speedUnits"/> (0..1000) with
+    /// no profile running: <c>{"pump_speed":S}</c>. Zero stops the motor.
+    /// </summary>
+    /// <remarks>
+    /// The node applies it in idle mode and keeps the speed until the next <c>pump_speed</c>
+    /// or profile frame - there is no timer on the node side. The caller owns the stop: the
+    /// volumetric calibration sends <c>0</c> from its own clock so it knows how long the
+    /// pump actually ran.
+    /// </remarks>
+    public static OpenTECCommand PumpManualSpeed(int speedUnits)
+    {
+        if (speedUnits is < 0 or > 1000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(speedUnits), "Pump speed must be within 0..1000 internal units.");
+        }
+
+        return OpenTECCommand.Create().Set(CommandKeys.PumpManualSpeed, speedUnits);
+    }
+
     /// <summary>Resets the accumulated volume on the external pump node.</summary>
     public static OpenTECCommand PumpResetVolume()
         => OpenTECCommand.Create().Set(CommandKeys.PumpCommand, "reset_volume");

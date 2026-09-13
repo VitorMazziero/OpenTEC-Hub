@@ -228,8 +228,8 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
 
     public string CommMismatchText => CommEnabledOnHub switch
     {
-        true => $"O Hub está roteando {GenitiveName}, mas o comando local está desligado.",
-        false => $"O Hub não está roteando {GenitiveName}; os comandos serão descartados.",
+        true => $"O Hub está com o dispositivo habilitado, mas o interruptor local {GenitiveName} está desligado. Ligue-o para sincronizar.",
+        false => $"O Hub está com o dispositivo desabilitado; os comandos {GenitiveName} serão descartados. Desligue e religue o interruptor local para sincronizar.",
         null => "",
     };
 

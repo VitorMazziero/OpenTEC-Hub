@@ -51,7 +51,7 @@
                 BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
                 ToolTip="{Binding CommMismatchText}"
                 Visibility="{Binding ShowRoutingChipOnly, Converter={StaticResource BoolToVis}}">
-            <TextBlock Text="roteamento"
+            <TextBlock Text="Hub divergente"
                        FontSize="{Binding ChipFontSize, ElementName=Root}"
                        Foreground="{DynamicResource StateWarningTextBrush}" />
         </Border>

@@ -443,12 +443,12 @@
                                             <TextBlock Text="ms" Style="{StaticResource CaptionTextStyle}"
                                                        VerticalAlignment="Center" Margin="6,0,12,0"
                                                        Foreground="{DynamicResource TextMutedBrush}" />
-                                            <TextBlock Text="Roteamento no Hub" Style="{StaticResource CaptionTextStyle}"
+                                            <TextBlock Text="Habilitado no Hub" Style="{StaticResource CaptionTextStyle}"
                                                        VerticalAlignment="Center" Margin="0,0,8,0" />
                                             <ToggleButton VerticalAlignment="Center"
                                                           Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
                                                           IsChecked="{Binding IsRoutingEnabled, Mode=TwoWay}"
-                                                          ToolTip="Roteamento do servo no Hub. Desligar não para o nó: ele continua presente, e apenas os valores deixam de ser publicados." />
+                                                          ToolTip="Interruptor do servo no Hub: ligado, o Hub encaminha comandos e publica valores; desligado, descarta comandos e para de publicar. Desligar não para o nó: ele continua presente." />
                                         </StackPanel>
                                         <TextBlock Text="{Binding PollIntervalError}"
                                                    Visibility="{Binding PollIntervalError, Converter={StaticResource NullToVis}}"
@@ -1684,6 +1684,11 @@
                                                                Visibility="{Binding NodeConfigValidationError, Converter={StaticResource NullToVis}}"
                                                                Foreground="{DynamicResource StateAlarmTextBrush}"
                                                                FontSize="{DynamicResource FontSizeCaption}" Margin="0,4,0,0" />
+                                                    <TextBlock Text="{Binding NodeConfigSyncText}"
+                                                               Visibility="{Binding IsNodeConfigSyncing, Converter={StaticResource BoolToVis}}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               Foreground="{DynamicResource StateWarningTextBrush}"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0" />
                                                     <TextBlock Text="{Binding NodeConfigStatusText}"
                                                                Style="{StaticResource CaptionTextStyle}"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"
@@ -2188,9 +2193,13 @@
                                                     <WrapPanel>
                                                         <StackPanel Width="130" Margin="0,0,10,6">
                                                             <TextBlock Text="IT (ms)" Style="{StaticResource DosingFieldLabel}" />
-                                                            <TextBox Width="110" HorizontalAlignment="Left"
-                                                                     Text="{Binding AcquisitionIntegrationTimeText, UpdateSourceTrigger=PropertyChanged}"
-                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="Valores aceitos: 25, 50, 100, 200, 400 ou 800 ms" />
+                                                            <!-- A list, not a free field: the wire takes a code 0..5, and the six
+                                                                 times are the only values that code can name. -->
+                                                            <ComboBox Width="110" HorizontalAlignment="Left"
+                                                                      ItemsSource="{Binding IntegrationTimeOptions}"
+                                                                      SelectedItem="{Binding SelectedIntegrationTimeMs, Mode=TwoWay}"
+                                                                      IsEnabled="{Binding CanEditAcquisition}"
+                                                                      ToolTip="Tempo de integração do VEML7700 aplicado ao slot de IT selecionado pela marcha" />
                                                             <TextBlock Text="{Binding AppliedITText, StringFormat='Nó: {0} ms'}"
                                                                        Style="{StaticResource CaptionTextStyle}"
                                                                        Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
@@ -2204,14 +2213,27 @@
                                                                        Style="{StaticResource CaptionTextStyle}"
                                                                        Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
                                                         </StackPanel>
-                                                        <StackPanel Width="130" Margin="0,0,10,6">
-                                                            <TextBlock Text="Ganho (Gear)" Style="{StaticResource DosingFieldLabel}" />
-                                                            <TextBox Width="110" HorizontalAlignment="Left"
-                                                                     Text="{Binding AcquisitionGainGearText, UpdateSourceTrigger=PropertyChanged}"
-                                                                     IsEnabled="{Binding CanEditAcquisition}" ToolTip="Marcha óptica combinada: 0 a 31 (índice IT × 8 + índice PWM)" />
-                                                            <TextBlock Text="{Binding AppliedGearText, StringFormat='Nó: {0}'}"
+                                                        <StackPanel Width="190" Margin="0,0,10,6">
+                                                            <TextBlock Text="Marcha óptica (slot IT × slot PWM)" Style="{StaticResource DosingFieldLabel}" />
+                                                            <!-- The operator picks the two slots; the view model does IT × 8 + PWM.
+                                                                 Order matters downstream: set_gear goes first, then set_it and
+                                                                 set_pwm land on the slots this marcha selected. -->
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <ComboBox Width="60" ItemsSource="{Binding GearItSlots}"
+                                                                          SelectedItem="{Binding GearItSlot, Mode=TwoWay}"
+                                                                          IsEnabled="{Binding CanEditAcquisition}" ToolTip="Slot de tempo de integração (0..3)" />
+                                                                <TextBlock Text="×" VerticalAlignment="Center" Margin="6,0" />
+                                                                <ComboBox Width="60" ItemsSource="{Binding GearPwmSlots}"
+                                                                          SelectedItem="{Binding GearPwmSlot, Mode=TwoWay}"
+                                                                          IsEnabled="{Binding CanEditAcquisition}" ToolTip="Slot de PWM do LED (0..7)" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding GearPreviewText}"
                                                                        Style="{StaticResource CaptionTextStyle}"
-                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                                                            <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0">
+                                                                <Run Text="Nó: marcha " /><Run Text="{Binding AppliedGearText, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding AppliedGearDetailText, Mode=OneWay}" />
+                                                            </TextBlock>
                                                         </StackPanel>
                                                         <StackPanel Width="130" Margin="0,0,10,6">
                                                             <TextBlock Text="Fator EMA" Style="{StaticResource DosingFieldLabel}" />

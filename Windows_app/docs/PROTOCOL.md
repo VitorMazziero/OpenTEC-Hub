@@ -294,7 +294,11 @@ disabled until a pump firmware echoes them (§3.3 of the plan: no echo, no edita
 node reach the app through `GET /nodeDiag[?dev=]` (Wi-Fi) or the serial request
 `{"nodeDiag":"<dev>|all"}` (USB), which the Hub answers with one `{"NodeDiag":{…}}` line per node
 from a cache filled by its own task every 30 s. Contract in `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`
-("Diagnóstico dos nós"). See §2.0 for how the line is classified.
+("Diagnóstico dos nós"). See §2.0 for how the line is classified. Each entry also carries
+`truncated` and `body_bytes` (Hub 2026-09-12+): a `code 200` with `diag: null` and
+`truncated: true` means the node's `/diag` outgrew the Hub's 511 B cache, and the row says so
+("atualize o Hub") instead of "Sem métricas específicas". Both fields are optional in the parser
+(`HubNodeDiag.Truncated` defaults to false, `BodyBytes` to null) so older Hubs keep working.
 
 ### 2.0 Not every line is telemetry
 
@@ -624,6 +628,7 @@ camelCase keys, and the Hub translates them before enqueuing to each node's mail
 | `flowFfOffset` | float | Flowmeter node | `ff_offset` |
 | `flowRampRate` | float | Flowmeter node | `ramp_rate` |
 | `pump_command` | string | Pump node | `command` (e.g. `"reset_volume"`) |
+| `pump_speed` | int 0..1000 | Pump node | `speed` — hold the motor at S in idle mode; `0` stops. No node-side timer: the sender owns the stop (the volumetric calibration sends `0` from the app clock). `speed` without the prefix is rejected by the Hub |
 | `pumpSlope` | float | Pump node | `slope` |
 | `pumpIntercept` | float | Pump node | `intercept` |
 | `pumpPidKp` | float | Pump node | `pid_kp` |
@@ -681,6 +686,7 @@ distance config    {"distanceOffsetMm":25.5,"distanceSamplePeriodMs":200,"distan
 distance reset     {"distanceResetNvs":1}
 flow tuning        {"flowKp":0.8,"flowKi":0.05,"flowFfGain":1.2,"flowFfOffset":0.1,"flowRampRate":5.0}
 pump reset vol     {"pump_command":"reset_volume"}
+pump manual speed  {"pump_speed":500}          (calibration run; {"pump_speed":0} stops)
 pump calibration   {"pumpSlope":1.25,"pumpIntercept":0.05}
 pump PID           {"pumpPidKp":1.5,"pumpPidKi":0.2,"pumpPidKd":0.05}
 biomass IT         {"biomassIt":100}

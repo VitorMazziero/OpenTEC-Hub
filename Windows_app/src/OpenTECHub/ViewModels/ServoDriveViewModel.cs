@@ -302,8 +302,8 @@ public sealed partial class ServoDriveViewModel : ObservableObject, IDisposable
         // Deliberately not "servo desligado": the node keeps running and keeps pushing.
         // What stops is the Hub forwarding its values into the aggregate frame.
         StatusMessage = value
-            ? "Roteamento do servo drive ligado."
-            : "Roteamento desligado. O nó continua presente; os valores deixam de ser publicados.";
+            ? "Servo drive habilitado no Hub."
+            : "Servo drive desabilitado no Hub. O nó continua presente; os valores deixam de ser publicados.";
     }
 
     partial void OnIsMotorControlViaModbusChanged(bool value)

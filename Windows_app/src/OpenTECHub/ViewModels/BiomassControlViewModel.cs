@@ -73,6 +73,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         _device.StateChanged += OnDeviceStateChanged;
         _initialised = true;
         ValidateAndRefresh();
+        SyncSelectorsFromText();
         HasPendingChange = false;
     }
 
@@ -235,14 +236,14 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
         {
             // The acquisition did stop; only the routing switch did not land. Say so rather
             // than claiming either full success or full failure.
-            StatusText = "Aquisição interrompida, mas o roteamento do Hub não foi desligado: " +
+            StatusText = "Aquisição interrompida, mas o sensor continua habilitado no Hub: " +
                          DispatchRefusal.Describe(disable);
             return;
         }
 
         Status.IsCommRequested = false;
         Status.MarkCommandDispatched();
-        StatusText = "Sensor de biomassa desativado (aquisição parada e roteamento desligado).";
+        StatusText = "Sensor de biomassa desativado (aquisição parada e desabilitado no Hub).";
     }
 
     /// <summary>Puts the switch back after a refused toggle, without resending anything.</summary>
@@ -259,11 +260,114 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
 
     partial void OnOptimalThresholdTextChanged(string value) => ValidateAndRefresh();
 
-    partial void OnAcquisitionIntegrationTimeTextChanged(string value) => ValidateAcquisition();
+    partial void OnAcquisitionIntegrationTimeTextChanged(string value)
+    {
+        ValidateAcquisition();
+        SyncSelectorsFromText();
+    }
 
     partial void OnAcquisitionPwmTextChanged(string value) => ValidateAcquisition();
 
-    partial void OnAcquisitionGainGearTextChanged(string value) => ValidateAcquisition();
+    partial void OnAcquisitionGainGearTextChanged(string value)
+    {
+        ValidateAcquisition();
+        SyncSelectorsFromText();
+        OnPropertyChanged(nameof(GearPreviewText));
+    }
+
+    // ---- Selectors over the text fields (PONTOS §7.2) --------------------------------
+    // The wire wants an IT *code* and a linear gear index (IT slot × 8 + PWM slot); the
+    // operator thinks in milliseconds and in "which slot". The selectors own the arithmetic
+    // and keep the text properties as the single source the validator and tests read.
+
+    private bool _syncingSelectors;
+
+    /// <summary>Integration times the VEML7700 offers, in ms; each maps to a code 0..5 on the wire.</summary>
+    public IReadOnlyList<int> IntegrationTimeOptions => SupportedIntegrationTimesMs;
+
+    /// <summary>IT slots of the node's table (gear ÷ 8).</summary>
+    public IReadOnlyList<int> GearItSlots { get; } = [0, 1, 2, 3];
+
+    /// <summary>PWM slots of the node's table (gear mod 8).</summary>
+    public IReadOnlyList<int> GearPwmSlots { get; } = [0, 1, 2, 3, 4, 5, 6, 7];
+
+    /// <summary>Combo-bound view of <see cref="AcquisitionIntegrationTimeText"/>.</summary>
+    [ObservableProperty]
+    public partial int SelectedIntegrationTimeMs { get; set; } = 100;
+
+    /// <summary>IT slot the gear selects (0..3); with <see cref="GearPwmSlot"/> it is the gear index.</summary>
+    [ObservableProperty]
+    public partial int GearItSlot { get; set; }
+
+    /// <summary>PWM slot the gear selects (0..7).</summary>
+    [ObservableProperty]
+    public partial int GearPwmSlot { get; set; }
+
+    /// <summary>"Marcha 13 = slot IT 1 × slot PWM 5", or a dash when the text is not a valid gear.</summary>
+    public string GearPreviewText
+        => DosingInput.TryParseInteger(AcquisitionGainGearText, out var gear) && gear is >= 0 and <= 31
+            ? $"Marcha {gear} = slot IT {gear / 8} × slot PWM {gear % 8}"
+            : "—";
+
+    /// <summary>The node's echoed gear decoded the same way, so the two read side by side.</summary>
+    public string AppliedGearDetailText
+        => int.TryParse(AppliedGearText, NumberStyles.Integer, CultureInfo.CurrentCulture, out var gear) && gear is >= 0 and <= 31
+            ? $"slot IT {gear / 8} · slot PWM {gear % 8}"
+            : "";
+
+    partial void OnSelectedIntegrationTimeMsChanged(int value)
+    {
+        if (_syncingSelectors || Array.IndexOf(SupportedIntegrationTimesMs, value) < 0)
+        {
+            return;
+        }
+
+        AcquisitionIntegrationTimeText = value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    partial void OnGearItSlotChanged(int value) => PushGearFromSlots();
+
+    partial void OnGearPwmSlotChanged(int value) => PushGearFromSlots();
+
+    private void PushGearFromSlots()
+    {
+        if (_syncingSelectors)
+        {
+            return;
+        }
+
+        var it = Math.Clamp(GearItSlot, 0, 3);
+        var pwm = Math.Clamp(GearPwmSlot, 0, 7);
+        AcquisitionGainGearText = ((it * 8) + pwm).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void SyncSelectorsFromText()
+    {
+        if (_syncingSelectors)
+        {
+            return;
+        }
+
+        _syncingSelectors = true;
+        try
+        {
+            if (DosingInput.TryParseInteger(AcquisitionIntegrationTimeText, out var it) &&
+                Array.IndexOf(SupportedIntegrationTimesMs, it) >= 0)
+            {
+                SelectedIntegrationTimeMs = it;
+            }
+
+            if (DosingInput.TryParseInteger(AcquisitionGainGearText, out var gear) && gear is >= 0 and <= 31)
+            {
+                GearItSlot = gear / 8;
+                GearPwmSlot = gear % 8;
+            }
+        }
+        finally
+        {
+            _syncingSelectors = false;
+        }
+    }
 
     partial void OnAcquisitionEmaFactorTextChanged(string value) => ValidateAcquisition();
 
@@ -661,6 +765,7 @@ public sealed partial class BiomassControlViewModel : ObservableObject, IDisposa
             AppliedGearText = snapshot.BiomassGear.HasValue && snapshot.BiomassGear.Value > SensorReadings.NotReceived
                 ? snapshot.BiomassGear.Value.ToString(CultureInfo.CurrentCulture)
                 : "—";
+            OnPropertyChanged(nameof(AppliedGearDetailText));
             AppliedEmaText = snapshot.BiomassEma.HasValue && snapshot.BiomassEma.Value > SensorReadings.NotReceived
                 ? snapshot.BiomassEma.Value.ToString("F2", CultureInfo.CurrentCulture)
                 : "—";

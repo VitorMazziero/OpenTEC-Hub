@@ -489,6 +489,16 @@ public sealed class DeviceModel
     /// <summary>The profile mode the pump node reports running; 0 is idle.</summary>
     public int PumpMode { get; set; }
 
+    /// <summary>Internal speed S held by a <c>pump_speed</c> frame; 0 when no manual run is on.</summary>
+    public double PumpManualSpeed { get; set; }
+
+    /// <summary>
+    /// The flow the simulated pump would deliver at <see cref="PumpManualSpeed"/>, on the
+    /// firmware's shipped curve (slope 0.0280, intercept 1.7602). A calibration run that
+    /// collects this many mL per minute reproduces those coefficients within rounding.
+    /// </summary>
+    public double PumpManualFlowMlMin => PumpManualSpeed > 0.0 ? (0.0280188148 * PumpManualSpeed) + 1.7601988934 : 0.0;
+
     /// <summary>What the flask-agitator node reports actually driving.</summary>
     public double AgitatorPercent { get; set; }
 

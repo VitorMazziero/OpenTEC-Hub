@@ -83,6 +83,11 @@ public sealed partial class HubNodeRowViewModel(string device) : ObservableObjec
         null => "—",
         { Code: 0 } => "Nunca consultado pelo Hub",
         { Code: not 200 } d => $"HTTP {d.Code}",
+        // Before "Sem métricas": a 200 whose body outgrew the Hub cache also has an empty
+        // Extra, and the fix is a Hub update, not a node one.
+        { Truncated: true } d => d.BodyBytes is { } bytes
+            ? $"/diag com {bytes} B excede os 511 B do cache do Hub; atualize o Hub"
+            : "/diag excede os 511 B do cache do Hub; atualize o Hub",
         { Extra.Count: 0 } => "Sem métricas específicas",
         { } d => NodeFirmwareCatalog.DescribeDiag(Device, d.Extra),
     };

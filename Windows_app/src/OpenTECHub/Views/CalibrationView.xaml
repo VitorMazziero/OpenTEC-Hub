@@ -582,6 +582,164 @@
                             </Border>
                         </Grid>
 
+                        <!-- Volumetric runs: the same shape as the airflow tab's "send a setpoint,
+                             read the meter" loop, with the vessel as the meter. One run = hold S for
+                             T seconds (the app stops it), type the mL collected, get a point. -->
+                        <Border Style="{StaticResource CalibrationCard}" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="0.9*" />
+                                    <ColumnDefinition Width="1.1*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Left: one run -->
+                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                    <TextBlock Text="Acionamento volumétrico" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="A bomba gira à velocidade S pelo tempo escolhido e para sozinha. Recolha a saída num recipiente graduado e informe o volume: Q = V / Δt vira um ponto (S, Q)."
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="Velocidade S (1..1000)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding RunSpeedText, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsEnabled="{Binding CanEditRuns}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBlock Text="Duração (s)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding RunDurationText, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsEnabled="{Binding CanEditRuns}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding RunValidationError}"
+                                               Visibility="{Binding RunValidationError, Converter={StaticResource NullToVis}}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource StateAlarmTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Button Content="Acionar bomba"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding StartRunCommand}" Margin="0,0,8,0" />
+                                        <Button Content="Abortar"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                Command="{Binding AbortRunCommand}"
+                                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+
+                                    <StackPanel Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
+                                        <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding RunProgressPercent}" />
+                                        <TextBlock Text="{Binding RunCountdownText}" Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0" />
+                                    </StackPanel>
+
+                                    <!-- After the stop: the vessel reading closes the point -->
+                                    <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="10"
+                                            Visibility="{Binding HasPendingRun, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding RunSummaryText}" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}" />
+                                            <TextBlock Text="Volume coletado (mL)" Style="{StaticResource CalibrationLabel}" Margin="0,8,0,0" />
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="Registrar ponto"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        Command="{Binding AddRunPointCommand}" Margin="8,0,0,0" />
+                                                <TextBox Text="{Binding MeasuredVolumeText, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="Leitura do recipiente graduado em mL (ponto ou vírgula)." />
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Right: the runs and the line through them -->
+                                <DockPanel Grid.Column="1">
+                                    <TextBlock DockPanel.Dock="Top" Text="Pontos e ajuste linear" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock DockPanel.Dock="Top" Text="{Binding FitSummaryText}"
+                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,8" />
+
+                                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                        <UniformGrid Columns="3" Margin="0,0,0,8">
+                                            <StackPanel Margin="0,0,4,0">
+                                                <TextBlock Text="Ganho ajustado" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                <TextBlock Text="{Binding FitSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="4,0,4,0">
+                                                <TextBlock Text="Deslocamento ajustado" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                <TextBlock Text="{Binding FitInterceptText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="4,0,0,0">
+                                                <TextBlock Text="R²" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                                                <TextBlock Text="{Binding FitRSquaredText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <TextBlock Text="{Binding FitWarning}"
+                                                   Visibility="{Binding FitWarning, Converter={StaticResource NullToVis}}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{DynamicResource StateWarningTextBrush}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,8" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="Limpar pontos" Command="{Binding ClearRunsCommand}" Margin="0,0,8,0" />
+                                            <Button Content="Usar ajuste nos coeficientes"
+                                                    Command="{Binding UseFitCommand}"
+                                                    ToolTip="Copia ganho e deslocamento do ajuste para os campos acima. Nada é enviado ao nó até 'Aplicar calibração'." />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="1" CornerRadius="4" MinHeight="120">
+                                        <DockPanel>
+                                            <Grid DockPanel.Dock="Top" Background="{DynamicResource SurfaceSunkenBrush}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="S" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
+                                                <TextBlock Grid.Column="1" Text="Δt" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
+                                                <TextBlock Grid.Column="2" Text="V" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
+                                                <TextBlock Grid.Column="3" Text="Q" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
+                                                <TextBlock Grid.Column="4" Text="Resíduo" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="8,5" />
+                                                <TextBlock Grid.Column="5" Text="" Width="28" />
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding Runs}" Margin="0,2">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:PumpCalibrationRunViewModel}">
+                                                        <Grid Margin="0,1">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="1.2*" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding SpeedText}" Style="{StaticResource NumericTextStyle}" Margin="8,3" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding SecondsText}" Style="{StaticResource NumericTextStyle}" Margin="8,3" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding VolumeText}" Style="{StaticResource NumericTextStyle}" Margin="8,3" />
+                                                            <TextBlock Grid.Column="3" Text="{Binding FlowText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" Margin="8,3" />
+                                                            <TextBlock Grid.Column="4" Text="{Binding ResidualText}" Style="{StaticResource NumericTextStyle}" Margin="8,3"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                            <Button Grid.Column="5" Content="✕" Width="28" Height="24" Padding="0" Margin="0,0,4,0"
+                                                                    ToolTip="Remover este ponto"
+                                                                    Command="{Binding DataContext.RemoveRunCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </DockPanel>
+                                    </Border>
+                                </DockPanel>
+                            </Grid>
+                        </Border>
+
                         <TextBlock Text="{Binding StatusText}"
                                    Style="{StaticResource CaptionTextStyle}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"

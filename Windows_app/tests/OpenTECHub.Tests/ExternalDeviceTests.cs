@@ -179,7 +179,7 @@ public sealed class ExternalDeviceTests
         status.Update(hasTelemetry: true, online: true, pending: null, commEnabled: false);
 
         Assert.True(status.HasCommMismatch);
-        Assert.Contains("não está roteando", status.StatusText, StringComparison.Ordinal);
+        Assert.Contains("desabilitado", status.StatusText, StringComparison.Ordinal);
     }
 
     [Fact]

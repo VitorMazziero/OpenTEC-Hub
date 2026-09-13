@@ -245,7 +245,7 @@ public sealed class AlarmService : IAlarmService
         // Longer on-delay: this compares two persisted stores, and the app's own enable
         // command needs a telemetry round trip before the Hub's echo can agree with it.
         // A tighter window would fire on every legitimate toggle.
-        new(AlarmId.DeviceRoutingMismatch, "Roteamento divergente no Hub", AlarmSeverity.Warning,
+        new(AlarmId.DeviceRoutingMismatch, "Hub e aplicativo divergem sobre um dispositivo", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(2)),
         // Three seconds (plan §3.3): the one-frame switch the runners send can echo the new
         // setpoint one frame before the new pair, and a legitimate transition must not ring.
@@ -529,7 +529,7 @@ public sealed class AlarmService : IAlarmService
         AlarmId.BiomassOffline => (
             connected && RoutingRequested(DeviceNames.Routing.Absorbance) &&
             _lastSnapshot is { BiomassCommEnabled: true, BiomassOnline: false, HasBiomassTelemetry: true },
-            "O sensor de biomassa não está respondendo à Central, mas o roteamento do Hub está ligado."),
+            "O sensor de biomassa não está respondendo à Central, embora esteja habilitado no Hub."),
 
         AlarmId.ExternalPumpOffline => (
             connected && RoutingRequested(DeviceNames.Routing.ExternalPump) &&
@@ -548,7 +548,7 @@ public sealed class AlarmService : IAlarmService
 
         AlarmId.ServoDriveOffline => (
             connected && _lastSnapshot is { ServoCommEnabled: true, ServoOnline: false, HasServoTelemetry: true },
-            "O nó do servo drive não está respondendo à Central, mas o roteamento do Hub está ligado."),
+            "O nó do servo drive não está respondendo à Central, embora esteja habilitado no Hub."),
 
         // Either signal is enough. The state says the drive stopped; the code says why, and
         // the bench has seen a code arrive a frame before the state caught up.

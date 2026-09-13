@@ -146,6 +146,14 @@ public static class CommandKeys
     /// </summary>
     public const string Speed = "speed";
 
+    /// <summary>
+    /// Runs the pump motor at a fixed internal speed <c>S</c> (0..1000) with no profile:
+    /// <c>{"pump_speed":S}</c>. The Hub strips the prefix and the node takes <c>speed</c>
+    /// as "idle mode, motor at S until told otherwise" — <c>0</c> stops it. This is the
+    /// one command the volumetric calibration needs: hold S for a timed run, then measure.
+    /// </summary>
+    public const string PumpManualSpeed = "pump_speed";
+
     /// <summary>Absolute start time of the profile, in minutes (<c>t' = t − init_t</c>).</summary>
     public const string InitT = "init_t";
 

@@ -16,7 +16,17 @@ public sealed record HubNodeDiag(
     long? UptimeS,
     int? HubFailStreak,
     bool? Ota,
-    IReadOnlyDictionary<string, string> Extra);
+    IReadOnlyDictionary<string, string> Extra)
+{
+    /// <summary>
+    /// The node's /diag exceeded the Hub's 511 B cache, so <c>diag</c> came back null even
+    /// though <see cref="Code"/> is 200. Absent on Hubs before 2026-09-12 (reads as false).
+    /// </summary>
+    public bool Truncated { get; init; }
+
+    /// <summary>Real size of the node's /diag body as the Hub received it; null when the Hub predates the field.</summary>
+    public int? BodyBytes { get; init; }
+}
 
 /// <summary>A complete HTTP response, or one serial <c>NodeDiag</c> entry.</summary>
 public sealed record HubNodeDiagDirectory(long? HubTimeMs, IReadOnlyList<HubNodeDiag> Nodes)
@@ -150,7 +160,11 @@ public sealed class HubNodeDiagClient : IDisposable
             }
         }
 
-        return new HubNodeDiag(dev.GetString()!, code, age, rssi, freeHeap, uptime, failStreak, ota, extra);
+        return new HubNodeDiag(dev.GetString()!, code, age, rssi, freeHeap, uptime, failStreak, ota, extra)
+        {
+            Truncated = TryBool(entry, "truncated") ?? false,
+            BodyBytes = TryInt32(entry, "body_bytes"),
+        };
     }
 
     private static int? TryInt32(JsonElement element, string name)

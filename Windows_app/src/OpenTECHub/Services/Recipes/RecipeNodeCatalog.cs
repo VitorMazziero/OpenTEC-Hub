@@ -173,7 +173,7 @@ public static class RecipeNodeCatalog
 
     private static readonly RecipeOption[] ExternalPumpActions =
     [
-        new(nameof(ExternalPumpAction.Enable), "Ativar roteamento"),
+        new(nameof(ExternalPumpAction.Enable), "Habilitar no Hub"),
         new(nameof(ExternalPumpAction.SendProfile), "Enviar perfil"),
         new(nameof(ExternalPumpAction.Stop), "Parar e desativar"),
     ];
@@ -190,7 +190,7 @@ public static class RecipeNodeCatalog
 
     private static readonly RecipeOption[] BiomassActions =
     [
-        new(nameof(BiomassAction.Enable), "Ativar roteamento"),
+        new(nameof(BiomassAction.Enable), "Habilitar no Hub"),
         new(nameof(BiomassAction.Blank), "Capturar branco"),
         new(nameof(BiomassAction.Start), "Iniciar aquisição"),
         new(nameof(BiomassAction.Stop), "Parar aquisição"),

@@ -163,8 +163,8 @@ public static class WireCodec
         {
             AppendInt(buffer, "PumpMode", model.PumpMode);
             AppendInt(buffer, "PumpPWM", 180);
-            Append(buffer, "PumpSpeed", 42.5, 1);
-            Append(buffer, "PumpFlow", 1.25, 3);
+            Append(buffer, "PumpSpeed", model.PumpManualSpeed > 0.0 ? model.PumpManualSpeed : 42.5, 1);
+            Append(buffer, "PumpFlow", model.PumpManualSpeed > 0.0 ? model.PumpManualFlowMlMin : 1.25, 3);
             Append(buffer, "PumpVol", model.PumpVolume, 3);
             Append(buffer, "PumpTargetVol", model.PumpVolume, 3);
             AppendBool(buffer, "PumpActive", model.PumpMode > 0);
@@ -414,6 +414,14 @@ public static class WireCodec
         if (model.PumpEnabled && TryDouble(root, CommandKeys.Mode, out var pumpMode))
         {
             model.PumpMode = (int)pumpMode;
+        }
+
+        // Manual speed: the node drops to idle and holds S; zero stops it. The simulator
+        // mirrors that so the volumetric calibration can be rehearsed without a bench.
+        if (model.PumpEnabled && TryDouble(root, CommandKeys.PumpManualSpeed, out var manualSpeed))
+        {
+            model.PumpMode = 0;
+            model.PumpManualSpeed = Math.Clamp(manualSpeed, 0.0, 1000.0);
         }
 
         if (TryDouble(root, CommandKeys.AgitatorPercent, out var agitatorPercent))

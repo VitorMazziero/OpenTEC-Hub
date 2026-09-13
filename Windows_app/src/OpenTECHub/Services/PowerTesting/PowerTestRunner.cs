@@ -897,7 +897,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         {
             if (RequiresServoMeasurement(_phase))
             {
-                PauseForMeasurement("A medida do servo ficou ausente, offline ou sem roteamento.");
+                PauseForMeasurement("A medida do servo ficou ausente, offline ou desabilitada no Hub.");
             }
             return;
         }

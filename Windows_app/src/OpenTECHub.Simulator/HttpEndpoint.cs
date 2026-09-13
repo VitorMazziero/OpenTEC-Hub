@@ -227,7 +227,8 @@ public sealed class HttpEndpoint(DeviceModel model, int port, Action<string> log
             }
             var registered = model.NodeRegistered(device);
             var diag = registered ? SimulatorDiag(device) : "null";
-            rows.Add($"{{\"dev\":\"{device}\",\"code\":{(registered ? 200 : 0)},\"age_ms\":{(registered ? 400 : 999999)},\"diag\":{diag}}}");
+            rows.Add($"{{\"dev\":\"{device}\",\"code\":{(registered ? 200 : 0)},\"age_ms\":{(registered ? 400 : 999999)}," +
+                     $"\"truncated\":false,\"body_bytes\":{(registered ? diag.Length : 0)},\"diag\":{diag}}}");
         }
         Respond(context, 200, string.Create(CultureInfo.InvariantCulture, $"{{\"hub_time_ms\":{now},\"nodes\":[{string.Join(",", rows)}]}}"));
     }

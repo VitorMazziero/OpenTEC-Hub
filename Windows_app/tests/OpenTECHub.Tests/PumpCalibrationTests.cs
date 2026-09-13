@@ -452,4 +452,203 @@ public sealed class PumpCalibrationTests
         vm.AcquisitionGainGearText = "32";
         Assert.False(vm.IsAcquisitionValid);
     }
+
+    // ------------------------------------------------------------------
+    // Volumetric runs (PONTOS §7.1, volume never mass)
+    // ------------------------------------------------------------------
+
+    private static (PumpCalibrationViewModel Vm, RecordingDeviceService Device, MemorySettingsService Settings, TestClock Clock) OnlinePump()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
+        var device = new RecordingDeviceService();
+        var settings = new MemorySettingsService();
+        var vm = new PumpCalibrationViewModel(device, settings, timeProvider: clock,
+            calibrationsDirectory: Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N")));
+        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true });
+        return (vm, device, settings, clock);
+    }
+
+    [Fact]
+    public void Volumetric_run_holds_speed_and_stops_itself_from_the_app_clock()
+    {
+        var (vm, device, _, clock) = OnlinePump();
+        using var _ = vm;
+
+        vm.RunSpeedText = "500";
+        vm.RunDurationText = "60";
+        Assert.True(vm.CanStartRun);
+
+        vm.StartRunCommand.Execute(null);
+
+        // The start frame is the manual-speed key the Hub forwards as "speed" to the node.
+        Assert.Contains("""{"pump_speed":500}""", device.Sent[^1]);
+        Assert.True(vm.IsRunning);
+        Assert.False(vm.CanApply);
+        Assert.False(vm.CanStartRun);
+
+        clock.Advance(TimeSpan.FromSeconds(30));
+        vm.Tick();
+        Assert.True(vm.IsRunning);
+        Assert.Equal(50.0, vm.RunProgressPercent, 1);
+        Assert.Contains("30 s", vm.RunCountdownText);
+
+        // The stop must be automatic, and the point must carry the app's measured interval.
+        clock.Advance(TimeSpan.FromSeconds(30.4));
+        vm.Tick();
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+        Assert.False(vm.IsRunning);
+        Assert.True(vm.HasPendingRun);
+        Assert.Contains(60.4.ToString("F1", CultureInfo.CurrentCulture) + " s", vm.RunSummaryText);
+    }
+
+    [Fact]
+    public void Telemetry_arrival_also_ends_an_overdue_run()
+    {
+        var (vm, device, _, clock) = OnlinePump();
+        using var _ = vm;
+        vm.RunDurationText = "10";
+        vm.StartRunCommand.Execute(null);
+
+        clock.Advance(TimeSpan.FromSeconds(11));
+        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpSpeed = 500 });
+
+        Assert.False(vm.IsRunning);
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+    }
+
+    [Fact]
+    public void Abort_stops_the_pump_and_creates_no_point()
+    {
+        var (vm, device, _, clock) = OnlinePump();
+        using var _ = vm;
+        vm.StartRunCommand.Execute(null);
+        clock.Advance(TimeSpan.FromSeconds(5));
+
+        vm.AbortRunCommand.Execute(null);
+
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+        Assert.False(vm.IsRunning);
+        Assert.False(vm.HasPendingRun);
+        Assert.Empty(vm.Runs);
+    }
+
+    [Fact]
+    public void Points_derive_flow_from_volume_and_measured_time_and_fit_a_line()
+    {
+        var (vm, _, settings, clock) = OnlinePump();
+        using var _ = vm;
+
+        // Three runs on the firmware's shipped curve Q = 0.0280·S + 1.7602, 60 s each.
+        foreach (var (speed, volume) in new[] { (250.0, 8.7649), (500.0, 15.7696), (1000.0, 29.7790) })
+        {
+            vm.RunSpeedText = speed.ToString(CultureInfo.InvariantCulture);
+            vm.RunDurationText = "60";
+            vm.StartRunCommand.Execute(null);
+            clock.Advance(TimeSpan.FromSeconds(60));
+            vm.Tick();
+            Assert.True(vm.HasPendingRun);
+            Assert.False(vm.CanAddRunPoint);
+
+            vm.MeasuredVolumeText = volume.ToString(CultureInfo.InvariantCulture);
+            Assert.True(vm.CanAddRunPoint);
+            vm.AddRunPointCommand.Execute(null);
+        }
+
+        Assert.Equal(3, vm.Runs.Count);
+        Assert.Equal(15.7696, vm.Runs[1].FlowMlPerMin, 3);   // 15.7696 mL in 60 s
+        Assert.True(vm.HasFit);
+        Assert.Null(vm.FitWarning);
+        Assert.Equal(0.0280188148, vm.Fit!.Slope, 4);
+        Assert.Equal(1.7601988934, vm.Fit.Intercept, 3);
+        Assert.Equal(1.0, vm.Fit.RSquared, 4);
+
+        // Points persist with the pump settings, and the coefficient fields are untouched
+        // until the operator asks for the fit explicitly (they still show what was typed).
+        Assert.Equal(3, settings.Current.PumpControl.CalibrationPoints.Length);
+        vm.SlopeText = "9.9999";
+        Assert.NotEqual(vm.Fit.Slope.ToString("F4", CultureInfo.CurrentCulture), vm.SlopeText);
+
+        Assert.True(vm.CanUseFit);
+        vm.UseFitCommand.Execute(null);
+        Assert.Equal(vm.Fit.Slope.ToString("F4", CultureInfo.CurrentCulture), vm.SlopeText);
+        Assert.True(vm.CanApply);
+    }
+
+    [Fact]
+    public void Single_speed_runs_cannot_fit_and_say_so()
+    {
+        var (vm, _, _, clock) = OnlinePump();
+        using var _ = vm;
+        for (var i = 0; i < 2; i++)
+        {
+            vm.RunSpeedText = "400";
+            vm.StartRunCommand.Execute(null);
+            clock.Advance(TimeSpan.FromSeconds(60));
+            vm.Tick();
+            vm.MeasuredVolumeText = "10";
+            vm.AddRunPointCommand.Execute(null);
+        }
+
+        Assert.False(vm.HasFit);
+        Assert.False(vm.CanUseFit);
+        Assert.Contains("mesma velocidade", vm.FitWarning);
+    }
+
+    [Fact]
+    public void Receipt_records_the_runs_and_the_fit_behind_the_applied_coefficients()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
+        var device = new RecordingDeviceService();
+        var receiptDirectory = Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N"));
+        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), timeProvider: clock, calibrationsDirectory: receiptDirectory);
+        device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true });
+
+        foreach (var (speed, volume) in new[] { (200.0, 10.0), (800.0, 40.0) })
+        {
+            vm.RunSpeedText = speed.ToString(CultureInfo.InvariantCulture);
+            vm.RunDurationText = "30";
+            vm.StartRunCommand.Execute(null);
+            clock.Advance(TimeSpan.FromSeconds(30));
+            vm.Tick();
+            vm.MeasuredVolumeText = volume.ToString(CultureInfo.InvariantCulture);
+            vm.AddRunPointCommand.Execute(null);
+        }
+
+        vm.UseFitCommand.Execute(null);
+        vm.ApplyCommand.Execute(null);
+        var fit = vm.Fit!;
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpSlope = Math.Round(fit.Slope, 4),
+            PumpIntercept = Math.Round(fit.Intercept, 4),
+        });
+
+        var receipt = Directory.GetFiles(receiptDirectory, "bomba-externa-*.json").Single();
+        using var doc = JsonDocument.Parse(File.ReadAllText(receipt));
+        var root = doc.RootElement;
+        Assert.Equal("volumetric_runs_least_squares", root.GetProperty("method").GetString());
+        Assert.Equal(2, root.GetProperty("runs").GetArrayLength());
+        Assert.Equal(20.0, root.GetProperty("runs")[0].GetProperty("flowMlPerMin").GetDouble(), 6);   // 10 mL in 30 s
+        Assert.Equal(2, root.GetProperty("fit").GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public void Link_loss_during_a_run_owes_a_stop_on_reconnect()
+    {
+        var (vm, device, _, clock) = OnlinePump();
+        using var _ = vm;
+        vm.StartRunCommand.Execute(null);
+        clock.Advance(TimeSpan.FromSeconds(3));
+
+        device.PushState(ConnectionState.Disconnected);
+        Assert.False(vm.IsRunning);
+        Assert.Contains("pode continuar girando", vm.StatusText);
+        var sentBeforeReconnect = device.Sent.Count;
+
+        device.PushState(ConnectionState.Connected);
+        Assert.Equal(sentBeforeReconnect + 1, device.Sent.Count);
+        Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
+    }
 }

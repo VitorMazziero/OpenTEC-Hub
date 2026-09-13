@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1, 2, 3 e 4 implementadas e testadas; as etapas 5–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1, 2, 3, 4 e 5 implementadas e testadas; as etapas 6–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -766,6 +766,34 @@ O protocolo do aplicativo representa fielmente os contratos dos firmwares e perm
 ```text
 feat(protocol): expose dual-range calibration telemetry
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado nesta etapa, no protocolo C#, parser de telemetria, simulador e suíte de testes do Windows App:
+
+- Declaração tipada de constantes em `OpenTECHub.Protocol.CommandKeys`:
+  - Comandos: `FlowTransitionVoltage = "flowTransitionVoltage"`, `PumpSlopeLow = "pumpSlopeLow"`, `PumpSlopeHigh = "pumpSlopeHigh"`, `PumpTransitionSpeed = "pumpTransitionSpeed"`, `PumpTransitionFlow = "pumpTransitionFlow"`.
+  - Telemetria (`TelemetryKeys`): `FlowTransitionVoltage = "FlowTransitionVoltage"`, `PumpSlopeLow = "PumpSlopeLow"`, `PumpSlopeHigh = "PumpSlopeHigh"`, `PumpTransitionSpeed = "PumpTransitionSpeed"`, `PumpTransitionFlow = "PumpTransitionFlow"`, `PumpCalCrc = "PumpCalCrc"`.
+- Builders atômicos em `OpenTECHub.Protocol.CommandBuilders` com validação defensiva rigorosa:
+  - `FlowCalibration(maxFlow, a1, b1, k1, f1, c1, k2, f2, c2, transitionVoltage)`: valida finitude, $0 < V_t < 3.3\text{ V}$, $Q_\text{max} > 0$ e serializa na ordem exata de chaves exigida pelo Hub e fluxômetro.
+  - `PumpDualRangeCalibration(slopeLow, slopeHigh, transitionSpeed, transitionFlow)`: valida finitude, inclinações $> 0$, velocidade $0 < S_t < 1000$, vazão $Q_t > 0$ e restrição física $Q_t - m_\text{low} \cdot S_t \ge 0$ (evitando vazão negativa em repouso), emitindo atomicamente os 4 campos no mesmo quadro.
+- Modelos de dados em `OpenTECHub.Protocol.SensorReadings`:
+  - Adicionadas propriedades anuláveis (`double?` e `long?`) a `SensorReadings` e `SensorSnapshot`: `FlowTransitionVoltage`, `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow`, `PumpCalCrc`.
+  - Preservação da semântica onde `null` representa ausência de telemetria (dispositivo legado ou offline) e não o valor `0.0`.
+- Parser não-pegajoso em `OpenTECHub.Protocol.TelemetryParser`:
+  - Parse de `FlowTransitionVoltage` em `ParseFlow` e dos 5 campos da bomba em `ParsePump`.
+  - Limpeza estrita a cada quadro: propriedades não presentes no JSON corrente são redefinidas para `null`, impedindo estado fantasma ou eco persistente.
+- Atualização do simulador em `OpenTECHub.Simulator`:
+  - `DeviceModel`: campos `FlowTransitionVoltage`, `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow`, `PumpCalCrc`, `PumpCommandPending` e método estático `CalculatePumpCalibrationCrc` calculando CRC32 IEEE 802.3 determinístico sobre os 16 bytes de floats em IEEE 754 little-endian.
+  - `WireCodec.BuildTelemetry`: emissão condicional dos 6 novos campos quando `Scenario != Scenario.LegacyHub`, além de consumo atômico de `PumpCommandPending` via `ConsumePumpCommandPending()`.
+  - `WireCodec.ApplyCommand`: parse e validação dos comandos atômicos de calibração dupla, acionando flags de pendência e rejeitando quadros incompletos ou com restrições físicas violadas (preservando a calibração anterior intacta).
+- Testes automatizados adicionados e aprovados:
+  - Em `WireFormatTests.cs`: validação do formato wire e rejeição de parâmetros inválidos/out-of-bounds/violação física para os builders de fluxo e bomba, bem como conformidade literal das constantes de `CommandKeys` e `TelemetryKeys`.
+  - Em `SimulatorNodeConfigTests.cs`: testes de parsing dos 6 novos ecos, garantia de não-pegajosidade (reset para `null` no quadro seguinte), aplicação e rejeição defensiva no simulador, consumo de flag pendente e supressão de todos os novos campos no cenário `Scenario.LegacyHub`.
+  - Suíte completa do .NET executada: 1.640 testes aprovados, 0 falhas.
+  - Verificação de regressão nos firmwares: `verify_contract.py` (87/87 OK), `test_firmware_v12_contract.py` (8/8 OK), `test_firmware_v311_contract.py` (9/9 OK).
+
+Não implementado nesta etapa: persistência de perfis por mangueira no aplicativo (Etapa 6), ViewModel e telas XAML (Etapas 7 e 8) e testes end-to-end de UI (Etapas 9–10).
 
 ## 16. Etapa 6 — implementar o armazenamento de perfis da bomba
 

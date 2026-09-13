@@ -13,6 +13,9 @@ namespace OpenTECHub.Tests;
 
 public sealed class PumpCalibrationTests
 {
+    private static PumpCalibrationProfileStore FreshStore() => new(
+        Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", "PumpProfiles", Guid.NewGuid().ToString("N")));
+
     private sealed class TestClock(DateTimeOffset initial) : TimeProvider
     {
         private DateTimeOffset _now = initial;
@@ -49,7 +52,7 @@ public sealed class PumpCalibrationTests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
-        using var vm = new PumpCalibrationViewModel(device, settings);
+        using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
         // Continuous dual-range: Qt = 16.0 mL/min, St = 500 un, m_baixo = 0.02, m_alto = 0.03
         // S <= 500: Q = 16.0 + 0.02 * (S - 500)
@@ -70,7 +73,7 @@ public sealed class PumpCalibrationTests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
-        using var vm = new PumpCalibrationViewModel(device, settings);
+        using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
         var previous = Assert.IsType<PumpDualRangeCurve>(vm.Curve);
         vm.TransitionFlowText = "0.0";
@@ -102,7 +105,8 @@ public sealed class PumpCalibrationTests
             device,
             settings,
             timeProvider: clock,
-            calibrationsDirectory: receiptDirectory);
+            calibrationsDirectory: receiptDirectory,
+            profileStore: FreshStore());
 
         device.PushTelemetry(new SensorSnapshot
         {
@@ -178,7 +182,8 @@ public sealed class PumpCalibrationTests
             device,
             settings,
             timeProvider: clock,
-            calibrationsDirectory: receiptDirectory);
+            calibrationsDirectory: receiptDirectory,
+            profileStore: FreshStore());
 
         device.PushTelemetry(new SensorSnapshot
         {
@@ -211,7 +216,7 @@ public sealed class PumpCalibrationTests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
-        using var vm = new PumpCalibrationViewModel(device, settings);
+        using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
         device.PushTelemetry(new SensorSnapshot
         {
@@ -231,7 +236,7 @@ public sealed class PumpCalibrationTests
     public void Pump_calibration_blocks_apply_on_legacy_hub(string hubVersion)
     {
         var device = new RecordingDeviceService();
-        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService());
+        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), profileStore: FreshStore());
         device.PushTelemetry(new SensorSnapshot
         {
             HasPumpTelemetry = true,
@@ -253,7 +258,7 @@ public sealed class PumpCalibrationTests
     public void Pump_calibration_blocks_apply_while_operational_profile_is_active_or_waiting(bool active, bool waiting)
     {
         var device = new RecordingDeviceService();
-        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService());
+        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), profileStore: FreshStore());
         device.PushTelemetry(new SensorSnapshot
         {
             HasPumpTelemetry = true,
@@ -308,7 +313,7 @@ public sealed class PumpCalibrationTests
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
-        using var vm = new PumpCalibrationViewModel(device, settings);
+        using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
         device.PushTelemetry(new SensorSnapshot
         {
@@ -336,7 +341,7 @@ public sealed class PumpCalibrationTests
         var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
-        using var vm = new PumpCalibrationViewModel(device, settings, timeProvider: clock);
+        using var vm = new PumpCalibrationViewModel(device, settings, timeProvider: clock, profileStore: FreshStore());
 
         device.PushTelemetry(new SensorSnapshot { HasPumpTelemetry = true, PumpOnline = true, PumpVolume = 250.0 });
         Assert.True(vm.CanResetVolume);
@@ -362,7 +367,7 @@ public sealed class PumpCalibrationTests
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
         var receiptDirectory = Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N"));
-        using var vm = new PumpCalibrationViewModel(device, settings, calibrationsDirectory: receiptDirectory);
+        using var vm = new PumpCalibrationViewModel(device, settings, calibrationsDirectory: receiptDirectory, profileStore: FreshStore());
 
         device.PushTelemetry(new SensorSnapshot
         {
@@ -415,7 +420,7 @@ public sealed class PumpCalibrationTests
     [Fact]
     public void Displayed_curve_is_available_to_the_calibration_chart()
     {
-        using var vm = new PumpCalibrationViewModel(new RecordingDeviceService(), new MemorySettingsService());
+        using var vm = new PumpCalibrationViewModel(new RecordingDeviceService(), new MemorySettingsService(), profileStore: FreshStore());
         vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
 
         Assert.True(vm.TryGetDisplayedCurve(out PumpDualRangeCurve curve));
@@ -431,7 +436,8 @@ public sealed class PumpCalibrationTests
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
         var vm = new PumpCalibrationViewModel(device, settings, timeProvider: clock,
-            calibrationsDirectory: Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N")));
+            calibrationsDirectory: Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N")),
+            profileStore: FreshStore());
         device.PushTelemetry(new SensorSnapshot
         {
             HasPumpTelemetry = true,
@@ -588,7 +594,8 @@ public sealed class PumpCalibrationTests
         var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));
         var device = new RecordingDeviceService();
         var receiptDirectory = Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N"));
-        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), timeProvider: clock, calibrationsDirectory: receiptDirectory);
+        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), timeProvider: clock,
+            calibrationsDirectory: receiptDirectory, profileStore: FreshStore());
         device.PushTelemetry(new SensorSnapshot
         {
             HasPumpTelemetry = true,

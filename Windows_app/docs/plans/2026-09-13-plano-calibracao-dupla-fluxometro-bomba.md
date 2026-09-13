@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1, 2 e 3 implementadas e testadas; as etapas 4–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1, 2, 3 e 4 implementadas e testadas; as etapas 5–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -676,6 +676,40 @@ Os contratos novos atravessam o Hub sem alterar o comportamento dos nós legados
 ```text
 feat(hub): relay dual-range calibration contracts
 ```
+
+### Registro de implementação — 2026-09-13
+
+Implementado nesta etapa, no firmware do Hub ESP32-S3 e na sua suíte de testes de contrato:
+
+- Firmware do Hub promovido para `10.3.0-dev` (`HUB_FIRMWARE_VERSION "10.3.0-dev"` em `Config.h`), mantendo `HUB_PROTOCOL_VERSION 10`.
+- Roteamento da calibração de dupla faixa do fluxômetro v12:
+  - Adicionados `pendingFlowTransitionVoltage`, `desiredFlowTransitionVoltage = 0.0545f` e `flowmeterTransitionVoltage = NAN` em `AppContext.h`;
+  - Parser de comando `/command` (`queueReliableFlowCommandFromJson` em `Mailboxes.h`) aceita `flowTransitionVoltage` e `transition_v`, enfileirando atomicamente sob `cmdMutex` na mesma revisão de comando que os coeficientes da curva (`a1`, `b1`, `k1`, `f1`, `c1`, `k2`, `f2`, `c2`);
+  - Serializador `buildFlowCommandLocked` emite `"transition_v":%.4f` quando `pendingFlowTransitionVoltage` está ativa;
+  - Endpoint `/flowData` em `HttpServer.h` lê o parâmetro `transition_v`, limpa a pendência `pendingFlowTransitionVoltage` apenas quando o comando do fluxômetro for confirmado (`flowCommandAck`), preserva a reimposição de estado desejado em detecção de reboot silencioso do nó e expõe o eco recebido;
+  - Telemetria agregada em `Telemetry.h` publica `FlowTransitionVoltage` condicionado à presença online do fluxômetro e à observação do valor reportado no boot atual.
+- Roteamento da calibração de dupla faixa da bomba peristáltica v3.11:
+  - Adicionados `pumpSlopeLow = NAN`, `pumpSlopeHigh = NAN`, `pumpTransitionSpeed = NAN`, `pumpTransitionFlow = NAN` e `pumpCalCrc = 0` em `AppContext.h`;
+  - Whitelist de comandos em `Commands.h` estendida com `pumpSlopeLow`, `pumpSlopeHigh`, `pumpTransitionSpeed`, `pumpTransitionFlow` e seus aliases em snake_case (`slope_low`, `slope_high`, `transition_speed`, `transition_flow`);
+  - Tradução atômica de chaves `cleanKey` mantendo os 4 parâmetros no mesmo payload `pumpCommand` enfileirado na `pumpBox` com controle de revisão e ACK;
+  - Endpoint `/pumpData` em `HttpServer.h` faz o parse de `slope_low`, `slope_high`, `trans_speed`, `trans_flow` e `cal_crc`, atualizando as variáveis de eco sob `cmdMutex`;
+  - Telemetria agregada em `Telemetry.h` publica `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow` e `PumpCalCrc` exclusivamente quando a bomba estiver online e os valores tiverem sido informados pelo nó neste boot (suprimindo ecos obsoletos ou fantasmas se o nó estiver desconectado).
+- Verificação da reserva de memória de telemetria:
+  - O payload JSON de telemetria agregada permanece estritamente compatível com `HUB_TELEMETRY_JSON_RESERVE = 3072` bytes.
+- Suíte de testes de contrato atualizada e executada:
+  - `verify_contract.py` corrigido para localizar diretório `old` / `_old`, e `V10_KEYS` estendido com as 6 novas chaves (`FlowTransitionVoltage`, `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow`, `PumpCalCrc`);
+  - `test_node_registry.py` atualizado para assertar identidade `10.3.0-dev`;
+  - `test_node_commands.py` estendido com testes de roteamento e validação de `PumpCommandTests` e verificações estáticas de `NodeCommandSourceContractTests` (87/87 testes aprovados);
+  - `test_json_keys.py` estendido com os frames reais de calibração dupla em `REAL_FRAMES` e checagens de telemetria;
+  - Executado `verify_contract.py`: 10 hashes legados OK, endpoints/chaves/regras estáticas v10 OK, fixtures HTTP, presença e fila Servo OK.
+- Compilação no alvo ESP32-S3 via `arduino-cli`:
+  - Sketch compilado com sucesso (código 0, 86% de flash [1.128.088 bytes de 1.310.720], 15% de RAM dinâmica [50.624 bytes de 327.680]).
+- Testes de regressão:
+  - Fluxômetro v12: 8/8 testes aprovados (`test_firmware_v12_contract.py`).
+  - Bomba peristáltica v3.11: 9/9 testes aprovados (`test_firmware_v311_contract.py`).
+  - Windows App matemática/calibração: 43/43 testes aprovados (`dotnet test`).
+
+Não implementado nesta etapa: contratos tipados no protocolo C# do Windows App (Etapa 5), integração nos viewmodels e interface do usuário (Etapas 6–9), e validação física.
 
 ## 15. Etapa 5 — atualizar protocolo, parser e simulador do aplicativo
 

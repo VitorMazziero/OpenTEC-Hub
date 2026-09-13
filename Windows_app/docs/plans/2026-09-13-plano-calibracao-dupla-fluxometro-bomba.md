@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1–8 implementadas e testadas; as etapas 9–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1–9 implementadas e testadas em software; as etapas 10–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -1158,6 +1158,47 @@ Etapas 2 a 8 concluídas.
 ### Commit
 
 Correções descobertas nesta etapa devem ser incorporadas ao commit funcional responsável, quando isso ainda for seguro e não publicado. Se os commits já estiverem compartilhados, criar commits `fix(...)` separados; nunca esconder uma correção dentro do commit documental.
+
+### Registro de implementação — 2026-09-13
+
+Etapa 9 concluída em software. A integração foi auditada após os commits funcionais da Etapa 8; as duas correções encontradas foram mantidas em commits próprios, separadas deste registro documental:
+
+- `8c81a52 test(pump-calibration): isolate hose profile fixtures`:
+  - cada teste da calibração da bomba passa a usar um diretório temporário exclusivo para os perfis;
+  - eliminada a interferência entre testes paralelos e entre a suíte e o workspace real do operador;
+  - corrigida a falha intermitente `UnauthorizedAccessException` observada na primeira execução completa.
+- `55b20ae fix(settings): allow compact node table scrolling`:
+  - a tabela de nós do Hub passa a possuir rolagem horizontal local quando suas colunas não cabem na largura disponível;
+  - corrigido o único overflow encontrado pelos contratos de layout compacto, sem alterar larguras globais nem outras páginas.
+
+**Evidência automatizada:**
+
+- 257/257 testes direcionados de matemática, protocolo, parser, fluxômetro, bomba, perfis, documentação, recursos XAML e layouts aprovados após a correção da tabela de nós;
+- 1.683/1.683 testes da solução `Windows_app/OpenTECHub.slnx` aprovados, sem falhas nem testes ignorados, após isolar o store de perfis usado pelos testes da bomba;
+- 87/87 verificações do contrato do Hub aprovadas, incluindo golden strings, chaves modernas e legadas e preservação dos endpoints existentes;
+- 8/8 testes estáticos do firmware v1.2 do fluxômetro aprovados;
+- 9/9 testes estáticos do firmware v3.11 da bomba aprovados;
+- cenários de simulador moderno e legado cobertos pela suíte, incluindo parser/codec, presença e capacidade dos nós, ausência de chaves modernas, bloqueios de compatibilidade, carregamento local de perfil sem envio, confirmação completa por ACK/eco/CRC e emissão de recibo.
+
+**Compilações:**
+
+- Hub ESP32-S3 compilado pelo script oficial: 1.128.088 bytes de flash (86%) e 50.624 bytes de RAM (15%);
+- bomba peristáltica compilada pelo script oficial: 1.100.607 bytes de flash (83%) e 55.100 bytes de RAM (16%);
+- fluxômetro compilado pelo script oficial: 1.148.603 bytes de flash (87%) e 52.288 bytes de RAM (15%);
+- o script agregado também compilou com sucesso os demais nós externos, sem converter esse resultado em validação funcional deles;
+- `dotnet clean` seguido de build Release do aplicativo aprovado com zero erros; permaneceram 41 avisos de estilo já existentes.
+
+**Execução Release:**
+
+- executável Release iniciado com workspace temporário explícito e navegação direta para `calibrations`;
+- processo permaneceu responsivo, apresentou a janela `OpenTEC-Hub` e foi encerrado normalmente;
+- o log novo não contém `Fatal`, `Unhandled`, `XamlParseException`, erro de binding, falha de DI nem violação de thread de UI;
+- a ausência de controlador em `COM1` foi registrada como condição esperada desta execução sem bancada;
+- houve um aviso não fatal de orçamento do primeiro frame (6.557 ms para orçamento de 2.000 ms), sem crash ou falha das calibrações; ele não constitui evidência de desempenho em máquina de produção.
+
+Conforme orientação do usuário, não foi feita uma segunda rodada de inspeção visual manual em temas claro/escuro: eventuais ajustes visuais serão reportados pelo próprio usuário. A cobertura mantida nesta etapa é composta pelos contratos automatizados de layout compacto/amplo, recursos e temas, mais a abertura real do Release. Nenhuma captura preexistente foi incorporada ou revertida por estes commits.
+
+Não implementado nesta etapa: atualização documental ampla (Etapa 10) e validações físicas com Hub, fluxômetro e bomba reais (Etapas 11–12). Aprovação de testes, contratos, builds e simulador não substitui bancada.
 
 ## 20. Etapa 10 — atualizar documentação e matrizes de estado
 

@@ -12,7 +12,7 @@ Este diretório reúne firmware, aplicativos, hardware, evidências e histórico
 
 ## Documentação transversal
 
-- `docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` — por dispositivo: interações que o nó aceita, o que o firmware faz com cada uma e o que o hardware deve fazer; conferido no código, não nos protocolos. §1 bomba, §2 distância, §3 fluxômetro e §4 biomassa completos (2026-09-13); agitador e servo a preencher.
+- `docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` — por dispositivo: interações que o nó aceita, o que o firmware faz com cada uma e o que o hardware deve fazer; conferido no código, não nos protocolos. §1–§6 completos (2026-09-13).
 - `docs/Planos/` — planos de implementação por dispositivo, `HUB_PROTOCOL_IMPROVEMENTS.md`, `OPTIMIZATION_OPPORTUNITIES.md`, `IMPLEMENTATION_REPORT.md`; `docs/TOOLCHAIN.md`.
 
 ## Regras

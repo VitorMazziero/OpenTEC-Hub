@@ -1,6 +1,6 @@
 # Frasco agitador
 
-Versão ativa: **rev H**. Placa de compilação: **ESP32-S3**.
+Versão ativa: **v10** (baseline histórico: **rev H**). Placa de compilação: **ESP32** (`esp32:esp32:esp32`).
 
 - Firmware: `firmware/flask-agitator`
 - Aplicativo ativo: `apps/flutter`.

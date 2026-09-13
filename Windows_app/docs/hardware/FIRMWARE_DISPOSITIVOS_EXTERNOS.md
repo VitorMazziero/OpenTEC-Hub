@@ -9,7 +9,7 @@
 | Hub ESP32-S3 | `ESP32S3-HUB/ESP32S3-HUB` | configuração própria do Hub | código atual é o contrato autoritativo |
 | Bomba peristáltica | `External-Devices/bomba-peristaltica/firmware/peristaltic-pump` | `esp32:esp32:esp32` | compila; bancada pendente |
 | Fluxômetro | `External-Devices/fluxometro/firmware/flowmeter` | `esp32:esp32:esp32` com opções preservadas do build importado | compila; bancada pendente |
-| Frasco agitador | `External-Devices/frasco-agitador/firmware/flask-agitator` | `esp32:esp32:esp32s3` | compila; bancada pendente |
+| Frasco agitador | `External-Devices/frasco-agitador/firmware/flask-agitator` | `esp32:esp32:esp32` | compila; bancada pendente |
 | Sensor de biomassa | `External-Devices/sensor-biomassa/firmware/biomass-sensor` | `esp32:esp32:esp32s3` | compila; bancada pendente |
 | Sensor de distância | `External-Devices/sensor-distancia/firmware/distance-sensor` | `esp32:esp32:esp32` | compila; bancada pendente |
 
@@ -24,7 +24,7 @@ External-Devices\tools\Compile-ExternalDevices.ps1
 External-Devices\tools\Test-HubDeviceContracts.ps1
 ```
 
-O script usa ESP32 Arduino core 3.3.11 e as bibliotecas compartilhadas em `D:\OneDrive\Documentos\Arduino\libraries`, incluindo ArduinoJson 7.4.3. Apenas o agitador depende diretamente de ArduinoJson; os outros quatro nós e o Hub mantêm parsers manuais.
+O script usa ESP32 Arduino core 3.3.11 e as bibliotecas compartilhadas em `D:\OneDrive\Documentos\Arduino\libraries`. Os cinco firmwares ativos usam parsers manuais e não dependem de ArduinoJson.
 
 ## Ordem de integração em bancada
 

@@ -2,7 +2,7 @@
 
 ## 2026-09-13 — auditoria D01–D09 (v11)
 
-Plano: `../docs/IMPLEMENTATION_PLAN_DISTANCIA.md`; catálogo: `../docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` §2.10.
+Plano: `../docs/Planos/IMPLEMENTATION_PLAN_DISTANCIA.md`; catálogo: `../docs/COMANDOS_DISPOSITIVOS_EXTERNOS.md` §2.10.
 
 - **D01** Amostragem e envio ao Hub viram laços independentes; o push leva a última
   distância válida e o `time` do envio.

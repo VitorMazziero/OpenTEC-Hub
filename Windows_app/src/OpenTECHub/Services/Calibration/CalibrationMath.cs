@@ -116,10 +116,18 @@ public static class CalibrationMath
     public static PolynomialCalibration FitLowSegmentContinuous(
         IReadOnlyList<(double Voltage, double Flow)> lowPoints,
         PolynomialCalibration highCurve,
-        double transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage)
+        double transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage,
+        bool validateAsVoltage = true)
     {
         ArgumentNullException.ThrowIfNull(lowPoints);
-        FlowCalibrationCurve.ValidateTransitionVoltage(transitionVoltage);
+        if (validateAsVoltage)
+        {
+            FlowCalibrationCurve.ValidateTransitionVoltage(transitionVoltage);
+        }
+        else if (!double.IsFinite(transitionVoltage))
+        {
+            throw new ArgumentOutOfRangeException(nameof(transitionVoltage));
+        }
 
         var split = transitionVoltage;
         var valueAtSplit = highCurve.Evaluate(split);
@@ -219,10 +227,18 @@ public static class CalibrationMath
     /// </remarks>
     public static FlowCalibrationCurve FitFlowCurve(
         IEnumerable<(double Voltage, double Flow)> points,
-        double transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage)
+        double transitionVoltage = FlowCalibrationCurve.DefaultTransitionVoltage,
+        bool validateAsVoltage = true)
     {
         ArgumentNullException.ThrowIfNull(points);
-        FlowCalibrationCurve.ValidateTransitionVoltage(transitionVoltage);
+        if (validateAsVoltage)
+        {
+            FlowCalibrationCurve.ValidateTransitionVoltage(transitionVoltage);
+        }
+        else if (!double.IsFinite(transitionVoltage))
+        {
+            throw new ArgumentOutOfRangeException(nameof(transitionVoltage));
+        }
 
         var finite = points
             .Where(point => double.IsFinite(point.Voltage) && double.IsFinite(point.Flow))
@@ -242,7 +258,7 @@ public static class CalibrationMath
 
         PolynomialCalibration? lowCurve = (low.Length, highCurve) switch
         {
-            ( > 0, { } anchor) => FitLowSegmentContinuous(low, anchor, transitionVoltage),
+            ( > 0, { } anchor) => FitLowSegmentContinuous(low, anchor, transitionVoltage, validateAsVoltage),
             ( >= 3, null) => FitPolynomial(low, degree: 2),
             _ => null,
         };

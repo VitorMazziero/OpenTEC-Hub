@@ -538,19 +538,19 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,6,6">
-                                            <TextBlock Text="Vazão de transição Qt (mL/min)" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding TransitionFlowText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
+                                            <TextBlock Text="Velocidade de transição St (0–1000)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBox Text="{Binding TransitionSpeedInputText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
                                         </StackPanel>
                                         <StackPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,6">
-                                            <TextBlock Text="Velocidade St (calculada)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="Velocidade St (aplicada)" Style="{StaticResource CalibrationLabel}" />
                                             <TextBlock Text="{Binding TransitionSpeedText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,0">
-                                            <TextBlock Text="Ganho baixo m_baixo (calculado)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="Equação baixa — quartica" Style="{StaticResource CalibrationLabel}" />
                                             <TextBlock Text="{Binding LowSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,0">
-                                            <TextBlock Text="Ganho alto m_alto (calculado)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="Equação alta — quadrática" Style="{StaticResource CalibrationLabel}" />
                                             <TextBlock Text="{Binding HighSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -876,11 +876,11 @@
                     <StackPanel Grid.Row="3" Margin="0,7,0,8">
                         <UniformGrid Columns="4" Margin="0,0,0,7">
                             <StackPanel Margin="0,0,3,0">
-                                <TextBlock Text="m_baixo" Style="{StaticResource CalibrationLabel}" />
+                                <TextBlock Text="Equação baixa" Style="{StaticResource CalibrationLabel}" />
                                 <TextBlock Text="{Binding LowSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
                             </StackPanel>
                             <StackPanel Margin="3,0">
-                                <TextBlock Text="m_alto" Style="{StaticResource CalibrationLabel}" />
+                                <TextBlock Text="Equação alta" Style="{StaticResource CalibrationLabel}" />
                                 <TextBlock Text="{Binding HighSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" />
                             </StackPanel>
                             <StackPanel Margin="3,0">

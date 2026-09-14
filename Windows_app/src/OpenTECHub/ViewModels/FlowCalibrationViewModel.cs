@@ -327,7 +327,7 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
                               SelectedPoint is not null;
 
     public bool CanSendCurve => !IsCapturing && Curve.IsComplete && IsTransitionVoltageValid &&
-                                CanSendFlowCommands;
+                                CanSendFlowCommands && IsTransitionVoltageEditable;
 
     public bool CanEditPoints => !IsCapturing;
 
@@ -596,16 +596,22 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         _latest = snapshot;
         IsFlowmeterOnline = snapshot.FlowmeterOnline;
         IsFlowCommandPending = snapshot.FlowCommandPending;
-        var isPendingAck = snapshot.FlowCommandPending || (_pendingTransitionVoltage is not null && snapshot.FlowTransitionVoltage is null);
+        var isPendingAck = snapshot.FlowCommandPending || (_pendingTransitionVoltage is not null &&
+            (snapshot.FlowTransitionVoltage is null || snapshot.FlowmeterCalCrc is null));
         IsAwaitingAck = isPendingAck;
         LiveVoltageText = HasValidVoltage(snapshot)
             ? snapshot.FlowVoltage.ToString("F6", CultureInfo.CurrentCulture) + " V"
             : "—";
 
-        if (snapshot.FlowmeterOnline && snapshot.FlowmeterNode.FirmwareVersion is { } fw && IsLegacyFlowmeterFirmware(fw))
+        var flowmeterFirmware = snapshot.FlowmeterNode.FirmwareVersion;
+        var legacyFlowmeter = snapshot.FlowmeterOnline && IsLegacyFlowmeterFirmware(flowmeterFirmware);
+        var legacyHub = TryParseVersion(snapshot.HubFirmwareVersion, out var hubVersion) && hubVersion < new Version(10, 3);
+        if (legacyFlowmeter || legacyHub)
         {
             IsTransitionVoltageEditable = false;
-            TransitionVoltageUnsupportedReason = $"O fluxômetro conectado (firmware {fw}) não suporta limiar editável. O limiar padrão de 0,0545 V é mantido.";
+            TransitionVoltageUnsupportedReason = legacyFlowmeter
+                ? $"O fluxômetro conectado (firmware {flowmeterFirmware}) não suporta limiar editável. Atualize para v12+."
+                : $"O Hub {snapshot.HubFirmwareVersion} não encaminha o contrato completo. Atualize para 10.3+.";
         }
         else
         {
@@ -632,11 +638,11 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         }
         else if (wasAwaiting && !snapshot.FlowCommandPending && _pendingTransitionVoltage is { } requested)
         {
-            if (snapshot.FlowTransitionVoltage is { } echoed)
+            if (snapshot.FlowTransitionVoltage is { } echoed && snapshot.FlowmeterCalCrc is { } crc)
             {
                 if (Math.Abs(echoed - requested) < 1e-4)
                 {
-                    StatusText = $"Curva completa e limiar ({echoed.ToString("F4", CultureInfo.CurrentCulture)} V) confirmados pelo fluxômetro.";
+                    StatusText = $"Curva completa e limiar ({echoed.ToString("F4", CultureInfo.CurrentCulture)} V) confirmados pelo fluxômetro (CRC 0x{crc:X8}).";
                     _pendingTransitionVoltage = null;
                     _pendingConfirmationText = null;
                 }
@@ -712,6 +718,14 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
         var prefix = cleaned.Split('-')[0].Trim();
         var parts = prefix.Split('.');
         return parts.Length > 0 && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var major) && major < 12;
+    }
+
+    private static bool TryParseVersion(string? value, out Version version)
+    {
+        version = new Version();
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var cleaned = value.Trim().TrimStart('v', 'V').Split('-', '+', ' ')[0];
+        return Version.TryParse(cleaned, out version!);
     }
 
     private void OnStateChanged(ConnectionStateChange change)

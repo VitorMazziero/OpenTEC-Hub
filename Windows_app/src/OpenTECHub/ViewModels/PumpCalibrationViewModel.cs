@@ -82,7 +82,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     private DateTime? _resetVolumeRequestedAt;
     private bool _awaitingResetVolume;
     private DateTime? _calibrationRequestedAt;
-    private (double LowSlope, double HighSlope, double TransitionSpeed, double TransitionFlow)? _requestedCalibration;
+    private PumpDualRangeCurve? _requestedCalibration;
     private bool _isPumpCommandPending;
     private bool _isPumpProfileActive;
     private bool _isPumpProfileWaiting;
@@ -135,7 +135,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         _device.StateChanged += OnDeviceStateChanged;
 
         _initialised = true;
-        ValidateTransitionFlowAndRecalculate();
+        ValidateTransitionSpeedAndRecalculate();
         ValidateRunInputs();
     }
 
@@ -154,17 +154,17 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     // ---- Dual-range curve inputs & outputs ----
 
     [ObservableProperty]
-    public partial string TransitionFlowText { get; set; } = "15.0000";
+    public partial string TransitionSpeedInputText { get; set; } = "500.0";
 
     [ObservableProperty]
-    public partial double TransitionFlow { get; set; } = 15.0;
+    public partial double TransitionSpeedInput { get; set; } = 500.0;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsTransitionFlowValid))]
+    [NotifyPropertyChangedFor(nameof(IsTransitionSpeedInputValid))]
     [NotifyPropertyChangedFor(nameof(CanApply))]
-    public partial string? TransitionFlowError { get; set; }
+    public partial string? TransitionSpeedInputError { get; set; }
 
-    public bool IsTransitionFlowValid => TransitionFlowError is null;
+    public bool IsTransitionSpeedInputValid => TransitionSpeedInputError is null;
 
     [ObservableProperty]
     public partial string TransitionSpeedText { get; set; } = "—";
@@ -236,7 +236,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     public partial string AppliedCrcText { get; set; } = "—";
 
     public string AppliedHardwareEchoText =>
-        $"Eco no nó: m_baixo {AppliedLowSlopeText} · m_alto {AppliedHighSlopeText} · " +
+        $"Eco no nó: baixa {AppliedLowSlopeText} · alta {AppliedHighSlopeText} · " +
         $"St {AppliedTransitionSpeedText} · Qt {AppliedTransitionFlowText} · CRC {AppliedCrcText}";
 
     [ObservableProperty]
@@ -251,7 +251,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     public partial bool IsHubCompatible { get; set; }
 
     [ObservableProperty]
-    public partial string? HubUnsupportedReason { get; set; } = "Aguardando a versão do Hub; calibração dupla exige Hub 10.3 ou posterior.";
+    public partial string? HubUnsupportedReason { get; set; } = "Aguardando a versão do Hub; calibração polinomial exige Hub 10.4 ou posterior.";
 
     [ObservableProperty]
     public partial string CurrentFlowText { get; set; } = "—";
@@ -378,9 +378,9 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     {
         get
         {
-            if (TransitionFlowError != null)
+            if (TransitionSpeedInputError != null)
             {
-                return TransitionFlowError;
+                return TransitionSpeedInputError;
             }
             if (Runs.Count > 0 && !HasFit)
             {
@@ -390,9 +390,9 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             {
                 return "Nenhuma curva de calibração definida.";
             }
-            if (!NearlyEqual(c.TransitionFlow, TransitionFlow, 1e-9))
+            if (!NearlyEqual(c.TransitionSpeed, TransitionSpeedInput, 1e-9))
             {
-                return "A vazão de transição editada ainda não possui um ajuste válido.";
+                return "A velocidade de transição editada ainda não possui um ajuste válido.";
             }
             if (!c.Validate(out var err))
             {
@@ -471,7 +471,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         return false;
     }
 
-    partial void OnTransitionFlowTextChanged(string value) => ValidateTransitionFlowAndRecalculate();
+    partial void OnTransitionSpeedInputTextChanged(string value) => ValidateTransitionSpeedAndRecalculate();
 
     partial void OnRunSpeedTextChanged(string value) => ValidateRunInputs();
 
@@ -510,22 +510,22 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(IsCurrentProfileDirty));
     }
 
-    private void ValidateTransitionFlowAndRecalculate()
+    private void ValidateTransitionSpeedAndRecalculate()
     {
         if (!_initialised || _suppressRecalculate)
         {
             return;
         }
 
-        if (!DosingInput.TryParseDouble(TransitionFlowText, out var qt) || qt <= 0.0 || !double.IsFinite(qt))
+        if (!DosingInput.TryParseDouble(TransitionSpeedInputText, out var transitionSpeed) || transitionSpeed <= 0.0 || transitionSpeed >= 1000.0 || !double.IsFinite(transitionSpeed))
         {
-            TransitionFlowError = "Vazão de transição (Qt): número real positivo > 0 (mL/min).";
+            TransitionSpeedInputError = "Velocidade de transição (St): número real em (0, 1000).";
             RecomputeFit();
             return;
         }
 
-        TransitionFlowError = null;
-        TransitionFlow = qt;
+        TransitionSpeedInputError = null;
+        TransitionSpeedInput = transitionSpeed;
         IsDirty = true;
         RecomputeFit();
     }
@@ -633,9 +633,9 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             ActiveProfileName = profile.Name;
             ActiveProfileId = profile.ProfileId;
             ProfileNotes = profile.OptionalNotes ?? "";
-            TransitionFlow = profile.TransitionFlowMlMin;
-            TransitionFlowError = null;
-            TransitionFlowText = DosingInput.Format(profile.TransitionFlowMlMin, 4);
+            TransitionSpeedInput = profile.TransitionSpeedUnits;
+            TransitionSpeedInputError = null;
+            TransitionSpeedInputText = DosingInput.Format(profile.TransitionSpeedUnits, 1);
             _curve = profileCurve;
 
             Runs.Clear();
@@ -791,9 +791,17 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             TransitionSpeedUnits = currentCurve.TransitionSpeed,
             LowSlope = currentCurve.LowSlope,
             HighSlope = currentCurve.HighSlope,
+            LowA = currentCurve.LowSpeed.A,
+            LowB = currentCurve.LowSpeed.B,
+            LowK = currentCurve.LowSpeed.K,
+            LowF = currentCurve.LowSpeed.F,
+            LowC = currentCurve.LowSpeed.C,
+            HighK = currentCurve.HighSpeed.K,
+            HighF = currentCurve.HighSpeed.F,
+            HighC = currentCurve.HighSpeed.C,
             CalibrationPoints = points,
             FitStatistics = fitStats,
-            AlgorithmVersion = "1.0",
+            AlgorithmVersion = "quartic-quadratic-c1-v2",
             OptionalNotes = ProfileNotes,
             LastAppliedUtc = existing?.LastAppliedUtc,
             LastAppliedPumpFirmware = existing?.LastAppliedPumpFirmware
@@ -913,15 +921,15 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        if (!IsTransitionFlowValid || TransitionFlow <= 0.0)
+        if (!IsTransitionSpeedInputValid || TransitionSpeedInput <= 0.0)
         {
-            FitWarning = TransitionFlowError ?? "Vazão de transição (Qt) inválida.";
+            FitWarning = TransitionSpeedInputError ?? "Velocidade de transição (St) inválida.";
             NotifyCommandAvailability();
             CurveChanged?.Invoke();
             return;
         }
 
-        _fitResult = PumpDualRangeMath.FitDualRange(points, TransitionFlow);
+        _fitResult = PumpDualRangeMath.FitDualRange(points, TransitionSpeedInput);
 
         if (!_fitResult.IsValid || _fitResult.Curve is not { } curve)
         {
@@ -939,13 +947,13 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             FitSseText = "—";
             LowSegmentSummaryText = "—";
             HighSegmentSummaryText = "—";
-            LowPointCount = points.Count(p => p.FlowMlPerMin <= TransitionFlow);
-            HighPointCount = points.Count(p => p.FlowMlPerMin > TransitionFlow);
+            LowPointCount = points.Count(p => p.SpeedUnits <= TransitionSpeedInput);
+            HighPointCount = points.Count(p => p.SpeedUnits > TransitionSpeedInput);
             PointDistributionText = $"Faixa baixa: {LowPointCount} pts | Faixa alta: {HighPointCount} pts";
             foreach (var run in Runs)
             {
                 run.Residual = null;
-                run.IsLowSegment = run.FlowMlPerMin <= TransitionFlow;
+                run.IsLowSegment = run.SpeedUnits <= TransitionSpeedInput;
             }
             NotifyCommandAvailability();
             CurveChanged?.Invoke();
@@ -957,10 +965,10 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         FitWarning = null;
 
         TransitionSpeedText = curve.TransitionSpeed.ToString("F1", CultureInfo.CurrentCulture) + " un";
-        LowSlopeText = curve.LowSlope.ToString("F4", CultureInfo.CurrentCulture) + " mL/min/un";
-        HighSlopeText = curve.HighSlope.ToString("F4", CultureInfo.CurrentCulture) + " mL/min/un";
-        ContinuityText = $"Curva contínua em St = {curve.TransitionSpeed:F1} un (Qt = {curve.TransitionFlow:F2} mL/min)";
-        FitSummaryText = $"Q ≤ Qt: {curve.LowSlope:F4}·(S - {curve.TransitionSpeed:F1}) + {curve.TransitionFlow:F2} | Q > Qt: {curve.HighSlope:F4}·(S - {curve.TransitionSpeed:F1}) + {curve.TransitionFlow:F2}";
+        LowSlopeText = FormatLowEquation(curve.LowSpeed);
+        HighSlopeText = FormatHighEquation(curve.HighSpeed);
+        ContinuityText = $"C0+C1 em St = {curve.TransitionSpeed:F1} un (Qt = {curve.TransitionFlow:F2} mL/min)";
+        FitSummaryText = $"S ≤ St: {FormatLowEquation(curve.LowSpeed)} | S > St: {FormatHighEquation(curve.HighSpeed)}";
 
         FitRSquaredText = double.IsFinite(_fitResult.RSquared) ? _fitResult.RSquared.ToString("F4", CultureInfo.CurrentCulture) : "—";
         FitRmseText = double.IsFinite(_fitResult.RMSE) ? _fitResult.RMSE.ToString("F3", CultureInfo.CurrentCulture) + " mL/min" : "—";
@@ -1007,10 +1015,10 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         try
         {
             _curve = fitCurve;
-            TransitionFlow = fitCurve.TransitionFlow;
-            TransitionFlowText = fitCurve.TransitionFlow.ToString("F2", CultureInfo.InvariantCulture);
-            LowSlopeText = fitCurve.LowSlope.ToString("F4", CultureInfo.InvariantCulture);
-            HighSlopeText = fitCurve.HighSlope.ToString("F4", CultureInfo.InvariantCulture);
+            TransitionSpeedInput = fitCurve.TransitionSpeed;
+            TransitionSpeedInputText = fitCurve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
+            LowSlopeText = FormatLowEquation(fitCurve.LowSpeed);
+            HighSlopeText = FormatHighEquation(fitCurve.HighSpeed);
             TransitionSpeedText = fitCurve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
         }
         finally
@@ -1018,7 +1026,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             _suppressRecalculate = false;
         }
         IsDirty = true;
-        FitSummaryText = $"Ajuste copiado dos pontos: Qt={fitCurve.TransitionFlow:F2} mL/min, St={fitCurve.TransitionSpeed:F1}, m_baixo={fitCurve.LowSlope:F4}, m_alto={fitCurve.HighSlope:F4}.";
+        FitSummaryText = $"Ajuste copiado dos pontos: St={fitCurve.TransitionSpeed:F1}, Qt={fitCurve.TransitionFlow:F2} mL/min; {FormatLowEquation(fitCurve.LowSpeed)} | {FormatHighEquation(fitCurve.HighSpeed)}.";
         NotifyCommandAvailability();
         CurveChanged?.Invoke();
     }
@@ -1029,12 +1037,12 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         try
         {
             _curve = curve;
-            TransitionFlow = curve.TransitionFlow;
-            TransitionFlowError = null;
-            TransitionFlowText = curve.TransitionFlow.ToString("F2", CultureInfo.InvariantCulture);
-            LowSlopeText = curve.LowSlope.ToString("F4", CultureInfo.InvariantCulture);
+            TransitionSpeedInput = curve.TransitionSpeed;
+            TransitionSpeedInputError = null;
+            TransitionSpeedInputText = curve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
+            LowSlopeText = FormatLowEquation(curve.LowSpeed);
             TransitionSpeedText = curve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
-            HighSlopeText = curve.HighSlope.ToString("F4", CultureInfo.InvariantCulture);
+            HighSlopeText = FormatHighEquation(curve.HighSpeed);
             IsDirty = true;
         }
         finally
@@ -1060,7 +1068,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
         if (!IsHubCompatible)
         {
-            StatusText = HubUnsupportedReason ?? "O Hub não oferece o contrato de calibração dupla (requer 10.3+).";
+            StatusText = HubUnsupportedReason ?? "O Hub não oferece o contrato polinomial (requer 10.4+).";
             return;
         }
 
@@ -1084,10 +1092,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
 
         var command = CommandBuilders.PumpDualRangeCalibration(
-            curve.LowSlope,
-            curve.HighSlope,
-            curve.TransitionSpeed,
-            curve.TransitionFlow);
+            curve.LowSpeed.A, curve.LowSpeed.B, curve.LowSpeed.K, curve.LowSpeed.F, curve.LowSpeed.C,
+            curve.HighSpeed.K, curve.HighSpeed.F, curve.HighSpeed.C, curve.TransitionSpeed);
 
         var result = _dispatcher.Dispatch(command);
         if (!result.Accepted)
@@ -1096,7 +1102,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        _requestedCalibration = (curve.LowSlope, curve.HighSlope, curve.TransitionSpeed, curve.TransitionFlow);
+        _requestedCalibration = curve;
         _calibrationRequestedAt = _timeProvider.GetUtcNow().UtcDateTime;
         NotifyCommandAvailability();
         StatusText = $"Calibração em duas faixas enviada (Qt: {curve.TransitionFlow:F2}, St: {curve.TransitionSpeed:F1}, " +
@@ -1330,13 +1336,13 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             _isPumpCommandPending = snapshot.PumpCommandPending.Value;
         }
 
-        // Detect firmware version: >= 3.11 supports dual-range
+        // Pump 3.12+ supports the quartic/quadratic atomic contract.
         if (snapshot.PumpNode.FirmwareVersion is { } fw && !string.IsNullOrWhiteSpace(fw))
         {
-            if (!TryParseFirmwareVersion(fw, out var v) || v < new Version(3, 11))
+            if (!TryParseFirmwareVersion(fw, out var v) || v < new Version(3, 12))
             {
                 IsFirmwareCompatible = false;
-                FirmwareUnsupportedReason = $"O nó da bomba externa (firmware v{fw}) opera no protocolo linear legado (v3.10 ou anterior). Atualize para v3.11+ para habilitar calibração em duas faixas.";
+                FirmwareUnsupportedReason = $"O nó da bomba externa (firmware v{fw}) não oferece a curva quartica/quadrática. Atualize para v3.12+.";
             }
             else
             {
@@ -1344,15 +1350,17 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                 FirmwareUnsupportedReason = null;
             }
         }
-        else if (!snapshot.PumpSlopeLow.HasValue && snapshot.PumpSlope.HasValue)
+        else if (!snapshot.PumpA1.HasValue && snapshot.PumpSlope.HasValue)
         {
             IsFirmwareCompatible = false;
-            FirmwareUnsupportedReason = "O nó da bomba externa opera no protocolo linear legado. Atualize para v3.11+.";
+            FirmwareUnsupportedReason = "O nó da bomba externa opera com calibração anterior. Atualize para v3.12+.";
         }
         else
         {
-            var hasDualEcho = snapshot.PumpSlopeLow.HasValue && snapshot.PumpSlopeHigh.HasValue &&
-                              snapshot.PumpTransitionSpeed.HasValue && snapshot.PumpTransitionFlow.HasValue;
+            var hasDualEcho = snapshot.PumpA1.HasValue && snapshot.PumpB1.HasValue &&
+                              snapshot.PumpK1.HasValue && snapshot.PumpF1.HasValue && snapshot.PumpC1.HasValue &&
+                              snapshot.PumpK2.HasValue && snapshot.PumpF2.HasValue && snapshot.PumpC2.HasValue &&
+                              snapshot.PumpTransitionSpeed.HasValue;
             if (hasDualEcho)
             {
                 IsFirmwareCompatible = true;
@@ -1366,27 +1374,27 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
         if (snapshot.HubFirmwareVersion is { } hubFw && !string.IsNullOrWhiteSpace(hubFw))
         {
-            IsHubCompatible = TryParseFirmwareVersion(hubFw, out var hubVersion) && hubVersion >= new Version(10, 3);
+            IsHubCompatible = TryParseFirmwareVersion(hubFw, out var hubVersion) && hubVersion >= new Version(10, 4);
             HubUnsupportedReason = IsHubCompatible
                 ? null
-                : $"O Hub {hubFw} não encaminha o contrato de calibração dupla; atualize para 10.3 ou posterior.";
+                : $"O Hub {hubFw} não encaminha o contrato polinomial; atualize para 10.4 ou posterior.";
         }
         else
         {
             if (!IsHubCompatible)
             {
-                HubUnsupportedReason = "Aguardando a versão do Hub; calibração dupla exige Hub 10.3 ou posterior.";
+                HubUnsupportedReason = "Aguardando a versão do Hub; calibração polinomial exige Hub 10.4 ou posterior.";
             }
         }
 
-        AppliedLowSlopeText = snapshot.PumpSlopeLow is { } sl && sl > SensorReadings.NotReceived
-            ? sl.ToString("F4", CultureInfo.CurrentCulture) : "—";
-        AppliedHighSlopeText = snapshot.PumpSlopeHigh is { } sh && sh > SensorReadings.NotReceived
-            ? sh.ToString("F4", CultureInfo.CurrentCulture) : "—";
+        AppliedLowSlopeText = TryCurveFromSnapshot(snapshot, out var appliedCurve)
+            ? FormatLowEquation(appliedCurve.LowSpeed) : "—";
+        AppliedHighSlopeText = TryCurveFromSnapshot(snapshot, out appliedCurve)
+            ? FormatHighEquation(appliedCurve.HighSpeed) : "—";
         AppliedTransitionSpeedText = snapshot.PumpTransitionSpeed is { } st && st > SensorReadings.NotReceived
             ? st.ToString("F1", CultureInfo.CurrentCulture) : "—";
-        AppliedTransitionFlowText = snapshot.PumpTransitionFlow is { } qt && qt > SensorReadings.NotReceived
-            ? qt.ToString("F2", CultureInfo.CurrentCulture) : "—";
+        AppliedTransitionFlowText = TryCurveFromSnapshot(snapshot, out appliedCurve)
+            ? appliedCurve.TransitionFlow.ToString("F2", CultureInfo.CurrentCulture) : "—";
         AppliedCrcText = snapshot.PumpCalCrc is { } crc
             ? $"0x{crc:X8}" : "—";
 
@@ -1441,32 +1449,17 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
 
         // ACK without echo retains pending.
-        if (!snapshot.PumpSlopeLow.HasValue && !snapshot.PumpSlopeHigh.HasValue &&
-            !snapshot.PumpTransitionSpeed.HasValue && !snapshot.PumpTransitionFlow.HasValue)
+        if (!snapshot.PumpA1.HasValue && !snapshot.PumpK2.HasValue && !snapshot.PumpTransitionSpeed.HasValue)
         {
             return;
         }
 
-        bool hasAllEchoes = snapshot.PumpSlopeLow.HasValue &&
-                            snapshot.PumpSlopeHigh.HasValue &&
-                            snapshot.PumpTransitionSpeed.HasValue &&
-                            snapshot.PumpTransitionFlow.HasValue &&
-                            snapshot.PumpCalCrc.HasValue &&
-                            snapshot.PumpCommandPending == false;
+        bool hasAllEchoes = TryCurveFromSnapshot(snapshot, out var appliedCurve) &&
+                            snapshot.PumpCalCrc.HasValue && snapshot.PumpCommandPending == false;
 
         if (hasAllEchoes)
         {
-            var appliedLow = snapshot.PumpSlopeLow!.Value;
-            var appliedHigh = snapshot.PumpSlopeHigh!.Value;
-            var appliedSpeed = snapshot.PumpTransitionSpeed!.Value;
-            var appliedFlow = snapshot.PumpTransitionFlow!.Value;
-
-            bool lowMatches = NearlyEqual(appliedLow, requested.LowSlope, 0.0001);
-            bool highMatches = NearlyEqual(appliedHigh, requested.HighSlope, 0.0001);
-            bool speedMatches = NearlyEqual(appliedSpeed, requested.TransitionSpeed, 0.05);
-            bool flowMatches = NearlyEqual(appliedFlow, requested.TransitionFlow, 0.05);
-
-            if (lowMatches && highMatches && speedMatches && flowMatches)
+            if (CurvesMatch(appliedCurve, requested))
             {
                 _requestedCalibration = null;
                 _calibrationRequestedAt = null;
@@ -1481,7 +1474,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                         var updated = p with
                         {
                             LastAppliedUtc = now,
-                            LastAppliedPumpFirmware = snapshot.PumpNode.FirmwareVersion ?? "3.11"
+                            LastAppliedPumpFirmware = snapshot.PumpNode.FirmwareVersion ?? "3.12"
                         };
                         _profileStore.SaveProfile(updated, overwrite: true);
                     }
@@ -1491,27 +1484,17 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                 {
                     PumpControl = s.PumpControl with
                     {
-                        CalibrationMLow = appliedLow,
-                        CalibrationMHigh = appliedHigh,
-                        CalibrationSt = appliedSpeed,
-                        CalibrationQt = appliedFlow,
-                        CalibrationSlope = appliedLow,
+                        CalibrationMLow = appliedCurve.LowSlope,
+                        CalibrationMHigh = appliedCurve.HighSlope,
+                        CalibrationSt = appliedCurve.TransitionSpeed,
+                        CalibrationQt = appliedCurve.TransitionFlow,
+                        CalibrationSlope = appliedCurve.LowSlope,
                         CalibrationPoints = Runs.Select(r => r.Point).ToArray(),
                         SelectedProfileName = ActiveProfileName
                     }
                 });
 
-                var receiptPath = WriteCalibrationReceipt(
-                    requested.LowSlope,
-                    requested.HighSlope,
-                    requested.TransitionSpeed,
-                    requested.TransitionFlow,
-                    appliedLow,
-                    appliedHigh,
-                    appliedSpeed,
-                    appliedFlow,
-                    snapshot.PumpCalCrc,
-                    snapshot);
+                var receiptPath = WriteCalibrationReceipt(requested, appliedCurve, snapshot.PumpCalCrc, snapshot);
 
                 var crcStr = snapshot.PumpCalCrc.HasValue ? $" (CRC: 0x{snapshot.PumpCalCrc.Value:X8})" : "";
                 StatusText = receiptPath is not null
@@ -1523,21 +1506,46 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             }
             else
             {
-                StatusText = $"Aviso: o nó ecoou calibração divergente da solicitada " +
-                             $"(solicitado: m_b={requested.LowSlope:F4}, m_a={requested.HighSlope:F4}, St={requested.TransitionSpeed:F1}, Qt={requested.TransitionFlow:F2}; " +
-                             $"ecoado: m_b={appliedLow:F4}, m_a={appliedHigh:F4}, St={appliedSpeed:F1}, Qt={appliedFlow:F2}).";
+                StatusText = $"Aviso: o nó ecoou coeficientes divergentes dos solicitados " +
+                             $"(St solicitado {requested.TransitionSpeed:F1}; ecoado {appliedCurve.TransitionSpeed:F1}).";
             }
         }
 
     }
 
-    private static bool CurvesMatch(
-        PumpDualRangeCurve curve,
-        (double LowSlope, double HighSlope, double TransitionSpeed, double TransitionFlow) requested) =>
-        NearlyEqual(curve.LowSlope, requested.LowSlope, 0.0001) &&
-        NearlyEqual(curve.HighSlope, requested.HighSlope, 0.0001) &&
-        NearlyEqual(curve.TransitionSpeed, requested.TransitionSpeed, 0.05) &&
-        NearlyEqual(curve.TransitionFlow, requested.TransitionFlow, 0.05);
+    private static bool CurvesMatch(PumpDualRangeCurve curve, PumpDualRangeCurve requested) =>
+        NearlyEqual(curve.LowSpeed.A, requested.LowSpeed.A, 1e-6) &&
+        NearlyEqual(curve.LowSpeed.B, requested.LowSpeed.B, 1e-6) &&
+        NearlyEqual(curve.LowSpeed.K, requested.LowSpeed.K, 1e-6) &&
+        NearlyEqual(curve.LowSpeed.F, requested.LowSpeed.F, 1e-6) &&
+        NearlyEqual(curve.LowSpeed.C, requested.LowSpeed.C, 1e-6) &&
+        NearlyEqual(curve.HighSpeed.K, requested.HighSpeed.K, 1e-6) &&
+        NearlyEqual(curve.HighSpeed.F, requested.HighSpeed.F, 1e-6) &&
+        NearlyEqual(curve.HighSpeed.C, requested.HighSpeed.C, 1e-6) &&
+        NearlyEqual(curve.TransitionSpeed, requested.TransitionSpeed, 0.05);
+
+    private static bool TryCurveFromSnapshot(SensorSnapshot snapshot, out PumpDualRangeCurve curve)
+    {
+        curve = default;
+        if (snapshot.PumpA1 is not { } a1 || snapshot.PumpB1 is not { } b1 ||
+            snapshot.PumpK1 is not { } k1 || snapshot.PumpF1 is not { } f1 || snapshot.PumpC1 is not { } c1 ||
+            snapshot.PumpK2 is not { } k2 || snapshot.PumpF2 is not { } f2 || snapshot.PumpC2 is not { } c2 ||
+            snapshot.PumpTransitionSpeed is not { } st)
+        {
+            return false;
+        }
+
+        curve = new PumpDualRangeCurve(
+            new PolynomialCalibration(k1, f1, c1) { A = a1, B = b1 },
+            new PolynomialCalibration(k2, f2, c2), st);
+        return curve.Validate(out _);
+    }
+
+    private static string FormatLowEquation(PolynomialCalibration curve) =>
+        $"Q={curve.A:G5}S⁴ {curve.B:+0.#####;-0.#####;+0}S³ {curve.K:+0.#####;-0.#####;+0}S² {curve.F:+0.#####;-0.#####;+0}S {curve.C:+0.#####;-0.#####;+0}";
+
+    private static string FormatHighEquation(PolynomialCalibration curve) =>
+        $"Q={curve.K:G5}S² {curve.F:+0.#####;-0.#####;+0}S {curve.C:+0.#####;-0.#####;+0}";
 
     private static bool TryParseFirmwareVersion(string value, out Version version)
     {
@@ -1557,14 +1565,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     }
 
     private string? WriteCalibrationReceipt(
-        double reqLowSlope,
-        double reqHighSlope,
-        double reqSpeed,
-        double reqFlow,
-        double appliedLowSlope,
-        double appliedHighSlope,
-        double appliedSpeed,
-        double appliedFlow,
+        PumpDualRangeCurve requestedCurve,
+        PumpDualRangeCurve appliedCurve,
         long? appliedCrc,
         SensorSnapshot snapshot)
     {
@@ -1576,7 +1578,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                 timestampUtc = now.ToString("o"),
                 appVersion = typeof(PumpCalibrationViewModel).Assembly.GetName().Version?.ToString(),
                 node = "external_pump",
-                method = "dual_range_continuous",
+                method = "quartic_quadratic_c0_c1",
                 profile = new
                 {
                     profileId = ActiveProfileId,
@@ -1585,25 +1587,19 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
                 },
                 requested = new
                 {
-                    m_low = reqLowSlope,
-                    m_high = reqHighSlope,
-                    st = reqSpeed,
-                    qt = reqFlow,
-                    slopeLow = reqLowSlope,
-                    slopeHigh = reqHighSlope,
-                    transitionSpeed = reqSpeed,
-                    transitionFlow = reqFlow
+                    a1 = requestedCurve.LowSpeed.A, b1 = requestedCurve.LowSpeed.B,
+                    k1 = requestedCurve.LowSpeed.K, f1 = requestedCurve.LowSpeed.F, c1 = requestedCurve.LowSpeed.C,
+                    k2 = requestedCurve.HighSpeed.K, f2 = requestedCurve.HighSpeed.F, c2 = requestedCurve.HighSpeed.C,
+                    transitionSpeed = requestedCurve.TransitionSpeed,
+                    transitionFlow = requestedCurve.TransitionFlow
                 },
                 applied = new
                 {
-                    m_low = appliedLowSlope,
-                    m_high = appliedHighSlope,
-                    st = appliedSpeed,
-                    qt = appliedFlow,
-                    slopeLow = appliedLowSlope,
-                    slopeHigh = appliedHighSlope,
-                    transitionSpeed = appliedSpeed,
-                    transitionFlow = appliedFlow,
+                    a1 = appliedCurve.LowSpeed.A, b1 = appliedCurve.LowSpeed.B,
+                    k1 = appliedCurve.LowSpeed.K, f1 = appliedCurve.LowSpeed.F, c1 = appliedCurve.LowSpeed.C,
+                    k2 = appliedCurve.HighSpeed.K, f2 = appliedCurve.HighSpeed.F, c2 = appliedCurve.HighSpeed.C,
+                    transitionSpeed = appliedCurve.TransitionSpeed,
+                    transitionFlow = appliedCurve.TransitionFlow,
                     crc32 = appliedCrc.HasValue ? $"0x{appliedCrc.Value:X8}" : null,
                     crc32Decimal = appliedCrc
                 },

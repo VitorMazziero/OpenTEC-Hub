@@ -140,7 +140,31 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                 }
 
                 var profile = PumpProfileFileContracts.DeserializeProfile(text);
-                return profile is null ? null : profile with { Name = name.Trim() };
+                if (profile is null)
+                {
+                    return null;
+                }
+
+                profile = profile with { Name = name.Trim() };
+                if (profile.SchemaVersion <= 1)
+                {
+                    var migrated = PumpCalibrationProfile.FromCurve(
+                        profile.Name,
+                        profile.ToCurve(),
+                        profile.CalibrationPoints,
+                        profile.FitStatistics,
+                        profile.OptionalNotes);
+                    profile = migrated with
+                    {
+                        ProfileId = profile.ProfileId,
+                        CreatedUtc = profile.CreatedUtc,
+                        ModifiedUtc = profile.ModifiedUtc,
+                        LastAppliedUtc = profile.LastAppliedUtc,
+                        LastAppliedPumpFirmware = profile.LastAppliedPumpFirmware,
+                    };
+                }
+
+                return profile;
             }
             catch (JsonException ex)
             {
@@ -283,8 +307,16 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                 TransitionSpeedUnits = curve.TransitionSpeed,
                 LowSlope = curve.LowSlope,
                 HighSlope = curve.HighSlope,
+                LowA = curve.LowSpeed.A,
+                LowB = curve.LowSpeed.B,
+                LowK = curve.LowSpeed.K,
+                LowF = curve.LowSpeed.F,
+                LowC = curve.LowSpeed.C,
+                HighK = curve.HighSpeed.K,
+                HighF = curve.HighSpeed.F,
+                HighC = curve.HighSpeed.C,
                 CalibrationPoints = settings.PumpControl.CalibrationPoints ?? [],
-                AlgorithmVersion = "1.0",
+                AlgorithmVersion = "quartic-quadratic-c1-v2",
                 OptionalNotes = "Perfil migrado da calibração linear existente.",
             };
 

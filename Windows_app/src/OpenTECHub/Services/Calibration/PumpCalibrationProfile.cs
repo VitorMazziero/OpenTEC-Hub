@@ -9,12 +9,12 @@ namespace OpenTECHub.Services.Calibration;
 /// </summary>
 /// <remarks>
 /// Profiles exist solely in the application library; the pump hardware maintains only
-/// one active curve at a time. Each profile captures the continuous piecewise-linear
-/// dual-range curve, the volumetric points it was fitted against, and statistical metadata.
+/// one active curve at a time. Each profile captures the quartic/quadratic C0+C1 curve,
+/// the volumetric points it was fitted against, and statistical metadata.
 /// </remarks>
 public sealed record PumpCalibrationProfile
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>Schema revision of this file for future forward/backward compatibility.</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
@@ -33,17 +33,26 @@ public sealed record PumpCalibrationProfile
     /// <summary>When the profile was last modified (UTC).</summary>
     public DateTimeOffset ModifiedUtc { get; init; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Transition flow Qt in mL/min where low and high slopes meet.</summary>
+    /// <summary>Legacy schema-1 transition flow. Retained only for lossless migration.</summary>
     public double TransitionFlowMlMin { get; init; }
 
     /// <summary>Fitted transition speed St in internal speed units S.</summary>
     public double TransitionSpeedUnits { get; init; }
 
-    /// <summary>Low-speed slope (mL/min per S unit) for S &lt;= St.</summary>
+    /// <summary>Legacy schema-1 low-speed slope. Retained only for migration.</summary>
     public double LowSlope { get; init; }
 
-    /// <summary>High-speed slope (mL/min per S unit) for S &gt; St.</summary>
+    /// <summary>Legacy schema-1 high-speed slope. Retained only for migration.</summary>
     public double HighSlope { get; init; }
+
+    public double LowA { get; init; }
+    public double LowB { get; init; }
+    public double LowK { get; init; }
+    public double LowF { get; init; }
+    public double LowC { get; init; }
+    public double HighK { get; init; }
+    public double HighF { get; init; }
+    public double HighC { get; init; }
 
     /// <summary>Volumetric calibration points associated with this profile.</summary>
     public PumpCalibrationPoint[] CalibrationPoints { get; init; } = [];
@@ -52,7 +61,7 @@ public sealed record PumpCalibrationProfile
     public PumpFitStatistics? FitStatistics { get; init; }
 
     /// <summary>Fitting algorithm identifier and version (e.g. "1.0", "constrained-lsq-v1").</summary>
-    public string AlgorithmVersion { get; init; } = "1.0";
+    public string AlgorithmVersion { get; init; } = "quartic-quadratic-c1-v2";
 
     /// <summary>Optional operator notes (e.g. tube lot, installation date).</summary>
     public string? OptionalNotes { get; init; }
@@ -64,8 +73,12 @@ public sealed record PumpCalibrationProfile
     public string? LastAppliedPumpFirmware { get; init; }
 
     /// <summary>Constructs a <see cref="PumpDualRangeCurve"/> from this profile's parameters.</summary>
-    public PumpDualRangeCurve ToCurve() =>
-        new(LowSlope, HighSlope, TransitionSpeedUnits, TransitionFlowMlMin);
+    public PumpDualRangeCurve ToCurve() => SchemaVersion <= 1
+        ? new PumpDualRangeCurve(LowSlope, HighSlope, TransitionSpeedUnits, TransitionFlowMlMin)
+        : new PumpDualRangeCurve(
+            new PolynomialCalibration(LowK, LowF, LowC) { A = LowA, B = LowB },
+            new PolynomialCalibration(HighK, HighF, HighC),
+            TransitionSpeedUnits);
 
     /// <summary>Creates a profile from an adjusted curve and optional metadata.</summary>
     public static PumpCalibrationProfile FromCurve(
@@ -83,6 +96,14 @@ public sealed record PumpCalibrationProfile
             TransitionSpeedUnits = curve.TransitionSpeed,
             LowSlope = curve.LowSlope,
             HighSlope = curve.HighSlope,
+            LowA = curve.LowSpeed.A,
+            LowB = curve.LowSpeed.B,
+            LowK = curve.LowSpeed.K,
+            LowF = curve.LowSpeed.F,
+            LowC = curve.LowSpeed.C,
+            HighK = curve.HighSpeed.K,
+            HighF = curve.HighSpeed.F,
+            HighC = curve.HighSpeed.C,
             CalibrationPoints = points ?? [],
             FitStatistics = fitStatistics,
             OptionalNotes = notes

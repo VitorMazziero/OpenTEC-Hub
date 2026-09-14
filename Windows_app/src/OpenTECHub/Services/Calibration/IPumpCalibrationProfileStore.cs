@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.Services.Calibration;
 
@@ -40,9 +39,4 @@ public interface IPumpCalibrationProfileStore
     /// </summary>
     bool ProfileExists(string name);
 
-    /// <summary>
-    /// Idempotently ensures an initial profile ("Padrão") exists by migrating legacy linear settings
-    /// when the store is completely empty. Returns the active profile name.
-    /// </summary>
-    string EnsureDefaultProfileMigrated(AppSettings settings);
 }

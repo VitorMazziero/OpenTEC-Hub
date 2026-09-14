@@ -15,7 +15,7 @@ internal sealed record BenchOptions
 {
     /// <summary><c>COMx</c> or an IPv4 address.</summary>
     public required string Target { get; init; }
-    public string ExpectedHubVersion { get; init; } = "10.2.0-dev";
+    public string ExpectedHubVersion { get; init; } = "10.4.0-dev";
     public IReadOnlySet<string> Suites { get; init; } = new HashSet<string>(["B1", "B2", "B3", "B5"]);
     public int SoakMinutes { get; init; }
     public string OutputDirectory { get; init; } = "";
@@ -50,9 +50,9 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
     {
         ["distance"] = ["v11"],
         ["agitator"] = ["v10"],
-        ["pump"] = ["3.9"],
-        ["flowmeter"] = ["v11"],
-        ["biomass"] = ["v11"],
+        ["pump"] = ["3.12"],
+        ["flowmeter"] = ["v12.0"],
+        ["biomass"] = ["v11.1"],
     };
 
     private readonly List<Row> _rows = [];
@@ -86,10 +86,25 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
             }
             else
             {
-                if (options.Suites.Contains("B1")) await SuiteB1Async(ct).ConfigureAwait(false);
-                if (options.Suites.Contains("B2")) await SuiteB2Async(ct).ConfigureAwait(false);
-                if (options.Suites.Contains("B3")) await SuiteB3Async(ct).ConfigureAwait(false);
-                if (options.Suites.Contains("B5")) await SuiteB5Async(ct).ConfigureAwait(false);
+                if (options.Suites.Contains("B1"))
+                {
+                    await SuiteB1Async(ct).ConfigureAwait(false);
+                }
+
+                if (options.Suites.Contains("B2"))
+                {
+                    await SuiteB2Async(ct).ConfigureAwait(false);
+                }
+
+                if (options.Suites.Contains("B3"))
+                {
+                    await SuiteB3Async(ct).ConfigureAwait(false);
+                }
+
+                if (options.Suites.Contains("B5"))
+                {
+                    await SuiteB5Async(ct).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -175,7 +190,7 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
             detail.Append(CultureInfo.InvariantCulture, $"{dev}={v}{(ok ? "" : "!")} ");
         }
         Add("P", "P4", "frota regravada (NodeVer)", detail.ToString().Trim(),
-            "v11 v10 3.9 v11 v11", versionsOk ? "PASS" : "FAIL", "");
+            "v11 v10 3.12 v12.0 v11.1", versionsOk ? "PASS" : "FAIL", "");
         if (!versionsOk)
         {
             Log("  → regravar com External-Devices/tools/Publish-OtaFirmware.ps1 -Device <nó> -Compile");
@@ -275,13 +290,28 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
                     var frame = NodeOf(r, dev);
                     var e = nodes.Find(dev);
                     if (e is null) { diverge.Add($"{dev}: ausente em /nodes"); continue; }
-                    if (e.Identity.Ip != frame.Ip) diverge.Add($"{dev}: ip {e.Identity.Ip}≠{frame.Ip}");
-                    if (e.Identity.FirmwareVersion != frame.FirmwareVersion) diverge.Add($"{dev}: ver {e.Identity.FirmwareVersion}≠{frame.FirmwareVersion}");
-                    if (e.Identity.Mac != frame.Mac) diverge.Add($"{dev}: mac");
+                    if (e.Identity.Ip != frame.Ip)
+                    {
+                        diverge.Add($"{dev}: ip {e.Identity.Ip}≠{frame.Ip}");
+                    }
+
+                    if (e.Identity.FirmwareVersion != frame.FirmwareVersion)
+                    {
+                        diverge.Add($"{dev}: ver {e.Identity.FirmwareVersion}≠{frame.FirmwareVersion}");
+                    }
+
+                    if (e.Identity.Mac != frame.Mac)
+                    {
+                        diverge.Add($"{dev}: mac");
+                    }
+
                     if (nodes.HubTimeMs is { } now && (e.LastHelloMs is not null || e.LastDataMs is not null))
                     {
                         var expected = now - Math.Max(e.LastHelloMs ?? 0, e.LastDataMs ?? 0);
-                        if (Math.Abs(expected - e.AgeMs) > 50) ageBad.Add($"{dev}: age {e.AgeMs} vs {expected}");
+                        if (Math.Abs(expected - e.AgeMs) > 50)
+                        {
+                            ageBad.Add($"{dev}: age {e.AgeMs} vs {expected}");
+                        }
                     }
                 }
                 Add("B1", "B1.4", "/nodes coerente com o quadro", diverge.Count == 0 ? "0 divergências" : string.Join("; ", diverge),
@@ -422,10 +452,21 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         foreach (var dev in Devices)
         {
             var n = d.Find(dev);
-            if (n is null) continue;
+            if (n is null)
+            {
+                continue;
+            }
+
             common += (n.UptimeS is not null ? 1 : 0) + (n.FreeHeap is not null ? 1 : 0) + (n.Rssi is not null ? 1 : 0) + (n.HubFailStreak is not null ? 1 : 0) + (n.Ota is not null ? 1 : 0);
-            if (n.Rssi is { } rssi && (rssi < -90 || rssi > -20)) rssiOk = false;
-            if (n.Ota == true) otaOk = false;
+            if (n.Rssi is { } rssi && (rssi < -90 || rssi > -20))
+            {
+                rssiOk = false;
+            }
+
+            if (n.Ota == true)
+            {
+                otaOk = false;
+            }
         }
         Add("B2", "B2.3", "métricas comuns presentes", $"{common}/25; rssi ok={rssiOk}; ota livre={otaOk}", "25/25, −90…−20 dBm, ota:false",
             common == 25 && rssiOk && otaOk ? "PASS" : "FAIL", "nodediag.json");
@@ -438,7 +479,11 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
                 var worst = 0; var worstDev = "";
                 foreach (var e in doc.RootElement.GetProperty("nodes").EnumerateArray())
                 {
-                    if (!e.TryGetProperty("diag", out var diag) || diag.ValueKind != JsonValueKind.Object) continue;
+                    if (!e.TryGetProperty("diag", out var diag) || diag.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
                     var len = Encoding.UTF8.GetByteCount(diag.GetRawText());
                     if (len > worst) { worst = len; worstDev = e.GetProperty("dev").GetString() ?? ""; }
                 }
@@ -462,7 +507,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         {
             var line = await _transport.ReadAsync(ct).ConfigureAwait(false);
             if (line is null) { await Task.Delay(50, ct).ConfigureAwait(false); continue; }
-            if (Track(line) == ParseOutcome.Updated) frames++;
+            if (Track(line) == ParseOutcome.Updated)
+            {
+                frames++;
+            }
         }
         await File.WriteAllLinesAsync(Path.Combine(options.OutputDirectory, "nodediag-serial.log"), _nodeDiagLines, ct).ConfigureAwait(false);
 
@@ -484,7 +532,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         {
             var line = await _transport.ReadAsync(ct).ConfigureAwait(false);
             if (line is null) { await Task.Delay(50, ct).ConfigureAwait(false); continue; }
-            if (Track(line) == ParseOutcome.Updated && next == 0) next = sw.ElapsedMilliseconds;
+            if (Track(line) == ParseOutcome.Updated && next == 0)
+            {
+                next = sw.ElapsedMilliseconds;
+            }
         }
         var unknown = _nodeDiagLines.Count == 1 && HubNodeDiagClient.Parse(_nodeDiagLines[0]) is { Nodes: [{ Code: 404 }] };
         Add("B2", "B2.7", "serial nodeDiag desconhecido", $"linhas={_nodeDiagLines.Count}; 404={unknown}; próximo quadro em {next} ms",
@@ -492,10 +543,26 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
 
         var after = _parser.Readings.Snapshot();
         var changed = new List<string>();
-        if (Math.Abs(after.FlowSetpoint - before.FlowSetpoint) > 1e-6) changed.Add("flowSetpoint");
-        if (after.PumpCommEnabled != before.PumpCommEnabled) changed.Add("pumpComm");
-        if (after.DistanceOffsetMm != before.DistanceOffsetMm) changed.Add("DistanceOffsetMm");
-        if (after.FlowKp != before.FlowKp) changed.Add("FlowKp");
+        if (Math.Abs(after.FlowSetpoint - before.FlowSetpoint) > 1e-6)
+        {
+            changed.Add("flowSetpoint");
+        }
+
+        if (after.PumpCommEnabled != before.PumpCommEnabled)
+        {
+            changed.Add("pumpComm");
+        }
+
+        if (after.DistanceOffsetMm != before.DistanceOffsetMm)
+        {
+            changed.Add("DistanceOffsetMm");
+        }
+
+        if (after.FlowKp != before.FlowKp)
+        {
+            changed.Add("FlowKp");
+        }
+
         Add("B2", "B2.8", "pedido não muda estado", changed.Count == 0 ? "0 diferenças" : string.Join(",", changed), "0", changed.Count == 0 ? "PASS" : "FAIL", "");
     }
 
@@ -591,7 +658,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         var bootIds = new HashSet<long>();
         foreach (var f in await ReadFramesAsync(TimeSpan.FromSeconds(30), 15, ct).ConfigureAwait(false))
         {
-            if (f.FlowmeterBootId is { } b) bootIds.Add(b);
+            if (f.FlowmeterBootId is { } b)
+            {
+                bootIds.Add(b);
+            }
         }
         Add("B3", "B3.7", "FlowmeterBootId estável", $"{bootIds.Count} valor(es) em 15 quadros", "1", bootIds.Count == 1 ? "PASS" : "FAIL", "");
 
@@ -607,18 +677,7 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
             Skip("B3", "B3.8", "reset_volume", options.Pump ? "pumpComm desligado" : "passe --pump");
         }
 
-        if (_parser.Readings.PumpSlope is { } slope0 && _parser.Readings.PumpIntercept is { } icpt0)
-        {
-            Remember("calibração da bomba", c => Send(CommandBuilders.PumpCalibration(slope0, icpt0), c));
-            var s1 = Math.Round(slope0 * 1.01, 6);
-            var (ok, ms, _) = await EchoAsync(CommandBuilders.PumpCalibration(s1, icpt0), s => s.PumpSlope is { } v && Math.Abs(v - s1) < 1e-4, TimeSpan.FromSeconds(10), null, ct).ConfigureAwait(false);
-            latencies.Add($"pump,PumpSlope,{ms}");
-            Add("B3", "B3.9", "PumpSlope/Intercept ecoados", ok ? $"sim em {ms} ms" : "não", "≤ 5000 ms, 4 casas", ok && ms <= 5000 ? "PASS" : ok ? "WARN" : "FAIL", "echo-latency.csv");
-        }
-        else
-        {
-            Skip("B3", "B3.9", "calibração da bomba", "PumpSlope sem eco no quadro");
-        }
+        Skip("B3", "B3.9", "calibração polinomial da bomba", "validada pelo fluxo dedicado da tela (nove coeficientes, ACK, eco e CRC)");
 
         {
             var malformedBefore = _malformed;
@@ -659,7 +718,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
                 foreach (var cmd in new[] { CommandBuilders.BiomassGear(gear0), CommandBuilders.BiomassIt(itCode), CommandBuilders.BiomassPwm(Math.Min(100, pwm0 + 1)) })
                 {
                     var (o, _, pending) = await EchoAsync(cmd, s => s.BiomassCommandPending == false, TimeSpan.FromSeconds(12), s => s.BiomassCommandPending == true, ct).ConfigureAwait(false);
-                    okAll &= o; if (pending) transitions++;
+                    okAll &= o; if (pending)
+                    {
+                        transitions++;
+                    }
                 }
                 var pwmEchoed = Math.Abs(_parser.Readings.BiomassPwmPercent - Math.Min(100, pwm0 + 1)) < 0.5;
                 latencies.Add($"biomass,gear+it+pwm,{sw.ElapsedMilliseconds}");
@@ -698,10 +760,9 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
             var before = _parser.Readings.Snapshot();
             var malformedBefore = _malformed;
             await _transport!.WriteAsync("{\"biomassIt\":9}", ct).ConfigureAwait(false);
-            await _transport.WriteAsync("{\"pumpSlope\":-1}", ct).ConfigureAwait(false);
             await ReadFramesAsync(TimeSpan.FromSeconds(6), int.MaxValue, ct).ConfigureAwait(false);
             var after = _parser.Readings.Snapshot();
-            var unchanged = after.BiomassIntegrationTimeMs == before.BiomassIntegrationTimeMs && after.PumpSlope == before.PumpSlope;
+            var unchanged = after.BiomassIntegrationTimeMs == before.BiomassIntegrationTimeMs;
             Add("B3", "B3.15", "fora de faixa não muda nada", $"inalterado={unchanged}; malformed={_malformed - malformedBefore}", "sem mudança, 0 malformed", unchanged && _malformed == malformedBefore ? "PASS" : "FAIL", "");
         }
 
@@ -734,7 +795,11 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
                 if (line is not null && Track(line) == ParseOutcome.Updated)
                 {
                     frames++;
-                    if (lastFrame > 0 && t0 - lastFrame > 5000) gaps++;
+                    if (lastFrame > 0 && t0 - lastFrame > 5000)
+                    {
+                        gaps++;
+                    }
+
                     lastFrame = t0;
                     if (!options.IsUsb) { var rtt = sw.ElapsedMilliseconds - t0; rtts.Add(rtt); rttMax = Math.Max(rttMax, rtt); }
                 }
@@ -779,7 +844,11 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < 10; i++)
             {
-                if (await _transport!.WriteAsync(CommandBuilders.DataDelay(2000).ToJson(), ct).ConfigureAwait(false)) okWrites++;
+                if (await _transport!.WriteAsync(CommandBuilders.DataDelay(2000).ToJson(), ct).ConfigureAwait(false))
+                {
+                    okWrites++;
+                }
+
                 await Task.Delay(200, ct).ConfigureAwait(false);
             }
             var frames = await ReadFramesAsync(TimeSpan.FromSeconds(6), int.MaxValue, ct).ConfigureAwait(false);
@@ -805,7 +874,11 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
 
     private static string DescribePresence(List<SensorSnapshot> frames)
     {
-        if (frames.Count == 0) return "nenhum quadro";
+        if (frames.Count == 0)
+        {
+            return "nenhum quadro";
+        }
+
         var last = frames[^1];
         return $"distance={last.DistanceOnline} agitator={last.AgitatorOnline} pump={last.PumpOnline} flowmeter={last.FlowmeterOnline} biomass={last.BiomassOnline} ({frames.Count} quadros)";
     }
@@ -815,10 +888,18 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
     private static long? ExtractNumber(string line, string marker)
     {
         var i = line.IndexOf(marker, StringComparison.Ordinal);
-        if (i < 0) return null;
+        if (i < 0)
+        {
+            return null;
+        }
+
         var start = i + marker.Length;
         var end = start;
-        while (end < line.Length && char.IsAsciiDigit(line[end])) end++;
+        while (end < line.Length && char.IsAsciiDigit(line[end]))
+        {
+            end++;
+        }
+
         return long.TryParse(line.AsSpan(start, end - start), NumberStyles.None, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 
@@ -843,7 +924,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         {
             var line = await _transport!.ReadAsync(ct).ConfigureAwait(false);
             if (line is null) { await Task.Delay(options.IsUsb ? 50 : 200, ct).ConfigureAwait(false); continue; }
-            if (Track(line) == ParseOutcome.Updated) list.Add(_parser.Readings.Snapshot());
+            if (Track(line) == ParseOutcome.Updated)
+            {
+                list.Add(_parser.Readings.Snapshot());
+            }
         }
         return list;
     }
@@ -856,7 +940,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         {
             var line = await _transport!.ReadAsync(ct).ConfigureAwait(false);
             if (line is null) { await Task.Delay(options.IsUsb ? 50 : 200, ct).ConfigureAwait(false); continue; }
-            if (Track(line) == ParseOutcome.Updated) list.Add((sw.ElapsedMilliseconds, line));
+            if (Track(line) == ParseOutcome.Updated)
+            {
+                list.Add((sw.ElapsedMilliseconds, line));
+            }
         }
         return list;
     }
@@ -885,10 +972,21 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         {
             var line = await _transport!.ReadAsync(ct).ConfigureAwait(false);
             if (line is null) { await Task.Delay(options.IsUsb ? 50 : 200, ct).ConfigureAwait(false); continue; }
-            if (Track(line) != ParseOutcome.Updated) continue;
+            if (Track(line) != ParseOutcome.Updated)
+            {
+                continue;
+            }
+
             var s = _parser.Readings.Snapshot();
-            if (pendingProbe is not null && pendingProbe(s)) pendingSeen = true;
-            if (matches(s)) return (true, sw.ElapsedMilliseconds, pendingSeen);
+            if (pendingProbe is not null && pendingProbe(s))
+            {
+                pendingSeen = true;
+            }
+
+            if (matches(s))
+            {
+                return (true, sw.ElapsedMilliseconds, pendingSeen);
+            }
         }
         return (false, sw.ElapsedMilliseconds, pendingSeen);
     }
@@ -900,7 +998,10 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         {
             var line = await _transport!.ReadAsync(ct).ConfigureAwait(false);
             if (line is null) { await Task.Delay(100, ct).ConfigureAwait(false); continue; }
-            if (Track(line) == ParseOutcome.Updated && _parser.Readings.BiomassCommandPending != true) return;
+            if (Track(line) == ParseOutcome.Updated && _parser.Readings.BiomassCommandPending != true)
+            {
+                return;
+            }
         }
     }
 
@@ -908,7 +1009,11 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
 
     private async Task RestoreAllAsync()
     {
-        if (_restores.Count == 0 || _transport is null || !_transport.IsConnected) return;
+        if (_restores.Count == 0 || _transport is null || !_transport.IsConnected)
+        {
+            return;
+        }
+
         Log("== restaurando ==");
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         for (var i = _restores.Count - 1; i >= 0; i--)
@@ -930,7 +1035,11 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
 
     private async Task<string?> GetAsync(string pathOrUrl, CancellationToken ct, bool absolute = false)
     {
-        if (_http is null) return null;
+        if (_http is null)
+        {
+            return null;
+        }
+
         try
         {
             var url = absolute ? pathOrUrl : $"http://{_hubIp}{pathOrUrl}";

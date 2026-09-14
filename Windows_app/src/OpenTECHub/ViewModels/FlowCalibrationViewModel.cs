@@ -723,7 +723,11 @@ public sealed partial class FlowCalibrationViewModel : ObservableObject, IDispos
     private static bool TryParseVersion(string? value, out Version version)
     {
         version = new Version();
-        if (string.IsNullOrWhiteSpace(value)) return false;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
         var cleaned = value.Trim().TrimStart('v', 'V').Split('-', '+', ' ')[0];
         return Version.TryParse(cleaned, out version!);
     }

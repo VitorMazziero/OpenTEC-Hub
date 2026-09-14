@@ -42,8 +42,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private double _runStartMonotonic;
     private double _lastTelemetryMonotonic;
     private (double Flow, bool V1, bool V2, bool VFlow) _targetGasState;
-    private int _lastFlowCommandId;
-    private int _minimumExpectedFlowCommandId;
+    private long _lastFlowCommandId;
+    private long _minimumExpectedFlowCommandId;
     private bool _startAtFloor;
     private bool _prestageConfirmed;
     private bool _completeAfterClosing;

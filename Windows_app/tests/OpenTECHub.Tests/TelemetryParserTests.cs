@@ -130,6 +130,18 @@ public class TelemetryParserTests
     }
 
     [Fact]
+    public void Flow_command_identifiers_preserve_full_unsigned_32_bit_range()
+    {
+        var parser = new TelemetryParser();
+
+        Assert.Equal(ParseOutcome.Updated, parser.Parse(
+            """{"FlowCommandId":4240449281,"FlowCommandAck":4240449281}"""));
+
+        Assert.Equal(4_240_449_281L, parser.Readings.FlowCommandId);
+        Assert.Equal(4_240_449_281L, parser.Readings.FlowCommandAck);
+    }
+
+    [Fact]
     public void FlowmeterReconnectWifi_defaults_to_on_and_holds_when_the_key_is_absent()
     {
         var parser = new TelemetryParser();

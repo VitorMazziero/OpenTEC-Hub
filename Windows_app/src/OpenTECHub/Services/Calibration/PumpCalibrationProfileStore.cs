@@ -55,7 +55,7 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                         ? sv
                         : 1;
 
-                    var isCompatible = schemaVersion <= PumpCalibrationProfile.CurrentSchemaVersion;
+                    var isCompatible = schemaVersion == PumpCalibrationProfile.CurrentSchemaVersion;
 
                     var profileId = root.TryGetProperty("profileId", out var idElem) && idElem.ValueKind == JsonValueKind.String && idElem.GetString() is { } id
                         ? id
@@ -130,12 +130,12 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
             {
                 using (var doc = JsonDocument.Parse(text))
                 {
-                    if (doc.RootElement.TryGetProperty("schemaVersion", out var svElem) &&
-                        svElem.TryGetInt32(out var sv) &&
-                        sv > PumpCalibrationProfile.CurrentSchemaVersion)
+                    if (!doc.RootElement.TryGetProperty("schemaVersion", out var svElem) ||
+                        !svElem.TryGetInt32(out var sv) ||
+                        sv != PumpCalibrationProfile.CurrentSchemaVersion)
                     {
                         throw new InvalidOperationException(
-                            $"O perfil '{name}' possui versão de schema {sv}, incompatível com a versão suportada ({PumpCalibrationProfile.CurrentSchemaVersion}). Atualize o aplicativo para utilizá-lo.");
+                            $"O perfil '{name}' não pertence ao formato atual de calibração polinomial (schema {PumpCalibrationProfile.CurrentSchemaVersion}).");
                     }
                 }
 
@@ -146,24 +146,6 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                 }
 
                 profile = profile with { Name = name.Trim() };
-                if (profile.SchemaVersion <= 1)
-                {
-                    var migrated = PumpCalibrationProfile.FromCurve(
-                        profile.Name,
-                        profile.ToCurve(),
-                        profile.CalibrationPoints,
-                        profile.FitStatistics,
-                        profile.OptionalNotes);
-                    profile = migrated with
-                    {
-                        ProfileId = profile.ProfileId,
-                        CreatedUtc = profile.CreatedUtc,
-                        ModifiedUtc = profile.ModifiedUtc,
-                        LastAppliedUtc = profile.LastAppliedUtc,
-                        LastAppliedPumpFirmware = profile.LastAppliedPumpFirmware,
-                    };
-                }
-
                 return profile;
             }
             catch (JsonException ex)
@@ -202,17 +184,18 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                         $"O perfil '{profile.Name}' já existe. Especifique overwrite=true para sobrescrevê-lo.");
                 }
 
-                // Check if existing file has a newer schemaVersion
+                // A first-deployment profile must belong to the one current schema.
+                // Do not silently replace an older or otherwise incompatible format.
                 try
                 {
                     var existingText = File.ReadAllText(filePath);
                     using var doc = JsonDocument.Parse(existingText);
                     if (doc.RootElement.TryGetProperty("schemaVersion", out var svElem) &&
                         svElem.TryGetInt32(out var sv) &&
-                        sv > PumpCalibrationProfile.CurrentSchemaVersion)
+                        sv != PumpCalibrationProfile.CurrentSchemaVersion)
                     {
                         throw new InvalidOperationException(
-                            $"Não é permitido sobrescrever o perfil '{profile.Name}' pois ele pertence a uma versão de schema futura ({sv} > {PumpCalibrationProfile.CurrentSchemaVersion}).");
+                            $"Não é permitido sobrescrever o perfil '{profile.Name}' pois ele não pertence ao schema atual ({sv} != {PumpCalibrationProfile.CurrentSchemaVersion}).");
                     }
                 }
                 catch (JsonException)
@@ -262,66 +245,6 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
         lock (_ioLock)
         {
             return File.Exists(Path.Combine(ProfilesDirectory, PumpProfileFileContracts.ProfileFileName(name)));
-        }
-    }
-
-    public string EnsureDefaultProfileMigrated(AppSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        lock (_ioLock)
-        {
-            var dir = ProfilesDirectory;
-            if (Directory.Exists(dir))
-            {
-                var existingFiles = Directory.GetFiles(dir, "*" + PumpProfileFileContracts.ProfileExtension);
-                if (existingFiles.Length > 0)
-                {
-                    return settings.PumpControl.SelectedProfileName ?? DefaultProfileName;
-                }
-            }
-
-            // No profiles exist at all: perform idempotent initial migration from settings.PumpControl
-            var slope = settings.PumpControl.CalibrationSlope;
-            var intercept = settings.PumpControl.CalibrationIntercept;
-
-            PumpDualRangeCurve curve;
-            try
-            {
-                curve = PumpDualRangeCurve.FromLinear(slope, intercept);
-            }
-            catch
-            {
-                // Fallback to factory defaults if settings had non-positive or invalid slope/intercept
-                curve = PumpDualRangeCurve.FromLinear(0.0280188148, 1.7601988934);
-            }
-
-            var defaultProfile = new PumpCalibrationProfile
-            {
-                SchemaVersion = PumpCalibrationProfile.CurrentSchemaVersion,
-                ProfileId = Guid.NewGuid().ToString("D"),
-                Name = DefaultProfileName,
-                CreatedUtc = DateTimeOffset.UtcNow,
-                ModifiedUtc = DateTimeOffset.UtcNow,
-                TransitionFlowMlMin = curve.TransitionFlow,
-                TransitionSpeedUnits = curve.TransitionSpeed,
-                LowSlope = curve.LowSlope,
-                HighSlope = curve.HighSlope,
-                LowA = curve.LowSpeed.A,
-                LowB = curve.LowSpeed.B,
-                LowK = curve.LowSpeed.K,
-                LowF = curve.LowSpeed.F,
-                LowC = curve.LowSpeed.C,
-                HighK = curve.HighSpeed.K,
-                HighF = curve.HighSpeed.F,
-                HighC = curve.HighSpeed.C,
-                CalibrationPoints = settings.PumpControl.CalibrationPoints ?? [],
-                AlgorithmVersion = "quartic-quadratic-c1-v2",
-                OptionalNotes = "Perfil migrado da calibração linear existente.",
-            };
-
-            SaveProfile(defaultProfile, overwrite: false);
-            return DefaultProfileName;
         }
     }
 

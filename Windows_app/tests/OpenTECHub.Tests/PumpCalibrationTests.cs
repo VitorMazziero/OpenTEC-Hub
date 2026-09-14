@@ -16,6 +16,22 @@ public sealed class PumpCalibrationTests
     private static PumpCalibrationProfileStore FreshStore() => new(
         Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", "PumpProfiles", Guid.NewGuid().ToString("N")));
 
+    private static PumpDualRangeCurve TestCurve(double slope, double transitionSpeed, double transitionFlow)
+    {
+        var line = new PolynomialCalibration(0.0, slope, transitionFlow - slope * transitionSpeed);
+        return new PumpDualRangeCurve(line, line, transitionSpeed);
+    }
+
+    private static PumpCalibrationPoint[] PointsFor(PumpDualRangeCurve curve) =>
+        new[] { 100.0, 300.0, 600.0, 900.0 }
+            .Select(speed => new PumpCalibrationPoint
+            {
+                SpeedUnits = speed,
+                Seconds = 60.0,
+                VolumeMl = curve.FlowFromSpeed(speed)
+            })
+            .ToArray();
+
     private sealed class TestClock(DateTimeOffset initial) : TimeProvider
     {
         private DateTimeOffset _now = initial;
@@ -73,11 +89,12 @@ public sealed class PumpCalibrationTests
         var settings = new MemorySettingsService();
         using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
-        var previous = Assert.IsType<PumpDualRangeCurve>(vm.Curve);
+        vm.SetCurve(TestCurve(0.02, 500.0, 16.0));
+        Assert.IsType<PumpDualRangeCurve>(vm.Curve);
         vm.TransitionSpeedInputText = "0.0";
         Assert.False(vm.IsValid);
         Assert.False(vm.CanApply);
-        Assert.Equal(previous.FlowFromSpeed(250).ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
+        Assert.Equal("—", vm.Preview250Text);
         Assert.NotNull(vm.ValidationError);
 
         vm.TransitionSpeedInputText = "-5.0";
@@ -115,9 +132,8 @@ public sealed class PumpCalibrationTests
             PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
         Assert.True(vm.IsPumpOnline);
-        Assert.True(vm.IsFirmwareCompatible);
 
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+        vm.SetCurve(TestCurve(0.02, 500.0, 16.0));
         Assert.True(vm.CanApply);
 
         vm.ApplyCommand.Execute(null);
@@ -186,7 +202,7 @@ public sealed class PumpCalibrationTests
             HubFirmwareVersion = "10.4.0",
             PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+        vm.SetCurve(TestCurve(0.02, 500.0, 16.0));
         vm.ApplyCommand.Execute(null);
 
         clock.Advance(TimeSpan.FromSeconds(16));
@@ -205,7 +221,7 @@ public sealed class PumpCalibrationTests
     }
 
     [Fact]
-    public void Pump_calibration_blocks_apply_on_legacy_firmware()
+    public void Pump_calibration_does_not_wait_for_version_identity()
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
@@ -215,34 +231,11 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.10")
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", null)
         });
+        vm.SetCurve(TestCurve(0.02, 500, 16));
 
-        Assert.False(vm.IsFirmwareCompatible);
-        Assert.False(vm.CanApply);
-        Assert.Contains("3.12", vm.FirmwareUnsupportedReason);
-    }
-
-    [Theory]
-    [InlineData("10.2.9")]
-    [InlineData("v10.2.0-dev")]
-    public void Pump_calibration_blocks_apply_on_legacy_hub(string hubVersion)
-    {
-        var device = new RecordingDeviceService();
-        using var vm = new PumpCalibrationViewModel(device, new MemorySettingsService(), profileStore: FreshStore());
-        device.PushTelemetry(new SensorSnapshot
-        {
-            HasPumpTelemetry = true,
-            PumpOnline = true,
-            HubFirmwareVersion = hubVersion,
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "v3.12.0-dev")
-        });
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
-
-        Assert.True(vm.IsFirmwareCompatible);
-        Assert.False(vm.IsHubCompatible);
-        Assert.False(vm.CanApply);
-        Assert.Contains("10.4", vm.HubUnsupportedReason);
+        Assert.True(vm.CanApply);
     }
 
     [Theory]
@@ -261,7 +254,7 @@ public sealed class PumpCalibrationTests
             HubFirmwareVersion = "10.4.0",
             PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
+        vm.SetCurve(TestCurve(0.02, 500, 16));
 
         Assert.False(vm.CanApply);
     }
@@ -271,7 +264,7 @@ public sealed class PumpCalibrationTests
     {
         var (vm, device, settings, _) = OnlinePump();
         using var _ = vm;
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
+        vm.SetCurve(TestCurve(0.02, 500, 16));
         vm.ApplyCommand.Execute(null);
 
         device.PushTelemetry(new SensorSnapshot
@@ -369,7 +362,7 @@ public sealed class PumpCalibrationTests
             PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
 
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+        vm.SetCurve(TestCurve(0.02, 500.0, 16.0));
         vm.ApplyCommand.Execute(null);
 
         Assert.False(vm.CanEditCalibration);
@@ -410,13 +403,32 @@ public sealed class PumpCalibrationTests
     public void Displayed_curve_is_available_to_the_calibration_chart()
     {
         using var vm = new PumpCalibrationViewModel(new RecordingDeviceService(), new MemorySettingsService(), profileStore: FreshStore());
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+        vm.SetCurve(TestCurve(0.02, 500.0, 16.0));
 
         Assert.True(vm.TryGetDisplayedCurve(out PumpDualRangeCurve curve));
         Assert.Equal(0.02, curve.LowSlope, 8);
         Assert.Equal(0.02, curve.HighSlope, 8);
         Assert.Equal(500.0, curve.TransitionSpeed, 8);
         Assert.Equal(16.0, curve.TransitionFlow, 8);
+    }
+
+    [Fact]
+    public void Empty_first_installation_has_no_fabricated_curve_or_equations()
+    {
+        using var vm = new PumpCalibrationViewModel(
+            new RecordingDeviceService(),
+            new MemorySettingsService(),
+            profileStore: FreshStore());
+
+        Assert.Empty(vm.AvailableProfiles);
+        Assert.Empty(vm.Runs);
+        Assert.Null(vm.Curve);
+        Assert.False(vm.HasFit);
+        Assert.False(vm.TryGetDisplayedCurve(out _));
+        Assert.Equal("—", vm.LowSlopeText);
+        Assert.Equal("—", vm.HighSlopeText);
+        Assert.Equal("—", vm.TransitionFlowText);
+        Assert.False(vm.CanApply);
     }
 
     private static (PumpCalibrationViewModel Vm, RecordingDeviceService Device, MemorySettingsService Settings, TestClock Clock) OnlinePump()
@@ -674,8 +686,10 @@ public sealed class PumpCalibrationTests
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "OpenTECHub.Tests", Guid.NewGuid().ToString("N"));
         var store = new PumpCalibrationProfileStore(tempDir);
-        store.SaveProfile(PumpCalibrationProfile.FromCurve("Silicone 2mm", new PumpDualRangeCurve(0.02, 0.03, 500, 16)));
-        store.SaveProfile(PumpCalibrationProfile.FromCurve("Marprene 3mm", new PumpDualRangeCurve(0.025, 0.035, 480, 18)));
+        var silicone = TestCurve(0.02, 500, 16);
+        var marprene = TestCurve(0.025, 480, 18);
+        store.SaveProfile(PumpCalibrationProfile.FromCurve("Silicone 2mm", silicone, PointsFor(silicone)));
+        store.SaveProfile(PumpCalibrationProfile.FromCurve("Marprene 3mm", marprene, PointsFor(marprene)));
         var dialogs = new TestDialogService();
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
@@ -718,7 +732,7 @@ public sealed class PumpCalibrationTests
     [Fact]
     public void Dual_range_curve_is_continuous_and_uses_low_segment_at_transition()
     {
-        var curve = new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0);
+        var curve = TestCurve(0.02, 500.0, 16.0);
 
         Assert.True(curve.Validate(out var error), error);
         Assert.Equal(16.0, curve.FlowFromSpeed(500.0), 10);
@@ -730,7 +744,7 @@ public sealed class PumpCalibrationTests
     [Fact]
     public void Dual_range_curve_round_trips_flow_and_speed_in_both_ranges()
     {
-        var curve = new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0);
+        var curve = TestCurve(0.02, 500.0, 16.0);
 
         foreach (var speed in new[] { 100.0, 500.0, 800.0 })
         {
@@ -781,14 +795,16 @@ public sealed class PumpCalibrationTests
     [Fact]
     public void Linear_migration_preserves_the_legacy_equation()
     {
-        var curve = PumpDualRangeCurve.FromLinear(0.028, 1.7602);
+        var line = new PolynomialCalibration(0.0, 0.028, 1.7602);
+        var curve = new PumpDualRangeCurve(line, line, 500.0);
 
         foreach (var speed in new[] { 0.0, 250.0, 500.0, 1000.0 })
         {
             Assert.Equal(0.028 * speed + 1.7602, curve.FlowFromSpeed(speed), 10);
         }
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => PumpDualRangeCurve.FromLinear(0.01, -100.0));
+        var invalidLine = new PolynomialCalibration(0.0, 0.01, -100.0);
+        Assert.False(new PumpDualRangeCurve(invalidLine, invalidLine, 500.0).Validate(out _));
     }
 
     private static PumpCalibrationPoint Point(double speed, double flow) => new()

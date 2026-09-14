@@ -579,9 +579,6 @@ public class CultureInvarianceTests : IDisposable
                 """{"pump_command":"reset_volume"}""",
                 CommandBuilders.PumpResetVolume().ToJson());
             Assert.Equal(
-                """{"pumpSlope":1.25,"pumpIntercept":0.05}""",
-                CommandBuilders.PumpCalibration(1.25, 0.05).ToJson());
-            Assert.Equal(
                 """{"pumpPidKp":1.5,"pumpPidKi":0.2,"pumpPidKd":0.05}""",
                 CommandBuilders.PumpPid(1.5, 0.2, 0.05).ToJson());
 
@@ -611,7 +608,6 @@ public class CultureInvarianceTests : IDisposable
     {
         Assert.Throws<ArgumentException>(() => CommandBuilders.DistanceConfig());
         Assert.Throws<ArgumentException>(() => CommandBuilders.FlowTuning());
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpCalibration(0.0, 1.0));
         Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassIt(6));
         Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassPwm(101.0));
         Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.BiomassGear(32));
@@ -687,18 +683,12 @@ public class CultureInvarianceTests : IDisposable
     public void Dual_range_calibration_command_and_telemetry_keys_match_protocol()
     {
         Assert.Equal("flowTransitionVoltage", CommandKeys.FlowTransitionVoltage);
-        Assert.Equal("pumpSlopeLow", CommandKeys.PumpSlopeLow);
-        Assert.Equal("pumpSlopeHigh", CommandKeys.PumpSlopeHigh);
         Assert.Equal("pumpTransitionSpeed", CommandKeys.PumpTransitionSpeed);
-        Assert.Equal("pumpTransitionFlow", CommandKeys.PumpTransitionFlow);
         Assert.Equal("pumpA1", CommandKeys.PumpA1);
         Assert.Equal("pumpC2", CommandKeys.PumpC2);
 
         Assert.Equal("FlowTransitionVoltage", TelemetryKeys.FlowTransitionVoltage);
-        Assert.Equal("PumpSlopeLow", TelemetryKeys.PumpSlopeLow);
-        Assert.Equal("PumpSlopeHigh", TelemetryKeys.PumpSlopeHigh);
         Assert.Equal("PumpTransitionSpeed", TelemetryKeys.PumpTransitionSpeed);
-        Assert.Equal("PumpTransitionFlow", TelemetryKeys.PumpTransitionFlow);
         Assert.Equal("PumpA1", TelemetryKeys.PumpA1);
         Assert.Equal("PumpC2", TelemetryKeys.PumpC2);
         Assert.Equal("PumpCalCrc", TelemetryKeys.PumpCalCrc);

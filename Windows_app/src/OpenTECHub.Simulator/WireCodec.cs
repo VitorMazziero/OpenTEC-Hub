@@ -76,8 +76,8 @@ public static class WireCodec
             AppendInt(buffer, "Valve1", model.Valve1);
             AppendInt(buffer, "Valve2", model.Valve2);
             AppendInt(buffer, "ValveFlow", model.MainLineClosed ? 1 : 0);
-            AppendInt(buffer, "FlowCommandId", model.FlowCommandId);
-            AppendInt(buffer, "FlowCommandAck", model.FlowCommandAck);
+            AppendLong(buffer, "FlowCommandId", model.FlowCommandId);
+            AppendLong(buffer, "FlowCommandAck", model.FlowCommandAck);
             AppendInt(buffer, "FlowCommandDeliveries", model.FlowCommandDeliveries);
             AppendBool(buffer, "FlowCommandPending", model.FlowCommandPending);
             AppendBool(buffer, "FlowmeterOnline", model.ExternalNodesOnline);
@@ -172,16 +172,11 @@ public static class WireCodec
             AppendBool(buffer, "PumpWaiting", false);
             if (model.Scenario != Scenario.LegacyHub)
             {
-                Append(buffer, "PumpSlope", model.PumpSlope, 4);
-                Append(buffer, "PumpIntercept", model.PumpIntercept, 4);
                 Append(buffer, "PumpPidKp", model.PumpPidKp, 4);
                 Append(buffer, "PumpPidKi", model.PumpPidKi, 4);
                 Append(buffer, "PumpPidKd", model.PumpPidKd, 4);
                 AppendBool(buffer, "PumpPotEnabled", model.PumpPotEnabled);
-                Append(buffer, TelemetryKeys.PumpSlopeLow, model.PumpSlopeLow, 6);
-                Append(buffer, TelemetryKeys.PumpSlopeHigh, model.PumpSlopeHigh, 6);
                 Append(buffer, TelemetryKeys.PumpTransitionSpeed, model.PumpTransitionSpeed, 2);
-                Append(buffer, TelemetryKeys.PumpTransitionFlow, model.PumpTransitionFlow, 4);
                 Append(buffer, TelemetryKeys.PumpA1, model.PumpA1, 9);
                 Append(buffer, TelemetryKeys.PumpB1, model.PumpB1, 9);
                 Append(buffer, TelemetryKeys.PumpK1, model.PumpK1, 9);
@@ -588,51 +583,12 @@ public static class WireCodec
             {
                 model.PumpA1 = polyA1; model.PumpB1 = polyB1; model.PumpK1 = polyK1; model.PumpF1 = polyF1; model.PumpC1 = polyC1;
                 model.PumpK2 = polyK2; model.PumpF2 = polyF2; model.PumpC2 = polyC2; model.PumpTransitionSpeed = polySt;
-                model.PumpTransitionFlow = ((((polyA1 * polySt + polyB1) * polySt + polyK1) * polySt + polyF1) * polySt + polyC1);
+                model.PumpDerivedTransitionFlow = ((((polyA1 * polySt + polyB1) * polySt + polyK1) * polySt + polyF1) * polySt + polyC1);
                 model.PumpCalCrc = DeviceModel.CalculatePumpCalibrationCrc(values);
                 model.PumpCommandPending = true;
             }
         }
 
-        var hasSlopeLow = TryDouble(root, CommandKeys.PumpSlopeLow, out var pumpSlopeLow) ||
-                          TryDouble(root, "slope_low", out pumpSlopeLow);
-        var hasSlopeHigh = TryDouble(root, CommandKeys.PumpSlopeHigh, out var pumpSlopeHigh) ||
-                           TryDouble(root, "slope_high", out pumpSlopeHigh);
-        var hasTransSpeed = TryDouble(root, CommandKeys.PumpTransitionSpeed, out var pumpTransSpeed) ||
-                            TryDouble(root, "transition_speed", out pumpTransSpeed);
-        var hasTransFlow = TryDouble(root, CommandKeys.PumpTransitionFlow, out var pumpTransFlow) ||
-                           TryDouble(root, "transition_flow", out pumpTransFlow);
-
-        if (!hasPumpPolynomial && (hasSlopeLow || hasSlopeHigh || hasTransSpeed || hasTransFlow))
-        {
-            if (hasSlopeLow && hasSlopeHigh && hasTransSpeed && hasTransFlow &&
-                double.IsFinite(pumpSlopeLow) && pumpSlopeLow > 0.0 &&
-                double.IsFinite(pumpSlopeHigh) && pumpSlopeHigh > 0.0 &&
-                double.IsFinite(pumpTransSpeed) && pumpTransSpeed > 0.0 && pumpTransSpeed < 1000.0 &&
-                double.IsFinite(pumpTransFlow) && pumpTransFlow > 0.0 &&
-                (pumpTransFlow - (pumpSlopeLow * pumpTransSpeed)) >= -1e-5)
-            {
-                model.PumpSlopeLow = pumpSlopeLow;
-                model.PumpSlopeHigh = pumpSlopeHigh;
-                model.PumpTransitionSpeed = pumpTransSpeed;
-                model.PumpTransitionFlow = pumpTransFlow;
-                model.PumpSlope = (pumpSlopeLow + pumpSlopeHigh) / 2.0;
-                model.PumpIntercept = pumpTransFlow - (model.PumpSlope * pumpTransSpeed);
-                model.PumpCalCrc = DeviceModel.CalculatePumpCalibrationCrc(pumpSlopeLow, pumpSlopeHigh, pumpTransSpeed, pumpTransFlow);
-                model.PumpCommandPending = true;
-            }
-        }
-        else
-        {
-            if (TryDouble(root, CommandKeys.PumpSlope, out var pumpSlope))
-            {
-                model.PumpSlope = pumpSlope;
-            }
-            if (TryDouble(root, CommandKeys.PumpIntercept, out var pumpIntercept))
-            {
-                model.PumpIntercept = pumpIntercept;
-            }
-        }
         if (TryDouble(root, CommandKeys.PumpPidKp, out var pumpPidKp))
         {
             model.PumpPidKp = pumpPidKp;

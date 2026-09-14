@@ -192,7 +192,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     // so these need no synchronisation of their own.
     private long? _lastCommandSentTimestamp;
     private long? _flowCommandDispatchedTimestamp;
-    private int _expectedFlowCommandId;
+    private long _expectedFlowCommandId;
     private string _lastError = "";
     private DateTimeOffset? _lastFrameAt;
 

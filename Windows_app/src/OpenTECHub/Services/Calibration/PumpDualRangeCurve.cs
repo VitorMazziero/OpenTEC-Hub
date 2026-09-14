@@ -5,7 +5,6 @@ namespace OpenTECHub.Services.Calibration;
 /// <summary>Pump Q(S): quartic below St and quadratic above it, like the flowmeter.</summary>
 public readonly record struct PumpDualRangeCurve
 {
-    public const double MigrationTransitionSpeed = 500.0;
     public const double MinimumSpeed = 0.0;
     public const double MaximumSpeed = 1000.0;
 
@@ -14,15 +13,6 @@ public readonly record struct PumpDualRangeCurve
         LowSpeed = lowSpeed;
         HighSpeed = highSpeed;
         TransitionSpeed = transitionSpeed;
-    }
-
-    /// <summary>Compatibility constructor for persisted v3.11 two-line curves.</summary>
-    public PumpDualRangeCurve(double lowSlope, double highSlope, double transitionSpeed, double transitionFlow)
-        : this(
-            new PolynomialCalibration(0.0, lowSlope, transitionFlow - lowSlope * transitionSpeed),
-            new PolynomialCalibration(0.0, lowSlope, transitionFlow - lowSlope * transitionSpeed),
-            transitionSpeed)
-    {
     }
 
     public PolynomialCalibration LowSpeed { get; }
@@ -50,33 +40,32 @@ public readonly record struct PumpDualRangeCurve
             throw new InvalidOperationException(error);
         }
 
-        if (flow <= FlowFromSpeed(MinimumSpeed)) return MinimumSpeed;
-        if (flow >= FlowFromSpeed(MaximumSpeed)) return MaximumSpeed;
+        if (flow <= FlowFromSpeed(MinimumSpeed))
+        {
+            return MinimumSpeed;
+        }
+
+        if (flow >= FlowFromSpeed(MaximumSpeed))
+        {
+            return MaximumSpeed;
+        }
 
         var lower = flow <= TransitionFlow ? MinimumSpeed : TransitionSpeed;
         var upper = flow <= TransitionFlow ? TransitionSpeed : MaximumSpeed;
         for (var iteration = 0; iteration < 64; iteration++)
         {
             var middle = (lower + upper) / 2.0;
-            if (FlowFromSpeed(middle) < flow) lower = middle;
-            else upper = middle;
+            if (FlowFromSpeed(middle) < flow)
+            {
+                lower = middle;
+            }
+            else
+            {
+                upper = middle;
+            }
         }
 
         return (lower + upper) / 2.0;
-    }
-
-    public static PumpDualRangeCurve FromLinear(double slope, double intercept)
-    {
-        if (slope <= 0.0 || !double.IsFinite(slope))
-            throw new ArgumentOutOfRangeException(nameof(slope), slope, "A inclinação deve ser positiva e finita.");
-        if (!double.IsFinite(intercept))
-            throw new ArgumentOutOfRangeException(nameof(intercept), intercept, "O intercepto deve ser finito.");
-
-        var line = new PolynomialCalibration(0.0, slope, intercept);
-        var curve = new PumpDualRangeCurve(line, line, MigrationTransitionSpeed);
-        if (!curve.Validate(out var error))
-            throw new ArgumentOutOfRangeException(nameof(intercept), intercept, error);
-        return curve;
     }
 
     public bool Validate(out string? error)
@@ -169,7 +158,9 @@ public static class PumpDualRangeMath
         ArgumentNullException.ThrowIfNull(points);
         if (transitionSpeed <= PumpDualRangeCurve.MinimumSpeed ||
             transitionSpeed >= PumpDualRangeCurve.MaximumSpeed || !double.IsFinite(transitionSpeed))
+        {
             return PumpFitResult.Fail("A velocidade de transição (St) deve estar em (0, 1000).");
+        }
 
         var valid = points.Where(p =>
             double.IsFinite(p.SpeedUnits) && double.IsFinite(p.FlowMlPerMin) &&
@@ -180,7 +171,9 @@ public static class PumpDualRangeMath
         if (lowCount < 2 || highCount < 2 ||
             valid.Where(p => p.SpeedUnits <= transitionSpeed).Select(p => p.SpeedUnits).Distinct().Count() < 2 ||
             valid.Where(p => p.SpeedUnits > transitionSpeed).Select(p => p.SpeedUnits).Distinct().Count() < 2)
+        {
             return PumpFitResult.Fail("São necessárias pelo menos 2 velocidades distintas em cada faixa definida por St.");
+        }
 
         FlowCalibrationCurve fitted;
         try
@@ -195,10 +188,16 @@ public static class PumpDualRangeMath
         }
 
         if (fitted.LowVoltage is not { } low || fitted.HighVoltage is not { } high)
+        {
             return PumpFitResult.Fail("Os pontos não determinam as duas equações da bomba.");
+        }
 
         var curve = new PumpDualRangeCurve(low, high, transitionSpeed);
-        if (!curve.Validate(out var error)) return PumpFitResult.Fail(error!);
+        if (!curve.Validate(out var error))
+        {
+            return PumpFitResult.Fail(error!);
+        }
+
         return Statistics(valid, curve, lowCount, highCount);
     }
 
@@ -216,8 +215,15 @@ public static class PumpDualRangeMath
             residuals[i] = residual;
             var squared = residual * residual;
             sse += squared;
-            if (points[i].SpeedUnits <= curve.TransitionSpeed) lowSse += squared;
-            else highSse += squared;
+            if (points[i].SpeedUnits <= curve.TransitionSpeed)
+            {
+                lowSse += squared;
+            }
+            else
+            {
+                highSse += squared;
+            }
+
             var centered = points[i].FlowMlPerMin - mean;
             sst += centered * centered;
         }

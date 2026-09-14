@@ -297,12 +297,14 @@ public sealed class FlowmeterV05SyncTests
     }
 
     [Fact]
-    public void NodeFirmwareCatalog_validates_v11_and_v11_0()
+    public void NodeFirmwareCatalog_validates_supported_flowmeter_versions()
     {
         Assert.True(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
             OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v11"));
         Assert.True(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
             OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v11.0"));
+        Assert.True(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
+            OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v12.0"));
         Assert.False(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(
             OpenTECHub.Services.Communication.NodeFirmwareCatalog.Flowmeter, "v10"));
         Assert.False(OpenTECHub.Services.Communication.NodeFirmwareCatalog.IsValidated(

@@ -657,14 +657,14 @@ public static class CommandBuilders
         {
             throw new ArgumentOutOfRangeException(nameof(maxFlow), "MaxFlow must be finite and greater than zero.");
         }
-        if (!double.IsFinite(a1)) throw new ArgumentOutOfRangeException(nameof(a1), "a1 must be finite.");
-        if (!double.IsFinite(b1)) throw new ArgumentOutOfRangeException(nameof(b1), "b1 must be finite.");
-        if (!double.IsFinite(k1)) throw new ArgumentOutOfRangeException(nameof(k1), "k1 must be finite.");
-        if (!double.IsFinite(f1)) throw new ArgumentOutOfRangeException(nameof(f1), "f1 must be finite.");
-        if (!double.IsFinite(c1)) throw new ArgumentOutOfRangeException(nameof(c1), "c1 must be finite.");
-        if (!double.IsFinite(k2)) throw new ArgumentOutOfRangeException(nameof(k2), "k2 must be finite.");
-        if (!double.IsFinite(f2)) throw new ArgumentOutOfRangeException(nameof(f2), "f2 must be finite.");
-        if (!double.IsFinite(c2)) throw new ArgumentOutOfRangeException(nameof(c2), "c2 must be finite.");
+        if (!double.IsFinite(a1)) { throw new ArgumentOutOfRangeException(nameof(a1), "a1 must be finite."); }
+        if (!double.IsFinite(b1)) { throw new ArgumentOutOfRangeException(nameof(b1), "b1 must be finite."); }
+        if (!double.IsFinite(k1)) { throw new ArgumentOutOfRangeException(nameof(k1), "k1 must be finite."); }
+        if (!double.IsFinite(f1)) { throw new ArgumentOutOfRangeException(nameof(f1), "f1 must be finite."); }
+        if (!double.IsFinite(c1)) { throw new ArgumentOutOfRangeException(nameof(c1), "c1 must be finite."); }
+        if (!double.IsFinite(k2)) { throw new ArgumentOutOfRangeException(nameof(k2), "k2 must be finite."); }
+        if (!double.IsFinite(f2)) { throw new ArgumentOutOfRangeException(nameof(f2), "f2 must be finite."); }
+        if (!double.IsFinite(c2)) { throw new ArgumentOutOfRangeException(nameof(c2), "c2 must be finite."); }
         if (!double.IsFinite(transitionVoltage) || transitionVoltage <= 0.0 || transitionVoltage >= 3.3)
         {
             throw new ArgumentOutOfRangeException(nameof(transitionVoltage), "Transition voltage must be finite and in (0.0, 3.3) V.");
@@ -842,23 +842,6 @@ public static class CommandBuilders
     public static OpenTECCommand PumpResetVolume()
         => OpenTECCommand.Create().Set(CommandKeys.PumpCommand, "reset_volume");
 
-    /// <summary>Configures the external pump linear calibration: slope and intercept.</summary>
-    public static OpenTECCommand PumpCalibration(double slope, double intercept)
-    {
-        if (!double.IsFinite(slope) || slope <= 0.0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(slope), "Pump slope must be finite and greater than zero.");
-        }
-        if (!double.IsFinite(intercept))
-        {
-            throw new ArgumentOutOfRangeException(nameof(intercept), "Pump intercept must be finite.");
-        }
-
-        return OpenTECCommand.Create()
-            .Set(CommandKeys.PumpSlope, slope)
-            .Set(CommandKeys.PumpIntercept, intercept);
-    }
-
     /// <summary>
     /// Configures the external pump quartic/quadratic C0+C1 calibration atomically.
     /// </summary>
@@ -868,9 +851,13 @@ public static class CommandBuilders
     {
         var coefficients = new[] { a1, b1, k1, f1, c1, k2, f2, c2 };
         if (coefficients.Any(value => !double.IsFinite(value)))
+        {
             throw new ArgumentOutOfRangeException(nameof(a1), "Pump coefficients must be finite.");
+        }
         if (!double.IsFinite(transitionSpeed) || transitionSpeed <= 0.0 || transitionSpeed >= 1000.0)
+        {
             throw new ArgumentOutOfRangeException(nameof(transitionSpeed), "Transition speed must be finite and in (0, 1000) speed units.");
+        }
 
         return OpenTECCommand.Create()
             .Set(CommandKeys.PumpA1, a1).Set(CommandKeys.PumpB1, b1)

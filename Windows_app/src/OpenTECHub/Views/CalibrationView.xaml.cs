@@ -219,7 +219,7 @@ public partial class CalibrationView : UserControl
         plot.Grid.MajorLineColor = grid.WithAlpha(0.45);
         plot.Axes.Bottom.Label.Text = "Velocidade S";
         plot.Axes.Left.Label.Text = "Vazão (mL/min)";
-        plot.Axes.Title.Label.Text = "Curva contínua de duplo trecho da bomba";
+        plot.Axes.Title.Label.Text = "Curva de calibração da bomba";
         plot.Axes.Title.Label.ForeColor = text;
 
         var maximumFlow = 1.0;
@@ -234,7 +234,7 @@ public partial class CalibrationView : UserControl
                 scatter.LineWidth = 0;
                 scatter.MarkerSize = 8;
                 scatter.Color = accent;
-                scatter.LegendText = "Volumes medidos";
+                scatter.LegendText = "Pontos medidos";
                 maximumFlow = Math.Max(maximumFlow, runs.Max(run => run.FlowMlPerMin));
             }
 
@@ -242,13 +242,22 @@ public partial class CalibrationView : UserControl
             {
                 var st = Math.Clamp(curve.TransitionSpeed, 1.0, 999.0);
 
-                // Trecho inferior: [0, St]
+                var lowMinimum = runs.Where(run => run.SpeedUnits <= st)
+                                     .Select(run => run.SpeedUnits)
+                                     .DefaultIfEmpty(st)
+                                     .Min();
+                var highMaximum = runs.Where(run => run.SpeedUnits > st)
+                                      .Select(run => run.SpeedUnits)
+                                      .DefaultIfEmpty(st)
+                                      .Max();
+
+                // Assim como no fluxômetro, cada equação aparece apenas na faixa medida.
                 const int steps = 50;
                 var lowSpeeds = new double[steps + 1];
                 var lowFlows = new double[steps + 1];
                 for (var i = 0; i <= steps; i++)
                 {
-                    var s = st * i / steps;
+                    var s = lowMinimum + ((st - lowMinimum) * i / steps);
                     lowSpeeds[i] = s;
                     lowFlows[i] = Math.Max(0.0, curve.FlowFromSpeed(s));
                 }
@@ -256,14 +265,13 @@ public partial class CalibrationView : UserControl
                 lowLine.MarkerSize = 0;
                 lowLine.LineWidth = 2;
                 lowLine.Color = lowColor;
-                lowLine.LegendText = $"Trecho inferior (S ≤ {st:F1})";
+                lowLine.LegendText = $"Curva inferior (S ≤ {st:F1})";
 
-                // Trecho superior: [St, 1000]
                 var highSpeeds = new double[steps + 1];
                 var highFlows = new double[steps + 1];
                 for (var i = 0; i <= steps; i++)
                 {
-                    var s = st + ((1000.0 - st) * i / steps);
+                    var s = st + ((highMaximum - st) * i / steps);
                     highSpeeds[i] = s;
                     highFlows[i] = Math.Max(0.0, curve.FlowFromSpeed(s));
                 }
@@ -271,14 +279,17 @@ public partial class CalibrationView : UserControl
                 highLine.MarkerSize = 0;
                 highLine.LineWidth = 2;
                 highLine.Color = highColor;
-                highLine.LegendText = $"Trecho superior (S > {st:F1})";
+                highLine.LegendText = $"Curva superior (S > {st:F1})";
 
                 var vLine = plot.Add.VerticalLine(st);
                 vLine.Color = grid;
                 vLine.LineWidth = 1;
 
-                var maxFlowCurve = Math.Max(0.0, curve.FlowFromSpeed(1000.0));
+                var maxFlowCurve = Math.Max(0.0, curve.FlowFromSpeed(highMaximum));
                 maximumFlow = Math.Max(maximumFlow, maxFlowCurve);
+
+                var speedMaximum = Math.Max(highMaximum, st);
+                plot.Axes.SetLimits(0, speedMaximum * 1.04, 0, maximumFlow * 1.1);
             }
         }
 
@@ -288,7 +299,10 @@ public partial class CalibrationView : UserControl
         plot.Legend.BackgroundColor = surface;
         plot.Legend.FontColor = text;
         plot.Legend.OutlineColor = grid;
-        plot.Axes.SetLimits(0, 1020, 0, maximumFlow * 1.1);
+        if (_pumpSubscribed is null || _pumpSubscribed.Runs.Count == 0 || !_pumpSubscribed.TryGetDisplayedCurve(out _))
+        {
+            plot.Axes.SetLimits(0, 1000, 0, 1);
+        }
         _pumpPlot.Refresh();
     }
 

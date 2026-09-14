@@ -41,13 +41,8 @@ public class SimulatorNodeConfigTests
             "PumpCommandPending": false,
             "PumpFlow": 1.5,
             "PumpVol": 10.0,
-            "PumpSlope": 1.2345,
-            "PumpIntercept": 0.0543,
             "FlowTransitionVoltage": 0.0545,
-            "PumpSlopeLow": 0.003906,
-            "PumpSlopeHigh": 0.004470,
             "PumpTransitionSpeed": 200.0,
-            "PumpTransitionFlow": 0.7812,
             "PumpCalCrc": 3867625571,
             "BiomassOnline": true,
             "BiomassCommEnabled": true,
@@ -84,12 +79,7 @@ public class SimulatorNodeConfigTests
         Assert.Equal(42L, snapshot.FlowmeterBootId);
 
         // Pump echoes
-        Assert.Equal(1.2345, snapshot.PumpSlope);
-        Assert.Equal(0.0543, snapshot.PumpIntercept);
-        Assert.Equal(0.003906, snapshot.PumpSlopeLow);
-        Assert.Equal(0.004470, snapshot.PumpSlopeHigh);
         Assert.Equal(200.0, snapshot.PumpTransitionSpeed);
-        Assert.Equal(0.7812, snapshot.PumpTransitionFlow);
         Assert.Equal(3867625571L, snapshot.PumpCalCrc);
 
         // Biomass echoes
@@ -131,12 +121,7 @@ public class SimulatorNodeConfigTests
         Assert.Null(snapshot.FlowTransitionVoltage);
         Assert.Null(snapshot.FlowmeterBootId);
 
-        Assert.Null(snapshot.PumpSlope);
-        Assert.Null(snapshot.PumpIntercept);
-        Assert.Null(snapshot.PumpSlopeLow);
-        Assert.Null(snapshot.PumpSlopeHigh);
         Assert.Null(snapshot.PumpTransitionSpeed);
-        Assert.Null(snapshot.PumpTransitionFlow);
         Assert.Null(snapshot.PumpCalCrc);
 
         Assert.Null(snapshot.BiomassGear);
@@ -157,11 +142,7 @@ public class SimulatorNodeConfigTests
             "FlowTransitionVoltage": 0.0545,
             "DistanceOffsetMm": 20.0,
             "DistanceCommandPending": true,
-            "PumpSlope": 1.5,
-            "PumpSlopeLow": 0.003906,
-            "PumpSlopeHigh": 0.004470,
             "PumpTransitionSpeed": 200.0,
-            "PumpTransitionFlow": 0.7812,
             "PumpCalCrc": 3867625571,
             "BiomassGear": 2
         }
@@ -173,11 +154,7 @@ public class SimulatorNodeConfigTests
         Assert.Equal(0.0545, parser.Readings.FlowTransitionVoltage);
         Assert.Equal(20.0, parser.Readings.DistanceOffsetMm);
         Assert.True(parser.Readings.DistanceCommandPending);
-        Assert.Equal(1.5, parser.Readings.PumpSlope);
-        Assert.Equal(0.003906, parser.Readings.PumpSlopeLow);
-        Assert.Equal(0.004470, parser.Readings.PumpSlopeHigh);
         Assert.Equal(200.0, parser.Readings.PumpTransitionSpeed);
-        Assert.Equal(0.7812, parser.Readings.PumpTransitionFlow);
         Assert.Equal(3867625571L, parser.Readings.PumpCalCrc);
         Assert.Equal(2, parser.Readings.BiomassGear);
 
@@ -197,11 +174,7 @@ public class SimulatorNodeConfigTests
         Assert.Null(snapshot.FlowTransitionVoltage);
         Assert.Null(snapshot.DistanceOffsetMm);
         Assert.Null(snapshot.DistanceCommandPending);
-        Assert.Null(snapshot.PumpSlope);
-        Assert.Null(snapshot.PumpSlopeLow);
-        Assert.Null(snapshot.PumpSlopeHigh);
         Assert.Null(snapshot.PumpTransitionSpeed);
-        Assert.Null(snapshot.PumpTransitionFlow);
         Assert.Null(snapshot.PumpCalCrc);
         Assert.Null(snapshot.BiomassGear);
 
@@ -262,12 +235,7 @@ public class SimulatorNodeConfigTests
         Assert.Contains("\"FlowFfOffset\":0.200", frameFlow);
         Assert.Contains("\"FlowRampRate\":3.50", frameFlow);
 
-        // 3. Pump calibration and reset volume
-        var pumpCal = CommandBuilders.PumpCalibration(slope: 1.45, intercept: -0.12);
-        Assert.True(WireCodec.ApplyCommand(model, pumpCal.ToJson(), out _));
-        Assert.Equal(1.45, model.PumpSlope);
-        Assert.Equal(-0.12, model.PumpIntercept);
-
+        // 3. Pump PID and reset volume
         var pumpPid = CommandBuilders.PumpPid(kp: 2.0, ki: 0.5, kd: 0.02);
         Assert.True(WireCodec.ApplyCommand(model, pumpPid.ToJson(), out _));
         Assert.Equal(2.0, model.PumpPidKp);
@@ -277,10 +245,6 @@ public class SimulatorNodeConfigTests
         var resetVol = CommandBuilders.PumpResetVolume();
         Assert.True(WireCodec.ApplyCommand(model, resetVol.ToJson(), out _));
         Assert.True(model.PumpVolume < 0.001);
-
-        var framePump = WireCodec.BuildTelemetry(model);
-        Assert.Contains("\"PumpSlope\":1.4500", framePump);
-        Assert.Contains("\"PumpIntercept\":-0.1200", framePump);
 
         // 4. Biomass tuning
         var bioIt = CommandBuilders.BiomassIt(3);
@@ -447,7 +411,7 @@ public class SimulatorNodeConfigTests
         Assert.Equal(0.003500, model.PumpF1);
         Assert.Equal(0.003500, model.PumpF2);
         Assert.Equal(250.0, model.PumpTransitionSpeed);
-        Assert.Equal(0.8750, model.PumpTransitionFlow);
+        Assert.Equal(0.8750, model.PumpDerivedTransitionFlow);
         var expectedCrc = DeviceModel.CalculatePumpCalibrationCrc(0, 0, 0, 0.0035, 0, 0, 0.0035, 0, 250.0);
         Assert.Equal(expectedCrc, (uint)model.PumpCalCrc);
         Assert.True(model.PumpCommandPending);
@@ -458,7 +422,6 @@ public class SimulatorNodeConfigTests
         Assert.Contains("\"PumpF1\":0.003500000", pumpFrame1);
         Assert.Contains("\"PumpF2\":0.003500000", pumpFrame1);
         Assert.Contains("\"PumpTransitionSpeed\":250.00", pumpFrame1);
-        Assert.Contains("\"PumpTransitionFlow\":0.8750", pumpFrame1);
         Assert.Contains($"\"PumpCalCrc\":{expectedCrc}", pumpFrame1);
 
         // Telemetry frame 2 has PumpCommandPending: false
@@ -476,10 +439,7 @@ public class SimulatorNodeConfigTests
         };
 
         var initialFlowV = model.FlowTransitionVoltage;
-        var initialLow = model.PumpSlopeLow;
-        var initialHigh = model.PumpSlopeHigh;
         var initialSpeed = model.PumpTransitionSpeed;
-        var initialFlow = model.PumpTransitionFlow;
         var initialCrc = model.PumpCalCrc;
 
         // Invalid flow transition voltage (>= 3.3 V or negative)
@@ -487,25 +447,6 @@ public class SimulatorNodeConfigTests
         Assert.Equal(initialFlowV, model.FlowTransitionVoltage);
         WireCodec.ApplyCommand(model, "{\"flowTransitionVoltage\":-0.1}", out _);
         Assert.Equal(initialFlowV, model.FlowTransitionVoltage);
-
-        // Incomplete dual-range calibration (missing fields)
-        WireCodec.ApplyCommand(model, "{\"pumpSlopeLow\":0.005}", out _);
-        Assert.Equal(initialLow, model.PumpSlopeLow);
-        Assert.False(model.PumpCommandPending);
-
-        // Invalid pump transition speed (>= 1000 or negative)
-        WireCodec.ApplyCommand(model, "{\"pumpSlopeLow\":0.003,\"pumpSlopeHigh\":0.004,\"pumpTransitionSpeed\":1000.0,\"pumpTransitionFlow\":1.0}", out _);
-        Assert.Equal(initialLow, model.PumpSlopeLow);
-        Assert.False(model.PumpCommandPending);
-
-        // Physical constraint violation: transitionFlow - slopeLow * transitionSpeed < 0
-        WireCodec.ApplyCommand(model, "{\"pumpSlopeLow\":0.01,\"pumpSlopeHigh\":0.01,\"pumpTransitionSpeed\":200.0,\"pumpTransitionFlow\":1.0}", out _);
-        Assert.Equal(initialLow, model.PumpSlopeLow);
-        Assert.Equal(initialHigh, model.PumpSlopeHigh);
-        Assert.Equal(initialSpeed, model.PumpTransitionSpeed);
-        Assert.Equal(initialFlow, model.PumpTransitionFlow);
-        Assert.Equal(initialCrc, model.PumpCalCrc);
-        Assert.False(model.PumpCommandPending);
 
         // A complete v3.12 block that is discontinuous at St is rejected atomically.
         WireCodec.ApplyCommand(model,

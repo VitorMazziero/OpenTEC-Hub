@@ -33,16 +33,16 @@ public sealed record PumpCalibrationProfile
     /// <summary>When the profile was last modified (UTC).</summary>
     public DateTimeOffset ModifiedUtc { get; init; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Legacy schema-1 transition flow. Retained only for lossless migration.</summary>
+    /// <summary>Derived flow at the transition, stored for profile summaries.</summary>
     public double TransitionFlowMlMin { get; init; }
 
     /// <summary>Fitted transition speed St in internal speed units S.</summary>
     public double TransitionSpeedUnits { get; init; }
 
-    /// <summary>Legacy schema-1 low-speed slope. Retained only for migration.</summary>
+    /// <summary>Derived low-side derivative at the transition.</summary>
     public double LowSlope { get; init; }
 
-    /// <summary>Legacy schema-1 high-speed slope. Retained only for migration.</summary>
+    /// <summary>Derived high-side derivative at the transition.</summary>
     public double HighSlope { get; init; }
 
     public double LowA { get; init; }
@@ -73,9 +73,7 @@ public sealed record PumpCalibrationProfile
     public string? LastAppliedPumpFirmware { get; init; }
 
     /// <summary>Constructs a <see cref="PumpDualRangeCurve"/> from this profile's parameters.</summary>
-    public PumpDualRangeCurve ToCurve() => SchemaVersion <= 1
-        ? new PumpDualRangeCurve(LowSlope, HighSlope, TransitionSpeedUnits, TransitionFlowMlMin)
-        : new PumpDualRangeCurve(
+    public PumpDualRangeCurve ToCurve() => new(
             new PolynomialCalibration(LowK, LowF, LowC) { A = LowA, B = LowB },
             new PolynomialCalibration(HighK, HighF, HighC),
             TransitionSpeedUnits);

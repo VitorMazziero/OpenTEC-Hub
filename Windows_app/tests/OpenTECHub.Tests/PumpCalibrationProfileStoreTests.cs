@@ -14,6 +14,12 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     private readonly string _testRoot;
     private readonly IDisposable _overrideScope;
 
+    private static PumpDualRangeCurve TestCurve(double slope, double intercept, double transitionSpeed = 500.0)
+    {
+        var line = new PolynomialCalibration(0.0, slope, intercept);
+        return new PumpDualRangeCurve(line, line, transitionSpeed);
+    }
+
     public PumpCalibrationProfileStoreTests()
     {
         _testRoot = Path.Combine(Path.GetTempPath(), $"opentechub-pumpprofiles-test-{Guid.NewGuid():N}");
@@ -42,7 +48,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     public void SaveProfile_And_LoadProfile_PersistsAllProperties()
     {
         var store = new PumpCalibrationProfileStore();
-        var curve = new PumpDualRangeCurve(0.025, 0.035, 450.0, 12.5);
+        var curve = TestCurve(0.025, 1.25, 450.0);
 
         var points = new[]
         {
@@ -94,7 +100,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     public void SaveProfile_WithoutOverwrite_ThrowsIfAlreadyExists()
     {
         var store = new PumpCalibrationProfileStore();
-        var curve = PumpDualRangeCurve.FromLinear(0.028, 1.5);
+        var curve = TestCurve(0.028, 1.5);
         var profile = PumpCalibrationProfile.FromCurve("Perfil Existente", curve);
 
         store.SaveProfile(profile, overwrite: false);
@@ -138,7 +144,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     public void FilenameValidation_RejectsInvalidNames(string invalidName)
     {
         var store = new PumpCalibrationProfileStore();
-        var curve = PumpDualRangeCurve.FromLinear(0.028, 1.5);
+        var curve = TestCurve(0.028, 1.5);
         var profile = new PumpCalibrationProfile
         {
             Name = invalidName,
@@ -161,10 +167,10 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
         var store = new PumpCalibrationProfileStore();
 
         // 1. Save two valid profiles
-        var curve1 = PumpDualRangeCurve.FromLinear(0.025, 1.0);
+        var curve1 = TestCurve(0.025, 1.0);
         store.SaveProfile(PumpCalibrationProfile.FromCurve("Perfil 1", curve1));
 
-        var curve2 = PumpDualRangeCurve.FromLinear(0.030, 2.0);
+        var curve2 = TestCurve(0.030, 2.0);
         store.SaveProfile(PumpCalibrationProfile.FromCurve("Perfil 2", curve2));
 
         // 2. Introduce a corrupt JSON file directly in the directory
@@ -190,7 +196,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     }
 
     [Fact]
-    public void FutureSchemaVersion_MarksIncompatible_AndBlocksOverwrite()
+    public void NonCurrentSchemaVersion_MarksIncompatible_AndBlocksOverwrite()
     {
         var store = new PumpCalibrationProfileStore();
 
@@ -220,7 +226,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => store.LoadProfile("Futuro"));
 
         // SaveProfile blocks overwriting incompatible future file even if overwrite = true
-        var localProfile = PumpCalibrationProfile.FromCurve("Futuro", PumpDualRangeCurve.FromLinear(0.025, 1.0));
+        var localProfile = PumpCalibrationProfile.FromCurve("Futuro", TestCurve(0.025, 1.0));
         Assert.Throws<InvalidOperationException>(() => store.SaveProfile(localProfile, overwrite: true));
     }
 
@@ -228,7 +234,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     public void DeleteProfile_RemovesFile_AndReturnsStatus()
     {
         var store = new PumpCalibrationProfileStore();
-        var curve = PumpDualRangeCurve.FromLinear(0.028, 1.5);
+        var curve = TestCurve(0.028, 1.5);
         store.SaveProfile(PumpCalibrationProfile.FromCurve("Para Deletar", curve));
 
         Assert.True(store.ProfileExists("Para Deletar"));
@@ -253,56 +259,4 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
         Assert.Throws<ArgumentException>(() => store.SaveProfile(invalidProfile));
     }
 
-    [Fact]
-    public void EnsureDefaultProfileMigrated_CreatesPadraoWhenEmpty()
-    {
-        var store = new PumpCalibrationProfileStore();
-        var legacySettings = new AppSettings
-        {
-            PumpControl = new PumpControlSettings
-            {
-                CalibrationSlope = 0.0280188148,
-                CalibrationIntercept = 1.7601988934,
-                SelectedProfileName = null
-            }
-        };
-
-        var selected = store.EnsureDefaultProfileMigrated(legacySettings);
-        Assert.Equal("Padrão", selected);
-        Assert.True(store.ProfileExists("Padrão"));
-
-        var profile = store.LoadProfile("Padrão");
-        Assert.NotNull(profile);
-        Assert.Equal("Padrão", profile.Name);
-        var curve = profile.ToCurve();
-        Assert.Equal(0.0280188148, curve.LowSlope, precision: 6);
-
-        // Calling again does not re-create or alter
-        var selected2 = store.EnsureDefaultProfileMigrated(legacySettings);
-        Assert.Equal("Padrão", selected2);
-    }
-
-    [Fact]
-    public void EnsureDefaultProfileMigrated_DoesNothingIfProfilesAlreadyExist()
-    {
-        var store = new PumpCalibrationProfileStore();
-
-        // User already has an existing profile
-        var curve = PumpDualRangeCurve.FromLinear(0.03, 1.0);
-        store.SaveProfile(PumpCalibrationProfile.FromCurve("Mangueira Customizada", curve));
-
-        var settings = new AppSettings
-        {
-            PumpControl = new PumpControlSettings
-            {
-                CalibrationSlope = 0.05,
-                CalibrationIntercept = 1.0,
-                SelectedProfileName = "Mangueira Customizada"
-            }
-        };
-
-        var selected = store.EnsureDefaultProfileMigrated(settings);
-        Assert.Equal("Mangueira Customizada", selected);
-        Assert.False(store.ProfileExists("Padrão"));
-    }
 }

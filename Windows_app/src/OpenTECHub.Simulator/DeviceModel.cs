@@ -260,12 +260,8 @@ public sealed class DeviceModel
     public long FlowmeterBootId { get; set; } = 1001;
     public double FlowTransitionVoltage { get; set; } = 0.0545;
 
-    public double PumpSlope { get; set; } = 0.0280188148;
-    public double PumpIntercept { get; set; } = 1.7601988934;
-    public double PumpSlopeLow { get; set; } = 0.0280188148;
-    public double PumpSlopeHigh { get; set; } = 0.0280188148;
     public double PumpTransitionSpeed { get; set; } = 500.0;
-    public double PumpTransitionFlow { get; set; } = 15.7696062934;
+    public double PumpDerivedTransitionFlow { get; set; } = 15.7696062934;
     public double PumpA1 { get; set; }
     public double PumpB1 { get; set; }
     public double PumpK1 { get; set; }
@@ -294,7 +290,9 @@ public sealed class DeviceModel
     {
         var bytes = new byte[values.Length * sizeof(float)];
         for (var i = 0; i < values.Length; i++)
+        {
             BitConverter.TryWriteBytes(bytes.AsSpan(i * 4, 4), (float)values[i]);
+        }
 
         uint crc = 0xFFFFFFFF;
         for (int i = 0; i < bytes.Length; i++)
@@ -593,9 +591,9 @@ public sealed class DeviceModel
     public int DataDelayMs { get; set; } = 2000;
 
     /// <summary>Command correlation counters the app surfaces in diagnostics.</summary>
-    public int FlowCommandId { get; private set; }
+    public long FlowCommandId { get; private set; }
 
-    public int FlowCommandAck { get; private set; }
+    public long FlowCommandAck { get; private set; }
 
     public int FlowCommandDeliveries { get; private set; }
 

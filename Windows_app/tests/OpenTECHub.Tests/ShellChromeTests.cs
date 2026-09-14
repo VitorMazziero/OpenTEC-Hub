@@ -178,7 +178,13 @@ public sealed class ShellChromeTests
             var theme = Rendering.WpfRenderingHost.Services.GetRequiredService<Services.Theme.IThemeService>();
             var shell = Rendering.WpfRenderingHost.Services.GetRequiredService<ViewModels.ShellViewModel>();
 
-            var win = new MainWindow(settings, theme) { DataContext = shell };
+            // The shared settings service may contain the operator's saved maximized state.
+            // This test exercises compact normal-window geometry, so make that precondition explicit.
+            var win = new MainWindow(settings, theme)
+            {
+                DataContext = shell,
+                WindowState = WindowState.Normal,
+            };
             win.Width = 1280;
             win.Height = 800;
             win.Show();

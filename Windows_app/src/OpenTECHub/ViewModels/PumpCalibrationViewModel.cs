@@ -57,10 +57,9 @@ public sealed partial class PumpCalibrationRunViewModel : ObservableObject
 }
 
 /// <summary>
-/// Continuous dual-range calibration of the external peristaltic pump:
-/// <c>Q(S) = Qt + LowSlope · (S - St)</c> for <c>S &lt;= St</c> and
-/// <c>Q(S) = Qt + HighSlope · (S - St)</c> for <c>S &gt; St</c>,
-/// coupled with a local hose profile library.
+/// Polynomial calibration of the external peristaltic pump, using the same
+/// quartic/quadratic C0+C1 curve family as the flowmeter and one local profile
+/// for each hose.
 /// </summary>
 public sealed partial class PumpCalibrationViewModel : ObservableObject, IDisposable
 {
@@ -118,17 +117,16 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         _profileStore = profileStore ?? new PumpCalibrationProfileStore(AppPaths.PumpProfilesDirectory);
         _dialogs = dialogs;
 
-        // Idempotent migration of legacy profile if store is empty
-        var defaultProfileName = _profileStore.EnsureDefaultProfileMigrated(_settings.Current);
-
-        var activeName = _settings.Current.PumpControl.SelectedProfileName;
-        if (string.IsNullOrWhiteSpace(activeName) || !_profileStore.ProfileExists(activeName))
-        {
-            activeName = defaultProfileName;
-        }
-
-        LoadProfileData(activeName, saveAsSelected: false);
         RefreshProfiles();
+        var activeName = _settings.Current.PumpControl.SelectedProfileName;
+        if (!string.IsNullOrWhiteSpace(activeName) && _profileStore.ProfileExists(activeName))
+        {
+            LoadProfileData(activeName, saveAsSelected: false);
+        }
+        else if (Profiles.FirstOrDefault() is { } firstProfile)
+        {
+            LoadProfileData(firstProfile.Name, saveAsSelected: false);
+        }
 
         IsConnected = _device.State == ConnectionState.Connected;
         _device.TelemetryReceived += OnTelemetryReceived;
@@ -168,6 +166,9 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     [ObservableProperty]
     public partial string TransitionSpeedText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string TransitionFlowText { get; set; } = "—";
 
     [ObservableProperty]
     public partial string LowSlopeText { get; set; } = "—";
@@ -240,27 +241,13 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         $"St {AppliedTransitionSpeedText} · Qt {AppliedTransitionFlowText} · CRC {AppliedCrcText}";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    public partial bool IsFirmwareCompatible { get; set; }
-
-    [ObservableProperty]
-    public partial string? FirmwareUnsupportedReason { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    public partial bool IsHubCompatible { get; set; }
-
-    [ObservableProperty]
-    public partial string? HubUnsupportedReason { get; set; } = "Aguardando a versão do Hub; calibração polinomial exige Hub 10.4 ou posterior.";
-
-    [ObservableProperty]
     public partial string CurrentFlowText { get; set; } = "—";
 
     [ObservableProperty]
     public partial string CurrentVolumeText { get; set; } = "—";
 
     [ObservableProperty]
-    public partial string StatusText { get; set; } = "Ajuste a calibração contínua em duas faixas ou selecione um perfil da biblioteca de mangueiras.";
+    public partial string StatusText { get; set; } = "Registre os pontos da mangueira para calcular sua curva polinomial ou selecione um perfil salvo.";
 
     // ---- Hose Profile Library ----
 
@@ -272,7 +259,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     public partial PumpCalibrationProfileSummary? SelectedProfileSummary { get; set; }
 
     [ObservableProperty]
-    public partial string ActiveProfileName { get; set; } = "Padrão";
+    public partial string ActiveProfileName { get; set; } = "Nova mangueira";
 
     [ObservableProperty]
     public partial string ActiveProfileId { get; set; } = "";
@@ -408,7 +395,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     public string Preview500Text => _curve is { } c ? c.FlowFromSpeed(500.0).ToString("F2", CultureInfo.CurrentCulture) + " mL/min" : "—";
     public string Preview1000Text => _curve is { } c ? c.FlowFromSpeed(1000.0).ToString("F2", CultureInfo.CurrentCulture) + " mL/min" : "—";
 
-    public bool CanApply => IsConnected && IsPumpOnline && IsValid && IsFirmwareCompatible && IsHubCompatible &&
+    public bool CanApply => IsConnected && IsPumpOnline && IsValid &&
                             !_isPumpProfileActive && !_isPumpProfileWaiting && CanEditCalibration &&
                             !_awaitingResetVolume && !IsRunning && !IsManualRunning;
 
@@ -661,7 +648,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             });
         }
 
-        RecomputeFit(preserveLoadedCurve: true);
+        RecomputeFit();
         IsDirty = false;
     }
 
@@ -876,9 +863,13 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
         else
         {
-            var defName = _profileStore.EnsureDefaultProfileMigrated(_settings.Current);
-            LoadProfileData(defName, saveAsSelected: true);
-            StatusText = "Valores restaurados do perfil padrão.";
+            Runs.Clear();
+            _curve = null;
+            ActiveProfile = null;
+            ActiveProfileId = "";
+            ActiveProfileName = "Nova mangueira";
+            RecomputeFit();
+            StatusText = "Formulário reiniciado para uma nova mangueira.";
         }
     }
 
@@ -886,23 +877,22 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     // Dual-range Fit
     // ------------------------------------------------------------------
 
-    private void RecomputeFit(bool preserveLoadedCurve = false)
+    private void RecomputeFit()
     {
         var points = Runs.Select(r => r.Point).ToList();
 
         if (points.Count == 0)
         {
             _fitResult = null;
+            _curve = null;
             HasFit = false;
-            FitSummaryText = _curve != null ? "Curva configurada (nenhum ponto volumétrico registrado)." : "Nenhum ponto volumétrico registrado.";
+            FitSummaryText = "Nenhum ponto volumétrico registrado.";
             FitWarning = null;
-            if (_curve is null)
-            {
-                TransitionSpeedText = "—";
-                LowSlopeText = "—";
-                HighSlopeText = "—";
-                ContinuityText = "—";
-            }
+            TransitionSpeedText = "—";
+            TransitionFlowText = "—";
+            LowSlopeText = "—";
+            HighSlopeText = "—";
+            ContinuityText = "—";
             FitRSquaredText = "—";
             FitRmseText = "—";
             FitSseText = "—";
@@ -933,12 +923,12 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
         if (!_fitResult.IsValid || _fitResult.Curve is not { } curve)
         {
+            _curve = null;
             HasFit = false;
-            // Keep the last valid curve visible while the operator repairs the point set.
-            // ValidationError blocks sending until the point set fits again.
             FitWarning = _fitResult.Error ?? "Ajuste de calibração dupla indisponível para os pontos atuais.";
             FitSummaryText = $"{points.Count} acionamento(s); ajuste indisponível.";
             TransitionSpeedText = "—";
+            TransitionFlowText = "—";
             LowSlopeText = "—";
             HighSlopeText = "—";
             ContinuityText = "—";
@@ -965,6 +955,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         FitWarning = null;
 
         TransitionSpeedText = curve.TransitionSpeed.ToString("F1", CultureInfo.CurrentCulture) + " un";
+        TransitionFlowText = curve.TransitionFlow.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
         LowSlopeText = FormatLowEquation(curve.LowSpeed);
         HighSlopeText = FormatHighEquation(curve.HighSpeed);
         ContinuityText = $"C0+C1 em St = {curve.TransitionSpeed:F1} un (Qt = {curve.TransitionFlow:F2} mL/min)";
@@ -1020,6 +1011,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             LowSlopeText = FormatLowEquation(fitCurve.LowSpeed);
             HighSlopeText = FormatHighEquation(fitCurve.HighSpeed);
             TransitionSpeedText = fitCurve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
+            TransitionFlowText = fitCurve.TransitionFlow.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
         }
         finally
         {
@@ -1042,6 +1034,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             TransitionSpeedInputText = curve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
             LowSlopeText = FormatLowEquation(curve.LowSpeed);
             TransitionSpeedText = curve.TransitionSpeed.ToString("F1", CultureInfo.InvariantCulture);
+            TransitionFlowText = curve.TransitionFlow.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
             HighSlopeText = FormatHighEquation(curve.HighSpeed);
             IsDirty = true;
         }
@@ -1060,18 +1053,6 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     [RelayCommand(CanExecute = nameof(CanApply))]
     public void Apply()
     {
-        if (!IsFirmwareCompatible)
-        {
-            StatusText = FirmwareUnsupportedReason ?? "Firmware da bomba não suporta calibração contínua em duas faixas.";
-            return;
-        }
-
-        if (!IsHubCompatible)
-        {
-            StatusText = HubUnsupportedReason ?? "O Hub não oferece o contrato polinomial (requer 10.4+).";
-            return;
-        }
-
         if (_isPumpProfileActive || _isPumpProfileWaiting)
         {
             StatusText = "Pare ou cancele o perfil operacional da bomba antes de alterar a calibração.";
@@ -1336,57 +1317,6 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             _isPumpCommandPending = snapshot.PumpCommandPending.Value;
         }
 
-        // Pump 3.12+ supports the quartic/quadratic atomic contract.
-        if (snapshot.PumpNode.FirmwareVersion is { } fw && !string.IsNullOrWhiteSpace(fw))
-        {
-            if (!TryParseFirmwareVersion(fw, out var v) || v < new Version(3, 12))
-            {
-                IsFirmwareCompatible = false;
-                FirmwareUnsupportedReason = $"O nó da bomba externa (firmware v{fw}) não oferece a curva quartica/quadrática. Atualize para v3.12+.";
-            }
-            else
-            {
-                IsFirmwareCompatible = true;
-                FirmwareUnsupportedReason = null;
-            }
-        }
-        else if (!snapshot.PumpA1.HasValue && snapshot.PumpSlope.HasValue)
-        {
-            IsFirmwareCompatible = false;
-            FirmwareUnsupportedReason = "O nó da bomba externa opera com calibração anterior. Atualize para v3.12+.";
-        }
-        else
-        {
-            var hasDualEcho = snapshot.PumpA1.HasValue && snapshot.PumpB1.HasValue &&
-                              snapshot.PumpK1.HasValue && snapshot.PumpF1.HasValue && snapshot.PumpC1.HasValue &&
-                              snapshot.PumpK2.HasValue && snapshot.PumpF2.HasValue && snapshot.PumpC2.HasValue &&
-                              snapshot.PumpTransitionSpeed.HasValue;
-            if (hasDualEcho)
-            {
-                IsFirmwareCompatible = true;
-                FirmwareUnsupportedReason = null;
-            }
-            else if (!IsFirmwareCompatible)
-            {
-                FirmwareUnsupportedReason = "Aguardando identidade ou ecos de calibração dupla da bomba; envio bloqueado para evitar downgrade silencioso.";
-            }
-        }
-
-        if (snapshot.HubFirmwareVersion is { } hubFw && !string.IsNullOrWhiteSpace(hubFw))
-        {
-            IsHubCompatible = TryParseFirmwareVersion(hubFw, out var hubVersion) && hubVersion >= new Version(10, 4);
-            HubUnsupportedReason = IsHubCompatible
-                ? null
-                : $"O Hub {hubFw} não encaminha o contrato polinomial; atualize para 10.4 ou posterior.";
-        }
-        else
-        {
-            if (!IsHubCompatible)
-            {
-                HubUnsupportedReason = "Aguardando a versão do Hub; calibração polinomial exige Hub 10.4 ou posterior.";
-            }
-        }
-
         AppliedLowSlopeText = TryCurveFromSnapshot(snapshot, out var appliedCurve)
             ? FormatLowEquation(appliedCurve.LowSpeed) : "—";
         AppliedHighSlopeText = TryCurveFromSnapshot(snapshot, out appliedCurve)
@@ -1546,23 +1476,6 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     private static string FormatHighEquation(PolynomialCalibration curve) =>
         $"Q={curve.K:G5}S² {curve.F:+0.#####;-0.#####;+0}S {curve.C:+0.#####;-0.#####;+0}";
-
-    private static bool TryParseFirmwareVersion(string value, out Version version)
-    {
-        var text = value.Trim();
-        if (text.StartsWith('v') || text.StartsWith('V'))
-        {
-            text = text[1..];
-        }
-
-        var end = text.IndexOfAny(['-', '+', ' ']);
-        if (end >= 0)
-        {
-            text = text[..end];
-        }
-
-        return Version.TryParse(text, out version!);
-    }
 
     private string? WriteCalibrationReceipt(
         PumpDualRangeCurve requestedCurve,

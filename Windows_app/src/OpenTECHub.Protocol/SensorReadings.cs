@@ -75,8 +75,8 @@ public sealed class SensorReadings
     public bool FlowCommandPending { get; set; }
     public string FlowCommandSource { get; set; } = "unknown";
 
-    public int FlowCommandId { get; set; }
-    public int FlowCommandAck { get; set; }
+    public long FlowCommandId { get; set; }
+    public long FlowCommandAck { get; set; }
 
     /// <summary>Parsed by v.6 but never displayed. Surfaced in the connection popover.</summary>
     public int FlowCommandDeliveries { get; set; }
@@ -241,17 +241,12 @@ public sealed class SensorReadings
     public double? FlowTransitionVoltage { get; set; }
     public long? FlowmeterCalCrc { get; set; }
 
-    public double? PumpSlope { get; set; }
-    public double? PumpIntercept { get; set; }
     public double? PumpPidKp { get; set; }
     public double? PumpPidKi { get; set; }
     public double? PumpPidKd { get; set; }
     public bool? PumpPotEnabled { get; set; }
     public double? PumpCycleVolume { get; set; }
-    public double? PumpSlopeLow { get; set; }
-    public double? PumpSlopeHigh { get; set; }
     public double? PumpTransitionSpeed { get; set; }
-    public double? PumpTransitionFlow { get; set; }
     public double? PumpA1 { get; set; }
     public double? PumpB1 { get; set; }
     public double? PumpK1 { get; set; }
@@ -394,17 +389,12 @@ public sealed class SensorReadings
         FlowmeterBootId = FlowmeterBootId,
         FlowTransitionVoltage = FlowTransitionVoltage,
         FlowmeterCalCrc = FlowmeterCalCrc,
-        PumpSlope = PumpSlope,
-        PumpIntercept = PumpIntercept,
         PumpPidKp = PumpPidKp,
         PumpPidKi = PumpPidKi,
         PumpPidKd = PumpPidKd,
         PumpPotEnabled = PumpPotEnabled,
         PumpCycleVolume = PumpCycleVolume,
-        PumpSlopeLow = PumpSlopeLow,
-        PumpSlopeHigh = PumpSlopeHigh,
         PumpTransitionSpeed = PumpTransitionSpeed,
-        PumpTransitionFlow = PumpTransitionFlow,
         PumpA1 = PumpA1,
         PumpB1 = PumpB1,
         PumpK1 = PumpK1,
@@ -446,8 +436,8 @@ public sealed record SensorSnapshot
     public bool FlowmeterReconnectWifi { get; init; } = true;
     public bool FlowCommandPending { get; init; }
     public string FlowCommandSource { get; init; } = "unknown";
-    public int FlowCommandId { get; init; }
-    public int FlowCommandAck { get; init; }
+    public long FlowCommandId { get; init; }
+    public long FlowCommandAck { get; init; }
     public int FlowCommandDeliveries { get; init; }
     public int FlowCommandAgeMs { get; init; }
     public int HubStations { get; init; }
@@ -679,8 +669,6 @@ public sealed record SensorSnapshot
     public double? FlowTransitionVoltage { get; init; }
     public long? FlowmeterCalCrc { get; init; }
 
-    public double? PumpSlope { get; init; }
-    public double? PumpIntercept { get; init; }
 
     /// <summary>PID gains the pump node reports running (3.10+); null on a 3.9 node.</summary>
     public double? PumpPidKp { get; init; }
@@ -693,17 +681,8 @@ public sealed record SensorSnapshot
     /// <summary>Volume delivered by the current profile cycle, mL; <see cref="PumpVolume"/> is the session total.</summary>
     public double? PumpCycleVolume { get; init; }
 
-    /// <summary>Dual-range low slope echo (pump 3.11, Hub 10.3).</summary>
-    public double? PumpSlopeLow { get; init; }
-
-    /// <summary>Dual-range high slope echo (pump 3.11, Hub 10.3).</summary>
-    public double? PumpSlopeHigh { get; init; }
-
-    /// <summary>Dual-range transition speed echo (pump 3.11, Hub 10.3).</summary>
+    /// <summary>Polynomial curve transition speed echo.</summary>
     public double? PumpTransitionSpeed { get; init; }
-
-    /// <summary>Dual-range transition flow echo (pump 3.11, Hub 10.3).</summary>
-    public double? PumpTransitionFlow { get; init; }
 
     /// <summary>Pump 3.12 polynomial calibration echoes (Hub 10.4).</summary>
     public double? PumpA1 { get; init; }

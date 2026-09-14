@@ -215,15 +215,10 @@ public static class CommandKeys
     /// Renamed to <c>command</c> by the Hub.
     /// </summary>
     public const string PumpCommand = "pump_command";
-    public const string PumpSlope = "pumpSlope";
-    public const string PumpIntercept = "pumpIntercept";
     public const string PumpPidKp = "pumpPidKp";
     public const string PumpPidKi = "pumpPidKi";
     public const string PumpPidKd = "pumpPidKd";
-    public const string PumpSlopeLow = "pumpSlopeLow";
-    public const string PumpSlopeHigh = "pumpSlopeHigh";
     public const string PumpTransitionSpeed = "pumpTransitionSpeed";
-    public const string PumpTransitionFlow = "pumpTransitionFlow";
     public const string PumpA1 = "pumpA1";
     public const string PumpB1 = "pumpB1";
     public const string PumpK1 = "pumpK1";
@@ -489,8 +484,6 @@ public static class TelemetryKeys
     public const string FlowTransitionVoltage = "FlowTransitionVoltage";
     public const string FlowmeterCalCrc = "FlowmeterCalCrc";
 
-    public const string PumpSlope = "PumpSlope";
-    public const string PumpIntercept = "PumpIntercept";
 
     // Pump 3.10 echoes (Hub 2026-09-12): PID gains, whether the bench potentiometers are in
     // command, and the volume delivered by the current profile cycle.
@@ -500,11 +493,7 @@ public static class TelemetryKeys
     public const string PumpPotEnabled = "PumpPotEnabled";
     public const string PumpCycleVolume = "PumpCycleVol";
 
-    // Pump 3.11 dual-range continuous calibration echoes (Hub 10.3)
-    public const string PumpSlopeLow = "PumpSlopeLow";
-    public const string PumpSlopeHigh = "PumpSlopeHigh";
     public const string PumpTransitionSpeed = "PumpTransitionSpeed";
-    public const string PumpTransitionFlow = "PumpTransitionFlow";
     public const string PumpCalCrc = "PumpCalCrc";
     public const string PumpA1 = "PumpA1";
     public const string PumpB1 = "PumpB1";

@@ -370,8 +370,8 @@ public sealed class TelemetryParser
         AssignInt(root, TelemetryKeys.Valve1, v => Readings.FlowValve1 = v);
         AssignInt(root, TelemetryKeys.Valve2, v => Readings.FlowValve2 = v);
         AssignInt(root, TelemetryKeys.ValveFlow, v => Readings.FlowValveMain = v);
-        AssignInt(root, TelemetryKeys.FlowCommandId, v => Readings.FlowCommandId = v);
-        AssignInt(root, TelemetryKeys.FlowCommandAck, v => Readings.FlowCommandAck = v);
+        AssignLong(root, TelemetryKeys.FlowCommandId, v => Readings.FlowCommandId = v);
+        AssignLong(root, TelemetryKeys.FlowCommandAck, v => Readings.FlowCommandAck = v);
         AssignInt(root, TelemetryKeys.FlowCommandDeliveries, v => Readings.FlowCommandDeliveries = v);
         AssignInt(root, TelemetryKeys.FlowCommandAgeMs, v => Readings.FlowCommandAgeMs = v);
         AssignInt(root, TelemetryKeys.HubStations, v => Readings.HubStations = v);
@@ -559,10 +559,6 @@ public sealed class TelemetryParser
             TryGetBool(root, TelemetryKeys.PumpCommandPending, out var pending) ? pending : null;
 
         // External-node echoes (Hub 10.2) - strictly non-sticky
-        Readings.PumpSlope =
-            TryGetDouble(root, TelemetryKeys.PumpSlope, out var slope) ? slope : null;
-        Readings.PumpIntercept =
-            TryGetDouble(root, TelemetryKeys.PumpIntercept, out var intercept) ? intercept : null;
         Readings.PumpPidKp =
             TryGetDouble(root, TelemetryKeys.PumpPidKp, out var kp) ? kp : null;
         Readings.PumpPidKi =
@@ -574,15 +570,8 @@ public sealed class TelemetryParser
         Readings.PumpCycleVolume =
             TryGetDouble(root, TelemetryKeys.PumpCycleVolume, out var cycleVolume) ? cycleVolume : null;
 
-        // Dual-range continuous calibration echoes (pump 3.11, Hub 10.3) - strictly non-sticky
-        Readings.PumpSlopeLow =
-            TryGetDouble(root, TelemetryKeys.PumpSlopeLow, out var slopeLow) ? slopeLow : null;
-        Readings.PumpSlopeHigh =
-            TryGetDouble(root, TelemetryKeys.PumpSlopeHigh, out var slopeHigh) ? slopeHigh : null;
         Readings.PumpTransitionSpeed =
             TryGetDouble(root, TelemetryKeys.PumpTransitionSpeed, out var transSpeed) ? transSpeed : null;
-        Readings.PumpTransitionFlow =
-            TryGetDouble(root, TelemetryKeys.PumpTransitionFlow, out var transFlow) ? transFlow : null;
         Readings.PumpA1 = TryGetDouble(root, TelemetryKeys.PumpA1, out var pumpA1) ? pumpA1 : null;
         Readings.PumpB1 = TryGetDouble(root, TelemetryKeys.PumpB1, out var pumpB1) ? pumpB1 : null;
         Readings.PumpK1 = TryGetDouble(root, TelemetryKeys.PumpK1, out var pumpK1) ? pumpK1 : null;
@@ -1134,6 +1123,25 @@ public sealed class TelemetryParser
                 break;
 
             default:
+                break;
+        }
+    }
+
+    private static void AssignLong(JsonElement root, string key, Action<long> assign)
+    {
+        if (!root.TryGetProperty(key, out var element))
+        {
+            return;
+        }
+
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Number when element.TryGetInt64(out var direct):
+                assign(direct);
+                break;
+            case JsonValueKind.String when long.TryParse(
+                element.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed):
+                assign(parsed);
                 break;
         }
     }

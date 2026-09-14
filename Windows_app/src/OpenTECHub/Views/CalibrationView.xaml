@@ -525,7 +525,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource CalibrationCard}" Margin="0,12,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Curva da bomba peristáltica (duplo trecho contínuo)" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="Curva polinomial da bomba por mangueira" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding FitSummaryText}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,4" TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding ContinuityText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,8" TextWrapping="Wrap" />
                                     <Grid Margin="0,0,0,8">
@@ -542,15 +542,15 @@
                                             <TextBox Text="{Binding TransitionSpeedInputText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
                                         </StackPanel>
                                         <StackPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,6">
-                                            <TextBlock Text="Velocidade St (aplicada)" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBlock Text="{Binding TransitionSpeedText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
+                                            <TextBlock Text="Vazão calculada na transição (Qt)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding TransitionFlowText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,0">
-                                            <TextBlock Text="Equação baixa — quartica" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="Faixa baixa — 4º grau" Style="{StaticResource CalibrationLabel}" />
                                             <TextBlock Text="{Binding LowSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,0">
-                                            <TextBlock Text="Equação alta — quadrática" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="Faixa alta — 2º grau" Style="{StaticResource CalibrationLabel}" />
                                             <TextBlock Text="{Binding HighSlopeText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -562,20 +562,12 @@
                                                Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
                                                Style="{StaticResource CaptionTextStyle}"
                                                Foreground="{DynamicResource StateAlarmTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                                    <TextBlock Text="{Binding FirmwareUnsupportedReason}"
-                                               Visibility="{Binding FirmwareUnsupportedReason, Converter={StaticResource NullToVis}}"
-                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}"
-                                               TextWrapping="Wrap" Margin="0,0,0,6" />
-                                    <TextBlock Text="{Binding HubUnsupportedReason}"
-                                               Visibility="{Binding HubUnsupportedReason, Converter={StaticResource NullToVis}}"
-                                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}"
-                                               TextWrapping="Wrap" Margin="0,0,0,8" />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
                                         <Button Content="Usar ajuste" Command="{Binding UseFitCommand}" Margin="0,0,6,0"
                                                 ToolTip="Copia os coeficientes calculados dos pontos para os campos antes do envio." />
                                         <Button Content="Salvar e enviar curva" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyCommand}"
-                                                ToolTip="Envia os coeficientes de duplo trecho para o nó da bomba e salva recibo JSON rastreável." />
+                                                ToolTip="Envia a curva polinomial completa do perfil selecionado e salva um recibo JSON rastreável." />
                                     </StackPanel>
                                     <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
                                                Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />

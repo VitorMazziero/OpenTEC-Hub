@@ -10,10 +10,10 @@
 
   <PropertyGroup Label="Product version (SINGLE SOURCE)">
     <!--
-      The ONLY place the version number lives. The SDK derives from <Version>:
-        AssemblyVersion      = 0.14.0.0
-        FileVersion          = 0.14.0.0
-        InformationalVersion = 0.14.0
+      The ONLY place the product version lives. MinVer derives FileVersion and
+      InformationalVersion from the repository tag/height. AssemblyVersion is kept
+      at 0.0.0.0 because MinVer uses that identity for a 0.x product and the WPF
+      markup compiler must embed the same identity in BAML pack URIs.
       On release, change ONLY this line, then mirror it in docs/CHANGELOG.md
       and in the installer script.
     -->
@@ -23,6 +23,7 @@
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <MinVerDefaultPreReleaseIdentifiers>dev</MinVerDefaultPreReleaseIdentifiers>
     <MinVerMinimumMajorMinor>0.25</MinVerMinimumMajorMinor>
+    <AssemblyVersion>0.0.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <PropertyGroup Label="Product metadata">

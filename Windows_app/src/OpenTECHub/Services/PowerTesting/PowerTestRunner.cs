@@ -55,8 +55,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private int _commandedRpm;
     private bool _disposed;
     private (double Flow, bool V1, bool V2, bool VFlow)? _targetGasState;
-    private int _minimumExpectedFlowCommandId;
-    private int _lastFlowCommandId;
+    private long _minimumExpectedFlowCommandId;
+    private long _lastFlowCommandId;
     private int _ventFlowStableCount;
     private double? _ventFlowDeviation;
     private readonly List<double> _ventFlowWindow = [];
@@ -163,18 +163,6 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private bool CanStart(PowerTestDocument doc, PowerCondition? condition, out string? reason)
     {
         ArgumentNullException.ThrowIfNull(doc);
-
-        if (doc.IsLegacyRig)
-        {
-            reason = "Montagem anterior ao arranjo A/B/C — este ensaio é só leitura. Crie um ensaio novo para o arranjo atual.";
-            return false;
-        }
-        if (doc.GasRig is { } recordedRig && recordedRig.ToConfiguration() != Rig)
-        {
-            reason = $"O arranjo configurado ({Rig.Describe()}) difere do gravado neste ensaio ({recordedRig.ToConfiguration().Describe()}). " +
-                     "Ajuste Configurações › Gás e válvulas ou crie um ensaio novo.";
-            return false;
-        }
 
         try
         {
@@ -301,7 +289,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _sequenceFailures.Clear();
         doc.Status = PowerTestStatus.Running;
         doc.StartedUtc ??= _time.GetUtcNow();
-        doc.GasRig ??= Persistence.GasRigSettings.From(Rig);
+        doc.GasRig = Persistence.GasRigSettings.From(Rig);
         doc.CompletedUtc = null;
         doc.InterruptionReason = null;
         if (_device.Latest is { } latest)

@@ -985,11 +985,11 @@ public sealed class PowerTestRunnerTests
     }
 
     /// <summary>
-    /// The rig is recorded when the assay starts; a manifest older than the rig is reviewable
-    /// but never continued, and a wiring change mid-assay is refused with both spelled out (plan §3.5).
+    /// The currently configured rig is recorded whenever an assay starts or resumes, including
+    /// legacy manifests and assays resumed after the bench wiring changes.
     /// </summary>
     [Fact]
-    public async Task StartTest_records_the_rig_and_refuses_a_legacy_manifest_or_a_changed_wiring()
+    public async Task StartTest_records_current_rig_for_legacy_and_resumed_manifests()
     {
         using var h = new Harness();
         h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
@@ -997,9 +997,10 @@ public sealed class PowerTestRunnerTests
         var legacy = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Gassed);
         legacy.Status = PowerTestStatus.Interrupted;
         Assert.True(legacy.IsLegacyRig);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(legacy));
-        Assert.Contains("A/B/C", ex.Message, StringComparison.Ordinal);
-        Assert.Equal(PowerRunPhase.Idle, h.Runner.Phase);
+        await h.Runner.StartTestAsync(legacy);
+        Assert.Equal(GasInput.Input2, legacy.GasRig!.AirInletInput);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
+        await h.Runner.AbortTestAsync("fim legado");
 
         var doc = h.CreateDocument(FastSettings(), gasMode: PowerGasMode.Gassed);
         Assert.False(doc.IsLegacyRig);
@@ -1009,9 +1010,9 @@ public sealed class PowerTestRunnerTests
         await h.Runner.AbortTestAsync("fim");
 
         h.Rig = new GasRigConfiguration(GasInput.Input1);
-        ex = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Runner.StartTestAsync(doc));
-        Assert.Contains("A na entrada 1", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("A na entrada 2", ex.Message, StringComparison.Ordinal);
+        await h.Runner.StartTestAsync(doc);
+        Assert.Equal(GasInput.Input1, doc.GasRig!.AirInletInput);
+        Assert.Equal(PowerRunPhase.PrestagingFlow, h.Runner.Phase);
     }
 
     /// <summary>On the other wiring the pre-stage lands on valve_2 and the reactor on valve_1.</summary>

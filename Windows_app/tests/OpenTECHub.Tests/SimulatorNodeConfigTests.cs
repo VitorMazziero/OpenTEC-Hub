@@ -441,24 +441,22 @@ public class SimulatorNodeConfigTests
 
         // 2. Pump dual-range calibration command
         var pumpCmd = CommandBuilders.PumpDualRangeCalibration(
-            slopeLow: 0.003500,
-            slopeHigh: 0.004200,
-            transitionSpeed: 250.0,
-            transitionFlow: 0.8750);
+            a1: 0, b1: 0, k1: 0, f1: 0.0035, c1: 0,
+            k2: 0, f2: 0.0035, c2: 0, transitionSpeed: 250.0);
         Assert.True(WireCodec.ApplyCommand(model, pumpCmd.ToJson(), out _));
-        Assert.Equal(0.003500, model.PumpSlopeLow);
-        Assert.Equal(0.004200, model.PumpSlopeHigh);
+        Assert.Equal(0.003500, model.PumpF1);
+        Assert.Equal(0.003500, model.PumpF2);
         Assert.Equal(250.0, model.PumpTransitionSpeed);
         Assert.Equal(0.8750, model.PumpTransitionFlow);
-        var expectedCrc = DeviceModel.CalculatePumpCalibrationCrc(0.003500, 0.004200, 250.0, 0.8750);
+        var expectedCrc = DeviceModel.CalculatePumpCalibrationCrc(0, 0, 0, 0.0035, 0, 0, 0.0035, 0, 250.0);
         Assert.Equal(expectedCrc, (uint)model.PumpCalCrc);
         Assert.True(model.PumpCommandPending);
 
         // Telemetry frame 1 emits echoes and PumpCommandPending: true, then clears pending flag
         var pumpFrame1 = WireCodec.BuildTelemetry(model);
         Assert.Contains("\"PumpCommandPending\":true", pumpFrame1);
-        Assert.Contains("\"PumpSlopeLow\":0.003500", pumpFrame1);
-        Assert.Contains("\"PumpSlopeHigh\":0.004200", pumpFrame1);
+        Assert.Contains("\"PumpF1\":0.003500000", pumpFrame1);
+        Assert.Contains("\"PumpF2\":0.003500000", pumpFrame1);
         Assert.Contains("\"PumpTransitionSpeed\":250.00", pumpFrame1);
         Assert.Contains("\"PumpTransitionFlow\":0.8750", pumpFrame1);
         Assert.Contains($"\"PumpCalCrc\":{expectedCrc}", pumpFrame1);
@@ -506,6 +504,14 @@ public class SimulatorNodeConfigTests
         Assert.Equal(initialHigh, model.PumpSlopeHigh);
         Assert.Equal(initialSpeed, model.PumpTransitionSpeed);
         Assert.Equal(initialFlow, model.PumpTransitionFlow);
+        Assert.Equal(initialCrc, model.PumpCalCrc);
+        Assert.False(model.PumpCommandPending);
+
+        // A complete v3.12 block that is discontinuous at St is rejected atomically.
+        WireCodec.ApplyCommand(model,
+            "{\"pumpA1\":0,\"pumpB1\":0,\"pumpK1\":0,\"pumpF1\":0.0035,\"pumpC1\":0," +
+            "\"pumpK2\":0,\"pumpF2\":0.0045,\"pumpC2\":0,\"pumpTransitionSpeed\":250}", out _);
+        Assert.Equal(initialSpeed, model.PumpTransitionSpeed);
         Assert.Equal(initialCrc, model.PumpCalCrc);
         Assert.False(model.PumpCommandPending);
     }

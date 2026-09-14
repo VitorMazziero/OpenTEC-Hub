@@ -800,6 +800,7 @@ public sealed class GuidedCalibrationTests
             FlowmeterOnline = true,
             FlowCommandPending = pending,
             FlowTransitionVoltage = transitionVoltage,
+            FlowmeterCalCrc = transitionVoltage.HasValue ? 0x1234 : null,
         });
 
     [Fact]
@@ -974,6 +975,7 @@ public sealed class GuidedCalibrationTests
             FlowmeterOnline = true,
             FlowCommandPending = false,
             FlowTransitionVoltage = 0.0800,
+            FlowmeterCalCrc = 0x1234,
             SensorCommOk = true,
             FlowVoltage = 0.04,
         });
@@ -1000,6 +1002,7 @@ public sealed class GuidedCalibrationTests
             FlowmeterOnline = true,
             FlowCommandPending = false,
             FlowTransitionVoltage = 0.0545,
+            FlowmeterCalCrc = 0x1234,
             SensorCommOk = true,
             FlowVoltage = 0.04,
         });

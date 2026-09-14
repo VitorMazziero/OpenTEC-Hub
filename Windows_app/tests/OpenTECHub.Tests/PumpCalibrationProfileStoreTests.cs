@@ -42,11 +42,7 @@ public sealed class PumpCalibrationProfileStoreTests : IDisposable
     public void SaveProfile_And_LoadProfile_PersistsAllProperties()
     {
         var store = new PumpCalibrationProfileStore();
-        var curve = new PumpDualRangeCurve(
-            LowSlope: 0.025,
-            HighSlope: 0.035,
-            TransitionSpeed: 450.0,
-            TransitionFlow: 12.5);
+        var curve = new PumpDualRangeCurve(0.025, 0.035, 450.0, 12.5);
 
         var points = new[]
         {

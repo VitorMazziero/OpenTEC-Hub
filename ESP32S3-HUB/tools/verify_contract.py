@@ -45,6 +45,7 @@ V10_KEYS = {
     "FlowmeterReconnectWifi",
     "FlowTransitionVoltage",
     "PumpSlopeLow", "PumpSlopeHigh", "PumpTransitionSpeed", "PumpTransitionFlow", "PumpCalCrc",
+    "PumpA1", "PumpB1", "PumpK1", "PumpF1", "PumpC1", "PumpK2", "PumpF2", "PumpC2",
 }
 
 

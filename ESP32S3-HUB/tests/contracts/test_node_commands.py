@@ -359,6 +359,7 @@ def translate_pump_command(json_str: str, comm_on: bool = True):
         "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd",
         "pumpSlopeLow", "pumpSlopeHigh", "pumpTransitionSpeed", "pumpTransitionFlow",
         "slope_low", "slope_high", "transition_speed", "transition_flow",
+        "pumpA1", "pumpB1", "pumpK1", "pumpF1", "pumpC1", "pumpK2", "pumpF2", "pumpC2",
     ]
     allowed_commands = ("reset_volume", "start", "stop")
     parts = []
@@ -383,6 +384,8 @@ def translate_pump_command(json_str: str, comm_on: bool = True):
                 clean_k = "transition_speed"
             elif clean_k == "pumpTransitionFlow":
                 clean_k = "transition_flow"
+            elif clean_k.startswith("pump") and clean_k[4:] in ("A1", "B1", "K1", "F1", "C1", "K2", "F2", "C2"):
+                clean_k = clean_k[4:].lower()
             elif clean_k.startswith("pump_"):
                 clean_k = clean_k[5:]
             if clean_k == "command":
@@ -457,6 +460,14 @@ class PumpCommandTests(unittest.TestCase):
         inner, ok = translate_pump_command(cmd)
         self.assertTrue(ok)
         self.assertEqual('"slope_low":0.025,"slope_high":0.035,"transition_speed":150.0,"transition_flow":20.0', inner)
+
+    def test_polynomial_calibration_routing(self):
+        cmd = '{"pumpA1":1e-8,"pumpB1":-1e-6,"pumpK1":0.001,"pumpF1":0.02,"pumpC1":0.1,"pumpK2":0.002,"pumpF2":0.03,"pumpC2":0.2,"pumpTransitionSpeed":500}'
+        inner, ok = translate_pump_command(cmd)
+        self.assertTrue(ok)
+        self.assertIn('"a1":1e-08', inner)
+        self.assertIn('"c2":0.2', inner)
+        self.assertIn('"transition_speed":500', inner)
 
     def test_pump_command_whitelist_blocks_clear_nvs_and_config_verbs(self):
         # COMANDOS_DISPOSITIVOS_EXTERNOS §1.10: clear_nvs apaga calibracao e reinicia o no;

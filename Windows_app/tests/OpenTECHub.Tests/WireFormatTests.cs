@@ -664,39 +664,23 @@ public class CultureInvarianceTests : IDisposable
     public void Pump_dual_range_calibration_matches_wire_format()
     {
         var cmd = CommandBuilders.PumpDualRangeCalibration(
-            slopeLow: 0.003906,
-            slopeHigh: 0.004470,
-            transitionSpeed: 200.0,
-            transitionFlow: 0.7812);
+            a1: 0.000001, b1: -0.00002, k1: 0.003, f1: 0.02, c1: 0.1,
+            k2: 0.004, f2: 0.03, c2: 0.2, transitionSpeed: 200.0);
 
         Assert.Equal(
-            """{"pumpSlopeLow":0.003906,"pumpSlopeHigh":0.00447,"pumpTransitionSpeed":200.0,"pumpTransitionFlow":0.7812}""",
+            """{"pumpA1":1E-06,"pumpB1":-2E-05,"pumpK1":0.003,"pumpF1":0.02,"pumpC1":0.1,"pumpK2":0.004,"pumpF2":0.03,"pumpC2":0.2,"pumpTransitionSpeed":200.0}""",
             cmd.ToJson());
     }
 
     [Fact]
     public void Pump_dual_range_calibration_builder_validates_arguments()
     {
-        // NaN / Infinity
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(double.NaN, 0.004, 200, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, double.PositiveInfinity, 200, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, double.NegativeInfinity, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, 200, double.NaN));
-
-        // Out of bounds
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.0, 0.004, 200, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(-0.001, 0.004, 200, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.0, 200, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, -0.001, 200, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, 0.0, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, -10.0, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, 1000.0, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, 1500.0, 1.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, 200.0, 0.0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.004, 0.004, 200.0, -1.0));
-
-        // Physical constraint: transitionFlow - slopeLow * transitionSpeed < 0
-        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(0.01, 0.01, 200.0, 1.0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(
+            double.NaN, 0, 0, 0.02, 0.1, 0, 0.02, 0.1, 500));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(
+            0, 0, 0, 0.02, 0.1, 0, 0.02, 0.1, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandBuilders.PumpDualRangeCalibration(
+            0, 0, 0, 0.02, 0.1, 0, 0.02, 0.1, 1000));
     }
 
     [Fact]
@@ -707,12 +691,16 @@ public class CultureInvarianceTests : IDisposable
         Assert.Equal("pumpSlopeHigh", CommandKeys.PumpSlopeHigh);
         Assert.Equal("pumpTransitionSpeed", CommandKeys.PumpTransitionSpeed);
         Assert.Equal("pumpTransitionFlow", CommandKeys.PumpTransitionFlow);
+        Assert.Equal("pumpA1", CommandKeys.PumpA1);
+        Assert.Equal("pumpC2", CommandKeys.PumpC2);
 
         Assert.Equal("FlowTransitionVoltage", TelemetryKeys.FlowTransitionVoltage);
         Assert.Equal("PumpSlopeLow", TelemetryKeys.PumpSlopeLow);
         Assert.Equal("PumpSlopeHigh", TelemetryKeys.PumpSlopeHigh);
         Assert.Equal("PumpTransitionSpeed", TelemetryKeys.PumpTransitionSpeed);
         Assert.Equal("PumpTransitionFlow", TelemetryKeys.PumpTransitionFlow);
+        Assert.Equal("PumpA1", TelemetryKeys.PumpA1);
+        Assert.Equal("PumpC2", TelemetryKeys.PumpC2);
         Assert.Equal("PumpCalCrc", TelemetryKeys.PumpCalCrc);
     }
 }

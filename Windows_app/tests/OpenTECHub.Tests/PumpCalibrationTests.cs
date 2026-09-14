@@ -48,24 +48,22 @@ public sealed class PumpCalibrationTests
     }
 
     [Fact]
-    public void Pump_calibration_previews_match_dual_range_equation()
+    public void Pump_calibration_previews_match_quartic_quadratic_equations()
     {
         var device = new RecordingDeviceService();
         var settings = new MemorySettingsService();
         using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
-        // Continuous dual-range: Qt = 16.0 mL/min, St = 500 un, m_baixo = 0.02, m_alto = 0.03
-        // S <= 500: Q = 16.0 + 0.02 * (S - 500)
-        // S > 500:  Q = 16.0 + 0.03 * (S - 500)
-        vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
+        // Low line and high quadratic meet at St=500 with Q=16 and derivative 0.03.
+        var low = new PolynomialCalibration(K: 0.0, F: 0.03, C: 1.0);
+        var high = new PolynomialCalibration(K: 0.00002, F: 0.01, C: 6.0);
+        vm.SetCurve(new PumpDualRangeCurve(low, high, 500.0));
 
         Assert.True(vm.IsValid);
-        // S = 250: Q = 16.0 + 0.02 * (-250) = 11.0 mL/min
-        Assert.Equal(11.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
+        Assert.Equal(8.5.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
         // S = 500: Q = 16.0 mL/min
         Assert.Equal(16.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview500Text);
-        // S = 1000: Q = 16.0 + 0.03 * 500 = 31.0 mL/min
-        Assert.Equal(31.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview1000Text);
+        Assert.Equal(36.0.ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview1000Text);
     }
 
     [Fact]
@@ -76,21 +74,22 @@ public sealed class PumpCalibrationTests
         using var vm = new PumpCalibrationViewModel(device, settings, profileStore: FreshStore());
 
         var previous = Assert.IsType<PumpDualRangeCurve>(vm.Curve);
-        vm.TransitionFlowText = "0.0";
+        vm.TransitionSpeedInputText = "0.0";
         Assert.False(vm.IsValid);
         Assert.False(vm.CanApply);
         Assert.Equal(previous.FlowFromSpeed(250).ToString("F2", CultureInfo.CurrentCulture) + " mL/min", vm.Preview250Text);
         Assert.NotNull(vm.ValidationError);
 
-        vm.TransitionFlowText = "-5.0";
+        vm.TransitionSpeedInputText = "-5.0";
         Assert.False(vm.IsValid);
 
-        vm.TransitionFlowText = "16.0";
-        vm.SetCurve(new PumpDualRangeCurve(0.0, 0.03, 500.0, 16.0));
+        vm.TransitionSpeedInputText = "500.0";
+        var decreasing = new PolynomialCalibration(0, -0.02, 16.0);
+        vm.SetCurve(new PumpDualRangeCurve(decreasing, decreasing, 500.0));
         Assert.False(vm.IsValid);
         Assert.False(vm.CanApply);
 
-        vm.SetCurve(new PumpDualRangeCurve(-0.02, 0.03, 500.0, 16.0));
+        vm.SetCurve(new PumpDualRangeCurve(decreasing, decreasing, 500.0));
         Assert.False(vm.IsValid);
     }
 
@@ -112,8 +111,8 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            HubFirmwareVersion = "10.3.0-test",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0-test",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
         Assert.True(vm.IsPumpOnline);
         Assert.True(vm.IsFirmwareCompatible);
@@ -123,7 +122,7 @@ public sealed class PumpCalibrationTests
 
         vm.ApplyCommand.Execute(null);
 
-        Assert.Equal("{\"pumpSlopeLow\":0.02,\"pumpSlopeHigh\":0.03,\"pumpTransitionSpeed\":500.0,\"pumpTransitionFlow\":16.0}", device.Sent[^1]);
+        Assert.Equal("{\"pumpA1\":0.0,\"pumpB1\":0.0,\"pumpK1\":0.0,\"pumpF1\":0.02,\"pumpC1\":6.0,\"pumpK2\":0.0,\"pumpF2\":0.02,\"pumpC2\":6.0,\"pumpTransitionSpeed\":500.0}", device.Sent[^1]);
         Assert.True(vm.IsAwaitingCalibration);
         Assert.NotEqual(0.02, settings.Current.PumpControl.CalibrationMLow);
         Assert.False(Directory.Exists(receiptDirectory));
@@ -133,19 +132,18 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = 0.02,
-            PumpSlopeHigh = 0.03,
+            PumpA1 = 0, PumpB1 = 0, PumpK1 = 0, PumpF1 = 0.02, PumpC1 = 6.0,
+            PumpK2 = 0, PumpF2 = 0.02, PumpC2 = 6.0,
             PumpTransitionSpeed = 500.0,
-            PumpTransitionFlow = 16.0,
             PumpCalCrc = 0x1234,
             PumpCommandPending = false,
-            HubFirmwareVersion = "10.3.0-test",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0-test",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
 
         Assert.False(vm.IsAwaitingCalibration);
         Assert.Equal(0.02, settings.Current.PumpControl.CalibrationMLow);
-        Assert.Equal(0.03, settings.Current.PumpControl.CalibrationMHigh);
+        Assert.Equal(0.02, settings.Current.PumpControl.CalibrationMHigh);
         Assert.Equal(500.0, settings.Current.PumpControl.CalibrationSt);
         Assert.Equal(16.0, settings.Current.PumpControl.CalibrationQt);
 
@@ -157,18 +155,14 @@ public sealed class PumpCalibrationTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         Assert.Equal("external_pump", root.GetProperty("node").GetString());
-        Assert.Equal("dual_range_continuous", root.GetProperty("method").GetString());
-        Assert.Equal(0.02, root.GetProperty("requested").GetProperty("m_low").GetDouble());
-        Assert.Equal(0.03, root.GetProperty("requested").GetProperty("m_high").GetDouble());
-        Assert.Equal(500.0, root.GetProperty("requested").GetProperty("st").GetDouble());
-        Assert.Equal(16.0, root.GetProperty("requested").GetProperty("qt").GetDouble());
-        Assert.Equal(0.02, root.GetProperty("applied").GetProperty("m_low").GetDouble());
-        Assert.Equal(0.03, root.GetProperty("applied").GetProperty("m_high").GetDouble());
-        Assert.Equal(500.0, root.GetProperty("applied").GetProperty("st").GetDouble());
-        Assert.Equal(16.0, root.GetProperty("applied").GetProperty("qt").GetDouble());
-        Assert.Equal("10.3.0-test", root.GetProperty("hubFirmwareVersion").GetString());
+        Assert.Equal("quartic_quadratic_c0_c1", root.GetProperty("method").GetString());
+        Assert.Equal(0.02, root.GetProperty("requested").GetProperty("f1").GetDouble());
+        Assert.Equal(6.0, root.GetProperty("requested").GetProperty("c1").GetDouble());
+        Assert.Equal(500.0, root.GetProperty("requested").GetProperty("transitionSpeed").GetDouble());
+        Assert.Equal(0.02, root.GetProperty("applied").GetProperty("f2").GetDouble());
+        Assert.Equal("10.4.0-test", root.GetProperty("hubFirmwareVersion").GetString());
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("appVersion").GetString()));
-        Assert.Equal("3.11", root.GetProperty("pumpNode").GetProperty("firmwareVersion").GetString());
+        Assert.Equal("3.12", root.GetProperty("pumpNode").GetProperty("firmwareVersion").GetString());
     }
 
     [Fact]
@@ -189,8 +183,8 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            HubFirmwareVersion = "10.3.0",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
         vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
         vm.ApplyCommand.Execute(null);
@@ -200,10 +194,9 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = 0.015,
-            PumpSlopeHigh = 0.03,
+            PumpA1 = 0, PumpB1 = 0, PumpK1 = 0, PumpF1 = 0.015, PumpC1 = 8.5,
+            PumpK2 = 0, PumpF2 = 0.015, PumpC2 = 8.5,
             PumpTransitionSpeed = 500.0,
-            PumpTransitionFlow = 16.0
         });
 
         Assert.False(vm.IsAwaitingCalibration);
@@ -227,7 +220,7 @@ public sealed class PumpCalibrationTests
 
         Assert.False(vm.IsFirmwareCompatible);
         Assert.False(vm.CanApply);
-        Assert.Contains("3.11", vm.FirmwareUnsupportedReason);
+        Assert.Contains("3.12", vm.FirmwareUnsupportedReason);
     }
 
     [Theory]
@@ -242,14 +235,14 @@ public sealed class PumpCalibrationTests
             HasPumpTelemetry = true,
             PumpOnline = true,
             HubFirmwareVersion = hubVersion,
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "v3.11.0-dev")
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "v3.12.0-dev")
         });
         vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
 
         Assert.True(vm.IsFirmwareCompatible);
         Assert.False(vm.IsHubCompatible);
         Assert.False(vm.CanApply);
-        Assert.Contains("10.3", vm.HubUnsupportedReason);
+        Assert.Contains("10.4", vm.HubUnsupportedReason);
     }
 
     [Theory]
@@ -265,8 +258,8 @@ public sealed class PumpCalibrationTests
             PumpOnline = true,
             PumpActive = active,
             PumpWaiting = waiting,
-            HubFirmwareVersion = "10.3.0",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
         vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500, 16));
 
@@ -285,10 +278,9 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = 0.02,
-            PumpSlopeHigh = 0.03,
+            PumpA1 = 0, PumpB1 = 0, PumpK1 = 0, PumpF1 = 0.02, PumpC1 = 6,
+            PumpK2 = 0, PumpF2 = 0.02, PumpC2 = 6,
             PumpTransitionSpeed = 500,
-            PumpTransitionFlow = 16,
             PumpCommandPending = false,
         });
         Assert.True(vm.IsAwaitingCalibration);
@@ -298,10 +290,9 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = 0.02,
-            PumpSlopeHigh = 0.03,
+            PumpA1 = 0, PumpB1 = 0, PumpK1 = 0, PumpF1 = 0.02, PumpC1 = 6,
+            PumpK2 = 0, PumpF2 = 0.02, PumpC2 = 6,
             PumpTransitionSpeed = 500,
-            PumpTransitionFlow = 16,
             PumpCalCrc = 123,
             PumpCommandPending = true,
         });
@@ -319,16 +310,15 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = 0.0215,
-            PumpSlopeHigh = 0.0325,
+            PumpA1 = 0, PumpB1 = 0, PumpK1 = 0, PumpF1 = 0.0215, PumpC1 = 5.18,
+            PumpK2 = 0, PumpF2 = 0.0215, PumpC2 = 5.18,
             PumpTransitionSpeed = 480.0,
-            PumpTransitionFlow = 15.5,
             PumpFlow = 8.5,
             PumpVolume = 150.2,
         });
 
-        Assert.Equal(0.0215.ToString("F4", CultureInfo.CurrentCulture), vm.AppliedLowSlopeText);
-        Assert.Equal(0.0325.ToString("F4", CultureInfo.CurrentCulture), vm.AppliedHighSlopeText);
+        Assert.Contains("0,0215", vm.AppliedLowSlopeText.Replace('.', ','));
+        Assert.Contains("0,0215", vm.AppliedHighSlopeText.Replace('.', ','));
         Assert.Equal(480.0.ToString("F1", CultureInfo.CurrentCulture), vm.AppliedStText);
         Assert.Equal(15.5.ToString("F2", CultureInfo.CurrentCulture), vm.AppliedQtText);
         Assert.Contains(8.5.ToString("F3", CultureInfo.CurrentCulture), vm.CurrentFlowText);
@@ -375,8 +365,8 @@ public sealed class PumpCalibrationTests
             PumpOnline = true,
             PumpVolume = 10.0,
             PumpCommandPending = false,
-            HubFirmwareVersion = "10.3.0",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
 
         vm.SetCurve(new PumpDualRangeCurve(0.02, 0.03, 500.0, 16.0));
@@ -390,14 +380,13 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = 0.02,
-            PumpSlopeHigh = 0.03,
+            PumpA1 = 0, PumpB1 = 0, PumpK1 = 0, PumpF1 = 0.02, PumpC1 = 6,
+            PumpK2 = 0, PumpF2 = 0.02, PumpC2 = 6,
             PumpTransitionSpeed = 500.0,
-            PumpTransitionFlow = 16.0,
             PumpCalCrc = 0x789A,
             PumpVolume = 10.0,
             PumpCommandPending = false,
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
         Assert.True(vm.CanEditCalibration);
         Assert.True(vm.CanResetVolume);
@@ -425,7 +414,7 @@ public sealed class PumpCalibrationTests
 
         Assert.True(vm.TryGetDisplayedCurve(out PumpDualRangeCurve curve));
         Assert.Equal(0.02, curve.LowSlope, 8);
-        Assert.Equal(0.03, curve.HighSlope, 8);
+        Assert.Equal(0.02, curve.HighSlope, 8);
         Assert.Equal(500.0, curve.TransitionSpeed, 8);
         Assert.Equal(16.0, curve.TransitionFlow, 8);
     }
@@ -442,8 +431,8 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            HubFirmwareVersion = "10.3.0",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
         return (vm, device, settings, clock);
     }
@@ -517,7 +506,7 @@ public sealed class PumpCalibrationTests
         using var _ = vm;
 
         // Set Qt = 16.0
-        vm.TransitionFlowText = "16.0";
+        vm.TransitionSpeedInputText = "500.0";
 
         // Four points on known dual-range curve:
         // St = 500, Qt = 16.0, m_baixo = 0.02, m_alto = 0.03
@@ -546,7 +535,7 @@ public sealed class PumpCalibrationTests
         Assert.NotNull(vm.Fit?.Curve);
 
         var fit = vm.Fit!.Curve!.Value;
-        Assert.Equal(0.02, fit.LowSlope, 4);
+        Assert.Equal(0.03, fit.LowSlope, 4);
         Assert.Equal(0.03, fit.HighSlope, 4);
         Assert.Equal(500.0, fit.TransitionSpeed, 2);
         Assert.Equal(16.0, fit.TransitionFlow, 2);
@@ -562,8 +551,8 @@ public sealed class PumpCalibrationTests
         Assert.True(vm.CanUseFit);
         vm.UseFitCommand.Execute(null);
 
-        Assert.Equal(0.02.ToString("F4", CultureInfo.InvariantCulture), vm.LowSlopeText);
-        Assert.Equal(0.03.ToString("F4", CultureInfo.InvariantCulture), vm.HighSlopeText);
+        Assert.Contains("S⁴", vm.LowSlopeText);
+        Assert.Contains("S²", vm.HighSlopeText);
         Assert.Equal(500.0.ToString("F1", CultureInfo.InvariantCulture), vm.TransitionSpeedText);
         Assert.True(vm.CanApply);
     }
@@ -600,11 +589,11 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            HubFirmwareVersion = "10.3.0",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
 
-        vm.TransitionFlowText = "16.0";
+        vm.TransitionSpeedInputText = "500.0";
         foreach (var (speed, volume) in new[] { (100.0, 8.0), (300.0, 12.0), (600.0, 19.0), (800.0, 25.0) })
         {
             vm.RunSpeedText = speed.ToString(CultureInfo.InvariantCulture);
@@ -624,20 +613,20 @@ public sealed class PumpCalibrationTests
         {
             HasPumpTelemetry = true,
             PumpOnline = true,
-            PumpSlopeLow = Math.Round(fit.LowSlope, 4),
-            PumpSlopeHigh = Math.Round(fit.HighSlope, 4),
+            PumpA1 = fit.LowSpeed.A, PumpB1 = fit.LowSpeed.B, PumpK1 = fit.LowSpeed.K,
+            PumpF1 = fit.LowSpeed.F, PumpC1 = fit.LowSpeed.C,
+            PumpK2 = fit.HighSpeed.K, PumpF2 = fit.HighSpeed.F, PumpC2 = fit.HighSpeed.C,
             PumpTransitionSpeed = Math.Round(fit.TransitionSpeed, 1),
-            PumpTransitionFlow = Math.Round(fit.TransitionFlow, 2),
             PumpCalCrc = 0x4567,
             PumpCommandPending = false,
-            HubFirmwareVersion = "10.3.0",
-            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.11")
+            HubFirmwareVersion = "10.4.0",
+            PumpNode = new ExternalNodeIdentity("192.168.4.12", "AA:BB:CC:DD:EE:FF", "3.12")
         });
 
         var receipt = Directory.GetFiles(receiptDirectory, "bomba-externa-*.json").Single();
         using var doc = JsonDocument.Parse(File.ReadAllText(receipt));
         var root = doc.RootElement;
-        Assert.Equal("dual_range_continuous", root.GetProperty("method").GetString());
+        Assert.Equal("quartic_quadratic_c0_c1", root.GetProperty("method").GetString());
         Assert.Equal(4, root.GetProperty("runs").GetArrayLength());
         Assert.Equal(8.0, root.GetProperty("runs")[0].GetProperty("flowMlPerMin").GetDouble(), 6);
         Assert.Equal(4, root.GetProperty("fit").GetProperty("count").GetInt32());
@@ -707,7 +696,7 @@ public sealed class PumpCalibrationTests
         Assert.False(vm.IsCurrentProfileDirty);
 
         // Edit a field -> marks dirty
-        vm.TransitionFlowText = "22.5";
+        vm.TransitionSpeedInputText = "500.0";
         Assert.True(vm.IsCurrentProfileDirty);
 
         // Save current profile
@@ -754,20 +743,20 @@ public sealed class PumpCalibrationTests
     {
         var points = new[]
         {
-            Point(100.0, 8.0), Point(300.0, 12.0),
-            Point(600.0, 19.0), Point(800.0, 25.0),
+            Point(100.0, 8.0), Point(300.0, 12.0), Point(450.0, 15.0),
+            Point(600.0, 18.0), Point(800.0, 22.0), Point(900.0, 24.0),
         };
 
-        var result = PumpDualRangeMath.FitDualRange(points, transitionFlow: 16.0);
+        var result = PumpDualRangeMath.FitDualRange(points, transitionSpeed: 500.0);
 
         Assert.True(result.IsValid, result.Error);
         var curve = Assert.IsType<PumpDualRangeCurve>(result.Curve);
         Assert.Equal(500.0, curve.TransitionSpeed, 4);
         Assert.Equal(0.02, curve.LowSlope, 5);
-        Assert.Equal(0.03, curve.HighSlope, 5);
+        Assert.Equal(0.02, curve.HighSlope, 5);
         Assert.Equal(0.0, result.SSE, 8);
-        Assert.Equal(2, result.LowPointCount);
-        Assert.Equal(2, result.HighPointCount);
+        Assert.Equal(3, result.LowPointCount);
+        Assert.Equal(3, result.HighPointCount);
     }
 
     [Fact]
@@ -775,17 +764,17 @@ public sealed class PumpCalibrationTests
     {
         var validPoints = new[]
         {
-            Point(100.0, 8.0), Point(300.0, 12.0),
-            Point(600.0, 19.0), Point(800.0, 25.0),
+            Point(100.0, 8.0), Point(300.0, 12.0), Point(450.0, 15.0),
+            Point(600.0, 18.0), Point(800.0, 22.0), Point(900.0, 24.0),
         };
 
         var invalidTransition = PumpDualRangeMath.FitDualRange(validPoints, 0.0);
         Assert.False(invalidTransition.IsValid);
-        Assert.Contains("Qt", invalidTransition.Error);
+        Assert.Contains("St", invalidTransition.Error);
 
         var insufficientRanges = PumpDualRangeMath.FitDualRange(
             new[] { Point(100.0, 8.0), Point(200.0, 10.0), Point(200.0, 10.0), Point(300.0, 12.0) },
-            16.0);
+            500.0);
         Assert.False(insufficientRanges.IsValid);
     }
 

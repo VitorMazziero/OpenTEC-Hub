@@ -356,9 +356,7 @@ def translate_pump_command(json_str: str, comm_on: bool = True):
     simple_keys = [
         "pump_command", "mode", "pump_speed", "pump_speed_ms", "pump_pot", "init_t", "final_t",
         "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
-        "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd",
-        "pumpSlopeLow", "pumpSlopeHigh", "pumpTransitionSpeed", "pumpTransitionFlow",
-        "slope_low", "slope_high", "transition_speed", "transition_flow",
+        "pumpPidKp", "pumpPidKi", "pumpPidKd", "pumpTransitionSpeed", "transition_speed",
         "pumpA1", "pumpB1", "pumpK1", "pumpF1", "pumpC1", "pumpK2", "pumpF2", "pumpC2",
     ]
     allowed_commands = ("reset_volume", "start", "stop")
@@ -376,14 +374,8 @@ def translate_pump_command(json_str: str, comm_on: bool = True):
                 clean_k = "pid_ki"
             elif clean_k == "pumpPidKd":
                 clean_k = "pid_kd"
-            elif clean_k == "pumpSlopeLow":
-                clean_k = "slope_low"
-            elif clean_k == "pumpSlopeHigh":
-                clean_k = "slope_high"
             elif clean_k == "pumpTransitionSpeed":
                 clean_k = "transition_speed"
-            elif clean_k == "pumpTransitionFlow":
-                clean_k = "transition_flow"
             elif clean_k.startswith("pump") and clean_k[4:] in ("A1", "B1", "K1", "F1", "C1", "K2", "F2", "C2"):
                 clean_k = clean_k[4:].lower()
             elif clean_k.startswith("pump_"):
@@ -449,17 +441,11 @@ class PumpCommandTests(unittest.TestCase):
     def read(self, rel: str) -> str:
         return (SRC_ROOT / rel).read_text(encoding="utf-8")
 
-    def test_calibration_and_pid_translations(self):
-        cmd = '{"pumpSlope":0.028,"pumpIntercept":1.5,"pumpPidKp":1.2,"pumpPidKi":0.05,"pumpPidKd":0.01}'
+    def test_pid_translations(self):
+        cmd = '{"pumpPidKp":1.2,"pumpPidKi":0.05,"pumpPidKd":0.01}'
         inner, ok = translate_pump_command(cmd)
         self.assertTrue(ok)
-        self.assertEqual('"pumpSlope":0.028,"pumpIntercept":1.5,"pid_kp":1.2,"pid_ki":0.05,"pid_kd":0.01', inner)
-
-    def test_dual_range_calibration_routing(self):
-        cmd = '{"pumpSlopeLow":0.025,"pumpSlopeHigh":0.035,"pumpTransitionSpeed":150.0,"pumpTransitionFlow":20.0}'
-        inner, ok = translate_pump_command(cmd)
-        self.assertTrue(ok)
-        self.assertEqual('"slope_low":0.025,"slope_high":0.035,"transition_speed":150.0,"transition_flow":20.0', inner)
+        self.assertEqual('"pid_kp":1.2,"pid_ki":0.05,"pid_kd":0.01', inner)
 
     def test_polynomial_calibration_routing(self):
         cmd = '{"pumpA1":1e-8,"pumpB1":-1e-6,"pumpK1":0.001,"pumpF1":0.02,"pumpC1":0.1,"pumpK2":0.002,"pumpF2":0.03,"pumpC2":0.2,"pumpTransitionSpeed":500}'
@@ -585,12 +571,7 @@ class NodeCommandSourceContractTests(unittest.TestCase):
         self.assertIn("float desiredFlowTransitionVoltage = 0.0545f;", app)
         self.assertIn("float flowmeterTransitionVoltage = NAN;", app)
         self.assertIn("bool  flowmeterEchoSeen = false;", app)
-        self.assertIn("float pumpSlope = NAN;", app)
-        self.assertIn("float pumpIntercept = NAN;", app)
-        self.assertIn("float pumpSlopeLow = NAN;", app)
-        self.assertIn("float pumpSlopeHigh = NAN;", app)
         self.assertIn("float pumpTransitionSpeed = NAN;", app)
-        self.assertIn("float pumpTransitionFlow = NAN;", app)
         self.assertIn("uint32_t pumpCalCrc = 0;", app)
         self.assertIn("bool  pumpEchoSeen = false;", app)
         self.assertIn("int      biomassGear = -1;", app)
@@ -615,19 +596,16 @@ class NodeCommandSourceContractTests(unittest.TestCase):
 
     def test_commands_pump_and_biomass_whitelists(self):
         cmd = self.read("src/protocol/Commands.h")
-        self.assertIn('"pumpSlope"', cmd)
-        self.assertIn('"pumpIntercept"', cmd)
+        self.assertNotIn('"pumpSlope"', cmd)
+        self.assertNotIn('"pumpIntercept"', cmd)
         self.assertIn('"pumpPidKp"', cmd)
         self.assertIn('"pumpPidKi"', cmd)
         self.assertIn('"pumpPidKd"', cmd)
-        self.assertIn('"pumpSlopeLow"', cmd)
-        self.assertIn('"pumpSlopeHigh"', cmd)
+        self.assertNotIn('"pumpSlopeLow"', cmd)
+        self.assertNotIn('"pumpSlopeHigh"', cmd)
         self.assertIn('"pumpTransitionSpeed"', cmd)
-        self.assertIn('"pumpTransitionFlow"', cmd)
         self.assertIn('cleanKey == "pumpPidKp"', cmd)
         self.assertIn('cleanKey = "pid_kp"', cmd)
-        self.assertIn('cleanKey == "pumpSlopeLow"', cmd)
-        self.assertIn('cleanKey = "slope_low"', cmd)
         self.assertIn('"biomassIt"', cmd)
         self.assertIn('"biomassPwm"', cmd)
         self.assertIn('"biomassGear"', cmd)
@@ -662,12 +640,12 @@ class NodeCommandSourceContractTests(unittest.TestCase):
         self.assertIn('hasParam("flow_output")', http)
         self.assertIn('hasParam("flow_setpoint_corrected")', http)
         self.assertIn('hasParam("transition_v")', http)
-        self.assertIn('hasParam("slope")', http)
-        self.assertIn('hasParam("intercept")', http)
-        self.assertIn('hasParam("slope_low")', http)
-        self.assertIn('hasParam("slope_high")', http)
+        self.assertNotIn('hasParam("slope")', http)
+        self.assertNotIn('hasParam("intercept")', http)
+        self.assertNotIn('hasParam("slope_low")', http)
+        self.assertNotIn('hasParam("slope_high")', http)
         self.assertIn('hasParam("trans_speed")', http)
-        self.assertIn('hasParam("trans_flow")', http)
+        self.assertNotIn('hasParam("trans_flow")', http)
         self.assertIn('hasParam("cal_crc")', http)
         self.assertIn('hasParam("gear")', http)
         self.assertIn('hasParam("ema")', http)
@@ -684,12 +662,7 @@ class NodeCommandSourceContractTests(unittest.TestCase):
         self.assertIn('\\"FlowSetpointCorrected\\"', tel)
         self.assertIn('\\"FlowmeterBootId\\"', tel)
         self.assertIn('\\"FlowTransitionVoltage\\"', tel)
-        self.assertIn('\\"PumpSlope\\"', tel)
-        self.assertIn('\\"PumpIntercept\\"', tel)
-        self.assertIn('\\"PumpSlopeLow\\"', tel)
-        self.assertIn('\\"PumpSlopeHigh\\"', tel)
         self.assertIn('\\"PumpTransitionSpeed\\"', tel)
-        self.assertIn('\\"PumpTransitionFlow\\"', tel)
         self.assertIn('\\"PumpCalCrc\\"', tel)
         self.assertIn('\\"BiomassGear\\"', tel)
         self.assertIn('\\"BiomassEma\\"', tel)

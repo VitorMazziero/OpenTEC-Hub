@@ -273,15 +273,27 @@ void startWiFi() {
 
           if (rebootDetected) {
             // The node came back with its own defaults - setpoint zero, valves shut.
-            // Adopting that would silently discard the operator's last command and
-            // report the zero as if it had been asked for. Re-assert instead.
+            // Re-assert only the operational state.
+            //
+            // IMPORTANT:
+            // Do NOT send transition_v by itself. In flowmeter v12 transition_v is
+            // part of the atomic calibration frame and must be accompanied by the
+            // complete low/high calibration coefficients.
+
             pendingMaxFlow = true;
-            pendingFlowTransitionVoltage = true;
+
+            // Do not set this here:
+            // pendingFlowTransitionVoltage = true;
+
             flowCommandRevision++;
-            if (flowCommandRevision == 0) flowCommandRevision = 1;
+            if (flowCommandRevision == 0) {
+              flowCommandRevision = 1;
+            }
+
             flowCommandAwaitingAck = true;
             flowCommandDeliveryCount = 0;
             flowCommandQueuedAt = millis();
+
             pendingFlowmeterCommand = buildFlowCommandLocked();
             rebootRevision = flowCommandRevision;
           } else if (!flowCommandAwaitingAck) {
@@ -376,35 +388,14 @@ void startWiFi() {
           pumpMode = request->getParam("mode")->value().toInt();
           if (request->hasParam("pwm")) pumpPwm = request->getParam("pwm")->value().toInt();
           if (request->hasParam("speed")) pumpSpeed = request->getParam("speed")->value().toFloat();
-          if (request->hasParam("slope")) {
-            pumpSlope = request->getParam("slope")->value().toFloat();
-            pumpEchoSeen = true;
-          }
-          if (request->hasParam("intercept")) {
-            pumpIntercept = request->getParam("intercept")->value().toFloat();
-            pumpEchoSeen = true;
-          }
           // 3.10: PID gains, potentiometer state and cycle volume. Absent on 3.9 pushes.
           if (request->hasParam("kp")) pumpPidKp = request->getParam("kp")->value().toFloat();
           if (request->hasParam("ki")) pumpPidKi = request->getParam("ki")->value().toFloat();
           if (request->hasParam("kd")) pumpPidKd = request->getParam("kd")->value().toFloat();
           if (request->hasParam("pot")) pumpPotEnabled = request->getParam("pot")->value().toInt() != 0 ? 1 : 0;
           if (request->hasParam("cyc_vol")) pumpCycleVolume = request->getParam("cyc_vol")->value().toFloat();
-          // Legacy 3.11 dual-line echoes; the 3.12 polynomial block follows below.
-          if (request->hasParam("slope_low")) {
-            pumpSlopeLow = request->getParam("slope_low")->value().toFloat();
-            pumpEchoSeen = true;
-          }
-          if (request->hasParam("slope_high")) {
-            pumpSlopeHigh = request->getParam("slope_high")->value().toFloat();
-            pumpEchoSeen = true;
-          }
           if (request->hasParam("trans_speed")) {
             pumpTransitionSpeed = request->getParam("trans_speed")->value().toFloat();
-            pumpEchoSeen = true;
-          }
-          if (request->hasParam("trans_flow")) {
-            pumpTransitionFlow = request->getParam("trans_flow")->value().toFloat();
             pumpEchoSeen = true;
           }
           if (request->hasParam("a1")) { pumpA1=request->getParam("a1")->value().toFloat(); pumpEchoSeen=true; }

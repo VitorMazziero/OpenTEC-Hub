@@ -90,10 +90,7 @@ REAL_FRAMES = {
     '{"flowFfGain":0.025,"flowFfOffset":-1.2}': {
         "flowFfGain": "0.025", "flowFfOffset": "-1.2",
     },
-    # Comandos de calibracao e PID da bomba (Hub 10.2 / 3.9)
-    '{"pumpSlope":0.028,"pumpIntercept":1.5}': {
-        "pumpSlope": "0.028", "pumpIntercept": "1.5",
-    },
+    # Comandos PID da bomba
     '{"pumpPidKp":1.2,"pumpPidKi":0.05,"pumpPidKd":0.01}': {
         "pumpPidKp": "1.2", "pumpPidKi": "0.05", "pumpPidKd": "0.01",
     },
@@ -103,11 +100,8 @@ REAL_FRAMES = {
     '{"biomassGear":1}': {"biomassGear": "1"},
     '{"biomassEma":0.85}': {"biomassEma": "0.85"},
     '{"biomassProbePeriodMs":500}': {"biomassProbePeriodMs": "500"},
-    # Comandos de transicao do fluxometro v12 e calibracao dupla da bomba v3.11 (Hub 10.3)
+    # Comando de transicao do fluxometro v12
     '{"flowTransitionVoltage":1.85}': {"flowTransitionVoltage": "1.85"},
-    '{"pumpSlopeLow":0.025,"pumpSlopeHigh":0.035,"pumpTransitionSpeed":150.0,"pumpTransitionFlow":20.0}': {
-        "pumpSlopeLow": "0.025", "pumpSlopeHigh": "0.035", "pumpTransitionSpeed": "150.0", "pumpTransitionFlow": "20.0",
-    },
 }
 
 
@@ -174,12 +168,7 @@ class DistanceSourceContractTests(unittest.TestCase):
 
     def test_telemetry_emits_pump_echoes(self):
         tel = self.read("src/sensor/Telemetry.h")
-        self.assertIn('\\"PumpSlope\\"', tel)
-        self.assertIn('\\"PumpIntercept\\"', tel)
-        self.assertIn('\\"PumpSlopeLow\\"', tel)
-        self.assertIn('\\"PumpSlopeHigh\\"', tel)
         self.assertIn('\\"PumpTransitionSpeed\\"', tel)
-        self.assertIn('\\"PumpTransitionFlow\\"', tel)
         self.assertIn('\\"PumpCalCrc\\"', tel)
 
     def test_telemetry_emits_biomass_echoes(self):

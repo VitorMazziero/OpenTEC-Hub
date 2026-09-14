@@ -603,9 +603,7 @@ void processJsonCommand(const String &json) {
   const char* simpleKeys[] = {
     "pump_command", "mode", "pump_speed", "pump_speed_ms", "pump_pot", "init_t", "final_t",
     "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
-    "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd",
-    "pumpSlopeLow", "pumpSlopeHigh", "pumpTransitionSpeed", "pumpTransitionFlow",
-    "slope_low", "slope_high", "transition_speed", "transition_flow",
+    "pumpPidKp", "pumpPidKi", "pumpPidKd", "pumpTransitionSpeed", "transition_speed",
     "pumpA1", "pumpB1", "pumpK1", "pumpF1", "pumpC1", "pumpK2", "pumpF2", "pumpC2",
     "a1", "b1", "k1", "f1", "c1", "k2", "f2", "c2"
   };
@@ -636,10 +634,7 @@ void processJsonCommand(const String &json) {
       if (cleanKey == "pumpPidKp") cleanKey = "pid_kp";
       else if (cleanKey == "pumpPidKi") cleanKey = "pid_ki";
       else if (cleanKey == "pumpPidKd") cleanKey = "pid_kd";
-      else if (cleanKey == "pumpSlopeLow") cleanKey = "slope_low";
-      else if (cleanKey == "pumpSlopeHigh") cleanKey = "slope_high";
       else if (cleanKey == "pumpTransitionSpeed") cleanKey = "transition_speed";
-      else if (cleanKey == "pumpTransitionFlow") cleanKey = "transition_flow";
       else if (cleanKey == "pumpA1") cleanKey = "a1";
       else if (cleanKey == "pumpB1") cleanKey = "b1";
       else if (cleanKey == "pumpK1") cleanKey = "k1";

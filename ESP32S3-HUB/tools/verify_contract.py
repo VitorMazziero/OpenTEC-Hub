@@ -44,7 +44,7 @@ V10_KEYS = {
     "ServoMotorControlFault", "ServoMotorRouteAck", "MotorControlViaModbus",
     "FlowmeterReconnectWifi",
     "FlowTransitionVoltage",
-    "PumpSlopeLow", "PumpSlopeHigh", "PumpTransitionSpeed", "PumpTransitionFlow", "PumpCalCrc",
+    "PumpTransitionSpeed", "PumpCalCrc",
     "PumpA1", "PumpB1", "PumpK1", "PumpF1", "PumpC1", "PumpK2", "PumpF2", "PumpC2",
 }
 

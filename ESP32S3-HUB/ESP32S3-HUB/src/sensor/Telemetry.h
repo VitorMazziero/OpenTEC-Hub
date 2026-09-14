@@ -70,12 +70,7 @@ void readAndBroadcastSensorData() {
   float snapBiomassEma = NAN;
   uint32_t snapBiomassProbePeriodMs = 0;
   bool snapBiomassEchoSeen = false;
-  float snapPumpSlope = NAN;
-  float snapPumpIntercept = NAN;
-  float snapPumpSlopeLow = NAN;
-  float snapPumpSlopeHigh = NAN;
   float snapPumpTransitionSpeed = NAN;
-  float snapPumpTransitionFlow = NAN;
   float snapPumpA1=NAN, snapPumpB1=NAN, snapPumpK1=NAN, snapPumpF1=NAN, snapPumpC1=NAN;
   float snapPumpK2=NAN, snapPumpF2=NAN, snapPumpC2=NAN;
   uint32_t snapPumpCalCrc = 0;
@@ -117,12 +112,7 @@ void readAndBroadcastSensorData() {
       pumpEchoSeen = false;
     }
     snapPumpEchoSeen = pumpEchoSeen;
-    snapPumpSlope = pumpSlope;
-    snapPumpIntercept = pumpIntercept;
-    snapPumpSlopeLow = pumpSlopeLow;
-    snapPumpSlopeHigh = pumpSlopeHigh;
     snapPumpTransitionSpeed = pumpTransitionSpeed;
-    snapPumpTransitionFlow = pumpTransitionFlow;
     snapPumpA1=pumpA1; snapPumpB1=pumpB1; snapPumpK1=pumpK1; snapPumpF1=pumpF1; snapPumpC1=pumpC1;
     snapPumpK2=pumpK2; snapPumpF2=pumpF2; snapPumpC2=pumpC2;
     snapPumpCalCrc = pumpCalCrc;
@@ -360,19 +350,13 @@ void readAndBroadcastSensorData() {
     jsonResponse += ",\"PumpActive\":" + String(snapPumpActive ? "true" : "false");
     jsonResponse += ",\"PumpWaiting\":" + String(snapPumpWaiting ? "true" : "false");
     if (snapPumpEchoSeen) {
-      if (!isnan(snapPumpSlope)) jsonResponse += ",\"PumpSlope\":" + String(snapPumpSlope, 4);
-      if (!isnan(snapPumpIntercept)) jsonResponse += ",\"PumpIntercept\":" + String(snapPumpIntercept, 4);
       // 3.10 only; a 3.9 pump never sets these and the keys stay out of the frame.
       if (!isnan(snapPumpPidKp)) jsonResponse += ",\"PumpPidKp\":" + String(snapPumpPidKp, 4);
       if (!isnan(snapPumpPidKi)) jsonResponse += ",\"PumpPidKi\":" + String(snapPumpPidKi, 4);
       if (!isnan(snapPumpPidKd)) jsonResponse += ",\"PumpPidKd\":" + String(snapPumpPidKd, 4);
       if (snapPumpPotEnabled >= 0) jsonResponse += ",\"PumpPotEnabled\":" + String(snapPumpPotEnabled ? "true" : "false");
       if (!isnan(snapPumpCycleVolume)) jsonResponse += ",\"PumpCycleVol\":" + String(snapPumpCycleVolume, 3);
-      // Legacy 3.11 dual-line echoes retained for diagnostic compatibility.
-      if (!isnan(snapPumpSlopeLow)) jsonResponse += ",\"PumpSlopeLow\":" + String(snapPumpSlopeLow, 6);
-      if (!isnan(snapPumpSlopeHigh)) jsonResponse += ",\"PumpSlopeHigh\":" + String(snapPumpSlopeHigh, 6);
       if (!isnan(snapPumpTransitionSpeed)) jsonResponse += ",\"PumpTransitionSpeed\":" + String(snapPumpTransitionSpeed, 2);
-      if (!isnan(snapPumpTransitionFlow)) jsonResponse += ",\"PumpTransitionFlow\":" + String(snapPumpTransitionFlow, 4);
       if (!isnan(snapPumpA1)) jsonResponse += ",\"PumpA1\":" + String(snapPumpA1, 9);
       if (!isnan(snapPumpB1)) jsonResponse += ",\"PumpB1\":" + String(snapPumpB1, 9);
       if (!isnan(snapPumpK1)) jsonResponse += ",\"PumpK1\":" + String(snapPumpK1, 9);

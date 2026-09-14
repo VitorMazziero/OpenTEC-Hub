@@ -403,9 +403,6 @@ float pumpVolume = 0.0f;
 bool  pumpActive = false;
 bool  pumpWaiting = false;
 
-// Ecos de calibracao da bomba peristaltica (Hub 10.2 / 3.9).
-// NAN / false = nunca ecoado neste boot.
-float pumpSlope = NAN;
 // 3.10 echoes (NAN / -1 = nunca ecoado neste boot): ganhos PID, potenciometros em comando
 // (1) ou travados por "pot":0 / "speed" (0), e o volume do ciclo corrente.
 float pumpPidKp = NAN;
@@ -413,12 +410,7 @@ float pumpPidKi = NAN;
 float pumpPidKd = NAN;
 int   pumpPotEnabled = -1;
 float pumpCycleVolume = NAN;
-float pumpIntercept = NAN;
-// Ecos 3.11/Hub 10.3 mantidos somente para diagnostico de nos legados.
-float pumpSlopeLow = NAN;
-float pumpSlopeHigh = NAN;
 float pumpTransitionSpeed = NAN;
-float pumpTransitionFlow = NAN;
 float pumpA1 = NAN, pumpB1 = NAN, pumpK1 = NAN, pumpF1 = NAN, pumpC1 = NAN;
 float pumpK2 = NAN, pumpF2 = NAN, pumpC2 = NAN;
 uint32_t pumpCalCrc = 0;

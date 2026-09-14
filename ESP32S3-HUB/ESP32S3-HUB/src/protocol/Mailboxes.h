@@ -114,29 +114,95 @@ inline String takePending(String& src) {
 String buildFlowCommandLocked() {
   String cmd;
   cmd.reserve(512);
+
   cmd = "{\"cmd_id\":" + String(flowCommandRevision);
+
+  // ---------------------------------------------------------
+  // Normal operational command fields
+  // These can be sent independently of calibration.
+  // ---------------------------------------------------------
   cmd += ",\"flow_setpoint\":" + String(desiredFlowSetpoint, 6);
   cmd += ",\"v1\":" + String(desiredFlowValve1);
   cmd += ",\"v2\":" + String(desiredFlowValve2);
   cmd += ",\"v_Flow\":" + String(desiredFlowValveFlow);
-  if (pendingMaxFlow) cmd += ",\"max_flow\":" + String(desiredMaxFlow, 6);
-  if (pendingReconnectWifi) cmd += ",\"reconnect_wifi\":" + String(desiredReconnectWifi);
-  // a1/b1 go first so the node sees the quartic opt-in before k1/f1/c1.
-  if (pendingA1) cmd += ",\"a1\":" + String(desiredA1, 9);
-  if (pendingB1) cmd += ",\"b1\":" + String(desiredB1, 9);
-  if (pendingK1) cmd += ",\"k1\":" + String(desiredK1, 9);
-  if (pendingF1) cmd += ",\"f1\":" + String(desiredF1, 9);
-  if (pendingC1) cmd += ",\"c1\":" + String(desiredC1, 9);
-  if (pendingK2) cmd += ",\"k2\":" + String(desiredK2, 9);
-  if (pendingF2) cmd += ",\"f2\":" + String(desiredF2, 9);
-  if (pendingC2) cmd += ",\"c2\":" + String(desiredC2, 9);
-  if (pendingFlowKp) cmd += ",\"kp_flow\":" + String(desiredFlowKp, 4);
-  if (pendingFlowKi) cmd += ",\"ki_flow\":" + String(desiredFlowKi, 4);
-  if (pendingFlowFfGain) cmd += ",\"ff_gain\":" + String(desiredFlowFfGain, 4);
-  if (pendingFlowFfOffset) cmd += ",\"ff_offset\":" + String(desiredFlowFfOffset, 4);
-  if (pendingFlowRampRate) cmd += ",\"ramp_rate\":" + String(desiredFlowRampRate, 3);
-  if (pendingFlowTransitionVoltage) cmd += ",\"transition_v\":" + String(desiredFlowTransitionVoltage, 4);
+
+  if (pendingMaxFlow) {
+    cmd += ",\"max_flow\":" + String(desiredMaxFlow, 6);
+  }
+
+  if (pendingReconnectWifi) {
+    cmd += ",\"reconnect_wifi\":" + String(desiredReconnectWifi);
+  }
+
+  // ---------------------------------------------------------
+  // Calibration
+  //
+  // Flowmeter v12 requires the complete calibration model in
+  // the SAME frame when transition_v is present.
+  //
+  // Never send a partial calibration block.
+  // ---------------------------------------------------------
+
+  const bool fullCalibrationPending =
+      pendingA1 &&
+      pendingB1 &&
+      pendingK1 &&
+      pendingF1 &&
+      pendingC1 &&
+      pendingK2 &&
+      pendingF2 &&
+      pendingC2 &&
+      pendingFlowTransitionVoltage;
+
+  if (fullCalibrationPending) {
+
+    // Segment 1
+    // a1/b1 first so the node sees the quartic opt-in before
+    // k1/f1/c1.
+    cmd += ",\"a1\":" + String(desiredA1, 9);
+    cmd += ",\"b1\":" + String(desiredB1, 9);
+    cmd += ",\"k1\":" + String(desiredK1, 9);
+    cmd += ",\"f1\":" + String(desiredF1, 9);
+    cmd += ",\"c1\":" + String(desiredC1, 9);
+
+    // Segment 2
+    cmd += ",\"k2\":" + String(desiredK2, 9);
+    cmd += ",\"f2\":" + String(desiredF2, 9);
+    cmd += ",\"c2\":" + String(desiredC2, 9);
+
+    // transition_v is part of the calibration transaction.
+    // It must not be sent independently.
+    cmd += ",\"transition_v\":" +
+           String(desiredFlowTransitionVoltage, 4);
+  }
+
+  // ---------------------------------------------------------
+  // Controller tuning parameters
+  // These are independent from the sensor calibration model.
+  // ---------------------------------------------------------
+
+  if (pendingFlowKp) {
+    cmd += ",\"kp_flow\":" + String(desiredFlowKp, 4);
+  }
+
+  if (pendingFlowKi) {
+    cmd += ",\"ki_flow\":" + String(desiredFlowKi, 4);
+  }
+
+  if (pendingFlowFfGain) {
+    cmd += ",\"ff_gain\":" + String(desiredFlowFfGain, 4);
+  }
+
+  if (pendingFlowFfOffset) {
+    cmd += ",\"ff_offset\":" + String(desiredFlowFfOffset, 4);
+  }
+
+  if (pendingFlowRampRate) {
+    cmd += ",\"ramp_rate\":" + String(desiredFlowRampRate, 3);
+  }
+
   cmd += "}";
+
   return cmd;
 }
 

@@ -1593,8 +1593,8 @@ Toolbar: source multi-select · severity filter · text search · time range ·
 
 ### 5.7 Calibrações
 
-**Purpose:** run calibration *procedures* with live feedback. **Phase 2 WP3 built for
-pH, oxygen and airflow.** Level and biomass procedures remain Phase 3 work.
+**Purpose:** run calibration *procedures* with live feedback. The page includes pH,
+oxygen, airflow, biomass and the external pump; hardware validation remains separate.
 
 Calibration is not a coefficient form. The dedicated destination uses three segmented
 tabs and keeps preparation, acquisition, the current curve, the proposed result and the
@@ -1605,8 +1605,9 @@ explicit apply/send action visible together at 1280×800. The full operational c
 |---|---|---|
 | **pH** | App parser; accepted values return to the module as quoted `pHCal` | One point keeps the current slope; two points replace the pair. Twenty accepted raw frames establish stability (`sample σ < 5` by default), then twenty distinct frames are averaged |
 | **Oxigênio** | App parser only; there is no v.6 coefficient command | Direct two-point zero/span capture with the live raw and decoded values beside the current equation |
-| **Vazão de ar** | Dedicated flowmeter firmware | Certified real-flow rows, prepare/fine-adjust controls, ten-frame `FlowVoltage` average, live plot and the fixed two-segment 0.0545 V curve |
+| **Vazão de ar** | Fluxômetro v12.0 | Pontos certificados, ajuste fino, média de dez `FlowVoltage`, gráfico dos dois segmentos e campo editável `Vt`; `0.0545 V` é somente default/migração |
 | **Biomassa** *(WP1)* | Sensor module; no PC-side coefficient | Guided blank capture with a live absorbance readout to confirm Abs ≈ 0, then the low/high/optimal integration thresholds (raw counts). No HD-mode state exists in the firmware, so none is shown |
+| **Bomba Externa** | Bomba v3.12; biblioteca no PC | Gráfico grande, quarto grau abaixo de `St`, quadrático acima, C0+C1, pontos volumétricos, controle manual e perfis por mangueira |
 
 #### pH control and calibration interlock
 
@@ -1630,17 +1631,21 @@ changes both coefficients together and sends no wire command.
 
 For airflow, the operator enters the external standard's real flow, prepares that point,
 fine-adjusts the commanded flow, and captures ten distinct voltages. Point editing locks
-during capture. The low segment (`V <= 0.0545`) needs three points; the high segment uses
-a line with two or a quadratic with three. A partial curve may be sent because v.6 allows
-it, but the page labels it partial. **Parar ensaio de vazão** always exposes the complete
-flow safe-stop.
+during capture. `Vt` is expressed in volts and moves the split between the two segments.
+The application sends both segments plus `flowTransitionVoltage` atomically and confirms
+the result by ACK, echo and CRC; a partial curve is never reported as applied.
+
+For the external pump, the side panel separates local profile actions from hardware
+application. Loading, saving, overwriting or deleting a hose profile never sends a frame.
+Only **Salvar e enviar curva** transmits the eight polynomial coefficients plus `St`, and it is disabled for
+Hub < 10.3, pump < 3.11, unknown capability, disconnected node or active/waiting operation.
 
 > **Two warnings are permanent design constraints.**
 >
 > 1. Calibration criteria and spike filters are in raw ADC counts. Applying a curve does
 >    not rescale them; the page states this beside the pH acquisition fields.
-> 2. Coefficients are applied as a pair. A calculated result remains merely proposed until
->    the operator explicitly applies it; a flow curve remains local until explicitly sent.
+> 2. Coefficients are applied as one complete calibration set. A calculated result remains
+>    merely proposed until the operator explicitly applies it; local profiles are not device state.
 
 **Delivered in WP1:** the biomass blank/threshold procedure (the tab above). **Still deferred:** the
 known-level reference, calibration history and rollback. They must use the same ownership and

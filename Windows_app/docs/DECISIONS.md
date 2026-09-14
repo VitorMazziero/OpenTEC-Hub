@@ -1397,6 +1397,26 @@ a cada fechamento ensina o operador a ignorar o alarme verdadeiro.
   `XamlParseException` de `StaticResource` em builds de desenvolvimento de 09–10/09, corrigidos em
   `f08ba27`. Um `XamlParseException` continua sendo um crash.
 
+### D-054 · Transições editáveis, continuidade C0+C1 e perfis de bomba somente no PC
+
+**Status:** Accepted and implemented in software · 2026-09-13
+
+**Decisão.** O fluxômetro usa `Vt` em volts para selecionar seus segmentos; `0.0545 V`
+é default e migração, não vazão nem constante imutável. A bomba espelha essa família no
+domínio de `S`: quarto grau abaixo de `St`, quadrático acima, com valor e derivada iguais
+na transição. `St` é editável e `Qt=Q(St)` é derivado; perfis representam mangueiras.
+
+Perfis nomeados por mangueira são objetos locais do PC que reúnem metadados, pontos,
+ajuste e curva congelada. O nó não recebe nomes nem biblioteca e mantém somente uma
+curva ativa. Selecionar, carregar, salvar, sobrescrever ou excluir perfil nunca envia
+comando; a mudança do nó exige **Salvar e enviar curva**.
+
+**Contrato e segurança.** O fluxômetro exige Hub 10.3/v12.0; a bomba polinomial exige Hub
+10.4/v3.12. A aplicação é atômica, bloqueada durante operação ativa da bomba e confirmada
+somente por ACK encerrado, ecos completos e CRC. Versões antigas permanecem legíveis,
+mas a função incompatível fica bloqueada. Software aprovado não substitui os ensaios
+físicos descritos em `hardware/HARDWARE_VALIDATION.md`.
+
 ### D-053 · Roteamento de gás por intenção com nomes do hardware; B e C no mesmo MOSFET; pré-estabilização por C obrigatória; `t = 0` na comutação; N₂ na fonte confirmado pelo operador; setpoint > 0 exige destino
 
 **Status:** Accepted and implemented · 2026-09-12 · plano `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md` · documento físico `docs/plans/sistema_valvulas_ensaios_potencia_kLa.md` · [P3-11](history/PHASE_LOG.md)
@@ -1451,7 +1471,7 @@ do kLa com o arranjo antigo).
 
 **Contexto.** A reorganização dos firmwares dos nós (11–12/09) expôs parâmetros que antes eram
 constantes: offset e períodos do sensor de distância (NVS, `POST /config`), sintonia do controlador
-de vazão (`kp_flow`, `ki_flow`, `ff_*`, `ramp_rate`), calibração linear e PID da bomba, zerar
+de vazão (`kp_flow`, `ki_flow`, `ff_*`, `ramp_rate`), calibração linear legada e PID da bomba, zerar
 volume, e a aquisição óptica da biomassa (IT, PWM, gear, EMA, período). O Hub `10.1` repassava só
 parte disso — as whitelists descartavam `ff_*`, `pid_*`, `reset_volume` — e o app não expunha nada;
 o operador precisava do navegador e do IP do nó. Cada nó também tem um `/diag` (RSSI, heap, uptime,

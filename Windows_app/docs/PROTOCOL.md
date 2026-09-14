@@ -463,17 +463,21 @@ is **preferred** — it reduces round trips on the shared UART.
 
 ### 3.2 Flow calibration
 
-Two-segment piecewise curve, split at **0.0545 V**:
+Two-segment piecewise curve, split at editable **`Vt`**. `0.0545 V` is the
+v12.0 default/migration value, not flow and not an immutable threshold:
 
 | Keys | Segment |
 |---|---|
-| `a1`, `b1`, `k1`, `f1`, `c1` | `V <= 0.0545` — anchored quartic `flow = a1·V⁴ + b1·V³ + k1·V² + f1·V + c1` |
-| `k2`, `f2`, `c2` | `V > 0.0545` |
+| `a1`, `b1`, `k1`, `f1`, `c1` | `V <= Vt` — anchored quartic `flow = a1·V⁴ + b1·V³ + k1·V² + f1·V + c1` |
+| `k2`, `f2`, `c2` | `V > Vt` |
+| `flowTransitionVoltage` | App→Hub name for `transition_v`, in volts |
 
-`a1`/`b1` are sent first, in the order `a1,b1,k1,f1,c1,k2,f2,c2`: the flowmeter's V10 firmware
+`a1`/`b1` are sent first, followed by the other coefficients and `flowTransitionVoltage`:
+the flowmeter's V10 firmware
 zeroes them only when `k1/f1/c1` arrive **without** them, so a low segment sent as `k1/f1/c1`
 alone is taken as a quadratic. Hub `10.0.1-dev` forwards them; `10.0.0-dev` dropped them
-(2026-09-11). The whole curve goes on **one frame**, under the Hub's 1024-byte serial line.
+(2026-09-11). On v12.0 the whole curve and `Vt` go on **one frame**, under the Hub's
+1024-byte serial line; the node rejects an incomplete or discontinuous update.
 
 Preparing or fine-adjusting one certified point uses the Hub-v7 routed state below. The
 operator's real-flow value comes from an external standard; the app then averages
@@ -483,10 +487,9 @@ distinct `FlowVoltage` telemetry frames.
 {"flowSetpoint":1.5,"valve_1":0,"valve_2":0,"v_Flow":0}
 ```
 
-The regression is `flow = k*V² + f*V + c`. The low segment requires at least three
-points. The high segment uses a line (`k2=0`) with two points and a quadratic with three
-or more. v.6 accepts a partial calibration, so each valid segment may be sent alone; the
-UI must label that state as partial. Point capture and coefficient fitting are specified
+The regression uses the complete low quartic/high quadratic model. A proposed curve remains
+local until both segments satisfy their fit requirements. The v12.0 UI never reports a
+partial send as applied: ACK, transition echo and CRC are required. Point capture and fitting are specified
 operationally in [CALIBRATION.md](CALIBRATION.md#5-calibração-da-vazão-de-ar).
 
 ### 3.3 Dosing (Phase 2 scope)
@@ -639,11 +642,15 @@ camelCase keys, and the Hub translates them before enqueuing to each node's mail
 | `pump_speed` | int 0..1000 | Pump node | `speed` — hold the motor at S in idle mode; `0` stops. The sender owns the stop (the volumetric calibration sends `0` from the app clock). `speed` without the prefix is rejected by the Hub |
 | `pump_speed_ms` | int ms | Pump node | `speed_ms` — node-side deadline for `pump_speed` (pump 3.10+); the calibration sends duration + 3 s as the safety net |
 | `pump_pot` | `1`/`0` | Pump node | `pot` — hand the motor back to the bench potentiometers (forgets any manual speed) / lock them out (pump 3.10+) |
-| `pumpSlope` | float | Pump node | `slope` |
-| `pumpIntercept` | float | Pump node | `intercept` |
+| `pumpSlope` | float | Pump node ≤3.10 | legacy linear calibration; migration/diagnostic only |
+| `pumpIntercept` | float | Pump node ≤3.10 | legacy linear calibration; migration/diagnostic only |
 | `pumpPidKp` | float | Pump node | `pid_kp` |
 | `pumpPidKi` | float | Pump node | `pid_ki` |
 | `pumpPidKd` | float | Pump node | `pid_kd` |
+| `pumpA1`..`pumpC1` | float | Pump node v3.12+ | `a1`..`c1`; quarto grau inferior; conjunto atômico |
+| `pumpK2`..`pumpC2` | float | Pump node v3.12+ | `k2`..`c2`; quadrático superior; conjunto atômico |
+| `pumpTransitionSpeed` | float | Pump node v3.12+ | `transition_speed` (`St`); `Qt` é derivado |
+| `flowTransitionVoltage` | float | Flowmeter v12.0+ | `transition_v` em volts; deve viajar com os dois segmentos completos |
 | `biomassIt` | int | Biomass node | `command:"set_it",value:N` |
 | `biomassPwm` | float | Biomass node | `command:"set_pwm",value:N` |
 | `biomassGear` | int | Biomass node | `command:"set_gear",value:N` |
@@ -673,7 +680,7 @@ N2 only (B/C, sp 0)   {"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":1,"valve_2":0
 Reactor (A), A on 1   {"flowSetpoint":3.0,"maxFlow":50.0,"valve_1":1,"valve_2":0,"v_Flow":0}
 B + C, A on 1         {"flowSetpoint":3.0,"maxFlow":50.0,"valve_1":0,"valve_2":1,"v_Flow":0}
 Flow cal setpoint  {"flowSetpoint":1.5,"valve_1":1,"valve_2":0,"v_Flow":0}      (through C on the default wiring)
-Flow cal curve     {"maxFlow":50.0,"a1":-1.2E-05,"b1":0.00034,"k1":2.0,"f1":3.0,"c1":4.0,"k2":0.0,"f2":5.0,"c2":1.0}
+Flow cal curve     {"maxFlow":50.0,"a1":0.0,"b1":0.0,"k1":0.001234567,"f1":0.0,"c1":0.0,"k2":0.002345678,"f2":0.0,"c2":0.0,"flowTransitionVoltage":0.0545}
 Core safe-stop     {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0}
 Operator safe-stop {"tempSetpoint":0.0,"motorSetpoint":0,"oxygenMonitor":0.0,"flowSetpoint":0.0,"maxFlow":50.0,"valve_1":0,"valve_2":0,"v_Flow":1,"pressureReference":0.0,"pHSetpoint":0.0,"pHError":0.15,"pHOperation":1.0,"pHMix":60.0,"pHIntensity":0.0}
                    ... plus the dosing, agitator and pump-profile fragments, then {"pumpComm":0} on the next frame
@@ -699,7 +706,7 @@ flow tuning        {"flowKp":0.8,"flowKi":0.05,"flowFfGain":1.2,"flowFfOffset":0
 pump reset vol     {"pump_command":"reset_volume"}
 pump manual speed  {"pump_speed":500,"pump_speed_ms":63000}   (calibration run; {"pump_speed":0} stops; node stops itself at 63 s)
 pump potentiometers {"pump_pot":1}                              (hand the motor back to the bench knobs)
-pump calibration   {"pumpSlope":1.25,"pumpIntercept":0.05}
+pump calibration   {"pumpA1":0.0,"pumpB1":0.0,"pumpK1":0.0,"pumpF1":0.003906,"pumpC1":0.0,"pumpK2":0.0,"pumpF2":0.003906,"pumpC2":0.0,"pumpTransitionSpeed":200.0}
 pump PID           {"pumpPidKp":1.5,"pumpPidKi":0.2,"pumpPidKd":0.05}
 biomass IT         {"biomassIt":100}
 biomass PWM        {"biomassPwm":75.0}
@@ -712,6 +719,17 @@ biomass auto-range {"biomassAutoRange":"manual"}                      (lock the 
 Key order within an object is not believed to matter (the firmware parses JSON),
 but the tests pin v.6's emission order anyway — it costs nothing and removes the
 question from the table if a problem ever appears in the field.
+
+### 4.1 Confirmação e compatibilidade das calibrações v12/3.12
+
+- O fluxômetro confirma a aplicação moderna com ACK da revisão, eco de
+  `FlowTransitionVoltage` e CRC que cobre também `transition_v`.
+- A bomba confirma somente quando `PumpCommandPending=false`, os nove valores ecoados
+  coincidem com o pedido e `PumpCalCrc` está presente. Eco parcial ou apenas ACK não basta.
+- Hub anterior a 10.3 ou fluxômetro anterior a v12.0 bloqueia a transição editável; Hub
+  anterior a 10.4 ou bomba anterior a v3.12 bloqueia a curva polinomial da bomba.
+- `0.0545 V`, `pumpSlope` e `pumpIntercept` permanecem válidos neste documento somente
+  como defaults ou contrato legado de migração, nunca como o modelo operacional moderno.
 
 ---
 

@@ -1,13 +1,13 @@
 # Contrato HTTP do Hub 10
 
 > O nome deste arquivo é histórico. A identidade emitida atualmente é firmware
-> `10.3.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
+> `10.4.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
 > manifesto de cada ensaio, por isso toda mudança de comportamento do Hub sobe a versão
 > — `10.0.1-dev` é o leitor serial em linhas e o repasse de `a1`/`b1` (2026-09-11);
 > `10.1.0-dev` é a identidade dos nós externos no quadro agregado e o `/nodes` completo
 > (2026-09-12); `10.2.0-dev` é a caixa confiável da distância por carona no push e
 > os ecos de configuração dos nós externos; `10.3.0-dev` acrescenta a transição
-> editável do fluxômetro v12.0 e a calibração dupla da bomba v3.11. Chaves aditivas
+> editável do fluxômetro v12.0; `10.4.0-dev` acrescenta a calibração polinomial dupla da bomba v3.12. Chaves aditivas
 > não sobem o protocolo.
 
 ## Compatibilidade com o aplicativo
@@ -197,10 +197,9 @@ e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
 | `PumpManualSpeed` | `pump_speed` | `speed` | inteiro 0..1000; o nó cai para modo 0 (ocioso) e mantém a velocidade S até o próximo `speed`, perfil ou `pot:1`; `0` para o motor. Chave `speed` sem prefixo é rejeitada pelo Hub por desenho. |
 | `PumpManualSpeedMs` | `pump_speed_ms` | `speed_ms` | ms > 0, junto com `pump_speed`: a bomba 3.10 zera a velocidade sozinha ao expirar. A calibração volumétrica envia duração + 3 s como rede de segurança; a parada primária continua sendo o `0` do app. |
 | `PumpPotentiometers` | `pump_pot` | `pot` | `1` devolve o motor aos potenciômetros de bancada (e esquece `speed`); `0` trava. Bomba 3.10. |
-| `PumpSlopeLow` | `pumpSlopeLow` | `slope_low` | float > 0; parte do conjunto atômico 3.11 |
-| `PumpSlopeHigh` | `pumpSlopeHigh` | `slope_high` | float > 0; parte do conjunto atômico 3.11 |
-| `PumpTransitionSpeed` | `pumpTransitionSpeed` | `transition_speed` | float, `0 < St < 1000`; parte do conjunto atômico 3.11 |
-| `PumpTransitionFlow` | `pumpTransitionFlow` | `transition_flow` | float > 0; parte do conjunto atômico 3.11 |
+| `PumpA1`..`PumpC1` | `pumpA1`..`pumpC1` | `a1`..`c1` | cinco coeficientes do quarto grau inferior; conjunto atômico 3.12 |
+| `PumpK2`..`PumpC2` | `pumpK2`..`pumpC2` | `k2`..`c2` | três coeficientes do quadrático superior; conjunto atômico 3.12 |
+| `PumpTransitionSpeed` | `pumpTransitionSpeed` | `transition_speed` | float, `0 < St < 1000`; nono campo do conjunto atômico 3.12 |
 | `PumpSlope`, `PumpIntercept` | `pumpSlope`, `pumpIntercept` | mesmos nomes | compatibilidade com bomba 3.10; não confirmam calibração dupla |
 | `PumpPidKp` | `pumpPidKp` | `pid_kp` | float |
 | `PumpPidKi` | `pumpPidKi` | `pid_ki` | float |

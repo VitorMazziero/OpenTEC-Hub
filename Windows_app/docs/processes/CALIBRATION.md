@@ -11,7 +11,8 @@ mas recusa entradas inválidas e separa claramente **medir**, **calibrar** e **a
 |---|---|---|---|
 | pH | No parser do aplicativo: `pH = slope * raw + intercept` | Cada valor calibrado aceito volta como `{"pHCal":"6.98"}` para o display/controlador | `Calibration.PHSlope`, `PHIntercept` |
 | Oxigênio | No parser do aplicativo: `O2 = max(a * raw + b, 0)` | Não existe comando de coeficientes em v.6; `oxygenMonitor` é controle/monitoramento, não calibração | `Calibration.OxygenA`, `OxygenB` |
-| Vazão de ar | No firmware dedicado do fluxômetro | Coeficientes `k1,f1,c1,k2,f2,c2` | Pontos certificados ficam no aplicativo; coeficientes são enviados explicitamente ao equipamento |
+| Vazão de ar | No firmware dedicado do fluxômetro v12.0 | Dois segmentos completos + `flowTransitionVoltage` | Pontos certificados ficam no aplicativo; curva e `Vt` são enviados explicitamente ao equipamento |
+| Bomba externa | No firmware da bomba v3.12 | `pumpA1..pumpC2`, `pumpTransitionSpeed` | Perfis por mangueira ficam no PC; o nó persiste somente a última curva enviada |
 
 Consequência: `pHCal` não habilita a bomba e `pHSetpoint` não calibra a sonda. São
 mensagens diferentes, ainda que ambas façam parte do subsistema de pH.
@@ -132,7 +133,7 @@ v.6.
    igual à vazão de referência, válvulas auxiliar e N2 fechadas e `v_Flow` derivado.
 3. Ajustar o setpoint para cima/baixo até o padrão externo atingir a referência.
 4. **Capturar tensão** coleta 10 quadros distintos de `FlowVoltage` e grava a média.
-5. Repetir em toda a faixa de trabalho e em ambos os lados de 0.0545 V.
+5. Repetir em toda a faixa de trabalho e em ambos os lados da tensão de transição `Vt` escolhida.
 
 Durante a captura, seleção, edição e remoção de pontos ficam bloqueadas. Se o link cair,
 a média parcial é descartada e o setpoint preparado passa a estado desconhecido; depois de
@@ -141,22 +142,45 @@ reconectar é obrigatório preparar o ponto novamente.
 O valor real vem do padrão externo; `FlowRate` do próprio equipamento não é aceito
 como verdade de calibração.
 
-### 5.2 Curva de v.6
+### 5.2 Curva do fluxômetro v12.0
 
-A regressão usa `x = tensão` e `y = vazão real`, com divisão fixa em 0.0545 V:
+A regressão usa `x = tensão` e `y = vazão real`, com divisão editável em `Vt`. O valor `0.0545 V` é somente o default e a migração de curvas antigas:
 
-- `x <= 0.0545`: quadrática, requer pelo menos 3 pontos;
-- `x > 0.0545`: quadrática com 3 ou mais pontos; linear com exatamente 2 pontos
+- `x <= Vt`: segmento inferior quártico, com os termos efetivamente ajustados conforme os pontos disponíveis;
+- `x > Vt`: quadrático com 3 ou mais pontos; linear com exatamente 2 pontos
   (`k2 = 0`).
 
 ```text
 y = k*x^2 + f*x + c
 ```
 
-Os pontos e o gráfico são revisados antes de **Salvar e enviar curva**. O botão envia
-somente os segmentos que atendem ao número mínimo de pontos, como v.6, e deixa claro
-quando a calibração está parcial. **Parar ensaio de vazão** envia o safe-stop completo
-e fecha ambas as válvulas.
+Os pontos, `Vt` e o gráfico são revisados antes de **Salvar e enviar curva**. O aplicativo
+envia atomicamente os dois segmentos completos e a transição; não existe aplicação parcial.
+A conclusão exige ACK, eco de `FlowTransitionVoltage` e CRC. **Parar ensaio de vazão**
+envia o safe-stop completo e fecha ambas as válvulas.
+
+### 5.3 Curva e perfis da bomba externa v3.12
+
+1. Criar ou selecionar um perfil identificado pela mangueira; carregar o perfil altera
+   apenas a proposta local e nunca envia comando.
+2. Definir `St` e coletar pontos volumétricos em pelo menos duas velocidades distintas de
+   cada lado. Cada ponto guarda `S`, duração, volume e `Q = V/(Δt/60)`.
+3. O ajuste calcula os coeficientes dos dois segmentos com continuidade C0+C1 em `St`;
+   `Qt=Q(St)` é somente um resultado:
+
+```text
+S <= St: Q = a1*S^4 + b1*S^3 + k1*S^2 + f1*S + c1
+S >  St: Q = k2*S^2 + f2*S + c2
+```
+
+4. **Salvar perfil** grava nome, pontos, ajuste e curva congelada no PC, sem tocar no nó.
+5. **Salvar e enviar curva** transmite os oito coeficientes e `St` em um quadro. Só após
+   `PumpCommandPending=false`, nove ecos iguais e `PumpCalCrc` o app persiste a curva
+   confirmada e grava o recibo.
+
+Hub anterior a 10.4, bomba anterior a 3.12, firmware desconhecido ou bomba em
+`RUNNING`/`WAITING` bloqueiam o envio. A reta `pumpSlope`/`pumpIntercept` é lida apenas
+para compatibilidade e migração; não confirma a curva moderna.
 
 ## 6. Estados de recusa e limite de validação
 

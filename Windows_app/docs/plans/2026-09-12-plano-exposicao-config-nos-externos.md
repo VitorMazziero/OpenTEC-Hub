@@ -1,5 +1,11 @@
 # Plano — Expor no Hub e no app o que os nós externos passaram a oferecer (offset do sensor de distância, sintonia do fluxômetro, calibração da bomba, aquisição da biomassa, saúde dos nós)
 
+> **Nota de supersessão — 2026-09-13:** este plano preserva o contrato linear da bomba
+> 3.9/3.10 como evidência histórica. Para operação atual, a calibração foi substituída
+> pela curva polinomial contínua C0+C1 da bomba 3.12 e pela transição editável do
+> fluxômetro v12.0; consulte `2026-09-13-plano-calibracao-dupla-fluxometro-bomba.md`.
+> Não reinterpretar os testes históricos abaixo como se já usassem o contrato novo.
+
 **Data:** 2026-09-12 (reescrito em etapas no mesmo dia)
 **Escopo:** auditoria dos cinco firmwares de `External-Devices/` (reorganização de 11–12/09/2026:
 parsers zero-heap, Web OTA, `/diag`, backoff, Link Watchdog, `/nodeHello`, NVS no sensor de

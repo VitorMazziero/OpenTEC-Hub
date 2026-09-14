@@ -1,4 +1,4 @@
-# Protocolo — Bomba Peristáltica (Firmware v3.11)
+# Protocolo — Bomba Peristáltica (Firmware v3.12)
 
 Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e vocabulário de comandos da **Bomba Peristáltica** com motor DC e ESP32.
 
@@ -9,18 +9,18 @@ Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e
 ## 1. Identidade e Registro
 
 - **Dispositivo**: Bomba Peristáltica (`peristaltic-pump` / `pump`)
-- **Versão do Firmware**: `3.11` (2026-09-13; o registro linear 3.10 é preservado e migrado sem alterar o blob legado)
+- **Versão do Firmware**: `3.12` (2026-09-13; os registros 3.10 e 3.11 são preservados como fontes de migração)
 - **Protocolo de Rede**: HTTP REST / Query params (compatibilidade de fio protocolo 10)
 - **Topologia**: Nó periférico que se anuncia ao Hub e envia telemetria periódica (push) enquanto consome comandos (piggyback ou pull).
 
 ### Registro Automático (`/nodeHello`)
 Ao conectar-se ao Wi-Fi, o nó anuncia sua presença ao Hub Central:
 ```http
-GET /nodeHello?dev=pump&ver=3.11&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
+GET /nodeHello?dev=pump&ver=3.12&mac=AA:BB:CC:DD:EE:FF HTTP/1.1
 Host: 192.168.4.1
 ```
 - `dev`: `pump`
-- `ver`: `3.11`
+- `ver`: `3.12`
 - `mac`: Endereço MAC do ESP32 da bomba.
 
 ---
@@ -48,9 +48,10 @@ Host: 192.168.4.1
 | `ack_cmd_id` | `uint32` | inteiro | ID do último comando recebido e aplicado com sucesso |
 | `slope` | `float` | (unid/passo) / (mL/min) | Eco do coeficiente angular de calibração (`g_config.pumpSlope`) |
 | `intercept`| `float` | unid/passo | Eco do coeficiente linear de calibração (`g_config.pumpIntercept`)|
-| `slope_low`, `slope_high` | `float` | mL/min por unidade S | Inclinações vigentes dos trechos baixo e alto |
-| `transition_speed`, `transition_flow` | `float` | S; mL/min | Ponto comum `(St, Qt)` dos dois trechos |
-| `cal_crc` | hex uint32 | 8 dígitos | CRC32 do registro `pump_cal` vigente |
+| `a1`, `b1`, `k1`, `f1`, `c1` | `float` | coeficientes em S | Segmento inferior de quarto grau |
+| `k2`, `f2`, `c2` | `float` | coeficientes em S | Segmento superior quadrático |
+| `transition_speed` | `float` | S | Velocidade de transição `St`; `Qt=Q(St)` é derivado |
+| `cal_crc` | hex uint32 | 8 dígitos | CRC32 do registro `pump_poly_cal` vigente |
 | `kp`, `ki`, `kd` | `float` | — | **3.10** Eco dos ganhos do PID de volume (`pid_kp/ki/kd`) |
 | `pot` | `int` | 0 ou 1 | **3.10** `1` = potenciômetros de bancada no comando; `0` = travados por `pot:0` ou por um `speed` recebido |
 | `cyc_vol` | `float` | mL | **3.10** Volume entregue pelo ciclo de perfil corrente (`vol − volume no início do ciclo`). `vol` passou a ser o contador da sessão |
@@ -68,14 +69,19 @@ O Hub responde à requisição `/pumpData` entregando o próximo comando pendent
   "command": "start"
 }
 ```
-ou calibração dupla atômica:
+ou calibração polinomial dupla atômica:
 ```json
 {
   "cmd_id": 43,
-  "slope_low": 0.0280,
-  "slope_high": 0.0310,
-  "transition_speed": 500,
-  "transition_flow": 15.77
+  "a1": 0.0,
+  "b1": 0.0,
+  "k1": 0.0,
+  "f1": 0.0280,
+  "c1": 0.0,
+  "k2": 0.0,
+  "f2": 0.0280,
+  "c2": 0.0,
+  "transition_speed": 500
 }
 ```
 
@@ -120,20 +126,15 @@ Comandos aceitos tanto via Hub (`/pumpCommand` ou piggyback) quanto localmente v
 
 ### 4.4 Parâmetros de Calibração
 
-O firmware 3.11 exige o conjunto completo no mesmo quadro e somente em `OP_IDLE`:
+O firmware 3.12 exige os nove campos no mesmo quadro e somente em `OP_IDLE`: `a1`, `b1`, `k1`, `f1`, `c1`, `k2`, `f2`, `c2` e `transition_speed`, com `0 < St < 1000`.
 
-- `slope_low` (`float`, `> 0`): $m_{baixo}$;
-- `slope_high` (`float`, `> 0`): $m_{alto}$;
-- `transition_speed` (`float`, `0 < St < 1000`): velocidade de transição;
-- `transition_flow` (`float`, `Qt > 0`): vazão no ponto de transição.
+$$Q_1(S)=a_1S^4+b_1S^3+k_1S^2+f_1S+c_1,\quad S\leq S_t$$
 
-$$Q = Qt + m_{baixo}(S-St),\quad S \le St$$
+$$Q_2(S)=k_2S^2+f_2S+c_2,\quad S>S_t$$
 
-$$Q = Qt + m_{alto}(S-St),\quad S > St$$
+O parser exige continuidade de valor e derivada em `St`, vazão não negativa e monotonicidade em `0..1000`. A inversa `Q -> S` é calculada por bisseção. A reta 3.10 é representada exatamente nos dois polinômios; o registro 3.11 de duas retas é migrado preservando o trecho inferior e o ponto de transição, pois inclinações diferentes não podem satisfazer C1.
 
-Os dois segmentos compartilham `(St, Qt)`, garantindo continuidade. `pumpSlope` e `pumpIntercept` permanecem no blob 3.10 exclusivamente para compatibilidade/migração: na ausência de `pump_cal` válido, `m_baixo=m_alto=pumpSlope`, `St=500` e `Qt=pumpSlope·St+pumpIntercept`.
-
-Pelo Hub 10.3, o aplicativo usa `pumpSlopeLow`, `pumpSlopeHigh`, `pumpTransitionSpeed` e `pumpTransitionFlow`; o Hub traduz para os nomes acima. A confirmação no aplicativo requer ACK concluído, os quatro ecos e `PumpCalCrc`.
+Pelo Hub 10.4, o aplicativo usa `pumpA1..pumpC2` e `pumpTransitionSpeed`; o Hub traduz para os nomes acima. A confirmação requer ACK concluído, os nove ecos e `PumpCalCrc`.
 
 ### 4.5 Parâmetros de Controle em Malha Fechada (PID)
 

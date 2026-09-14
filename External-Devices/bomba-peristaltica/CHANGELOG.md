@@ -1,11 +1,12 @@
 # Changelog — Bomba peristáltica
 
-## 3.11 — 2026-09-13 (calibração contínua em duas faixas)
+## 3.12 — 2026-09-13 (calibração polinomial em duas faixas)
 
-- Novo registro NVS `pump_cal` de 24 bytes com `(m_baixo, m_alto, St, Qt)` e CRC32, sem alterar o layout `PumpConfig` 3.10.
-- Conversões `S ↔ Q` usam dois trechos unidos em `(St, Qt)`; aplicação atômica exige quatro campos válidos e bomba ociosa.
-- Instalações legadas migram `pumpSlope`/`pumpIntercept` para dois trechos matematicamente equivalentes.
-- Push, `/readData` e Hub 10.3 expõem os quatro ecos e `cal_crc`/`PumpCalCrc`.
+- Novo registro NVS `pump_poly_cal` com os oito coeficientes, `St` e CRC32, sem alterar o layout `PumpConfig` 3.10.
+- Conversões `S → Q` usam quarto grau abaixo de `St` e quadrático acima, com C0+C1; `Q → S` usa bisseção.
+- Aplicação atômica exige os oito coeficientes e `St`, curva monotônica/não negativa e bomba ociosa.
+- Instalações legadas migram a reta 3.10 exatamente; o registro de duas retas 3.11 preserva o trecho inferior e o ponto de transição em uma representação C1.
+- Push, `/readData` e Hub 10.4 expõem os nove ecos e `cal_crc`/`PumpCalCrc`.
 - Perfis de mangueira são arquivos locais do aplicativo; somente a curva explicitamente enviada fica ativa no nó.
 - Integração automatizada aprovada; calibração com mangueiras e recipiente graduado permanece pendente.
 

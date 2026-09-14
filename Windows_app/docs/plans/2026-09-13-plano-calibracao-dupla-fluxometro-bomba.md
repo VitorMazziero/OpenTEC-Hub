@@ -1,7 +1,7 @@
 # Plano de implementação — calibração contínua em duas faixas do fluxômetro e da bomba externa
 
 **Data:** 2026-09-13
-**Estado:** Etapas 1–9 implementadas e testadas em software; as etapas 10–12 e toda validação física continuam pendentes
+**Estado:** Etapas 1–10 implementadas e auditadas em software; etapas 11–12 e toda validação física continuam pendentes
 **Escopo:** aplicativo Windows OpenTEC-Hub, Hub ESP32-S3, firmware do fluxômetro, firmware da bomba peristáltica, simulador, testes e documentação relacionada
 
 ## 1. Objetivo
@@ -64,51 +64,38 @@ A aba do fluxômetro deverá mostrar:
 - linha vertical móvel em `Vt` no gráfico;
 - mensagem clara quando um dos segmentos não tiver pontos suficientes.
 
-### 3.2 Bomba peristáltica
+### 3.2 Bomba peristáltica — retificação arquitetural
 
-Para que a vazão de transição seja a variável editável solicitada, a curva da bomba deverá ser parametrizada por um ponto comum `(St, Qt)`:
+A bomba espelha a família de equações do fluxômetro, trocando apenas a variável independente de tensão `V` para velocidade interna `S`:
 
 ```text
-Q(S) = Qt + mbaixo · (S - St), para S <= St
-Q(S) = Qt + malto  · (S - St), para S >  St
+S <= St: Qbaixo(S) = a1·S⁴ + b1·S³ + k1·S² + f1·S + c1
+S >  St: Qalto(S)  = k2·S² + f2·S + c2
 ```
 
-Onde:
+- `St` é editável e define a separação das amostras;
+- `Qt = Qbaixo(St) = Qalto(St)` é calculada, nunca um parâmetro livre;
+- `Q'baixo(St) = Q'alto(St)`, portanto a união preserva valor e inclinação (`C0+C1`);
+- `S = St` pertence ao segmento inferior;
+- a inversa `Q → S` é obtida por bisseção limitada em `0 ≤ S ≤ 1000`, pois não existe inversa linear geral;
+- cada perfil local corresponde a uma mangueira e contém os oito coeficientes, `St`, pontos e estatísticas; o nó mantém apenas a curva ativa.
 
-- `Qt`: vazão de transição editável, em mL/min;
-- `St`: velocidade de transição ajustada, em unidades internas `S`;
-- `mbaixo`: inclinação da faixa baixa;
-- `malto`: inclinação da faixa alta.
+O ajuste usa a mesma rotina ancorada do fluxômetro: primeiro ajusta a curva alta quadrática (linear quando há somente dois pontos) e depois ajusta a curva baixa até grau quatro com as duas restrições de continuidade. São exigidas pelo menos duas velocidades distintas em cada faixa; três ou mais pontos por faixa continuam recomendados.
 
-As duas retas passam pelo mesmo ponto `(St, Qt)`. Portanto, a continuidade de valor é garantida por construção. É permitida uma mudança de inclinação no limiar, mas nunca um salto de vazão.
-
-O valor exatamente igual a `St` pertence ao segmento inferior.
-
-#### Ajuste da bomba
-
-O ajuste deverá realizar uma busca limitada de `St`. Para cada candidato, as inclinações são calculadas por mínimos quadrados em torno do ponto fixo `(St, Qt)`, e a solução com menor soma de resíduos válida é selecionada.
-
-Condições mínimas:
-
-- `Qt > 0`;
-- `0 < St < 1000`;
-- inclinações positivas e finitas;
-- pelo menos dois pontos com velocidades distintas em cada lado da transição;
-- três ou mais pontos por faixa recomendados;
-- presença de pontos próximos da transição;
-- recusa se a solução extrapolar a faixa calibrada, ficar subdeterminada ou produzir conversão não monotônica.
+Validações: coeficientes finitos, `0 < St < 1000`, continuidade C0+C1, vazão não negativa, crescimento monotônico e inversão limitada.
 
 #### Migração da reta atual
 
 A calibração linear existente deverá ser convertida sem alterar o resultado numérico:
 
 ```text
-mbaixo = malto = slope atual
-St = 500
-Qt = slope atual · 500 + intercept atual
+a1 = b1 = k1 = k2 = 0
+f1 = f2 = slope atual
+c1 = c2 = intercept atual
+St = 500; Qt = Q(St)
 ```
 
-Como as duas inclinações começam iguais, a curva migrada reproduz exatamente a reta anterior em toda a faixa.
+Como os dois polinômios representam a mesma reta, a curva migrada reproduz exatamente o resultado anterior em toda a faixa.
 
 ## 4. Contrato de comunicação
 
@@ -165,31 +152,39 @@ Comandos antigos que não tragam `flowTransitionVoltage` continuam usando o limi
 
 ```json
 {
-  "pumpSlopeLow": 0.028,
-  "pumpSlopeHigh": 0.030,
-  "pumpTransitionSpeed": 500.0,
-  "pumpTransitionFlow": 15.76
+  "pumpA1": 0.0,
+  "pumpB1": 0.0,
+  "pumpK1": 0.0,
+  "pumpF1": 0.028,
+  "pumpC1": 1.76,
+  "pumpK2": 0.0,
+  "pumpF2": 0.028,
+  "pumpC2": 1.76,
+  "pumpTransitionSpeed": 500.0
 }
 ```
 
 #### Nó → Hub → aplicativo
 
 ```text
-PumpSlopeLow
-PumpSlopeHigh
+PumpA1
+PumpB1
+PumpK1
+PumpF1
+PumpC1
+PumpK2
+PumpF2
+PumpC2
 PumpTransitionSpeed
-PumpTransitionFlow
-PumpCalibrationCrc
+PumpCalCrc
 ```
 
-Os quatro parâmetros formam uma única calibração e devem ser validados e aplicados atomicamente. O aplicativo somente considera a aplicação confirmada quando receber o eco completo correspondente ao pedido. Aceitação do despacho ou ACK isolado não confirma a curva.
+Os nove parâmetros formam uma única calibração e são validados/aplicados atomicamente. O aplicativo somente confirma a aplicação após ACK concluído, eco integral correspondente e CRC.
 
 #### Compatibilidade
 
-- Firmware novo continua aceitando `pumpSlope` e `pumpIntercept`.
-- Um comando legado converte a calibração para duas inclinações iguais e recalcula `(St, Qt)`.
-- O aplicativo novo não deve reduzir silenciosamente uma curva dupla para um firmware 3.10.
-- Em bomba anterior à 3.11, a edição e o envio da curva dupla ficam bloqueados com mensagem de atualização necessária.
+- A migração NVS converte `pumpSlope`/`pumpIntercept` e registros v3.11, mas o contrato operacional novo não reduz uma curva polinomial a retas.
+- Em bomba anterior à 3.12 ou Hub anterior a 10.4, o envio polinomial fica bloqueado com mensagem de atualização necessária.
 - Uma calibração nova deve ser recusada enquanto a bomba estiver executando ou aguardando um perfil, para que a integração de volume não mude no meio do ciclo.
 
 ## 5. Persistência nos firmwares
@@ -211,13 +206,12 @@ O novo registro não deverá simplesmente aumentar `PumpConfig`. O carregamento 
 Implementar um registro de calibração versionado e separado no NVS, contendo:
 
 - magic/schema;
-- `slopeLow`;
-- `slopeHigh`;
+- `a1`, `b1`, `k1`, `f1`, `c1`;
+- `k2`, `f2`, `c2`;
 - `transitionSpeed`;
-- `transitionFlow`;
 - CRC real do registro.
 
-Na primeira inicialização sem esse registro, o firmware cria a curva dupla a partir de `g_config.pumpSlope` e `g_config.pumpIntercept`. O blob operacional atual permanece intacto, preservando perfis de dosagem, PID e checkpoints.
+Na primeira inicialização sem esse registro, o firmware cria duas representações polinomiais da reta legada a partir de `g_config.pumpSlope` e `g_config.pumpIntercept`. Um registro v3.11 de duas retas também é migrado: preservam-se o trecho inferior e o ponto de transição em uma única reta C1 equivalente. O blob operacional atual permanece intacto, preservando perfis de dosagem, PID e checkpoints.
 
 ## 6. Perfis de calibração de mangueira
 
@@ -289,9 +283,10 @@ O aplicativo deverá usar as identidades e versões dos nós para decidir quais 
 
 - fluxômetro v12 ou posterior: limiar editável e eco disponível;
 - fluxômetro anterior: mostrar o limiar legado como `0.0545 V`, sem prometer persistência editável;
-- bomba v3.11 ou posterior: curva dupla disponível;
-- bomba v3.10 ou anterior: mostrar a curva linear ecoada, bloquear envio duplo e explicar a atualização necessária;
-- Hub 10.3 ou posterior: encaminhamento e ecos novos disponíveis.
+- bomba v3.12 ou posterior: curva polinomial dupla e perfis por mangueira disponíveis;
+- bomba v3.11 ou anterior: mostrar a calibração legada ecoada, bloquear o envio polinomial e explicar a atualização necessária;
+- Hub 10.3 ou posterior: transição editável do fluxômetro disponível;
+- Hub 10.4 ou posterior: encaminhamento e ecos da calibração polinomial da bomba disponíveis.
 
 Não realizar downgrade silencioso, aproximação de curva ou confirmação otimista.
 
@@ -366,7 +361,7 @@ Nenhum. Esta etapa é somente diagnóstica.
 
 ### Objetivo
 
-Retirar o limiar fixo da estrutura matemática do fluxômetro e criar a curva contínua em duas faixas da bomba sem alterar ainda protocolo, firmware ou interface.
+Retirar o limiar fixo da estrutura matemática do fluxômetro e criar para a bomba a mesma família de curva em duas faixas, no domínio da velocidade, sem alterar ainda protocolo, firmware ou interface.
 
 ### Arquivos principais
 
@@ -386,11 +381,11 @@ Retirar o limiar fixo da estrutura matemática do fluxômetro e criar a curva co
 
 ### Tarefas — bomba
 
-1. Criar um tipo imutável para a curva `(mbaixo, malto, St, Qt)`.
-2. Implementar `FlowFromSpeed(S)` com seleção pelo `St`.
-3. Implementar `SpeedFromFlow(Q)` com seleção pelo `Qt`.
-4. Implementar a migração matemática da reta para duas inclinações iguais.
-5. Implementar o ajuste limitado de `St` para um `Qt` fornecido pelo usuário.
+1. Criar um tipo imutável para a curva `(a1, b1, k1, f1, c1, k2, f2, c2, St)`.
+2. Implementar `FlowFromSpeed(S)` com polinômio de quarto grau para `S <= St` e quadrático para `S > St`.
+3. Implementar `SpeedFromFlow(Q)` por busca numérica monotônica, pois a inversa deixou de ser linear.
+4. Implementar a migração matemática da reta copiando-a para as duas representações polinomiais.
+5. Implementar o ajuste limitado de `St`, impondo continuidade C0+C1 entre os segmentos; `Qt` é derivado, nunca parâmetro livre.
 6. Calcular resíduos por ponto, SSE, RMSE, R² global e estatísticas por segmento.
 7. Retornar um resultado estruturado de validação em vez de permitir `NaN`, infinito ou curva não monotônica.
 
@@ -399,11 +394,11 @@ Retirar o limiar fixo da estrutura matemática do fluxômetro e criar a curva co
 - `Vt` diferente de `0.0545` realmente muda a classificação dos pontos do fluxômetro.
 - Fluxômetro tem mesmo valor e mesma derivada dos dois lados de `Vt`.
 - `V = Vt` usa a curva inferior.
-- Bomba tem o mesmo valor nos dois segmentos em `(St, Qt)`.
+- Bomba tem o mesmo valor e a mesma derivada dos dois lados de `St`.
 - `S = St` usa a curva inferior.
 - Q→S e S→Q são inversas dentro de tolerância em ambas as faixas.
 - Migração da reta reproduz exatamente a resposta anterior em vários valores de `S`.
-- Inclinação zero/negativa, poucos pontos, `Qt` inválido e solução fora da faixa são recusados.
+- Derivada não positiva, poucos pontos, `St` inválido e solução fora da faixa são recusados.
 
 ### Critério de saída
 
@@ -421,8 +416,8 @@ Implementado nesta etapa, exclusivamente no aplicativo Windows e em modelos puro
 
 - `FlowCalibrationCurve` agora carrega `TransitionVoltage` por instância; `0.0545 V` ficou como `DefaultTransitionVoltage` de migração e a API anterior permanece apenas como compatibilidade obsoleta.
 - `FitFlowCurve` e `FitLowSegmentContinuous` recebem e validam `Vt`; avaliação, descontinuidade e o ancoramento C1 usam o valor da curva.
-- Criados `PumpDualRangeCurve`, `PumpDualRangeMath` e `PumpFitResult`: curva contínua `(mbaixo, malto, St, Qt)`, conversões diretas/inversas, migração exata da reta legada, validação física e estatísticas de ajuste.
-- O ajuste da bomba busca `St` dentro das partições possíveis entre as velocidades medidas, além de candidatos de fronteira, e seleciona a solução contínua válida de menor SSE.
+- Criados `PumpDualRangeCurve`, `PumpDualRangeMath` e `PumpFitResult`: curva quártica/quadrática contínua C0+C1 em `St`, conversão direta, inversão numérica, migração exata da reta legada, validação física e estatísticas de ajuste.
+- O ajuste da bomba reutiliza o ajustador polinomial do fluxômetro no domínio `S -> Q`, busca `St` nas partições possíveis e seleciona a solução contínua e monotônica de menor SSE.
 - Adicionados testes para classificação e continuidade do fluxômetro, continuidade e inversão da bomba, recuperação de uma curva dupla conhecida, rejeições e migração linear.
 - Verificação executada: `dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj --filter "FullyQualifiedName~CalibrationTests|FullyQualifiedName~PumpCalibrationTests" --no-restore` — 45 testes aprovados.
 
@@ -517,13 +512,13 @@ Implementado nesta etapa, no firmware do fluxômetro e na suíte de testes de co
 - Verificação de compilação: firmware compilado com sucesso no alvo ESP32 via `arduino-cli` (código 0, 87% de flash, 15% de RAM, 0 erros e 0 avisos).
 - Regressão: 43 testes de calibração do Windows App aprovados sem alterações em seu escopo.
 
-Não implementado nesta etapa: alterações no Hub 10.3 (Etapa 4), protocolo do Windows App (Etapa 5), UI do fluxômetro (Etapa 7) e calibração da bomba (Etapa 3).
+Não implementado nesta etapa: alterações no Hub 10.4 (Etapa 4), protocolo do Windows App (Etapa 5), UI do fluxômetro (Etapa 7) e calibração da bomba (Etapa 3).
 
 ## 13. Etapa 3 — implementar a calibração dupla no firmware da bomba
 
 ### Objetivo
 
-Promover a bomba para v3.11 e substituir a reta operacional por uma curva contínua de duas faixas, preservando configuração, perfil de dosagem, PID e checkpoint existentes.
+Promover a bomba para v3.12 e substituir a reta operacional pelas equações quártica/quadrática C0+C1 do fluxômetro, preservando configuração, perfil de dosagem, PID e checkpoint existentes.
 
 ### Dependências
 
@@ -542,21 +537,21 @@ Etapa 1 concluída.
 
 ### Tarefas
 
-1. Alterar identidade e diagnóstico para v3.11.
+1. Alterar identidade e diagnóstico para v3.12.
 2. Manter o layout de `PumpConfig` v3.10 inalterado.
-3. Criar um registro NVS separado para calibração v2 com magic/schema e CRC real.
+3. Criar um registro NVS separado `pump_poly_cal` com magic/schema e CRC real.
 4. Na ausência do registro novo:
    - ler `pumpSlope` e `pumpIntercept` legados;
-   - configurar `mbaixo = malto = pumpSlope`;
+   - configurar ambos os segmentos como `Q = pumpSlope * S + pumpIntercept`;
    - usar `St = 500`;
-   - calcular `Qt = pumpSlope · 500 + pumpIntercept`;
+   - derivar `Qt` pela avaliação da curva em `St`;
    - salvar o novo registro sem alterar os outros campos de `PumpConfig`.
-5. Atualizar `mlminToSpeedUnits` para escolher a inclinação por `Qt`.
-6. Atualizar `speedUnitsToMlmin` para escolher a inclinação por `St`.
+5. Atualizar `mlminToSpeedUnits` com bisseção limitada da curva monotônica.
+6. Atualizar `speedUnitsToMlmin` para avaliar a quártica ou a quadrática conforme `St`.
 7. Garantir que `pwmDutyToMlmin` use a nova conversão, pois ela alimenta `PumpFlow` e `PumpVol`.
-8. Criar staging dos quatro campos da calibração nova.
-9. Exigir os quatro campos no mesmo quadro.
-10. Recusar valores não finitos, inclinações não positivas, `St` fora de `(0,1000)` e `Qt <= 0`.
+8. Criar staging dos nove campos da calibração nova.
+9. Exigir os nove campos no mesmo quadro.
+10. Recusar valores não finitos, descontinuidade C0/C1, `St` fora de `(0,1000)`, vazão negativa e curva não monotônica.
 11. Recusar alteração durante `OP_RUNNING` ou `OP_WAITING`.
 12. Aplicar e persistir atomicamente os quatro campos.
 13. Manter `pumpSlope` + `pumpIntercept` como comando legado, convertendo-o em duas inclinações iguais.
@@ -577,7 +572,7 @@ Etapa 1 concluída.
 
 ### Critério de saída
 
-A bomba v3.11 executa a curva dupla com continuidade e compatibilidade, sem perda de nenhuma configuração v3.10.
+A bomba v3.12 executa a curva polinomial com continuidade C0+C1 e compatibilidade de migração, sem perda de nenhuma configuração v3.10/v3.11.
 
 ### Commit
 
@@ -589,39 +584,37 @@ feat(pump): support continuous dual-range calibration
 
 Implementado nesta etapa, no firmware da bomba peristáltica e na suíte de testes de contrato:
 
-- Firmware promovido para `v3.11` (`#define PUMP_FW_VERSION "3.11"` em `FirmwareApp.cpp`, `"version":"3.11"` em `handleDiag`, banner em `Lifecycle.h` e `sendHubHello` em `HubClient.h`).
+- Firmware final promovido para `v3.12` em identidade, diagnóstico, banner e `sendHubHello`.
 - Preservação estrita do layout binário de `PumpConfig` v3.10 (chave NVS `"config"` intacta com 18 campos legados), prevenindo qualquer corrupção de perfis salvos, PID, checkpoints e evitando reset para padrões de fábrica.
-- Criado o módulo `CalibrationStore.h` com a struct `PumpDualRangeCal` (24 bytes) sob a chave NVS isolada `"pump_cal"`, magic `PUMP_CAL_MAGIC_V2 = 0x504D5032` ("PMP2") e cálculo determinístico de CRC32 IEEE 802.3 padrão (`0xEDB88320`) sobre os 16 bytes de floats de calibração.
-- Implementada migração transparente de calibração linear legada (`g_config.pumpSlope` e `pumpIntercept`):
-  - na ausência de registro v2 válido na chave `"pump_cal"`, gera $S_t = 500$, $m_\text{low} = m_\text{high} = \text{slope}$ e $Q_t = \text{slope} \cdot 500 + \text{intercept}$;
-  - persiste o novo registro v2 em `"pump_cal"` com CRC32 sem tocar nos demais campos de `PumpConfig`.
+- `CalibrationStore.h` usa registro polinomial isolado `pump_poly_cal`, magic `PMP3` e CRC32 sobre nove floats; o registro `PMP2`/`pump_cal` permanece somente como fonte de migração.
+- Implementada migração transparente da reta legada e do registro v3.11: ambos geram representações polinomiais C0+C1; a reta é preservada exatamente e, para duas retas incompatíveis com C1, preservam-se o trecho inferior e o ponto de transição.
+- O novo registro é persistido em `"pump_poly_cal"` com CRC32 sem tocar nos demais campos de `PumpConfig`.
 - Atualizadas as conversões matemáticas em `SensorAndConversion.h`:
-  - `mlminToSpeedUnits`: contínua por partes, bifurcando em $Q \le Q_t$ ($m_\text{low}$) e $Q > Q_t$ ($m_\text{high}$);
-  - `speedUnitsToMlmin`: contínua por partes, bifurcando em $S \le S_t$ ($m_\text{low}$) e $S > S_t$ ($m_\text{high}$);
+  - `mlminToSpeedUnits`: inversão numérica por bisseção limitada da curva monotônica;
+  - `speedUnitsToMlmin`: avaliação por Horner do quarto grau para $S \le S_t$ e do quadrático para $S > S_t$;
   - `pwmDutyToMlmin`: atualizado para usar `speedUnitsToMlmin`, garantindo estimativa contínua de vazão e integração de volume sem salto ao cruzar $S_t$.
 - Staging e validação atômica no parser JSON em `OperationController.h`:
-  - suporte às chaves `pumpSlopeLow` (`slope_low`), `pumpSlopeHigh` (`slope_high`), `pumpTransitionSpeed` (`transition_speed`), `pumpTransitionFlow` (`transition_flow`);
-  - regra de atomicidade estrita: exige obrigatoriamente os 4 parâmetros no mesmo quadro, rejeitando quadros parciais;
-  - validação defensiva: $m_\text{low} > 0$, $m_\text{high} > 0$, $S_t \in (0, 1000)$, $Q_t > 0$ e $Q(0) = Q_t - m_\text{low} \cdot S_t \ge 0$;
+  - suporte às chaves `pumpA1..pumpC2` e `pumpTransitionSpeed`, com aliases nativos `a1..c2` e `transition_speed`;
+  - regra de atomicidade estrita: exige obrigatoriamente os 9 parâmetros no mesmo quadro, rejeitando quadros parciais;
+  - validação defensiva: finitude, $S_t \in (0, 1000)$, continuidade C0+C1, vazão não negativa e monotonicidade;
   - interlock de segurança: rejeita qualquer alteração de calibração durante operação ativa da bomba (`g_opState == OP_RUNNING || g_opState == OP_WAITING`).
-- Suporte a comandos legados:
-  - comandos com `pumpSlope` e `pumpIntercept` são transparentemente mapeados para $m_\text{low} = m_\text{high} = \text{slope}$ e $S_t = 500$, atualizando `g_pumpCal` e mantendo a persistência sincronizada.
+- Os campos lineares legados permanecem somente para leitura/migração; o contrato v3.12 não aceita atualização parcial ou downgrade silencioso.
 - Exposição nos canais de auditoria e telemetria:
-  - push periódico ao Hub em `HubClient.h` estendido para incluir `slope_low`, `slope_high`, `trans_speed`, `trans_flow` e `cal_crc` mantendo `slope` e `intercept` legados;
-  - endpoint local `/readData` e serial em `TelemetryCodec.h` serializando os 5 campos (em snake_case e camelCase) no JSON de telemetria;
+  - push periódico ao Hub inclui `a1..c2`, `transition_speed` e `cal_crc`, mantendo `slope` e `intercept` legados somente para diagnóstico;
+  - endpoint local `/readData` e serial serializam os nove parâmetros e CRC.
   - `/diag` e OTA identificados como `v3.11`.
 - Preservados integralmente: controle por potenciômetro, comando por tempo `speed_ms`, watchdog de comunicação do Hub com backoff exponencial, tarefas assíncronas do FreeRTOS e rotinas de salvamento/recuperação de checkpoint de dosagem.
-- Criada a suíte de testes de contrato [`test_firmware_v311_contract.py`](file:///D:/OneDrive/PosDoc_Fapesp/Automacao_e_Controle/ProjetoTECNAL/External-Devices/bomba-peristaltica/tests/test_firmware_v311_contract.py) cobrindo integridade da struct `PumpConfig`, tamanho da struct `PumpDualRangeCal`, cálculo de CRC32, equivalência exata da migração da reta linear para $S \in \{0, 1, 250, 500, 750, 1000\}$, continuidade $C^0$ em $(S_t, Q_t)$, bi-direcionalidade $S \leftrightarrow Q$, validações defensivas e interlocks do controlador (9/9 testes aprovados).
+- Criada a suíte `test_firmware_v312_contract.py`, cobrindo versão, registro, migrações, validação do registro persistido, Horner, bisseção, atomicidade, C0+C1, monotonicidade, telemetria e interlocks (11/11 aprovados).
 - Verificação de compilação: firmware compilado com sucesso no alvo ESP32 via `arduino-cli` (código 0, 83% de flash, 16% de RAM, 0 erros e 0 avisos).
 - Regressão: suíte de contrato do fluxômetro v12 (8/8 testes aprovados) e 43 testes de calibração do Windows App aprovados.
 
-Não implementado nesta etapa: contratos de transporte no Hub 10.3 (Etapa 4), integração no protocolo do Windows App (Etapa 5) e UI da bomba com biblioteca de mangueiras (Etapas 8 e 9).
+Não implementado nesta etapa: contratos de transporte no Hub 10.4 (Etapa 4), integração no protocolo do Windows App (Etapa 5) e UI da bomba com biblioteca de mangueiras (Etapas 8 e 9).
 
 ## 14. Etapa 4 — integrar os contratos no Hub
 
 ### Objetivo
 
-Fazer o Hub 10.3 transportar e ecoar os novos campos mantendo as garantias atuais de fila confiável, ACK e presença.
+Fazer o Hub 10.4 transportar e ecoar os contratos do fluxômetro v12 e da bomba v3.12 mantendo fila confiável, ACK e presença.
 
 ### Dependências
 
@@ -652,7 +645,7 @@ Etapas 2 e 3 concluídas.
 
 1. Acrescentar os quatro campos novos à whitelist da bomba.
 2. Repassá-los juntos pela `pumpBox` sem renomeação acidental ou truncamento.
-3. Ler os quatro ecos e o CRC no `/pumpData`.
+3. Ler os nove ecos e o CRC no `/pumpData`.
 4. Publicar os ecos apenas depois de o nó tê-los informado neste boot.
 5. Não manter valores antigos como se fossem eco atual quando o nó estiver offline.
 
@@ -681,24 +674,24 @@ feat(hub): relay dual-range calibration contracts
 
 Implementado nesta etapa, no firmware do Hub ESP32-S3 e na sua suíte de testes de contrato:
 
-- Firmware do Hub promovido para `10.3.0-dev` (`HUB_FIRMWARE_VERSION "10.3.0-dev"` em `Config.h`), mantendo `HUB_PROTOCOL_VERSION 10`.
+- Firmware final do Hub promovido para `10.4.0-dev`, mantendo `HUB_PROTOCOL_VERSION 10`; a versão 10.3 permanece o marco mínimo do limiar do fluxômetro.
 - Roteamento da calibração de dupla faixa do fluxômetro v12:
   - Adicionados `pendingFlowTransitionVoltage`, `desiredFlowTransitionVoltage = 0.0545f` e `flowmeterTransitionVoltage = NAN` em `AppContext.h`;
   - Parser de comando `/command` (`queueReliableFlowCommandFromJson` em `Mailboxes.h`) aceita `flowTransitionVoltage` e `transition_v`, enfileirando atomicamente sob `cmdMutex` na mesma revisão de comando que os coeficientes da curva (`a1`, `b1`, `k1`, `f1`, `c1`, `k2`, `f2`, `c2`);
   - Serializador `buildFlowCommandLocked` emite `"transition_v":%.4f` quando `pendingFlowTransitionVoltage` está ativa;
   - Endpoint `/flowData` em `HttpServer.h` lê o parâmetro `transition_v`, limpa a pendência `pendingFlowTransitionVoltage` apenas quando o comando do fluxômetro for confirmado (`flowCommandAck`), preserva a reimposição de estado desejado em detecção de reboot silencioso do nó e expõe o eco recebido;
   - Telemetria agregada em `Telemetry.h` publica `FlowTransitionVoltage` condicionado à presença online do fluxômetro e à observação do valor reportado no boot atual.
-- Roteamento da calibração de dupla faixa da bomba peristáltica v3.11:
-  - Adicionados `pumpSlopeLow = NAN`, `pumpSlopeHigh = NAN`, `pumpTransitionSpeed = NAN`, `pumpTransitionFlow = NAN` e `pumpCalCrc = 0` em `AppContext.h`;
-  - Whitelist de comandos em `Commands.h` estendida com `pumpSlopeLow`, `pumpSlopeHigh`, `pumpTransitionSpeed`, `pumpTransitionFlow` e seus aliases em snake_case (`slope_low`, `slope_high`, `transition_speed`, `transition_flow`);
-  - Tradução atômica de chaves `cleanKey` mantendo os 4 parâmetros no mesmo payload `pumpCommand` enfileirado na `pumpBox` com controle de revisão e ACK;
-  - Endpoint `/pumpData` em `HttpServer.h` faz o parse de `slope_low`, `slope_high`, `trans_speed`, `trans_flow` e `cal_crc`, atualizando as variáveis de eco sob `cmdMutex`;
-  - Telemetria agregada em `Telemetry.h` publica `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow` e `PumpCalCrc` exclusivamente quando a bomba estiver online e os valores tiverem sido informados pelo nó neste boot (suprimindo ecos obsoletos ou fantasmas se o nó estiver desconectado).
+- Roteamento da calibração polinomial da bomba peristáltica v3.12 com `a1..c1`, `k2..c2` e `transition_speed`:
+  - Adicionados `pumpA1..pumpC2`, `pumpTransitionSpeed` e `pumpCalCrc` em `AppContext.h`;
+  - Whitelist de `Commands.h` estendida com as nove chaves do app e seus aliases nativos;
+  - Tradução mantém os nove parâmetros no mesmo payload `pumpCommand`, com controle de revisão e ACK;
+  - `/pumpData` lê `a1..c2`, `transition_speed` e `cal_crc` sob `cmdMutex`;
+  - `Telemetry.h` publica `PumpA1..PumpC2`, `PumpTransitionSpeed` e `PumpCalCrc` somente com nó online e ecos observados neste boot.
 - Verificação da reserva de memória de telemetria:
   - O payload JSON de telemetria agregada permanece estritamente compatível com `HUB_TELEMETRY_JSON_RESERVE = 3072` bytes.
 - Suíte de testes de contrato atualizada e executada:
-  - `verify_contract.py` corrigido para localizar diretório `old` / `_old`, e `V10_KEYS` estendido com as 6 novas chaves (`FlowTransitionVoltage`, `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow`, `PumpCalCrc`);
-  - `test_node_registry.py` atualizado para assertar identidade `10.3.0-dev`;
+  - `verify_contract.py` corrigido para localizar diretório `old` / `_old`, e `V10_KEYS` estendido com os ecos polinomiais e CRC.
+  - `test_node_registry.py` atualizado para assertar identidade `10.4.0-dev`;
   - `test_node_commands.py` estendido com testes de roteamento e validação de `PumpCommandTests` e verificações estáticas de `NodeCommandSourceContractTests` (87/87 testes aprovados);
   - `test_json_keys.py` estendido com os frames reais de calibração dupla em `REAL_FRAMES` e checagens de telemetria;
   - Executado `verify_contract.py`: 10 hashes legados OK, endpoints/chaves/regras estáticas v10 OK, fixtures HTTP, presença e fila Servo OK.
@@ -706,7 +699,7 @@ Implementado nesta etapa, no firmware do Hub ESP32-S3 e na sua suíte de testes 
   - Sketch compilado com sucesso (código 0, 86% de flash [1.128.088 bytes de 1.310.720], 15% de RAM dinâmica [50.624 bytes de 327.680]).
 - Testes de regressão:
   - Fluxômetro v12: 8/8 testes aprovados (`test_firmware_v12_contract.py`).
-  - Bomba peristáltica v3.11: 9/9 testes aprovados (`test_firmware_v311_contract.py`).
+  - Bomba peristáltica v3.12: 11/11 testes aprovados (`test_firmware_v312_contract.py`).
   - Windows App matemática/calibração: 43/43 testes aprovados (`dotnet test`).
 
 Não implementado nesta etapa: contratos tipados no protocolo C# do Windows App (Etapa 5), integração nos viewmodels e interface do usuário (Etapas 6–9), e validação física.
@@ -739,7 +732,7 @@ Etapa 4 concluída.
 1. Declarar as chaves novas de comando e telemetria.
 2. Criar builders atômicos:
    - curva completa do fluxômetro com `Vt`;
-   - curva completa da bomba com `(mbaixo, malto, St, Qt)`.
+   - curva completa da bomba com oito coeficientes polinomiais e `St`.
 3. Validar finitude e faixas no builder, antes de serializar.
 4. Acrescentar propriedades anuláveis aos snapshots para diferenciar ausência de zero.
 5. Fazer o parser limpar ecos não presentes no quadro atual, evitando estado pegajoso.
@@ -772,7 +765,7 @@ feat(protocol): expose dual-range calibration telemetry
 Implementado nesta etapa, no protocolo C#, parser de telemetria, simulador e suíte de testes do Windows App:
 
 - Declaração tipada de constantes em `OpenTECHub.Protocol.CommandKeys`:
-  - Comandos: `FlowTransitionVoltage = "flowTransitionVoltage"`, `PumpSlopeLow = "pumpSlopeLow"`, `PumpSlopeHigh = "pumpSlopeHigh"`, `PumpTransitionSpeed = "pumpTransitionSpeed"`, `PumpTransitionFlow = "pumpTransitionFlow"`.
+  - Comandos: `FlowTransitionVoltage = "flowTransitionVoltage"`; para a bomba, `PumpA1`, `PumpB1`, `PumpK1`, `PumpF1`, `PumpC1`, `PumpK2`, `PumpF2`, `PumpC2` e `PumpTransitionSpeed`.
   - Telemetria (`TelemetryKeys`): `FlowTransitionVoltage = "FlowTransitionVoltage"`, `PumpSlopeLow = "PumpSlopeLow"`, `PumpSlopeHigh = "PumpSlopeHigh"`, `PumpTransitionSpeed = "PumpTransitionSpeed"`, `PumpTransitionFlow = "PumpTransitionFlow"`, `PumpCalCrc = "PumpCalCrc"`.
 - Builders atômicos em `OpenTECHub.Protocol.CommandBuilders` com validação defensiva rigorosa:
   - `FlowCalibration(maxFlow, a1, b1, k1, f1, c1, k2, f2, c2, transitionVoltage)`: valida finitude, $0 < V_t < 3.3\text{ V}$, $Q_\text{max} > 0$ e serializa na ordem exata de chaves exigida pelo Hub e fluxômetro.
@@ -854,7 +847,7 @@ feat(pump-calibration): add hose profile store
 Implementado nesta etapa, na camada de serviços, persistência, contratos de arquivo e testes unitários do Windows App:
 
 - **Modelos de domínio (`PumpCalibrationProfile.cs`):**
-  - `PumpCalibrationProfile`: entidade raiz versionada (`schemaVersion = 1`), com `ProfileId` único (GUID), nome amigável da mangueira (`Name`), timestamps UTC (`CreatedUtc`, `ModifiedUtc`), parâmetros da curva contínua em duas faixas (`TransitionFlowMlMin`, `TransitionSpeedUnits`, `LowSlope`, `HighSlope`), array de pontos volumétricos medidos (`CalibrationPoints`), estatísticas de ajuste (`FitStatistics`), versão do algoritmo (`AlgorithmVersion`), notas operacionais (`OptionalNotes`), e metadados de aplicação no hardware (`LastAppliedUtc`, `LastAppliedPumpFirmware`). Método de conversão `ToCurve()` para `PumpDualRangeCurve` e método estático de fábrica `FromCurve(...)`.
+  - `PumpCalibrationProfile`: entidade versionada (`schemaVersion = 2`) por mangueira, com `LowA..LowC`, `HighK..HighC`, `TransitionSpeedUnits`, pontos, estatísticas, notas e metadados de aplicação. O schema 1 de duas retas é lido e migrado em memória.
   - `PumpCalibrationProfileSummary`: projeção leve para listagem rápida sem carregar coleções de pontos, incluindo flag `IsCompatible` para proteção de schema futuro e parâmetros essenciais da curva.
   - `PumpFitStatistics`: métricas estatísticas de aderência da curva ($R^2$, RMSE, SSE) globais e discriminadas por segmento de velocidade/vazão.
 - **Regras e segurança de arquivos (`PumpProfileFileContracts.cs`):**
@@ -867,7 +860,7 @@ Implementado nesta etapa, na camada de serviços, persistência, contratos de ar
   - Rejeição de sobrescrita acidental: salvar sobre perfil existente sem `overwrite: true` lança `InvalidOperationException`.
   - Proteção de schema futuro: arquivos com `schemaVersion > 1` são reportados com `IsCompatible = false` na listagem, rejeitados no `LoadProfile` e protegidos contra sobrescrita mesmo com `overwrite: true`.
   - Isolamento de arquivos corrompidos: arquivos mal formatados ou com JSON corrompido são capturados e logados, sem impedir o carregamento e listagem dos perfis íntegros. `LoadProfile` encapsula erros de deserialização em `InvalidOperationException` descritivo.
-  - Migração inicial idempotente (`EnsureDefaultProfileMigrated`): converte a calibração linear legada de `AppSettings.PumpControl` (`CalibrationSlope` e `CalibrationIntercept`) em um perfil `"Padrão.json"` contínuo quando a pasta de perfis estiver vazia. Se já houver perfis cadastrados, nenhuma alteração é feita.
+  - Migração inicial idempotente (`EnsureDefaultProfileMigrated`): converte a calibração linear legada em dois polinômios lineares idênticos no perfil `"Padrão.json"`; perfis schema 1 são normalizados para schema 2 ao carregar/salvar.
 - **Configurações globais e DI (`AppSettings.cs`, `App.xaml.cs`):**
   - Adicionado `SelectedProfileName` em `PumpControlSettings` para armazenar exclusivamente o identificador/nome do perfil ativo no aplicativo.
   - Adicionado `PumpProfilesDirectory` e sua criação automática em `AppPaths.EnsureDirectories()`.
@@ -1014,12 +1007,12 @@ Manter o espelhamento da aba do fluxômetro:
 
 ### Tarefas — estado e ajuste
 
-1. Substituir os campos lineares por `Qt`, `St`, `mbaixo` e `malto`.
-2. Manter `Qt` editável e apresentar `St` como resultado do ajuste.
+1. Substituir os campos lineares por `St` e pelas equações quártica/quadrática ajustadas.
+2. Manter `St` editável e apresentar `Qt = Q(St)` como resultado derivado do ajuste.
 3. Classificar visualmente pontos de faixa baixa e alta.
 4. Mostrar estatísticas globais e por segmento.
-5. Desenhar as duas retas, o ponto de transição e os pontos volumétricos.
-6. Preservar pontos e última curva válida enquanto o usuário digita um `Qt` inválido.
+5. Desenhar as duas curvas polinomiais, o ponto de transição e os pontos volumétricos.
+6. Preservar pontos e última curva válida enquanto o usuário digita um `St` inválido.
 7. Impedir envio com ajuste inválido, poucos pontos ou bomba em execução.
 
 ### Tarefas — perfis
@@ -1035,7 +1028,7 @@ Manter o espelhamento da aba do fluxômetro:
 
 ### Tarefas — envio e recibo
 
-1. Enviar os quatro parâmetros em um único comando.
+1. Enviar os nove parâmetros em um único comando.
 2. Aguardar eco de todos os parâmetros e CRC.
 3. Comparar floats com tolerância definida e documentada.
 4. Não persistir “aplicado” quando houver apenas aceitação do dispatcher ou ACK.
@@ -1079,10 +1072,10 @@ feat(pump-calibration): add dual-range profile workflow
 Implementado e auditado nesta etapa, no aplicativo Windows:
 
 - **Curva e ajuste contínuos (`PumpCalibrationViewModel.cs`):**
-  - o editor linear foi substituído pelo modelo compartilhado `PumpDualRangeCurve`, com `Qt` editável e `St`, `m_baixo` e `m_alto` calculados por `PumpDualRangeMath`;
+  - o editor usa `PumpDualRangeCurve`, com `St` editável, `Qt` derivada e equações quártica/quadrática calculadas por `PumpDualRangeMath` com o mesmo ajuste C0+C1 do fluxômetro;
   - a curva válida anterior permanece visível durante entrada temporariamente inválida, mas envio e salvamento ficam bloqueados quando os pontos atuais não produzem ajuste válido;
   - pontos são classificados por `S ≤ St` e `S > St`, com resíduos e estatísticas globais e por segmento;
-  - a migração mantém exatamente a reta legada: `St = 500`, inclinações iguais e `Qt = slope · 500 + intercept`.
+  - a migração linear mantém exatamente a reta legada como dois polinômios lineares idênticos e `St = 500`.
 - **Biblioteca de perfis de mangueira:**
   - listagem usa `PumpCalibrationProfileSummary`, sem abrir arrays de pontos de todos os arquivos;
   - selecionar não carrega, não salva e não envia; carregar substitui explicitamente curva e pontos e pede confirmação antes de descartar edição local;
@@ -1091,17 +1084,17 @@ Implementado e auditado nesta etapa, no aplicativo Windows:
   - excluir arquivo local não envia comando nem modifica a curva ativa no nó;
   - `lastAppliedUtc` e firmware aplicado só são atualizados depois da confirmação integral e somente quando a curva salva no perfil corresponde à curva enviada.
 - **Capacidades e segurança operacional:**
-  - envio duplo exige Hub 10.3+ e bomba 3.11+; versões com prefixo `v` e sufixo de desenvolvimento são interpretadas sem habilitação otimista;
+  - envio polinomial exige Hub 10.4+ e bomba 3.12+; versões com prefixo `v` e sufixo de desenvolvimento são interpretadas sem habilitação otimista;
   - firmware ou Hub legado, identidade ainda desconhecida e bomba com perfil ativo ou aguardando execução bloqueiam o envio com explicação;
-  - o frame atômico usa `pumpSlopeLow`, `pumpSlopeHigh`, `pumpTransitionSpeed` e `pumpTransitionFlow`;
+  - o frame atômico usa `pumpA1`, `pumpB1`, `pumpK1`, `pumpF1`, `pumpC1`, `pumpK2`, `pumpF2`, `pumpC2` e `pumpTransitionSpeed`;
   - aceitação do dispatcher, ACK isolado, eco parcial ou eco sem CRC não confirmam a calibração;
-  - confirmação requer fim da pendência de comando, eco correspondente dos quatro parâmetros e `PumpCalCrc`; divergência ou timeout não persistem calibração nem geram recibo;
+  - confirmação requer fim da pendência de comando, eco correspondente dos nove parâmetros e `PumpCalCrc`; divergência ou timeout não persistem calibração nem geram recibo;
   - a obrigação de parada após perda de conexão e o controle manual de preenchimento sem criação de ponto foram preservados.
 - **Interface e gráfico (`CalibrationView.xaml` e `.xaml.cs`):**
   - mantido o espelhamento da aba do fluxômetro: gráfico grande à esquerda, resumo abaixo e um único painel lateral para perfis, pontos, aquisição e preenchimento;
-  - duas retas, transição móvel e pontos volumétricos são desenhados pelo modelo compartilhado;
+  - curvas quártica/quadrática, transição móvel e pontos volumétricos são desenhados pelo modelo compartilhado;
   - removidos bindings para propriedades inexistentes e corrigida a tabela compacta para não exceder o painel em 936 × 534 DIP;
-  - textos de ajuda foram alinhados à equação `Q = Qt + m · (S − St)` e às chaves reais do protocolo, sem a formulação incorreta de trecho passando pela origem.
+  - textos de ajuda foram alinhados às equações `a1..c1`, `k2..c2`, `St` editável e `Qt` derivada.
 - **Persistência e recibo:**
   - settings passam a manter a curva dupla confirmada com defaults numericamente equivalentes à reta legada;
   - recibo inclui perfil, pontos, estatísticas, curva solicitada e ecoada, CRC, versões do aplicativo, Hub e bomba e instante UTC.
@@ -1177,16 +1170,16 @@ Etapa 9 concluída em software. A integração foi auditada após os commits fun
 - 1.683/1.683 testes da solução `Windows_app/OpenTECHub.slnx` aprovados, sem falhas nem testes ignorados, após isolar o store de perfis usado pelos testes da bomba;
 - 87/87 verificações do contrato do Hub aprovadas, incluindo golden strings, chaves modernas e legadas e preservação dos endpoints existentes;
 - 8/8 testes estáticos do firmware v1.2 do fluxômetro aprovados;
-- 9/9 testes estáticos do firmware v3.11 da bomba aprovados;
+- 11/11 testes estáticos do firmware v3.12 da bomba aprovados;
 - cenários de simulador moderno e legado cobertos pela suíte, incluindo parser/codec, presença e capacidade dos nós, ausência de chaves modernas, bloqueios de compatibilidade, carregamento local de perfil sem envio, confirmação completa por ACK/eco/CRC e emissão de recibo.
 
 **Compilações:**
 
-- Hub ESP32-S3 compilado pelo script oficial: 1.128.088 bytes de flash (86%) e 50.624 bytes de RAM (15%);
-- bomba peristáltica compilada pelo script oficial: 1.100.607 bytes de flash (83%) e 55.100 bytes de RAM (16%);
+- Hub ESP32-S3 recompilado após a correção polinomial: 1.130.724 bytes de flash (86%) e 50.656 bytes de RAM (15%);
+- bomba peristáltica v3.12 recompilada após a correção polinomial: 1.100.055 bytes de flash (83%) e 55.116 bytes de RAM (16%);
 - fluxômetro compilado pelo script oficial: 1.148.603 bytes de flash (87%) e 52.288 bytes de RAM (15%);
 - o script agregado também compilou com sucesso os demais nós externos, sem converter esse resultado em validação funcional deles;
-- `dotnet clean` seguido de build Release do aplicativo aprovado com zero erros; permaneceram 41 avisos de estilo já existentes.
+- build Release final do aplicativo aprovado com zero erros; permaneceram 38 avisos de estilo, sem aviso funcional de compilação.
 
 **Execução Release:**
 
@@ -1197,6 +1190,8 @@ Etapa 9 concluída em software. A integração foi auditada após os commits fun
 - houve um aviso não fatal de orçamento do primeiro frame (6.557 ms para orçamento de 2.000 ms), sem crash ou falha das calibrações; ele não constitui evidência de desempenho em máquina de produção.
 
 Conforme orientação do usuário, não foi feita uma segunda rodada de inspeção visual manual em temas claro/escuro: eventuais ajustes visuais serão reportados pelo próprio usuário. A cobertura mantida nesta etapa é composta pelos contratos automatizados de layout compacto/amplo, recursos e temas, mais a abertura real do Release. Nenhuma captura preexistente foi incorporada ou revertida por estes commits.
+
+**Revalidação final — 2026-09-14:** após a retificação do modelo da bomba, o Release foi recompilado e aberto diretamente em `calibrations` com workspace temporário; encerrou automaticamente com código 0 e o log novo não apresentou `Fatal`, `Unhandled`, `XamlParseException` nem erro de binding. Hub 10.4, bomba v3.12 e fluxômetro v12.0 foram recompilados a partir do código final; os números acima correspondem a essa rodada.
 
 Não implementado nesta etapa: atualização documental ampla (Etapa 10) e validações físicas com Hub, fluxômetro e bomba reais (Etapas 11–12). Aprovação de testes, contratos, builds e simulador não substitui bancada.
 
@@ -1217,7 +1212,7 @@ Etapa 9 concluída.
 1. Substituir a decisão de manter a bomba estritamente linear.
 2. Atualizar conversões, comandos, persistência, telemetria e versões das seções 1 e 3.
 3. Explicar que `0.0545` é tensão de transição, não vazão.
-4. Documentar `(mbaixo, malto, St, Qt)` e a continuidade da bomba.
+4. Documentar a curva baixa quártica, a curva alta quadrática, `St` editável, `Qt` derivada e continuidade C0+C1 da bomba.
 5. Registrar que os perfis ficam no PC e apenas uma curva fica ativa no nó.
 6. Acrescentar os novos ensaios aos checklists.
 7. Atualizar as tabelas com a política:
@@ -1231,7 +1226,7 @@ Etapa 9 concluída.
 - `Windows_app/docs/PROTOCOL.md`: novas chaves, ecos, compatibilidade e golden strings.
 - `Windows_app/docs/processes/CALIBRATION.md`: procedimentos completos das curvas e perfis.
 - `Windows_app/docs/UI_DESIGN.md`: disposição e estados da interface.
-- `Windows_app/docs/DECISIONS.md`: decisão sobre `Vt`, `(St, Qt)`, continuidade, migração e biblioteca no PC.
+- `Windows_app/docs/DECISIONS.md`: decisão sobre `Vt`, `St`, equações espelhadas, continuidade, migração e biblioteca no PC.
 - `Windows_app/docs/hardware/HARDWARE_VALIDATION.md`: matriz de ensaios por transição e mangueira.
 - `Windows_app/docs/CHANGELOG.md`: mudanças entregues e versões compatíveis.
 - `Windows_app/docs/ROADMAP.md`: software concluído e bancada pendente.
@@ -1242,7 +1237,7 @@ Etapa 9 concluída.
 
 - `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`: tradução app → Hub → nós e ecos.
 - `ESP32S3-HUB/docs/VALIDATION.md`: casos de contrato, ACK, persistência e compatibilidade.
-- `ESP32S3-HUB/README.md`: Hub 10.3 e capacidades novas.
+- `ESP32S3-HUB/README.md`: Hub 10.4 e capacidades novas.
 
 ### Firmware do fluxômetro
 
@@ -1252,8 +1247,8 @@ Etapa 9 concluída.
 
 ### Firmware da bomba
 
-- `External-Devices/bomba-peristaltica/docs/PROTOCOL.md`: curva dupla, comandos, ecos e compatibilidade.
-- `External-Devices/bomba-peristaltica/README.md`: firmware v3.11 e calibração ativa.
+- `External-Devices/bomba-peristaltica/docs/PROTOCOL.md`: equações polinomiais, comandos, ecos e compatibilidade.
+- `External-Devices/bomba-peristaltica/README.md`: firmware v3.12 e calibração ativa.
 - `External-Devices/bomba-peristaltica/CHANGELOG.md`: registro NVS, migração e campos novos.
 
 ### Planos históricos
@@ -1276,6 +1271,27 @@ Não há contradição entre documento mestre, protocolos dos nós, contrato do 
 ```text
 docs(calibration): document editable transitions and hose profiles
 ```
+
+### Registro de implementação — 2026-09-13
+
+Etapa concluída após auditoria integral das etapas 1–10 e correção de uma premissa matemática incorreta identificada pelo usuário.
+
+- O plano foi retificado: a bomba não usa duas retas unidas em `(St, Qt)`. Ela usa a mesma família do fluxômetro, com segmento inferior quártico, superior quadrático e continuidade C0+C1 em `St`; `Qt` é consequência das equações.
+- O contrato ponta a ponta foi promovido para bomba `v3.12` e Hub `10.4`: oito coeficientes mais `pumpTransitionSpeed`, ecos integrais e `PumpCalCrc`.
+- O aplicativo passou a ajustar as curvas com a rotina compartilhada do fluxômetro, validar monotonicidade/não negatividade, inverter `Q→S` por bisseção e persistir perfis schema 2 por mangueira.
+- Perfis schema 1, a reta legada e o registro NVS v3.11 são migrados sem alterar os blobs operacionais. Como duas retas com inclinações diferentes não podem preservar C1, a migração mantém o trecho inferior e o ponto de transição como reta única equivalente.
+- O simulador reproduz o novo quadro atômico, os ecos e as recusas matemáticas. O firmware rejeita registros NVS inválidos, quadros parciais, curvas descontínuas, não monotônicas ou recebidas durante operação ativa.
+- A auditoria corrigiu a classificação visual dos pontos da bomba: as faixas agora são separadas por `SpeedUnits <= St`, e não pela comparação dimensionalmente incorreta entre vazão e `St`.
+- A auditoria do fluxômetro encontrou e corrigiu confirmação incompleta: o aplicativo agora exige ACK concluído, eco de `Vt` e `FlowmeterCalCrc`, além de bloquear Hub `<10.3` e fluxômetro `<12`.
+- Documentos mestre, protocolos, processos, matrizes, ajuda interna, changelogs e planos históricos foram alinhados; referências às retas permanecem somente como diagnóstico histórico ou migração.
+- Verificação de software: 1.683/1.683 testes .NET, 88/88 contratos do Hub e 11/11 contratos da bomba aprovados. Isso não substitui as etapas físicas 11–12.
+
+Commits separados desta conclusão:
+
+1. `fix(pump-calibration): mirror flowmeter polynomial equations`
+2. `feat(device-contract): transport polynomial pump calibration`
+3. `test(calibration): cover polynomial pump profiles and echoes`
+4. `docs(calibration): record audited stages one through ten`
 
 ## 21. Etapa 11 — validação física do fluxômetro
 
@@ -1364,8 +1380,8 @@ test(pump): record hose profile bench validation
 | 0 | Linha de base | — | nenhum |
 | 1 | Matemática contínua | 0 | `feat(calibration)` |
 | 2 | Fluxômetro v12 | 1 | `feat(flowmeter)` |
-| 3 | Bomba v3.11 | 1 | `feat(pump)` |
-| 4 | Hub 10.3 | 2 e 3 | `feat(hub)` |
+| 3 | Bomba v3.12 | 1 | `feat(pump)` |
+| 4 | Hub 10.4 | 2 e 3 | `feat(hub)` |
 | 5 | Protocolo/parser/simulador | 4 | `feat(protocol)` |
 | 6 | Store de perfis | 1 e 5 | `feat(pump-calibration)` |
 | 7 | UI do fluxômetro | 1, 4 e 5 | `feat(flow-calibration)` |
@@ -1379,45 +1395,45 @@ test(pump): record hose profile bench validation
 
 ### Código e persistência
 
-- [ ] Não existe limiar operacional fixo em `FlowIo.h` ou no modelo do aplicativo.
-- [ ] EEPROM v7 preserva todos os campos da v6.
-- [ ] O novo registro NVS da bomba não altera o blob `PumpConfig` v3.10.
-- [ ] Q→S, S→Q e duty→Q usam a mesma calibração dupla.
-- [ ] Frames completos são aplicados atomicamente.
-- [ ] Frames inválidos não deixam estado parcial.
-- [ ] Comandos legados têm comportamento documentado e testado.
+- [x] Não existe limiar operacional fixo em `FlowIo.h` ou no modelo do aplicativo.
+- [x] EEPROM v7 preserva todos os campos da v6.
+- [x] O novo registro NVS da bomba não altera o blob `PumpConfig` v3.10.
+- [x] Q→S, S→Q e duty→Q usam a mesma calibração dupla.
+- [x] Frames completos são aplicados atomicamente.
+- [x] Frames inválidos não deixam estado parcial.
+- [x] Comandos legados têm comportamento documentado e testado.
 
 ### App e perfis
 
-- [ ] Fluxômetro permite editar `Vt` somente quando o nó suporta a capacidade.
-- [ ] Bomba permite editar `Qt` e mostra `St` ajustado.
-- [ ] Os dois gráficos mostram corretamente segmentos e transição.
-- [ ] Selecionar, carregar, salvar ou excluir perfil não envia comandos.
-- [ ] Só **Salvar e enviar curva** modifica o nó.
-- [ ] Perfis usam escrita atômica, schema e nomes seguros.
-- [ ] Recibos incluem pedido, eco, CRC, perfil e versões.
-- [ ] Aquisição volumétrica e controle manual continuam funcionais.
+- [x] Fluxômetro permite editar `Vt` somente quando o nó suporta a capacidade.
+- [x] Bomba permite editar `St` e mostra `Qt=Q(St)` derivado.
+- [x] Os dois gráficos mostram corretamente segmentos e transição nos contratos automatizados; a inspeção visual adicional foi dispensada pelo usuário.
+- [x] Selecionar, carregar, salvar ou excluir perfil não envia comandos.
+- [x] Só **Salvar e enviar curva** modifica o nó.
+- [x] Perfis usam escrita atômica, schema e nomes seguros.
+- [x] Recibos incluem pedido, eco, CRC, perfil e versões.
+- [x] Aquisição volumétrica e controle manual continuam funcionais.
 
 ### Validação de software
 
-- [ ] Testes matemáticos aprovados.
-- [ ] Contratos do Hub aprovados.
-- [ ] Três firmwares compilados: Hub, fluxômetro e bomba.
-- [ ] Testes direcionados do aplicativo aprovados.
-- [ ] Suíte completa aprovada.
-- [ ] Clean e build Release aprovados.
-- [ ] Executável Release aberto e inspecionado.
-- [ ] Logs novos sem erros fatais, XAML, binding, DI ou thread de UI.
+- [x] Testes matemáticos aprovados.
+- [x] Contratos do Hub aprovados.
+- [x] Três firmwares compilados: Hub, fluxômetro e bomba.
+- [x] Testes direcionados do aplicativo aprovados.
+- [x] Suíte completa aprovada.
+- [x] Clean e build Release aprovados.
+- [x] Executável Release aberto em smoke test automatizado.
+- [x] Logs novos sem erros fatais, XAML, binding, DI ou thread de UI.
 
 ### Documentação e entrega
 
-- [ ] Documento mestre atualizado nas seções 1 e 3.
-- [ ] Protocolos de app, Hub e nós usam as mesmas chaves.
-- [ ] Decisão linear antiga da bomba foi explicitamente superada.
-- [ ] Ocorrências remanescentes de `0.0545` foram classificadas.
-- [ ] Estados 🟢, 🔵, 🟡 e 🔴 refletem evidência real.
-- [ ] Commits estão separados, ordenados e presentes na branch final.
-- [ ] Árvore de trabalho está limpa, exceto itens preexistentes documentados.
+- [x] Documento mestre atualizado nas seções 1 e 3.
+- [x] Protocolos de app, Hub e nós usam as mesmas chaves.
+- [x] Decisão linear antiga da bomba foi explicitamente superada.
+- [x] Ocorrências remanescentes de `0.0545` foram classificadas.
+- [x] Estados 🟢, 🔵, 🟡 e 🔴 refletem evidência real.
+- [x] Commits estão separados, ordenados e presentes na branch final.
+- [x] Árvore de trabalho está limpa quanto ao escopo; capturas e arquivos não relacionados preexistentes permanecem preservados.
 
 ## 25. Condição de encerramento
 

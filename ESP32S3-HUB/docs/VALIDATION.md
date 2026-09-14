@@ -58,8 +58,8 @@ presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardwa
 15. Fluxômetro v12.0 / Hub 10.3: enviar curva completa com `transition_v=0.0545`,
     confirmar ACK, `FlowTransitionVoltage` e CRC; repetir com outro `Vt` tecnicamente
     justificável, reiniciar nó e Hub e comparar `/calibration` com o recibo do app.
-16. Bomba v3.11 / Hub 10.3: com a bomba ociosa, enviar os quatro parâmetros no mesmo
-    quadro e confirmar `PumpCommandPending=false`, quatro ecos e `PumpCalCrc`. Rejeitar
+16. Bomba v3.12 / Hub 10.4: com a bomba ociosa, enviar os oito coeficientes e `St` no mesmo
+    quadro e confirmar `PumpCommandPending=false`, nove ecos e `PumpCalCrc`. Rejeitar
     quadro parcial e envio em `RUNNING`/`WAITING`; reiniciar e confirmar persistência.
 17. Compatibilidade: conectar fluxômetro v11 e bomba 3.10, confirmar leitura dos campos
     legados e bloqueio explícito das funções modernas, sem chave ausente tratada como zero.

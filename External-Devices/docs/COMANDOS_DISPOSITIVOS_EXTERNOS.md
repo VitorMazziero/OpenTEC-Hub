@@ -1,44 +1,44 @@
 # Comandos e procedimentos dos dispositivos externos
 
 **Data:** 2026-09-12  
-**Propósito:** um único lugar que responda, por dispositivo, a três perguntas: *que interações o nó pode receber*, *o que o firmware faz com cada uma* e *o que o hardware deve fazer em consequência*. Cada afirmação abaixo foi conferida no código ativo (firmware do nó, `Commands.h`/`HttpServer.h` do Hub 10.3 e `CommandBuilders`/ViewModels do aplicativo), não nos documentos anteriores. Onde o código diverge da documentação do nó, este arquivo prevalece e a divergência está marcada com ⚠.
+**Propósito:** um único lugar que responda, por dispositivo, a três perguntas: *que interações o nó pode receber*, *o que o firmware faz com cada uma* e *o que o hardware deve fazer em consequência*. Cada afirmação abaixo foi conferida no código ativo (firmware do nó, `Commands.h`/`HttpServer.h` do Hub 10.4 e `CommandBuilders`/ViewModels do aplicativo), não nos documentos anteriores. Onde o código diverge da documentação do nó, este arquivo prevalece e a divergência está marcada com ⚠.
 
 **Fontes por dispositivo:** o contrato de fio detalhado continua em `<dispositivo>/docs/PROTOCOL.md` e no `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`; este documento não os substitui — ele explica o comportamento. Estado de implementação e pendências de bancada: `Windows_app/docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
 
 **Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11.1 — auditoria B01–B15 aplicada em 2026-09-13), §5 (agitador de frasco, firmware v10) e §6 (servo drive, driver 2.0 — fechado por decisão de projeto, 2026-09-13) completos.
 
-> **Leitura das versões:** Hub 10.3 é a versão ativa. Menções a 10.2, bomba 3.10 e fluxômetro v11.0 nas auditorias abaixo identificam a versão em que um comportamento foi introduzido ou a compatibilidade legada; não redefinem o contrato ativo 10.3 + 3.11 + v12.0.
+> **Leitura das versões:** Hub 10.4 é a versão ativa. Menções a 10.2/10.3, bomba 3.10/3.11 e fluxômetro v11.0 identificam marcos anteriores ou compatibilidade legada; não redefinem o contrato ativo 10.4 + 3.12 + v12.0.
 
 ---
 
 ## Visão Geral de Prontidão dos Dispositivos Externos
 
-| Dispositivo | Firmware Ativo | Hub 10.3 | App Windows | Integração Software | Ensaio em Bancada Física |
+| Dispositivo | Firmware Ativo | Hub 10.4 | App Windows | Integração Software | Ensaio em Bancada Física |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **Bomba Peristáltica** | v3.11 | 🟢 Curva dupla | 🟢 Curva dupla e perfis locais | 🟢 Integrado e testado em software | 🟡 Pendente (§1.11) |
+| **Bomba Peristáltica** | v3.12 | 🟢 Curva polinomial dupla | 🟢 Curva polinomial e perfis locais | 🟢 Integrado e testado em software | 🟡 Pendente (§1.11) |
 | **Sensor de Distância** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§2.11) |
 | **Fluxômetro de Ar** | v12.0 | 🟢 Transição editável | 🟢 Transição editável | 🟢 Integrado e testado em software | 🟡 Pendente (§3.11) |
 | **Sensor de Biomassa** | v11.1 | 🟢 Total (+ `biomassAutoRange`, janela por `probe_ms`) | 🟢 Total (+ auto-range, sentinelas, alarme de aquisição parada) | 🟢 Integrado; B02/B14 abertos por decisão (§4.10) | 🟡 Pendente (§4.11) |
 | **Agitador de Frascos** | v10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado; auditoria A01–A08 encerrada (§5.10) | 🟡 Pendente (§5.11) |
 | **Servo Drive (RPM)** | driver 2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado — só no Módulo TECNAL 2 | 🟢 Concluída (§6.0); sem novas alterações por projeto |
 
-## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.11)
+## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.12)
 
-### 1.0 Painel de Navegação Rápida — Estado de Prontidão e Integração (3.11)
+### 1.0 Painel de Navegação Rápida — Estado de Prontidão e Integração (3.12)
 
 > **Como navegar:** Esta matriz resume o estado real de cada funcionalidade da bomba, separando claramente o que já funciona no software integrado, o que aguarda validação com hardware/líquido na bancada, e o que foi deliberadamente adiado.
 
 #### 🟢 Totalmente Implementado e Integrado de Ponta a Ponta (Nó ↔ Hub ↔ App)
 *Código compilado, verificado estaticamente, repassado pelo Hub, exposto na interface do Windows App e aprovado na suíte de testes automatizados.*
 
-| Funcionalidade | Nó (v3.11) | Hub (10.3) | App Windows | Onde Opera na UI | Testes Automatizados |
+| Funcionalidade | Nó (v3.12) | Hub (10.4) | App Windows | Onde Opera na UI | Testes Automatizados |
 |---|:---:|:---:|:---:|---|---|
 | **Parada de perfil sem zerar volume** | `startCycle()` mantém `vol`; `cyc_vol` isola o ciclo | Repassa `mode:0`; ecoa `PumpCycleVol` | `PumpStopProfile()` emite `{"mode":0}`; preserva `PumpVol` | *Controle › Bomba Externa* (botão Parar / interruptor) | `PumpStopProfile_DoesNotContainSpeedKey`, `TelemetryParserTests` |
 | **Zerar volume acumulado** | `reset_volume` zera `vol` e `cyc_vol` | Whitelist em `allowedPumpCommands` | Botão *Zerar volume acumulado*; confirmação visual `< 0,05 mL` | *Controle* e *Calibrações* | `PumpResetVolume_MatchesFrozenWireKey`, `PumpResetVolume_RequiresConfirmation` |
 | **Controle dos potenciômetros físicos** | `pot:1` (devolve aos knobs), `pot:0` (trava); ecoa `pot` | Traduz `pump_pot` → `pot`; ecoa `PumpPotEnabled` | Botão *Potenciômetros*; reflete estado do eco | *Controle › Bomba Externa* | `test_pump_speed_ms_and_pot_are_forwarded_without_prefix`, `BiomassPumpTests` |
 | **Parada autônoma por timeout** | `speed_ms`: laço desliga motor se prazo expirar | Traduz `pump_speed_ms` → `speed_ms` | Calibração volumétrica envia $\Delta t + 3\text{ s}$ como segurança | *Calibrações › Bomba Externa* | `CommandBuildersTests`, `PumpCommandTests` |
 | **Sintonia e eco de PID de volume** | Aceita `pid_kp/ki/kd`; ecoa `kp, ki, kd` no push | Traduz `pumpPidK*`; ecoa `PumpPidKp/Ki/Kd` | Expansor *PID de volume do nó*; digitação, validação e persistência após eco | *Controle › Bomba Externa* | `PumpPidTuning_ValidatesAndDispatchesWhenEchoPresent`, `test_hub_echoes_pump_pid_pot_and_cycle_volume` |
-| **Calibração contínua em duas faixas** | Aplica atomicamente `slope_low`, `slope_high`, `transition_speed` e `transition_flow`; persiste blob `pump_cal` com CRC32 | Traduz as quatro chaves `pump*`, aguarda ACK do nó e publica ecos + `PumpCalCrc` | Ajuste de dois trechos unidos em `(St, Qt)`, prévia gráfica, envio explícito e recibo somente após ACK/eco/CRC | *Calibrações › Bomba Externa* | `PumpCalibrationTests`, `test_firmware_v311_contract.py` |
+| **Calibração polinomial em duas faixas** | Aplica atomicamente oito coeficientes e `transition_speed`; persiste `pump_poly_cal` com CRC32 | Traduz nove chaves, aguarda ACK e publica ecos + `PumpCalCrc` | Quarto grau abaixo de `St`, quadrático acima, C0+C1, perfis por mangueira e recibo após ACK/eco/CRC | *Calibrações › Bomba Externa* | `PumpCalibrationTests`, `test_firmware_v312_contract.py` |
 | **Biblioteca de perfis por mangueira** | Mantém somente a última curva enviada; não conhece nomes de perfil | Não armazena biblioteca | Cria, carrega, sobrescreve e exclui perfis JSON locais; carregar nunca envia ao nó | *Calibrações › Bomba Externa* | `PumpCalibrationProfileStoreTests`, `PumpCalibrationTests` |
 | **Calibração volumétrica assistida** | Acionamento via `speed` com rampa de duty 155..1023 | Repassa `pump_speed` | Pontos em ambas as faixas, ajuste limitado, resíduos, $R^2$, aplicação e recibo | *Calibrações › Bomba Externa* | `PumpCalibrationTests` |
 | **Proteção contra comandos perigosos** | `clear_nvs` só opera localmente | Hub bloqueia `clear_nvs`, `save_config`, etc. com `ESP32_AVISO` | App nunca emite comandos destrutivos à flash | N/A (proteção de infra) | `test_pump_command_whitelist_blocks_clear_nvs_and_config_verbs` |
@@ -71,7 +71,7 @@
 | **Proteção de NVS (`clear_nvs`, `save_config`)** | Hub 10.2 / Nó | O Hub bloqueia ativamente comandos de formatação e escrita bruta de NVS pela rede. Apenas comandos de processo (`reset_volume`, `start`, `stop`) são repassados. Acesso a `clear_nvs` apenas por USB local de bancada. | 🟢 Fechado (§1.10 #5) |
 | **Arbitragem dos potenciômetros de bancada** | Firmware 3.10 / App | Os potenciômetros operam exclusivamente em controle manual local. O app supervisiona e comuta quem está no comando através da variável interna `pot` ecoada pelo nó (`PumpPotEnabled`). Não há telemetria nem sentido em ler ângulos brutos de ADC. | 🟢 Fechado (§1.10 #3) |
 | **Modo de ativação física por presença de líquido** | Hardware local da bomba | Modo de segurança e operação física ativado por botão no hardware. Com o botão acionado, a bomba opera exclusivamente em **modo manual local** (liga/desliga por contato com líquido, na velocidade e sentido dos potenciômetros) e **não deve receber comandos externos de perfil**. No software, uma futura integração seria apenas telemetria passiva de identificação de estado travado. | 🟢 Fechado (§1.10 #7) |
-| **Curva contínua em duas faixas** | Firmware 3.11 / Hub 10.3 / App | A calibração ativa é definida por `(m_baixo, m_alto, St, Qt)`. Os trechos compartilham `(St, Qt)`, portanto não há salto de vazão. O modelo linear antigo é migrado com `m_baixo = m_alto = slope` e `Qt = slope·St + intercept`, preservando o resultado anterior. | 🔵 Fechado (§1.3) |
+| **Curva polinomial em duas faixas** | Firmware 3.12 / Hub 10.4 / App | A bomba espelha a família do fluxômetro: quarto grau abaixo de `St`, quadrático acima e continuidade C0+C1. `St` é editável por perfil de mangueira; `Qt=Q(St)` é derivado. | 🔵 Fechado (§1.3) |
 | **Biblioteca de perfis no PC** | App / Nó | Nome da mangueira, pontos e curva congelada pertencem ao perfil JSON local. O nó guarda somente uma curva ativa; selecionar, carregar ou excluir perfil não altera o hardware. | 🔵 Fechado (§1.8) |
 
 ---
@@ -104,7 +104,7 @@ finalSpeed = allowRun ? clamp(requestedSpeed, −1000, +1000) : 0
 
 - **Unidade S (0..1000)** é a "velocidade interna". `pwmTask` converte: `|S| < 1` → duty 0; senão `duty = 155 + (|S| − 1)/999 · (1023 − 155)`. Ou seja, **duty útil 155..1023** (`PWM_BREAKAWAY` = 155: abaixo disso o motor não vence o atrito do cabeçote). S = 1 já é 155/1023 ≈ 15 % de duty, não "quase parado".
 - **Trava de 500 ms** (`MIN_MOTOR_ON_TIME_MS`): ao ligar, o motor mantém a velocidade de partida por ao menos 500 ms antes de aceitar uma nova. Evita "tremer" quando o alvo oscila perto de S = 1.
-- **Conversão para vazão (3.11)** usa dois trechos contínuos: `Q = Qt + m_baixo·(S − St)` para `S ≤ St` e `Q = Qt + m_alto·(S − St)` para `S > St`. A inversa escolhe o trecho por `Q ≤ Qt`. As inclinações devem ser positivas, `0 < St < 1000`, `Qt > 0` e a extrapolação em `S = 0` não pode produzir vazão positiva. A relação linear `pumpSlope`/`pumpIntercept` permanece apenas como fonte da migração legada.
+- **Conversão para vazão (3.12)** usa `Q1=a1·S⁴+b1·S³+k1·S²+f1·S+c1` para `S ≤ St` e `Q2=k2·S²+f2·S+c2` para `S > St`. Os segmentos devem coincidir em valor e derivada em `St`, ser não negativos e monotônicos em `0..1000`. A inversa `Q→S` usa bisseção; os campos lineares permanecem apenas como fonte de migração.
 
 ### 1.3 Volume: estimado, não medido
 
@@ -138,7 +138,7 @@ Todos os canais chegam a `processJsonCommand()`; a tabela seguinte vale para qua
 
 ### 1.6 Catálogo de chaves e o que cada uma faz
 
-**Convenção do Hub:** o app envia chaves com prefixo `pump_`, `pumpPidK*` ou o conjunto atômico `pumpSlopeLow`/`pumpSlopeHigh`/`pumpTransitionSpeed`/`pumpTransitionFlow`. O Hub remove `pump_`, traduz PID e calibração para os nomes do nó e repassa somente a whitelist. Chaves fora dela **são descartadas em silêncio**.
+**Convenção do Hub:** o app envia chaves com prefixo `pump_`, `pumpPidK*` ou o conjunto atômico `pumpA1..pumpC2`/`pumpTransitionSpeed`. O Hub remove `pump_`, traduz PID e calibração para os nomes do nó e repassa somente a whitelist. Chaves fora dela **são descartadas em silêncio**.
 
 #### Comandos por string (`"command":"…"`)
 
@@ -182,7 +182,7 @@ Todos os canais chegam a `processJsonCommand()`; a tabela seguinte vale para qua
 
 | Chave | Firmware | Hub | App |
 |---|---|---|---|
-| `slope_low`, `slope_high`, `transition_speed`, `transition_flow` | Exige os quatro campos no mesmo quadro, valida estado ocioso e matemática, troca `g_pumpCal` atomicamente e persiste `pump_cal` com CRC32 | sim, traduzidos de `pumpSlopeLow`, `pumpSlopeHigh`, `pumpTransitionSpeed`, `pumpTransitionFlow` | **Salvar e enviar curva**: exige Hub ≥ 10.3 e bomba ≥ 3.11; recibo só após ACK concluído, quatro ecos e `PumpCalCrc` |
+| `a1`, `b1`, `k1`, `f1`, `c1`, `k2`, `f2`, `c2`, `transition_speed` | Exige os nove campos no mesmo quadro, valida estado ocioso, C0+C1 e monotonicidade, troca `g_pumpCal` atomicamente e persiste `pump_poly_cal` com CRC32 | sim, traduzidos de `pumpA1..pumpC2` e `pumpTransitionSpeed` | **Salvar e enviar curva**: exige Hub ≥ 10.4 e bomba ≥ 3.12; recibo só após ACK concluído, nove ecos e `PumpCalCrc` |
 | `pumpSlope`, `pumpIntercept` | Campos legados preservados no blob antigo para migração de instalações 3.10; não são o contrato de aplicação da curva dupla | compatibilidade legada | UI moderna bloqueia envio quando o nó não oferece 3.11 |
 | `pid_kp`, `pid_ki`, `pid_kd` | Atualiza ganhos; efeito imediato; **ecoados no push** (3.10) | sim (`pumpPidKp`→`pid_kp` etc.) | Expansor **PID de volume do nó**: liberado só com eco presente; **Enviar PID** aguarda o eco igual (tolerância 5e-4) para persistir no PC; padrões 0,5/0,05/0,001 já nas configurações |
 
@@ -206,7 +206,7 @@ Push `GET /pumpData?…` a cada 1 s (`DATA_PUSH_PERIOD_MS`), mesma linha impress
 | `v_tgt` | `V_alvo(t_rel)` analítico | `PumpTargetVol` | — |
 | `active` / `waiting` | `OP_RUNNING` / `OP_WAITING` | `PumpActive` / `PumpWaiting` | estado do perfil |
 | `ack_cmd_id` | último `cmd_id` do Hub aplicado | fecha `pumpBox` → `PumpCommandPending=false` | chip "aguardando" some |
-| `slope_low`, `slope_high`, `trans_speed`, `trans_flow`, `cal_crc` | curva dupla vigente e CRC32 | `PumpSlopeLow`, `PumpSlopeHigh`, `PumpTransitionSpeed`, `PumpTransitionFlow`, `PumpCalCrc` | curva aplicada no nó; confirmação exige o conjunto completo e ACK encerrado |
+| `a1..c1`, `k2..c2`, `transition_speed`, `cal_crc` | curva polinomial vigente e CRC32 | `PumpA1..PumpC2`, `PumpTransitionSpeed`, `PumpCalCrc` | curva aplicada no nó; confirmação exige nove ecos e ACK encerrado |
 | `slope`, `intercept` | reta legada do blob 3.10 | `PumpSlope`, `PumpIntercept` | compatibilidade e diagnóstico; não confirma aplicação 3.11 |
 | `kp`, `ki`, `kd` (3.10) | ganhos vigentes | `PumpPidKp/Ki/Kd` | "Nó: Kp · Ki · Kd" no expansor; libera a edição |
 | `pot` (3.10) | `!disablePot && !hasUsbSpeed` | `PumpPotEnabled` | texto e botão **Potenciômetros** |
@@ -225,7 +225,7 @@ O Hub deriva ainda `PumpOnline` (= `pumpComm` ligado **e** push há ≤ 4 s) e `
 | Parar perfil | interruptor desliga, ou **Parar** | 1.º `{"mode":0}` (com `pumpComm` ainda ligado — senão o Hub descarta), 2.º quadro separado `{"pumpComm":0}` | `PumpActive=false`; `PumpVol` mantido (3.10) |
 | Parada segura global | E-stop / árbitro | `PumpStopProfile()` = `{"mode":0}` | idem |
 | Zerar volume | **Zerar volume acumulado** | `{"pump_command":"reset_volume"}` | `PumpVol < 0,05` em ≤ 5 s; senão aviso |
-| Calibração dupla | Calibrações › Bomba Externa | `{"pumpSlopeLow":a,"pumpSlopeHigh":b,"pumpTransitionSpeed":St,"pumpTransitionFlow":Qt}` | ACK encerrado + quatro ecos + CRC em ≤ 15 s → settings e recibo JSON em `Calibracoes/` |
+| Calibração dupla | Calibrações › Bomba Externa | `{"pumpA1":a1,...,"pumpC2":c2,"pumpTransitionSpeed":St}` | ACK encerrado + nove ecos + CRC em ≤ 15 s → settings e recibo JSON em `Calibracoes/` |
 | **Calibração volumétrica** | idem, cartão "Acionamento volumétrico" | `{"pump_speed":S,"pump_speed_ms":(Δt+3 s)}` → espera Δt pelo relógio do app → `{"pump_speed":0}`; operador informa V; repete em ambas as faixas; **Usar ajuste** → **Salvar e enviar curva** | pontos (S, Δt, V, Q), resíduos, dois ajustes e R² no perfil/recibo. Ao terminar, **Potenciômetros** devolve os knobs |
 | PID de volume | Controle › Bomba Externa, expansor | `{"pumpPidKp":a,"pumpPidKi":b,"pumpPidKd":c}` | eco igual em ≤ 15 s → persistido no PC |
 | Potenciômetros de bancada | Controle › Bomba Externa, botão | `{"pump_pot":1}` / `{"pump_pot":0}` | `PumpPotEnabled` ecoa |

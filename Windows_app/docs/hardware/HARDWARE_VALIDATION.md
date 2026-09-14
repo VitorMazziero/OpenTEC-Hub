@@ -205,6 +205,39 @@ recipe that actuates at least one core actuator and one dosing/pump path.
 
 ---
 
+## Block I — Editable flowmeter transition (v12.0 / Hub 10.3)
+
+**Goal:** prove that the configurable voltage transition matches the real instrument and
+that mathematical continuity survives persistence and reboot.
+
+| # | Test | Pass criteria |
+|---|---|---|
+| I-1 | Identity and baseline | Record binary hash, v12.0, Hub 10.3, calibration CRC, standard certificate, gas route and environmental conditions |
+| I-2 | Migrated default | With `Vt=0.0545 V`, compare points below, around and above `Vt`; no unexplained jump |
+| I-3 | Second transition | Repeat with another technically justified `Vt`; measure `Vt−ε`, `Vt`, `Vt+ε` and residuals against the external standard |
+| I-4 | Persistence | Reboot node and Hub; `/calibration`, app echo and receipt agree on coefficients, `Vt` and CRC |
+| I-5 | Legacy gate | A v11 node remains readable but the editable-transition action is blocked and never reported as applied |
+
+## Block J — Pump polynomial dual-range calibration and hose profiles (v3.12 / Hub 10.4)
+
+**Goal:** qualify at least two physical hoses without confusing a local profile with the
+single curve active in the pump.
+
+| # | Test | Pass criteria |
+|---|---|---|
+| J-1 | Hose identity | Record profile name, material, inner diameter, lot, fluid, temperature and measuring vessel |
+| J-2 | Two ranges | At least three points per range plus repetitions near `St`; nonnegative monotonic curve, C0+C1 at `St` and accepted residuals |
+| J-3 | Local-only actions | Save/load a profile without any change in node echoes or CRC |
+| J-4 | Explicit apply | Send eight coefficients plus `St` while idle; ACK completes, nine echoes and `PumpCalCrc` match the receipt |
+| J-5 | Persistence and swap | Reboot, alternate two hose profiles and prove only **Salvar e enviar curva** changes the active node curve |
+| J-6 | Independent dose | Ten-minute constant dose agrees with measured volume within the tolerance defined before the run |
+| J-7 | Safety gates | Sending while `RUNNING`/`WAITING`, with partial fields or legacy firmware is rejected without changing the active curve |
+
+Software tests cover serialization, compatibility and state transitions. They do not set
+the physical tolerances or prove flow, volume, tubing behavior, electrical actuation or reboot safety.
+
+---
+
 ## What the simulator already covered (so hardware can skip re-proving it)
 
 The device simulator ([SIMULATOR.md](SIMULATOR.md)) already exercised, headlessly and against a

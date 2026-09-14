@@ -8,6 +8,18 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Added — calibração contínua em duas faixas e perfis de mangueira
+
+- **Fluxômetro v12.0 / Hub 10.3:** `Vt` tornou-se editável em volts; `0.0545 V` é
+  somente default e migração. Curva completa, ACK, eco e CRC são obrigatórios.
+- **Bomba v3.12 / Hub 10.4:** mesma família matemática do fluxômetro no domínio de `S` — quarto grau abaixo de `St`, quadrático acima e continuidade C0+C1 — com envio atômico de nove parâmetros e confirmação somente após ACK/nove ecos/CRC.
+- **Perfis de mangueira:** biblioteca JSON no PC com pontos, ajuste e curva congelada.
+  Carregar, salvar ou excluir perfil nunca altera a curva ativa no nó.
+- **Compatibilidade:** funções modernas ficam bloqueadas com Hub < 10.3, fluxômetro
+  < v12.0, bomba < v3.12 ou capacidade desconhecida; campos antigos continuam legíveis.
+- **Validação:** contratos Hub/nós e 1.683 testes do aplicativo aprovados; bancada de
+  vazão e bomba permanece explicitamente pendente.
+
 ### Changed — arranjo de válvulas A/B/C nos ensaios (plano `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md`, [D-053](DECISIONS.md), [P3-11](history/PHASE_LOG.md))
 - **Breaking para o arranjo antigo (não há bancada com ele).** As válvulas têm papel fixo — **A** ar
   ao reator, **B** linha de N₂, **C** purga de ar — e B e C estão no mesmo canal elétrico. Todo comando
@@ -48,9 +60,9 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 - **Controle › Bomba Externa.** **Zerar volume** (espera `PumpVol` ≈ 0 no quadro seguinte, nunca
   zera localmente; aviso após 5 s) e o expansor **PID do nó** — desabilitado até a bomba ecoar
   `pid_*`.
-- **Calibrações › Bomba externa.** Ganho e deslocamento da bomba peristáltica (`Q = slope·S +
-  intercept`, S = unidade interna 0–1000) com prévia em três pontos e recibo JSON em `Calibracoes/`
-  gravado só depois do eco.
+- **Calibrações › Bomba externa (entrega histórica 3.10).** Ganho e deslocamento da bomba
+  peristáltica (`Q = slope·S + intercept`) com recibo após eco. **Supersedido operacionalmente**
+  pela curva dupla 3.11 documentada no topo de Unreleased; o par permanece para migração.
 - **Controle › Absorbância › Parâmetros de aquisição.** IT (25…800 ms, enviado como código 0–5),
   PWM do LED, marcha óptica (0–31), EMA, período da sonda — um comando por confirmação, `gear`
   primeiro, fila cancelável; aviso de que IT/PWM invalidam o branco.
@@ -1195,7 +1207,8 @@ dedicated flowmeter firmware.
     proposal/apply, equal-raw refusal and a dosing safe-stop interlock;
   - direct oxygen zero/span capture around the existing app-side linear coefficients;
   - certified-flow point capture, 10-frame `FlowVoltage` averaging, v.6's fixed 0.0545 V
-    split, live curve plot and partial/complete six-coefficient send.
+    split, live curve plot and partial/complete six-coefficient send. *(Registro histórico
+    da 0.12.0; supersedido pelo contrato v12.0/Hub 10.3 descrito em Unreleased.)*
 - **Complete pH dosing control** on Painel and Controle: setpoint, inactive band, pump-on
   time, mix/rest time and speed, sent atomically with the v.6 `% × 10` encoding. Invalid
   input is refused instead of silently becoming pH 7.

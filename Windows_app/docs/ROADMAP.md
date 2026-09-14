@@ -1,6 +1,6 @@
 # OpenTEC-Hub — Build Roadmap
 
-> **Version:** 0.24.0 · **Written:** 2026-08-19 · **Updated:** 2026-08-26
+> **Version:** 0.24.0 · **Written:** 2026-08-19 · **Updated:** 2026-09-13
 > Phased plan to rebuild the working Python v.6 controller as a C# / WPF application
 > without ever losing a working link to the ESP32-S3.
 >
@@ -11,6 +11,12 @@
 > (AUD-001 e AUD-002) are now fully resolved. The next milestone is v0.25.0 stabilization and UI polish;
 > hardware parity, full cultivation and packaging remain open. See [CURRENT_STATUS.md](CURRENT_STATUS.md)
 > for evidence, findings and exit gates.
+
+> **Calibração dupla — estado em 2026-09-13.** Software concluído para Hub 10.4,
+> fluxômetro v12.0 e bomba v3.12: transição editável, curvas polinomiais C0+C1, perfis locais
+> por mangueira, compatibilidade legada, ACK/ecos/CRC e recibos. Etapas físicas
+> permanecem abertas: metrologia do fluxômetro com dois `Vt` e volumetria de pelo
+> menos duas mangueiras. Testes e compilação não autorizam uso de campo.
 
 ---
 
@@ -755,8 +761,10 @@ and pulls the three mature v.6 calibration procedures forward from Phase 3.
       - pH one/two-point stability + averaging with a full dosing safe-stop before the
         probe leaves the vessel;
       - direct oxygen two-point calibration of the app parser only;
-      - certified airflow points, distinct-frame `FlowVoltage` averaging, the 0.0545 V
-        two-segment fit and explicit partial/complete coefficient send
+      - certified airflow points, distinct-frame `FlowVoltage` averaging and the original
+        fixed-0.0545-V fit. **Superseded operationally on 2026-09-13:** v12.0 uses editable
+        `Vt` and only sends a complete atomic curve; this line remains historical evidence
+        of the Phase 2 delivery
 - [x] Calibration math isolated from WPF, persisted points/coefficients, settings live
       synchronization, and a professional theme-aware flow curve. The pH and oxygen curves
       stay in the app; accepted pH is echoed to the module as quoted `pHCal`; the flow curve

@@ -4,6 +4,10 @@ Comentários extensos retirados do firmware ativo durante a reorganização.
 O texto abaixo preserva o contexto histórico/técnico do monólito; valide-o
 contra hardware antes de tratá-lo como especificação atual.
 
+> **Supersessão em 2026-09-13:** as fórmulas abaixo preservam o comportamento histórico
+> de fábrica. O contrato ativo v12.0 substitui o limiar fixo por `transition_v`; consulte
+> `PROTOCOL.md` e o plano `Windows_app/docs/plans/2026-09-13-plano-calibracao-dupla-fluxometro-bomba.md`.
+
 ## Configuração e estado global
 
 > ----- OTA firmware update -----

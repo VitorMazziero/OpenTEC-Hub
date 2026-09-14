@@ -1,6 +1,6 @@
 ﻿# OpenTEC-Hub current status and stabilization audit
 
-> **Audit date:** 2026-08-26 · **Revised:** 2026-09-10  
+> **Audit date:** 2026-08-26 · **Revised:** 2026-09-14  
 > **Current version:** 0.26.2-dev (derived from git tags by MinVer)  
 > **Next release target:** 0.27.0 — responsive UI, motor routing and power WP  
 > **Implementation base:** `main` — every feature branch was merged on 2026-09-10 and `main` is now the only branch
@@ -9,6 +9,15 @@ The 2026-09-05 revision audited the Etapa 4.1 delivery (serial hygiene, WMI rank
 the per-shaft tare profile library, and re-ran the repository, build, format and test gates. Rows
 and findings marked **26/08** or **29/08** carry over from earlier audits and were not re-run
 today; read an undated claim in this document as evidence from 26/08.
+
+**14/09/2026 — integração fluxômetro v12 / Hub 10.4 / app revalidada.** O Hub agora
+emite `transition_v` somente no bloco atômico completo de calibração e não o reapresenta
+isoladamente após reboot. O app passou a preservar IDs/ACKs `uint32_t` do Hub em 64 bits;
+o valor de regressão `4240449281` e o ACK físico `3313643496` deixam de saturar em
+`Int32.MaxValue`. Build Release: zero avisos/erros; suíte: **1683/1683**. Na COM5 foram
+recebidos 7 quadros em ~14 s, sem falha de parse, com fluxômetro online, ~5,00 L/min,
+`FlowCommandId=FlowCommandAck=3313643496` e duas entregas. Recibo em
+[`evidence/bench/2026-09-14-flowmeter-usb.md`](evidence/bench/2026-09-14-flowmeter-usb.md).
 
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in

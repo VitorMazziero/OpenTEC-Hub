@@ -283,8 +283,6 @@ missing from the frame, the reading resolves to null (except `FlowmeterBootId`, 
 | `FlowmeterBootId` | int | — | Flowmeter boot cycle counter (sticky across session) |
 | `FlowmeterCalCrc` | int | — | Calibration parameters CRC32 hash (v11.0+) |
 | `FlowmeterHwStatus` | int | 0-7 | Hardware health bitmask (bit 0=ADS, bit 1=DAC, bit 2=healthy latch) |
-| `PumpSlope` | float | — | Peristaltic pump linear calibration slope |
-| `PumpIntercept` | float | — | Peristaltic pump linear calibration intercept |
 | `PumpPidKp`, `PumpPidKi`, `PumpPidKd` | float | — | Volume-PID gains the pump node runs (pump 3.10+; absent on 3.9). Non-sticky. The PID expander unlocks only while these are present, and a sent triple is persisted only when echoed back |
 | `PumpPotEnabled` | bool | — | Bench potentiometers in command of the motor (3.10+). False after a `pump_speed` run until `pump_pot:1` |
 | `PumpCycleVol` | float | mL | Volume of the current profile cycle (3.10+). `PumpVol` is the session counter: on 3.10 it survives stop/profile changes and only `reset_volume` zeroes it |
@@ -476,6 +474,15 @@ v12.0 default/migration value, not flow and not an immutable threshold:
 the flowmeter's V10 firmware
 zeroes them only when `k1/f1/c1` arrive **without** them, so a low segment sent as `k1/f1/c1`
 alone is taken as a quadratic. Hub `10.0.1-dev` forwards them; `10.0.0-dev` dropped them
+
+`transition_v` is a calibration field, not an operational setting. Hub 10.4 omits it
+from ordinary setpoint/safe-stop frames and from the state reassertion performed after a
+flowmeter reboot. It is serialized only when `a1,b1,k1,f1,c1,k2,f2,c2` are all pending
+in the same reliable mailbox revision. A partial calibration frame is never emitted.
+
+`FlowCommandId` and `FlowCommandAck` originate as `uint32_t` in the Hub. Consumers must
+therefore preserve values through `4294967295`; the Windows app represents both as
+signed 64-bit integers solely to avoid overflow while keeping comparisons simple.
 (2026-09-11). On v12.0 the whole curve and `Vt` go on **one frame**, under the Hub's
 1024-byte serial line; the node rejects an incomplete or discontinuous update.
 
@@ -642,8 +649,6 @@ camelCase keys, and the Hub translates them before enqueuing to each node's mail
 | `pump_speed` | int 0..1000 | Pump node | `speed` — hold the motor at S in idle mode; `0` stops. The sender owns the stop (the volumetric calibration sends `0` from the app clock). `speed` without the prefix is rejected by the Hub |
 | `pump_speed_ms` | int ms | Pump node | `speed_ms` — node-side deadline for `pump_speed` (pump 3.10+); the calibration sends duration + 3 s as the safety net |
 | `pump_pot` | `1`/`0` | Pump node | `pot` — hand the motor back to the bench potentiometers (forgets any manual speed) / lock them out (pump 3.10+) |
-| `pumpSlope` | float | Pump node ≤3.10 | legacy linear calibration; migration/diagnostic only |
-| `pumpIntercept` | float | Pump node ≤3.10 | legacy linear calibration; migration/diagnostic only |
 | `pumpPidKp` | float | Pump node | `pid_kp` |
 | `pumpPidKi` | float | Pump node | `pid_ki` |
 | `pumpPidKd` | float | Pump node | `pid_kd` |
@@ -720,16 +725,16 @@ Key order within an object is not believed to matter (the firmware parses JSON),
 but the tests pin v.6's emission order anyway — it costs nothing and removes the
 question from the table if a problem ever appears in the field.
 
-### 4.1 Confirmação e compatibilidade das calibrações v12/3.12
+### 4.1 Confirmação das calibrações v12/3.12
 
 - O fluxômetro confirma a aplicação moderna com ACK da revisão, eco de
   `FlowTransitionVoltage` e CRC que cobre também `transition_v`.
 - A bomba confirma somente quando `PumpCommandPending=false`, os nove valores ecoados
   coincidem com o pedido e `PumpCalCrc` está presente. Eco parcial ou apenas ACK não basta.
-- Hub anterior a 10.3 ou fluxômetro anterior a v12.0 bloqueia a transição editável; Hub
-  anterior a 10.4 ou bomba anterior a v3.12 bloqueia a curva polinomial da bomba.
-- `0.0545 V`, `pumpSlope` e `pumpIntercept` permanecem válidos neste documento somente
-  como defaults ou contrato legado de migração, nunca como o modelo operacional moderno.
+- Hub anterior a 10.3 ou fluxômetro anterior a v12.0 bloqueia a transição editável.
+- A bomba pertence à primeira implantação e tem um único contrato: nove parâmetros
+  polinomiais. O app, Hub e nó não reconhecem comandos ou ecos lineares e não aguardam versão
+  para liberar o cartão; a ausência de curva válida mantém a conversão bloqueada no nó.
 
 ---
 

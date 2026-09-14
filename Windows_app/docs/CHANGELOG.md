@@ -15,10 +15,26 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 - **Bomba v3.12 / Hub 10.4:** mesma família matemática do fluxômetro no domínio de `S` — quarto grau abaixo de `St`, quadrático acima e continuidade C0+C1 — com envio atômico de nove parâmetros e confirmação somente após ACK/nove ecos/CRC.
 - **Perfis de mangueira:** biblioteca JSON no PC com pontos, ajuste e curva congelada.
   Carregar, salvar ou excluir perfil nunca altera a curva ativa no nó.
-- **Compatibilidade:** funções modernas ficam bloqueadas com Hub < 10.3, fluxômetro
-  < v12.0, bomba < v3.12 ou capacidade desconhecida; campos antigos continuam legíveis.
-- **Validação:** contratos Hub/nós e 1.683 testes do aplicativo aprovados; bancada de
-  vazão e bomba permanece explicitamente pendente.
+- **Primeira implantação da bomba:** removidos perfil linear “Padrão”, migração de schemas,
+  comandos, ecos e estados de versão antigos. Sem pontos não há reta, equações nem curva
+  aplicável; o firmware fica sem conversão Q↔S até receber a primeira curva válida.
+- **Gráfico da bomba:** segue a aba do fluxômetro, com pontos medidos e segmentos
+  polinomiais limitados às faixas de velocidades amostradas, sem extrapolação visual.
+- **Validação inicial:** contratos Hub/nós aprovados; a bancada volumétrica completa da
+  bomba permanece explicitamente pendente.
+- **Correção Hub/fluxômetro:** comandos operacionais e a reimposição pós-reboot não
+  carregam `transition_v`; a transição só viaja com os dois segmentos completos. Isso
+  elimina a rejeição repetida do mesmo `cmd_id` pelo fluxômetro v12.
+- **ACK em toda a faixa:** `FlowCommandId` e `FlowCommandAck` agora usam 64 bits no app,
+  simulador e ensaios, preservando toda a faixa `uint32_t` emitida pelo Hub. O caso real
+  `4240449281` está coberto por regressão.
+- **Versões atuais:** catálogo e harness reconhecem Hub `10.4.0-dev`, fluxômetro `v12.0`,
+  bomba `3.12` e biomassa `v11.1`.
+- **Empacotamento WPF:** identidade de assembly estabilizada em `0.0.0.0`, separada da
+  versão de produto do MinVer, para que os pack URIs gravados no BAML encontrem o
+  próprio `OpenTECHub.dll` no executável publicado.
+- **Validação final:** 1.683/1.683 testes Release, build com zero avisos/erros e enlace
+  USB COM5 com 7 quadros, zero falhas de parse e ACK integral `3313643496`.
 
 ### Changed — arranjo de válvulas A/B/C nos ensaios (plano `docs/plans/2026-09-12-plano-valvulas-abc-ensaios.md`, [D-053](DECISIONS.md), [P3-11](history/PHASE_LOG.md))
 - **Breaking para o arranjo antigo (não há bancada com ele).** As válvulas têm papel fixo — **A** ar
@@ -60,9 +76,9 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 - **Controle › Bomba Externa.** **Zerar volume** (espera `PumpVol` ≈ 0 no quadro seguinte, nunca
   zera localmente; aviso após 5 s) e o expansor **PID do nó** — desabilitado até a bomba ecoar
   `pid_*`.
-- **Calibrações › Bomba externa (entrega histórica 3.10).** Ganho e deslocamento da bomba
-  peristáltica (`Q = slope·S + intercept`) com recibo após eco. **Supersedido operacionalmente**
-  pela curva dupla 3.11 documentada no topo de Unreleased; o par permanece para migração.
+- **Calibrações › Bomba externa (registro histórico 3.10).** Ganho e deslocamento lineares
+  existiram durante desenvolvimento, mas foram removidos antes da primeira implantação. O
+  executável e os firmwares atuais não leem, enviam, ecoam nem migram esse contrato.
 - **Controle › Absorbância › Parâmetros de aquisição.** IT (25…800 ms, enviado como código 0–5),
   PWM do LED, marcha óptica (0–31), EMA, período da sonda — um comando por confirmação, `gear`
   primeiro, fila cancelável; aviso de que IT/PWM invalidam o branco.

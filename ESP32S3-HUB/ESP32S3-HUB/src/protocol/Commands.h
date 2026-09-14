@@ -605,7 +605,9 @@ void processJsonCommand(const String &json) {
     "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
     "pumpSlope", "pumpIntercept", "pumpPidKp", "pumpPidKi", "pumpPidKd",
     "pumpSlopeLow", "pumpSlopeHigh", "pumpTransitionSpeed", "pumpTransitionFlow",
-    "slope_low", "slope_high", "transition_speed", "transition_flow"
+    "slope_low", "slope_high", "transition_speed", "transition_flow",
+    "pumpA1", "pumpB1", "pumpK1", "pumpF1", "pumpC1", "pumpK2", "pumpF2", "pumpC2",
+    "a1", "b1", "k1", "f1", "c1", "k2", "f2", "c2"
   };
   // O firmware da bomba tambem entende save_config, load_config, print_config e clear_nvs.
   // clear_nvs apaga calibracao, perfil e PID e reinicia o no; nenhum deles e operacao de
@@ -638,6 +640,14 @@ void processJsonCommand(const String &json) {
       else if (cleanKey == "pumpSlopeHigh") cleanKey = "slope_high";
       else if (cleanKey == "pumpTransitionSpeed") cleanKey = "transition_speed";
       else if (cleanKey == "pumpTransitionFlow") cleanKey = "transition_flow";
+      else if (cleanKey == "pumpA1") cleanKey = "a1";
+      else if (cleanKey == "pumpB1") cleanKey = "b1";
+      else if (cleanKey == "pumpK1") cleanKey = "k1";
+      else if (cleanKey == "pumpF1") cleanKey = "f1";
+      else if (cleanKey == "pumpC1") cleanKey = "c1";
+      else if (cleanKey == "pumpK2") cleanKey = "k2";
+      else if (cleanKey == "pumpF2") cleanKey = "f2";
+      else if (cleanKey == "pumpC2") cleanKey = "c2";
       else if (cleanKey.startsWith("pump_")) cleanKey = cleanKey.substring(5); 
       if (cleanKey == "command") pumpCommand += "\"" + cleanKey + "\":\"" + val + "\"";
       else pumpCommand += "\"" + cleanKey + "\":" + val;

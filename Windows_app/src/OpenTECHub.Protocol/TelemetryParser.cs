@@ -393,6 +393,8 @@ public sealed class TelemetryParser
             TryGetDouble(root, TelemetryKeys.FlowSetpointCorrected, out var spCorr) ? spCorr : null;
         Readings.FlowTransitionVoltage =
             TryGetDouble(root, TelemetryKeys.FlowTransitionVoltage, out var transVolt) ? transVolt : null;
+        Readings.FlowmeterCalCrc =
+            TryGetCounter(root, TelemetryKeys.FlowmeterCalCrc, out var flowCalCrc) ? flowCalCrc : null;
 
         // Sticky flowmeter boot_id (long?)
         if (TryGetCounter(root, TelemetryKeys.FlowmeterBootId, out var bootId))
@@ -581,6 +583,14 @@ public sealed class TelemetryParser
             TryGetDouble(root, TelemetryKeys.PumpTransitionSpeed, out var transSpeed) ? transSpeed : null;
         Readings.PumpTransitionFlow =
             TryGetDouble(root, TelemetryKeys.PumpTransitionFlow, out var transFlow) ? transFlow : null;
+        Readings.PumpA1 = TryGetDouble(root, TelemetryKeys.PumpA1, out var pumpA1) ? pumpA1 : null;
+        Readings.PumpB1 = TryGetDouble(root, TelemetryKeys.PumpB1, out var pumpB1) ? pumpB1 : null;
+        Readings.PumpK1 = TryGetDouble(root, TelemetryKeys.PumpK1, out var pumpK1) ? pumpK1 : null;
+        Readings.PumpF1 = TryGetDouble(root, TelemetryKeys.PumpF1, out var pumpF1) ? pumpF1 : null;
+        Readings.PumpC1 = TryGetDouble(root, TelemetryKeys.PumpC1, out var pumpC1) ? pumpC1 : null;
+        Readings.PumpK2 = TryGetDouble(root, TelemetryKeys.PumpK2, out var pumpK2) ? pumpK2 : null;
+        Readings.PumpF2 = TryGetDouble(root, TelemetryKeys.PumpF2, out var pumpF2) ? pumpF2 : null;
+        Readings.PumpC2 = TryGetDouble(root, TelemetryKeys.PumpC2, out var pumpC2) ? pumpC2 : null;
         Readings.PumpCalCrc =
             TryGetCounter(root, TelemetryKeys.PumpCalCrc, out var calCrc) ? calCrc : null;
 

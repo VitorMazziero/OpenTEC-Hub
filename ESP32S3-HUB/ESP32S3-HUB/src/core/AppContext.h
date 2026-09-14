@@ -414,11 +414,13 @@ float pumpPidKd = NAN;
 int   pumpPotEnabled = -1;
 float pumpCycleVolume = NAN;
 float pumpIntercept = NAN;
-// 3.11 echoes (Hub 10.3): calibracao continua em duas faixas e CRC da calibracao.
+// Ecos 3.11/Hub 10.3 mantidos somente para diagnostico de nos legados.
 float pumpSlopeLow = NAN;
 float pumpSlopeHigh = NAN;
 float pumpTransitionSpeed = NAN;
 float pumpTransitionFlow = NAN;
+float pumpA1 = NAN, pumpB1 = NAN, pumpK1 = NAN, pumpF1 = NAN, pumpC1 = NAN;
+float pumpK2 = NAN, pumpF2 = NAN, pumpC2 = NAN;
 uint32_t pumpCalCrc = 0;
 bool  pumpEchoSeen = false;
 

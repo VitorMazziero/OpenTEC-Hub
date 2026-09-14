@@ -76,6 +76,8 @@ void readAndBroadcastSensorData() {
   float snapPumpSlopeHigh = NAN;
   float snapPumpTransitionSpeed = NAN;
   float snapPumpTransitionFlow = NAN;
+  float snapPumpA1=NAN, snapPumpB1=NAN, snapPumpK1=NAN, snapPumpF1=NAN, snapPumpC1=NAN;
+  float snapPumpK2=NAN, snapPumpF2=NAN, snapPumpC2=NAN;
   uint32_t snapPumpCalCrc = 0;
   bool snapPumpEchoSeen = false;
   float snapPumpPidKp = NAN, snapPumpPidKi = NAN, snapPumpPidKd = NAN;
@@ -121,6 +123,8 @@ void readAndBroadcastSensorData() {
     snapPumpSlopeHigh = pumpSlopeHigh;
     snapPumpTransitionSpeed = pumpTransitionSpeed;
     snapPumpTransitionFlow = pumpTransitionFlow;
+    snapPumpA1=pumpA1; snapPumpB1=pumpB1; snapPumpK1=pumpK1; snapPumpF1=pumpF1; snapPumpC1=pumpC1;
+    snapPumpK2=pumpK2; snapPumpF2=pumpF2; snapPumpC2=pumpC2;
     snapPumpCalCrc = pumpCalCrc;
     snapPumpPidKp = pumpPidKp;
     snapPumpPidKi = pumpPidKi;
@@ -364,11 +368,19 @@ void readAndBroadcastSensorData() {
       if (!isnan(snapPumpPidKd)) jsonResponse += ",\"PumpPidKd\":" + String(snapPumpPidKd, 4);
       if (snapPumpPotEnabled >= 0) jsonResponse += ",\"PumpPotEnabled\":" + String(snapPumpPotEnabled ? "true" : "false");
       if (!isnan(snapPumpCycleVolume)) jsonResponse += ",\"PumpCycleVol\":" + String(snapPumpCycleVolume, 3);
-      // 3.11 only: dual-range continuous calibration (Hub 10.3)
+      // Legacy 3.11 dual-line echoes retained for diagnostic compatibility.
       if (!isnan(snapPumpSlopeLow)) jsonResponse += ",\"PumpSlopeLow\":" + String(snapPumpSlopeLow, 6);
       if (!isnan(snapPumpSlopeHigh)) jsonResponse += ",\"PumpSlopeHigh\":" + String(snapPumpSlopeHigh, 6);
       if (!isnan(snapPumpTransitionSpeed)) jsonResponse += ",\"PumpTransitionSpeed\":" + String(snapPumpTransitionSpeed, 2);
       if (!isnan(snapPumpTransitionFlow)) jsonResponse += ",\"PumpTransitionFlow\":" + String(snapPumpTransitionFlow, 4);
+      if (!isnan(snapPumpA1)) jsonResponse += ",\"PumpA1\":" + String(snapPumpA1, 9);
+      if (!isnan(snapPumpB1)) jsonResponse += ",\"PumpB1\":" + String(snapPumpB1, 9);
+      if (!isnan(snapPumpK1)) jsonResponse += ",\"PumpK1\":" + String(snapPumpK1, 9);
+      if (!isnan(snapPumpF1)) jsonResponse += ",\"PumpF1\":" + String(snapPumpF1, 9);
+      if (!isnan(snapPumpC1)) jsonResponse += ",\"PumpC1\":" + String(snapPumpC1, 9);
+      if (!isnan(snapPumpK2)) jsonResponse += ",\"PumpK2\":" + String(snapPumpK2, 9);
+      if (!isnan(snapPumpF2)) jsonResponse += ",\"PumpF2\":" + String(snapPumpF2, 9);
+      if (!isnan(snapPumpC2)) jsonResponse += ",\"PumpC2\":" + String(snapPumpC2, 9);
       if (snapPumpCalCrc != 0) jsonResponse += ",\"PumpCalCrc\":" + String(snapPumpCalCrc);
     }
   }

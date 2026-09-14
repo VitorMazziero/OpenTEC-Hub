@@ -1,7 +1,7 @@
 void firmwareSetup() {
     Serial.begin(115200);
     delay(100);
-    Serial.println("--- Peristaltic Pump Controller v3.11 (dual-range continuous calibration) ---");
+    Serial.println("--- Peristaltic Pump Controller v3.12 (quartic/quadratic calibration) ---");
 
     g_prefs.begin(NVS_NAMESPACE, false);
     loadConfig();

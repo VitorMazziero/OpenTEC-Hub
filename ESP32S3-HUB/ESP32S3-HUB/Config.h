@@ -9,8 +9,8 @@
 // 10.1.0: identidade dos nos externos no quadro agregado (*IP, *NodeVer, *NodeMac)
 // e /nodes completo. Chaves aditivas: o protocolo continua 10.
 // 10.2.0: caixa confiavel da distancia por carona no push e ecos de config dos nos.
-// 10.3.0: retransmissao de calibracao dupla (fluxometro v12 e bomba v3.11) e ecos.
-#define HUB_FIRMWARE_VERSION "10.3.0-dev"
+// 10.3.0: transicao editavel do fluxometro v12; 10.4.0: calibracao polinomial da bomba v3.12.
+#define HUB_FIRMWARE_VERSION "10.4.0-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

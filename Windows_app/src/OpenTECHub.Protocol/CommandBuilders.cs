@@ -860,42 +860,23 @@ public static class CommandBuilders
     }
 
     /// <summary>
-    /// Configures the external pump continuous dual-range calibration:
-    /// pumpSlopeLow, pumpSlopeHigh, pumpTransitionSpeed, pumpTransitionFlow.
+    /// Configures the external pump quartic/quadratic C0+C1 calibration atomically.
     /// </summary>
     public static OpenTECCommand PumpDualRangeCalibration(
-        double slopeLow,
-        double slopeHigh,
-        double transitionSpeed,
-        double transitionFlow)
+        double a1, double b1, double k1, double f1, double c1,
+        double k2, double f2, double c2, double transitionSpeed)
     {
-        if (!double.IsFinite(slopeLow) || slopeLow <= 0.0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(slopeLow), "Pump low slope must be finite and greater than zero.");
-        }
-        if (!double.IsFinite(slopeHigh) || slopeHigh <= 0.0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(slopeHigh), "Pump high slope must be finite and greater than zero.");
-        }
+        var coefficients = new[] { a1, b1, k1, f1, c1, k2, f2, c2 };
+        if (coefficients.Any(value => !double.IsFinite(value)))
+            throw new ArgumentOutOfRangeException(nameof(a1), "Pump coefficients must be finite.");
         if (!double.IsFinite(transitionSpeed) || transitionSpeed <= 0.0 || transitionSpeed >= 1000.0)
-        {
             throw new ArgumentOutOfRangeException(nameof(transitionSpeed), "Transition speed must be finite and in (0, 1000) speed units.");
-        }
-        if (!double.IsFinite(transitionFlow) || transitionFlow <= 0.0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(transitionFlow), "Transition flow must be finite and greater than zero.");
-        }
-        var flowAtZero = transitionFlow - slopeLow * transitionSpeed;
-        if (flowAtZero < -1e-9)
-        {
-            throw new ArgumentOutOfRangeException(nameof(transitionFlow), "Transition flow and slope produce negative flow at zero speed.");
-        }
 
         return OpenTECCommand.Create()
-            .Set(CommandKeys.PumpSlopeLow, slopeLow)
-            .Set(CommandKeys.PumpSlopeHigh, slopeHigh)
-            .Set(CommandKeys.PumpTransitionSpeed, transitionSpeed)
-            .Set(CommandKeys.PumpTransitionFlow, transitionFlow);
+            .Set(CommandKeys.PumpA1, a1).Set(CommandKeys.PumpB1, b1)
+            .Set(CommandKeys.PumpK1, k1).Set(CommandKeys.PumpF1, f1).Set(CommandKeys.PumpC1, c1)
+            .Set(CommandKeys.PumpK2, k2).Set(CommandKeys.PumpF2, f2).Set(CommandKeys.PumpC2, c2)
+            .Set(CommandKeys.PumpTransitionSpeed, transitionSpeed);
     }
 
     /// <summary>Configures the external pump PID gains.</summary>

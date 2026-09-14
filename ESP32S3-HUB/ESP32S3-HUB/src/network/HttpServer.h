@@ -390,7 +390,7 @@ void startWiFi() {
           if (request->hasParam("kd")) pumpPidKd = request->getParam("kd")->value().toFloat();
           if (request->hasParam("pot")) pumpPotEnabled = request->getParam("pot")->value().toInt() != 0 ? 1 : 0;
           if (request->hasParam("cyc_vol")) pumpCycleVolume = request->getParam("cyc_vol")->value().toFloat();
-          // 3.11: Dual-range continuous calibration parameters and CRC (Hub 10.3)
+          // Legacy 3.11 dual-line echoes; the 3.12 polynomial block follows below.
           if (request->hasParam("slope_low")) {
             pumpSlopeLow = request->getParam("slope_low")->value().toFloat();
             pumpEchoSeen = true;
@@ -407,6 +407,14 @@ void startWiFi() {
             pumpTransitionFlow = request->getParam("trans_flow")->value().toFloat();
             pumpEchoSeen = true;
           }
+          if (request->hasParam("a1")) { pumpA1=request->getParam("a1")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("b1")) { pumpB1=request->getParam("b1")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("k1")) { pumpK1=request->getParam("k1")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("f1")) { pumpF1=request->getParam("f1")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("c1")) { pumpC1=request->getParam("c1")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("k2")) { pumpK2=request->getParam("k2")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("f2")) { pumpF2=request->getParam("f2")->value().toFloat(); pumpEchoSeen=true; }
+          if (request->hasParam("c2")) { pumpC2=request->getParam("c2")->value().toFloat(); pumpEchoSeen=true; }
           if (request->hasParam("cal_crc")) {
             pumpCalCrc = (uint32_t)strtoul(request->getParam("cal_crc")->value().c_str(), NULL, 16);
             pumpEchoSeen = true;

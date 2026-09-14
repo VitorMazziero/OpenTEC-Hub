@@ -224,6 +224,14 @@ public static class CommandKeys
     public const string PumpSlopeHigh = "pumpSlopeHigh";
     public const string PumpTransitionSpeed = "pumpTransitionSpeed";
     public const string PumpTransitionFlow = "pumpTransitionFlow";
+    public const string PumpA1 = "pumpA1";
+    public const string PumpB1 = "pumpB1";
+    public const string PumpK1 = "pumpK1";
+    public const string PumpF1 = "pumpF1";
+    public const string PumpC1 = "pumpC1";
+    public const string PumpK2 = "pumpK2";
+    public const string PumpF2 = "pumpF2";
+    public const string PumpC2 = "pumpC2";
 
     public const string BiomassIt = "biomassIt";
     public const string BiomassPwm = "biomassPwm";
@@ -479,6 +487,7 @@ public static class TelemetryKeys
     public const string FlowSetpointCorrected = "FlowSetpointCorrected";
     public const string FlowmeterBootId = "FlowmeterBootId";
     public const string FlowTransitionVoltage = "FlowTransitionVoltage";
+    public const string FlowmeterCalCrc = "FlowmeterCalCrc";
 
     public const string PumpSlope = "PumpSlope";
     public const string PumpIntercept = "PumpIntercept";
@@ -497,6 +506,14 @@ public static class TelemetryKeys
     public const string PumpTransitionSpeed = "PumpTransitionSpeed";
     public const string PumpTransitionFlow = "PumpTransitionFlow";
     public const string PumpCalCrc = "PumpCalCrc";
+    public const string PumpA1 = "PumpA1";
+    public const string PumpB1 = "PumpB1";
+    public const string PumpK1 = "PumpK1";
+    public const string PumpF1 = "PumpF1";
+    public const string PumpC1 = "PumpC1";
+    public const string PumpK2 = "PumpK2";
+    public const string PumpF2 = "PumpF2";
+    public const string PumpC2 = "PumpC2";
 
     public const string BiomassGear = "BiomassGear";
     public const string BiomassEma = "BiomassEma";

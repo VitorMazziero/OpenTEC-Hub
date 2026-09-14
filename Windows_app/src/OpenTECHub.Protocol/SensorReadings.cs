@@ -239,6 +239,7 @@ public sealed class SensorReadings
     public double? FlowSetpointCorrected { get; set; }
     public long? FlowmeterBootId { get; set; }
     public double? FlowTransitionVoltage { get; set; }
+    public long? FlowmeterCalCrc { get; set; }
 
     public double? PumpSlope { get; set; }
     public double? PumpIntercept { get; set; }
@@ -251,6 +252,14 @@ public sealed class SensorReadings
     public double? PumpSlopeHigh { get; set; }
     public double? PumpTransitionSpeed { get; set; }
     public double? PumpTransitionFlow { get; set; }
+    public double? PumpA1 { get; set; }
+    public double? PumpB1 { get; set; }
+    public double? PumpK1 { get; set; }
+    public double? PumpF1 { get; set; }
+    public double? PumpC1 { get; set; }
+    public double? PumpK2 { get; set; }
+    public double? PumpF2 { get; set; }
+    public double? PumpC2 { get; set; }
     public long? PumpCalCrc { get; set; }
 
     public int? BiomassGear { get; set; }
@@ -384,6 +393,7 @@ public sealed class SensorReadings
         FlowSetpointCorrected = FlowSetpointCorrected,
         FlowmeterBootId = FlowmeterBootId,
         FlowTransitionVoltage = FlowTransitionVoltage,
+        FlowmeterCalCrc = FlowmeterCalCrc,
         PumpSlope = PumpSlope,
         PumpIntercept = PumpIntercept,
         PumpPidKp = PumpPidKp,
@@ -395,6 +405,14 @@ public sealed class SensorReadings
         PumpSlopeHigh = PumpSlopeHigh,
         PumpTransitionSpeed = PumpTransitionSpeed,
         PumpTransitionFlow = PumpTransitionFlow,
+        PumpA1 = PumpA1,
+        PumpB1 = PumpB1,
+        PumpK1 = PumpK1,
+        PumpF1 = PumpF1,
+        PumpC1 = PumpC1,
+        PumpK2 = PumpK2,
+        PumpF2 = PumpF2,
+        PumpC2 = PumpC2,
         PumpCalCrc = PumpCalCrc,
         BiomassGear = BiomassGear,
         BiomassEma = BiomassEma,
@@ -659,6 +677,7 @@ public sealed record SensorSnapshot
     public double? FlowSetpointCorrected { get; init; }
     public long? FlowmeterBootId { get; init; }
     public double? FlowTransitionVoltage { get; init; }
+    public long? FlowmeterCalCrc { get; init; }
 
     public double? PumpSlope { get; init; }
     public double? PumpIntercept { get; init; }
@@ -685,6 +704,16 @@ public sealed record SensorSnapshot
 
     /// <summary>Dual-range transition flow echo (pump 3.11, Hub 10.3).</summary>
     public double? PumpTransitionFlow { get; init; }
+
+    /// <summary>Pump 3.12 polynomial calibration echoes (Hub 10.4).</summary>
+    public double? PumpA1 { get; init; }
+    public double? PumpB1 { get; init; }
+    public double? PumpK1 { get; init; }
+    public double? PumpF1 { get; init; }
+    public double? PumpC1 { get; init; }
+    public double? PumpK2 { get; init; }
+    public double? PumpF2 { get; init; }
+    public double? PumpC2 { get; init; }
 
     /// <summary>Dual-range calibration CRC32 echo (pump 3.11, Hub 10.3).</summary>
     public long? PumpCalCrc { get; init; }

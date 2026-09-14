@@ -266,7 +266,16 @@ public sealed class DeviceModel
     public double PumpSlopeHigh { get; set; } = 0.0280188148;
     public double PumpTransitionSpeed { get; set; } = 500.0;
     public double PumpTransitionFlow { get; set; } = 15.7696062934;
-    public long PumpCalCrc { get; set; } = CalculatePumpCalibrationCrc(0.0280188148, 0.0280188148, 500.0, 15.7696062934);
+    public double PumpA1 { get; set; }
+    public double PumpB1 { get; set; }
+    public double PumpK1 { get; set; }
+    public double PumpF1 { get; set; } = 0.0280188148;
+    public double PumpC1 { get; set; } = 1.7601988934;
+    public double PumpK2 { get; set; }
+    public double PumpF2 { get; set; } = 0.0280188148;
+    public double PumpC2 { get; set; } = 1.7601988934;
+    public long PumpCalCrc { get; set; } = CalculatePumpCalibrationCrc(
+        0, 0, 0, 0.0280188148, 1.7601988934, 0, 0.0280188148, 1.7601988934, 500.0);
 
     private bool _pumpCommandPending;
     public bool PumpCommandPending
@@ -281,16 +290,14 @@ public sealed class DeviceModel
         return pending;
     }
 
-    public static uint CalculatePumpCalibrationCrc(double mLow, double mHigh, double sT, double qT)
+    public static uint CalculatePumpCalibrationCrc(params double[] values)
     {
-        Span<byte> bytes = stackalloc byte[16];
-        BitConverter.TryWriteBytes(bytes[0..4], (float)mLow);
-        BitConverter.TryWriteBytes(bytes[4..8], (float)mHigh);
-        BitConverter.TryWriteBytes(bytes[8..12], (float)sT);
-        BitConverter.TryWriteBytes(bytes[12..16], (float)qT);
+        var bytes = new byte[values.Length * sizeof(float)];
+        for (var i = 0; i < values.Length; i++)
+            BitConverter.TryWriteBytes(bytes.AsSpan(i * 4, 4), (float)values[i]);
 
         uint crc = 0xFFFFFFFF;
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < bytes.Length; i++)
         {
             crc ^= bytes[i];
             for (int j = 0; j < 8; j++)

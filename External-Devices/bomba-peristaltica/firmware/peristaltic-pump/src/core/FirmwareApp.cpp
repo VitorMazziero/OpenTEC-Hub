@@ -9,7 +9,7 @@
 #include <WebServer.h>
 #include <Update.h>
 
-#define PUMP_FW_VERSION "3.11"
+#define PUMP_FW_VERSION "3.12"
 
 static const bool     DEBUG_ENABLE      = true;
 static const uint32_t DEBUG_INTERVAL_MS = 1000;
@@ -139,11 +139,10 @@ struct PumpConfig {
 #define PUMP_DUAL_RANGE_CAL_DEFINED
 struct PumpDualRangeCal {
     uint32_t magic;
-    float m_low;              // slope do segmento inferior (mL/min por speed unit)
-    float m_high;             // slope do segmento superior (mL/min por speed unit)
-    float s_t;                // velocidade de transicao (speed units)
-    float q_t;                // vazao na transicao (mL/min)
-    uint32_t crc32;           // CRC32 IEEE 802.3 dos 4 floats (16 bytes)
+    float a1, b1, k1, f1, c1;
+    float k2, f2, c2;
+    float s_t;
+    uint32_t crc32;
 };
 #endif
 

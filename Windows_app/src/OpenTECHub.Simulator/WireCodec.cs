@@ -182,6 +182,14 @@ public static class WireCodec
                 Append(buffer, TelemetryKeys.PumpSlopeHigh, model.PumpSlopeHigh, 6);
                 Append(buffer, TelemetryKeys.PumpTransitionSpeed, model.PumpTransitionSpeed, 2);
                 Append(buffer, TelemetryKeys.PumpTransitionFlow, model.PumpTransitionFlow, 4);
+                Append(buffer, TelemetryKeys.PumpA1, model.PumpA1, 9);
+                Append(buffer, TelemetryKeys.PumpB1, model.PumpB1, 9);
+                Append(buffer, TelemetryKeys.PumpK1, model.PumpK1, 9);
+                Append(buffer, TelemetryKeys.PumpF1, model.PumpF1, 9);
+                Append(buffer, TelemetryKeys.PumpC1, model.PumpC1, 9);
+                Append(buffer, TelemetryKeys.PumpK2, model.PumpK2, 9);
+                Append(buffer, TelemetryKeys.PumpF2, model.PumpF2, 9);
+                Append(buffer, TelemetryKeys.PumpC2, model.PumpC2, 9);
                 if (model.PumpCalCrc != 0)
                 {
                     AppendLong(buffer, TelemetryKeys.PumpCalCrc, model.PumpCalCrc);
@@ -560,6 +568,32 @@ public static class WireCodec
             }
         }
 
+        var pumpPolynomialKeys = new[] { CommandKeys.PumpA1, CommandKeys.PumpB1, CommandKeys.PumpK1,
+            CommandKeys.PumpF1, CommandKeys.PumpC1, CommandKeys.PumpK2, CommandKeys.PumpF2,
+            CommandKeys.PumpC2, CommandKeys.PumpTransitionSpeed };
+        var hasPumpPolynomial = pumpPolynomialKeys.Any(key => root.TryGetProperty(key, out _));
+        if (hasPumpPolynomial)
+        {
+            double polyA1=double.NaN, polyB1=double.NaN, polyK1=double.NaN, polyF1=double.NaN, polyC1=double.NaN;
+            double polyK2=double.NaN, polyF2=double.NaN, polyC2=double.NaN, polySt=double.NaN;
+            var complete = TryDouble(root, CommandKeys.PumpA1, out polyA1) &
+                TryDouble(root, CommandKeys.PumpB1, out polyB1) & TryDouble(root, CommandKeys.PumpK1, out polyK1) &
+                TryDouble(root, CommandKeys.PumpF1, out polyF1) & TryDouble(root, CommandKeys.PumpC1, out polyC1) &
+                TryDouble(root, CommandKeys.PumpK2, out polyK2) & TryDouble(root, CommandKeys.PumpF2, out polyF2) &
+                TryDouble(root, CommandKeys.PumpC2, out polyC2) & TryDouble(root, CommandKeys.PumpTransitionSpeed, out polySt);
+            var values = new[] { polyA1, polyB1, polyK1, polyF1, polyC1, polyK2, polyF2, polyC2, polySt };
+            if (complete && values.All(double.IsFinite) &&
+                IsValidPumpPolynomial(polyA1, polyB1, polyK1, polyF1, polyC1,
+                    polyK2, polyF2, polyC2, polySt))
+            {
+                model.PumpA1 = polyA1; model.PumpB1 = polyB1; model.PumpK1 = polyK1; model.PumpF1 = polyF1; model.PumpC1 = polyC1;
+                model.PumpK2 = polyK2; model.PumpF2 = polyF2; model.PumpC2 = polyC2; model.PumpTransitionSpeed = polySt;
+                model.PumpTransitionFlow = ((((polyA1 * polySt + polyB1) * polySt + polyK1) * polySt + polyF1) * polySt + polyC1);
+                model.PumpCalCrc = DeviceModel.CalculatePumpCalibrationCrc(values);
+                model.PumpCommandPending = true;
+            }
+        }
+
         var hasSlopeLow = TryDouble(root, CommandKeys.PumpSlopeLow, out var pumpSlopeLow) ||
                           TryDouble(root, "slope_low", out pumpSlopeLow);
         var hasSlopeHigh = TryDouble(root, CommandKeys.PumpSlopeHigh, out var pumpSlopeHigh) ||
@@ -569,7 +603,7 @@ public static class WireCodec
         var hasTransFlow = TryDouble(root, CommandKeys.PumpTransitionFlow, out var pumpTransFlow) ||
                            TryDouble(root, "transition_flow", out pumpTransFlow);
 
-        if (hasSlopeLow || hasSlopeHigh || hasTransSpeed || hasTransFlow)
+        if (!hasPumpPolynomial && (hasSlopeLow || hasSlopeHigh || hasTransSpeed || hasTransFlow))
         {
             if (hasSlopeLow && hasSlopeHigh && hasTransSpeed && hasTransFlow &&
                 double.IsFinite(pumpSlopeLow) && pumpSlopeLow > 0.0 &&
@@ -667,6 +701,53 @@ public static class WireCodec
             JsonValueKind.False => (value = 0) == 0,
             _ => false,
         };
+    }
+
+    private static bool IsValidPumpPolynomial(
+        double a1, double b1, double k1, double f1, double c1,
+        double k2, double f2, double c2, double transitionSpeed)
+    {
+        if (transitionSpeed <= 0.0 || transitionSpeed >= 1000.0)
+        {
+            return false;
+        }
+
+        static double Low(double speed, double a, double b, double k, double f, double c)
+            => ((((a * speed) + b) * speed + k) * speed + f) * speed + c;
+        static double High(double speed, double k, double f, double c)
+            => ((k * speed) + f) * speed + c;
+
+        var lowAtTransition = Low(transitionSpeed, a1, b1, k1, f1, c1);
+        var highAtTransition = High(transitionSpeed, k2, f2, c2);
+        var lowDerivative = ((4.0 * a1 * transitionSpeed + 3.0 * b1) * transitionSpeed + 2.0 * k1) * transitionSpeed + f1;
+        var highDerivative = 2.0 * k2 * transitionSpeed + f2;
+        if (Math.Abs(lowAtTransition - highAtTransition) > 1e-3 ||
+            Math.Abs(lowDerivative - highDerivative) > 1e-3)
+        {
+            return false;
+        }
+
+        var previous = Low(0.0, a1, b1, k1, f1, c1);
+        if (!double.IsFinite(previous) || previous < -1e-5)
+        {
+            return false;
+        }
+
+        for (var index = 1; index <= 100; index++)
+        {
+            var speed = index * 10.0;
+            var current = speed <= transitionSpeed
+                ? Low(speed, a1, b1, k1, f1, c1)
+                : High(speed, k2, f2, c2);
+            if (!double.IsFinite(current) || current < previous - 1e-5)
+            {
+                return false;
+            }
+
+            previous = current;
+        }
+
+        return true;
     }
 
     // Invariant formatting throughout: the wire never carries a locale.

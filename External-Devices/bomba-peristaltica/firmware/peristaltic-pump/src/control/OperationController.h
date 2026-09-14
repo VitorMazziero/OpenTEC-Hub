@@ -338,91 +338,50 @@ void processJsonCommand(String json) {
     fval = getJsonFloatValue(json, "sensorButtonOverride");
     if (!isnan(fval)) sensorButtonOverride = (fval == 1.0f);
 
-    // Calibracao de Dupla Faixa e Comando Legado (Etapa 3)
-    float valLow = getJsonFloatValue(json, "pumpSlopeLow");
-    if (isnan(valLow)) valLow = getJsonFloatValue(json, "pumpLowSlope");
-    if (isnan(valLow)) valLow = getJsonFloatValue(json, "slope_low");
-    if (isnan(valLow)) valLow = getJsonFloatValue(json, "m_low");
+    // Contrato atomico v3.12: as mesmas equacoes quartica/quadratica do fluxometro.
+    const char* pumpKeys[] = { "pumpA1", "pumpB1", "pumpK1", "pumpF1", "pumpC1",
+                               "pumpK2", "pumpF2", "pumpC2", "pumpTransitionSpeed" };
+    const char* nativePumpKeys[] = { "a1", "b1", "k1", "f1", "c1", "k2", "f2", "c2", "transition_speed" };
+    float pumpValues[9];
+    bool hasAnyPumpCoefficient = false;
+    bool hasAllPumpCoefficients = true;
+    for (uint8_t i = 0; i < 9; i++) {
+        pumpValues[i] = getJsonFloatValue(json, pumpKeys[i]);
+        if (isnan(pumpValues[i])) pumpValues[i] = getJsonFloatValue(json, nativePumpKeys[i]);
+        hasAnyPumpCoefficient |= !isnan(pumpValues[i]);
+        hasAllPumpCoefficients &= !isnan(pumpValues[i]) && isfinite(pumpValues[i]);
+    }
 
-    float valHigh = getJsonFloatValue(json, "pumpSlopeHigh");
-    if (isnan(valHigh)) valHigh = getJsonFloatValue(json, "pumpHighSlope");
-    if (isnan(valHigh)) valHigh = getJsonFloatValue(json, "slope_high");
-    if (isnan(valHigh)) valHigh = getJsonFloatValue(json, "m_high");
-
-    float valSt = getJsonFloatValue(json, "pumpTransitionSpeed");
-    if (isnan(valSt)) valSt = getJsonFloatValue(json, "transition_speed");
-    if (isnan(valSt)) valSt = getJsonFloatValue(json, "s_t");
-
-    float valQt = getJsonFloatValue(json, "pumpTransitionFlow");
-    if (isnan(valQt)) valQt = getJsonFloatValue(json, "transition_flow");
-    if (isnan(valQt)) valQt = getJsonFloatValue(json, "q_t");
-
-    bool hasAnyDualCal = !isnan(valLow) || !isnan(valHigh) || !isnan(valSt) || !isnan(valQt);
-
-    float valLegacySlope = getJsonFloatValue(json, "pumpSlope");
-    if (isnan(valLegacySlope)) valLegacySlope = getJsonFloatValue(json, "slope");
-
-    float valLegacyIntercept = getJsonFloatValue(json, "pumpIntercept");
-    if (isnan(valLegacyIntercept)) valLegacyIntercept = getJsonFloatValue(json, "intercept");
-
-    bool hasLegacyCal = !isnan(valLegacySlope) || !isnan(valLegacyIntercept);
-
-    if (hasAnyDualCal || hasLegacyCal) {
+    if (hasAnyPumpCoefficient) {
         if (g_opState == OP_RUNNING || g_opState == OP_WAITING) {
-            Serial.println("[REJECT] Calibracao nao pode ser alterada durante operacao ativa (OP_RUNNING ou OP_WAITING)!");
-        } else if (hasAnyDualCal) {
-            bool hasAllFour = !isnan(valLow) && !isnan(valHigh) && !isnan(valSt) && !isnan(valQt);
-            if (!hasAllFour) {
-                Serial.println("[REJECT] Calibracao dupla incompleta: exige os quatro campos (pumpSlopeLow, pumpSlopeHigh, pumpTransitionSpeed, pumpTransitionFlow) no mesmo quadro.");
-            } else if (!isfinite(valLow) || valLow <= 0.0f ||
-                       !isfinite(valHigh) || valHigh <= 0.0f ||
-                       !isfinite(valSt) || valSt <= 0.0f || valSt >= 1000.0f ||
-                       !isfinite(valQt) || valQt <= 0.0f) {
-                Serial.println("[REJECT] Parametros de calibracao dupla invalidos ou fora de faixa.");
-            } else {
-                float qZero = valQt - valLow * valSt;
-                if (qZero < -1e-5f) {
-                    Serial.printf("[REJECT] Extrapolacao em S=0 resultaria em vazao negativa (%.4f mL/min).\n", qZero);
-                } else {
-                    g_pumpCal.m_low = valLow;
-                    g_pumpCal.m_high = valHigh;
-                    g_pumpCal.s_t = valSt;
-                    g_pumpCal.q_t = valQt;
-                    savePumpCalibration();
-
-                    g_config.pumpSlope = (valLow + valHigh) / 2.0f;
-                    g_config.pumpIntercept = valQt - g_config.pumpSlope * valSt;
-                    g_configDirty = true;
-                    saveConfig();
-                    Serial.printf("[CMD] Calibracao dupla aplicada e salva: m_low=%.6f, m_high=%.6f, St=%.1f, Qt=%.4f (CRC: %08X)\n",
-                                  g_pumpCal.m_low, g_pumpCal.m_high, g_pumpCal.s_t, g_pumpCal.q_t, g_pumpCal.crc32);
-                }
+            Serial.println("[REJECT] Calibracao nao pode mudar durante operacao ativa.");
+        } else if (!hasAllPumpCoefficients) {
+            Serial.println("[REJECT] Calibracao polinomial incompleta: exige nove campos no mesmo quadro.");
+        } else if (pumpValues[8] <= 0.0f || pumpValues[8] >= 1000.0f) {
+            Serial.println("[REJECT] pumpTransitionSpeed fora de (0,1000).");
+        } else {
+            PumpDualRangeCal previous = g_pumpCal;
+            g_pumpCal.a1=pumpValues[0]; g_pumpCal.b1=pumpValues[1]; g_pumpCal.k1=pumpValues[2];
+            g_pumpCal.f1=pumpValues[3]; g_pumpCal.c1=pumpValues[4]; g_pumpCal.k2=pumpValues[5];
+            g_pumpCal.f2=pumpValues[6]; g_pumpCal.c2=pumpValues[7]; g_pumpCal.s_t=pumpValues[8];
+            float st = g_pumpCal.s_t;
+            float lowValue = ((((g_pumpCal.a1*st)+g_pumpCal.b1)*st+g_pumpCal.k1)*st+g_pumpCal.f1)*st+g_pumpCal.c1;
+            float highValue = (g_pumpCal.k2*st+g_pumpCal.f2)*st+g_pumpCal.c2;
+            float lowSlope = (((4*g_pumpCal.a1*st)+(3*g_pumpCal.b1))*st+(2*g_pumpCal.k1))*st+g_pumpCal.f1;
+            float highSlope = 2*g_pumpCal.k2*st+g_pumpCal.f2;
+            bool monotonic = speedUnitsToMlmin(0) >= -1e-5f;
+            float prior = speedUnitsToMlmin(0);
+            for (uint8_t i=1; i<=100 && monotonic; i++) {
+                float current = speedUnitsToMlmin(i*10.0f);
+                monotonic = isfinite(current) && current >= prior-1e-5f;
+                prior = current;
             }
-        } else if (hasLegacyCal) {
-            float slope = !isnan(valLegacySlope) ? valLegacySlope : g_config.pumpSlope;
-            float intercept = !isnan(valLegacyIntercept) ? valLegacyIntercept : g_config.pumpIntercept;
-
-            if (!isfinite(slope) || slope <= 0.0f || !isfinite(intercept)) {
-                Serial.println("[REJECT] pumpSlope/pumpIntercept legado invalido.");
+            if (fabsf(lowValue-highValue) > 1e-3f || fabsf(lowSlope-highSlope) > 1e-3f || !monotonic) {
+                g_pumpCal = previous;
+                Serial.println("[REJECT] Curva deve ser C0+C1, nao negativa e monotonica.");
             } else {
-                const float st = 500.0f;
-                float qt = slope * st + intercept;
-                if (qt <= 0.0f || intercept < -1e-5f) {
-                    Serial.println("[REJECT] Calibracao legada invalida: Qt <= 0 ou intercepto negativo.");
-                } else {
-                    g_pumpCal.m_low = slope;
-                    g_pumpCal.m_high = slope;
-                    g_pumpCal.s_t = st;
-                    g_pumpCal.q_t = qt;
-                    savePumpCalibration();
-
-                    g_config.pumpSlope = slope;
-                    g_config.pumpIntercept = intercept;
-                    g_configDirty = true;
-                    saveConfig();
-                    Serial.printf("[CMD] Calibracao legada convertida para dupla faixa: m_low=m_high=%.6f, St=%.1f, Qt=%.4f (CRC: %08X)\n",
-                                  g_pumpCal.m_low, g_pumpCal.s_t, g_pumpCal.q_t, g_pumpCal.crc32);
-                }
+                savePumpCalibration();
+                Serial.printf("[CMD] Calibracao polinomial aplicada (CRC %08X).\n", g_pumpCal.crc32);
             }
         }
     }

@@ -73,7 +73,7 @@
       "gradientTermination": 0.0001,
       "integrationHorizon": 10
     },
-    "updatedAtUtc": "2026-08-30T03:02:29.1624457+00:00"
+    "updatedAtUtc": "2026-09-14T23:54:00.053906+00:00"
   },
   "draftRows": [
     {
@@ -122,8 +122,9 @@
       "kla": "112"
     }
   ],
-  "stage": "PathValid",
-  "isAvailableForControl": false,
+  "stage": "Published",
+  "isAvailableForControl": true,
+  "lastPublishedAtUtc": "2026-09-14T23:54:00.0550969+00:00",
   "pathData": {
     "path": [
       {

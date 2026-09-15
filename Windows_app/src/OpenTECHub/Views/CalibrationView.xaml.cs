@@ -223,11 +223,13 @@ public partial class CalibrationView : UserControl
         plot.Axes.Title.Label.ForeColor = text;
 
         var maximumFlow = 1.0;
+        var hasMeasuredPoints = false;
         if (_pumpSubscribed is { } viewModel)
         {
-            var runs = viewModel.Runs.ToArray();
+            var runs = viewModel.Runs.Where(run => double.IsFinite(run.SpeedUnits) && double.IsFinite(run.FlowMlPerMin)).ToArray();
             if (runs.Length > 0)
             {
+                hasMeasuredPoints = true;
                 var scatter = plot.Add.Scatter(
                     runs.Select(run => run.SpeedUnits).ToArray(),
                     runs.Select(run => run.FlowMlPerMin).ToArray());
@@ -238,7 +240,7 @@ public partial class CalibrationView : UserControl
                 maximumFlow = Math.Max(maximumFlow, runs.Max(run => run.FlowMlPerMin));
             }
 
-            if (viewModel.TryGetDisplayedCurve(out var curve))
+            if (viewModel.TryGetPreviewCurve(out var curve, out var curveIsValid))
             {
                 var st = Math.Clamp(curve.TransitionSpeed, 1.0, 999.0);
 
@@ -259,13 +261,15 @@ public partial class CalibrationView : UserControl
                 {
                     var s = lowMinimum + ((st - lowMinimum) * i / steps);
                     lowSpeeds[i] = s;
-                    lowFlows[i] = Math.Max(0.0, curve.FlowFromSpeed(s));
+                    var flow = curve.FlowFromSpeed(s);
+                    lowFlows[i] = curveIsValid ? Math.Max(0.0, flow) : flow;
                 }
                 var lowLine = plot.Add.Scatter(lowSpeeds, lowFlows);
                 lowLine.MarkerSize = 0;
                 lowLine.LineWidth = 2;
-                lowLine.Color = lowColor;
-                lowLine.LegendText = $"Curva inferior (S ≤ {st:F1})";
+                lowLine.Color = curveIsValid ? lowColor : ToPlotColor(TryBrush("StateWarningBrush"), MediaColors.DarkOrange);
+                lowLine.LinePattern = curveIsValid ? LinePattern.Solid : LinePattern.Dashed;
+                lowLine.LegendText = curveIsValid ? $"Curva inferior (S ≤ {st:F1})" : "Candidata inválida — não enviar";
 
                 var highSpeeds = new double[steps + 1];
                 var highFlows = new double[steps + 1];
@@ -273,23 +277,28 @@ public partial class CalibrationView : UserControl
                 {
                     var s = st + ((highMaximum - st) * i / steps);
                     highSpeeds[i] = s;
-                    highFlows[i] = Math.Max(0.0, curve.FlowFromSpeed(s));
+                    var flow = curve.FlowFromSpeed(s);
+                    highFlows[i] = curveIsValid ? Math.Max(0.0, flow) : flow;
                 }
                 var highLine = plot.Add.Scatter(highSpeeds, highFlows);
                 highLine.MarkerSize = 0;
                 highLine.LineWidth = 2;
-                highLine.Color = highColor;
-                highLine.LegendText = $"Curva superior (S > {st:F1})";
+                highLine.Color = curveIsValid ? highColor : ToPlotColor(TryBrush("StateWarningBrush"), MediaColors.DarkOrange);
+                highLine.LinePattern = curveIsValid ? LinePattern.Solid : LinePattern.Dashed;
+                highLine.LegendText = curveIsValid ? $"Curva superior (S > {st:F1})" : "Candidata inválida — não enviar";
 
                 var vLine = plot.Add.VerticalLine(st);
                 vLine.Color = grid;
                 vLine.LineWidth = 1;
 
-                var maxFlowCurve = Math.Max(0.0, curve.FlowFromSpeed(highMaximum));
+                var allCurveFlows = lowFlows.Concat(highFlows).Where(double.IsFinite).ToArray();
+                var maxFlowCurve = allCurveFlows.DefaultIfEmpty(0.0).Max();
                 maximumFlow = Math.Max(maximumFlow, maxFlowCurve);
 
                 var speedMaximum = Math.Max(highMaximum, st);
-                plot.Axes.SetLimits(0, speedMaximum * 1.04, 0, maximumFlow * 1.1);
+                var minimumCurveFlow = allCurveFlows.DefaultIfEmpty(0.0).Min();
+                plot.Axes.SetLimits(0, speedMaximum * 1.04,
+                    curveIsValid ? 0.0 : Math.Min(0.0, minimumCurveFlow * 1.1), maximumFlow * 1.1);
             }
         }
 
@@ -299,7 +308,19 @@ public partial class CalibrationView : UserControl
         plot.Legend.BackgroundColor = surface;
         plot.Legend.FontColor = text;
         plot.Legend.OutlineColor = grid;
-        if (_pumpSubscribed is null || _pumpSubscribed.Runs.Count == 0 || !_pumpSubscribed.TryGetDisplayedCurve(out _))
+        if (hasMeasuredPoints && (_pumpSubscribed is null || !_pumpSubscribed.TryGetPreviewCurve(out _, out _)))
+        {
+            var runs = _pumpSubscribed!.Runs.Where(run => double.IsFinite(run.SpeedUnits) && double.IsFinite(run.FlowMlPerMin)).ToArray();
+            var minSpeed = runs.Min(run => run.SpeedUnits);
+            var maxSpeed = runs.Max(run => run.SpeedUnits);
+            var minFlow = runs.Min(run => run.FlowMlPerMin);
+            var maxFlow = runs.Max(run => run.FlowMlPerMin);
+            var speedPadding = Math.Max(5.0, (maxSpeed - minSpeed) * 0.08);
+            var flowPadding = Math.Max(1.0, (maxFlow - minFlow) * 0.10);
+            plot.Axes.SetLimits(Math.Max(0.0, minSpeed - speedPadding), maxSpeed + speedPadding,
+                Math.Max(0.0, minFlow - flowPadding), maxFlow + flowPadding);
+        }
+        else if (!hasMeasuredPoints && (_pumpSubscribed is null || !_pumpSubscribed.TryGetPreviewCurve(out _, out _)))
         {
             plot.Axes.SetLimits(0, 1000, 0, 1);
         }

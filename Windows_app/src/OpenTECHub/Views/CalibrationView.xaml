@@ -539,7 +539,11 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,6,6">
                                             <TextBlock Text="Velocidade de transição St (0–1000)" Style="{StaticResource CalibrationLabel}" />
-                                            <TextBox Text="{Binding TransitionSpeedInputText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="Sugerir St" Command="{Binding SuggestTransitionSpeedCommand}" Margin="6,0,0,0"
+                                                        ToolTip="Procura a transição com menor erro que ainda produz uma curva não negativa e crescente." />
+                                                <TextBox Text="{Binding TransitionSpeedInputText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCalibration}" />
+                                            </DockPanel>
                                         </StackPanel>
                                         <StackPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,6">
                                             <TextBlock Text="Vazão calculada na transição (Qt)" Style="{StaticResource CalibrationLabel}" />
@@ -823,11 +827,11 @@
                                     <ColumnDefinition Width="0.85*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                 <TextBlock Grid.Column="0" Text="S (un)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
-                                 <TextBlock Grid.Column="1" Text="Tempo (s)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
-                                 <TextBlock Grid.Column="2" Text="Volume (mL)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
-                                <TextBlock Grid.Column="3" Text="Q (mL/min)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
-                                <TextBlock Grid.Column="4" Text="Trecho" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                <Button Grid.Column="0" Content="S (un)" Command="{Binding SortRunsCommand}" CommandParameter="speed" ToolTip="Ordenar por velocidade S." />
+                                <Button Grid.Column="1" Content="Tempo (s)" Command="{Binding SortRunsCommand}" CommandParameter="seconds" ToolTip="Ordenar por tempo." />
+                                <Button Grid.Column="2" Content="Volume (mL)" Command="{Binding SortRunsCommand}" CommandParameter="volume" ToolTip="Ordenar por volume." />
+                                <Button Grid.Column="3" Content="Q (mL/min)" Command="{Binding SortRunsCommand}" CommandParameter="flow" ToolTip="Ordenar por vazão." />
+                                <Button Grid.Column="4" Content="Trecho" Command="{Binding SortRunsCommand}" CommandParameter="segment" ToolTip="Ordenar por trecho." />
                                 <TextBlock Grid.Column="5" Text="" Width="26" />
                             </Grid>
                             <ListBox ItemsSource="{Binding Runs}" BorderThickness="0"
@@ -854,7 +858,7 @@
                                             </Grid.ColumnDefinitions>
                                              <TextBox Grid.Column="0" Text="{Binding SpeedText, UpdateSourceTrigger=PropertyChanged}"
                                                       Margin="2,1" Padding="4,2" Height="28"
-                                                      ToolTip="Velocidade S entre 1 e 1000." />
+                                                      ToolTip="Velocidade S entre 0 e 1000." />
                                              <TextBox Grid.Column="1" Text="{Binding SecondsText, UpdateSourceTrigger=PropertyChanged}"
                                                       Margin="2,1" Padding="4,2" Height="28"
                                                       ToolTip="Tempo efetivo do acionamento, em segundos." />

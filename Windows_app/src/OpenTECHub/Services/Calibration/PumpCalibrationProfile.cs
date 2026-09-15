@@ -24,6 +24,9 @@ public sealed record PumpCalibrationProfile
 
     public string Id => ProfileId;
 
+    /// <summary>True when this profile has a fitted curve that is safe to apply to the pump.</summary>
+    public bool HasFittedCurve { get; init; } = true;
+
     /// <summary>User-visible hose name (e.g. "Silicone 2mm", "Tygon R-3603").</summary>
     public required string Name { get; init; }
 
@@ -90,6 +93,7 @@ public sealed record PumpCalibrationProfile
         return new PumpCalibrationProfile
         {
             Name = name.Trim(),
+            HasFittedCurve = true,
             TransitionFlowMlMin = curve.TransitionFlow,
             TransitionSpeedUnits = curve.TransitionSpeed,
             LowSlope = curve.LowSlope,

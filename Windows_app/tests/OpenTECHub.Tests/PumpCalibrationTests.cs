@@ -494,6 +494,59 @@ public sealed class PumpCalibrationTests
         Assert.Equal("Mangueira manual", vm.ActiveProfile?.Name);
     }
 
+    [Fact]
+    public void Incomplete_but_valid_table_can_be_saved_and_reloaded_as_a_profile()
+    {
+        var dialogs = new TestDialogService { PromptText = "Mangueira 3X5mm" };
+        var store = FreshStore();
+        using var vm = new PumpCalibrationViewModel(
+            new RecordingDeviceService(), new MemorySettingsService(), profileStore: store, dialogs: dialogs);
+
+        foreach (var (speed, volume) in new[] { (0.0, 0.0), (10.0, 10.0), (50.0, 50.0), (90.0, 80.0), (200.0, 200.0), (300.0, 290.0), (500.0, 520.0), (1000.0, 1000.0) })
+        {
+            vm.AddEmptyRun();
+            var row = vm.Runs[^1];
+            row.SpeedText = speed.ToString(CultureInfo.InvariantCulture);
+            row.SecondsText = "60";
+            row.VolumeText = volume.ToString(CultureInfo.InvariantCulture);
+        }
+
+        vm.TransitionSpeedInputText = "100";
+        Assert.False(vm.HasFit);
+        vm.SaveProfileAs();
+
+        var saved = Assert.Single(vm.AvailableProfiles);
+        Assert.Equal("Mangueira 3X5mm", saved.Name);
+        var stored = Assert.IsType<PumpCalibrationProfile>(store.LoadProfile("Mangueira 3X5mm"));
+        Assert.False(stored.HasFittedCurve);
+        Assert.Equal(8, stored.CalibrationPoints.Length);
+        Assert.Contains("tabela parcial", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Transition_suggestion_recovers_a_valid_curve_and_sorting_reorders_rows()
+    {
+        using var vm = new PumpCalibrationViewModel(new RecordingDeviceService(), new MemorySettingsService(), profileStore: FreshStore());
+        foreach (var (speed, volume) in new[] { (500.0, 520.0), (10.0, 10.0), (90.0, 80.0), (200.0, 200.0), (300.0, 290.0), (0.0, 0.0), (50.0, 50.0), (1000.0, 1000.0) })
+        {
+            vm.AddEmptyRun();
+            var row = vm.Runs[^1];
+            row.SpeedText = speed.ToString(CultureInfo.InvariantCulture);
+            row.SecondsText = "60";
+            row.VolumeText = volume.ToString(CultureInfo.InvariantCulture);
+        }
+
+        vm.TransitionSpeedInputText = "100";
+        Assert.False(vm.HasFit);
+        Assert.True(vm.TryGetPreviewCurve(out _, out var isPreviewValid));
+        Assert.False(isPreviewValid);
+
+        vm.SortRuns("speed");
+        Assert.Equal(new[] { 0.0, 10.0, 50.0, 90.0, 200.0, 300.0, 500.0, 1000.0 }, vm.Runs.Select(run => run.SpeedUnits));
+        vm.SuggestTransitionSpeed();
+        Assert.True(vm.HasFit, vm.FitWarning);
+    }
+
     private static (PumpCalibrationViewModel Vm, RecordingDeviceService Device, MemorySettingsService Settings, TestClock Clock) OnlinePump()
     {
         var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));

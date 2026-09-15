@@ -152,6 +152,40 @@ public sealed record PumpFitResult
 
 public static class PumpDualRangeMath
 {
+    /// <summary>Finds the physically valid St with the lowest residual error for the recorded points.</summary>
+    public static double? SuggestTransitionSpeed(IReadOnlyList<PumpCalibrationPoint> points)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        var valid = points.Where(point =>
+                double.IsFinite(point.SpeedUnits) && double.IsFinite(point.FlowMlPerMin) &&
+                point.SpeedUnits >= PumpDualRangeCurve.MinimumSpeed && point.SpeedUnits <= PumpDualRangeCurve.MaximumSpeed &&
+                point.FlowMlPerMin >= 0.0)
+            .ToArray();
+        if (valid.Length < 4)
+        {
+            return null;
+        }
+
+        var lower = Math.Max(1, (int)Math.Ceiling(valid.Min(point => point.SpeedUnits)));
+        var upper = Math.Min(999, (int)Math.Floor(valid.Max(point => point.SpeedUnits)));
+        double? best = null;
+        var bestRmse = double.PositiveInfinity;
+        for (var candidate = lower; candidate <= upper; candidate++)
+        {
+            var fit = FitDualRange(valid, candidate);
+            if (!fit.IsValid || !double.IsFinite(fit.RMSE))
+            {
+                continue;
+            }
+            if (fit.RMSE < bestRmse - 1e-9)
+            {
+                bestRmse = fit.RMSE;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
     /// <summary>Uses the flowmeter's quartic/quadratic C0+C1 fit around operator-selected St.</summary>
     public static PumpFitResult FitDualRange(IReadOnlyList<PumpCalibrationPoint> points, double transitionSpeed)
     {
@@ -195,7 +229,8 @@ public static class PumpDualRangeMath
         var curve = new PumpDualRangeCurve(low, high, transitionSpeed);
         if (!curve.Validate(out var error))
         {
-            return PumpFitResult.Fail(error!);
+            // Keep the candidate for graph inspection; it remains invalid and cannot be applied.
+            return Statistics(valid, curve, lowCount, highCount) with { IsValid = false, Error = error };
         }
 
         return Statistics(valid, curve, lowCount, highCount);

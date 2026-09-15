@@ -164,10 +164,13 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
             throw new ArgumentException(nameError, nameof(profile));
         }
 
-        var curve = profile.ToCurve();
-        if (!curve.Validate(out var curveError))
+        if (profile.HasFittedCurve)
         {
-            throw new ArgumentException($"Parâmetros da curva de calibração inválidos: {curveError}", nameof(profile));
+            var curve = profile.ToCurve();
+            if (!curve.Validate(out var curveError))
+            {
+                throw new ArgumentException($"Parâmetros da curva de calibração inválidos: {curveError}", nameof(profile));
+            }
         }
 
         lock (_ioLock)

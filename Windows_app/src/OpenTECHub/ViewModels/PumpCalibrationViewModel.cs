@@ -75,7 +75,7 @@ public sealed partial class PumpCalibrationRunViewModel : ObservableObject
         ? VolumeMl / (Seconds / 60.0)
         : double.NaN;
 
-    public bool IsValidInput => double.IsFinite(SpeedUnits) && SpeedUnits >= 1.0 && SpeedUnits <= 1000.0 &&
+    public bool IsValidInput => double.IsFinite(SpeedUnits) && SpeedUnits >= PumpDualRangeCurve.MinimumSpeed && SpeedUnits <= PumpDualRangeCurve.MaximumSpeed &&
                                 double.IsFinite(Seconds) && Seconds > 0.0 &&
                                 double.IsFinite(VolumeMl) && VolumeMl >= 0.0 &&
                                 double.IsFinite(FlowMlPerMin);
@@ -127,6 +127,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     private readonly IDialogService? _dialogs;
     private bool _initialised;
     private bool _suppressRecalculate;
+    private string? _runSortColumn;
+    private bool _runSortDescending;
 
     private DateTime? _resetVolumeRequestedAt;
     private bool _awaitingResetVolume;
@@ -484,6 +486,26 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         return false;
     }
 
+    /// <summary>Returns a fitted candidate for visual inspection, even when it is not safe to apply.</summary>
+    public bool TryGetPreviewCurve(out PumpDualRangeCurve curve, out bool isValid)
+    {
+        if (_curve is { } validCurve && validCurve.Validate(out _))
+        {
+            curve = validCurve;
+            isValid = true;
+            return true;
+        }
+        if (_fitResult?.Curve is { } candidate)
+        {
+            curve = candidate;
+            isValid = false;
+            return true;
+        }
+        curve = default;
+        isValid = false;
+        return false;
+    }
+
     public bool TryGetDisplayedCurve(out double lowSlope, out double highSlope, out double transitionSpeed, out double transitionFlow)
     {
         if (TryGetDisplayedCurve(out var c))
@@ -679,7 +701,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         ProfileNotes = "";
         IsDirty = false;
         RecomputeFit();
-        StatusText = "Novo perfil iniciado. Adicione ou edite pontos volumétricos e salve como perfil quando o ajuste for válido.";
+        StatusText = "Novo perfil iniciado. Adicione ou edite pontos volumétricos; a tabela pode ser salva agora e o ajuste concluído depois.";
         NotifyCommandAvailability();
     }
 
@@ -701,11 +723,16 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        var profileCurve = profile.ToCurve();
-        if (!profileCurve.Validate(out var curveError))
+        PumpDualRangeCurve? profileCurve = null;
+        if (profile.HasFittedCurve)
         {
-            StatusText = $"O perfil '{name}' contém uma curva inválida: {curveError}";
-            return;
+            var storedCurve = profile.ToCurve();
+            if (!storedCurve.Validate(out var curveError))
+            {
+                StatusText = $"O perfil '{name}' contém uma curva inválida: {curveError}";
+                return;
+            }
+            profileCurve = storedCurve;
         }
 
         _suppressRecalculate = true;
@@ -828,19 +855,6 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     private void DoSaveProfile(string name)
     {
-        string? curveError = null;
-        if (_curve is not { } validCurve || !validCurve.Validate(out curveError))
-        {
-            StatusText = curveError ?? "Não há curva válida para salvar no perfil.";
-            return;
-        }
-
-        if (Runs.Count > 0 && !HasFit)
-        {
-            StatusText = FitWarning ?? "Os pontos atuais não produzem um ajuste válido; o perfil não foi salvo.";
-            return;
-        }
-
         if (Runs.Any(run => !run.IsValidInput))
         {
             StatusText = "Há pontos incompletos ou inválidos. Preencha S, tempo e volume antes de salvar o perfil.";
@@ -848,10 +862,11 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
 
         var points = Runs.Select(r => r.Point).ToArray();
-        var currentCurve = validCurve;
+        var hasFittedCurve = HasFit && _curve is { } candidate && candidate.Validate(out _);
+        var currentCurve = hasFittedCurve ? _curve!.Value : default;
 
         PumpFitStatistics? fitStats = null;
-        if (_fitResult is { IsValid: true })
+        if (hasFittedCurve && _fitResult is { IsValid: true })
         {
             fitStats = new PumpFitStatistics
             {
@@ -875,27 +890,36 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             Name = name.Trim(),
             CreatedUtc = existing?.CreatedUtc ?? _timeProvider.GetUtcNow(),
             ModifiedUtc = _timeProvider.GetUtcNow(),
-            TransitionFlowMlMin = currentCurve.TransitionFlow,
-            TransitionSpeedUnits = currentCurve.TransitionSpeed,
-            LowSlope = currentCurve.LowSlope,
-            HighSlope = currentCurve.HighSlope,
-            LowA = currentCurve.LowSpeed.A,
-            LowB = currentCurve.LowSpeed.B,
-            LowK = currentCurve.LowSpeed.K,
-            LowF = currentCurve.LowSpeed.F,
-            LowC = currentCurve.LowSpeed.C,
-            HighK = currentCurve.HighSpeed.K,
-            HighF = currentCurve.HighSpeed.F,
-            HighC = currentCurve.HighSpeed.C,
+            HasFittedCurve = hasFittedCurve,
+            TransitionFlowMlMin = hasFittedCurve ? currentCurve.TransitionFlow : 0.0,
+            TransitionSpeedUnits = hasFittedCurve ? currentCurve.TransitionSpeed : TransitionSpeedInput,
+            LowSlope = hasFittedCurve ? currentCurve.LowSlope : 0.0,
+            HighSlope = hasFittedCurve ? currentCurve.HighSlope : 0.0,
+            LowA = hasFittedCurve ? currentCurve.LowSpeed.A : 0.0,
+            LowB = hasFittedCurve ? currentCurve.LowSpeed.B : 0.0,
+            LowK = hasFittedCurve ? currentCurve.LowSpeed.K : 0.0,
+            LowF = hasFittedCurve ? currentCurve.LowSpeed.F : 0.0,
+            LowC = hasFittedCurve ? currentCurve.LowSpeed.C : 0.0,
+            HighK = hasFittedCurve ? currentCurve.HighSpeed.K : 0.0,
+            HighF = hasFittedCurve ? currentCurve.HighSpeed.F : 0.0,
+            HighC = hasFittedCurve ? currentCurve.HighSpeed.C : 0.0,
             CalibrationPoints = points,
             FitStatistics = fitStats,
-            AlgorithmVersion = "quartic-quadratic-c1-v2",
+            AlgorithmVersion = hasFittedCurve ? "quartic-quadratic-c1-v2" : "points-only-v1",
             OptionalNotes = ProfileNotes,
             LastAppliedUtc = existing?.LastAppliedUtc,
             LastAppliedPumpFirmware = existing?.LastAppliedPumpFirmware
         };
 
-        _profileStore.SaveProfile(profile, overwrite: true);
+        try
+        {
+            _profileStore.SaveProfile(profile, overwrite: true);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            StatusText = $"Não foi possível salvar o perfil '{profile.Name}': {ex.Message}";
+            return;
+        }
         ActiveProfile = profile;
         ActiveProfileName = profile.Name;
         ActiveProfileId = profile.ProfileId;
@@ -903,8 +927,68 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         _settings.Update(s => s with { PumpControl = s.PumpControl with { SelectedProfileName = profile.Name, CalibrationPoints = points } });
 
         RefreshProfiles();
-        StatusText = $"Perfil '{profile.Name}' salvo com sucesso ({points.Length} pontos).";
+        StatusText = hasFittedCurve
+            ? $"Perfil '{profile.Name}' salvo com sucesso ({points.Length} pontos)."
+            : $"Perfil '{profile.Name}' salvo como tabela parcial ({points.Length} pontos). O ajuste pode ser concluído depois.";
     }
+
+    [RelayCommand(CanExecute = nameof(CanEditRuns))]
+    public void SortRuns(string? column)
+    {
+        if (string.IsNullOrWhiteSpace(column) || Runs.Count < 2)
+        {
+            return;
+        }
+
+        _runSortDescending = string.Equals(_runSortColumn, column, StringComparison.OrdinalIgnoreCase) && !_runSortDescending;
+        _runSortColumn = column;
+        Func<PumpCalibrationRunViewModel, double> key = column.ToLowerInvariant() switch
+        {
+            "speed" => run => run.SpeedUnits,
+            "seconds" => run => run.Seconds,
+            "volume" => run => run.VolumeMl,
+            "flow" => run => run.FlowMlPerMin,
+            "segment" => run => run.IsLowSegment ? 0.0 : 1.0,
+            _ => _ => double.NaN
+        };
+        var ordered = Runs
+            .OrderBy(run => double.IsFinite(key(run)) ? 0 : 1)
+            .ThenBy(run => key(run), Comparer<double>.Create((left, right) => _runSortDescending ? right.CompareTo(left) : left.CompareTo(right)))
+            .ToArray();
+        for (var target = 0; target < ordered.Length; target++)
+        {
+            var current = Runs.IndexOf(ordered[target]);
+            if (current != target)
+            {
+                Runs.Move(current, target);
+            }
+        }
+        StatusText = $"Tabela ordenada por {ColumnLabel(column)} {(_runSortDescending ? "(maior para menor)" : "(menor para maior)")}.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditRuns))]
+    public void SuggestTransitionSpeed()
+    {
+        var suggested = PumpDualRangeMath.SuggestTransitionSpeed(Runs.Select(run => run.Point).ToArray());
+        if (suggested is null)
+        {
+            StatusText = "Não foi possível sugerir St: são necessários ao menos dois valores distintos em cada faixa e uma curva física válida.";
+            return;
+        }
+
+        TransitionSpeedInputText = suggested.Value.ToString("F1", CultureInfo.CurrentCulture);
+        StatusText = $"St sugerida: {suggested.Value:F1}. A sugestão usa a curva C0+C1 não negativa e crescente com menor erro para os pontos atuais.";
+    }
+
+    private static string ColumnLabel(string column) => column.ToLowerInvariant() switch
+    {
+        "speed" => "S",
+        "seconds" => "tempo",
+        "volume" => "volume",
+        "flow" => "vazão",
+        "segment" => "trecho",
+        _ => "coluna"
+    };
 
     [RelayCommand(CanExecute = nameof(CanDeleteProfile))]
     public void DeleteProfile()
@@ -950,8 +1034,12 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     [RelayCommand(CanExecute = nameof(CanEditCalibration))]
     public void SavePoints()
     {
+        var wasDirty = IsDirty;
         SaveProfile();
-        StatusText = $"Pontos e transição salvos localmente no perfil '{ActiveProfileName}'.";
+        if (wasDirty && !IsDirty)
+        {
+            StatusText = $"Pontos e transição salvos localmente no perfil '{ActiveProfileName}'.";
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanEditCalibration))]

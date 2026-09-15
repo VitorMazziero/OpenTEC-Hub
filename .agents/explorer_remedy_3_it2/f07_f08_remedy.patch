@@ -1,0 +1,433 @@
+﻿--- a/External-Devices/fluxometro/firmware/flowmeter/src/protocol/CommandCodec.h
++++ b/External-Devices/fluxometro/firmware/flowmeter/src/protocol/CommandCodec.h
+@@ -1,4 +1,8 @@
++#include <strings.h>
++#include <cmath>
++#include <cstdlib>
++
+ void readSerialData() {
+   static String inputBuffer;
+   while (Serial.available() > 0) {
+@@ -52,6 +56,36 @@ inline bool extractJsonUint32(const String &json, const char *key, uint32_t &val
+   return extractJsonUint32(json.c_str(), key, value);
+ }
+ 
++// F08: Robust case-insensitive boolean parser supporting "true", "false", "True", "False", "1", "0"
++static inline bool parseJsonBool(const char* str, bool* outVal) {
++  if (!str || !outVal) return false;
++  while (*str && isspace(static_cast<unsigned char>(*str))) str++;
++  if (*str == '\0') return false;
++
++  if (strcasecmp(str, "true") == 0 || strcmp(str, "1") == 0) {
++    *outVal = true;
++    return true;
++  }
++  if (strcasecmp(str, "false") == 0 || strcmp(str, "0") == 0) {
++    *outVal = false;
++    return true;
++  }
++  return false;
++}
++
++// F07: Robust bounded float parser with NaN/Inf and syntax validation
++static inline bool parseBoundedFloat(const char* str, float minVal, float maxVal, float* outVal) {
++  if (!str || !outVal) return false;
++  while (*str && isspace(static_cast<unsigned char>(*str))) str++;
++  if (*str == '\0') return false;
++  char* endPtr = nullptr;
++  float val = strtof(str, &endPtr);
++  if (endPtr == str) return false;
++  while (*endPtr && isspace(static_cast<unsigned char>(*endPtr))) endPtr++;
++  if (*endPtr != '\0') return false;
++  if (isnan(val) || isinf(val)) return false;
++  if (val < minVal || val > maxVal) return false;
++  *outVal = val;
++  return true;
++}
++
+ bool processReceivedData(const String& rawData, CommandSource source) {
+   if (rawData.length() < 2) return false;
+   const char* str = rawData.c_str();
+@@ -91,12 +125,32 @@ bool processReceivedData(const String& rawData, CommandSource source) {
+     }
+   }
+ 
+-  xSemaphoreTake(commandMutex, portMAX_DELAY);
+-  bool calParamsUpdated = false;
+-  bool lowQuadraticUpdated = false;
+-  bool lowHigherOrderUpdated = false;
+-  bool recognizedCommand = false;
++  // Phase 1: Transactional parse and staging
++  struct StagedCommands {
++    bool hasVFlow = false; bool stagedVFlow = false;
++    bool hasV1 = false;    bool stagedV1 = false;
++    bool hasV2 = false;    bool stagedV2 = false;
++    bool hasReconnectWifi = false; bool stagedReconnectWifi = false;
++    bool hasDebugPi = false;       bool stagedDebugPi = false;
++    bool hasDacHold = false;       bool stagedDacHold = false;
++
++    bool hasFlowSetpoint = false;  float stagedFlowSetpoint = 0.0f;
++    bool hasMaxFlow = false;       float stagedMaxFlow = 0.0f;
++
++    bool hasKp = false;        float stagedKp = 0.0f;
++    bool hasKi = false;        float stagedKi = 0.0f;
++    bool hasFfGain = false;    float stagedFfGain = 0.0f;
++    bool hasFfOffset = false;  float stagedFfOffset = 0.0f;
++    bool hasRampRate = false;  float stagedRampRate = 0.0f;
++
++    bool hasA1 = false; float stagedA1 = 0.0f;
++    bool hasB1 = false; float stagedB1 = 0.0f;
++    bool hasK1 = false; float stagedK1 = 0.0f;
++    bool hasF1 = false; float stagedF1 = 0.0f;
++    bool hasC1 = false; float stagedC1 = 0.0f;
++    bool hasK2 = false; float stagedK2 = 0.0f;
++    bool hasF2 = false; float stagedF2 = 0.0f;
++    bool hasC2 = false; float stagedC2 = 0.0f;
++
++    bool frameHasErrors = false;
++    bool recognizedAny = false;
++  } staged;
+ 
+   const char* cursor = firstBrace + 1;
+   while (cursor < lastBrace) {
+@@ -118,7 +172,7 @@ bool processReceivedData(const String& rawData, CommandSource source) {
+     keyBuf[kLen] = '\0';
+ 
+     while (cursor < lastBrace && *cursor != ':') cursor++;
+-    if (cursor >= lastBrace) break;
++    if (cursor >= lastBrace) { staged.frameHasErrors = true; break; }
+     cursor++; // skip ':'
+     while (cursor < lastBrace && isspace(static_cast<unsigned char>(*cursor))) cursor++;
+ 
+@@ -137,84 +191,180 @@ bool processReceivedData(const String& rawData, CommandSource source) {
+     valBuf[vLen] = '\0';
+ 
++    bool bVal = false;
++    float fVal = 0.0f;
++
+     if (strcmp(keyBuf, "v_Flow") == 0 || strcmp(keyBuf, "valveFlow") == 0) {
+-      valveFlowState = (atoi(valBuf) != 0);
+-      digitalWrite(VALVE_FLOW_PIN, valveFlowState);
+-      recognizedCommand = true;
++      if (parseJsonBool(valBuf, &bVal)) {
++        staged.hasVFlow = true; staged.stagedVFlow = bVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] v_Flow invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
+     }
+     else if (strcmp(keyBuf, "v1") == 0 || strcmp(keyBuf, "valve_1") == 0) {
+-      valve1State = (atoi(valBuf) != 0);
+-      digitalWrite(VALVE1_PIN, valve1State);
+-      recognizedCommand = true;
++      if (parseJsonBool(valBuf, &bVal)) {
++        staged.hasV1 = true; staged.stagedV1 = bVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] v1 invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
+     }
+     else if (strcmp(keyBuf, "v2") == 0 || strcmp(keyBuf, "valve_2") == 0) {
+-      valve2State = (atoi(valBuf) != 0);
+-      digitalWrite(VALVE2_PIN, valve2State);
+-      recognizedCommand = true;
++      if (parseJsonBool(valBuf, &bVal)) {
++        staged.hasV2 = true; staged.stagedV2 = bVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] v2 invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
+     }
+     else if (strcmp(keyBuf, "reconnect_wifi") == 0) {
+-      reconnect_Wifi = (atoi(valBuf) == 1);
+-      Serial.printf("Wifi Reconnect Logic set to: %s\n", reconnect_Wifi ? "TRUE" : "FALSE");
+-      recognizedCommand = true;
++      if (parseJsonBool(valBuf, &bVal)) {
++        staged.hasReconnectWifi = true; staged.stagedReconnectWifi = bVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] reconnect_wifi invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
+     }
+     else if (strcmp(keyBuf, "debug_pi") == 0) {
+-      debugPI = (atoi(valBuf) == 1);
+-      Serial.printf("PI debug trace %s\n", debugPI ? "ON" : "OFF");
+-      recognizedCommand = true;
++      if (parseJsonBool(valBuf, &bVal)) {
++        staged.hasDebugPi = true; staged.stagedDebugPi = bVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] debug_pi invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
+     }
+     else if (strcmp(keyBuf, "flow_setpoint") == 0 || strcmp(keyBuf, "flowSetpoint") == 0) {
+-      float newTarget = constrain(strtof(valBuf, nullptr), 0.0f, maxFlowRate);
+-      recognizedCommand = true;
+-
+-      if (fabs(newTarget - targetFlowSetpoint) > 0.001f || newTarget == 0.0f || targetFlowSetpoint == 0.0f) {
+-        targetFlowSetpoint = newTarget;
+-        if (targetFlowSetpoint == 0.0f) {
+-          valveFlowState = 1;
+-          digitalWrite(VALVE_FLOW_PIN, HIGH);
+-          if (!dacHold) {
+-            flowSetpoint = 0.0f;
+-            rampedTarget = 0.0f;
+-            writeFlowSetpointToDAC(0.0f);
+-          }
+-        }
+-        Serial.printf("New Target Accepted: %.3f\n", targetFlowSetpoint);
++      if (parseBoundedFloat(valBuf, 0.0f, 500.0f, &fVal)) {
++        staged.hasFlowSetpoint = true; staged.stagedFlowSetpoint = fVal; staged.recognizedAny = true;
+       } else {
+-        Serial.printf("Target Update Ignored (Delta < 0.05): %.3f\n", newTarget);
++        Serial.printf("[REJECT] flow_setpoint invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
+       }
+     }
+-    else if (strcmp(keyBuf, "kp_flow") == 0) { Kp_flow = calParams.kp = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "ki_flow") == 0) { Ki_flow = calParams.ki = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "ff_gain") == 0) { ffGain = calParams.ff_gain = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "ff_offset") == 0) { ffOffset = calParams.ff_offset = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "ramp_rate") == 0) { rampRate = calParams.ramp_rate = max(0.0f, strtof(valBuf, nullptr)); calParamsUpdated = true; recognizedCommand = true; }
++    else if (strcmp(keyBuf, "kp_flow") == 0) {
++      if (parseBoundedFloat(valBuf, 0.0f, 100.0f, &fVal)) {
++        staged.hasKp = true; staged.stagedKp = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] kp_flow fora de faixa (0..100): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "ki_flow") == 0) {
++      if (parseBoundedFloat(valBuf, 0.0f, 100.0f, &fVal)) {
++        staged.hasKi = true; staged.stagedKi = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] ki_flow fora de faixa (0..100): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "ff_gain") == 0) {
++      if (parseBoundedFloat(valBuf, 0.0f, 10.0f, &fVal)) {
++        staged.hasFfGain = true; staged.stagedFfGain = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] ff_gain fora de faixa (0..10): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "ff_offset") == 0) {
++      if (parseBoundedFloat(valBuf, -5.0f, 5.0f, &fVal)) {
++        staged.hasFfOffset = true; staged.stagedFfOffset = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] ff_offset fora de faixa (-5..5): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "ramp_rate") == 0) {
++      if (parseBoundedFloat(valBuf, 0.0f, 100.0f, &fVal)) {
++        staged.hasRampRate = true; staged.stagedRampRate = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] ramp_rate fora de faixa (0..100): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
+     else if (strcmp(keyBuf, "dac_hold") == 0) {
+-      dacHold = (atoi(valBuf) != 0);
+-      calParams.dac_hold = dacHold ? 1.0f : 0.0f;
+-      calParamsUpdated = true; recognizedCommand = true;
+-      Serial.printf("DAC hold across zero setpoint: %s\n", dacHold ? "ON" : "OFF");
++      if (parseJsonBool(valBuf, &bVal)) {
++        staged.hasDacHold = true; staged.stagedDacHold = bVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] dac_hold invalido: %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
+     }
+     else if (strcmp(keyBuf, "max_flow") == 0 || strcmp(keyBuf, "maxFlow") == 0) {
+-      float requestedMax = strtof(valBuf, nullptr);
+-      if (requestedMax > 0.01f) {
+-        maxFlowRate = requestedMax;
+-        targetFlowSetpoint = constrain(targetFlowSetpoint, 0.0f, maxFlowRate);
+-        recognizedCommand = true;
++      if (parseBoundedFloat(valBuf, 0.1f, 500.0f, &fVal)) {
++        staged.hasMaxFlow = true; staged.stagedMaxFlow = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] max_flow fora de faixa (0.1..500): %s\n", valBuf);
++        staged.frameHasErrors = true;
+       }
+     }
+-    else if (strcmp(keyBuf, "a1") == 0) { a1 = calParams.a1 = strtof(valBuf, nullptr); lowHigherOrderUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "b1") == 0) { b1 = calParams.b1 = strtof(valBuf, nullptr); lowHigherOrderUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "k1") == 0) { k1 = calParams.k1 = strtof(valBuf, nullptr); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "f1") == 0) { f1 = calParams.f1 = strtof(valBuf, nullptr); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "c1") == 0) { c1 = calParams.c1 = strtof(valBuf, nullptr); lowQuadraticUpdated = true; calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "k2") == 0) { k2 = calParams.k2 = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "f2") == 0) { f2 = calParams.f2 = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
+-    else if (strcmp(keyBuf, "c2") == 0) { c2 = calParams.c2 = strtof(valBuf, nullptr); calParamsUpdated = true; recognizedCommand = true; }
++    else if (strcmp(keyBuf, "a1") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasA1 = true; staged.stagedA1 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] a1 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "b1") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasB1 = true; staged.stagedB1 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] b1 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "k1") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasK1 = true; staged.stagedK1 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] k1 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "f1") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasF1 = true; staged.stagedF1 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] f1 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "c1") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasC1 = true; staged.stagedC1 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] c1 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "k2") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasK2 = true; staged.stagedK2 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] k2 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "f2") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasF2 = true; staged.stagedF2 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] f2 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
++    else if (strcmp(keyBuf, "c2") == 0) {
++      if (parseBoundedFloat(valBuf, -1e7f, 1e7f, &fVal)) {
++        staged.hasC2 = true; staged.stagedC2 = fVal; staged.recognizedAny = true;
++      } else {
++        Serial.printf("[REJECT] c2 fora de faixa (+/-1e7): %s\n", valBuf);
++        staged.frameHasErrors = true;
++      }
++    }
+ 
+     while (cursor < lastBrace && *cursor != ',') cursor++;
+     if (cursor < lastBrace && *cursor == ',') cursor++;
+   }
++
++  // Phase 2: Transactional Commit
++  if (staged.frameHasErrors || !staged.recognizedAny) {
++    if (staged.frameHasErrors) {
++      Serial.println("[REJECT] Quadro rejeitado por parametros invalidos; nenhuma alteracao aplicada.");
++    }
++    return false;
++  }
++
++  xSemaphoreTake(commandMutex, portMAX_DELAY);
++  bool calParamsUpdated = false;
++
++  if (staged.hasMaxFlow) {
++    maxFlowRate = staged.stagedMaxFlow;
++    targetFlowSetpoint = constrain(targetFlowSetpoint, 0.0f, maxFlowRate);
++  }
++
++  if (staged.hasVFlow) {
++    valveFlowState = staged.stagedVFlow;
++    digitalWrite(VALVE_FLOW_PIN, valveFlowState);
++  }
++  if (staged.hasV1) {
++    valve1State = staged.stagedV1;
++    digitalWrite(VALVE1_PIN, valve1State);
++  }
++  if (staged.hasV2) {
++    valve2State = staged.stagedV2;
++    digitalWrite(VALVE2_PIN, valve2State);
++  }
++  if (staged.hasReconnectWifi) {
++    reconnect_Wifi = staged.stagedReconnectWifi;
++    Serial.printf("Wifi Reconnect Logic set to: %s\n", reconnect_Wifi ? "TRUE" : "FALSE");
++  }
++  if (staged.hasDebugPi) {
++    debugPI = staged.stagedDebugPi;
++    Serial.printf("PI debug trace %s\n", debugPI ? "ON" : "OFF");
++  }
++  if (staged.hasDacHold) {
++    dacHold = staged.stagedDacHold;
++    calParams.dac_hold = dacHold ? 1.0f : 0.0f;
++    calParamsUpdated = true;
++    Serial.printf("DAC hold across zero setpoint: %s\n", dacHold ? "ON" : "OFF");
++  }
++
++  if (staged.hasFlowSetpoint) {
++    float newTarget = constrain(staged.stagedFlowSetpoint, 0.0f, maxFlowRate);
++    if (fabs(newTarget - targetFlowSetpoint) > 0.001f || newTarget == 0.0f || targetFlowSetpoint == 0.0f) {
++      targetFlowSetpoint = newTarget;
++      if (targetFlowSetpoint == 0.0f) {
++        valveFlowState = 1;
++        digitalWrite(VALVE_FLOW_PIN, HIGH);
++        if (!dacHold) {
++          flowSetpoint = 0.0f;
++          rampedTarget = 0.0f;
++          writeFlowSetpointToDAC(0.0f);
++        }
++      }
++      Serial.printf("New Target Accepted: %.3f\n", targetFlowSetpoint);
++    } else {
++      Serial.printf("Target Update Ignored (Delta < 0.05): %.3f\n", newTarget);
++    }
++  }
++
++  if (staged.hasKp) { Kp_flow = calParams.kp = staged.stagedKp; calParamsUpdated = true; }
++  if (staged.hasKi) { Ki_flow = calParams.ki = staged.stagedKi; calParamsUpdated = true; }
++  if (staged.hasFfGain) { ffGain = calParams.ff_gain = staged.stagedFfGain; calParamsUpdated = true; }
++  if (staged.hasFfOffset) { ffOffset = calParams.ff_offset = staged.stagedFfOffset; calParamsUpdated = true; }
++  if (staged.hasRampRate) { rampRate = calParams.ramp_rate = staged.stagedRampRate; calParamsUpdated = true; }
++
++  bool lowQuadraticUpdated = (staged.hasK1 || staged.hasF1 || staged.hasC1);
++  bool lowHigherOrderUpdated = (staged.hasA1 || staged.hasB1);
++  if (staged.hasA1) { a1 = calParams.a1 = staged.stagedA1; calParamsUpdated = true; }
++  if (staged.hasB1) { b1 = calParams.b1 = staged.stagedB1; calParamsUpdated = true; }
++  if (staged.hasK1) { k1 = calParams.k1 = staged.stagedK1; calParamsUpdated = true; }
++  if (staged.hasF1) { f1 = calParams.f1 = staged.stagedF1; calParamsUpdated = true; }
++  if (staged.hasC1) { c1 = calParams.c1 = staged.stagedC1; calParamsUpdated = true; }
++  if (staged.hasK2) { k2 = calParams.k2 = staged.stagedK2; calParamsUpdated = true; }
++  if (staged.hasF2) { f2 = calParams.f2 = staged.stagedF2; calParamsUpdated = true; }
++  if (staged.hasC2) { c2 = calParams.c2 = staged.stagedC2; calParamsUpdated = true; }
++
+     if (lowQuadraticUpdated && !lowHigherOrderUpdated) {
+       a1 = calParams.a1 = 0.0f;
+       b1 = calParams.b1 = 0.0f;
+     }
+-    if (recognizedCommand) {
++
+       lastCommandApplyMs = millis();
+       lastCommandSource = (source == COMMAND_HUB) ? "hub" : "direct";
+       if (hasHubCommandId) {
+@@ -226,12 +376,10 @@ bool processReceivedData(const String& rawData, CommandSource source) {
+         Serial.printf("[DirectCmd] Applied session=%lu direct_cmd_id=%lu\n",
+                       (unsigned long)directSessionId, (unsigned long)directCommandId);
+       }
+-    }
+     if (calParamsUpdated) saveParameters();
+-    if (recognizedCommand) startLEDBlinking();
++    startLEDBlinking();
+     xSemaphoreGive(commandMutex);
+-    return recognizedCommand;
++    return true;
+ }

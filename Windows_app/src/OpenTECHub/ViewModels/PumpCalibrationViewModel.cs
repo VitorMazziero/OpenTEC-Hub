@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -16,30 +17,76 @@ namespace OpenTECHub.ViewModels;
 /// <summary>One volumetric run in the table: S held for a measured time, V collected, Q derived.</summary>
 public sealed partial class PumpCalibrationRunViewModel : ObservableObject
 {
-    public PumpCalibrationRunViewModel(PumpCalibrationPoint point)
+    private readonly string? _capturedAtUtc;
+
+    public PumpCalibrationRunViewModel(PumpCalibrationPoint? point = null)
     {
-        Point = point;
+        _capturedAtUtc = point?.CapturedAtUtc;
+        if (point is { } stored)
+        {
+            SpeedText = stored.SpeedUnits.ToString("F0", CultureInfo.CurrentCulture);
+            SecondsText = stored.Seconds.ToString("F1", CultureInfo.CurrentCulture);
+            VolumeText = stored.VolumeMl.ToString("F1", CultureInfo.CurrentCulture);
+        }
     }
 
-    public PumpCalibrationPoint Point { get; }
+    /// <summary>The current table row projected back to the persisted point contract.</summary>
+    public PumpCalibrationPoint Point => new()
+    {
+        SpeedUnits = SpeedUnits,
+        Seconds = Seconds,
+        VolumeMl = VolumeMl,
+        CapturedAtUtc = _capturedAtUtc,
+    };
 
-    public double SpeedUnits => Point.SpeedUnits;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SpeedUnits))]
+    [NotifyPropertyChangedFor(nameof(Point))]
+    [NotifyPropertyChangedFor(nameof(IsValidInput))]
+    [NotifyPropertyChangedFor(nameof(SegmentLabel))]
+    public partial string SpeedText { get; set; } = "";
 
-    public double Seconds => Point.Seconds;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Seconds))]
+    [NotifyPropertyChangedFor(nameof(FlowMlPerMin))]
+    [NotifyPropertyChangedFor(nameof(FlowText))]
+    [NotifyPropertyChangedFor(nameof(FlowValueText))]
+    [NotifyPropertyChangedFor(nameof(Point))]
+    [NotifyPropertyChangedFor(nameof(IsValidInput))]
+    public partial string SecondsText { get; set; } = "";
 
-    public double VolumeMl => Point.VolumeMl;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VolumeMl))]
+    [NotifyPropertyChangedFor(nameof(FlowMlPerMin))]
+    [NotifyPropertyChangedFor(nameof(FlowText))]
+    [NotifyPropertyChangedFor(nameof(FlowValueText))]
+    [NotifyPropertyChangedFor(nameof(Point))]
+    [NotifyPropertyChangedFor(nameof(IsValidInput))]
+    public partial string VolumeText { get; set; } = "";
 
-    public double FlowMlPerMin => Point.FlowMlPerMin;
+    public double SpeedUnits => Parse(SpeedText);
 
-    public string SpeedText => SpeedUnits.ToString("F0", CultureInfo.CurrentCulture);
+    public double Seconds => Parse(SecondsText);
 
-    public string SecondsText => Seconds.ToString("F1", CultureInfo.CurrentCulture) + " s";
+    public double VolumeMl => Parse(VolumeText);
 
-    public string VolumeText => VolumeMl.ToString("F1", CultureInfo.CurrentCulture) + " mL";
+    public double FlowMlPerMin => double.IsFinite(Seconds) && Seconds > 0.0 &&
+                                  double.IsFinite(VolumeMl) && VolumeMl >= 0.0
+        ? VolumeMl / (Seconds / 60.0)
+        : double.NaN;
 
-    public string FlowText => FlowMlPerMin.ToString("F2", CultureInfo.CurrentCulture) + " mL/min";
+    public bool IsValidInput => double.IsFinite(SpeedUnits) && SpeedUnits >= 1.0 && SpeedUnits <= 1000.0 &&
+                                double.IsFinite(Seconds) && Seconds > 0.0 &&
+                                double.IsFinite(VolumeMl) && VolumeMl >= 0.0 &&
+                                double.IsFinite(FlowMlPerMin);
 
-    public string FlowValueText => FlowMlPerMin.ToString("F2", CultureInfo.CurrentCulture);
+    public string FlowText => double.IsFinite(FlowMlPerMin)
+        ? FlowMlPerMin.ToString("F2", CultureInfo.CurrentCulture) + " mL/min"
+        : "Vazão indisponível";
+
+    public string FlowValueText => double.IsFinite(FlowMlPerMin)
+        ? FlowMlPerMin.ToString("F2", CultureInfo.CurrentCulture)
+        : "—";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ResidualText))]
@@ -53,7 +100,10 @@ public sealed partial class PumpCalibrationRunViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SegmentLabel))]
     public partial bool IsLowSegment { get; set; }
 
-    public string SegmentLabel => IsLowSegment ? "Baixo" : "Alto";
+    public string SegmentLabel => !double.IsFinite(SpeedUnits) ? "—" : IsLowSegment ? "Baixo" : "Alto";
+
+    private static double Parse(string? text)
+        => DosingInput.TryParseDouble(text, out var value) ? value : double.NaN;
 }
 
 /// <summary>
@@ -256,9 +306,11 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanLoadProfile))]
     [NotifyPropertyChangedFor(nameof(CanDeleteProfile))]
+    [NotifyPropertyChangedFor(nameof(ProfileStatusText))]
     public partial PumpCalibrationProfileSummary? SelectedProfileSummary { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ProfileStatusText))]
     public partial string ActiveProfileName { get; set; } = "Nova mangueira";
 
     [ObservableProperty]
@@ -483,6 +535,18 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         NotifyCommandAvailability();
     }
 
+    private void OnRunChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressRecalculate || e.PropertyName is not (nameof(PumpCalibrationRunViewModel.SpeedText) or
+            nameof(PumpCalibrationRunViewModel.SecondsText) or nameof(PumpCalibrationRunViewModel.VolumeText)))
+        {
+            return;
+        }
+
+        IsDirty = true;
+        RecomputeFit();
+    }
+
     partial void OnProfileNotesChanged(string value)
     {
         if (_initialised)
@@ -588,6 +652,37 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         NotifyCommandAvailability();
     }
 
+    private void AddRun(PumpCalibrationRunViewModel run)
+    {
+        run.PropertyChanged += OnRunChanged;
+        Runs.Add(run);
+    }
+
+    private void ClearRunRows()
+    {
+        foreach (var run in Runs)
+        {
+            run.PropertyChanged -= OnRunChanged;
+        }
+
+        Runs.Clear();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditCalibration))]
+    public void NewProfile()
+    {
+        ClearRunRows();
+        SelectedProfileSummary = null;
+        ActiveProfile = null;
+        ActiveProfileId = "";
+        ActiveProfileName = "Nova mangueira";
+        ProfileNotes = "";
+        IsDirty = false;
+        RecomputeFit();
+        StatusText = "Novo perfil iniciado. Adicione ou edite pontos volumétricos e salve como perfil quando o ajuste for válido.";
+        NotifyCommandAvailability();
+    }
+
     private void LoadProfileData(string name, bool saveAsSelected = true)
     {
         PumpCalibrationProfile? profile;
@@ -625,10 +720,10 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             TransitionSpeedInputText = DosingInput.Format(profile.TransitionSpeedUnits, 1);
             _curve = profileCurve;
 
-            Runs.Clear();
+            ClearRunRows();
             foreach (var pt in profile.CalibrationPoints)
             {
-                Runs.Add(new PumpCalibrationRunViewModel(pt));
+                AddRun(new PumpCalibrationRunViewModel(pt));
             }
         }
         finally
@@ -743,6 +838,12 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         if (Runs.Count > 0 && !HasFit)
         {
             StatusText = FitWarning ?? "Os pontos atuais não produzem um ajuste válido; o perfil não foi salvo.";
+            return;
+        }
+
+        if (Runs.Any(run => !run.IsValidInput))
+        {
+            StatusText = "Há pontos incompletos ou inválidos. Preencha S, tempo e volume antes de salvar o perfil.";
             return;
         }
 
@@ -863,7 +964,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
         else
         {
-            Runs.Clear();
+            ClearRunRows();
             _curve = null;
             ActiveProfile = null;
             ActiveProfileId = "";
@@ -943,7 +1044,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             foreach (var run in Runs)
             {
                 run.Residual = null;
-                run.IsLowSegment = run.SpeedUnits <= TransitionSpeedInput;
+                run.IsLowSegment = double.IsFinite(run.SpeedUnits) && run.SpeedUnits <= TransitionSpeedInput;
             }
             NotifyCommandAvailability();
             CurveChanged?.Invoke();
@@ -975,14 +1076,14 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         for (var i = 0; i < Runs.Count; i++)
         {
             var run = Runs[i];
-            run.IsLowSegment = run.SpeedUnits <= curve.TransitionSpeed;
-            if (_fitResult.Residuals is { } residuals && i < residuals.Count)
+            run.IsLowSegment = double.IsFinite(run.SpeedUnits) && run.SpeedUnits <= curve.TransitionSpeed;
+            if (run.IsValidInput)
             {
-                run.Residual = residuals[i];
+                run.Residual = run.FlowMlPerMin - curve.FlowFromSpeed(run.SpeedUnits);
             }
             else
             {
-                run.Residual = run.FlowMlPerMin - curve.FlowFromSpeed(run.SpeedUnits);
+                run.Residual = null;
             }
         }
 
@@ -1253,7 +1354,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             VolumeMl = volume,
             CapturedAtUtc = _timeProvider.GetUtcNow().ToString("o"),
         };
-        Runs.Add(new PumpCalibrationRunViewModel(point));
+        AddRun(new PumpCalibrationRunViewModel(point));
         _lastRun = null;
         HasPendingRun = false;
         RunSummaryText = "";
@@ -1273,9 +1374,21 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
+        run.PropertyChanged -= OnRunChanged;
         IsDirty = true;
         RecomputeFit();
         StatusText = "Ponto removido.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditRuns))]
+    public void AddEmptyRun()
+    {
+        var run = new PumpCalibrationRunViewModel();
+        AddRun(run);
+        IsDirty = true;
+        RecomputeFit();
+        StatusText = "Novo ponto criado. Informe velocidade S, tempo e volume coletado.";
+        NotifyCommandAvailability();
     }
 
     [RelayCommand(CanExecute = nameof(CanEditRuns))]
@@ -1286,7 +1399,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        Runs.Clear();
+        ClearRunRows();
         IsDirty = true;
         RecomputeFit();
         StatusText = "Todos os acionamentos foram removidos.";
@@ -1634,9 +1747,11 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         SaveProfileAsCommand.NotifyCanExecuteChanged();
         LoadProfileCommand.NotifyCanExecuteChanged();
         DeleteProfileCommand.NotifyCanExecuteChanged();
+        NewProfileCommand.NotifyCanExecuteChanged();
         StartRunCommand.NotifyCanExecuteChanged();
         AbortRunCommand.NotifyCanExecuteChanged();
         AddRunPointCommand.NotifyCanExecuteChanged();
+        AddEmptyRunCommand.NotifyCanExecuteChanged();
         RemoveRunCommand.NotifyCanExecuteChanged();
         ClearRunsCommand.NotifyCanExecuteChanged();
         StartManualCommand.NotifyCanExecuteChanged();

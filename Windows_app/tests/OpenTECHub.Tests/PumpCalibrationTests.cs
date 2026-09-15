@@ -431,6 +431,69 @@ public sealed class PumpCalibrationTests
         Assert.False(vm.CanApply);
     }
 
+    [Fact]
+    public void Editable_table_rows_rebuild_the_curve_without_hardware_acquisition()
+    {
+        using var vm = new PumpCalibrationViewModel(
+            new RecordingDeviceService(),
+            new MemorySettingsService(),
+            profileStore: FreshStore());
+
+        var redraws = 0;
+        vm.CurveChanged += () => redraws++;
+        vm.TransitionSpeedInputText = "500";
+
+        foreach (var (speed, volume) in new[] { (100.0, 8.0), (300.0, 12.0), (600.0, 19.0), (800.0, 25.0) })
+        {
+            vm.AddEmptyRunCommand.Execute(null);
+            var row = vm.Runs[^1];
+            row.SpeedText = speed.ToString(CultureInfo.InvariantCulture);
+            row.SecondsText = "60";
+            row.VolumeText = volume.ToString(CultureInfo.InvariantCulture);
+        }
+
+        Assert.Equal(4, vm.Runs.Count);
+        Assert.True(vm.Runs.All(row => row.IsValidInput));
+        Assert.Equal(12.0, vm.Runs[1].FlowMlPerMin, 3);
+        Assert.True(vm.HasFit);
+        Assert.True(redraws >= 4);
+
+        // A subsequent table edit is the same source of truth as an acquisition result.
+        vm.Runs[1].VolumeText = "13";
+        Assert.Equal(13.0, vm.Runs[1].FlowMlPerMin, 3);
+        Assert.True(vm.IsCurrentProfileDirty);
+        Assert.True(redraws >= 5);
+    }
+
+    [Fact]
+    public void A_profile_can_be_created_from_manually_entered_table_points()
+    {
+        var dialogs = new TestDialogService { PromptText = "Mangueira manual" };
+        var store = FreshStore();
+        using var vm = new PumpCalibrationViewModel(
+            new RecordingDeviceService(),
+            new MemorySettingsService(),
+            profileStore: store,
+            dialogs: dialogs);
+
+        foreach (var (speed, volume) in new[] { (100.0, 8.0), (300.0, 12.0), (600.0, 19.0), (800.0, 25.0) })
+        {
+            vm.AddEmptyRunCommand.Execute(null);
+            var row = vm.Runs[^1];
+            row.SpeedText = speed.ToString(CultureInfo.InvariantCulture);
+            row.SecondsText = "60";
+            row.VolumeText = volume.ToString(CultureInfo.InvariantCulture);
+        }
+
+        Assert.True(vm.HasFit);
+        vm.SaveProfileAsCommand.Execute(null);
+
+        var saved = Assert.Single(vm.AvailableProfiles);
+        Assert.Equal("Mangueira manual", saved.Name);
+        Assert.Equal(4, saved.PointCount);
+        Assert.Equal("Mangueira manual", vm.ActiveProfile?.Name);
+    }
+
     private static (PumpCalibrationViewModel Vm, RecordingDeviceService Device, MemorySettingsService Settings, TestClock Clock) OnlinePump()
     {
         var clock = new TestClock(new DateTimeOffset(2026, 9, 12, 12, 0, 0, TimeSpan.Zero));

@@ -70,6 +70,20 @@ public sealed class DetailPaneContractTests
     }
 
     [Fact]
+    public void Pump_calibration_exposes_the_same_editable_table_workflow_as_flowmeter()
+    {
+        var xaml = ReadView("CalibrationView.xaml");
+
+        Assert.Contains("Content=\"Novo perfil\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("NewProfileCommand", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Adicionar ponto\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("AddEmptyRunCommand", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding SpeedText, UpdateSourceTrigger=PropertyChanged}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding SecondsText, UpdateSourceTrigger=PropertyChanged}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding VolumeText, UpdateSourceTrigger=PropertyChanged}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Headless_startup_can_bypass_the_windows_workspace_picker()
     {
         var app = File.ReadAllText(Path.Combine(

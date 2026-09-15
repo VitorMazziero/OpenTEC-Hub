@@ -781,11 +781,14 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" ItemsSource="{Binding AvailableProfiles}"
                                           SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
                                           DisplayMemberPath="DisplayName" Height="30" VerticalContentAlignment="Center" />
-                                <Button Grid.Column="1" Content="Carregar" Command="{Binding LoadSelectedProfileCommand}"
+                                <Button Grid.Column="1" Content="Novo perfil" Command="{Binding NewProfileCommand}"
+                                        Height="30" Padding="10,0" Margin="6,0,0,0" />
+                                <Button Grid.Column="2" Content="Carregar" Command="{Binding LoadSelectedProfileCommand}"
                                         Height="30" Padding="10,0" Margin="6,0,0,0"
                                         ToolTip="Carrega os coeficientes e pontos do perfil selecionado." />
                             </Grid>
@@ -804,7 +807,7 @@
 
                     <StackPanel Grid.Row="1">
                         <TextBlock Text="Pontos volumétricos" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
-                        <TextBlock Text="Selecione velocidade e duração; ao final, informe o volume coletado para registrar o ponto."
+                             <TextBlock Text="Adicione pontos manualmente como no fluxômetro ou use uma aquisição automática; a curva é reconstruída a cada alteração válida da tabela."
                                    Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
                                    TextWrapping="Wrap" Margin="0,4,0,8" />
                     </StackPanel>
@@ -820,9 +823,9 @@
                                     <ColumnDefinition Width="0.85*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="S" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
-                                <TextBlock Grid.Column="1" Text="Δt (s)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
-                                <TextBlock Grid.Column="2" Text="V (mL)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                 <TextBlock Grid.Column="0" Text="S (un)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                 <TextBlock Grid.Column="1" Text="Tempo (s)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
+                                 <TextBlock Grid.Column="2" Text="Volume (mL)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
                                 <TextBlock Grid.Column="3" Text="Q (mL/min)" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
                                 <TextBlock Grid.Column="4" Text="Trecho" Style="{StaticResource CaptionTextStyle}" FontWeight="SemiBold" Margin="4,5" />
                                 <TextBlock Grid.Column="5" Text="" Width="26" />
@@ -849,9 +852,15 @@
                                                 <ColumnDefinition Width="0.85*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding SpeedText}" Style="{StaticResource NumericTextStyle}" Margin="4,3" />
-                                            <TextBlock Grid.Column="1" Text="{Binding SecondsText}" Style="{StaticResource NumericTextStyle}" Margin="4,3" />
-                                            <TextBlock Grid.Column="2" Text="{Binding VolumeText}" Style="{StaticResource NumericTextStyle}" Margin="4,3" />
+                                             <TextBox Grid.Column="0" Text="{Binding SpeedText, UpdateSourceTrigger=PropertyChanged}"
+                                                      Margin="2,1" Padding="4,2" Height="28"
+                                                      ToolTip="Velocidade S entre 1 e 1000." />
+                                             <TextBox Grid.Column="1" Text="{Binding SecondsText, UpdateSourceTrigger=PropertyChanged}"
+                                                      Margin="2,1" Padding="4,2" Height="28"
+                                                      ToolTip="Tempo efetivo do acionamento, em segundos." />
+                                             <TextBox Grid.Column="2" Text="{Binding VolumeText, UpdateSourceTrigger=PropertyChanged}"
+                                                      Margin="2,1" Padding="4,2" Height="28"
+                                                      ToolTip="Volume coletado, em mL." />
                                             <TextBlock Grid.Column="3" Text="{Binding FlowValueText}" ToolTip="{Binding FlowText}" Style="{StaticResource NumericTextStyle}" FontWeight="SemiBold" Margin="4,3" />
                                             <TextBlock Grid.Column="4" Text="{Binding SegmentLabel}" Style="{StaticResource CaptionTextStyle}" Margin="4,3" VerticalAlignment="Center" />
                                             <Button Grid.Column="5" Content="✕" Width="26" Height="24" Padding="0" Margin="0,0,2,0"
@@ -887,7 +896,10 @@
                         <TextBlock Text="{Binding FitWarning}" Visibility="{Binding FitWarning, Converter={StaticResource NullToVis}}"
                                    Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}"
                                    TextWrapping="Wrap" Margin="0,0,0,7" />
-                        <Button Content="Limpar pontos" Command="{Binding ClearRunsCommand}" HorizontalAlignment="Left" />
+                         <StackPanel Orientation="Horizontal">
+                             <Button Content="Adicionar ponto" Command="{Binding AddEmptyRunCommand}" Margin="0,0,6,0" />
+                             <Button Content="Limpar pontos" Command="{Binding ClearRunsCommand}" HorizontalAlignment="Left" />
+                         </StackPanel>
                     </StackPanel>
 
                     <Border Grid.Row="4" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,8">

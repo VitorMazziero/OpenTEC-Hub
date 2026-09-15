@@ -23,6 +23,7 @@ public enum PowerMapLayer
     VolumetricPower,
     NetPower,
     PowerRatio,
+    Efficiency,
     FloodingBoundary,
 }
 
@@ -68,6 +69,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     private readonly IPowerMapStore _mapStore;
     private readonly IPowerMapEngine _engine;
     private readonly IKlaProfileStore _klaStore;
+    private readonly IKlaMappingEngine _klaMappingEngine;
     private readonly IKlaPowerIntegrationService? _integrationService;
     private readonly IDialogService? _dialogs;
     private readonly IEventJournal? _journal;
@@ -88,12 +90,14 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         IKlaPowerIntegrationService? integrationService = null,
         IDialogService? dialogs = null,
         IEventJournal? journal = null,
-        IPowerAnalysisEngine? analysisEngine = null)
+        IPowerAnalysisEngine? analysisEngine = null,
+        IKlaMappingEngine? klaMappingEngine = null)
     {
         _testStore = testStore ?? throw new ArgumentNullException(nameof(testStore));
         _mapStore = mapStore ?? throw new ArgumentNullException(nameof(mapStore));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _klaStore = klaStore ?? throw new ArgumentNullException(nameof(klaStore));
+        _klaMappingEngine = klaMappingEngine ?? new KlaMappingEngine();
         _integrationService = integrationService;
         _dialogs = dialogs;
         _journal = journal;
@@ -130,6 +134,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         new(PowerMapLayer.VolumetricPower, "Potência específica (P/V)", "W/m³", "P/V (W/m³)"),
         new(PowerMapLayer.NetPower, "Potência de eixo (P_líq)", "W", "P_líq (W)"),
         new(PowerMapLayer.PowerRatio, "Razão de aeração (P_G/P₀)", "–", "P_G/P₀ (–)"),
+        new(PowerMapLayer.Efficiency, "Eficiência kLa/(P/V)", "h⁻¹/(W/m³)", "Eficiência kLa/(P/V)"),
         new(PowerMapLayer.FloodingBoundary, "Fronteira de flooding (Qg/Qg,F)", "–", "Qg / Qg,F (–)"),
     ];
 
@@ -171,6 +176,11 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCorrelation))]
     public partial KlaCorrelationResult? CurrentCorrelation { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSurfaceIntersection))]
+    [NotifyPropertyChangedFor(nameof(CanFitSurfaceIntersection))]
+    public partial SurfaceIntersectionResult? CurrentSurfaceIntersection { get; set; }
 
     // Layer and visual controls
     [ObservableProperty]
@@ -260,6 +270,27 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial int MatchedPairsCount { get; set; }
 
+    [ObservableProperty]
+    public partial string CommonDomainText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string IntersectionCoverageText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string EfficiencyMinimumText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string EfficiencyMeanText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string EfficiencyMaximumText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string EfficiencyMaximumPointText { get; set; } = "—";
+
+    [ObservableProperty]
+    public partial string IntersectionStatusText { get; set; } = "Nenhuma intersecção calculada.";
+
     // Status and progress
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
@@ -274,6 +305,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     public bool HasCorrelation => CurrentCorrelation?.HasFit == true;
 
     public bool HasMatchedPairs => MatchedPairs.Count > 0;
+
+    public bool HasSurfaceIntersection => CurrentSurfaceIntersection?.ValidPointCount > 0;
+
+    public bool CanFitSurfaceIntersection => CurrentSurfaceIntersection?.ValidPointCount >= 4;
 
     /// <summary>Colour-bar caption for the layer on screen; the plot must never show a bare number.</summary>
     public string ColorBarLabel =>
@@ -308,6 +343,19 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     {
         RefreshInspectionForCurrentLayer();
         VisualizationChanged?.Invoke();
+    }
+
+    partial void OnSelectedKlaMapOptionChanged(KlaMapOptionViewModel? value)
+    {
+        InvalidateSurfaceIntersection();
+    }
+
+    partial void OnCurrentSurfaceDataChanged(PowerMapSurfaceData? value)
+    {
+        if (value is not null)
+        {
+            InvalidateSurfaceIntersection();
+        }
     }
 
     partial void OnSelectedColormapChanged(PowerMapColormap value) => VisualizationChanged?.Invoke();
@@ -352,6 +400,39 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         }
 
         IsSurfaceStale = true;
+        InvalidateSurfaceIntersection();
+    }
+
+    private void InvalidateSurfaceIntersection()
+    {
+        if (CurrentSurfaceIntersection is null && CurrentCorrelation is null && MatchedPairs.Count == 0)
+        {
+            return;
+        }
+
+        CurrentSurfaceIntersection = null;
+        CurrentCorrelation = null;
+        MatchedPairs.Clear();
+        MatchedPairsCount = 0;
+        OnPropertyChanged(nameof(HasMatchedPairs));
+        ResetCorrelationDisplay();
+        CommonDomainText = "—";
+        IntersectionCoverageText = "—";
+        EfficiencyMinimumText = "—";
+        EfficiencyMeanText = "—";
+        EfficiencyMaximumText = "—";
+        EfficiencyMaximumPointText = "—";
+        IntersectionStatusText = "Intersecção desatualizada; recalcule após alterar a superfície ou o mapa kLa.";
+        VisualizationChanged?.Invoke();
+    }
+
+    private void ResetCorrelationDisplay()
+    {
+        VanTRietKText = "—";
+        VanTRietAlphaText = "—";
+        VanTRietBetaText = "—";
+        VanTRietR2Text = "—";
+        VanTRietFormulaText = "kLa = K · (P/V)^α · (v_s)^β";
     }
 
     partial void OnSelectedMapSummaryChanged(PowerMapSummary? value)
@@ -579,6 +660,8 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         CurrentSurfaceData = null;
         CurrentFloodingBoundary = null;
         CurrentCorrelation = null;
+        CurrentSurfaceIntersection = null;
+        ResetCorrelationDisplay();
         ReloadMaps();
         SelectedMapSummary = AvailableMaps.FirstOrDefault();
         StatusMessage = "Mapa excluído.";
@@ -601,7 +684,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         Notes = doc.Notes;
         CurrentSurfaceData = doc.SurfaceData;
         CurrentFloodingBoundary = doc.FloodingBoundary;
-        CurrentCorrelation = doc.KlaCorrelation;
 
         _suppressStale = true;
         try
@@ -622,6 +704,10 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         {
             SelectedKlaMapOption = AvailableKlaMaps.FirstOrDefault(k => k.Id == doc.LinkedKlaMapId.Value);
         }
+
+        CurrentSurfaceIntersection = doc.SurfaceIntersection;
+        CurrentCorrelation = doc.KlaCorrelation;
+        ApplyIntersectionDisplay(doc.SurfaceIntersection);
 
         MatchedPairs.Clear();
         foreach (var p in doc.KlaPairs)
@@ -658,6 +744,37 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
         StatusMessage = $"Mapa '{doc.Name}' carregado.";
         VisualizationChanged?.Invoke();
+    }
+
+    private void ApplyIntersectionDisplay(SurfaceIntersectionResult? intersection)
+    {
+        if (intersection is null)
+        {
+            CommonDomainText = "—";
+            IntersectionCoverageText = "—";
+            EfficiencyMinimumText = "—";
+            EfficiencyMeanText = "—";
+            EfficiencyMaximumText = "—";
+            EfficiencyMaximumPointText = "—";
+            IntersectionStatusText = "Nenhuma intersecção calculada.";
+            return;
+        }
+
+        CommonDomainText = intersection.CandidatePointCount > 0
+            ? $"N: {intersection.MinRpm:F0}–{intersection.MaxRpm:F0} rpm · Qg: {intersection.MinFlowLpm:F2}–{intersection.MaxFlowLpm:F2} L/min"
+            : "Sem domínio comum";
+        IntersectionCoverageText = intersection.CandidatePointCount > 0
+            ? $"{intersection.ValidPointCount:N0} / {intersection.CandidatePointCount:N0} ({intersection.CoveragePercent:F1}%)"
+            : "—";
+        EfficiencyMinimumText = intersection.EfficiencyMinimum is { } min ? $"{min:G5}" : "—";
+        EfficiencyMeanText = intersection.EfficiencyMean is { } mean ? $"{mean:G5}" : "—";
+        EfficiencyMaximumText = intersection.EfficiencyMaximum is { } max ? $"{max:G5}" : "—";
+        EfficiencyMaximumPointText = intersection.MaximumEfficiencyRpm is { } rpm && intersection.MaximumEfficiencyFlowLpm is { } flow
+            ? $"N = {rpm:F0} rpm · Qg = {flow:F2} L/min"
+            : "—";
+        IntersectionStatusText = intersection.ValidPointCount > 0
+            ? $"Eficiência calculada a partir da intersecção dos mapas. {intersection.Warnings.FirstOrDefault() ?? ""}".Trim()
+            : intersection.Warnings.FirstOrDefault() ?? "Nenhuma célula válida na região comum.";
     }
 
     [RelayCommand]
@@ -793,6 +910,9 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                     Fluid = refFluid,
                     SurfaceData = surfaceData,
                     FloodingBoundary = flooding,
+                    SurfaceIntersection = null,
+                    KlaPairs = [],
+                    KlaCorrelation = null,
                     UpdatedAtUtc = DateTimeOffset.UtcNow,
                 };
                 _mapStore.SaveMap(CurrentDocument);
@@ -800,6 +920,13 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
             CurrentSurfaceData = surfaceData;
             CurrentFloodingBoundary = flooding;
+            CurrentSurfaceIntersection = null;
+            CurrentCorrelation = null;
+            MatchedPairs.Clear();
+            MatchedPairsCount = 0;
+            OnPropertyChanged(nameof(HasMatchedPairs));
+            ResetCorrelationDisplay();
+            ApplyIntersectionDisplay(null);
             IsSurfaceStale = false;
 
             ProgressPercent = 100;
@@ -839,70 +966,114 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    public async Task LinkKlaMapAndFitAsync()
+    public async Task CalculateSurfaceIntersectionAsync()
     {
-        if (SelectedKlaMapOption == null)
+        if (CurrentDocument is null || CurrentSurfaceData is null)
         {
-            StatusMessage = "Selecione um mapa kLa para vincular.";
+            StatusMessage = "Reconstrua primeiro a superfície do mapa de potência.";
+            return;
+        }
+
+        if (SelectedKlaMapOption is null)
+        {
+            StatusMessage = "Selecione um mapa kLa para calcular a intersecção.";
             return;
         }
 
         var allKla = await _klaStore.LoadExperimentsAsync();
         var klaDoc = allKla.FirstOrDefault(k => k.Snapshot.Id == SelectedKlaMapOption.Id);
-        if (klaDoc == null)
+        if (klaDoc is null)
         {
             StatusMessage = "Mapa kLa não encontrado no repositório.";
             return;
         }
 
-        var testDocs = new List<PowerTestDocument>();
-        foreach (var sourceTest in AvailablePowerTests.Where(t => t.IsSelected))
+        try
         {
-            var doc = _testStore.LoadTest(sourceTest.Summary.FolderName);
-            if (doc != null)
-            {
-                testDocs.Add(doc);
-            }
-        }
+            IsBusy = true;
+            ProgressText = "Reconstruindo a superfície kLa e avaliando o domínio comum...";
+            ProgressPercent = 30;
+            var klaSurface = await Task.Run(() => _klaMappingEngine.Reconstruct(klaDoc.Snapshot));
+            var intersection = await Task.Run(() => new SurfaceIntersectionService().Intersect(CurrentDocument, klaSurface));
 
-        if (testDocs.Count == 0 && CurrentDocument != null)
-        {
-            foreach (var testId in CurrentDocument.SourceTestIds)
-            {
-                var summary = _testStore.ListTests().FirstOrDefault(t => t.TestId == testId);
-                if (summary != null)
-                {
-                    var doc = _testStore.LoadTest(summary.FolderName);
-                    if (doc != null)
-                    {
-                        testDocs.Add(doc);
-                    }
-                }
-            }
-        }
+            CurrentSurfaceIntersection = intersection;
+            ApplyIntersectionDisplay(intersection);
+            CurrentCorrelation = null;
+            MatchedPairs.Clear();
+            MatchedPairsCount = 0;
+            OnPropertyChanged(nameof(HasMatchedPairs));
+            ResetCorrelationDisplay();
 
-        if (testDocs.Count == 0)
+            CurrentDocument = CurrentDocument with
+            {
+                LinkedKlaMapId = klaDoc.Snapshot.Id,
+                LinkedKlaMapName = klaDoc.Snapshot.Name,
+                SurfaceIntersection = intersection,
+                KlaPairs = [],
+                KlaCorrelation = null,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            };
+            _mapStore.SaveMap(CurrentDocument);
+
+            ProgressPercent = 100;
+            ProgressText = "Concluído";
+            StatusMessage = intersection.ValidPointCount > 0
+                ? $"Intersecção calculada: {intersection.ValidPointCount:N0} de {intersection.CandidatePointCount:N0} pontos válidos ({intersection.CoveragePercent:F1}%)."
+                : intersection.Warnings.FirstOrDefault() ?? "Nenhum ponto válido na região comum.";
+            VisualizationChanged?.Invoke();
+        }
+        catch (Exception ex)
         {
-            StatusMessage = "Nenhum ensaio de potência selecionado para casamento de dados.";
+            StatusMessage = $"Falha ao calcular a intersecção das superfícies: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task FitSurfaceIntersectionAsync()
+    {
+        var intersection = CurrentSurfaceIntersection;
+        if (intersection is null || intersection.ValidPointCount == 0)
+        {
+            StatusMessage = "Calcule primeiro a intersecção para disponibilizar o ajuste van 't Riet.";
             return;
         }
 
-        var allPairs = new List<KlaPowerPair>();
-        foreach (var pDoc in testDocs)
+        if (intersection.ValidPointCount < 4)
         {
-            var pairs = PowerMapImportHelper.MatchPowerTestToKlaMap(pDoc, klaDoc);
-            allPairs.AddRange(pairs);
-        }
-
-        if (allPairs.Count < 4)
-        {
-            StatusMessage = $"Casamento insuficiente: encontrados {allPairs.Count} pares (mínimo 4 para ajuste multivariado).";
+            StatusMessage = $"Ajuste van 't Riet indisponível: {intersection.ValidPointCount} pontos válidos (mínimo 4). A eficiência continua disponível.";
             return;
         }
 
         try
         {
-            var correlation = _engine.FitVanTRietModel(allPairs, out var updatedPairs);
+            IsBusy = true;
+            var cells = intersection.EnumerateValidCells().ToArray();
+            var pairs = cells.Select(c => new KlaPowerPair
+            {
+                SourceKlaTestId = intersection.KlaMapId,
+                AgitationRpm = c.AgitationRpm,
+                GasFlowLpm = c.GasFlowLpm,
+                SuperficialVelocityMs = c.SuperficialVelocityMs,
+                VolumetricPowerWm3 = c.VolumetricPowerWm3,
+                KlaPerHour = c.KlaPerHour,
+                ConfidenceInterval95 = 0.0,
+            }).ToList();
+
+            var fit = await Task.Run(() =>
+            {
+                var result = _engine.FitVanTRietModel(pairs, out var fittedPairs);
+                return (Result: result, Pairs: fittedPairs);
+            });
+            var correlation = fit.Result with
+            {
+                DataBasis = "Intersecção de superfícies (mapa kLa × mapa de potência)",
+            };
+            var updatedPairs = fit.Pairs;
+
             CurrentCorrelation = correlation;
             MatchedPairs.Clear();
             foreach (var p in updatedPairs)
@@ -915,13 +1086,9 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
             if (!correlation.HasFit)
             {
-                VanTRietKText = "—";
-                VanTRietAlphaText = "—";
-                VanTRietBetaText = "—";
-                VanTRietR2Text = "—";
-                var reason = correlation.FailureReason ?? correlation.ExcludedPointsNotes.FirstOrDefault() ?? "Matriz singular ou variação insuficiente em P/V ou v_s.";
+                var reason = correlation.FailureReason ?? correlation.ExcludedPointsNotes.FirstOrDefault() ?? "variação insuficiente ou matriz colinear";
                 VanTRietFormulaText = $"Ajuste recusado: {reason}";
-                StatusMessage = $"Ajuste van 't Riet não convergiu: {reason}";
+                StatusMessage = $"Ajuste van 't Riet indisponível: {reason}. A eficiência continua disponível.";
             }
             else
             {
@@ -930,15 +1097,13 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                 VanTRietBetaText = $"{correlation.Beta:F3} ± {correlation.StdErrorBeta:F3}";
                 VanTRietR2Text = $"{correlation.R2:F4}";
                 VanTRietFormulaText = $"kLa = {correlation.K:F4} · (P/V)^{correlation.Alpha:F3} · (v_s)^{correlation.Beta:F3}  [R² = {correlation.R2:F4}]";
-                StatusMessage = $"Ajuste van 't Riet concluído: R² = {correlation.R2:F4} ({updatedPairs.Count} pontos).";
+                StatusMessage = $"Ajuste van 't Riet concluído sobre a intersecção: R² = {correlation.R2:F4} ({updatedPairs.Count:N0} pontos de mapa).";
             }
 
-            if (CurrentDocument != null)
+            if (CurrentDocument is not null)
             {
                 CurrentDocument = CurrentDocument with
                 {
-                    LinkedKlaMapId = klaDoc.Snapshot.Id,
-                    LinkedKlaMapName = klaDoc.Snapshot.Name,
                     KlaPairs = updatedPairs,
                     KlaCorrelation = correlation,
                     UpdatedAtUtc = DateTimeOffset.UtcNow,
@@ -952,6 +1117,33 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         {
             StatusMessage = $"Falha no ajuste van 't Riet: {ex.Message}";
         }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Compatibility entry point for older callers: it now performs map × map first.</summary>
+    public async Task LinkKlaMapAndFitAsync()
+    {
+        await CalculateSurfaceIntersectionAsync();
+        if (HasSurfaceIntersection)
+        {
+            await FitSurfaceIntersectionAsync();
+        }
+    }
+
+    [RelayCommand]
+    public void ExportSurfaceIntersectionCsv()
+    {
+        if (CurrentSurfaceIntersection is null || CurrentDocument is null)
+        {
+            StatusMessage = "Calcule primeiro a intersecção das superfícies.";
+            return;
+        }
+
+        _mapStore.SaveMap(CurrentDocument);
+        StatusMessage = $"CSV da eficiência exportado em '{PowerMapFileContracts.SurfaceIntersectionCsvFileName}'.";
     }
 
     [RelayCommand]
@@ -1059,6 +1251,11 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             {
                 PowerMapLayer.NetPower => surface.PNetSurface,
                 PowerMapLayer.PowerRatio => surface.PowerRatioSurface,
+                PowerMapLayer.Efficiency => CurrentSurfaceIntersection is { } intersection &&
+                                             intersection.ResolutionN == rows &&
+                                             intersection.ResolutionQg == cols
+                    ? intersection.EfficiencySurface
+                    : [],
                 _ => surface.PVolumetricSurface,
             };
 
@@ -1135,6 +1332,11 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         {
             return "Sem volume útil declarado, não há P/V." + Environment.NewLine +
                    "Informe o volume de trabalho no ensaio de origem.";
+        }
+
+        if (SelectedLayer == PowerMapLayer.Efficiency && !HasSurfaceIntersection)
+        {
+            return "Calcule a intersecção dos mapas para gerar a camada de eficiência kLa/(P/V).";
         }
 
         var distinctFlows = surface.AnchorPoints.Select(a => Math.Round(a.GasFlowLpm, 3)).Distinct().Count();
@@ -1230,8 +1432,20 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             {
                 PowerMapLayer.NetPower => surface.PNetSurface,
                 PowerMapLayer.PowerRatio => surface.PowerRatioSurface,
+                PowerMapLayer.Efficiency => CurrentSurfaceIntersection is { } intersection &&
+                                             intersection.ResolutionN == surface.ResolutionN &&
+                                             intersection.ResolutionQg == surface.ResolutionQg
+                    ? intersection.EfficiencySurface
+                    : [],
                 _ => surface.PVolumetricSurface,
             };
+
+            if (layerData.Length < surface.ResolutionN * surface.ResolutionQg)
+            {
+                InspectedLayerValue = null;
+                InspectedLayerValueFormatted = "Fora da camada calculada";
+                return;
+            }
 
             var c00 = layerData[surface.GetIndex(i, j)];
             var c01 = layerData[surface.GetIndex(i, j + 1)];
@@ -1260,6 +1474,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             {
                 PowerMapLayer.NetPower => $"{InspectedLayerValue.Value:F2} W",
                 PowerMapLayer.PowerRatio => $"{InspectedLayerValue.Value:F3}",
+                PowerMapLayer.Efficiency => $"{InspectedLayerValue.Value:G5} h⁻¹/(W/m³)",
                 PowerMapLayer.FloodingBoundary => $"{InspectedLayerValue.Value:F1} W/m³",
                 _ => $"{InspectedLayerValue.Value:F1} W/m³"
             }

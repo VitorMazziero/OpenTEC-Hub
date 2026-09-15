@@ -85,7 +85,7 @@ public sealed class PowerRunWithoutCaptureTests : IDisposable
     }
 
     [Fact]
-    public void Toggling_a_row_without_capture_to_accepted_is_refused()
+    public void Per_row_status_override_allows_reviewing_a_row_without_capture()
     {
         var (vm, doc) = Build(null);
         var condition = doc.Conditions[0];
@@ -100,10 +100,10 @@ public sealed class PowerRunWithoutCaptureTests : IDisposable
         vm.LoadSelectedTestCommand.Execute(null);
         vm.SelectedResultRow = vm.Results.First(r => r.RunId == run.RunId);
 
-        vm.ToggleAcceptSelectedRowCommand.Execute(null);
+        vm.CycleResultStatusCommand.Execute(vm.SelectedResultRow);
 
-        Assert.Equal(PowerRunPhase.Rejected, vm.CurrentTest!.Runs.Single(r => r.RunId == run.RunId).Phase);
-        Assert.Contains("sem captura", vm.ValidationMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PowerRunPhase.Accepted, vm.CurrentTest!.Runs.Single(r => r.RunId == run.RunId).Phase);
+        Assert.Contains("Status do ponto alterado para Aceito", vm.StatusMessage);
     }
 
     [Fact]

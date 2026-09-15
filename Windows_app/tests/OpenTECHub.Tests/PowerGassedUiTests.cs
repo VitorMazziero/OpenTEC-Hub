@@ -365,7 +365,7 @@ public sealed class PowerGassedUiTests : IDisposable
     }
 
     [Fact]
-    public void PowerTestViewModel_rebuild_results_populates_gas_columns_and_flooding_summary()
+    public void PowerTestViewModel_rebuild_results_populates_gas_columns_without_flooding_summary()
     {
         var geometry = new PowerGeometry
         {
@@ -436,21 +436,12 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.NotEqual("—", gassedRow.P0Ref);
         Assert.NotEqual("—", gassedRow.PowerRatio);
 
-        // Flooding evaluation
-        Assert.True(vm.HasFloodingPoint);
-        Assert.NotNull(vm.FloodingResult);
-        Assert.True(vm.FloodingResult.ExperimentalFlG > 0);
-        Assert.Contains("Fl_G,F =", vm.FloodingCoordinates);
-        Assert.Contains("Nienow teórico:", vm.FloodingDeviationText);
-
-        // Tab toggle
-        Assert.False(vm.ShowFloodingChart);
-        vm.ShowFloodingChart = true;
-        Assert.True(vm.ShowFloodingChart);
+        // Flooding/Nienow are no longer evaluated or exposed by the power assay VM.
+        Assert.Null(vm.CurrentTest!.Flooding);
     }
 
     [Fact]
-    public void PowerTestViewModel_step7_manual_flooding_adjustment_and_reset_automatic()
+    public void PowerTestViewModel_allows_per_row_status_cycle_without_flooding_workflow()
     {
         var geometry = new PowerGeometry
         {
@@ -490,46 +481,29 @@ public sealed class PowerGassedUiTests : IDisposable
         vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
         vm.LoadSelectedTestCommand.Execute(null);
 
-        // Automatic detection found the minimum ratio (i=3, ratio=0.60)
-        Assert.NotNull(vm.FloodingResult);
-        Assert.Equal(FloodingDetectionMethod.Automatic, vm.FloodingResult.Method);
-
-        // Select row 1 (ratio = 0.80) to manually adjust flooding
+        Assert.Null(vm.CurrentTest!.Flooding);
         var targetRow = vm.Results.First(r => r.IsGassed && Math.Abs(r.Ratio - 0.80) < 1e-3);
-        vm.SelectedResultRow = targetRow;
-        Assert.True(vm.CanSetManualFlooding);
-        Assert.True(vm.CanToggleRowAcceptance);
+        Assert.True(vm.CanChangeResultStatus);
 
-        vm.SetSelectedAsFloodingPointCommand.Execute(null);
+        vm.CycleResultStatusCommand.Execute(targetRow);
+        Assert.Equal("Capturado", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
+        Assert.Equal("🟡", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
 
-        Assert.Equal(FloodingDetectionMethod.ManualAdjusted, vm.FloodingResult.Method);
-        Assert.Equal(targetRow.AerationNumber, vm.FloodingResult.ExperimentalFlG, 4);
-        Assert.Contains("Método: Manual", vm.FloodingDeviationText);
+        vm.CycleResultStatusCommand.Execute(vm.Results.First(r => r.RunId == targetRow.RunId));
+        Assert.Equal("Em revisão", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
+        Assert.Equal("🔵", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
 
-        // Verify persisted manifest
-        var loadedDoc = _store.LoadTest(doc.FolderName);
-        Assert.NotNull(loadedDoc?.Flooding);
-        Assert.Equal(FloodingDetectionMethod.ManualAdjusted, loadedDoc.Flooding.Method);
+        vm.CycleResultStatusCommand.Execute(vm.Results.First(r => r.RunId == targetRow.RunId));
+        Assert.Equal("Rejeitado", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
+        Assert.Equal("🔴", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
 
-        // Reset to automatic
-        vm.ResetAutomaticFloodingCommand.Execute(null);
-        Assert.Equal(FloodingDetectionMethod.Automatic, vm.FloodingResult.Method);
-
-        // Toggle row acceptance (accepted -> rejected)
-        vm.SelectedResultRow = targetRow;
-        vm.ToggleAcceptSelectedRowCommand.Execute(null);
-        var updatedRow = vm.Results.First(r => r.RunId == targetRow.RunId);
-        Assert.Equal("Rejeitado", updatedRow.Status);
-
-        // Toggle back (rejected -> accepted)
-        vm.SelectedResultRow = updatedRow;
-        vm.ToggleAcceptSelectedRowCommand.Execute(null);
-        var restoredRow = vm.Results.First(r => r.RunId == targetRow.RunId);
-        Assert.Equal("Aceito", restoredRow.Status);
+        vm.CycleResultStatusCommand.Execute(vm.Results.First(r => r.RunId == targetRow.RunId));
+        Assert.Equal("Aceito", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
+        Assert.Equal("🟢", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
     }
 
     [Fact]
-    public void PowerTestViewModel_step7_reprocessing_recalculates_adimensionals_and_nienow_without_altering_raw_measurements()
+    public void PowerTestViewModel_step7_reprocessing_recalculates_adimensionals_without_flooding_or_altering_raw_measurements()
     {
         var geometry = new PowerGeometry
         {
@@ -579,7 +553,7 @@ public sealed class PowerGassedUiTests : IDisposable
 
         var initialP0Row = vm.Results.First(r => !r.IsGassed);
         var initialRe = initialP0Row.ReynoldsNumber;
-        var initialTheoNienow = vm.FloodingResult?.TheoreticalFlGNienow ?? 0.0;
+        Assert.Null(vm.CurrentTest!.Flooding);
 
         // Change fluid density to 1200 kg/m3 -> Re and Np should change reactively
         vm.DensityKgM3 = 1200.0;
@@ -587,11 +561,9 @@ public sealed class PowerGassedUiTests : IDisposable
         var reprocessedP0Row = vm.Results.First(r => !r.IsGassed);
         Assert.True(reprocessedP0Row.ReynoldsNumber > initialRe); // Re is proportional to density
 
-        // Change vessel diameter T from 190 mm to 250 mm -> Theoretical Nienow boundary changes
+        // Geometry changes still trigger scientific reprocessing, without restoring flooding data.
         vm.VesselDiameterMm = 250.0;
-
-        Assert.NotNull(vm.FloodingResult);
-        Assert.NotEqual(initialTheoNienow, vm.FloodingResult.TheoreticalFlGNienow);
+        Assert.Null(vm.CurrentTest!.Flooding);
 
         // Verify raw measurements (NetPowerW, MeanRpmMeasured) remained unaltered in document
         var reloaded = _store.LoadTest(doc.FolderName);

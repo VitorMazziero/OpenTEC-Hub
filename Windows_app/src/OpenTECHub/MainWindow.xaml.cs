@@ -181,7 +181,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Criteria typed into the capture-settings dialog and Montagem fields only reach the assay on
-    /// disk through <c>Salvar setup</c>; closing the application with them unsaved used to lose them
+    /// disk through <c>Salvar Preferências</c>; closing the application with them unsaved used to lose them
     /// silently (bench of 2026-09-11). Returns false when the operator cancels the exit.
     /// </summary>
     private bool ConfirmUnsavedAssaySetup()

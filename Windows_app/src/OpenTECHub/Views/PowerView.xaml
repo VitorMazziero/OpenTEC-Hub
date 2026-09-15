@@ -175,8 +175,6 @@
                 <!-- Ações contextuais de Mapeamento de Potência -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="{Binding IsMappingTabSelected, Converter={StaticResource BoolToVis}}">
-                    <Button Content="Novo" Margin="3,0" Command="{Binding CreateTestCommand}" />
-                    <Button Content="Salvar setup" Margin="3,0" Command="{Binding SaveSetupCommand}" IsEnabled="{Binding CanEditPlan}" />
                     <Button Content="▶ Iniciar/continuar" Margin="3,0" Style="{StaticResource AccentButtonStyle}"
                             Command="{Binding StartOrContinueCommand}" IsEnabled="{Binding CanStartOrContinue}" />
                     <Button Content="{Binding PauseButtonLabel}" Margin="3,0" Command="{Binding PauseResumeCommand}" IsEnabled="{Binding CanPause}" />
@@ -218,7 +216,12 @@
                         <StackPanel>
                     <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Ensaio" FontSize="15" FontWeight="SemiBold" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Ensaio" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Novo" Padding="10,3" HorizontalAlignment="Right"
+                                        Command="{Binding CreateTestCommand}" />
+                            </Grid>
 
                             <!-- Subcard 1: qual ensaio está aberto e o que se pode fazer com ele -->
                             <Border Style="{StaticResource PowerSubCard}" Margin="0,7,0,0">
@@ -234,18 +237,18 @@
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Content="Renomear" Command="{Binding RenameTestCommand}"
                                                 IsEnabled="{Binding CanManageTest}" Padding="8,3" ToolTip="Renomeia o ensaio aberto e sua pasta" />
-                                        <Button Grid.Column="2" Content="Excluir" Command="{Binding DeleteTestCommand}"
-                                                IsEnabled="{Binding CanManageTest}" Padding="8,3" Style="{StaticResource DangerButtonStyle}"
-                                                ToolTip="Move o ensaio aberto para a lixeira interna" />
+                                        <Button Grid.Column="2" Content="Reabrir" Command="{Binding ReopenTestCommand}"
+                                                IsEnabled="{Binding CanReopenTest}" Padding="8,3"
+                                                ToolTip="Volta um ensaio concluído a 'Interrompido': tabela editável e sequência continuável, pontos aceitos mantidos" />
                                     </Grid>
                                     <Grid Margin="0,5,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Content="Duplicar" Command="{Binding DuplicateTestCommand}"
                                                 IsEnabled="{Binding CanManageTest}" Padding="8,3"
                                                 ToolTip="Novo ensaio com o mesmo fluido, geometria, calibração, tara, critérios e tabela — contadores zerados, sem pontos" />
-                                        <Button Grid.Column="2" Content="Reabrir" Command="{Binding ReopenTestCommand}"
-                                                IsEnabled="{Binding CanReopenTest}" Padding="8,3"
-                                                ToolTip="Volta um ensaio concluído a 'Interrompido': tabela editável e sequência continuável, pontos aceitos mantidos" />
+                                        <Button Grid.Column="2" Content="Excluir" Command="{Binding DeleteTestCommand}"
+                                                IsEnabled="{Binding CanManageTest}" Padding="8,3" Style="{StaticResource DangerButtonStyle}"
+                                                ToolTip="Move o ensaio aberto para a lixeira interna" />
                                     </Grid>
                                     <TextBlock Margin="0,7,0,0" Text="{Binding TestStatusLabel}" FontWeight="SemiBold"
                                                TextWrapping="Wrap"
@@ -360,6 +363,10 @@
                             <Button Content="📖 Catálogo de impelidores..." Margin="0,7,0,0" Padding="10,5" HorizontalAlignment="Left" Command="{Binding OpenImpellerCatalogCommand}" ToolTip="Abrir biblioteca de modelos de impelidores para gerenciar ou adicionar ao eixo" />
                         </StackPanel>
                     </Border>
+
+                    <Button Content="Salvar Preferências" Margin="0,0,0,7" Padding="10,5" HorizontalAlignment="Right"
+                            Command="{Binding SaveSetupCommand}" IsEnabled="{Binding CanEditPlan}"
+                            ToolTip="Salva fluido, vaso, impelidores, critérios e tabela do ensaio aberto" />
 
                         </StackPanel>
                     </ScrollViewer>
@@ -674,7 +681,7 @@
                             </StackPanel>
                             <StackPanel Margin="0,0,16,6" MinWidth="86"><TextBlock Text="Np" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentNpText}" Style="{StaticResource PowerMetric}" /></StackPanel>
                             <StackPanel Margin="0,0,16,6" MinWidth="86"><TextBlock Text="Re" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentReText}" Style="{StaticResource PowerMetric}" /></StackPanel>
-                            <StackPanel Margin="0,0,16,6" MinWidth="86"><TextBlock Text="FlG / Fr" Style="{StaticResource PowerLabel}" /><TextBlock Style="{StaticResource PowerMetric}"><Run Text="{Binding CurrentFlGText, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding CurrentFrText, Mode=OneWay}" /></TextBlock></StackPanel>
+                            <StackPanel Margin="0,0,16,6" MinWidth="86"><TextBlock Text="Fr" Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentFrText, Mode=OneWay}" Style="{StaticResource PowerMetric}" /></StackPanel>
                             <StackPanel Margin="0,0,16,6" MinWidth="86"><TextBlock Text="PG / P₀ inst." Style="{StaticResource PowerLabel}" /><TextBlock Text="{Binding CurrentPowerRatioText}" Style="{StaticResource PowerMetric}" /></StackPanel>
                             <StackPanel VerticalAlignment="Center" Margin="0,0,0,6">
                                 <TextBlock Text="Malha de gás" Style="{StaticResource PowerLabel}" />
@@ -770,7 +777,7 @@
                         <RadioButton x:Name="PowerChartTabLive" GroupName="PowerCharts" Style="{StaticResource CompactSectionTabStyle}"
                                      Content="Torque e rotação" IsChecked="True" ToolTip="Torque e rotação medidos ao longo do ensaio" />
                         <RadioButton x:Name="PowerChartTabCurves" GroupName="PowerCharts" Style="{StaticResource CompactSectionTabStyle}"
-                                     Content="Np × Re / Flooding" ToolTip="Curvas adimensionais do ensaio" />
+                                     Content="Np × Re" ToolTip="Curva adimensional do ensaio" />
                     </StackPanel>
 
                     <Grid x:Name="PowerChartsRow" ctl:Responsive.NarrowBelow="900" MinHeight="330" Margin="0,0,0,7">
@@ -846,45 +853,10 @@
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <DockPanel Margin="5,2,5,4">
-                                    <StackPanel Orientation="Horizontal">
-                                        <RadioButton Content="Np × Re" IsChecked="{Binding ShowFloodingChart, Converter={StaticResource InverseBool}}" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                        <RadioButton Content="PG/P₀ × FlG (Flooding)" IsChecked="{Binding ShowFloodingChart}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
-                                                <Setter Property="Text" Value="● capturado  ┄ literatura" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ShowFloodingChart}" Value="True">
-                                                        <Setter Property="Text" Value="● experimental  ┄ Nienow  ★ Flooding" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </DockPanel>
+                                <TextBlock Margin="5,2,5,4" Text="Np × Re" FontWeight="SemiBold" />
                                 <Grid Grid.Row="1">
-                                    <Border x:Name="NpChartHost" Visibility="{Binding ShowFloodingChart, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
-                                    <Border x:Name="PgChartHost" Visibility="{Binding ShowFloodingChart, Converter={StaticResource BoolToVis}}" />
+                                    <Border x:Name="NpChartHost" />
                                 </Grid>
-                                <Border Grid.Row="2" Margin="0,6,0,0" Padding="8,5" Background="{DynamicResource SurfaceSunkenBrush}"
-                                        BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}"
-                                        Visibility="{Binding ShowFloodingChart, Converter={StaticResource BoolToVis}}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="Transição de Flooding (Nienow)" FontWeight="SemiBold" FontSize="11" />
-                                            <TextBlock Text="{Binding FloodingCoordinates}" Style="{StaticResource CaptionTextStyle}" Margin="0,1,0,0" />
-                                            <TextBlock Text="{Binding FloodingDeviationText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        </StackPanel>
-                                        <Border Grid.Column="1" VerticalAlignment="Center" Padding="6,2" Background="{DynamicResource AccentSubtleBrush}"
-                                                BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1" CornerRadius="4"
-                                                Visibility="{Binding HasFloodingPoint, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock Text="★ Ponto Identificado" FontWeight="SemiBold" FontSize="10.5" Foreground="{DynamicResource AccentBrush}" />
-                                        </Border>
-                                    </Grid>
-                                </Border>
                             </Grid>
                         </Border>
                     </Grid>
@@ -899,9 +871,6 @@
                                     <Border Margin="8,0,0,0" Padding="7,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4"><TextBlock Text="{Binding PrecisionBadge}" FontSize="10" /></Border>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Definir Flooding" Command="{Binding SetSelectedAsFloodingPointCommand}" Margin="0,0,6,0" Padding="8,3" IsEnabled="{Binding CanSetManualFlooding}" ToolTip="Define o ponto experimental gaseificado selecionado como ponto oficial de flooding" />
-                                    <Button Content="Flooding Auto" Command="{Binding ResetAutomaticFloodingCommand}" Margin="0,0,6,0" Padding="8,3" IsEnabled="{Binding HasActiveTest}" ToolTip="Restaura a detecção matemática automática do ponto de flooding" />
-                                    <Button Content="Alternar Aceite" Command="{Binding ToggleAcceptSelectedRowCommand}" Margin="0,0,6,0" Padding="8,3" IsEnabled="{Binding CanToggleRowAcceptance}" ToolTip="Alterna o status do ponto selecionado entre Aceito e Rejeitado" />
                                     <Button Content="Exportar CSV" Click="ExportCsv_Click" Padding="10,4" IsEnabled="{Binding HasActiveTest}" />
                                 </StackPanel>
                             </Grid>
@@ -948,8 +917,13 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            <DataGrid Grid.Row="2" Height="220" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResultRow, Mode=TwoWay}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
+                            <DataGrid Grid.Row="2" Margin="0,8,0,0" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
+                                    <DataGridTextColumn Header="" Binding="{Binding StatusGlyph}" Width="30">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="ToolTip" Value="{Binding StatusDescription}" /></Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
                                     <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="62" />
                                     <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="82" />
                                     <DataGridTextColumn Header="P líqu. (W)" Binding="{Binding Power}" Width="74" />
@@ -957,15 +931,23 @@
                                     <DataGridTextColumn Header="Re" Binding="{Binding Re}" Width="74" />
                                     <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" Width="68" />
                                     <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm}" Width="72" />
-                                    <DataGridTextColumn Header="FlG" Binding="{Binding FlG}" Width="64" />
                                     <DataGridTextColumn Header="Fr" Binding="{Binding Fr}" Width="64" />
                                     <DataGridTextColumn Header="PG (W)" Binding="{Binding PgLiquid}" Width="70" />
                                     <DataGridTextColumn Header="P₀ ref (W)" Binding="{Binding P0Ref}" Width="74" />
                                     <DataGridTextColumn Header="PG/P₀ ± IC" Binding="{Binding PowerRatio}" Width="92" />
                                     <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" Width="80" />
                                     <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="48" />
-                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="94" />
                                     <DataGridTextColumn Header="Data/hora" Binding="{Binding Timestamp}" Width="130" />
+                                    <DataGridTemplateColumn Header="Ação" Width="110">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="Mudar status" Padding="6,2" Command="{Binding DataContext.CycleResultStatusCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}" IsEnabled="{Binding DataContext.CanChangeResultStatus, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        ToolTip="Alterna entre Aceito, Capturado, Em revisão e Rejeitado" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                             <StackPanel Grid.Row="3" HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,8,0,0">

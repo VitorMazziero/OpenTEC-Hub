@@ -273,7 +273,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public IReadOnlyList<EnumChoice<PowerSweepType>> SweepTypes { get; } =
     [
         new(PowerSweepType.VariableNConstantQg, "N variável (Qg constante)"),
-        new(PowerSweepType.VariableQgConstantN, "Qg variável (N constante — Flooding)"),
+        new(PowerSweepType.VariableQgConstantN, "Qg variável (N constante)"),
         new(PowerSweepType.MatrixNByQg, "Matriz 2D (N × Qg)"),
     ];
 
@@ -338,7 +338,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double? CurrentFlowLpm { get; private set; }
     [ObservableProperty] public partial double? CurrentNp { get; private set; }
     [ObservableProperty] public partial double? CurrentRe { get; private set; }
-    [ObservableProperty] public partial double? CurrentFlG { get; private set; }
     [ObservableProperty] public partial double? CurrentFr { get; private set; }
     [ObservableProperty] public partial double? CurrentFlowVvm { get; private set; }
     [ObservableProperty] public partial double? CurrentPowerRatio { get; private set; }
@@ -462,21 +461,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     private KlaSurface? _linkedKlaSurface;
     private bool _isLoadingTest;
 
-    [ObservableProperty] public partial bool ShowFloodingChart { get; set; }
-    [ObservableProperty] public partial FloodingAnalysisResult? FloodingResult { get; private set; }
-    [ObservableProperty] public partial bool HasFloodingPoint { get; private set; }
-    [ObservableProperty] public partial string FloodingSummary { get; private set; } = "";
-    [ObservableProperty] public partial string FloodingCoordinates { get; private set; } = "";
-    [ObservableProperty] public partial string FloodingDeviationText { get; private set; } = "";
-
     [ObservableProperty] public partial PowerResultRow? SelectedResultRow { get; set; }
-    public bool CanSetManualFlooding => SelectedResultRow is not null && SelectedResultRow.IsGassed;
-    public bool CanToggleRowAcceptance => SelectedResultRow is not null;
+    public bool CanChangeResultStatus => CurrentTest is not null && !IsRunning && !IsTareRunning && CurrentTest.Status != PowerTestStatus.Completed;
 
     partial void OnSelectedResultRowChanged(PowerResultRow? value)
     {
-        OnPropertyChanged(nameof(CanSetManualFlooding));
-        OnPropertyChanged(nameof(CanToggleRowAcceptance));
+        OnPropertyChanged(nameof(CanChangeResultStatus));
     }
 
     public bool IsSweepTypeNVariable => SelectedSweepType is PowerSweepType.VariableNConstantQg or PowerSweepType.MatrixNByQg;
@@ -694,7 +684,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public string CurrentFlowText => Format(CurrentFlowLpm, "F2");
     public string CurrentNpText => Format(CurrentNp, "G5");
     public string CurrentReText => Format(CurrentRe, "G5");
-    public string CurrentFlGText => Format(CurrentFlG, "G4");
     public string CurrentFrText => Format(CurrentFr, "G4");
     public string CurrentFlowVvmText => Format(CurrentFlowVvm, "F2");
     public string CurrentPowerRatioText => Format(CurrentPowerRatio, "F3");
@@ -1042,7 +1031,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             LivePoints.Clear();
             Results.Clear();
             _structureKey = null;
-            DetectFloodingIfMissing();
             RebuildResults();
             _runner?.PrepareTest(doc);
             OnPropertyChanged(nameof(IsLegacyRigTest));
@@ -1294,7 +1282,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     public bool HasUnsavedCaptureSettings => CurrentTest is { } doc && BuildEditedSettings() != doc.Settings;
 
     /// <summary>
-    /// True when anything <c>Salvar setup</c> would write differs from the open assay — the
+    /// True when anything <c>Salvar Preferências</c> would write differs from the open assay — the
     /// criteria, the fluid or the geometry. The conditions table is not included because every
     /// edit to it already persists itself.
     /// </summary>
@@ -2423,121 +2411,63 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         await _runner.AbortTestAsync("Interrompido pelo operador");
     }
 
-    // =========================================================================
-    // Step 7: Revisão Científica e Ajuste Interativo de Flooding (§16)
-    // =========================================================================
-
     [RelayCommand]
-    private void SetSelectedAsFloodingPoint()
+    private void CycleResultStatus(PowerResultRow? row)
     {
-        if (CurrentTest is null || SelectedResultRow is null)
+        if (!CanChangeResultStatus || CurrentTest is null || row is null)
         {
             return;
         }
 
-        var run = CurrentTest.Runs.FirstOrDefault(r => r.RunId == SelectedResultRow.RunId);
-        if (run is null || run.GasMode == PowerGasMode.Ungassed)
-        {
-            ShowError("Selecione um ponto experimental gaseificado na tabela para definir como transição de flooding.");
-            return;
-        }
-
-        var refImpeller = CurrentTest.Geometry.Impellers.OrderByDescending(i => i.DiameterM).FirstOrDefault()
-                          ?? new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 };
-        var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
-        var fr = run.FroudeNumber ?? PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
-        var nienowFlG = PowerCalc.NienowFloodingAerationNumber(refImpeller.DiameterM, CurrentTest.Geometry.VesselDiameterM, fr);
-        var expFlG = run.GasFlowNumber ?? (run.GasFlowLpm.HasValue && rpm > 0 ? PowerCalc.AerationNumber(run.GasFlowLpm.Value, rpm, refImpeller.DiameterM) : 0.0);
-        var relDev = nienowFlG > 0 ? (expFlG - nienowFlG) / nienowFlG * 100.0 : 0.0;
-
-        var adjusted = new FloodingAnalysisResult
-        {
-            ExperimentalFlG = expFlG,
-            ExperimentalRpm = rpm,
-            ExperimentalFlowLpm = run.GasFlowLpm ?? 0.0,
-            TheoreticalFlGNienow = nienowFlG,
-            RelativeDeviationPercent = relDev,
-            ReferenceStageIndex = refImpeller.StageIndex,
-            ReferenceImpellerType = refImpeller.Type,
-            Method = FloodingDetectionMethod.ManualAdjusted,
-            DeterminedUtc = DateTimeOffset.UtcNow,
-            Notes = $"Transição ajustada manualmente pelo operador no ponto PG/P0 = {run.PowerRatio:F3} ({rpm:F0} rpm, {run.GasFlowLpm:F2} L/min)",
-        };
-
-        CurrentTest.Flooding = adjusted;
-        _store.SaveFlooding(CurrentTest.FolderName, adjusted);
-        _store.SaveTestManifest(CurrentTest);
-        RebuildResults();
-        StatusMessage = $"Ponto de flooding ajustado manualmente para Fl_G = {adjusted.ExperimentalFlG:G4}.";
-    }
-
-    [RelayCommand]
-    private void ResetAutomaticFlooding()
-    {
-        if (CurrentTest is null)
-        {
-            return;
-        }
-
-        var auto = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
-        CurrentTest.Flooding = auto;
-        if (auto is not null)
-        {
-            _store.SaveFlooding(CurrentTest.FolderName, auto);
-        }
-        _store.SaveTestManifest(CurrentTest);
-        RebuildResults();
-        StatusMessage = auto is not null
-            ? $"Flooding automático detectado em Fl_G = {auto.ExperimentalFlG:G4}."
-            : "Flooding automático restaurado (insuficientes pontos para detecção automática).";
-    }
-
-    [RelayCommand]
-    private void ToggleAcceptSelectedRow()
-    {
-        if (CurrentTest is null || SelectedResultRow is null)
-        {
-            return;
-        }
-
-        var run = CurrentTest.Runs.FirstOrDefault(r => r.RunId == SelectedResultRow.RunId);
+        var run = CurrentTest.Runs.FirstOrDefault(r => r.RunId == row.RunId);
         if (run is null)
         {
             return;
         }
 
-        var newPhase = run.Phase == PowerRunPhase.Accepted ? PowerRunPhase.Rejected : PowerRunPhase.Accepted;
-        if (newPhase == PowerRunPhase.Accepted && PowerTestFileContracts.IsRunWithoutCapture(run))
-        {
-            ShowError(PowerTestRunner.NoCaptureMessage);
-            return;
-        }
-        var updatedRun = run with { Phase = newPhase };
-        var idx = CurrentTest.Runs.IndexOf(run);
-        CurrentTest.Runs[idx] = updatedRun;
+        var nextPhase = NextManualResultPhase(run.Phase);
+        var index = CurrentTest.Runs.IndexOf(run);
+        CurrentTest.Runs[index] = run with { Phase = nextPhase };
 
-        var cond = CurrentTest.Conditions.FirstOrDefault(c => c.ConditionId == run.ConditionId);
-        if (cond is not null)
+        var condition = CurrentTest.Conditions.FirstOrDefault(c => c.ConditionId == run.ConditionId);
+        if (condition is not null)
         {
-            cond.AcceptedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == cond.ConditionId && r.Phase == PowerRunPhase.Accepted);
-            cond.RejectedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == cond.ConditionId && r.Phase == PowerRunPhase.Rejected);
-            _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
-        }
-
-        if (CurrentTest.Flooding?.Method != FloodingDetectionMethod.ManualAdjusted)
-        {
-            CurrentTest.Flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
-            if (CurrentTest.Flooding is not null)
+            var conditionRuns = CurrentTest.Runs.Where(r => r.ConditionId == condition.ConditionId).ToArray();
+            condition.AcceptedReplicates = conditionRuns.Count(r => r.Phase == PowerRunPhase.Accepted);
+            condition.RejectedReplicates = conditionRuns.Count(r => r.Phase == PowerRunPhase.Rejected);
+            condition.CompletedReplicates = condition.AcceptedReplicates + condition.RejectedReplicates;
+            if (condition.Status != PowerConditionStatus.Skipped)
             {
-                _store.SaveFlooding(CurrentTest.FolderName, CurrentTest.Flooding);
+                condition.Status = condition.AcceptedReplicates >= condition.RequestedReplicates
+                    ? PowerConditionStatus.Completed
+                    : PowerConditionStatus.Pending;
             }
         }
 
+        _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
         _store.UpdateResultsSummary(CurrentTest.FolderName, CurrentTest);
         _store.SaveTestManifest(CurrentTest);
         RebuildResults();
-        StatusMessage = $"Ponto {(newPhase == PowerRunPhase.Accepted ? "aceito" : "rejeitado")}: {run.AgitationRpm:F0} rpm (Qg = {run.GasFlowLpm:F2} L/min).";
+
+        // A row action is also allowed to resolve a no-capture review. The persisted summary is
+        // authoritative for this explicit operator override; clear only the runner's transient
+        // review state so the warning strip does not remain stuck on screen.
+        if (_runner?.IsInReview == true && _runner.CurrentRun?.RunId == run.RunId)
+        {
+            _runner.PrepareTest(CurrentTest);
+        }
+
+        StatusMessage = $"Status do ponto alterado para {PowerResultRow.StatusText(nextPhase)}.";
+        NotifyDocumentState();
     }
+
+    private static PowerRunPhase NextManualResultPhase(PowerRunPhase phase) => phase switch
+    {
+        PowerRunPhase.Accepted => PowerRunPhase.Captured,
+        PowerRunPhase.Captured => PowerRunPhase.Reviewing,
+        PowerRunPhase.Reviewing => PowerRunPhase.Rejected,
+        _ => PowerRunPhase.Accepted,
+    };
 
     private void ReprocessIfActive()
     {
@@ -2555,8 +2485,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Reprocesses all dimensionless groups (Re, Np, Fl_G, Fr, P_G/P0) and Nienow correlation (§16)
-    /// without modifying raw data.
+    /// Reprocesses the dimensionless groups still used by the power assay (Re, Np and Fr,
+    /// together with P_G/P0) without modifying raw data.
     /// </summary>
     public void ReprocessScientificData()
     {
@@ -2598,14 +2528,12 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 }
             }
 
-            double? flg = null;
             double? fr = null;
             double? vvm = null;
             if (run.GasMode != PowerGasMode.Ungassed && run.GasFlowLpm is { } flowLpm)
             {
                 if (rpm > 0 && refImpeller.DiameterM > 0)
                 {
-                    flg = PowerCalc.AerationNumber(flowLpm, rpm, refImpeller.DiameterM);
                     fr = PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
                 }
                 if (geometry.LiquidVolumeM3 > 0)
@@ -2631,7 +2559,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             CurrentTest.Runs[i] = run with
             {
                 GasFlowVvm = vvm ?? run.GasFlowVvm,
-                GasFlowNumber = flg ?? run.GasFlowNumber,
                 FroudeNumber = fr ?? run.FroudeNumber,
                 Analysis = newAnalysis,
             };
@@ -2665,33 +2592,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 PowerRatio = ratio,
                 PowerRatioCi95 = ratioCi,
             };
-        }
-
-        if (CurrentTest.Flooding is { } currentFlood)
-        {
-            var nienowFr = PowerCalc.FroudeNumber(currentFlood.ExperimentalRpm, refImpeller.DiameterM);
-            var theoNienow = PowerCalc.NienowFloodingAerationNumber(refImpeller.DiameterM, geometry.VesselDiameterM, nienowFr);
-            var expFlg = refImpeller.DiameterM > 0 && currentFlood.ExperimentalRpm > 0
-                ? PowerCalc.AerationNumber(currentFlood.ExperimentalFlowLpm, currentFlood.ExperimentalRpm, refImpeller.DiameterM)
-                : currentFlood.ExperimentalFlG;
-            var relDev = theoNienow > 0 ? (expFlg - theoNienow) / theoNienow * 100.0 : 0.0;
-
-            CurrentTest.Flooding = currentFlood with
-            {
-                ExperimentalFlG = expFlg,
-                TheoreticalFlGNienow = theoNienow,
-                RelativeDeviationPercent = relDev,
-            };
-            _store.SaveFlooding(CurrentTest.FolderName, CurrentTest.Flooding);
-        }
-        else if (CurrentTest.Runs.Count >= 3)
-        {
-            var autoFlood = _analysis.DetectFlooding(CurrentTest.Runs, geometry);
-            if (autoFlood is not null)
-            {
-                CurrentTest.Flooding = autoFlood;
-                _store.SaveFlooding(CurrentTest.FolderName, autoFlood);
-            }
         }
 
         _store.UpdateResultsSummary(CurrentTest.FolderName, CurrentTest);
@@ -3840,7 +3740,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     {
         if (!HasServoSample || CurrentRpm is not { } rpm || CurrentTorquePercent is not { } torquePct)
         {
-            CurrentTorqueNm = CurrentPowerW = CurrentNp = CurrentRe = CurrentFlG = CurrentFr = CurrentFlowVvm = CurrentPowerRatio = null;
+            CurrentTorqueNm = CurrentPowerW = CurrentNp = CurrentRe = CurrentFr = CurrentFlowVvm = CurrentPowerRatio = null;
             UpdateGasLoopStatus();
             NotifyLiveText();
             return;
@@ -3850,7 +3750,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         var torqueNm = doc?.Calibration is { } cal ? cal.Scale * (torquePct / 100.0 * cal.MotorRatedTorqueNm) + cal.Offset : torquePct / 100.0 * tNom;
         CurrentTorqueNm = torqueNm;
         CurrentPowerW = PowerCalc.ShaftPower(torqueNm, rpm);
-        CurrentNp = CurrentRe = CurrentFlG = CurrentFr = CurrentFlowVvm = CurrentPowerRatio = null;
+        CurrentNp = CurrentRe = CurrentFr = CurrentFlowVvm = CurrentPowerRatio = null;
         var reference = Impellers.OrderByDescending(i => i.DiameterM).FirstOrDefault();
         if (doc is not null && reference is not null && reference.DiameterM > 0 && rpm > 0 && doc.Fluid.DensityKgM3 > 0 && doc.Fluid.ViscosityPaS > 0)
         {
@@ -3860,7 +3760,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             CurrentFr = PowerCalc.FroudeNumber(rpm, reference.DiameterM);
             if (CurrentFlowLpm is { } flow)
             {
-                CurrentFlG = PowerCalc.AerationNumber(flow, rpm, reference.DiameterM);
                 CurrentFlowVvm = LiquidVolumeL > 0 ? Math.Round(flow / LiquidVolumeL, 3) : null;
                 if (flow > 0.05)
                 {
@@ -4027,10 +3926,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         if (_runner.CurrentTest is not null)
         {
-            if (acceptedChanged)
-            {
-                DetectFloodingIfMissing();
-            }
             RebuildResults();
         }
 
@@ -4057,26 +3952,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     });
 
     /// <summary>
-    /// Runs the automatic flooding detection once there are enough runs and no result yet. Called
-    /// when a run is accepted and when an assay is opened — not on every refresh, because it
-    /// writes <c>flooding.json</c> and the manifest.
-    /// </summary>
-    private void DetectFloodingIfMissing()
-    {
-        if (CurrentTest is null || CurrentTest.Flooding is not null || CurrentTest.Runs.Count < 3)
-        {
-            return;
-        }
-
-        var flooding = _analysis.DetectFlooding(CurrentTest.Runs, CurrentTest.Geometry);
-        if (flooding is not null)
-        {
-            CurrentTest.Flooding = flooding;
-            _store.SaveFlooding(CurrentTest.FolderName, flooding);
-            _store.SaveTestManifest(CurrentTest);
-        }
-    }
-
     /// <summary>
     /// Brings <see cref="Results"/> in line with the document's runs <em>in place</em>: rows are
     /// matched by <c>RunId</c>, replaced only when their content changed, moved when the order
@@ -4088,11 +3963,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (CurrentTest is null)
         {
             Results.Clear();
-            FloodingResult = null;
-            HasFloodingPoint = false;
-            FloodingCoordinates = "";
-            FloodingDeviationText = "";
-            FloodingSummary = "Nenhum ensaio carregado.";
             return;
         }
 
@@ -4137,24 +4007,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (selectedRunId is { } id && SelectedResultRow?.RunId != id || selectedRunId is { } && !Results.Contains(SelectedResultRow!))
         {
             SelectedResultRow = Results.FirstOrDefault(r => r.RunId == selectedRunId);
-        }
-
-        var flooding = CurrentTest.Flooding;
-        FloodingResult = flooding;
-        HasFloodingPoint = flooding is not null;
-        if (flooding is not null)
-        {
-            var methodLabel = flooding.Method == FloodingDetectionMethod.ManualAdjusted ? "Manual" : "Automático";
-            FloodingCoordinates = $"Fl_G,F = {flooding.ExperimentalFlG:G4} · (PG/P0)_F @ {flooding.ExperimentalRpm:F0} rpm ({flooding.ExperimentalFlowLpm:F2} L/min)";
-            var devSign = flooding.RelativeDeviationPercent >= 0 ? "+" : "";
-            FloodingDeviationText = $"Nienow teórico: Fl_G = {flooding.TheoreticalFlGNienow:G4} ({devSign}{flooding.RelativeDeviationPercent:F1}%) · Método: {methodLabel}";
-            FloodingSummary = $"{FloodingCoordinates}\n{FloodingDeviationText}";
-        }
-        else
-        {
-            FloodingCoordinates = "";
-            FloodingDeviationText = "";
-            FloodingSummary = "Flooding não identificado (necessário varredura com ≥ 3 patamares de gás).";
         }
 
         UpdateKlaEfficiencyComparison();
@@ -4261,7 +4113,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(LiveSummary)); OnPropertyChanged(nameof(CurrentRpmText)); OnPropertyChanged(nameof(CurrentTorquePercentText));
         OnPropertyChanged(nameof(CurrentTorqueNmText)); OnPropertyChanged(nameof(CurrentPowerWText)); OnPropertyChanged(nameof(CurrentFlowText));
         OnPropertyChanged(nameof(CurrentFlowVvmText));
-        OnPropertyChanged(nameof(CurrentNpText)); OnPropertyChanged(nameof(CurrentReText)); OnPropertyChanged(nameof(CurrentFlGText)); OnPropertyChanged(nameof(CurrentFrText));
+        OnPropertyChanged(nameof(CurrentNpText)); OnPropertyChanged(nameof(CurrentReText)); OnPropertyChanged(nameof(CurrentFrText));
         OnPropertyChanged(nameof(CurrentPowerRatioText)); OnPropertyChanged(nameof(GasLoopStatusBadge));
     }
 
@@ -4274,6 +4126,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(HasActiveTest)); OnPropertyChanged(nameof(CanEditPlan)); OnPropertyChanged(nameof(CanStartOrContinue)); OnPropertyChanged(nameof(CanManageTest)); OnPropertyChanged(nameof(CanReopenTest));
         OnPropertyChanged(nameof(CanPause)); OnPropertyChanged(nameof(CanStop)); OnPropertyChanged(nameof(CanSkipCurrent));
+        OnPropertyChanged(nameof(CanChangeResultStatus));
         OnPropertyChanged(nameof(PauseButtonLabel)); OnPropertyChanged(nameof(TestStatusLabel));
         OnPropertyChanged(nameof(TareStatus)); OnPropertyChanged(nameof(ResultModeLabel)); OnPropertyChanged(nameof(ImpellerSetHash));
         OnPropertyChanged(nameof(VortexWarning)); OnPropertyChanged(nameof(ResultsCsvPath)); OnPropertyChanged(nameof(ReferenceLiteratureNp));
@@ -4396,6 +4249,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 public sealed record PowerResultRow
 {
     public required Guid RunId { get; init; }
+    public required string StatusGlyph { get; init; }
+    public required string StatusDescription { get; init; }
     public required string Rpm { get; init; }
     public required string NetTorque { get; init; }
     public required string Power { get; init; }
@@ -4407,9 +4262,8 @@ public sealed record PowerResultRow
     public required string Timestamp { get; init; }
     public required string Status { get; init; }
 
-    // Gas & Flooding columns (§4.5, §11, §16)
+    // Gassed-result columns.
     public required string GasFlowLpm { get; init; }
-    public required string FlG { get; init; }
     public required string Fr { get; init; }
     public required string PgLiquid { get; init; }
     public required string P0Ref { get; init; }
@@ -4424,6 +4278,25 @@ public sealed record PowerResultRow
     public double RatioCi95 { get; init; }
     public PowerGasMode GasMode { get; init; }
     public bool IsGassed => GasMode is PowerGasMode.Gassed or PowerGasMode.Both;
+
+    public static string StatusText(PowerRunPhase phase) => phase switch
+    {
+        PowerRunPhase.Accepted => "Aceito",
+        PowerRunPhase.Captured => "Capturado",
+        PowerRunPhase.Reviewing => "Em revisão",
+        PowerRunPhase.Rejected => "Rejeitado",
+        PowerRunPhase.Faulted => "Interrompido",
+        _ => phase.ToString(),
+    };
+
+    private static string StatusGlyphFor(PowerRunPhase phase) => phase switch
+    {
+        PowerRunPhase.Accepted => "🟢",
+        PowerRunPhase.Captured => "🟡",
+        PowerRunPhase.Reviewing => "🔵",
+        PowerRunPhase.Rejected or PowerRunPhase.Faulted => "🔴",
+        _ => "🟡",
+    };
 
     public static PowerResultRow From(PowerRunSummary run)
     {
@@ -4441,6 +4314,8 @@ public sealed record PowerResultRow
         return new PowerResultRow
         {
             RunId = run.RunId,
+            StatusGlyph = StatusGlyphFor(run.Phase),
+            StatusDescription = StatusText(run.Phase),
             Rpm = F(run.MeanRpmMeasured, "F1"),
             NetTorque = F(run.NetPowerW is { } netPower && run.MeanRpmMeasured != 0
                 ? netPower / PowerCalc.AngularVelocity(run.MeanRpmMeasured)
@@ -4452,10 +4327,9 @@ public sealed record PowerResultRow
             StopReason = run.StopReason.ToString(),
             Attempts = run.Tries.ToString(CultureInfo.CurrentCulture),
             Timestamp = (run.CompletedUtc ?? run.StartedUtc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.CurrentCulture),
-            Status = run.Phase == PowerRunPhase.Accepted ? "Aceito" : run.Phase == PowerRunPhase.Rejected ? "Rejeitado" : run.Phase.ToString(),
+            Status = StatusText(run.Phase),
 
             GasFlowLpm = F(run.GasFlowLpm, "F2"),
-            FlG = F(run.GasFlowNumber, "G4"),
             Fr = F(run.FroudeNumber, "G4"),
             PgLiquid = F(run.GassedPowerW ?? (run.GasMode is PowerGasMode.Gassed or PowerGasMode.Both ? run.NetPowerW : null), "F3"),
             P0Ref = F(run.ReferenceP0W, "F3"),

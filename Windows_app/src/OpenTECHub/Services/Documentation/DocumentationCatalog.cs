@@ -604,21 +604,17 @@ public static class DocumentationCatalog
                     F("Chip Malha de gás", "Fechado · Reator (A) · Descarga + N₂ (B/C) · Ar por C · estabilizando · Gás sem destino · A e B/C abertas — o que o fluxômetro ecoa, lido no arranjo configurado."),
                 ]),
                 new DocumentationSection("Com gás: os números que aparecem", [
-                    Eq("Fl_G = Q_g / (n · D³)",
-                       "Número de aeração: quanto gás passa por revolução do impelidor."),
                     Eq("Fr = n² · D / g",
                        "Froude: a razão entre inércia e gravidade no impelidor."),
-                    Eq("Fl_G,inund = 30 · (D/T)^3,5 · Fr",
-                       "Fronteira de inundação (**flooding**) de Nienow: acima dela o gás domina e o impelidor deixa de dispersá-lo. **T** é o diâmetro do vaso."),
                     Eq("P_G/P₀ = potência gaseificada ÷ potência sem gás, na mesma rotação",
                        "A queda de potência causada pelo gás. É o que a coluna PG/P₀ reporta."),
                 ]),
                 new DocumentationSection("Como a página é organizada", [
-                    F("Cabeçalho", "Estado do ensaio, o selo RELATIVO ou ABSOLUTO conforme haja tara, e as ações: Novo, Salvar setup, Iniciar/continuar, Pausar, Pular e Parar e revisar."),
+                    F("Cabeçalho", "Estado do ensaio, o selo RELATIVO ou ABSOLUTO conforme haja tara, e as ações: Iniciar/continuar, Pausar, Pular e Parar e revisar. Novo fica no card Ensaio e Salvar Preferências fica após Impelidores no eixo."),
                     F("Aba Montagem", "O que descreve o experimento: o ensaio aberto, a tara aplicada, fluido e vaso (ρ, μ, temperatura, diâmetro do vaso, volume de trabalho, chicanas) e os impelidores no eixo, com o catálogo de modelos."),
                     F("Aba Aquisição", "Como as condições são geradas e capturadas: faixas de agitação e de vazão, a tabela de condições e os parâmetros de captura."),
                     F("Aba Validação", "Tara do eixo, ponto único, correlação elétrica e o vínculo com um mapa de kLa — cada um com o seu próprio assunto no manual."),
-                    F("Direita", "As leituras ao vivo, a precisão adaptativa, o progresso da sequência, os dois gráficos (torque e rotação; Np × Re ou PG/P₀ × Fl_G) e a tabela de pontos capturados."),
+                    F("Direita", "As leituras ao vivo, a precisão adaptativa, o progresso da sequência, os dois gráficos (torque e rotação; Np × Re) e a tabela de pontos capturados."),
                 ]),
                 new DocumentationSection("A parada adaptativa", [
                     P("Cada ponto é capturado por um critério estatístico de duas portas, e não por um tempo fixo:"),
@@ -626,7 +622,7 @@ public static class DocumentationCatalog
                     B("**Precisão** — as amostras se acumulam até o intervalo de confiança de 95 % ficar abaixo do alvo: o maior entre uma fração relativa da média e um piso proporcional ao ruído στ medido na tara."),
                     N("É por isso que dois pontos do mesmo ensaio levam tempos diferentes: o que eles têm em comum é a **incerteza**, não a duração."),
                     F("Precisão adaptativa", "A barra do topo mostra o IC95 corrente contra o alvo, e é onde se vê um ponto que não converge."),
-                    F("Pontos capturados", "Uma linha por ponto aceito: rotação, torque líquido, potência líquida, Np, Re, IC95, e — com gás — Qg, Fl_G, Fr, PG, P₀ de referência e PG/P₀ ± IC."),
+                    F("Pontos capturados", "Uma linha por corrida: o primeiro indicador mostra o status (🟢 aceito, 🟡 capturado, 🔵 em revisão ou 🔴 rejeitado), seguido de rotação, torque líquido, potência líquida, Np, Re, IC95, e — com gás — Qg, Fr, PG, P₀ de referência e PG/P₀ ± IC. O botão Mudar status percorre os quatro estados sem exigir captura."),
                 ]),
                 new DocumentationSection("O que fica gravado", [
                     B("Cada ensaio é uma pasta em `Testes-Potencia/`, com `ensaio.json` (fluido, geometria, calibração, tara), `tabela-condicoes.json`, `serie-global.csv` e uma pasta por corrida."),

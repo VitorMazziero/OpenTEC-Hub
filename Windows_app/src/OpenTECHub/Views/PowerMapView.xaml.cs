@@ -373,7 +373,7 @@ public partial class PowerMapView : UserControl
 
         if (pairs.Length == 0)
         {
-            AddCentredNote(plot, "Vincule um mapa de kLa e ajuste o modelo");
+            AddCentredNote(plot, "Calcule a intersecção e ajuste o modelo");
             _parityPlot.Refresh();
             return;
         }
@@ -433,22 +433,41 @@ public partial class PowerMapView : UserControl
             .Where(p => p.KlaPerHour > 0 && p.VolumetricPowerWm3 > 0)
             .ToArray() ?? [];
 
-        if (pairs.Length == 0)
+        var intersectionCells = ViewModel?.CurrentSurfaceIntersection?.EnumerateValidCells()
+            .Where(c => c.KlaPerHour > 0 && c.VolumetricPowerWm3 > 0)
+            .ToArray() ?? [];
+
+        if (pairs.Length == 0 && intersectionCells.Length == 0)
         {
-            AddCentredNote(plot, "Sem pares casados entre potência e kLa");
+            AddCentredNote(plot, "Sem pontos válidos na intersecção das superfícies");
             _klaPvPlot.Refresh();
             return;
         }
 
-        var groups = pairs
-            .GroupBy(p => Math.Round(p.GasFlowLpm, 2))
-            .OrderBy(g => g.Key)
-            .ToArray();
+        var groups = pairs.Length > 0
+            ? pairs
+                .GroupBy(p => Math.Round(p.GasFlowLpm, 2))
+                .Select(g => new
+                {
+                    Key = g.Key,
+                    Points = g.Select(p => (p.VolumetricPowerWm3, p.KlaPerHour, p.SuperficialVelocityMs)).ToArray(),
+                })
+                .OrderBy(g => g.Key)
+                .ToArray()
+            : intersectionCells
+                .GroupBy(c => Math.Round(c.GasFlowLpm, 2))
+                .Select(g => new
+                {
+                    Key = g.Key,
+                    Points = g.Select(c => (c.VolumetricPowerWm3, c.KlaPerHour, c.SuperficialVelocityMs)).ToArray(),
+                })
+                .OrderBy(g => g.Key)
+                .ToArray();
 
         var palette = new ScottPlot.Palettes.Category10();
         for (var index = 0; index < groups.Length; index++)
         {
-            var group = groups[index].OrderBy(p => p.VolumetricPowerWm3).ToArray();
+            var group = groups[index].Points.OrderBy(p => p.VolumetricPowerWm3).ToArray();
             var series = plot.Add.Scatter(
                 group.Select(p => p.VolumetricPowerWm3).ToArray(),
                 group.Select(p => p.KlaPerHour).ToArray());

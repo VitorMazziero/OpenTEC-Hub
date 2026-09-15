@@ -205,19 +205,19 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Card dos parâmetros da correlação kLa (§18.3 passo 5.1) -->
+                    <!-- Card da intersecção mapa de potência × mapa kLa -->
                     <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
                         <StackPanel>
-                            <TextBlock Text="Correlação kLa (van 't Riet)" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Intersecção dos mapas e eficiência P/V" Style="{StaticResource SectionTitle}" />
                             <ComboBox ItemsSource="{Binding AvailableKlaMaps}" SelectedItem="{Binding SelectedKlaMapOption}"
-                                      DisplayMemberPath="DisplayText" ToolTip="Mapa de kLa a acoplar por P/V" />
-                            <Button Margin="0,7,0,0" Content="Vincular e ajustar modelo" Padding="8,4"
-                                    Command="{Binding LinkKlaMapAndFitCommand}" />
+                                      DisplayMemberPath="DisplayText" ToolTip="Mapa kLa reconstruído na mesma malha física do mapa de potência" />
+                            <TextBlock Margin="0,7,0,0" Text="Domínio comum" Style="{StaticResource MapLabel}" />
+                            <TextBlock Text="{Binding CommonDomainText}" Style="{StaticResource MapReadout}" TextWrapping="Wrap" />
+                            <Button Margin="0,7,0,0" Content="Calcular intersecção" Padding="8,4"
+                                    Command="{Binding CalculateSurfaceIntersectionCommand}" />
                             <Border Margin="0,8,0,0" Padding="9" CornerRadius="{DynamicResource RadiusSmall}"
                                     Background="{DynamicResource SurfaceSunkenBrush}">
                                 <StackPanel>
-                                    <TextBlock Text="{Binding VanTRietFormulaText}" Style="{StaticResource MapReadout}"
-                                               TextWrapping="Wrap" />
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -225,12 +225,28 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="K" Style="{StaticResource MapLabel}" />
-                                            <TextBlock Text="{Binding VanTRietKText}" Style="{StaticResource MapMetric}" />
+                                            <TextBlock Text="Pontos comuns" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding IntersectionCoverageText}" Style="{StaticResource MapMetric}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Text="R²" Style="{StaticResource MapLabel}" />
-                                            <TextBlock Text="{Binding VanTRietR2Text}" Style="{StaticResource MapMetric}" />
+                                            <TextBlock Text="Status" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding IntersectionStatusText}" Style="{StaticResource MapReadout}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Margin="0,7,0,0" Text="Eficiência de oxigenação · η = kLa / (P/V)" Style="{StaticResource MapLabel}" />
+                                    <Grid Margin="0,5,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="η mínima" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding EfficiencyMinimumText}" Style="{StaticResource MapMetric}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="η média" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding EfficiencyMeanText}" Style="{StaticResource MapMetric}" />
                                         </StackPanel>
                                     </Grid>
                                     <Grid Margin="0,7,0,0">
@@ -240,23 +256,34 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="α (expoente de P/V)" Style="{StaticResource MapLabel}" />
-                                            <TextBlock Text="{Binding VanTRietAlphaText}" Style="{StaticResource MapMetric}" />
+                                            <TextBlock Text="η máxima" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding EfficiencyMaximumText}" Style="{StaticResource MapMetric}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Text="β (expoente de v_s)" Style="{StaticResource MapLabel}" />
-                                            <TextBlock Text="{Binding VanTRietBetaText}" Style="{StaticResource MapMetric}" />
+                                            <TextBlock Text="Melhor ponto" Style="{StaticResource MapLabel}" />
+                                            <TextBlock Text="{Binding EfficiencyMaximumPointText}" Style="{StaticResource MapReadout}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Grid>
-                                    <TextBlock Margin="0,7,0,0" Style="{StaticResource CaptionTextStyle}">
-                                        <Run Text="Pares casados:" />
-                                        <Run Text="{Binding MatchedPairsCount, Mode=OneWay}" FontWeight="Bold" />
-                                    </TextBlock>
                                 </StackPanel>
                             </Border>
-                            <Button Margin="0,8,0,0" Content="Exportar P/V para o mapa kLa" Padding="8,4"
-                                    Command="{Binding ExportEnrichedKlaMapCommand}"
-                                    ToolTip="Gera uma revisão enriquecida do mapa kLa; o documento de origem nunca é sobrescrito" />
+                            <Button Margin="0,8,0,0" Content="Ajustar modelo van 't Riet" Padding="8,4"
+                                    IsEnabled="{Binding CanFitSurfaceIntersection}"
+                                    Command="{Binding FitSurfaceIntersectionCommand}"
+                                    ToolTip="Ajuste separado sobre os pontos da intersecção; não bloqueia a eficiência" />
+                            <Border Margin="0,8,0,0" Padding="9" CornerRadius="{DynamicResource RadiusSmall}"
+                                    Background="{DynamicResource SurfaceSunkenBrush}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VanTRietFormulaText}" Style="{StaticResource MapReadout}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,5,0,0" Text="K" Style="{StaticResource MapLabel}" />
+                                    <TextBlock Text="{Binding VanTRietKText}" Style="{StaticResource MapMetric}" />
+                                    <TextBlock Margin="0,5,0,0" Text="α · β · R²" Style="{StaticResource MapLabel}" />
+                                    <TextBlock Text="{Binding VanTRietAlphaText}" Style="{StaticResource MapReadout}" />
+                                    <TextBlock Text="{Binding VanTRietBetaText}" Style="{StaticResource MapReadout}" />
+                                    <TextBlock Text="{Binding VanTRietR2Text}" Style="{StaticResource MapReadout}" />
+                                </StackPanel>
+                            </Border>
+                            <Button Margin="0,8,0,0" Content="Exportar mapa de eficiência CSV" Padding="8,4"
+                                    Command="{Binding ExportSurfaceIntersectionCsvCommand}" />
                         </StackPanel>
                     </Border>
 
@@ -407,7 +434,7 @@
                 </Border>
 
                 <Border Grid.Row="1" Margin="0,7,0,0" Style="{StaticResource MapCard}" Padding="6"
-                        Visibility="{Binding HasMatchedPairs, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding HasSurfaceIntersection, Converter={StaticResource BoolToVis}}">
                     <Grid Height="250">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -418,9 +445,9 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Margin="4,2,0,5" Text="Paridade kLa medido × previsto (faixa ±15%)"
+                        <TextBlock Margin="4,2,0,5" Text="Paridade do ajuste van 't Riet (faixa ±15%)"
                                    FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <TextBlock Grid.Column="2" Margin="4,2,0,5" Text="kLa × P/V por vazão de gás"
+                        <TextBlock Grid.Column="2" Margin="4,2,0,5" Text="kLa × P/V na intersecção"
                                    FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                         <Border x:Name="ParityPlotHost" Grid.Row="1" />
                         <Border x:Name="KlaPvPlotHost" Grid.Row="1" Grid.Column="2" />

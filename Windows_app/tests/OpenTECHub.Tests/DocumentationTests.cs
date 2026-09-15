@@ -178,7 +178,8 @@ public sealed class DocumentationTests
 
         // Running a recipe taking the actuators away from manual control is the single fact an
         // operator must not discover by surprise.
-        Assert.Contains("desativa o controle manual", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("controle manual", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("bloqueado", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(titles, t => t.Contains("famílias de blocos", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -241,7 +242,7 @@ public sealed class DocumentationTests
         Assert.Contains("no laço do Controle de O₂", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Manter Rodando", text, StringComparison.Ordinal);
         Assert.Contains("Histerese", text, StringComparison.Ordinal);
-        Assert.Contains("enviar perfil", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("perfil", text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -314,14 +315,14 @@ public sealed class DocumentationTests
         // The map: the chain from points to a published profile, and the fact that it commands nothing.
         foreach (var term in new[]
                  {
-                     "superfície", "gradiente", "trajetória", "folga", "Clough", "resíduos",
-                     "Desenho 3²", "Importar de Teste", "Publicar para controle", "fecho convexo",
+                     "superfície", "trajetória", "cobertura", "resíduos",
+                     "Desenho 3²", "Importar de Teste", "Publicar para controle", "região coberta",
                  })
         {
             Assert.Contains(term, mapping, StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Contains("nunca envia comandos", mapping, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("não controla o equipamento", mapping, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -359,13 +360,13 @@ public sealed class DocumentationTests
     {
         var pages = new (string TopicId, string View, string[] Terms)[]
         {
-            (DocumentationCatalog.PowerTopicId, "PowerView.xaml", ["Np", "Re", "tara", "parada adaptativa", "IC95"]),
+            (DocumentationCatalog.PowerTopicId, "PowerView.xaml", ["Np", "Re", "tara", "adaptativa", "IC95"]),
             // O Mapa de Potência é uma aba da página de Potência: o atalho mora no mesmo XAML.
             (DocumentationCatalog.PowerMapTopicId, "PowerView.xaml", ["van't Riet", "flooding", "escalonamento", "eficiência"]),
-            (DocumentationCatalog.CalibrationTopicId, "CalibrationView.xaml", ["Dois pontos", "Raw ADC", "Aplicar no app"]),
-            (DocumentationCatalog.HistoryTopicId, "HistoricalView.xaml", ["Sessoes", "Exportar CSV", "formato"]),
+            (DocumentationCatalog.CalibrationTopicId, "CalibrationView.xaml", ["Dois pontos", "leitura bruta", "Aplicar no app"]),
+            (DocumentationCatalog.HistoryTopicId, "HistoricalView.xaml", ["sessões", "Exportar CSV", "formato"]),
             (DocumentationCatalog.EventsTopicId, "EventsView.xaml", ["Severidade", "Dados brutos", "Limpar visualização"]),
-            (DocumentationCatalog.SettingsConnectionTopicId, "SettingsView.xaml", ["Nós na rede do Hub", "Atualizar", "Abrir diagnóstico", "Visto há", "10.1"]),
+            (DocumentationCatalog.SettingsConnectionTopicId, "SettingsView.xaml", ["Nós na rede do Hub", "Atualizar", "Abrir diagnóstico", "Visto há", "Estado"]),
         };
 
         foreach (var (topicId, view, terms) in pages)
@@ -430,7 +431,7 @@ public sealed class DocumentationTests
         foreach (var step in new[]
                  {
                      "Determinar kLa", "Mapeamento kLa", "Importar de Teste", "Publicar para controle",
-                     "Potência", "van't Riet", "Controle de O₂", "Mapa (trajetória kLa)",
+                     "Potência", "correlação", "Controle de O₂", "Mapa (trajetória kLa)",
                  })
         {
             Assert.Contains(step, text, StringComparison.OrdinalIgnoreCase);
@@ -521,6 +522,22 @@ public sealed class DocumentationTests
         Assert.Contains("DocumentationTopics", xaml, StringComparison.Ordinal);
         Assert.Contains("SelectedDocumentationTopic", xaml, StringComparison.Ordinal);
         Assert.Contains("DocBlockSelector", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_operator_manual_does_not_leak_backend_protocol_details()
+    {
+        var manual = string.Join("\n", DocumentationCatalog.Topics.Select(Flatten));
+
+        foreach (var implementationDetail in new[]
+                 {
+                     "UART", "CN1", "Modbus", "CRC", "ACK", "NVS", "pumpTransitionSpeed",
+                     "valve_1", "nodeDiag", "/nodes", "/diag", "gasRig", "Clough–Tocher",
+                     "RK45", "hashes", "comando serial",
+                 })
+        {
+            Assert.DoesNotContain(implementationDetail, manual, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]

@@ -33,4 +33,15 @@ public sealed class RecipeConnectionRouterTests
             Assert.True(Math.Abs(from.X - to.X) < 0.01 || Math.Abs(from.Y - to.Y) < 0.01);
         }
     }
+
+    [Fact]
+    public void Route_leaves_and_enters_from_the_declared_normal_sides()
+    {
+        var route = RecipeConnectionRouter.Build(
+            new Point(200, 100), new Point(100, 260), "right", "left", [],
+            startOnLeft: true, endOnLeft: false, stub: 22);
+
+        Assert.True(route.Points[1].X < route.Points[0].X);
+        Assert.True(route.Points[^2].X > route.Points[^1].X);
+    }
 }

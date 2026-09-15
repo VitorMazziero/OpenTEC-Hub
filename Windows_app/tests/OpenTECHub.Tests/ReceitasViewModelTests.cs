@@ -167,6 +167,20 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
+    public void Normal_ports_face_the_connected_neighbour_when_nodes_are_reversed()
+    {
+        var vm = Build();
+        var tab = Tab(vm);
+        var start = tab.Nodes.Single(n => n.Type == NodeType.Start);
+        var end = tab.Nodes.Single(n => n.Type == NodeType.End);
+
+        end.X = start.X - 120;
+
+        Assert.False(start.Ports.Single(p => p.Name == ConnectorNames.Out).IsOnLeft);
+        Assert.False(end.Ports.Single(p => p.Name == ConnectorNames.In).IsOnLeft);
+    }
+
+    [Fact]
     public void Deleting_a_selected_connection_removes_it()
     {
         var vm = Build();

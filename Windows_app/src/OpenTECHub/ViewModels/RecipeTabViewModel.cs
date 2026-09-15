@@ -164,6 +164,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
         SelectNode(vm);
         RefreshGateRoles();
+        RefreshPortSides();
         MarkDirty();
         Revalidate();
     }
@@ -178,6 +179,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
             Connections.Remove(connection);
             SelectedConnection = null;
             RefreshGateRoles();
+            RefreshPortSides();
             MarkDirty();
             Revalidate();
             return;
@@ -247,6 +249,8 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         Document.Connections.Add(connection);
         AddConnectionViewModel(connection);
         RefreshGateRoles();
+        RefreshPortSides();
+        RecomputeConnections();
         MarkDirty();
         Revalidate();
     }
@@ -376,6 +380,8 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         }
 
         RefreshGateRoles();
+        RefreshPortSides();
+        RecomputeConnections();
         Revalidate();
     }
 
@@ -398,9 +404,10 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     private void OnNodeChanged()
     {
+        RefreshGateRoles();
+        RefreshPortSides();
         RecomputeConnections();
         MarkDirty();
-        RefreshGateRoles();
         Revalidate();
         CanvasBoundsChanged?.Invoke();
     }
@@ -440,6 +447,44 @@ public sealed partial class RecipeTabViewModel : ObservableObject
                 node.Type == NodeType.CascadeControl
                 && !cascadesWithExternalCondition.Contains(node.Id)
                 && !cascadesWithInfiniteLoop.Contains(node.Id);
+        }
+    }
+
+    /// <summary>
+    /// Places each normal port on the edge facing its connected neighbour. This prevents a
+    /// right-to-left return wire from terminating on the hidden side of a node. Unconnected
+    /// inputs/outputs retain the conventional left/right defaults.
+    /// </summary>
+    private void RefreshPortSides()
+    {
+        foreach (var node in Nodes)
+        {
+            foreach (var port in node.Ports)
+            {
+                if (port.IsLoop)
+                {
+                    port.SetSide(true);
+                    continue;
+                }
+
+                var neighbourXs = port.IsInput
+                    ? Document.Connections
+                        .Where(c => c.TargetNodeId == node.Id && c.TargetConnector == port.Name)
+                        .Select(c => Document.Node(c.SourceNodeId)?.X)
+                    : Document.Connections
+                        .Where(c => c.SourceNodeId == node.Id && c.SourceConnector == port.Name)
+                        .Select(c => Document.Node(c.TargetNodeId)?.X);
+
+                var xs = neighbourXs.Where(x => x.HasValue).Select(x => x!.Value).ToArray();
+                if (xs.Length == 0)
+                {
+                    port.SetSide(port.IsInput);
+                    continue;
+                }
+
+                var mean = xs.Average();
+                port.SetSide(port.IsInput ? mean < node.X : mean >= node.X);
+            }
         }
     }
 

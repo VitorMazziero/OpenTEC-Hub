@@ -16,19 +16,43 @@ public sealed record RecipeRoute(IReadOnlyList<Point> Points);
 public static class RecipeConnectionRouter
 {
     private const double Clearance = 18;
-    private const double BendPenalty = 80;
-
     public static RecipeRoute Build(
         Point start,
         Point end,
         string sourceId,
         string targetId,
         IEnumerable<RecipeRouteObstacle> obstacles)
+        => Build(start, end, sourceId, targetId, obstacles, false, true, 22);
+
+    public static RecipeRoute Build(
+        Point start,
+        Point end,
+        string sourceId,
+        string targetId,
+        IEnumerable<RecipeRouteObstacle> obstacles,
+        bool startOnLeft,
+        bool endOnLeft,
+        double stub)
     {
         var blocked = obstacles
             .Where(o => o.Id != sourceId && o.Id != targetId)
             .Select(o => Inflate(o.Bounds, Clearance))
             .ToArray();
+
+        // A horizontal stub is the port normal. Routing starts only after leaving
+        // the source node and finishes just before entering the target node, so a
+        // return connection cannot visually terminate through the card itself.
+        var routedStart = new Point(start.X + (startOnLeft ? -stub : stub), start.Y);
+        var routedEnd = new Point(end.X + (endOnLeft ? -stub : stub), end.Y);
+        var middle = BuildCore(routedStart, routedEnd, blocked);
+        var combined = new List<Point> { start, routedStart };
+        combined.AddRange(middle.Points.Skip(1));
+        combined.Add(end);
+        return new RecipeRoute(Compress(combined));
+    }
+
+    private static RecipeRoute BuildCore(Point start, Point end, IReadOnlyList<Rect> blocked)
+    {
 
         if (NearlyEqual(start.Y, end.Y) && IsClear(start, end, blocked))
         {
@@ -58,11 +82,14 @@ public static class RecipeConnectionRouter
 
         var startIndex = (Array.IndexOf(xValues, start.X), Array.IndexOf(yValues, start.Y));
         var endIndex = (Array.IndexOf(xValues, end.X), Array.IndexOf(yValues, end.Y));
-        var startState = new GridState(startIndex.Item1, startIndex.Item2, 0);
-        var best = new Dictionary<GridState, double> { [startState] = 0 };
+        // The first and last segments are the horizontal normals of the ports. Starting
+        // with direction 1 makes a vertical detour count as a real corner immediately
+        // after the source stub; the same is accounted for when entering the target stub.
+        var startState = new GridState(startIndex.Item1, startIndex.Item2, 1);
+        var best = new Dictionary<GridState, RouteCost> { [startState] = new(0, 0) };
         var previous = new Dictionary<GridState, GridState>();
-        var queue = new PriorityQueue<GridState, double>();
-        queue.Enqueue(startState, 0);
+        var queue = new PriorityQueue<GridState, RouteCost>();
+        queue.Enqueue(startState, new(0, 0));
         GridState? finish = null;
 
         while (queue.TryDequeue(out var current, out _))
@@ -94,8 +121,16 @@ public static class RecipeConnectionRouter
                     continue;
                 }
 
-                var cost = currentCost + Distance(from, to)
-                           + (current.Direction != 0 && current.Direction != direction ? BendPenalty : 0);
+                var bends = currentCost.Bends + (current.Direction != direction ? 1 : 0);
+                // The final segment from the routed target stub to the port is horizontal.
+                // Charge that corner here so the selected route minimizes the complete wire,
+                // not only the portion between the two stubs.
+                if (nx == endIndex.Item1 && ny == endIndex.Item2 && direction != 1)
+                {
+                    bends++;
+                }
+
+                var cost = new RouteCost(bends, currentCost.Length + Distance(from, to));
                 var next = new GridState(nx, ny, direction);
                 if (best.TryGetValue(next, out var oldCost) && oldCost <= cost)
                 {
@@ -104,7 +139,7 @@ public static class RecipeConnectionRouter
 
                 best[next] = cost;
                 previous[next] = current;
-                queue.Enqueue(next, cost + Distance(to, end));
+                queue.Enqueue(next, new(cost.Bends, cost.Length + Distance(to, end)));
             }
         }
 
@@ -135,6 +170,19 @@ public static class RecipeConnectionRouter
     ];
 
     private readonly record struct GridState(int X, int Y, int Direction);
+
+    /// <summary>Lexicographic route cost: fewer bends always beat a shorter route.</summary>
+    private readonly record struct RouteCost(int Bends, double Length) : IComparable<RouteCost>
+    {
+        public int CompareTo(RouteCost other)
+        {
+            var bends = Bends.CompareTo(other.Bends);
+            return bends != 0 ? bends : Length.CompareTo(other.Length);
+        }
+
+        public static bool operator <=(RouteCost left, RouteCost right) => left.CompareTo(right) <= 0;
+        public static bool operator >=(RouteCost left, RouteCost right) => left.CompareTo(right) >= 0;
+    }
 
     private static Rect Inflate(Rect rect, double amount)
         => new(rect.Left - amount, rect.Top - amount, rect.Width + 2 * amount, rect.Height + 2 * amount);

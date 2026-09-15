@@ -70,8 +70,10 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
 
     public void Recompute(IReadOnlyList<RecipeNodeViewModel>? nodes = null)
     {
-        var (sx, sy) = Anchor(Source, Model.SourceConnector);
-        var (tx, ty) = Anchor(Target, Model.TargetConnector);
+        var sourcePort = FindPort(Source, Model.SourceConnector);
+        var targetPort = FindPort(Target, Model.TargetConnector);
+        var (sx, sy) = Anchor(Source, sourcePort);
+        var (tx, ty) = Anchor(Target, targetPort);
 
         var isSelfLoop = ConnectorNames.IsCascadeSelfLoop(Model);
         if (isSelfLoop)
@@ -84,10 +86,9 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
         var obstacles = (nodes ?? _nodesProvider?.Invoke() ?? [])
             .Select(n => new RecipeRouteObstacle(n.Id, new Rect(n.X, n.Y, RecipeNodeViewModel.Width, n.Height)))
             .ToArray();
-        var route = RecipeConnectionRouter.Build(sx == tx && sy == ty
-                ? new Point(sx + Stub, sy)
-                : new Point(sx, sy),
-            new Point(tx, ty), Model.SourceNodeId, Model.TargetNodeId, obstacles);
+        var route = RecipeConnectionRouter.Build(
+            new Point(sx, sy), new Point(tx, ty), Model.SourceNodeId, Model.TargetNodeId, obstacles,
+            sourcePort?.IsOnLeft ?? false, targetPort?.IsOnLeft ?? true, Stub);
         RouteGeometry = BuildRoundedPolyline(route.Points);
         ArrowPoints = BuildArrow(route.Points);
     }
@@ -231,16 +232,22 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
         return geometry;
     }
 
-    private static (double X, double Y) Anchor(RecipeNodeViewModel node, string connector)
+    private static RecipePortViewModel? FindPort(RecipeNodeViewModel node, string connector)
     {
-        var port = node.Ports.FirstOrDefault(p => p.Name == connector)
-                   ?? node.Ports.FirstOrDefault(p =>
+        return node.Ports.FirstOrDefault(p => p.Name == connector)
+               ?? node.Ports.FirstOrDefault(p =>
                        (ConnectorNames.IsLoopIn(connector) && ConnectorNames.IsLoopIn(p.Name)) ||
                        (ConnectorNames.IsLoopOut(connector) && ConnectorNames.IsLoopOut(p.Name)));
+    }
 
-        return port is null
-            ? (node.X + RecipeNodeViewModel.Width / 2, node.Y + RecipeNodeViewModel.HeaderHeight / 2)
-            : (node.X + port.OffsetX, node.Y + port.OffsetY);
+    private static (double X, double Y) Anchor(RecipeNodeViewModel node, RecipePortViewModel? port)
+    {
+        if (port is null)
+        {
+            return (node.X + RecipeNodeViewModel.Width / 2, node.Y + RecipeNodeViewModel.HeaderHeight / 2);
+        }
+
+        return (node.X + port.OffsetX, node.Y + port.OffsetY);
     }
 
     public void Detach()

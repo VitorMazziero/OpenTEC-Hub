@@ -178,9 +178,15 @@ S >  St: Q = k2*S^2 + f2*S + c2
    `PumpCommandPending=false`, nove ecos iguais e `PumpCalCrc` o app persiste a curva
    confirmada e grava o recibo.
 
-Hub anterior a 10.4, bomba anterior a 3.12, firmware desconhecido ou bomba em
-`RUNNING`/`WAITING` bloqueiam o envio. A reta `pumpSlope`/`pumpIntercept` é lida apenas
-para compatibilidade e migração; não confirma a curva moderna.
+Na primeira instalação não existe curva presumida: sem perfil e sem pontos válidos, o editor
+mostra `—` nas equações, o gráfico não desenha linha e **Salvar e enviar curva** permanece
+bloqueado. Cada segmento do gráfico ocupa somente a faixa de velocidades efetivamente medida,
+como na aba do fluxômetro; não há extrapolação visual até `S=0` ou `S=1000`.
+
+A frota é instalada com o contrato atual único. O aplicativo não negocia versões nem mostra
+mensagens de “aguardando a versão do Hub” nesse cartão, e não lê, migra ou envia calibração
+linear antiga. O envio é bloqueado somente por desconexão, bomba offline, operação
+`RUNNING`/`WAITING`, comando pendente ou ajuste inválido/incompleto.
 
 ## 6. Estados de recusa e limite de validação
 

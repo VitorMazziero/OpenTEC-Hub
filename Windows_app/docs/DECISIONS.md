@@ -1411,11 +1411,13 @@ ajuste e curva congelada. O nó não recebe nomes nem biblioteca e mantém somen
 curva ativa. Selecionar, carregar, salvar, sobrescrever ou excluir perfil nunca envia
 comando; a mudança do nó exige **Salvar e enviar curva**.
 
-**Contrato e segurança.** O fluxômetro exige Hub 10.3/v12.0; a bomba polinomial exige Hub
-10.4/v3.12. A aplicação é atômica, bloqueada durante operação ativa da bomba e confirmada
-somente por ACK encerrado, ecos completos e CRC. Versões antigas permanecem legíveis,
-mas a função incompatível fica bloqueada. Software aprovado não substitui os ensaios
-físicos descritos em `hardware/HARDWARE_VALIDATION.md`.
+**Contrato e segurança.** O fluxômetro mantém suas regras próprias. Para a bomba, a primeira
+implantação usa exclusivamente o contrato polinomial atual: não há calibração anterior válida,
+migração, fallback linear, comandos/ecos legados nem negociação de versão na interface. Sem
+registro `pump_poly_cal` válido, o firmware inicia sem calibração e as conversões Q↔S retornam
+zero até a aplicação de uma curva válida. A aplicação é atômica, bloqueada durante operação
+ativa e confirmada somente por ACK encerrado, ecos completos e CRC. Software aprovado não
+substitui os ensaios físicos descritos em `hardware/HARDWARE_VALIDATION.md`.
 
 ### D-053 · Roteamento de gás por intenção com nomes do hardware; B e C no mesmo MOSFET; pré-estabilização por C obrigatória; `t = 0` na comutação; N₂ na fonte confirmado pelo operador; setpoint > 0 exige destino
 

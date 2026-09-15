@@ -1607,7 +1607,7 @@ explicit apply/send action visible together at 1280×800. The full operational c
 | **Oxigênio** | App parser only; there is no v.6 coefficient command | Direct two-point zero/span capture with the live raw and decoded values beside the current equation |
 | **Vazão de ar** | Fluxômetro v12.0 | Pontos certificados, ajuste fino, média de dez `FlowVoltage`, gráfico dos dois segmentos e campo editável `Vt`; `0.0545 V` é somente default/migração |
 | **Biomassa** *(WP1)* | Sensor module; no PC-side coefficient | Guided blank capture with a live absorbance readout to confirm Abs ≈ 0, then the low/high/optimal integration thresholds (raw counts). No HD-mode state exists in the firmware, so none is shown |
-| **Bomba Externa** | Bomba v3.12; biblioteca no PC | Gráfico grande, quarto grau abaixo de `St`, quadrático acima, C0+C1, pontos volumétricos, controle manual e perfis por mangueira |
+| **Bomba Externa** | Contrato polinomial atual; biblioteca no PC | Gráfico grande como o do fluxômetro, quarto grau abaixo de `St`, quadrático acima, C0+C1, pontos volumétricos, controle manual e perfis por mangueira. Instalação vazia não fabrica curva/equações; não há aviso ou bloqueio por versão |
 
 #### pH control and calibration interlock
 
@@ -1634,6 +1634,11 @@ fine-adjusts the commanded flow, and captures ten distinct voltages. Point editi
 during capture. `Vt` is expressed in volts and moves the split between the two segments.
 The application sends both segments plus `flowTransitionVoltage` atomically and confirms
 the result by ACK, echo and CRC; a partial curve is never reported as applied.
+
+For the external pump, the plot uses the same visual semantics: measured points and one
+polynomial segment on each side of `St`, clipped to the measured speed range. With no
+calibration points there is no line and both equation summaries show `—`. The card has no
+firmware-version waiting state because the first deployed fleet uses one current contract.
 
 For the external pump, the side panel separates local profile actions from hardware
 application. Loading, saving, overwriting or deleting a hose profile never sends a frame.

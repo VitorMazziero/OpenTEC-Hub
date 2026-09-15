@@ -10,7 +10,8 @@ Integrar, de ponta a ponta, calibrações contínuas em duas faixas para o flux�
 
 1. Tornar editável o ponto de transição entre as curvas.
 2. Garantir que não exista salto no valor calculado ao atravessar a transição.
-3. Manter compatibilidade explícita com configurações e firmwares anteriores.
+3. No fluxômetro, manter a estratégia de compatibilidade já definida; na bomba, usar somente
+   o contrato atual da primeira implantação, sem dados anteriores, migração ou fallback.
 4. Criar, somente para a bomba, uma biblioteca de perfis de calibração identificados pelo nome da mangueira.
 5. Manter separados os atos de medir, salvar localmente e enviar uma curva ao dispositivo.
 6. Entregar a mudança em commits pequenos, verificáveis e ordenados.
@@ -84,18 +85,12 @@ O ajuste usa a mesma rotina ancorada do fluxômetro: primeiro ajusta a curva alt
 
 Validações: coeficientes finitos, `0 < St < 1000`, continuidade C0+C1, vazão não negativa, crescimento monotônico e inversão limitada.
 
-#### Migração da reta atual
+#### Primeira implantação
 
-A calibração linear existente deverá ser convertida sem alterar o resultado numérico:
-
-```text
-a1 = b1 = k1 = k2 = 0
-f1 = f2 = slope atual
-c1 = c2 = intercept atual
-St = 500; Qt = Q(St)
-```
-
-Como os dois polinômios representam a mesma reta, a curva migrada reproduz exatamente o resultado anterior em toda a faixa.
+Não existem calibrações válidas anteriores da bomba. A instalação começa sem perfil padrão e
+sem curva operacional. Até o operador coletar pontos, ajustar e aplicar a primeira curva, o
+aplicativo não desenha uma reta nem mostra equações, e o firmware mantém as conversões Q↔S
+bloqueadas. Não existe migração ou fallback linear no código executável.
 
 ## 4. Contrato de comunicação
 
@@ -181,11 +176,13 @@ PumpCalCrc
 
 Os nove parâmetros formam uma única calibração e são validados/aplicados atomicamente. O aplicativo somente confirma a aplicação após ACK concluído, eco integral correspondente e CRC.
 
-#### Compatibilidade
+#### Contrato único da bomba
 
-- A migração NVS converte `pumpSlope`/`pumpIntercept` e registros v3.11, mas o contrato operacional novo não reduz uma curva polinomial a retas.
-- Em bomba anterior à 3.12 ou Hub anterior a 10.4, o envio polinomial fica bloqueado com mensagem de atualização necessária.
-- Uma calibração nova deve ser recusada enquanto a bomba estiver executando ou aguardando um perfil, para que a integração de volume não mude no meio do ciclo.
+- Aplicativo, Hub e bomba aceitam somente os nove parâmetros polinomiais atuais.
+- Não há reconhecimento de `pumpSlope`/`pumpIntercept`, quadro de duas retas ou ecos antigos.
+- O cartão não negocia nem aguarda versão: todos os dispositivos serão gravados com o firmware atual.
+- Uma calibração nova é recusada enquanto a bomba estiver executando ou aguardando um perfil,
+  para que a integração de volume não mude no meio do ciclo.
 
 ## 5. Persistência nos firmwares
 
@@ -201,9 +198,7 @@ Os nove parâmetros formam uma única calibração e são validados/aplicados at
 
 ### 5.2 Bomba
 
-O novo registro não deverá simplesmente aumentar `PumpConfig`. O carregamento atual exige que o blob tenha exatamente o tamanho da estrutura; acrescentar campos diretamente faria instalações 3.10 voltarem aos padrões e perderem perfil, PID e calibração.
-
-Implementar um registro de calibração versionado e separado no NVS, contendo:
+Usar um registro de calibração versionado e separado no NVS, contendo:
 
 - magic/schema;
 - `a1`, `b1`, `k1`, `f1`, `c1`;
@@ -211,7 +206,9 @@ Implementar um registro de calibração versionado e separado no NVS, contendo:
 - `transitionSpeed`;
 - CRC real do registro.
 
-Na primeira inicialização sem esse registro, o firmware cria duas representações polinomiais da reta legada a partir de `g_config.pumpSlope` e `g_config.pumpIntercept`. Um registro v3.11 de duas retas também é migrado: preservam-se o trecho inferior e o ponto de transição em uma única reta C1 equivalente. O blob operacional atual permanece intacto, preservando perfis de dosagem, PID e checkpoints.
+Na primeira inicialização sem esse registro válido, o firmware marca a calibração como indisponível
+e não salva coeficientes fabricados. Conversões Q↔S retornam zero até a aplicação atômica da
+primeira curva válida. Nenhum registro anterior é lido ou migrado.
 
 ## 6. Perfis de calibração de mangueira
 
@@ -277,16 +274,17 @@ Regras de interação:
 9. Após o eco completo, o recibo registra perfil, curva, pontos, versões de app/Hub/nó e CRC.
 10. O controle manual para preencher a mangueira e a aquisição volumétrica permanecem independentes da biblioteca.
 
-## 8. Compatibilidade e capacidades
+## 8. Contratos e capacidades
 
-O aplicativo deverá usar as identidades e versões dos nós para decidir quais recursos liberar:
+As capacidades do fluxômetro continuam condicionadas à sua versão:
 
 - fluxômetro v12 ou posterior: limiar editável e eco disponível;
 - fluxômetro anterior: mostrar o limiar legado como `0.0545 V`, sem prometer persistência editável;
-- bomba v3.12 ou posterior: curva polinomial dupla e perfis por mangueira disponíveis;
-- bomba v3.11 ou anterior: mostrar a calibração legada ecoada, bloquear o envio polinomial e explicar a atualização necessária;
 - Hub 10.3 ou posterior: transição editável do fluxômetro disponível;
-- Hub 10.4 ou posterior: encaminhamento e ecos da calibração polinomial da bomba disponíveis.
+
+A bomba não possui ramo de compatibilidade. A frota será gravada em conjunto com o contrato atual;
+o cartão de calibração não espera identidade de versão e só considera conexão, presença da bomba,
+estado operacional, pendência de comando e validade do ajuste.
 
 Não realizar downgrade silencioso, aproximação de curva ou confirmação otimista.
 
@@ -384,7 +382,7 @@ Retirar o limiar fixo da estrutura matemática do fluxômetro e criar para a bom
 1. Criar um tipo imutável para a curva `(a1, b1, k1, f1, c1, k2, f2, c2, St)`.
 2. Implementar `FlowFromSpeed(S)` com polinômio de quarto grau para `S <= St` e quadrático para `S > St`.
 3. Implementar `SpeedFromFlow(Q)` por busca numérica monotônica, pois a inversa deixou de ser linear.
-4. Implementar a migração matemática da reta copiando-a para as duas representações polinomiais.
+4. Iniciar sem curva quando não houver pontos/perfil; não criar uma representação linear implícita.
 5. Implementar o ajuste limitado de `St`, impondo continuidade C0+C1 entre os segmentos; `Qt` é derivado, nunca parâmetro livre.
 6. Calcular resíduos por ponto, SSE, RMSE, R² global e estatísticas por segmento.
 7. Retornar um resultado estruturado de validação em vez de permitir `NaN`, infinito ou curva não monotônica.
@@ -397,7 +395,7 @@ Retirar o limiar fixo da estrutura matemática do fluxômetro e criar para a bom
 - Bomba tem o mesmo valor e a mesma derivada dos dois lados de `St`.
 - `S = St` usa a curva inferior.
 - Q→S e S→Q são inversas dentro de tolerância em ambas as faixas.
-- Migração da reta reproduz exatamente a resposta anterior em vários valores de `S`.
+- Instalação vazia não produz curva, equações ou conversão Q↔S.
 - Derivada não positiva, poucos pontos, `St` inválido e solução fora da faixa são recusados.
 
 ### Critério de saída
@@ -416,9 +414,9 @@ Implementado nesta etapa, exclusivamente no aplicativo Windows e em modelos puro
 
 - `FlowCalibrationCurve` agora carrega `TransitionVoltage` por instância; `0.0545 V` ficou como `DefaultTransitionVoltage` de migração e a API anterior permanece apenas como compatibilidade obsoleta.
 - `FitFlowCurve` e `FitLowSegmentContinuous` recebem e validam `Vt`; avaliação, descontinuidade e o ancoramento C1 usam o valor da curva.
-- Criados `PumpDualRangeCurve`, `PumpDualRangeMath` e `PumpFitResult`: curva quártica/quadrática contínua C0+C1 em `St`, conversão direta, inversão numérica, migração exata da reta legada, validação física e estatísticas de ajuste.
+- Criados `PumpDualRangeCurve`, `PumpDualRangeMath` e `PumpFitResult`: curva quártica/quadrática contínua C0+C1 em `St`, conversão direta, inversão numérica, validação física e estatísticas de ajuste.
 - O ajuste da bomba reutiliza o ajustador polinomial do fluxômetro no domínio `S -> Q`, busca `St` nas partições possíveis e seleciona a solução contínua e monotônica de menor SSE.
-- Adicionados testes para classificação e continuidade do fluxômetro, continuidade e inversão da bomba, recuperação de uma curva dupla conhecida, rejeições e migração linear.
+- Adicionados testes para classificação e continuidade do fluxômetro, continuidade e inversão da bomba, recuperação de uma curva dupla conhecida e rejeições.
 - Verificação executada: `dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj --filter "FullyQualifiedName~CalibrationTests|FullyQualifiedName~PumpCalibrationTests" --no-restore` — 45 testes aprovados.
 
 Não implementado nesta etapa: protocolo, Hub, firmware, persistência de perfis, controles de interface, simulador e validação física. Esses itens permanecem explicitamente nas etapas seguintes.
@@ -518,7 +516,7 @@ Não implementado nesta etapa: alterações no Hub 10.4 (Etapa 4), protocolo do 
 
 ### Objetivo
 
-Promover a bomba para v3.12 e substituir a reta operacional pelas equações quártica/quadrática C0+C1 do fluxômetro, preservando configuração, perfil de dosagem, PID e checkpoint existentes.
+Promover a bomba para v3.12 e usar as equações quártica/quadrática C0+C1 do fluxômetro como o primeiro contrato implantado.
 
 ### Dependências
 
@@ -538,14 +536,9 @@ Etapa 1 concluída.
 ### Tarefas
 
 1. Alterar identidade e diagnóstico para v3.12.
-2. Manter o layout de `PumpConfig` v3.10 inalterado.
+2. Remover campos lineares de `PumpConfig`; não há configuração implantada a preservar.
 3. Criar um registro NVS separado `pump_poly_cal` com magic/schema e CRC real.
-4. Na ausência do registro novo:
-   - ler `pumpSlope` e `pumpIntercept` legados;
-   - configurar ambos os segmentos como `Q = pumpSlope * S + pumpIntercept`;
-   - usar `St = 500`;
-   - derivar `Qt` pela avaliação da curva em `St`;
-   - salvar o novo registro sem alterar os outros campos de `PumpConfig`.
+4. Na ausência do registro novo, manter `calibrationReady=false`, não criar curva e não salvar defaults.
 5. Atualizar `mlminToSpeedUnits` com bisseção limitada da curva monotônica.
 6. Atualizar `speedUnitsToMlmin` para avaliar a quártica ou a quadrática conforme `St`.
 7. Garantir que `pwmDutyToMlmin` use a nova conversão, pois ela alimenta `PumpFlow` e `PumpVol`.
@@ -553,26 +546,25 @@ Etapa 1 concluída.
 9. Exigir os nove campos no mesmo quadro.
 10. Recusar valores não finitos, descontinuidade C0/C1, `St` fora de `(0,1000)`, vazão negativa e curva não monotônica.
 11. Recusar alteração durante `OP_RUNNING` ou `OP_WAITING`.
-12. Aplicar e persistir atomicamente os quatro campos.
-13. Manter `pumpSlope` + `pumpIntercept` como comando legado, convertendo-o em duas inclinações iguais.
-14. Ecoar os quatro campos e o CRC no push ao Hub e em `/readData`.
+12. Aplicar e persistir atomicamente os nove campos.
+13. Rejeitar qualquer comando fora do contrato polinomial atual.
+14. Ecoar os nove campos e o CRC no push ao Hub e em `/readData`.
 15. Preservar parada manual, `speed_ms`, potenciômetros, integração de volume e retomada de perfil.
 
 ### Testes obrigatórios
 
 - Compilação do firmware no alvo usado pela bomba.
-- Migração da reta mantém a mesma Q para `S = 0, 1, 250, 500, 750, 1000`.
-- Migração não altera modo, pontos de perfil, PID ou checkpoint.
+- Boot sem registro atual mantém calibração indisponível e Q↔S em zero.
 - Q→S e S→Q usam a faixa correta.
 - Volume integrado atravessa `St` sem salto.
 - Frame incompleto ou inválido não modifica a calibração.
 - Calibração durante perfil ativo é recusada.
-- Comando legado continua funcionando e resulta em duas inclinações iguais.
+- Comandos lineares antigos não fazem parte do parser nem do Hub.
 - Reboot mantém curva e CRC.
 
 ### Critério de saída
 
-A bomba v3.12 executa a curva polinomial com continuidade C0+C1 e compatibilidade de migração, sem perda de nenhuma configuração v3.10/v3.11.
+A bomba v3.12 executa a curva polinomial com continuidade C0+C1 e falha fechada antes da primeira calibração.
 
 ### Commit
 
@@ -585,9 +577,9 @@ feat(pump): support continuous dual-range calibration
 Implementado nesta etapa, no firmware da bomba peristáltica e na suíte de testes de contrato:
 
 - Firmware final promovido para `v3.12` em identidade, diagnóstico, banner e `sendHubHello`.
-- Preservação estrita do layout binário de `PumpConfig` v3.10 (chave NVS `"config"` intacta com 18 campos legados), prevenindo qualquer corrupção de perfis salvos, PID, checkpoints e evitando reset para padrões de fábrica.
-- `CalibrationStore.h` usa registro polinomial isolado `pump_poly_cal`, magic `PMP3` e CRC32 sobre nove floats; o registro `PMP2`/`pump_cal` permanece somente como fonte de migração.
-- Implementada migração transparente da reta legada e do registro v3.11: ambos geram representações polinomiais C0+C1; a reta é preservada exatamente e, para duas retas incompatíveis com C1, preservam-se o trecho inferior e o ponto de transição.
+- `PumpConfig` não contém campos de calibração linear; não existe estado implantado a preservar.
+- `CalibrationStore.h` usa somente o registro polinomial `pump_poly_cal`, magic `PMP3` e CRC32 sobre nove floats.
+- Boot sem `PMP3` válido mantém `g_pumpCalibrationReady=false`; nenhuma curva é fabricada ou persistida e Q↔S retorna zero.
 - O novo registro é persistido em `"pump_poly_cal"` com CRC32 sem tocar nos demais campos de `PumpConfig`.
 - Atualizadas as conversões matemáticas em `SensorAndConversion.h`:
   - `mlminToSpeedUnits`: inversão numérica por bisseção limitada da curva monotônica;
@@ -817,8 +809,8 @@ Etapas 1 e 5 concluídas.
 7. Tratar arquivos de schema conhecido e rejeitar schema futuro sem sobrescrever.
 8. Isolar arquivo corrompido sem impedir a listagem dos demais.
 9. Guardar no settings somente o ID/nome selecionado, nunca uma segunda cópia divergente da curva.
-10. Migrar os pontos e a reta atuais para um perfil inicial uma única vez.
-11. Tornar a migração idempotente.
+10. Não criar perfil inicial automaticamente: a biblioteca vazia representa a primeira instalação.
+11. Aceitar para leitura e escrita somente o schema atual.
 12. Registrar o serviço na injeção de dependência.
 
 ### Testes obrigatórios
@@ -828,8 +820,8 @@ Etapas 1 e 5 concluídas.
 - Não sobrescrever sem autorização explícita.
 - Manter arquivo anterior quando a escrita falhar.
 - Um JSON corrompido não esconde perfis saudáveis.
-- Schema futuro é preservado e reportado como incompatível.
-- Migração linear cria exatamente um perfil e pode rodar novamente sem duplicar.
+- Schema diferente do atual é preservado e reportado como incompatível.
+- Biblioteca vazia permanece vazia até uma ação explícita do operador.
 - Store respeita o workspace selecionado.
 
 ### Critério de saída
@@ -847,7 +839,7 @@ feat(pump-calibration): add hose profile store
 Implementado nesta etapa, na camada de serviços, persistência, contratos de arquivo e testes unitários do Windows App:
 
 - **Modelos de domínio (`PumpCalibrationProfile.cs`):**
-  - `PumpCalibrationProfile`: entidade versionada (`schemaVersion = 2`) por mangueira, com `LowA..LowC`, `HighK..HighC`, `TransitionSpeedUnits`, pontos, estatísticas, notas e metadados de aplicação. O schema 1 de duas retas é lido e migrado em memória.
+  - `PumpCalibrationProfile`: entidade versionada (`schemaVersion = 2`) por mangueira, com `LowA..LowC`, `HighK..HighC`, `TransitionSpeedUnits`, pontos, estatísticas, notas e metadados de aplicação. Somente o schema atual é carregado.
   - `PumpCalibrationProfileSummary`: projeção leve para listagem rápida sem carregar coleções de pontos, incluindo flag `IsCompatible` para proteção de schema futuro e parâmetros essenciais da curva.
   - `PumpFitStatistics`: métricas estatísticas de aderência da curva ($R^2$, RMSE, SSE) globais e discriminadas por segmento de velocidade/vazão.
 - **Regras e segurança de arquivos (`PumpProfileFileContracts.cs`):**
@@ -858,9 +850,9 @@ Implementado nesta etapa, na camada de serviços, persistência, contratos de ar
   - Diretório centralizado em `AppPaths.PumpProfilesDirectory` (`<Workspace>\Calibracoes\BombaExterna\Perfis`).
   - Escrita atômica via arquivo temporário (`.tmp-<guid>`) seguido de `File.Move(..., overwrite: true)` com retentativas defensivas contra locks transitórios do SO.
   - Rejeição de sobrescrita acidental: salvar sobre perfil existente sem `overwrite: true` lança `InvalidOperationException`.
-  - Proteção de schema futuro: arquivos com `schemaVersion > 1` são reportados com `IsCompatible = false` na listagem, rejeitados no `LoadProfile` e protegidos contra sobrescrita mesmo com `overwrite: true`.
+  - Proteção de schema incompatível: qualquer arquivo cujo `schemaVersion` seja diferente de 2 é reportado com `IsCompatible = false`, rejeitado no `LoadProfile` e protegido contra sobrescrita mesmo com `overwrite: true`.
   - Isolamento de arquivos corrompidos: arquivos mal formatados ou com JSON corrompido são capturados e logados, sem impedir o carregamento e listagem dos perfis íntegros. `LoadProfile` encapsula erros de deserialização em `InvalidOperationException` descritivo.
-  - Migração inicial idempotente (`EnsureDefaultProfileMigrated`): converte a calibração linear legada em dois polinômios lineares idênticos no perfil `"Padrão.json"`; perfis schema 1 são normalizados para schema 2 ao carregar/salvar.
+  - Não existe `EnsureDefaultProfileMigrated`, perfil `"Padrão.json"` automático nem normalização de schemas antigos.
 - **Configurações globais e DI (`AppSettings.cs`, `App.xaml.cs`):**
   - Adicionado `SelectedProfileName` em `PumpControlSettings` para armazenar exclusivamente o identificador/nome do perfil ativo no aplicativo.
   - Adicionado `PumpProfilesDirectory` e sua criação automática em `AppPaths.EnsureDirectories()`.
@@ -870,9 +862,9 @@ Implementado nesta etapa, na camada de serviços, persistência, contratos de ar
     - Ciclo completo de CRUD (salvar, listar, carregar, sobrescrever e excluir).
     - Rejeição e segurança de nomes inválidos (23 cenários via teoria de testes).
     - Tolerância a arquivos corrompidos sem contaminação dos perfis válidos.
-    - Preservação e bloqueio de sobrescrita de schema futuro.
+    - Preservação e bloqueio de sobrescrita de schema incompatível.
     - Validação de consistência física da curva na persistência.
-    - Idempotência da migração de perfil padrão a partir de configurações legadas.
+    - Estado vazio da primeira instalação sem perfil ou curva fabricados.
   - Suíte completa do .NET executada: 1.671 testes aprovados, 0 falhas.
   - Verificação de regressão nos firmwares: `verify_contract.py` (87/87 OK), `test_firmware_v12_contract.py` (8/8 OK), `test_firmware_v311_contract.py` (9/9 OK).
 
@@ -1012,7 +1004,7 @@ Manter o espelhamento da aba do fluxômetro:
 3. Classificar visualmente pontos de faixa baixa e alta.
 4. Mostrar estatísticas globais e por segmento.
 5. Desenhar as duas curvas polinomiais, o ponto de transição e os pontos volumétricos.
-6. Preservar pontos e última curva válida enquanto o usuário digita um `St` inválido.
+6. Preservar os pontos, mas remover curva/equações apresentadas quando `St` ou o ajuste forem inválidos.
 7. Impedir envio com ajuste inválido, poucos pontos ou bomba em execução.
 
 ### Tarefas — perfis
@@ -1023,7 +1015,7 @@ Manter o espelhamento da aba do fluxômetro:
 4. Implementar **Salvar** e **Salvar como** com confirmação de sobrescrita.
 5. Implementar **Excluir** com confirmação.
 6. Manter a curva ativa no nó quando o arquivo local for excluído.
-7. Marcar editor como modificado após alteração de ponto, `Qt` ou metadado.
+7. Marcar editor como modificado após alteração de ponto, `St` ou metadado.
 8. Atualizar `lastAppliedUtc` somente depois do eco completo.
 
 ### Tarefas — envio e recibo
@@ -1044,12 +1036,12 @@ Manter o espelhamento da aba do fluxômetro:
 
 ### Testes obrigatórios
 
-- Ajuste correto com pontos dos dois lados de `Qt`.
-- Alterar `Qt` refaz o ajuste e o gráfico.
+- Ajuste correto com pontos dos dois lados de `St`.
+- Alterar `St` refaz o ajuste e o gráfico.
 - Carregar perfil substitui o editor, mas não envia.
 - Salvar/excluir não aciona bomba nem altera nó.
 - Mudança de seleção não perde edição sem confirmação.
-- Envio bloqueado em firmware legado ou perfil operacional ativo.
+- Envio bloqueado com ajuste inválido/incompleto ou perfil operacional ativo.
 - ACK parcial não confirma.
 - Eco completo confirma, persiste e gera recibo correto.
 - Perda de conexão mantém a obrigação de parada.
@@ -1073,30 +1065,30 @@ Implementado e auditado nesta etapa, no aplicativo Windows:
 
 - **Curva e ajuste contínuos (`PumpCalibrationViewModel.cs`):**
   - o editor usa `PumpDualRangeCurve`, com `St` editável, `Qt` derivada e equações quártica/quadrática calculadas por `PumpDualRangeMath` com o mesmo ajuste C0+C1 do fluxômetro;
-  - a curva válida anterior permanece visível durante entrada temporariamente inválida, mas envio e salvamento ficam bloqueados quando os pontos atuais não produzem ajuste válido;
+  - sem pontos, ou durante entrada/ajuste inválido, não há curva ou equações exibidas e envio/salvamento ficam bloqueados;
   - pontos são classificados por `S ≤ St` e `S > St`, com resíduos e estatísticas globais e por segmento;
-  - a migração linear mantém exatamente a reta legada como dois polinômios lineares idênticos e `St = 500`.
+  - uma instalação vazia não cria perfil “Padrão” nem reaproveita coeficientes das configurações.
 - **Biblioteca de perfis de mangueira:**
   - listagem usa `PumpCalibrationProfileSummary`, sem abrir arrays de pontos de todos os arquivos;
   - selecionar não carrega, não salva e não envia; carregar substitui explicitamente curva e pontos e pede confirmação antes de descartar edição local;
   - salvar, salvar como e excluir respeitam nomes seguros, confirmação de sobrescrita/exclusão e escrita atômica do store da etapa 6;
-  - carregar usa os coeficientes congelados no perfil, inclusive quando não há pontos suficientes para reajuste, e deixa o editor inicialmente sem marca de alteração;
+  - carregar restaura pontos e reajusta a curva; um perfil sem pontos não fabrica uma curva visível;
   - excluir arquivo local não envia comando nem modifica a curva ativa no nó;
   - `lastAppliedUtc` e firmware aplicado só são atualizados depois da confirmação integral e somente quando a curva salva no perfil corresponde à curva enviada.
 - **Capacidades e segurança operacional:**
-  - envio polinomial exige Hub 10.4+ e bomba 3.12+; versões com prefixo `v` e sufixo de desenvolvimento são interpretadas sem habilitação otimista;
-  - firmware ou Hub legado, identidade ainda desconhecida e bomba com perfil ativo ou aguardando execução bloqueiam o envio com explicação;
+  - o cartão não negocia versão nem apresenta “aguardando a versão do Hub”; a primeira frota usa apenas o contrato atual;
+  - desconexão, bomba offline, perfil ativo/aguardando, comando pendente ou ajuste inválido bloqueiam o envio com explicação;
   - o frame atômico usa `pumpA1`, `pumpB1`, `pumpK1`, `pumpF1`, `pumpC1`, `pumpK2`, `pumpF2`, `pumpC2` e `pumpTransitionSpeed`;
   - aceitação do dispatcher, ACK isolado, eco parcial ou eco sem CRC não confirmam a calibração;
   - confirmação requer fim da pendência de comando, eco correspondente dos nove parâmetros e `PumpCalCrc`; divergência ou timeout não persistem calibração nem geram recibo;
   - a obrigação de parada após perda de conexão e o controle manual de preenchimento sem criação de ponto foram preservados.
 - **Interface e gráfico (`CalibrationView.xaml` e `.xaml.cs`):**
   - mantido o espelhamento da aba do fluxômetro: gráfico grande à esquerda, resumo abaixo e um único painel lateral para perfis, pontos, aquisição e preenchimento;
-  - curvas quártica/quadrática, transição móvel e pontos volumétricos são desenhados pelo modelo compartilhado;
+  - curvas quártica/quadrática, transição móvel e pontos volumétricos são desenhados pelo modelo compartilhado; cada segmento fica limitado à faixa de velocidades realmente amostrada;
   - removidos bindings para propriedades inexistentes e corrigida a tabela compacta para não exceder o painel em 936 × 534 DIP;
   - textos de ajuda foram alinhados às equações `a1..c1`, `k2..c2`, `St` editável e `Qt` derivada.
 - **Persistência e recibo:**
-  - settings passam a manter a curva dupla confirmada com defaults numericamente equivalentes à reta legada;
+  - settings mantêm somente a curva confirmada depois do eco completo; não são fonte de curva inicial;
   - recibo inclui perfil, pontos, estatísticas, curva solicitada e ecoada, CRC, versões do aplicativo, Hub e bomba e instante UTC.
 - **Verificações antes do commit funcional `918ed15`:**
   - 65/65 testes direcionados de bomba, store de perfis, contrato do painel e layout próprio aprovados;
@@ -1132,10 +1124,7 @@ Etapas 2 a 8 concluídas.
    - criar dois perfis de bomba;
    - carregar um perfil sem envio;
    - enviar curva e verificar recibo.
-9. No cenário legado:
-   - confirmar leitura da curva antiga;
-   - confirmar bloqueio das funções incompatíveis;
-   - confirmar ausência de crash por chaves ausentes.
+9. Confirmar que comandos e ecos lineares da bomba não existem no app, Hub, simulador ou nó.
 10. Examinar somente logs gerados após o início desta validação.
 11. Corrigir qualquer `Fatal`, `Unhandled`, `XamlParseException`, erro de binding, falha de DI ou violação de thread de UI antes de prosseguir.
 12. Reverter screenshots e outros artefatos rastreados modificados apenas pela execução dos testes, salvo quando a atualização de evidência fizer parte do commit documental.
@@ -1145,7 +1134,7 @@ Etapas 2 a 8 concluídas.
 - Todos os testes aprovados.
 - Todos os componentes compilados.
 - Aplicativo Release abre e renderiza as abas sem erro.
-- Simulador moderno e legado apresentam os estados esperados.
+- Simulador atual apresenta os estados esperados e rejeita contrato incompleto/inválido.
 - Nenhum defeito de runtime permanece aberto.
 
 ### Commit
@@ -1167,11 +1156,11 @@ Etapa 9 concluída em software. A integração foi auditada após os commits fun
 **Evidência automatizada:**
 
 - 257/257 testes direcionados de matemática, protocolo, parser, fluxômetro, bomba, perfis, documentação, recursos XAML e layouts aprovados após a correção da tabela de nós;
-- 1.683/1.683 testes da solução `Windows_app/OpenTECHub.slnx` aprovados, sem falhas nem testes ignorados, após isolar o store de perfis usado pelos testes da bomba;
-- 87/87 verificações do contrato do Hub aprovadas, incluindo golden strings, chaves modernas e legadas e preservação dos endpoints existentes;
+- 1.680/1.680 testes da solução `Windows_app/OpenTECHub.slnx` aprovados, sem falhas nem testes ignorados, incluindo o estado vazio sem curva fabricada;
+- 87/87 verificações do contrato do Hub aprovadas, incluindo golden strings atuais e preservação dos endpoints existentes;
 - 8/8 testes estáticos do firmware v1.2 do fluxômetro aprovados;
 - 11/11 testes estáticos do firmware v3.12 da bomba aprovados;
-- cenários de simulador moderno e legado cobertos pela suíte, incluindo parser/codec, presença e capacidade dos nós, ausência de chaves modernas, bloqueios de compatibilidade, carregamento local de perfil sem envio, confirmação completa por ACK/eco/CRC e emissão de recibo.
+- cenário atual do simulador coberto pela suíte, incluindo parser/codec, carregamento local de perfil sem envio, confirmação completa por ACK/eco/CRC, emissão de recibo e ausência do contrato linear.
 
 **Compilações:**
 
@@ -1223,12 +1212,12 @@ Etapa 9 concluída.
 
 ### Aplicativo Windows
 
-- `Windows_app/docs/PROTOCOL.md`: novas chaves, ecos, compatibilidade e golden strings.
+- `Windows_app/docs/PROTOCOL.md`: novas chaves, ecos, contrato atual e golden strings.
 - `Windows_app/docs/processes/CALIBRATION.md`: procedimentos completos das curvas e perfis.
 - `Windows_app/docs/UI_DESIGN.md`: disposição e estados da interface.
-- `Windows_app/docs/DECISIONS.md`: decisão sobre `Vt`, `St`, equações espelhadas, continuidade, migração e biblioteca no PC.
+- `Windows_app/docs/DECISIONS.md`: decisão sobre `Vt`, `St`, equações espelhadas, continuidade, primeira implantação e biblioteca no PC.
 - `Windows_app/docs/hardware/HARDWARE_VALIDATION.md`: matriz de ensaios por transição e mangueira.
-- `Windows_app/docs/CHANGELOG.md`: mudanças entregues e versões compatíveis.
+- `Windows_app/docs/CHANGELOG.md`: mudanças entregues e contrato único da bomba.
 - `Windows_app/docs/ROADMAP.md`: software concluído e bancada pendente.
 - `Windows_app/docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`: capacidades, ecos e pendências.
 - `Windows_app/src/OpenTECHub/Services/Documentation/DocumentationCatalog.cs`: ajuda interna coerente com a interface final.
@@ -1236,7 +1225,7 @@ Etapa 9 concluída.
 ### Hub ESP32-S3
 
 - `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`: tradução app → Hub → nós e ecos.
-- `ESP32S3-HUB/docs/VALIDATION.md`: casos de contrato, ACK, persistência e compatibilidade.
+- `ESP32S3-HUB/docs/VALIDATION.md`: casos de contrato, ACK e persistência.
 - `ESP32S3-HUB/README.md`: Hub 10.4 e capacidades novas.
 
 ### Firmware do fluxômetro
@@ -1247,9 +1236,9 @@ Etapa 9 concluída.
 
 ### Firmware da bomba
 
-- `External-Devices/bomba-peristaltica/docs/PROTOCOL.md`: equações polinomiais, comandos, ecos e compatibilidade.
+- `External-Devices/bomba-peristaltica/docs/PROTOCOL.md`: equações polinomiais, comandos e ecos atuais.
 - `External-Devices/bomba-peristaltica/README.md`: firmware v3.12 e calibração ativa.
-- `External-Devices/bomba-peristaltica/CHANGELOG.md`: registro NVS, migração e campos novos.
+- `External-Devices/bomba-peristaltica/CHANGELOG.md`: registro NVS, falha fechada inicial e campos novos.
 
 ### Planos históricos
 
@@ -1258,7 +1247,7 @@ Planos antigos que descrevem `0.0545 V` como constante imutável devem receber u
 ### Verificações
 
 - Buscar globalmente referências operacionais a `0.0545`, `pumpSlope` e `pumpIntercept`.
-- Classificar cada ocorrência remanescente como default legado, compatibilidade, histórico ou erro.
+- Manter `0.0545` somente onde pertence ao fluxômetro e remover `pumpSlope`/`pumpIntercept` do contrato executável.
 - Executar testes de documentação existentes.
 - Conferir versões e nomes de chaves em todos os documentos contra o código.
 
@@ -1279,12 +1268,19 @@ Etapa concluída após auditoria integral das etapas 1–10 e correção de uma 
 - O plano foi retificado: a bomba não usa duas retas unidas em `(St, Qt)`. Ela usa a mesma família do fluxômetro, com segmento inferior quártico, superior quadrático e continuidade C0+C1 em `St`; `Qt` é consequência das equações.
 - O contrato ponta a ponta foi promovido para bomba `v3.12` e Hub `10.4`: oito coeficientes mais `pumpTransitionSpeed`, ecos integrais e `PumpCalCrc`.
 - O aplicativo passou a ajustar as curvas com a rotina compartilhada do fluxômetro, validar monotonicidade/não negatividade, inverter `Q→S` por bisseção e persistir perfis schema 2 por mangueira.
-- Perfis schema 1, a reta legada e o registro NVS v3.11 são migrados sem alterar os blobs operacionais. Como duas retas com inclinações diferentes não podem preservar C1, a migração mantém o trecho inferior e o ponto de transição como reta única equivalente.
+- A decisão final de primeira implantação removeu perfil “Padrão”, schemas antigos, reta linear e registro NVS v3.11 do caminho executável. Sem `PMP3` válido, a bomba fica sem conversão até a primeira curva aplicada.
 - O simulador reproduz o novo quadro atômico, os ecos e as recusas matemáticas. O firmware rejeita registros NVS inválidos, quadros parciais, curvas descontínuas, não monotônicas ou recebidas durante operação ativa.
 - A auditoria corrigiu a classificação visual dos pontos da bomba: as faixas agora são separadas por `SpeedUnits <= St`, e não pela comparação dimensionalmente incorreta entre vazão e `St`.
 - A auditoria do fluxômetro encontrou e corrigiu confirmação incompleta: o aplicativo agora exige ACK concluído, eco de `Vt` e `FlowmeterCalCrc`, além de bloquear Hub `<10.3` e fluxômetro `<12`.
-- Documentos mestre, protocolos, processos, matrizes, ajuda interna, changelogs e planos históricos foram alinhados; referências às retas permanecem somente como diagnóstico histórico ou migração.
-- Verificação de software: 1.683/1.683 testes .NET, 88/88 contratos do Hub e 11/11 contratos da bomba aprovados. Isso não substitui as etapas físicas 11–12.
+- Documentos mestre, protocolos, processos, matrizes, ajuda interna e changelogs foram alinhados ao contrato único atual; registros históricos são identificados como não executáveis.
+- Verificação de software: 1.680/1.680 testes .NET, 87/87 contratos do Hub e 11/11 contratos da bomba aprovados. Isso não substitui as etapas físicas 11–12.
+
+**Complemento final — 2026-09-14:** corrigida a origem da reta sem medições. O ViewModel não
+cria mais `Padrão.json` a partir de settings, o gráfico só desenha segmentos dentro das faixas
+amostradas e as equações mostram `—` quando não há ajuste. O cartão deixou de exibir estados de
+espera por versão. Foi criado no workspace de validação um perfil sintético temporário
+`Mangueira 3x5`, com dez pontos, exclusivamente para inspeção da interface; ele deve ser
+substituído pela calibração volumétrica real e não integra o produto distribuído.
 
 Commits separados desta conclusão:
 
@@ -1344,13 +1340,13 @@ Etapas 3, 4, 6, 8, 9 e 10 concluídas e firmware gravado no equipamento.
 
 1. Registrar nome do perfil, material, diâmetro interno, lote/identificação, fluido, temperatura e recipiente de medição.
 2. Preencher a mangueira com o controle manual e remover bolhas antes de medir.
-3. Definir `Qt` dentro da faixa operacional pretendida.
+3. Definir `St` dentro da faixa de velocidades operacional pretendida; `Qt=Q(St)` será derivado.
 4. Coletar pelo menos três pontos na faixa baixa e três na faixa alta.
-5. Repetir pontos próximos de `Qt` e pelo menos um ponto intermediário de cada faixa.
+5. Repetir pontos próximos de `St` e pelo menos um ponto intermediário de cada faixa.
 6. Conferir volumes e tempos digitados antes de registrar cada ponto.
 7. Ajustar e salvar o perfil sem enviar; confirmar que a curva do nó não mudou.
 8. Enviar explicitamente e conferir ACK, ecos e CRC.
-9. Medir abaixo, na vizinhança e acima de `Qt`.
+9. Medir abaixo, na vizinhança e acima de `St`.
 10. Executar uma dosagem contínua de dez minutos e comparar volume real com `PumpVol`.
 11. Reiniciar a bomba e confirmar a calibração ativa.
 12. Repetir todo o procedimento para pelo menos uma segunda mangueira.
@@ -1401,7 +1397,8 @@ test(pump): record hose profile bench validation
 - [x] Q→S, S→Q e duty→Q usam a mesma calibração dupla.
 - [x] Frames completos são aplicados atomicamente.
 - [x] Frames inválidos não deixam estado parcial.
-- [x] Comandos legados têm comportamento documentado e testado.
+- [x] Comandos e ecos lineares da bomba foram removidos de app, Hub, simulador e firmware.
+- [x] Boot sem calibração atual falha fechado, sem fabricar curva.
 
 ### App e perfis
 
@@ -1443,7 +1440,7 @@ Pode ser declarada somente quando:
 
 1. etapas 0 a 10 estiverem concluídas;
 2. app, Hub e dois firmwares compartilharem o mesmo contrato;
-3. migrações e compatibilidade legada estiverem cobertas por testes;
+3. o contrato atual da bomba estiver coberto e o caminho linear ausente dos componentes executáveis;
 4. clean/build Release, suíte completa e execução real do aplicativo estiverem aprovados;
 5. documentação estiver coerente;
 6. commits estiverem separados e incluídos na branch final;

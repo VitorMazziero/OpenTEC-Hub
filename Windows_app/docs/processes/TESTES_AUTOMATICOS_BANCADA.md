@@ -106,14 +106,13 @@ o valor original ao fim. Latência medida do envio ao primeiro quadro com o eco 
 | B3.6 | Fluxômetro | `{"flowRampRate":…}`, `{"flowFfGain":…}`, `{"flowFfOffset":…}`, `{"flowKi":…}` | cada eco | ≤ 5 s cada | originais |
 | B3.7 | Fluxômetro | `FlowmeterBootId` estável | 60 quadros | valor constante; muda **só** em B1.6 | — |
 | B3.8 | Bomba | `{"pump_command":"reset_volume"}` com `pumpComm:1`, `mode:0` | `PumpVol` | **< 0.05 mL no quadro seguinte** ao ack | — |
-| B3.9-legado | Bomba ≤3.10 | `{"pumpSlope":s,"pumpIntercept":i}` | `PumpSlope`/`PumpIntercept` | Somente compatibilidade/migração; não aprova curva moderna | originais |
-| B3.9-moderno | Bomba 3.12 | quadro com `pumpA1..pumpC2` e `pumpTransitionSpeed` | nove ecos + `PumpCalCrc` e pending falso | ≤ 5 s; conjunto completo e CRC coerentes | originais |
+| B3.9 | Bomba 3.12 | quadro com `pumpA1..pumpC2` e `pumpTransitionSpeed` | nove ecos + `PumpCalCrc` e pending falso | ≤ 5 s; conjunto completo e CRC coerentes | originais |
 | B3.10 | Bomba | `{"pumpPidKp":…}` | **nenhum** eco (3.9 não ecoa) | quadro não ganha chave `PumpPidKp`; Hub loga `Applied`; nenhuma falha de parse | — |
 | B3.11 | Bomba | quadro de segurança: `{"mode":0}` depois `{"pumpComm":0}` | bomba **parada** (`PumpFlow == 0` por 10 s) e depois `PumpOnline` continua `true` (o nó não some, só a rota) | sim | `pumpComm` como estava |
 | B3.12 | Biomassa | três comandos em sequência, um por confirmação: `set_gear`, `set_it`, `set_pwm` | `BiomassGear`, `BiomassIT`, `BiomassPWM` | três `cmd_id` distintos no log do Hub, três acks, ecos em ≤ 10 s cada; `BiomassCommandPending` cai entre eles | originais |
 | B3.13 | Biomassa | `{"biomassEma":0.5}`, `{"biomassProbePeriodMs":100}` | `BiomassEma 0.5`; `BiomassProbePeriodMs` **≥ piso térmico** (o nó eleva) | período ecoado ≥ 100 e documentado | originais |
 | B3.14 | Todos | eco **não é sticky** | desligar a rota (`*Comm:0`) ou o nó | a chave de eco **some** do quadro em ≤ 2 períodos | — |
-| B3.15 | Todos | valores fora de faixa | `{"biomassIt":9}`, `{"pumpSlope":-1}` | Hub recusa ou nó ignora; **nenhum** eco muda; nenhuma falha de parse | — |
+| B3.15 | Todos | valores fora de faixa | `{"biomassIt":9}`; curva polinomial de bomba descontínua ou não monotônica | Hub recusa ou nó ignora; **nenhum** eco muda; nenhuma falha de parse | — |
 
 Latência registrada por comando em `echo-latency.csv` (`node,key,sent_ms,echo_ms,latency_ms`).
 

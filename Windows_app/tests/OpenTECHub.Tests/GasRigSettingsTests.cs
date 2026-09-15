@@ -93,6 +93,7 @@ public class GasRigSettingsTests
         Assert.Equal("B e C ligadas na entrada 1", vm.GasVentInputText);
         Assert.Equal("Arranjo: A na entrada 2 · B/C na entrada 1", vm.GasRigSummary);
         Assert.DoesNotContain(vm.Sections, s => s.Label == "Gás e válvulas");
+        Assert.DoesNotContain(vm.Sections, s => s.Label == "Aparência");
         Assert.Contains(vm.Sections, s => s.Id == SettingsViewModel.DocumentationSectionId && s.Label == "Documentação");
         Assert.Equal(GasInput.Input2, settings.Current.GasRig.AirInletInput);
     }
@@ -173,6 +174,7 @@ public class GasRigSettingsTests
         var xaml = File.ReadAllText(Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", "SettingsView.xaml"));
 
         Assert.DoesNotContain("ConverterParameter=gas", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConverterParameter=logging", xaml, StringComparison.Ordinal);
         Assert.Contains("ConverterParameter=configuracoes-gas-valvulas", xaml, StringComparison.Ordinal);
         Assert.Contains("valvulas-abc.png", xaml, StringComparison.Ordinal);
         Assert.Contains("ToggleGasDiagramCommand", xaml, StringComparison.Ordinal);

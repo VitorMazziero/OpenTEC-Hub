@@ -95,7 +95,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("calibration", "Calibração", "Target"),
             new("acquisition", "Aquisição", "Trend"),
             new("units", "Unidades", "Pressure"),
-            new("logging", "Aparência", "Trend"),
             new("backup", "Backup e dados", "File"),
             new("device", "Comandos do equipamento", "Gear"),
             new(DocumentationSectionId, "Documentação", "Book"),

@@ -454,21 +454,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Aparência -->
-                <Border Style="{StaticResource Card}"
-                        Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},
-                                             ConverterParameter=logging}">
-                    <StackPanel>
-                        <TextBlock Text="Aparência" Style="{StaticResource SectionHeading}" />
-                        <TextBlock Text="Tema da Interface" Style="{StaticResource FieldLabel}" />
-                        <ComboBox Width="190" HorizontalAlignment="Left"
-                                  ItemsSource="{Binding ThemeOptions}"
-                                  SelectedItem="{Binding Theme, Mode=TwoWay}" />
-                        <TextBlock Text="Selecione o esquema de cores visual (Claro, Escuro ou Seguir o Sistema)."
-                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,6,0,0" />
-                    </StackPanel>
-                </Border>
-
                 <!-- Gerenciamento e Backup de Dados -->
                 <Border Style="{StaticResource Card}"
                         Visibility="{Binding SelectedSection.Id, Converter={StaticResource EqualsToVis},

@@ -614,9 +614,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         ? "Montagem anterior ao arranjo A/B/C — só leitura. Crie um ensaio novo para continuar no arranjo atual."
         : "";
 
-    /// <summary>The wiring in force, from Configurações › Gás e válvulas — shown, never edited here.</summary>
+    /// <summary>The wiring in force, from Documentação › Gás e válvulas — shown, never edited here.</summary>
     public string GasRigDescription =>
-        $"Arranjo: {_settings.Current.GasRig.ToConfiguration().Describe()} (Configurações › Gás e válvulas)";
+        $"Arranjo: {_settings.Current.GasRig.ToConfiguration().Describe()} (Documentação › Gás e válvulas)";
 
     public string DisplayDODerivative => _runner.CurrentDODerivative.HasValue
         ? $"{_runner.CurrentDODerivative.Value:+0.000;-0.000;0.000} %/s"

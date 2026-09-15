@@ -95,7 +95,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new("calibration", "Calibração", "Target"),
             new("acquisition", "Aquisição", "Trend"),
             new("units", "Unidades", "Pressure"),
-            new(GasRigSectionId, "Gás e válvulas", "Pressure"),
             new("logging", "Aparência", "Trend"),
             new("backup", "Backup e dados", "File"),
             new("device", "Comandos do equipamento", "Gear"),
@@ -246,8 +245,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     // ── Gás e válvulas: the A/B/C wiring (plan Etapa 8) ──────────────────────
 
-    public const string GasRigSectionId = "gas";
-
     /// <summary>Which flowmeter input drives valve A; B and C share the other one.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GasVentInputText))]
@@ -323,7 +320,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _settings.Update(s => s with { GasRig = GasRigSettings.From(rig) });
         _journal?.Add(AuditSource.Application, AuditSeverity.Warning,
             $"Arranjo de válvulas: A → entrada {(int)value}; B e C → entrada {(int)rig.VentAndNitrogenInput}.",
-            "Configurações › Gás e válvulas. Vale para os próximos comandos e corridas; ensaios já iniciados com outro arranjo são recusados.");
+            "Documentação › Gás e válvulas. Vale para os próximos comandos e corridas; ensaios já iniciados com outro arranjo são recusados.");
         StatusMessage = $"Arranjo de válvulas salvo: {rig.Describe()}.";
     }
 
@@ -1093,4 +1090,3 @@ public sealed record WorkspaceFolderInfo(
     string Description,
     string FileTypes,
     string FullPath);
-

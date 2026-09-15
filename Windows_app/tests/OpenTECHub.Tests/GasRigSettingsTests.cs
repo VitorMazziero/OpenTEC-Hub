@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
@@ -84,14 +85,15 @@ public class GasRigSettingsTests
     }
 
     [Fact]
-    public void Default_is_A_on_input_2_and_the_section_exists()
+    public void Default_is_A_on_input_2_and_gas_settings_are_documented()
     {
         var (vm, settings, _) = Build();
         Assert.Equal(GasInput.Input2, vm.GasAirInletInput);
         Assert.True(vm.IsGasRigDefault);
         Assert.Equal("B e C ligadas na entrada 1", vm.GasVentInputText);
         Assert.Equal("Arranjo: A na entrada 2 · B/C na entrada 1", vm.GasRigSummary);
-        Assert.Contains(vm.Sections, s => s.Id == SettingsViewModel.GasRigSectionId && s.Label == "Gás e válvulas");
+        Assert.DoesNotContain(vm.Sections, s => s.Label == "Gás e válvulas");
+        Assert.Contains(vm.Sections, s => s.Id == SettingsViewModel.DocumentationSectionId && s.Label == "Documentação");
         Assert.Equal(GasInput.Input2, settings.Current.GasRig.AirInletInput);
     }
 
@@ -162,6 +164,19 @@ public class GasRigSettingsTests
     {
         var topic = DocumentationCatalog.Find(DocumentationCatalog.SettingsGasRigTopicId);
         Assert.NotNull(topic);
-        Assert.Equal("Configurações · Gás e válvulas", topic!.Title);
+        Assert.Equal("Gás e válvulas", topic!.Title);
+    }
+
+    [Fact]
+    public void Gas_rig_controls_live_inside_the_documentation_topic()
+    {
+        var xaml = File.ReadAllText(Path.Combine(TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", "SettingsView.xaml"));
+
+        Assert.DoesNotContain("ConverterParameter=gas", xaml, StringComparison.Ordinal);
+        Assert.Contains("ConverterParameter=configuracoes-gas-valvulas", xaml, StringComparison.Ordinal);
+        Assert.Contains("valvulas-abc.png", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToggleGasDiagramCommand", xaml, StringComparison.Ordinal);
+        Assert.Contains("RestoreGasRigDefaultCommand", xaml, StringComparison.Ordinal);
+        Assert.Contains("GasInputOptions", xaml, StringComparison.Ordinal);
     }
 }

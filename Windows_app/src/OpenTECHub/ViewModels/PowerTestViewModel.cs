@@ -419,8 +419,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double PrestageFlowStabilityStdDevLpm { get; set; } = 0.05;
     [ObservableProperty] public partial double PrestageFlowStabilityMaxErrorLpm { get; set; } = 0.3;
 
-    /// <summary>The wiring in force, from Configurações › Gás e válvulas — shown, never edited here.</summary>
-    public string GasRigDescription => $"Arranjo: {_rig().Describe()} (Configurações › Gás e válvulas)";
+    /// <summary>The wiring in force, from Documentação › Gás e válvulas — shown, never edited here.</summary>
+    public string GasRigDescription => $"Arranjo: {_rig().Describe()} (Documentação › Gás e válvulas)";
 
     /// <summary>An assay recorded before the A/B/C rig: reviewable, never continued (plan §3.5).</summary>
     public bool IsLegacyRigTest => CurrentTest?.IsLegacyRig == true;

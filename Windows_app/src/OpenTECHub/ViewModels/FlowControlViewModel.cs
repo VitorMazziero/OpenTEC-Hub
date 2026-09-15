@@ -75,7 +75,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
         }
     }
 
-    /// <summary>Configurações › Gás e válvulas may have moved A to the other input: re-read every derived text.</summary>
+    /// <summary>Documentação › Gás e válvulas may have moved A to the other input: re-read every derived text.</summary>
     private void OnSettingsChanged(AppSettings _) => NotifyRigChanged();
 
     /// <summary>The wiring changed in Configurações: every text derived from it re-reads.</summary>
@@ -245,7 +245,7 @@ public sealed partial class FlowControlViewModel : ObservableObject
     public string Input1Label => Rig.AirInletInput == GasInput.Input1 ? "Entrada 1 (A)" : "Entrada 1 (B + C)";
     public string Input2Label => Rig.AirInletInput == GasInput.Input2 ? "Entrada 2 (A)" : "Entrada 2 (B + C)";
 
-    /// <summary>The wiring in force, from Configurações › Gás e válvulas.</summary>
+    /// <summary>The wiring in force, from Documentação › Gás e válvulas.</summary>
     public string RigDescription => $"Arranjo: {Rig.Describe()}";
 
     // ── Observed route, from the echo ────────────────────────────────────────

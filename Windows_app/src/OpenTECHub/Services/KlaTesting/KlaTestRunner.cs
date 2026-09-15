@@ -244,7 +244,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             throw new InvalidOperationException(
                 $"O arranjo configurado ({rig.Describe()}) difere do gravado neste ensaio ({recordedRig.ToConfiguration().Describe()}). " +
-                "Ajuste Configurações › Gás e válvulas ou crie um ensaio novo.");
+                "Consulte Documentação › Gás e válvulas ou crie um ensaio novo.");
         }
         if (condition.AgitationRpm <= 0 || condition.AirflowLpm <= 0 || replicateNumber < 1)
         {

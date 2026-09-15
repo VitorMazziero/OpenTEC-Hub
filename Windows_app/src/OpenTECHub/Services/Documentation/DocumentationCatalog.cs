@@ -162,7 +162,7 @@ public static class DocumentationCatalog
                     F("Bomba Externa", "Escolha um perfil de dosagem, confira a prévia de vazão e volume e envie o perfil quando estiver satisfeito. Zerar volume reinicia o volume acumulado da bomba."),
                     F("Absorbância", "Mostra absorbância e leitura bruta, permite capturar o branco, iniciar ou parar a leitura e ajustar os limiares usados pela automação."),
                     F("Frasco Agitador", "Define intensidade, sentido e automação por espuma. Reativar potenciômetro devolve o comando ao controle físico da bancada."),
-                    N("A posição das válvulas de gás é explicada em Configurações › Gás e válvulas."),
+                    N("A posição das válvulas de gás é explicada em Documentação › Gás e válvulas."),
                 ]),
                 new DocumentationSection("Predefinições e parada", [
                     F("Predefinição", "É um conjunto de alvos salvo para repetir uma condição de processo."),
@@ -482,7 +482,7 @@ public static class DocumentationCatalog
                     N("Sem tara, o ensaio fica em modo relativo: ainda permite comparar corridas, mas não representa uma potência líquida absoluta."),
                 ]),
                 new DocumentationSection("Com gás", [
-                    P("Em uma condição gaseificada, a vazão é estabilizada antes de ser encaminhada ao reator. A configuração das válvulas e o caminho do gás podem ser conferidos em Configurações › Gás e válvulas."),
+                    P("Em uma condição gaseificada, a vazão é estabilizada antes de ser encaminhada ao reator. A configuração das válvulas e o caminho do gás podem ser conferidos em Documentação › Gás e válvulas."),
                     F("Pré-estabilização por C", "Define quanto a vazão deve se estabilizar antes da medição."),
                     F("Malha de gás", "Informa se o gás está fechado, em preparação, no reator ou em uma rota sem destino."),
                     Eq("Fr = n² · D / g", "Fr compara os efeitos da rotação com a gravidade."),
@@ -784,18 +784,18 @@ public static class DocumentationCatalog
 
         new DocumentationTopic(
             SettingsGasRigTopicId,
-            "Configurações · Gás e válvulas",
+            "Gás e válvulas",
             "Como o ar e o nitrogênio são encaminhados nos ensaios e como conferir a posição das válvulas.",
             [
                 new DocumentationSection("Entender o arranjo", [
-                    P("O fluxograma mostra a ligação física entre o fluxômetro, o reator e as linhas de descarga. A válvula A encaminha ar ao reator; B é a linha de nitrogênio; C é a descarga ou purga de ar. B e C trabalham juntas."),
-                    P("No ensaio de potência, a linha de nitrogênio deve permanecer fechada. No ensaio de kLa, ela é usada na etapa de remoção do oxigênio."),
-                    F("Fluxograma", "Use a imagem para conferir a ligação física antes de iniciar uma sequência. A legenda abaixo resume o caminho de cada linha."),
+                    P("Leia o fluxograma da esquerda para a direita: o fluxômetro mede e regula a vazão; depois um T divide o gás entre A, que leva ar ao reator, e C, que libera ar para descarga ou purga. B leva nitrogênio e abre junto com C. Assim, B e C compartilham a mesma entrada elétrica, mas têm funções diferentes na tubulação."),
+                    P("No ensaio de potência, use somente ar e mantenha o nitrogênio fechado. No ensaio de kLa, o nitrogênio reduz o oxigênio no início; depois o ar é encaminhado ao reator para acompanhar a recuperação."),
+                    F("Fluxograma", "A = ar para o reator; B = nitrogênio; C = descarga ou purga de ar; B + C = linhas que abrem juntas. Clique na imagem para ampliar e compare a legenda com as mangueiras instaladas."),
                 ]),
                 new DocumentationSection("Configurar a entrada", [
-                    F("Válvula A ligada na entrada", "Escolhe qual entrada do fluxômetro aciona a passagem de ar para o reator."),
-                    F("Restaurar padrão", "Volta à associação recomendada pela montagem."),
-                    F("Resumo do arranjo", "Mostra de forma legível qual entrada aciona cada caminho."),
+                    F("Válvula A ligada na entrada", "Escolhe qual entrada do fluxômetro aciona a passagem de ar para o reator. A outra entrada fica associada às válvulas B e C."),
+                    F("Restaurar padrão", "Volta à associação recomendada para a montagem: A na entrada 2 e B/C na entrada 1."),
+                    F("Resumo do arranjo", "Mostra de forma legível qual entrada aciona A e qual aciona B/C, para você comparar a configuração com a bancada."),
                     N("Faça alterações somente com receitas e ensaios parados. Depois de alterar, confira a rota exibida e faça uma verificação curta antes de uma campanha."),
                 ]),
                 new DocumentationSection("Como cada página usa o gás", [

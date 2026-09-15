@@ -1296,7 +1296,7 @@
                                                         <Run Text=" · " Foreground="{DynamicResource TextMutedBrush}" />
                                                         <Run Text="{Binding WireText, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}" />
                                                     </TextBlock>
-                                                    <TextBlock Text="{Binding RigDescription, StringFormat='{}{0} (Configurações › Gás e válvulas)'}"
+                                                    <TextBlock Text="{Binding RigDescription, StringFormat='{}{0} (Documentação › Gás e válvulas)'}"
                                                                Style="{StaticResource CaptionTextStyle}"
                                                                Foreground="{DynamicResource TextMutedBrush}"
                                                                Margin="0,2,0,0" />

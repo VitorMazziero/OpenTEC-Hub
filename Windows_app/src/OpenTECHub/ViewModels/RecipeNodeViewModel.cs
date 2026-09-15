@@ -367,7 +367,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// the ports instead of moving the ports down.
     /// </remarks>
     private double CascadePortTopOffset =>
-        HeaderHeight + 12 + (2 * 18) + 12 + (IsCascadeWithoutExitCondition ? 26 : 0);
+        HeaderHeight + 12 + (2 * 18) + 12
+        + (IsCascadeWithoutExitCondition || IsCascadeInfinite ? 26 : 0);
 
     public double Height
     {
@@ -433,7 +434,14 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// <summary>True for a cascade whose Condição de Saída port is empty — it exits on settling.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Height))]
+    [NotifyPropertyChangedFor(nameof(CascadeExitMode))]
     public partial bool IsCascadeWithoutExitCondition { get; set; }
+
+    /// <summary>True when the cascade contains its internal Saída Loop → Entrada Loop wire.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Height))]
+    [NotifyPropertyChangedFor(nameof(CascadeExitMode))]
+    public partial bool IsCascadeInfinite { get; set; }
 
     partial void OnIsCascadeWithoutExitConditionChanged(bool value)
     {
@@ -441,6 +449,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         // them put is exactly the overlap this is fixing.
         UpdatePortOffsets();
     }
+
+    partial void OnIsCascadeInfiniteChanged(bool value) => UpdatePortOffsets();
 
     /// <summary>
     /// Which page of the manual this block's help button opens.
@@ -478,6 +488,19 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         "Sem condição de saída: o loop encerra sozinho ao estabilizar (±2 % do SP por 3 leituras). "
         + "Ligue um Monitorar Variável, Temporizador ou Intervenção Manual à Condição de Saída "
         + "para decidir você mesmo quando sair.";
+
+    /// <summary>Chip shown while the internal loop keeps the control running continuously.</summary>
+    public string CascadeInfiniteBadge => "∞ INFINITO";
+
+    public string CascadeInfiniteHint =>
+        "Controle contínuo: o laço interno mantém o Controle de O₂ em execução, mesmo após a estabilização. "
+        + "Remova o conector entre Condição de Saída e Retorno da Condição para encerrar por estabilização, "
+        + "ou conecte um Temporizador, Monitorar Variável ou Intervenção Manual.";
+
+    /// <summary>Explicit exit state used by the editor: infinite, stabilization or external.</summary>
+    public CascadeExitMode CascadeExitMode => IsCascadeInfinite
+        ? CascadeExitMode.Infinite
+        : IsCascadeWithoutExitCondition ? CascadeExitMode.Stabilize : CascadeExitMode.External;
 
     /// <summary>Raised when a field value or the position changes, so the tab re-validates.</summary>
     public event Action? Changed;

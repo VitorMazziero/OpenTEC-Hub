@@ -10,6 +10,14 @@ public enum PortDirection
     Out,
 }
 
+/// <summary>How a Controle de O₂ leaves its loop.</summary>
+public enum CascadeExitMode
+{
+    Infinite,
+    Stabilize,
+    External,
+}
+
 /// <summary>
 /// One port on a node, declared once in the block definition.
 /// </summary>
@@ -79,4 +87,10 @@ public static class ConnectorNames
 
         return name;
     }
+
+    /// <summary>Identifies the internal infinite-loop wire of a Controle de O₂.</summary>
+    public static bool IsCascadeSelfLoop(RecipeConnection connection)
+        => connection.SourceNodeId == connection.TargetNodeId
+           && IsLoopOut(connection.SourceConnector)
+           && IsLoopIn(connection.TargetConnector);
 }

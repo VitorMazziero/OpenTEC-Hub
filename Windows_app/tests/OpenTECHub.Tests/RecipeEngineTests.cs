@@ -138,6 +138,23 @@ public sealed class RecipeEngineTests
     }
 
     [Fact]
+    public async Task Cascade_with_internal_loop_remains_running_after_stabilization()
+    {
+        var (engine, device, _, clock) = Build();
+
+        await engine.StartAsync(CascadeInfiniteRecipe());
+        for (var i = 0; i < 8; i++)
+        {
+            PushFrame(device, clock, oxygen: 30);
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        await engine.StopAsync("teste");
+        Assert.Equal(RecipeRunState.Stopped, engine.State);
+    }
+
+    [Fact]
     public async Task Cascade_loop_exits_when_its_saida_loop_manual_gate_passes()
     {
         var (engine, device, _, clock) = Build();
@@ -528,6 +545,13 @@ public sealed class RecipeEngineTests
         recipe.Nodes.AddRange([start, cascade, end]);
         recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "casc", ConnectorNames.In));
         recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.Out, "end", ConnectorNames.In));
+        return recipe;
+    }
+
+    private static RecipeDocument CascadeInfiniteRecipe()
+    {
+        var recipe = CascadeRecipe();
+        recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.LoopOut, "casc", ConnectorNames.LoopIn));
         return recipe;
     }
 

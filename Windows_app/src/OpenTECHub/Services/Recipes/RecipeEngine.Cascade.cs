@@ -27,12 +27,13 @@ public sealed partial class RecipeEngine
         // The Condição de Saída port wires to the rule that ends the loop: a Monitor (exits when the
         // comparison becomes true), a Temporizador (exits once it elapses) or an Intervenção Manual
         // (the operator's Manter Rodando / Sair do Loop switch). Every one of them is *read* once per
-        // iteration and never executed as a flow block. With nothing wired, the loop exits on the
-        // settle rule below. In all cases the condition being TRUE means "leave the loop".
+        // iteration and never executed as a flow block. The internal self-loop is the
+        // explicit continuous mode; with no loop edge the finite mode settles below.
         var condition = LoopConditionNode(node);
+        var infinite = HasCascadeSelfLoop(node);
         var mode = node.Enum<CascadeMode>("modo");
         Log(RecipeLogSeverity.Info,
-            $"Controle de O₂ [{ModeLabel(mode)}] iniciado (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition)}).", node.Id);
+            $"Controle de O₂ [{ModeLabel(mode)}] iniciado (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition, infinite)}).", node.Id);
 
         DateTimeOffset? lastStep = null;
         var settled = 0;
@@ -127,8 +128,9 @@ public sealed partial class RecipeEngine
                     break;
                 }
 
-                // With no exit condition wired, the cascade settles once the O2 stabilizes at the setpoint.
-                if (condition is null)
+                // A self-loop means continuous operation. Only the explicit no-loop
+                // state uses the existing ±2% / 3-reading settle rule.
+                if (condition is null && !infinite)
                 {
                     settled = Math.Abs(snapshot.OxygenCalibrated - node.Number("spO2")) <= CascadeSettleTolerancePercent
                         ? settled + 1
@@ -192,11 +194,15 @@ public sealed partial class RecipeEngine
         return fallback;
     }
 
-    private static string DescribeCondition(RecipeNode? condition) => condition?.Type switch
+    private bool HasCascadeSelfLoop(RecipeNode cascade)
+        => Current!.Connections.Any(c => c.SourceNodeId == cascade.Id && ConnectorNames.IsCascadeSelfLoop(c));
+
+    private static string DescribeCondition(RecipeNode? condition, bool infinite) => condition?.Type switch
     {
         NodeType.MonitorVariable => ", saída por condição",
         NodeType.ManualIntervention => ", saída manual",
         NodeType.Timer => ", saída por tempo",
+        _ when infinite => ", execução contínua",
         _ => ", saída por estabilização",
     };
 

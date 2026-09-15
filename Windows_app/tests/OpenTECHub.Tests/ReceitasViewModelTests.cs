@@ -110,6 +110,26 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
+    public void New_oxygen_control_is_infinite_and_undo_removes_its_internal_loop_atomically()
+    {
+        var vm = Build();
+
+        vm.AddBlockCommand.Execute(NodeType.CascadeControl);
+        var tab = Tab(vm);
+        var cascade = tab.Nodes.Single(n => n.Type == NodeType.CascadeControl);
+
+        Assert.True(cascade.IsCascadeInfinite);
+        Assert.False(cascade.IsCascadeWithoutExitCondition);
+        Assert.Contains(tab.Document.Connections, ConnectorNames.IsCascadeSelfLoop);
+        Assert.Contains("∞ INFINITO", cascade.CascadeInfiniteBadge);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.DoesNotContain(tab.Nodes, n => n.Type == NodeType.CascadeControl);
+        Assert.DoesNotContain(tab.Document.Connections, ConnectorNames.IsCascadeSelfLoop);
+    }
+
+    [Fact]
     public void Click_to_connect_makes_a_connection()
     {
         var vm = Build();
@@ -330,7 +350,7 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
-    public void A_cascade_without_an_exit_condition_is_flagged_until_one_is_wired()
+    public void Removing_the_internal_loop_restores_exit_by_stabilization()
     {
         var vm = Build();
         vm.AddBlockCommand.Execute(NodeType.CascadeControl);
@@ -338,12 +358,42 @@ public sealed class ReceitasViewModelTests
         var cascade = Tab(vm).Nodes.First(n => n.Type == NodeType.CascadeControl);
         var gate = Tab(vm).Nodes.First(n => n.Type == NodeType.ManualIntervention);
 
+        var selfLoop = Tab(vm).Connections.Single(c => ConnectorNames.IsCascadeSelfLoop(c.Model));
+        Tab(vm).SelectConnection(selfLoop);
+        vm.DeleteSelectedCommand.Execute(null);
+
+        Assert.False(cascade.IsCascadeInfinite);
         Assert.True(cascade.IsCascadeWithoutExitCondition);
 
         vm.PortClicked(cascade, cascade.Ports.First(p => p.Name == ConnectorNames.LoopOut));
         vm.PortClicked(gate, gate.Ports.First(p => p.Name == ConnectorNames.In));
 
         Assert.False(cascade.IsCascadeWithoutExitCondition);
+    }
+
+    [Fact]
+    public void External_exit_replaces_the_internal_loop_and_undo_restores_it()
+    {
+        var vm = Build();
+        vm.AddBlockCommand.Execute(NodeType.CascadeControl);
+        vm.AddBlockCommand.Execute(NodeType.Timer);
+        var tab = Tab(vm);
+        var cascade = tab.Nodes.Single(n => n.Type == NodeType.CascadeControl);
+        var timer = tab.Nodes.Single(n => n.Type == NodeType.Timer);
+
+        vm.PortClicked(cascade, cascade.Ports.Single(p => p.Name == ConnectorNames.LoopOut));
+        vm.PortClicked(timer, timer.Ports.Single(p => p.Name == ConnectorNames.In));
+
+        Assert.DoesNotContain(tab.Document.Connections, ConnectorNames.IsCascadeSelfLoop);
+        Assert.True(timer.IsCascadeLoopCondition);
+        Assert.False(cascade.IsCascadeInfinite);
+        Assert.False(cascade.IsCascadeWithoutExitCondition);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Contains(tab.Document.Connections, ConnectorNames.IsCascadeSelfLoop);
+        Assert.DoesNotContain(tab.Document.Connections, c => c.TargetNodeId == timer.Id && ConnectorNames.IsLoopOut(c.SourceConnector));
+        Assert.True(tab.Nodes.Single(n => n.Type == NodeType.CascadeControl).IsCascadeInfinite);
     }
 
     [Fact]

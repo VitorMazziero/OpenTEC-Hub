@@ -286,6 +286,18 @@
                         </TransformGroup>
                     </Canvas.RenderTransform>
 
+                    <!-- Temporary PowerPoint-like alignment guides, below the wires and blocks. -->
+                    <ItemsControl ItemsSource="{Binding SelectedTab.AlignmentGuides}" IsHitTestVisible="False">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}"
+                                      Stroke="{DynamicResource AccentBrush}" StrokeThickness="1"
+                                      StrokeDashArray="4 4" Opacity="0.85" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
                     <!-- Connections -->
                     <ItemsControl ItemsSource="{Binding SelectedTab.Connections}">
                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -400,6 +412,22 @@
                                             <TextBlock Text="{Binding Summary}" FontSize="12" Margin="12,8,12,8"
                                                        Visibility="{Binding ShowSummary, Converter={StaticResource BoolToVis}}"
                                                        TextWrapping="Wrap" LineHeight="16" Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                            <!-- The default internal loop keeps the cascade continuous. -->
+                                            <Border Visibility="{Binding IsCascadeInfinite, Converter={StaticResource BoolToVis}}"
+                                                    Background="{DynamicResource AccentSubtleBrush}"
+                                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                                    CornerRadius="3" Margin="12,0,12,8" Padding="6,2"
+                                                    HorizontalAlignment="Left" ToolTipService.ShowDuration="30000"
+                                                    ToolTip="{Binding CascadeInfiniteHint}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="∞" FontSize="11" Margin="0,0,4,0"
+                                                               VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                                                    <TextBlock Text="{Binding CascadeInfiniteBadge}" FontSize="9"
+                                                               FontWeight="Bold" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource AccentBrush}" />
+                                                </StackPanel>
+                                            </Border>
 
                                             <!-- A cascade with an empty Condição de Saída exits on settling. Chip,
                                                  not prose: the paragraph that used to be here ran over the port

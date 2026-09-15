@@ -250,23 +250,26 @@ public sealed class DocumentationTests
     {
         var node = new RecipeNodeViewModel(RecipeNode.Create(NodeType.CascadeControl));
 
-        var withCondition = node.Height;
-        var portsWithCondition = node.Ports.Select(p => p.OffsetY).ToList();
+        var baseHeight = node.Height;
+        var portsAtBase = node.Ports.Select(p => p.OffsetY).ToList();
 
-        // With nothing wired to Condição de Saída the card shows the settling chip, and the card
-        // has to grow by it: leaving the ports put is exactly how the old paragraph ended up
-        // printed over "Entrada" and "Saída".
-        node.IsCascadeWithoutExitCondition = true;
+        // The new default is the internal loop, shown as an explicit infinite state.
+        node.IsCascadeInfinite = true;
 
-        Assert.True(node.Height > withCondition);
+        Assert.True(node.Height > baseHeight);
         Assert.All(
-            node.Ports.Select(p => p.OffsetY).Zip(portsWithCondition),
+            node.Ports.Select(p => p.OffsetY).Zip(portsAtBase),
             pair => Assert.True(pair.First > pair.Second));
 
         // Every port still sits inside the card.
         Assert.All(node.Ports, port => Assert.True(port.OffsetY < node.Height));
 
         // And the note itself is a chip now, with the sentence in the tooltip.
+        Assert.Equal("∞ INFINITO", node.CascadeInfiniteBadge);
+        Assert.Contains("contínuo", node.CascadeInfiniteHint, StringComparison.OrdinalIgnoreCase);
+
+        node.IsCascadeInfinite = false;
+        node.IsCascadeWithoutExitCondition = true;
         Assert.Equal("SAI AO ESTABILIZAR", node.CascadeNoConditionBadge);
         Assert.Contains("±2 %", node.CascadeNoConditionHint, StringComparison.Ordinal);
     }

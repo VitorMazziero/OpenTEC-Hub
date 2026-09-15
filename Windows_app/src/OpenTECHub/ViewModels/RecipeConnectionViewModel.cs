@@ -14,12 +14,18 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
 {
     private const double Stub = 22;
     private const double CornerRadius = 12;
+    private readonly Func<IReadOnlyList<RecipeNodeViewModel>>? _nodesProvider;
 
-    public RecipeConnectionViewModel(RecipeConnection model, RecipeNodeViewModel source, RecipeNodeViewModel target)
+    public RecipeConnectionViewModel(
+        RecipeConnection model,
+        RecipeNodeViewModel source,
+        RecipeNodeViewModel target,
+        Func<IReadOnlyList<RecipeNodeViewModel>>? nodesProvider = null)
     {
         Model = model;
         Source = source;
         Target = target;
+        _nodesProvider = nodesProvider;
         source.PropertyChanged += OnEndpointMoved;
         target.PropertyChanged += OnEndpointMoved;
         Recompute();
@@ -62,18 +68,31 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
         }
     }
 
-    private void Recompute()
+    public void Recompute(IReadOnlyList<RecipeNodeViewModel>? nodes = null)
     {
         var (sx, sy) = Anchor(Source, Model.SourceConnector);
         var (tx, ty) = Anchor(Target, Model.TargetConnector);
 
-        var isLoop = ConnectorNames.IsLoopOut(Model.SourceConnector);
-        RouteGeometry = isLoop ? BuildLoopGeometry(sx, sy, tx, ty) : BuildRouteGeometry(sx, sy, tx, ty);
+        var isSelfLoop = ConnectorNames.IsCascadeSelfLoop(Model);
+        if (isSelfLoop)
+        {
+            RouteGeometry = BuildLoopGeometry(sx, sy, tx, ty);
+            ArrowPoints = CreateFrozen([new(tx - 8, ty - 4), new(tx, ty), new(tx - 8, ty + 4)]);
+            return;
+        }
 
-        // Arrow points rightward (→) into the port on the left of the node:
-        // Tip is at (tx, ty), wings are at (tx - 8, ty ± 4) so the arrow sits outside the node.
-        ArrowPoints = CreateFrozen([new(tx - 8, ty - 4), new(tx, ty), new(tx - 8, ty + 4)]);
+        var obstacles = (nodes ?? _nodesProvider?.Invoke() ?? [])
+            .Select(n => new RecipeRouteObstacle(n.Id, new Rect(n.X, n.Y, RecipeNodeViewModel.Width, n.Height)))
+            .ToArray();
+        var route = RecipeConnectionRouter.Build(sx == tx && sy == ty
+                ? new Point(sx + Stub, sy)
+                : new Point(sx, sy),
+            new Point(tx, ty), Model.SourceNodeId, Model.TargetNodeId, obstacles);
+        RouteGeometry = BuildRoundedPolyline(route.Points);
+        ArrowPoints = BuildArrow(route.Points);
     }
+
+    private void Recompute() => Recompute(_nodesProvider?.Invoke());
 
     private static PointCollection CreateFrozen(IEnumerable<Point> points)
     {
@@ -82,36 +101,77 @@ public sealed partial class RecipeConnectionViewModel : ObservableObject
         return collection;
     }
 
-    /// <summary>Builds a geometry for normal (non-loop) connections using orthogonal segments.</summary>
-    private Geometry BuildRouteGeometry(double sx, double sy, double tx, double ty)
+    private static PointCollection BuildArrow(IReadOnlyList<Point> points)
     {
-        var geometry = new StreamGeometry();
-        using (var ctx = geometry.Open())
+        var tip = points[^1];
+        var previous = points.Count > 1 ? points[^2] : new Point(tip.X - 1, tip.Y);
+        var dx = tip.X - previous.X;
+        var dy = tip.Y - previous.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 0.01)
         {
-            ctx.BeginFigure(new Point(sx, sy), false, false);
-
-            if (tx >= sx + 2 * Stub)
-            {
-                // Forward connection: right, down/up, right — a single S-bend at the midpoint.
-                var midX = (sx + tx) / 2;
-                ctx.LineTo(new Point(midX, sy), true, false);
-                ctx.LineTo(new Point(midX, ty), true, false);
-                ctx.LineTo(new Point(tx, ty), true, false);
-            }
-            else
-            {
-                // Backward connection: route around the underside of both blocks.
-                var below = Math.Max(Source.Y + Source.Height, Target.Y + Target.Height) + 28;
-                ctx.LineTo(new Point(sx + Stub, sy), true, false);
-                ctx.LineTo(new Point(sx + Stub, below), true, false);
-                ctx.LineTo(new Point(tx - Stub, below), true, false);
-                ctx.LineTo(new Point(tx - Stub, ty), true, false);
-                ctx.LineTo(new Point(tx, ty), true, false);
-            }
+            dx = -1;
+            dy = 0;
+            length = 1;
         }
 
+        dx /= length;
+        dy /= length;
+        var nx = -dy;
+        var ny = dx;
+        return CreateFrozen([
+            new(tip.X - dx * 9 + nx * 4, tip.Y - dy * 9 + ny * 4),
+            tip,
+            new(tip.X - dx * 9 - nx * 4, tip.Y - dy * 9 - ny * 4),
+        ]);
+    }
+
+    /// <summary>Builds a rounded geometry from an orthogonal route.</summary>
+    private static Geometry BuildRoundedPolyline(IReadOnlyList<Point> points)
+    {
+        var geometry = new StreamGeometry();
+        using var ctx = geometry.Open();
+        if (points.Count == 0)
+        {
+            geometry.Freeze();
+            return geometry;
+        }
+
+        ctx.BeginFigure(points[0], false, false);
+        for (var i = 1; i < points.Count - 1; i++)
+        {
+            var previous = points[i - 1];
+            var corner = points[i];
+            var next = points[i + 1];
+            var incoming = Math.Sqrt(Math.Pow(corner.X - previous.X, 2) + Math.Pow(corner.Y - previous.Y, 2));
+            var outgoing = Math.Sqrt(Math.Pow(next.X - corner.X, 2) + Math.Pow(next.Y - corner.Y, 2));
+            var radius = Math.Min(CornerRadius, Math.Min(incoming, outgoing) / 2);
+            if (radius < 0.1)
+            {
+                ctx.LineTo(corner, true, false);
+                continue;
+            }
+
+            var before = MoveToward(corner, previous, radius);
+            var after = MoveToward(corner, next, radius);
+            ctx.LineTo(before, true, false);
+            var cross = (corner.X - previous.X) * (next.Y - corner.Y)
+                        - (corner.Y - previous.Y) * (next.X - corner.X);
+            ctx.ArcTo(after, new Size(radius, radius), 0, false,
+                cross > 0 ? SweepDirection.Clockwise : SweepDirection.Counterclockwise, true, true);
+        }
+
+        ctx.LineTo(points[^1], true, false);
         geometry.Freeze();
         return geometry;
+    }
+
+    private static Point MoveToward(Point from, Point to, double distance)
+    {
+        var dx = to.X - from.X;
+        var dy = to.Y - from.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        return length < 0.01 ? from : new Point(from.X + dx / length * distance, from.Y + dy / length * distance);
     }
 
     /// <summary>

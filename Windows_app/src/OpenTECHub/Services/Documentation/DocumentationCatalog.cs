@@ -287,16 +287,16 @@ public static class DocumentationCatalog
             "Como o controle de oxigênio mantém o alvo e como escolher o modo de atuação.",
             [
                 new DocumentationSection("O que este bloco faz", [
-                    P("O Controle de O₂ compara continuamente o oxigênio medido com o alvo e ajusta agitação e/ou aeração. Ele fica ativo até que a condição de saída seja atendida."),
+                    P("O Controle de O₂ compara continuamente o oxigênio medido com o alvo e ajusta agitação e/ou aeração. Ao inserir o bloco, ele começa em modo ∞ INFINITO e permanece ativo mesmo depois de estabilizar."),
                     P("Cascata é um dos quatro métodos de atuação do bloco. Os outros são Agitação, Aeração e Mapa (trajetória kLa)."),
                     N("Para entender o bloco em uma receita, pense em três perguntas: qual é o alvo, como o equipamento deve reagir e quando o controle deve terminar."),
                 ]),
                 new DocumentationSection("As quatro portas", [
                     F("Entrada", "Recebe o fluxo da etapa anterior."),
-                    F("Condição de Saída", "Recebe a condição que decide quando o controle deve terminar."),
-                    F("Retorno da Condição", "Devolve ao controle o resultado da condição que está sendo acompanhada."),
+                    F("Condição de Saída", "Recebe um Temporizador, Monitorar Variável ou Intervenção Manual quando uma condição externa deve decidir o término. Ao ligar uma dessas opções, o laço interno infinito é substituído."),
+                    F("Retorno da Condição", "Recebe o retorno da condição externa. Quando permanece ligado diretamente à Condição de Saída, forma o laço interno padrão ∞ INFINITO."),
                     F("Saída", "Continua a receita depois que o controle termina."),
-                    N("Sem condição de saída, o bloco mostra SAI AO ESTABILIZAR e encerra após o oxigênio permanecer próximo do alvo por algumas leituras."),
+                    N("Remova o conector entre Condição de Saída e Retorno da Condição para usar SAI AO ESTABILIZAR: o controle termina quando o oxigênio fica dentro de ±2% do alvo por três leituras consecutivas."),
                     B("Monitorar Variável e Intervenção Manual têm comportamento próprio quando estão ligados ao laço: eles ajudam a decidir se o controle continua ou termina."),
                 ]),
                 new DocumentationSection("Como a correção é calculada", [

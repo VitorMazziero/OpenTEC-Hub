@@ -49,6 +49,9 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     public ObservableCollection<RecipeConnectionViewModel> Connections { get; } = [];
 
+    /// <summary>Transient canvas guides displayed while the operator aligns a block.</summary>
+    public ObservableCollection<RecipeAlignmentGuide> AlignmentGuides { get; } = [];
+
     public ObservableCollection<RecipeFinding> Findings { get; } = [];
 
     [ObservableProperty]
@@ -149,8 +152,18 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
         var vm = CreateNodeViewModel(node);
         Nodes.Add(vm);
+
+        // A new Controle de O₂ is continuous by default. The node and its internal
+        // loop are part of the same history snapshot, so one Undo removes both.
+        if (type == NodeType.CascadeControl)
+        {
+            var selfLoop = new RecipeConnection(node.Id, ConnectorNames.LoopOut, node.Id, ConnectorNames.LoopIn);
+            Document.Connections.Add(selfLoop);
+            AddConnectionViewModel(selfLoop);
+        }
+
         SelectNode(vm);
-        RefreshGateRoles(); // a freshly dropped cascade has no exit condition yet, and says so
+        RefreshGateRoles();
         MarkDirty();
         Revalidate();
     }
@@ -220,6 +233,17 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         }
 
         PushHistory();
+
+        // Wiring a real external condition replaces the default infinite self-loop in
+        // the same mutation. Undo therefore restores the complete previous topology.
+        if (ConnectorNames.IsLoopOut(sourcePort)
+            && node.Id != sourceId
+            && Document.Node(sourceId)?.Type == NodeType.CascadeControl
+            && IsExternalConditionTarget(node.Type))
+        {
+            RemoveCascadeSelfLoop(sourceId);
+        }
+
         Document.Connections.Add(connection);
         AddConnectionViewModel(connection);
         RefreshGateRoles();
@@ -368,12 +392,13 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         var target = Nodes.FirstOrDefault(n => n.Id == connection.TargetNodeId);
         if (source is not null && target is not null)
         {
-            Connections.Add(new RecipeConnectionViewModel(connection, source, target));
+            Connections.Add(new RecipeConnectionViewModel(connection, source, target, () => Nodes));
         }
     }
 
     private void OnNodeChanged()
     {
+        RecomputeConnections();
         MarkDirty();
         RefreshGateRoles();
         Revalidate();
@@ -388,23 +413,74 @@ public sealed partial class RecipeTabViewModel : ObservableObject
     {
         var gateTargets = Document.Connections
             .Where(c => ConnectorNames.IsLoopOut(c.SourceConnector)
+                        && c.TargetNodeId != c.SourceNodeId
                         && Document.Node(c.SourceNodeId)?.Type == NodeType.CascadeControl)
             .Select(c => c.TargetNodeId)
             .ToHashSet();
 
-        // A cascade with an empty Condição de Saída falls back to the settle rule, so it says so.
-        var cascadesWithCondition = Document.Connections
-            .Where(c => ConnectorNames.IsLoopOut(c.SourceConnector) && c.TargetNodeId != c.SourceNodeId)
+        var cascadesWithExternalCondition = Document.Connections
+            .Where(c => ConnectorNames.IsLoopOut(c.SourceConnector)
+                        && c.TargetNodeId != c.SourceNodeId
+                        && IsExternalConditionTarget(Document.Node(c.TargetNodeId)?.Type))
+            .Select(c => c.SourceNodeId)
+            .ToHashSet();
+
+        var cascadesWithInfiniteLoop = Document.Connections
+            .Where(ConnectorNames.IsCascadeSelfLoop)
             .Select(c => c.SourceNodeId)
             .ToHashSet();
 
         foreach (var node in Nodes)
         {
             node.IsCascadeLoopCondition = gateTargets.Contains(node.Id);
+            node.IsCascadeInfinite = node.Type == NodeType.CascadeControl
+                                     && cascadesWithInfiniteLoop.Contains(node.Id)
+                                     && !cascadesWithExternalCondition.Contains(node.Id);
             node.IsCascadeWithoutExitCondition =
-                node.Type == NodeType.CascadeControl && !cascadesWithCondition.Contains(node.Id);
+                node.Type == NodeType.CascadeControl
+                && !cascadesWithExternalCondition.Contains(node.Id)
+                && !cascadesWithInfiniteLoop.Contains(node.Id);
         }
     }
+
+    public void SetAlignmentGuides(IEnumerable<RecipeAlignmentGuide> guides)
+    {
+        AlignmentGuides.Clear();
+        foreach (var guide in guides)
+        {
+            AlignmentGuides.Add(guide);
+        }
+    }
+
+    public void ClearAlignmentGuides() => AlignmentGuides.Clear();
+
+    private void RecomputeConnections()
+    {
+        foreach (var connection in Connections)
+        {
+            connection.Recompute(Nodes);
+        }
+    }
+
+    private void RemoveCascadeSelfLoop(string nodeId)
+    {
+        var selfLoops = Document.Connections
+            .Where(c => c.SourceNodeId == nodeId && ConnectorNames.IsCascadeSelfLoop(c))
+            .ToArray();
+
+        foreach (var selfLoop in selfLoops)
+        {
+            Document.Connections.Remove(selfLoop);
+            if (Connections.FirstOrDefault(c => Same(c.Model, selfLoop)) is { } vm)
+            {
+                vm.Detach();
+                Connections.Remove(vm);
+            }
+        }
+    }
+
+    private static bool IsExternalConditionTarget(NodeType? type)
+        => type is NodeType.Timer or NodeType.MonitorVariable or NodeType.ManualIntervention;
 
     private void Revalidate()
     {

@@ -1,0 +1,198 @@
+using System.Windows;
+
+namespace OpenTECHub.Services.Recipes;
+
+/// <summary>A node rectangle presented to the orthogonal recipe router.</summary>
+public sealed record RecipeRouteObstacle(string Id, Rect Bounds);
+
+/// <summary>Immutable orthogonal route selected for a recipe connection.</summary>
+public sealed record RecipeRoute(IReadOnlyList<Point> Points);
+
+/// <summary>
+/// Computes short orthogonal routes around unrelated recipe blocks. Candidate lanes are built
+/// from port coordinates and the sides of inflated obstacles, then searched with a bend penalty.
+/// This keeps wires readable while guaranteeing that a route does not cross a block rectangle.
+/// </summary>
+public static class RecipeConnectionRouter
+{
+    private const double Clearance = 18;
+    private const double BendPenalty = 80;
+
+    public static RecipeRoute Build(
+        Point start,
+        Point end,
+        string sourceId,
+        string targetId,
+        IEnumerable<RecipeRouteObstacle> obstacles)
+    {
+        var blocked = obstacles
+            .Where(o => o.Id != sourceId && o.Id != targetId)
+            .Select(o => Inflate(o.Bounds, Clearance))
+            .ToArray();
+
+        if (NearlyEqual(start.Y, end.Y) && IsClear(start, end, blocked))
+        {
+            return new RecipeRoute([start, end]);
+        }
+
+        var xs = new SortedSet<double> { start.X, end.X };
+        var ys = new SortedSet<double> { start.Y, end.Y };
+        foreach (var rect in blocked)
+        {
+            xs.Add(rect.Left);
+            xs.Add(rect.Right);
+            ys.Add(rect.Top);
+            ys.Add(rect.Bottom);
+        }
+
+        var points = new Point[xs.Count, ys.Count];
+        var xValues = xs.ToArray();
+        var yValues = ys.ToArray();
+        for (var x = 0; x < xValues.Length; x++)
+        {
+            for (var y = 0; y < yValues.Length; y++)
+            {
+                points[x, y] = new Point(xValues[x], yValues[y]);
+            }
+        }
+
+        var startIndex = (Array.IndexOf(xValues, start.X), Array.IndexOf(yValues, start.Y));
+        var endIndex = (Array.IndexOf(xValues, end.X), Array.IndexOf(yValues, end.Y));
+        var startState = new GridState(startIndex.Item1, startIndex.Item2, 0);
+        var best = new Dictionary<GridState, double> { [startState] = 0 };
+        var previous = new Dictionary<GridState, GridState>();
+        var queue = new PriorityQueue<GridState, double>();
+        queue.Enqueue(startState, 0);
+        GridState? finish = null;
+
+        while (queue.TryDequeue(out var current, out _))
+        {
+            if (!best.TryGetValue(current, out var currentCost))
+            {
+                continue;
+            }
+
+            if (current.X == endIndex.Item1 && current.Y == endIndex.Item2)
+            {
+                finish = current;
+                break;
+            }
+
+            foreach (var (dx, dy, direction) in Directions)
+            {
+                var nx = current.X + dx;
+                var ny = current.Y + dy;
+                if (nx < 0 || nx >= xValues.Length || ny < 0 || ny >= yValues.Length)
+                {
+                    continue;
+                }
+
+                var from = points[current.X, current.Y];
+                var to = points[nx, ny];
+                if (!IsClear(from, to, blocked))
+                {
+                    continue;
+                }
+
+                var cost = currentCost + Distance(from, to)
+                           + (current.Direction != 0 && current.Direction != direction ? BendPenalty : 0);
+                var next = new GridState(nx, ny, direction);
+                if (best.TryGetValue(next, out var oldCost) && oldCost <= cost)
+                {
+                    continue;
+                }
+
+                best[next] = cost;
+                previous[next] = current;
+                queue.Enqueue(next, cost + Distance(to, end));
+            }
+        }
+
+        if (finish is null)
+        {
+            // A graph with unusual legacy coordinates can leave no visibility path. The
+            // conservative fallback stays orthogonal; the normal graph always finds one.
+            return new RecipeRoute([start, new Point(start.X, end.Y), end]);
+        }
+
+        var route = new List<Point>();
+        for (var cursor = finish.Value; ; cursor = previous[cursor])
+        {
+            route.Add(points[cursor.X, cursor.Y]);
+            if (cursor.Equals(startState))
+            {
+                break;
+            }
+        }
+
+        route.Reverse();
+        return new RecipeRoute(Compress(route));
+    }
+
+    private static readonly (int X, int Y, int Direction)[] Directions =
+    [
+        (1, 0, 1), (-1, 0, 1), (0, 1, 2), (0, -1, 2),
+    ];
+
+    private readonly record struct GridState(int X, int Y, int Direction);
+
+    private static Rect Inflate(Rect rect, double amount)
+        => new(rect.Left - amount, rect.Top - amount, rect.Width + 2 * amount, rect.Height + 2 * amount);
+
+    private static bool IsClear(Point from, Point to, IReadOnlyList<Rect> blocked)
+    {
+        if (!NearlyEqual(from.X, to.X) && !NearlyEqual(from.Y, to.Y))
+        {
+            return false;
+        }
+
+        foreach (var rect in blocked)
+        {
+            if (NearlyEqual(from.X, to.X))
+            {
+                if (from.X > rect.Left && from.X < rect.Right
+                    && Math.Max(Math.Min(from.Y, to.Y), rect.Top) < Math.Min(Math.Max(from.Y, to.Y), rect.Bottom))
+                {
+                    return false;
+                }
+            }
+            else if (from.Y > rect.Top && from.Y < rect.Bottom
+                     && Math.Max(Math.Min(from.X, to.X), rect.Left) < Math.Min(Math.Max(from.X, to.X), rect.Right))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static IReadOnlyList<Point> Compress(IReadOnlyList<Point> points)
+    {
+        var result = new List<Point>();
+        foreach (var point in points)
+        {
+            if (result.Count >= 2)
+            {
+                var a = result[^2];
+                var b = result[^1];
+                if ((NearlyEqual(a.X, b.X) && NearlyEqual(b.X, point.X))
+                    || (NearlyEqual(a.Y, b.Y) && NearlyEqual(b.Y, point.Y)))
+                {
+                    result[^1] = point;
+                    continue;
+                }
+            }
+
+            if (result.Count == 0 || !NearlyEqual(result[^1].X, point.X) || !NearlyEqual(result[^1].Y, point.Y))
+            {
+                result.Add(point);
+            }
+        }
+
+        return result;
+    }
+
+    private static bool NearlyEqual(double a, double b) => Math.Abs(a - b) < 0.01;
+
+    private static double Distance(Point a, Point b) => Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+}

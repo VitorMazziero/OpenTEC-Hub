@@ -478,3 +478,1648 @@
   "eventType": "TestAborted",
   "message": "Interrompido pelo operador"
 }
+{
+  "timestampUtc": "2026-09-14T14:03:28.0429946+00:00",
+  "eventType": "RunRejected",
+  "message": "sem captura (migra\u00E7\u00E3o): N0200_Q02p00_Rep01 estava aceita com n = 0"
+}
+{
+  "timestampUtc": "2026-09-14T14:03:28.0475055+00:00",
+  "eventType": "RunRejected",
+  "message": "sem captura (migra\u00E7\u00E3o): N0200_Q04p00_Rep01 estava aceita com n = 0"
+}
+{
+  "timestampUtc": "2026-09-14T15:56:37.78084+00:00",
+  "eventType": "TestStarted",
+  "message": "Ensaio \u0027IsojetB-Combijet\u0027 iniciado. Arranjo: A na entrada 2 \u00B7 B/C na entrada 1."
+}
+{
+  "timestampUtc": "2026-09-14T15:56:37.8199414+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T15:56:37.8229475+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T15:56:37.8258866+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0200_Q02p00_Rep02: 200 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T15:56:57.8389191+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,02 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:02:04.5275984+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=137; IC95 torque=0,0702%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:02:04.5403489+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0200_Q02p00_Rep02 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:02:12.4568674+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:02:12.4579266+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:02:12.4612165+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0200_Q04p00_Rep02: 200 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:02:32.4935497+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,02 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:05:36.9485309+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=78; IC95 torque=0,0757%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:05:36.9630611+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0200_Q04p00_Rep02 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:05:45.0332114+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:05:45.0356757+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Seco_Rep01_Tentativa02: 300 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:08:27.3116117+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=67; IC95 torque=0,0965%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:08:27.3167426+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Seco_Rep01_Tentativa02 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:08:33.3399842+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:08:33.3406515+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:08:33.3429979+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q02p00_Rep01: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:08:55.2862208+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,01 L/min por C (dentro da banda) ap\u00F3s 22 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:09:31.3419366+00:00",
+  "eventType": "RunStoppedForReview",
+  "message": "Parada pelo operador"
+}
+{
+  "timestampUtc": "2026-09-14T16:19:30.5734115+00:00",
+  "eventType": "RunStoppedForReview",
+  "message": "Parada pelo operador"
+}
+{
+  "timestampUtc": "2026-09-14T16:30:53.0793047+00:00",
+  "eventType": "RunRepeated",
+  "message": "A corrida em revis\u00E3o foi marcada como rejeitada antes da repeti\u00E7\u00E3o."
+}
+{
+  "timestampUtc": "2026-09-14T16:30:53.1311465+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:30:53.1541826+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:30:53.1562405+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q02p00_Rep01_Tentativa02: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:31:12.3408937+00:00",
+  "eventType": "TestAborted",
+  "message": "Interrompido pelo operador"
+}
+{
+  "timestampUtc": "2026-09-14T16:31:39.5658063+00:00",
+  "eventType": "TestStarted",
+  "message": "Ensaio \u0027IsojetB-Combijet\u0027 iniciado. Arranjo: A na entrada 2 \u00B7 B/C na entrada 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:31:39.5857155+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:31:39.6169826+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:31:39.6192088+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0200_Q02p00_Rep03: 200 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:32:02.3506953+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,02 L/min por C (dentro da banda) ap\u00F3s 23 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:35:50.7953061+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=100; IC95 torque=0,0711%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:35:50.7979479+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0200_Q02p00_Rep03 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:35:56.7560507+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:35:56.7650131+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:35:56.7669755+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0200_Q04p00_Rep03: 200 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:36:16.8760085+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,02 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:37:24.9128336+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A telemetria do flux\u00F4metro ficou ausente ou offline."
+}
+{
+  "timestampUtc": "2026-09-14T16:37:26.9884833+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:37:26.988518+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T16:37:26.9885267+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T16:37:36.9978182+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,01 L/min por C (dentro da banda) ap\u00F3s 10 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:41:33.469234+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=104; IC95 torque=0,0754%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:41:33.4722474+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0200_Q04p00_Rep03 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:41:39.4765467+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:41:39.4788133+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Seco_Rep02: 300 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:44:05.7470474+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,0661%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:44:05.7524003+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Seco_Rep02 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:44:13.8252488+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:44:13.833097+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:44:13.8353475+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q02p00_Rep02: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:44:39.8145089+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,00 L/min por C (dentro da banda) ap\u00F3s 26 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:47:52.4934369+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A medida do servo ficou ausente, offline ou desabilitada no Hub."
+}
+{
+  "timestampUtc": "2026-09-14T16:49:00.4331339+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:49:00.4331683+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T16:49:00.4331778+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T16:49:22.4954513+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,01 L/min por C (dentro da banda) ap\u00F3s 22 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:51:54.8490895+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,0844%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:51:54.8567779+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Q02p00_Rep02 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:52:00.8456632+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:52:00.8525778+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:52:00.8545752+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q04p00_Rep01: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:52:20.7776762+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,00 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:54:53.176904+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,0757%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:54:53.1817924+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Q04p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:54:59.1511084+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:54:59.1607416+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 6,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:54:59.163173+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q06p00_Rep01: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:55:19.1840816+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 6,03 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T16:58:17.5126237+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=75; IC95 torque=0,0950%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T16:58:17.5151505+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Q06p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T16:58:23.6161367+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T16:58:23.62509+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T16:58:23.6274995+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q08p00_Rep01: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T16:58:41.60529+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,01 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:02:26.1472394+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=95; IC95 torque=0,0920%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:02:26.1502242+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Q08p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:02:34.0874042+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:02:34.107289+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 10,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:02:34.1095239+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q10p00_Rep01: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:02:52.2372539+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 10,01 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:08:06.7939009+00:00",
+  "eventType": "CaptureRetry",
+  "message": "Rein\u00EDcio das duas portas, tentativa 2."
+}
+{
+  "timestampUtc": "2026-09-14T17:11:51.2486271+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=102; IC95 torque=0,0924%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:11:51.2526493+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Q10p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:11:57.2912124+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:11:57.2985722+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:11:57.3003054+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0300_Q12p00_Rep01: 300 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:12:15.3782187+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 12,01 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:15:25.7281374+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=80; IC95 torque=0,0928%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:15:25.7325275+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0300_Q12p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:15:33.8238144+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:15:33.8267162+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Seco_Rep01: 400 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:18:02.1384406+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1064%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:18:02.1420885+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Seco_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:18:10.1902792+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:18:10.1995559+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:18:10.2020603+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Q02p00_Rep01: 400 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:18:28.207345+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 1,99 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:23:30.7894596+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=137; IC95 torque=0,1251%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:23:30.793397+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Q02p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:23:36.7117439+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:23:36.7210801+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:23:36.7231983+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Q04p00_Rep01: 400 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:23:56.790385+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,00 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:26:27.1082622+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,0996%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:26:27.1117969+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Q04p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:26:35.2285207+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:26:35.2365678+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 6,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:26:35.2387286+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Q06p00_Rep01: 400 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:26:57.2076696+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 6,01 L/min por C (dentro da banda) ap\u00F3s 22 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:29:29.4676447+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,0947%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:29:29.4759418+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Q06p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:29:37.4636894+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:29:37.4749419+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:29:37.4775908+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Q08p00_Rep01: 400 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:29:57.5065414+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,00 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:32:27.8076764+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1097%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:32:27.8118523+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Q08p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:32:33.8426479+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:32:33.8509442+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 10,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:32:33.8529004+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Q10p00_Rep01: 400 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:32:51.942064+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 9,99 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:35:24.1859271+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1078%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:35:24.1905343+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Q10p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:35:32.2862634+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:35:32.2932482+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:35:32.2957581+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0400_Q12p00_Rep01: 400 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:35:50.2825237+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 12,01 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:38:24.536991+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1064%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:38:24.5423744+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0400_Q12p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:38:32.6787842+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:38:32.6817331+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Seco_Rep01: 500 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:40:22.7984479+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A medida do servo ficou ausente, offline ou desabilitada no Hub."
+}
+{
+  "timestampUtc": "2026-09-14T17:40:24.8655417+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T17:40:24.8655808+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T17:42:53.1019517+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1339%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:42:53.1118506+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Seco_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:43:01.233641+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:43:01.2614289+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:43:01.2706645+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Q02p00_Rep01: 500 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:43:21.1535112+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,00 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:45:53.5705676+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1245%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:45:53.5745863+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Q02p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:45:59.565886+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:45:59.574885+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:45:59.5826656+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Q04p00_Rep01: 500 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:46:17.5366331+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,02 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:48:45.9257804+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1411%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:48:45.9298261+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Q04p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:48:52.0032338+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:48:52.0140499+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 6,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:48:52.0167525+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Q06p00_Rep01: 500 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:49:11.9449186+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 6,03 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:51:42.3118712+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1125%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:51:42.3215374+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Q06p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:51:48.3612466+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:51:48.3710097+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:51:48.3758752+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Q08p00_Rep01: 500 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:52:08.3925028+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,01 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:54:48.7638238+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=65; IC95 torque=0,1502%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:54:48.7687864+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Q08p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:54:54.7776932+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:54:54.7881884+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 10,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:54:54.7910371+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Q10p00_Rep01: 500 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:55:12.7688679+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 10,03 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T17:57:47.0794438+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1440%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T17:57:47.0833086+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Q10p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T17:57:53.0586086+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T17:57:53.0686149+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T17:57:53.0712862+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0500_Q12p00_Rep01: 500 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T17:58:13.1649417+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 12,02 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:00:51.4072681+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=64; IC95 torque=0,1436%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:00:51.4115443+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0500_Q12p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:00:59.5049612+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:00:59.5116979+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Seco_Rep01: 600 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:03:27.8221645+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1146%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:03:27.8252422+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Seco_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:03:35.8959306+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:03:35.9108863+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:03:35.9136593+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Q02p00_Rep01: 600 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:03:53.9208386+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,00 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:06:24.2739772+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1426%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:06:24.2781342+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Q02p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:06:32.190097+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:06:32.1989384+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:06:32.2086324+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Q04p00_Rep01: 600 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:06:50.2240957+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,03 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:09:22.5367106+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1486%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:09:22.5415156+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Q04p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:09:28.5923217+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:09:28.6010534+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 6,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:09:28.6043048+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Q06p00_Rep01: 600 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:09:42.5938367+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 6,05 L/min por C (dentro da banda) ap\u00F3s 14 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:12:12.8850623+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1220%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:12:12.8896164+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Q06p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:12:21.0047781+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:12:21.0128349+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:12:21.0160205+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Q08p00_Rep01: 600 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:12:40.997618+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,01 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:15:15.279369+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1508%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:15:15.2839791+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Q08p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:15:23.351799+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:15:23.3610548+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 10,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:15:23.36378+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Q10p00_Rep01: 600 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:15:43.3015648+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 10,01 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:18:13.586917+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1382%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:18:13.5914858+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Q10p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:18:21.6918554+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:18:21.7002637+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:18:21.702783+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0600_Q12p00_Rep01: 600 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:18:39.6788306+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 12,03 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:21:12.0280191+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1288%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:21:12.032368+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0600_Q12p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:21:20.0937905+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:21:20.0966499+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Seco_Rep01: 700 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:23:46.3446162+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1687%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:23:46.3493353+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Seco_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:23:52.4099234+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:23:52.4191437+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:23:52.4219786+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Q02p00_Rep01: 700 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:24:10.464388+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,00 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:26:42.7754525+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1640%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:26:42.7811554+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Q02p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:26:48.7267953+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:26:48.7373274+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:26:48.7403023+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Q04p00_Rep01: 700 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:27:08.7790682+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,01 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:29:41.1618285+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1611%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:29:41.1668635+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Q04p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:29:49.1519896+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:29:49.1616804+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 6,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:29:49.1647859+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Q06p00_Rep01: 700 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:30:07.2302124+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 6,03 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:32:37.5300867+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1746%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:32:37.5360673+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Q06p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:32:43.5482434+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:32:43.5648155+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:32:43.5690971+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Q08p00_Rep01: 700 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:33:03.5057902+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,01 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:34:59.9696931+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A medida do servo ficou ausente, offline ou desabilitada no Hub."
+}
+{
+  "timestampUtc": "2026-09-14T18:36:11.9800575+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:36:11.9800748+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T18:36:11.9800788+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T18:36:35.9304399+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,03 L/min por C (dentro da banda) ap\u00F3s 24 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:39:06.2087285+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1591%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:39:06.2132917+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Q08p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:39:14.3124809+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:39:14.3319592+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 10,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:39:14.3352934+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Q10p00_Rep01: 700 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:39:32.3648907+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 10,02 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:42:02.6671356+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1292%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:42:02.6706325+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Q10p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:42:08.5534958+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:42:08.5612793+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:42:08.5641183+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0700_Q12p00_Rep01: 700 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:42:26.6507477+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 11,99 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:45:01.0146173+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1415%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:45:01.0311068+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0700_Q12p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:45:08.9983668+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:45:09.0012784+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Seco_Rep01: 800 rpm, modo Ungassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:47:35.2566634+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1963%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:47:35.2606364+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0800_Seco_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:47:43.378205+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:47:43.3863102+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:47:43.3897496+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Q02p00_Rep01: 800 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:48:05.3681443+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 2,02 L/min por C (dentro da banda) ap\u00F3s 22 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:49:35.4610449+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A telemetria do flux\u00F4metro ficou ausente ou offline."
+}
+{
+  "timestampUtc": "2026-09-14T18:49:37.535454+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:49:37.5354819+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T18:49:37.5354946+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T18:49:49.5264859+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 1,97 L/min por C (dentro da banda) ap\u00F3s 12 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:51:27.7688934+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A medida do servo ficou ausente, offline ou desabilitada no Hub."
+}
+{
+  "timestampUtc": "2026-09-14T18:51:29.7069331+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 2,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:51:29.7069591+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T18:51:29.7069661+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T18:51:39.8174716+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 1,99 L/min por C (dentro da banda) ap\u00F3s 10 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:54:16.0599949+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1841%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T18:54:16.0644521+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0800_Q02p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T18:54:24.073147+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T18:54:24.0851367+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:54:24.0886339+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Q04p00_Rep01: 800 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T18:54:42.1558962+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,01 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:56:06.2461676+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A telemetria do flux\u00F4metro ficou ausente ou offline."
+}
+{
+  "timestampUtc": "2026-09-14T18:56:10.3190521+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:56:10.3190752+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T18:56:10.3190826+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T18:56:20.2806694+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,00 L/min por C (dentro da banda) ap\u00F3s 10 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T18:57:34.4903772+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A telemetria do flux\u00F4metro ficou ausente ou offline."
+}
+{
+  "timestampUtc": "2026-09-14T18:57:36.5151981+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 4,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T18:57:36.5152264+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T18:57:36.5152346+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T18:57:46.4696704+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 4,01 L/min por C (dentro da banda) ap\u00F3s 10 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T19:00:18.7613927+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1705%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T19:00:18.7663013+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0800_Q04p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T19:00:26.8116415+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T19:00:26.8262801+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 6,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T19:00:26.8308409+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Q06p00_Rep01: 800 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T19:00:48.8203941+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 6,01 L/min por C (dentro da banda) ap\u00F3s 22 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T19:03:23.1513099+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1814%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T19:03:23.1639707+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0800_Q06p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T19:03:31.1651691+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T19:03:31.1812581+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 8,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T19:03:31.1847388+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Q08p00_Rep01: 800 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T19:03:51.2097082+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 8,01 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T19:06:25.5064408+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,1919%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T19:06:25.5113779+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0800_Q08p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T19:06:33.613147+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T19:06:33.6304309+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 10,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T19:06:33.6347946+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Q10p00_Rep01: 800 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T19:06:51.5626482+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 10,01 L/min por C (dentro da banda) ap\u00F3s 18 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T19:09:23.8867467+00:00",
+  "eventType": "RunCaptured",
+  "message": "n=60; IC95 torque=0,2035%; Target."
+}
+{
+  "timestampUtc": "2026-09-14T19:09:23.8921489+00:00",
+  "eventType": "RunAccepted",
+  "message": "Corrida N0800_Q10p00_Rep01 aceita."
+}
+{
+  "timestampUtc": "2026-09-14T19:09:30.0067527+00:00",
+  "eventType": "MotorRoute",
+  "message": "Rota Modbus direto solicitada (15 a 1000 rpm); confirma\u00E7\u00E3o f\u00EDsica depende da telemetria."
+}
+{
+  "timestampUtc": "2026-09-14T19:09:30.020978+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T19:09:30.025048+00:00",
+  "eventType": "RunStarted",
+  "message": "Corrida N0800_Q12p00_Rep01: 800 rpm, modo Gassed, tentativa 1."
+}
+{
+  "timestampUtc": "2026-09-14T19:09:49.929776+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 12,06 L/min por C (dentro da banda) ap\u00F3s 20 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T19:11:52.1287889+00:00",
+  "eventType": "MeasurementLost",
+  "message": "A telemetria do flux\u00F4metro ficou ausente ou offline."
+}
+{
+  "timestampUtc": "2026-09-14T19:11:54.1819101+00:00",
+  "eventType": "PrestageStarted",
+  "message": "Ar por C (Descarga \u002B N\u2082 (B/C na entrada 1)), alvo 12,00 L/min."
+}
+{
+  "timestampUtc": "2026-09-14T19:11:54.1819388+00:00",
+  "eventType": "MeasurementResumed",
+  "message": "Telemetria v\u00E1lida restabelecida; as duas portas foram reiniciadas."
+}
+{
+  "timestampUtc": "2026-09-14T19:11:54.1819483+00:00",
+  "eventType": "MeasurementAutoResumed",
+  "message": "Retomada autom\u00E1tica: aceite autom\u00E1tico est\u00E1 ligado."
+}
+{
+  "timestampUtc": "2026-09-14T19:12:10.2072473+00:00",
+  "eventType": "PrestageFlowStable",
+  "message": "Vaz\u00E3o estabilizada em 12,01 L/min por C (dentro da banda) ap\u00F3s 16 s. Comutando para o reator."
+}
+{
+  "timestampUtc": "2026-09-14T19:17:22.9452061+00:00",
+  "eventType": "CaptureRetry",
+  "message": "Rein\u00EDcio das duas portas, tentativa 2."
+}
+{
+  "timestampUtc": "2026-09-14T19:22:25.4205688+00:00",
+  "eventType": "CaptureRetry",
+  "message": "Rein\u00EDcio das duas portas, tentativa 3."
+}
+{
+  "timestampUtc": "2026-09-14T19:25:02.2096897+00:00",
+  "eventType": "RunStoppedForReview",
+  "message": "Parada pelo operador"
+}
+{
+  "timestampUtc": "2026-09-14T19:25:09.6160084+00:00",
+  "eventType": "TestAborted",
+  "message": "Interrompido pelo operador"
+}

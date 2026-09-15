@@ -16,12 +16,10 @@ namespace OpenTECHub.Services.Persistence;
 /// a queued <see cref="Run"/> sees every append queued before it.
 /// </para>
 /// <para>
-/// Appends share one <see cref="StreamWriter"/> per file <em>while the queue has a backlog</em>
-/// and every writer is closed when the queue drains. Keeping a file open for writing would stop
-/// anyone else — the operator's spreadsheet, a script, the store's own loads — from opening it
-/// (Windows refuses a <c>FileShare.Read</c> reader while a write handle exists), which is exactly
-/// why the stores used to open/write/close per line. That cost now lands on this thread, and a
-/// burst (the frame's two appends plus a phase change's four rewrites) still shares one open.
+/// Appends share one <see cref="StreamWriter"/> per file across telemetry frames. Keeping the
+/// handle open removes the open/write/close cycle that previously occurred every time the queue
+/// drained. Readers that need a consistent snapshot call <see cref="Flush"/>, which closes the
+/// append handles before reading.
 /// </para>
 /// <para>
 /// A writer built with <c>synchronous: true</c> executes each operation inline on the caller and
@@ -35,12 +33,15 @@ namespace OpenTECHub.Services.Persistence;
 /// </remarks>
 public sealed class BackgroundFileWriter : IDisposable
 {
+    /// <summary>Maximum normal interval between test-data stream flushes.</summary>
+    public static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(10);
     private readonly bool _synchronous;
     private readonly ILogger? _log;
     private readonly Channel<WorkItem>? _queue;
     private readonly Task? _consumer;
     private readonly object _syncGate = new();
     private readonly Dictionary<string, OpenWriter> _writers = new(StringComparer.OrdinalIgnoreCase);
+    private long _lastFlushTimestamp;
     private bool _disposed;
 
     public BackgroundFileWriter(bool synchronous = false, ILogger? logger = null)
@@ -57,6 +58,7 @@ public sealed class BackgroundFileWriter : IDisposable
             });
             _consumer = Task.Factory.StartNew(ConsumeAsync, CancellationToken.None,
                 TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+            _lastFlushTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         }
     }
 
@@ -183,11 +185,9 @@ public sealed class BackgroundFileWriter : IDisposable
             while (reader.TryRead(out var item))
             {
                 Execute(item);
-                if (!reader.TryPeek(out _))
-                {
-                    // Queue drained: close everything so the files are readable by anyone again.
-                    CloseAllWriters();
-                }
+                // Keep append handles open across telemetry frames.  The old drain-time close
+                // caused an open/write/close cycle for every frame (normally every 2 seconds).
+                // FlushDue below provides bounded durability without repeating that metadata work.
             }
         }
 
@@ -265,6 +265,22 @@ public sealed class BackgroundFileWriter : IDisposable
         open.Writer.Write(line);
         open.Writer.Write(Environment.NewLine);
         open.IsEmpty = false;
+        FlushDue();
+    }
+
+    private void FlushDue()
+    {
+        if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastFlushTimestamp) < FlushInterval)
+        {
+            return;
+        }
+
+        foreach (var open in _writers.Values)
+        {
+            open.Writer.Flush();
+        }
+
+        _lastFlushTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
     }
 
     private static void WriteAtomic(string path, string contents)
@@ -320,6 +336,7 @@ public sealed class BackgroundFileWriter : IDisposable
             try { open.Writer.Dispose(); } catch { }
         }
         _writers.Clear();
+        _lastFlushTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
     }
 
     private enum WorkKind { Append, WriteAtomic, Delete, Run, CloseWriters, Flush }

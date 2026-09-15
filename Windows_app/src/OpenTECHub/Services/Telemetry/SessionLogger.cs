@@ -64,7 +64,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
     /// a bounded buffer costs at most one interval of rows if the process dies — the crash
     /// reporter covers that case — and flushes on stop and close as before.
     /// </summary>
-    public static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(1);
+    /// <summary>Normal session checkpoint interval; lifecycle events still flush immediately.</summary>
+    public static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(60);
     private long _lastFlushTimestamp;
 
     /// <summary>The servo sidecar, opened and closed with the main log.</summary>

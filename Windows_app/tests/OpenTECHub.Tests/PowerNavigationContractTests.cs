@@ -128,6 +128,10 @@ public sealed class PowerNavigationContractTests
         var modelTab = ReadTabContent(xaml, "Modelo");
         Assert.Contains("Malha de interpolação", modelTab, StringComparison.Ordinal);
         Assert.Contains("Intersecção dos mapas", modelTab, StringComparison.Ordinal);
+        Assert.Contains("Calcular intersecção", modelTab, StringComparison.Ordinal);
+        Assert.Contains("Eficiência kLa/(P/V)", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pares casados", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Vincular e ajustar modelo", xaml, StringComparison.OrdinalIgnoreCase);
 
         var displayTab = ReadTabContent(xaml, "Exibição");
         Assert.Contains("Visualização", displayTab, StringComparison.Ordinal);

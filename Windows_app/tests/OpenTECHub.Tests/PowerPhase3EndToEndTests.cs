@@ -79,7 +79,7 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
 
         // ---- 2. kLa -> Power: the assay runs at exactly the points kLa was measured at -----
         var imported = await _integration.ImportConditionsFromKlaAsync(klaDocument.Snapshot.Id);
-        Assert.Equal(4, imported.Count);
+        Assert.Equal(9, imported.Count);
         Assert.All(imported, c => Assert.Equal(PowerConditionOrigin.Map, c.Origin));
         Assert.All(imported, c => Assert.Equal(klaDocument.Snapshot.Id, c.SourceMapId));
 
@@ -115,7 +115,7 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         Assert.All(accepted, r => Assert.True(r.NetPowerW is > 0, "every accepted point must carry a net power"));
 
         var gassed = accepted.Where(r => r.GasMode == PowerGasMode.Gassed).ToList();
-        Assert.Equal(4, gassed.Count);
+        Assert.Equal(9, gassed.Count);
         Assert.All(gassed, r => Assert.NotNull(r.PowerRatio));
 
         // The motor is parked at the floor, never at zero (§2.6, §19).
@@ -172,6 +172,11 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         // Every layer must produce a drawable field.
         foreach (var layer in Enum.GetValues<PowerMapLayer>())
         {
+            if (layer == PowerMapLayer.Efficiency)
+            {
+                continue;
+            }
+
             mapViewModel.SelectedLayer = layer;
             Assert.True(
                 mapViewModel.TryBuildLayerField(out _, out var min, out var max),
@@ -179,16 +184,22 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
             Assert.True(max >= min);
         }
 
-        // ---- 6. Power -> kLa: link the map and fit the multivariable correlation ----------
+        // ---- 6. Power map × kLa map: intersect the surfaces, then fit separately ----------
         mapViewModel.SelectedKlaMapOption = Assert.Single(mapViewModel.AvailableKlaMaps);
         await mapViewModel.LinkKlaMapAndFitAsync();
 
         var correlation = mapViewModel.CurrentCorrelation;
         Assert.NotNull(correlation);
-        Assert.Equal(4, correlation!.ValidPointsCount);
+        Assert.True(correlation!.ValidPointsCount > 4);
         Assert.True(correlation.K > 0, "the fitted K must be positive");
-        Assert.Equal(4, mapViewModel.MatchedPairsCount);
+        Assert.Equal(mapViewModel.CurrentSurfaceIntersection!.ValidPointCount, mapViewModel.MatchedPairsCount);
         Assert.True(mapViewModel.HasMatchedPairs);
+        Assert.True(mapViewModel.HasSurfaceIntersection);
+        Assert.Contains("Intersecção", correlation.DataBasis, StringComparison.Ordinal);
+
+        mapViewModel.SelectedLayer = PowerMapLayer.Efficiency;
+        Assert.True(mapViewModel.TryBuildLayerField(out _, out var efficiencyMin, out var efficiencyMax));
+        Assert.True(efficiencyMax > efficiencyMin);
 
         // Each pair carries the measured P/V and the model's prediction, ready for the parity plot.
         Assert.All(mapViewModel.MatchedPairs, p =>
@@ -232,19 +243,26 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         Assert.Equal(surface.AnchorPoints.Count, reopened.CurrentSurfaceData!.AnchorPoints.Count);
         Assert.NotNull(reopened.CurrentCorrelation);
         Assert.Equal(correlation.K, reopened.CurrentCorrelation!.K, 9);
+        Assert.NotNull(reopened.CurrentSurfaceIntersection);
+        Assert.Equal(mapViewModel.CurrentSurfaceIntersection.ValidPointCount, reopened.CurrentSurfaceIntersection!.ValidPointCount);
 
         mapViewModel.Dispose();
         reopened.Dispose();
     }
 
-    /// <summary>A 2x2 factorial kLa map: two rotations at two gas flows.</summary>
+    /// <summary>A 3x3 factorial kLa map: the published mapping design.</summary>
     private async Task<KlaExperimentDocument> PersistKlaMapAsync()
     {
         var anchors = new[]
         {
             new KlaAnchor(2.0, 300.0, 18.0),
+            new KlaAnchor(3.5, 300.0, 22.0),
             new KlaAnchor(5.0, 300.0, 26.0),
+            new KlaAnchor(2.0, 400.0, 25.0),
+            new KlaAnchor(3.5, 400.0, 30.0),
+            new KlaAnchor(5.0, 400.0, 36.0),
             new KlaAnchor(2.0, 500.0, 34.0),
+            new KlaAnchor(3.5, 500.0, 40.0),
             new KlaAnchor(5.0, 500.0, 48.0),
         };
 

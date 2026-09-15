@@ -262,8 +262,13 @@ public sealed class PowerMapViewModelTests : IDisposable
                 Anchors =
                 [
                     new KlaAnchor(5.0, 300.0, 5.457),
+                    new KlaAnchor(7.5, 300.0, 6.0),
                     new KlaAnchor(10.0, 300.0, 6.533),
+                    new KlaAnchor(5.0, 400.0, 8.8),
+                    new KlaAnchor(7.5, 400.0, 9.8),
+                    new KlaAnchor(10.0, 400.0, 10.8),
                     new KlaAnchor(5.0, 500.0, 12.538),
+                    new KlaAnchor(7.5, 500.0, 13.7),
                     new KlaAnchor(10.0, 500.0, 15.008),
                 ],
             },
@@ -273,8 +278,28 @@ public sealed class PowerMapViewModelTests : IDisposable
         using var vm = new PowerMapViewModel(_testStore, _mapStore, _engine, _klaStore, _integrationService);
         await vm.InitializeAsync();
 
+        vm.NewMapName = "Mapa_Por_Mapas";
+        vm.AvailablePowerTests.Single(t => t.Summary.TestId == powerDoc.TestId).IsSelected = true;
+        vm.CreateMap();
+        var mapSurface = new PowerMapSurfaceData
+        {
+            ResolutionN = 2,
+            ResolutionQg = 2,
+            MinRpm = 300,
+            MaxRpm = 500,
+            MinFlowLpm = 5,
+            MaxFlowLpm = 10,
+            RpmGrid = [300, 500],
+            FlowGrid = [5, 10],
+            PVolumetricSurface = [500, 450, 2000, 1800],
+            PNetSurface = [5, 4.5, 20, 18],
+            PowerRatioSurface = [0.8, 0.75, 0.8, 0.75],
+        };
+        vm.CurrentSurfaceData = mapSurface;
+        vm.CurrentDocument = vm.CurrentDocument! with { SurfaceData = mapSurface };
+        _mapStore.SaveMap(vm.CurrentDocument);
+
         // Select the power test
-        vm.AvailablePowerTests[0].IsSelected = true;
         // Select the kLa map
         vm.SelectedKlaMapOption = vm.AvailableKlaMaps.First(k => k.Id == klaMapId);
 
@@ -286,6 +311,7 @@ public sealed class PowerMapViewModelTests : IDisposable
         Assert.True(eventFired);
         Assert.NotNull(vm.CurrentCorrelation);
         Assert.Equal(4, vm.MatchedPairsCount);
+        Assert.Equal("Intersecção de superfícies (mapa kLa × mapa de potência)", vm.CurrentCorrelation!.DataBasis);
         Assert.True(vm.CurrentCorrelation.R2 > 0.95);
         Assert.Contains("kLa =", vm.VanTRietFormulaText);
         Assert.NotEqual("—", vm.VanTRietAlphaText);
@@ -524,9 +550,14 @@ public sealed class PowerMapViewModelTests : IDisposable
                 Anchors =
                 [
                     new KlaAnchor(5.0, 300.0, 20.0),
-                    new KlaAnchor(5.0, 300.0, 22.0),
-                    new KlaAnchor(5.0, 300.0, 21.0),
-                    new KlaAnchor(5.0, 300.0, 23.0),
+                    new KlaAnchor(7.5, 300.0, 20.0),
+                    new KlaAnchor(10.0, 300.0, 20.0),
+                    new KlaAnchor(5.0, 400.0, 20.0),
+                    new KlaAnchor(7.5, 400.0, 20.0),
+                    new KlaAnchor(10.0, 400.0, 20.0),
+                    new KlaAnchor(5.0, 500.0, 20.0),
+                    new KlaAnchor(7.5, 500.0, 20.0),
+                    new KlaAnchor(10.0, 500.0, 20.0),
                 ],
             },
         };
@@ -536,11 +567,30 @@ public sealed class PowerMapViewModelTests : IDisposable
         await vm.InitializeAsync();
 
         vm.AvailablePowerTests.Single(t => t.Summary.TestId == testDoc.TestId).IsSelected = true;
+        vm.NewMapName = "Mapa_Colinear";
+        vm.CreateMap();
+        var surface = new PowerMapSurfaceData
+        {
+            ResolutionN = 2,
+            ResolutionQg = 2,
+            MinRpm = 300,
+            MaxRpm = 500,
+            MinFlowLpm = 5,
+            MaxFlowLpm = 10,
+            RpmGrid = [300, 500],
+            FlowGrid = [5, 10],
+            PVolumetricSurface = [100, 100, 100, 100],
+            PNetSurface = [1, 1, 1, 1],
+            PowerRatioSurface = [0.8, 0.8, 0.8, 0.8],
+        };
+        vm.CurrentSurfaceData = surface;
+        vm.CurrentDocument = vm.CurrentDocument! with { SurfaceData = surface };
+        _mapStore.SaveMap(vm.CurrentDocument);
         vm.SelectedKlaMapOption = vm.AvailableKlaMaps.Single(m => m.Id == klaDoc.Snapshot.Id);
 
         await vm.LinkKlaMapAndFitAsync();
 
-        Assert.Contains("não convergiu", vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("indisponível", vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Ajuste recusado", vm.VanTRietFormulaText, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("—", vm.VanTRietKText);
         Assert.Equal("—", vm.VanTRietR2Text);

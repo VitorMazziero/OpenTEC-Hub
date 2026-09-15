@@ -5,9 +5,7 @@
 #include <Preferences.h>
 
 constexpr const char* NVS_KEY_PUMP_POLY_CAL = "pump_poly_cal";
-constexpr const char* NVS_KEY_PUMP_CAL_V2 = "pump_cal";
 const uint32_t PUMP_CAL_MAGIC_V3 = 0x504D5033; // PMP3
-const uint32_t PUMP_CAL_MAGIC_V2 = 0x504D5032; // PMP2
 
 #ifndef PUMP_DUAL_RANGE_CAL_DEFINED
 #define PUMP_DUAL_RANGE_CAL_DEFINED
@@ -20,13 +18,8 @@ struct PumpDualRangeCal {
 };
 #endif
 
-struct PumpDualRangeCalV2 {
-    uint32_t magic;
-    float m_low, m_high, s_t, q_t;
-    uint32_t crc32;
-};
-
 extern PumpDualRangeCal g_pumpCal;
+extern bool g_pumpCalibrationReady;
 extern Preferences g_prefs;
 
 static inline uint32_t calculateCalibrationCrc32(const uint8_t* data, size_t length) {
@@ -68,18 +61,6 @@ static inline bool isPumpCalibrationValid(const PumpDualRangeCal& cal) {
     return previous > evaluatePumpCalibration(cal, 0.0f) + 1e-5f;
 }
 
-static inline void setLinearPumpCalibration(float lowSlope, float highSlope, float st, float qt) {
-    float slope = lowSlope;
-    g_pumpCal.magic = PUMP_CAL_MAGIC_V3;
-    g_pumpCal.a1 = g_pumpCal.b1 = g_pumpCal.k1 = 0.0f;
-    g_pumpCal.f1 = slope;
-    g_pumpCal.c1 = qt - slope * st;
-    g_pumpCal.k2 = 0.0f;
-    g_pumpCal.f2 = slope;
-    g_pumpCal.c2 = qt - slope * st;
-    g_pumpCal.s_t = st;
-}
-
 void savePumpCalibration() {
     g_pumpCal.magic = PUMP_CAL_MAGIC_V3;
     g_pumpCal.crc32 = calculateCalibrationCrc32((const uint8_t*)&g_pumpCal.a1, 9 * sizeof(float));
@@ -94,27 +75,14 @@ void loadPumpCalibration() {
         calculateCalibrationCrc32((const uint8_t*)&candidate.a1, 9 * sizeof(float)) == candidate.crc32 &&
         isPumpCalibrationValid(candidate)) {
         g_pumpCal = candidate;
+        g_pumpCalibrationReady = true;
         Serial.printf("[NVS] Calibracao polinomial v3 carregada (CRC %08X).\n", g_pumpCal.crc32);
         return;
     }
 
-    PumpDualRangeCalV2 old{};
-    if (g_prefs.getBytesLength(NVS_KEY_PUMP_CAL_V2) == sizeof(old) &&
-        g_prefs.getBytes(NVS_KEY_PUMP_CAL_V2, &old, sizeof(old)) == sizeof(old) &&
-        old.magic == PUMP_CAL_MAGIC_V2 &&
-        calculateCalibrationCrc32((const uint8_t*)&old.m_low, 4 * sizeof(float)) == old.crc32 &&
-        isfinite(old.m_low) && old.m_low > 0.0f && isfinite(old.s_t) && old.s_t > 0.0f && old.s_t < 1000.0f &&
-        isfinite(old.q_t) && old.q_t - old.m_low * old.s_t >= -1e-5f) {
-        setLinearPumpCalibration(old.m_low, old.m_high, old.s_t, old.q_t);
-        savePumpCalibration();
-        Serial.println("[NVS] Calibracao v2 de duas retas migrada para polinomios equivalentes.");
-        return;
-    }
-
-    float slope = isfinite(g_config.pumpSlope) && g_config.pumpSlope > 0 ? g_config.pumpSlope : 0.0280188148f;
-    float intercept = isfinite(g_config.pumpIntercept) ? g_config.pumpIntercept : 1.7601988934f;
-    const float st = 500.0f;
-    setLinearPumpCalibration(slope, slope, st, slope * st + intercept);
-    savePumpCalibration();
-    Serial.println("[NVS] Calibracao linear legada migrada para polinomios equivalentes.");
+    g_pumpCal = {};
+    g_pumpCal.magic = PUMP_CAL_MAGIC_V3;
+    g_pumpCal.s_t = 500.0f;
+    g_pumpCalibrationReady = false;
+    Serial.println("[NVS] Nenhuma calibracao polinomial instalada; conversao de vazao bloqueada ate a primeira calibracao.");
 }

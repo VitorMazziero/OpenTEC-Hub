@@ -17,7 +17,7 @@ void buildDataJson(bool includeArrays) {
         "{\"mode\":%d,\"pwm\":%d,\"speed\":%.1f,\"flow_rate_mlmin\":%.3f,"
         "\"cum_volume_ml\":%.3f,\"cycle_volume_ml\":%.3f,\"v_target_ml\":%.3f,\"active\":%s,\"waiting\":%s,"
         "\"current_t_min\":%.3f,\"init_t_min\":%.3f,\"final_t_min\":%.3f,"
-        "\"slope\":%.4f,\"intercept\":%.4f,\"pid_kp\":%.4f,\"pid_ki\":%.4f,\"pid_kd\":%.4f,"
+        "\"pid_kp\":%.4f,\"pid_ki\":%.4f,\"pid_kd\":%.4f,"
         "\"pumpA1\":%.9g,\"pumpB1\":%.9g,\"pumpK1\":%.9g,\"pumpF1\":%.9g,\"pumpC1\":%.9g,"
         "\"pumpK2\":%.9g,\"pumpF2\":%.9g,\"pumpC2\":%.9g,\"pumpTransitionSpeed\":%.2f,\"pumpCalCrc\":\"%08X\","
         "\"pot\":%d,\"usb_speed\":%d",
@@ -33,8 +33,6 @@ void buildDataJson(bool includeArrays) {
         (double)g_current_t_min,
         (double)g_config.init_t_min,
         (double)g_config.final_t_min,
-        (double)g_config.pumpSlope,
-        (double)g_config.pumpIntercept,
         (double)g_config.pid_kp,
         (double)g_config.pid_ki,
         (double)g_config.pid_kd,

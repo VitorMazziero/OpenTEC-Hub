@@ -124,10 +124,7 @@ struct PumpConfig {
     float time_points[MAX_SEGMENTS]; 
     float flow_points[MAX_SEGMENTS]; 
 
-    // Calibration & PID
-    float pumpSlope;
-    float pumpIntercept;
-
+    // PID
     float pid_kp;
     float pid_ki;
     float pid_kd;
@@ -149,6 +146,7 @@ struct PumpDualRangeCal {
 PumpConfig g_config;
 bool g_configDirty = false;
 PumpDualRangeCal g_pumpCal;
+bool g_pumpCalibrationReady = false;
 
 TaskHandle_t pwmTaskHandle = nullptr;
 

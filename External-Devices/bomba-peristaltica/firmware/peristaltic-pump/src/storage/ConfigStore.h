@@ -36,9 +36,6 @@ void loadConfig() {
         g_config.flow_points[i] = 0.0f;
     }
 
-    g_config.pumpSlope     = 0.0280188148f; 
-    g_config.pumpIntercept = 1.7601988934f;
-
     g_config.pid_kp = 0.5f;
     g_config.pid_ki = 0.05f;
     g_config.pid_kd = 0.001f;

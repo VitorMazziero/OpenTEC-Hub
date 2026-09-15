@@ -7,7 +7,9 @@
 
 **Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11.1 — auditoria B01–B15 aplicada em 2026-09-13), §5 (agitador de frasco, firmware v10) e §6 (servo drive, driver 2.0 — fechado por decisão de projeto, 2026-09-13) completos.
 
-> **Leitura das versões:** Hub 10.4 é a versão ativa. Menções a 10.2/10.3, bomba 3.10/3.11 e fluxômetro v11.0 identificam marcos anteriores ou compatibilidade legada; não redefinem o contrato ativo 10.4 + 3.12 + v12.0.
+> **Leitura das versões:** Hub 10.4 é a versão ativa. Para a bomba, 3.12 é a primeira
+> implantação e o único contrato executável; menções a 3.10/3.11 abaixo são apenas histórico
+> de desenvolvimento, não compatibilidade disponível. O fluxômetro mantém seu histórico próprio.
 
 ---
 
@@ -104,11 +106,11 @@ finalSpeed = allowRun ? clamp(requestedSpeed, −1000, +1000) : 0
 
 - **Unidade S (0..1000)** é a "velocidade interna". `pwmTask` converte: `|S| < 1` → duty 0; senão `duty = 155 + (|S| − 1)/999 · (1023 − 155)`. Ou seja, **duty útil 155..1023** (`PWM_BREAKAWAY` = 155: abaixo disso o motor não vence o atrito do cabeçote). S = 1 já é 155/1023 ≈ 15 % de duty, não "quase parado".
 - **Trava de 500 ms** (`MIN_MOTOR_ON_TIME_MS`): ao ligar, o motor mantém a velocidade de partida por ao menos 500 ms antes de aceitar uma nova. Evita "tremer" quando o alvo oscila perto de S = 1.
-- **Conversão para vazão (3.12)** usa `Q1=a1·S⁴+b1·S³+k1·S²+f1·S+c1` para `S ≤ St` e `Q2=k2·S²+f2·S+c2` para `S > St`. Os segmentos devem coincidir em valor e derivada em `St`, ser não negativos e monotônicos em `0..1000`. A inversa `Q→S` usa bisseção; os campos lineares permanecem apenas como fonte de migração.
+- **Conversão para vazão (3.12)** usa `Q1=a1·S⁴+b1·S³+k1·S²+f1·S+c1` para `S ≤ St` e `Q2=k2·S²+f2·S+c2` para `S > St`. Os segmentos devem coincidir em valor e derivada em `St`, ser não negativos e monotônicos em `0..1000`. A inversa `Q→S` usa bisseção. Sem a primeira calibração polinomial válida, ambas as conversões retornam zero; não existe fallback linear.
 
 ### 1.3 Volume: estimado, não medido
 
-`g_cumulativeVolumeMl += pwmDutyToMlmin(duty_aplicado)/60 · dt` a cada 2 ms no Core 0. O duty é convertido **de volta** para S e então para mL/min pela mesma reta de calibração. **3.10:** esse acumulador é o **contador da sessão** — só `reset_volume` o zera; cada ciclo de perfil guarda o valor em que começou (`g_cycleStartVolumeMl`, no checkpoint como `s_cvol`) e publica a diferença como `cyc_vol`. Consequências que o operador precisa saber:
+`g_cumulativeVolumeMl += pwmDutyToMlmin(duty_aplicado)/60 · dt` a cada 2 ms no Core 0. O duty é convertido **de volta** para S e então para mL/min pela mesma curva polinomial de calibração. **3.10:** esse acumulador é o **contador da sessão** — só `reset_volume` o zera; cada ciclo de perfil guarda o valor em que começou (`g_cycleStartVolumeMl`, no checkpoint como `s_cvol`) e publica a diferença como `cyc_vol`. Consequências que o operador precisa saber:
 
 1. `PumpVol` e `PumpFlow` são **previsões da curva de calibração**, não leituras de um sensor. Se a curva estiver errada, o volume acumulado está errado na mesma proporção, e nenhum campo de telemetria denuncia isso.
 2. O "PID de volume" (`pid_kp/ki/kd`) compara `V_alvo(t)` (integral analítica do perfil) com o **volume do ciclo** (`vol − início do ciclo`). Ele corrige apenas erros de **execução** (trava de 500 ms, quantização de duty, tempo em `OP_WAITING`), nunca erros de **calibração**. Padrões: kp 0,5, ki 0,05, kd 0,001; integrador limitado a ±100 mL·min. **3.10:** os três ganhos são ecoados (`kp/ki/kd` no push → `PumpPidKp/Ki/Kd`), e o app só libera a edição quando vê o eco.
@@ -182,13 +184,12 @@ Todos os canais chegam a `processJsonCommand()`; a tabela seguinte vale para qua
 
 | Chave | Firmware | Hub | App |
 |---|---|---|---|
-| `a1`, `b1`, `k1`, `f1`, `c1`, `k2`, `f2`, `c2`, `transition_speed` | Exige os nove campos no mesmo quadro, valida estado ocioso, C0+C1 e monotonicidade, troca `g_pumpCal` atomicamente e persiste `pump_poly_cal` com CRC32 | sim, traduzidos de `pumpA1..pumpC2` e `pumpTransitionSpeed` | **Salvar e enviar curva**: exige Hub ≥ 10.4 e bomba ≥ 3.12; recibo só após ACK concluído, nove ecos e `PumpCalCrc` |
-| `pumpSlope`, `pumpIntercept` | Campos legados preservados no blob antigo para migração de instalações 3.10; não são o contrato de aplicação da curva dupla | compatibilidade legada | UI moderna bloqueia envio quando o nó não oferece 3.11 |
+| `a1`, `b1`, `k1`, `f1`, `c1`, `k2`, `f2`, `c2`, `transition_speed` | Exige os nove campos no mesmo quadro, valida estado ocioso, C0+C1 e monotonicidade, troca `g_pumpCal` atomicamente e persiste `pump_poly_cal` com CRC32 | sim, traduzidos de `pumpA1..pumpC2` e `pumpTransitionSpeed` | **Salvar e enviar curva**: exige ajuste válido; recibo só após ACK concluído, nove ecos e `PumpCalCrc` |
 | `pid_kp`, `pid_ki`, `pid_kd` | Atualiza ganhos; efeito imediato; **ecoados no push** (3.10) | sim (`pumpPidKp`→`pid_kp` etc.) | Expansor **PID de volume do nó**: liberado só com eco presente; **Enviar PID** aguarda o eco igual (tolerância 5e-4) para persistir no PC; padrões 0,5/0,05/0,001 já nas configurações |
 
 ### 1.7 Persistência e recuperação
 
-- **Blob legado de configuração** (`PumpConfig`, ≈1,03 kB) continua em `feed_pump/config` sem alteração de layout. A calibração dupla fica separada em `feed_pump/pump_cal`, registro de 24 bytes (`magic`, quatro `float`, CRC32). Na primeira inicialização 3.11 sem registro válido, a reta legada é promovida para dois trechos equivalentes com `St = 500`; o blob antigo não é destruído.
+- **Configuração operacional** permanece em `feed_pump/config`. A calibração fica separada em `feed_pump/pump_poly_cal`, registro atual `PMP3` com nove `float` e CRC32. Se o registro estiver ausente ou inválido, o firmware inicia com `calibrationReady=false`, não cria curva e mantém Q↔S em zero até receber uma calibração válida.
 - **Checkpoint** (`s_active`, `s_vol`, `s_time`, `s_mode`, **`s_cvol`** desde 3.10) a cada 60 s **só em `OP_RUNNING` e `mode ≠ 0`**. `stop`, `mode`/parâmetro novo, `start` e fim de `final_t` limpam o flag.
 - **Boot com checkpoint ativo:** o firmware **retoma `OP_RUNNING`** com o volume e o tempo salvos (até 60 s atrás), sem esperar comando — isto é, **após uma queda de energia no meio de um perfil a bomba volta a bombear sozinha ao religar**. Deliberado ("Robust Recovery"); o operador precisa saber.
 
@@ -201,13 +202,12 @@ Push `GET /pumpData?…` a cada 1 s (`DATA_PUSH_PERIOD_MS`), mesma linha impress
 | `mode` | `g_config.mode` | `PumpMode` | modo em execução |
 | `pwm` | duty realmente aplicado (0 ou 155..1023) | `PumpPWM` | — (drawer) |
 | `speed` | `g_cmdSpeed` (S comandado ao Core 0, com sinal) | `PumpSpeed` | eco durante a calibração |
-| `flow` | `g_currentFlowRateMlMin` (alvo + PID, ou reta(S) em IDLE) | `PumpFlow` | Vazão atual — **estimativa** |
+| `flow` | `g_currentFlowRateMlMin` (alvo + PID, ou curva(S) em IDLE) | `PumpFlow` | Vazão atual — **estimativa** |
 | `vol` | volume integrado (§1.3) | `PumpVol` | Volume acumulado — **estimativa**; base do gás proporcional |
 | `v_tgt` | `V_alvo(t_rel)` analítico | `PumpTargetVol` | — |
 | `active` / `waiting` | `OP_RUNNING` / `OP_WAITING` | `PumpActive` / `PumpWaiting` | estado do perfil |
 | `ack_cmd_id` | último `cmd_id` do Hub aplicado | fecha `pumpBox` → `PumpCommandPending=false` | chip "aguardando" some |
 | `a1..c1`, `k2..c2`, `transition_speed`, `cal_crc` | curva polinomial vigente e CRC32 | `PumpA1..PumpC2`, `PumpTransitionSpeed`, `PumpCalCrc` | curva aplicada no nó; confirmação exige nove ecos e ACK encerrado |
-| `slope`, `intercept` | reta legada do blob 3.10 | `PumpSlope`, `PumpIntercept` | compatibilidade e diagnóstico; não confirma aplicação 3.11 |
 | `kp`, `ki`, `kd` (3.10) | ganhos vigentes | `PumpPidKp/Ki/Kd` | "Nó: Kp · Ki · Kd" no expansor; libera a edição |
 | `pot` (3.10) | `!disablePot && !hasUsbSpeed` | `PumpPotEnabled` | texto e botão **Potenciômetros** |
 | `cyc_vol` (3.10) | `vol − início do ciclo` | `PumpCycleVol` | — (disponível no snapshot) |

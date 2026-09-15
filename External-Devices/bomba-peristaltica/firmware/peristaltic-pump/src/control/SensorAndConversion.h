@@ -19,6 +19,7 @@ void updateSensorGate() {
 }
 
 float speedUnitsToMlmin(float speedUnits) {
+    if (!g_pumpCalibrationReady) return 0.0f;
     if (speedUnits <= g_pumpCal.s_t) {
         return ((((g_pumpCal.a1 * speedUnits) + g_pumpCal.b1) * speedUnits + g_pumpCal.k1) * speedUnits + g_pumpCal.f1) * speedUnits + g_pumpCal.c1;
     } else {
@@ -27,6 +28,7 @@ float speedUnitsToMlmin(float speedUnits) {
 }
 
 float mlminToSpeedUnits(float mlMin) {
+    if (!g_pumpCalibrationReady) return 0.0f;
     float qTransition = speedUnitsToMlmin(g_pumpCal.s_t);
     float lower = mlMin <= qTransition ? 0.0f : g_pumpCal.s_t;
     float upper = mlMin <= qTransition ? g_pumpCal.s_t : 1000.0f;

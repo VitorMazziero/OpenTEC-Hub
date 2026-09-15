@@ -5,7 +5,7 @@
 - Novo registro NVS `pump_poly_cal` com os oito coeficientes, `St` e CRC32, sem alterar o layout `PumpConfig` 3.10.
 - Conversões `S → Q` usam quarto grau abaixo de `St` e quadrático acima, com C0+C1; `Q → S` usa bisseção.
 - Aplicação atômica exige os oito coeficientes e `St`, curva monotônica/não negativa e bomba ociosa.
-- Instalações legadas migram a reta 3.10 exatamente; o registro de duas retas 3.11 preserva o trecho inferior e o ponto de transição em uma representação C1.
+- Primeira implantação sem calibração presumida: não há migração nem fallback linear. Sem `pump_poly_cal` atual e válido, as conversões Q↔S ficam bloqueadas até a primeira curva aplicada.
 - Push, `/readData` e Hub 10.4 expõem os nove ecos e `cal_crc`/`PumpCalCrc`.
 - Perfis de mangueira são arquivos locais do aplicativo; somente a curva explicitamente enviada fica ativa no nó.
 - Integração automatizada aprovada; calibração com mangueiras e recipiente graduado permanece pendente.

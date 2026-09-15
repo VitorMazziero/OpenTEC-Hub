@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'services/pump_connection_service.dart';
 import 'pages/flow_selection_page.dart';
 import 'pages/graphs_page.dart';
-import 'pages/calibration_page.dart';
 import 'pages/settings_page.dart';
 
 void main() {
@@ -42,9 +41,6 @@ class _PumpControlAppState extends State<PumpControlApp> {
         page = const GraphsPage();
         break;
       case 2:
-        page = CalibrationPage(connectionService: connectionService);
-        break;
-      case 3:
         page = SettingsPage(connectionService: connectionService);
         break;
       default:
@@ -145,14 +141,9 @@ class _PumpControlAppState extends State<PumpControlApp> {
                   index: 1,
                 ),
                 _buildDrawerItem(
-                  icon: Icons.auto_graph,
-                  title: 'Calibration',
-                  index: 2,
-                ),
-                _buildDrawerItem(
                   icon: Icons.settings,
                   title: 'Settings',
-                  index: 3,
+                  index: 2,
                 ),
               ],
             ),

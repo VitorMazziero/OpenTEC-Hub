@@ -218,7 +218,7 @@ class PumpConnectionService extends ChangeNotifier {
   }
 
   Future<bool> sendCommand(Map<String, dynamic> command) async {
-    if (!_isConnected && !command.containsKey('pumpSlope')) {
+    if (!_isConnected) {
       // Allow sending commands even if temporarily disconnected, but log it
       print('Warning: Pump Connection is offline, trying to send command anyway...');
     }

@@ -167,7 +167,7 @@ void sendDataToHub() {
     // 3.12 mirrors the flowmeter quartic/quadratic calibration family.
     char url[768];
     snprintf(url, sizeof(url),
-             "%s?mode=%d&pwm=%d&speed=%.1f&flow=%.3f&vol=%.3f&v_tgt=%.3f&active=%d&waiting=%d&ack_cmd_id=%lu&slope=%.4f&intercept=%.4f"
+             "%s?mode=%d&pwm=%d&speed=%.1f&flow=%.3f&vol=%.3f&v_tgt=%.3f&active=%d&waiting=%d&ack_cmd_id=%lu"
              "&kp=%.4f&ki=%.4f&kd=%.4f&pot=%d&cyc_vol=%.3f"
              "&a1=%.9g&b1=%.9g&k1=%.9g&f1=%.9g&c1=%.9g&k2=%.9g&f2=%.9g&c2=%.9g&trans_speed=%.2f&cal_crc=%08X",
              sensorHubDataURL.c_str(),
@@ -180,8 +180,6 @@ void sendDataToHub() {
              (g_opState == OP_RUNNING) ? 1 : 0,
              (g_opState == OP_WAITING) ? 1 : 0,
              static_cast<unsigned long>(g_lastAppliedHubCommandId),
-             g_config.pumpSlope,
-             g_config.pumpIntercept,
              g_config.pid_kp,
              g_config.pid_ki,
              g_config.pid_kd,

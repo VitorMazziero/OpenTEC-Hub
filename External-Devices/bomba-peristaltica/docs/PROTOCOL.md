@@ -9,7 +9,7 @@ Especificação completa do protocolo de comunicação, telemetria, rotas HTTP e
 ## 1. Identidade e Registro
 
 - **Dispositivo**: Bomba Peristáltica (`peristaltic-pump` / `pump`)
-- **Versão do Firmware**: `3.12` (2026-09-13; os registros 3.10 e 3.11 são preservados como fontes de migração)
+- **Versão do Firmware**: `3.12` (primeira implantação; somente contrato polinomial atual)
 - **Protocolo de Rede**: HTTP REST / Query params (compatibilidade de fio protocolo 10)
 - **Topologia**: Nó periférico que se anuncia ao Hub e envia telemetria periódica (push) enquanto consome comandos (piggyback ou pull).
 
@@ -29,7 +29,7 @@ Host: 192.168.4.1
 
 A cada período de telemetria (~1000 ms), o nó envia seus dados operacionais ao Hub:
 ```http
-GET /pumpData?mode=1&pwm=128&speed=45.2&flow=1.265&vol=15.420&v_tgt=15.500&active=1&waiting=0&ack_cmd_id=42&slope=0.0280&intercept=0.0000&kp=0.5000&ki=0.0500&kd=0.0010&pot=1&cyc_vol=15.420 HTTP/1.1
+GET /pumpData?mode=1&pwm=128&speed=45.2&flow=1.265&vol=15.420&v_tgt=15.500&active=1&waiting=0&ack_cmd_id=42&a1=0&b1=0&k1=0&f1=0.028&c1=0&k2=0&f2=0.028&c2=0&transition_speed=500&cal_crc=12AB34CD&kp=0.5000&ki=0.0500&kd=0.0010&pot=1&cyc_vol=15.420 HTTP/1.1
 Host: 192.168.4.1
 ```
 
@@ -46,8 +46,6 @@ Host: 192.168.4.1
 | `active` | `int` | 0 ou 1 | `1` se em execução ativa (`OP_RUNNING`) |
 | `waiting` | `int` | 0 ou 1 | `1` se aguardando retardo inicial `init_t` (`OP_WAITING`) |
 | `ack_cmd_id` | `uint32` | inteiro | ID do último comando recebido e aplicado com sucesso |
-| `slope` | `float` | (unid/passo) / (mL/min) | Eco do coeficiente angular de calibração (`g_config.pumpSlope`) |
-| `intercept`| `float` | unid/passo | Eco do coeficiente linear de calibração (`g_config.pumpIntercept`)|
 | `a1`, `b1`, `k1`, `f1`, `c1` | `float` | coeficientes em S | Segmento inferior de quarto grau |
 | `k2`, `f2`, `c2` | `float` | coeficientes em S | Segmento superior quadrático |
 | `transition_speed` | `float` | S | Velocidade de transição `St`; `Qt=Q(St)` é derivado |
@@ -132,7 +130,7 @@ $$Q_1(S)=a_1S^4+b_1S^3+k_1S^2+f_1S+c_1,\quad S\leq S_t$$
 
 $$Q_2(S)=k_2S^2+f_2S+c_2,\quad S>S_t$$
 
-O parser exige continuidade de valor e derivada em `St`, vazão não negativa e monotonicidade em `0..1000`. A inversa `Q -> S` é calculada por bisseção. A reta 3.10 é representada exatamente nos dois polinômios; o registro 3.11 de duas retas é migrado preservando o trecho inferior e o ponto de transição, pois inclinações diferentes não podem satisfazer C1.
+O parser exige continuidade de valor e derivada em `St`, vazão não negativa e monotonicidade em `0..1000`. A inversa `Q -> S` é calculada por bisseção. Não existe comando, eco ou migração linear. Sem registro polinomial atual e válido, as conversões retornam zero até a primeira calibração ser aplicada.
 
 Pelo Hub 10.4, o aplicativo usa `pumpA1..pumpC2` e `pumpTransitionSpeed`; o Hub traduz para os nomes acima. A confirmação requer ACK concluído, os nove ecos e `PumpCalCrc`.
 

@@ -361,6 +361,7 @@ void processJsonCommand(String json) {
             Serial.println("[REJECT] pumpTransitionSpeed fora de (0,1000).");
         } else {
             PumpDualRangeCal previous = g_pumpCal;
+            bool wasCalibrationReady = g_pumpCalibrationReady;
             g_pumpCal.a1=pumpValues[0]; g_pumpCal.b1=pumpValues[1]; g_pumpCal.k1=pumpValues[2];
             g_pumpCal.f1=pumpValues[3]; g_pumpCal.c1=pumpValues[4]; g_pumpCal.k2=pumpValues[5];
             g_pumpCal.f2=pumpValues[6]; g_pumpCal.c2=pumpValues[7]; g_pumpCal.s_t=pumpValues[8];
@@ -369,6 +370,7 @@ void processJsonCommand(String json) {
             float highValue = (g_pumpCal.k2*st+g_pumpCal.f2)*st+g_pumpCal.c2;
             float lowSlope = (((4*g_pumpCal.a1*st)+(3*g_pumpCal.b1))*st+(2*g_pumpCal.k1))*st+g_pumpCal.f1;
             float highSlope = 2*g_pumpCal.k2*st+g_pumpCal.f2;
+            g_pumpCalibrationReady = true;
             bool monotonic = speedUnitsToMlmin(0) >= -1e-5f;
             float prior = speedUnitsToMlmin(0);
             for (uint8_t i=1; i<=100 && monotonic; i++) {
@@ -378,6 +380,7 @@ void processJsonCommand(String json) {
             }
             if (fabsf(lowValue-highValue) > 1e-3f || fabsf(lowSlope-highSlope) > 1e-3f || !monotonic) {
                 g_pumpCal = previous;
+                g_pumpCalibrationReady = wasCalibrationReady;
                 Serial.println("[REJECT] Curva deve ser C0+C1, nao negativa e monotonica.");
             } else {
                 savePumpCalibration();

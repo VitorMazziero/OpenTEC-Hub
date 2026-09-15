@@ -24,12 +24,12 @@ class PumpFirmwareV312Contract(unittest.TestCase):
         self.assertIn("PUMP_CAL_MAGIC_V3", source)
         self.assertIn("9 * sizeof(float)", source)
 
-    def test_old_records_are_migrated_without_reusing_the_old_blob(self):
+    def test_only_current_polynomial_record_is_loaded(self):
         source = read("storage/CalibrationStore.h")
-        self.assertIn("PumpDualRangeCalV2", source)
-        self.assertIn("NVS_KEY_PUMP_CAL_V2", source)
         self.assertIn("NVS_KEY_PUMP_POLY_CAL", source)
-        self.assertIn("setLinearPumpCalibration(old.m_low", source)
+        self.assertNotIn("PumpDualRangeCalV2", source)
+        self.assertNotIn("pumpSlope", source)
+        self.assertIn("g_pumpCalibrationReady = false", source)
 
     def test_persisted_record_is_mathematically_validated_before_activation(self):
         source = read("storage/CalibrationStore.h")
@@ -40,6 +40,7 @@ class PumpFirmwareV312Contract(unittest.TestCase):
 
     def test_forward_conversion_uses_horner_polynomials(self):
         source = read("control/SensorAndConversion.h")
+        self.assertIn("if (!g_pumpCalibrationReady) return 0.0f", source)
         self.assertIn("g_pumpCal.a1 * speedUnits", source)
         self.assertIn("g_pumpCal.k2 * speedUnits", source)
         self.assertNotIn("g_pumpCal.q_t", source)
@@ -75,11 +76,12 @@ class PumpFirmwareV312Contract(unittest.TestCase):
                     "trans_speed=", "cal_crc="):
             self.assertIn(key, source)
 
-    def test_legacy_pump_config_layout_remains_separate(self):
+    def test_pump_config_has_no_linear_calibration_fields(self):
         source = read("core/FirmwareApp.cpp")
         pump_config = source[source.index("struct PumpConfig"):source.index("#ifndef PUMP_DUAL_RANGE_CAL_DEFINED")]
         self.assertNotIn("a1", pump_config)
-        self.assertIn("float pumpSlope", pump_config)
+        self.assertNotIn("pumpSlope", pump_config)
+        self.assertNotIn("pumpIntercept", pump_config)
 
 
 if __name__ == "__main__":

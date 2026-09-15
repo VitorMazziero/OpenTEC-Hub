@@ -411,6 +411,10 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _store.SaveTestManifest(_currentTest);
             _store.UpdateResultsSummary(_currentTest.FolderName, _currentTest);
 
+            // The accepted state is only announced after every queued raw-data and
+            // analysis write has reached the filesystem.
+            _store.FlushAsync().GetAwaiter().GetResult();
+
             SetPhase(RunPhase.Accepted, $"Corrida {_currentRun.FolderName} aceita (kLa = {analysis.KlaPerHour:F1} h⁻¹).");
         }
 
@@ -473,6 +477,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
             _store.SaveTestManifest(_currentTest);
             _store.UpdateResultsSummary(_currentTest.FolderName, _currentTest);
+
+            _store.FlushAsync().GetAwaiter().GetResult();
 
             SetPhase(RunPhase.Rejected, $"Corrida {_currentRun.FolderName} rejeitada: {reason}.");
         }
@@ -1101,6 +1107,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             }
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
             _store.SaveTestManifest(_currentTest);
+            _store.FlushAsync().GetAwaiter().GetResult();
             SetPhase(RunPhase.Completed, $"Teste '{_currentTest.Name}' concluído com válvulas confirmadas fechadas.");
             LogEvent("TestCompleted", $"Teste '{_currentTest.Name}' finalizado com fechamento confirmado.");
         }

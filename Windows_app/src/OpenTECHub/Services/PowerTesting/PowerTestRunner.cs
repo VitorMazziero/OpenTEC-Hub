@@ -608,6 +608,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _currentTest.InterruptionReason = null;
         _store.SaveTestManifest(_currentTest);
         _store.UpdateResultsSummary(_currentTest.FolderName, _currentTest);
+        _store.FlushAsync().GetAwaiter().GetResult();
         SetPhase(PowerRunPhase.Completed, $"Ensaio '{_currentTest.Name}' concluído.");
         LogEvent("TestCompleted", _statusMessage);
         return Task.CompletedTask;
@@ -1541,6 +1542,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
         _store.SaveTestManifest(_currentTest);
         _store.UpdateResultsSummary(_currentTest.FolderName, _currentTest);
+        _store.FlushAsync().GetAwaiter().GetResult();
     }
 
     private void SafeParkAndRelease(string reason)

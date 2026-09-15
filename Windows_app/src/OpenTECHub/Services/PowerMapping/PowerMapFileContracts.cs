@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using OpenTECHub.Services.PowerTesting;
 
 namespace OpenTECHub.Services.PowerMapping;
 
@@ -19,6 +20,7 @@ public static class PowerMapFileContracts
     public const string ImpellerComparisonFileName = "comparacao-impelidores.json";
     public const string KlaCorrelationSummaryFileName = "correlacao-kla.csv";
     public const string SurfaceGridCsvFileName = "malha-superficie.csv";
+    public const string SurfaceIntersectionCsvFileName = "interseccao-eficiencia.csv";
 
     public const string MapExtension = ".pmap.json";
     public const string ComparisonExtension = ".pcomp.json";
@@ -122,6 +124,9 @@ public static class PowerMapFileContracts
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    public static string ComputeSurfaceFingerprint(PowerMapSurfaceData surface) =>
+        ComputeSha256(JsonSerializer.Serialize(surface, JsonOptions));
+
     public static void WriteAllTextAtomic(string targetPath, string content)
     {
         var directory = Path.GetDirectoryName(targetPath);
@@ -204,4 +209,45 @@ public static class PowerMapFileContracts
 
         return sb.ToString();
     }
+
+    public static string BuildSurfaceIntersectionCsv(
+        SurfaceIntersectionResult intersection,
+        double vesselDiameterM)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("N_rpm,Qg_L_min,kLa_h1,P_V_W_m3,vs_m_s,eficiencia_kLa_por_PV,valido,origem");
+
+        var count = intersection.ResolutionN * intersection.ResolutionQg;
+        for (var index = 0; index < count; index++)
+        {
+            var iN = intersection.ResolutionQg > 0 ? index / intersection.ResolutionQg : 0;
+            var iQ = intersection.ResolutionQg > 0 ? index % intersection.ResolutionQg : 0;
+            if (iN >= intersection.RpmGrid.Length || iQ >= intersection.FlowGrid.Length)
+            {
+                continue;
+            }
+
+            var rpm = intersection.RpmGrid[iN];
+            var flow = intersection.FlowGrid[iQ];
+            var kla = index < intersection.KlaSurface.Length ? intersection.KlaSurface[index] : null;
+            var pv = index < intersection.VolumetricPowerSurface.Length ? intersection.VolumetricPowerSurface[index] : null;
+            var vs = index < intersection.SuperficialVelocitySurface.Length
+                ? intersection.SuperficialVelocitySurface[index]
+                : (double.IsFinite(vesselDiameterM) && vesselDiameterM > 0
+                    ? PowerCalc.GasSuperficialVelocity(flow, vesselDiameterM)
+                    : null);
+            var efficiency = index < intersection.EfficiencySurface.Length ? intersection.EfficiencySurface[index] : null;
+            var valid = index < intersection.ValidMask.Length && intersection.ValidMask[index];
+
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{rpm:F3},{flow:F3},{FormatNullable(kla, "F6")},{FormatNullable(pv, "F6")},{FormatNullable(vs, "F8")},{FormatNullable(efficiency, "F8")},{(valid ? "sim" : "não")},mapa×mapa"));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatNullable(double? value, string format) =>
+        value.HasValue && double.IsFinite(value.Value)
+            ? value.Value.ToString(format, CultureInfo.InvariantCulture)
+            : "";
 }

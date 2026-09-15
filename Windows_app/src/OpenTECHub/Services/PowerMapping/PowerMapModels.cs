@@ -45,11 +45,20 @@ public sealed record PowerMapDocument
     /// <summary>Name of the linked kLa map document.</summary>
     public string? LinkedKlaMapName { get; init; }
 
-    /// <summary>Paired points between power assays and kLa determinations.</summary>
+    /// <summary>
+    /// Legacy raw-run pairing kept only for backwards-compatible reads and the separate enriched-map
+    /// export. The P/V analysis uses <see cref="SurfaceIntersection"/> instead.
+    /// </summary>
     public IReadOnlyList<KlaPowerPair> KlaPairs { get; init; } = [];
 
     /// <summary>Adjusted multivariable van 't Riet correlation result kLa = K * (P/V)^alpha * (vs)^beta.</summary>
     public KlaCorrelationResult? KlaCorrelation { get; init; }
+
+    /// <summary>
+    /// Map-to-map intersection used by the efficiency analysis. This is deliberately separate
+    /// from <see cref="KlaPairs"/>, which is retained only so older map files can be opened.
+    /// </summary>
+    public SurfaceIntersectionResult? SurfaceIntersection { get; init; }
 
     /// <summary>Operator notes or observations on this power map synthesis.</summary>
     public string Notes { get; init; } = "";
@@ -199,9 +208,7 @@ public sealed record FloodingPoint
     public double FroudeNumber { get; init; }
 }
 
-/// <summary>
-/// Paired record matching a power assay operating point to an experimental kLa determination.
-/// </summary>
+/// <summary>Legacy raw-run pairing record; not the input contract for map-to-map efficiency.</summary>
 public sealed record KlaPowerPair
 {
     public Guid PairId { get; init; } = Guid.NewGuid();
@@ -229,6 +236,113 @@ public sealed record KlaPowerPair
     public double? Residual { get; init; }
 
     public double? RelativeErrorFraction { get; init; }
+}
+
+/// <summary>One valid node of the common physical grid used by the map-to-map analysis.</summary>
+public sealed record EfficiencyCell(
+    double AgitationRpm,
+    double GasFlowLpm,
+    double SuperficialVelocityMs,
+    double KlaPerHour,
+    double VolumetricPowerWm3,
+    double Efficiency);
+
+/// <summary>
+/// Persisted result of intersecting a reconstructed kLa surface with a power-map P/V surface.
+/// Arrays use the power-map grid so the result can be drawn as a new heatmap layer without
+/// re-reading raw runs. Null values are intentional: they mark cells outside either valid
+/// surface or a local gap in the power map.
+/// </summary>
+public sealed record SurfaceIntersectionResult
+{
+    public Guid PowerMapId { get; init; }
+
+    public string PowerMapFingerprint { get; init; } = "";
+
+    public Guid KlaMapId { get; init; }
+
+    public string KlaSurfaceFingerprint { get; init; } = "";
+
+    public int ResolutionN { get; init; }
+
+    public int ResolutionQg { get; init; }
+
+    public double MinRpm { get; init; }
+
+    public double MaxRpm { get; init; }
+
+    public double MinFlowLpm { get; init; }
+
+    public double MaxFlowLpm { get; init; }
+
+    public double[] RpmGrid { get; init; } = [];
+
+    public double[] FlowGrid { get; init; } = [];
+
+    public double?[] KlaSurface { get; init; } = [];
+
+    public double?[] VolumetricPowerSurface { get; init; } = [];
+
+    public double?[] SuperficialVelocitySurface { get; init; } = [];
+
+    public double?[] EfficiencySurface { get; init; } = [];
+
+    public bool[] ValidMask { get; init; } = [];
+
+    public int CandidatePointCount { get; init; }
+
+    public int ValidPointCount { get; init; }
+
+    public double CoveragePercent { get; init; }
+
+    public double? EfficiencyMinimum { get; init; }
+
+    public double? EfficiencyMean { get; init; }
+
+    public double? EfficiencyMaximum { get; init; }
+
+    public double? MaximumEfficiencyRpm { get; init; }
+
+    public double? MaximumEfficiencyFlowLpm { get; init; }
+
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    public int GetIndex(int indexN, int indexQg) => (indexN * ResolutionQg) + indexQg;
+
+    public IEnumerable<EfficiencyCell> EnumerateValidCells()
+    {
+        var count = Math.Min(ValidMask.Length, Math.Min(KlaSurface.Length, EfficiencySurface.Length));
+        for (var index = 0; index < count; index++)
+        {
+            if (!ValidMask[index] || !KlaSurface[index].HasValue || !EfficiencySurface[index].HasValue)
+            {
+                continue;
+            }
+
+            var iN = ResolutionQg > 0 ? index / ResolutionQg : 0;
+            var iQ = ResolutionQg > 0 ? index % ResolutionQg : 0;
+            if (iN >= RpmGrid.Length || iQ >= FlowGrid.Length)
+            {
+                continue;
+            }
+
+            var efficiency = EfficiencySurface[index]!.Value;
+            var kla = KlaSurface[index]!.Value;
+            var pOverV = index < VolumetricPowerSurface.Length && VolumetricPowerSurface[index].HasValue
+                ? VolumetricPowerSurface[index]!.Value
+                : (efficiency > 0 ? kla / efficiency : double.NaN);
+            var superficialVelocity = index < SuperficialVelocitySurface.Length && SuperficialVelocitySurface[index].HasValue
+                ? SuperficialVelocitySurface[index]!.Value
+                : 0.0;
+            yield return new EfficiencyCell(
+                RpmGrid[iN],
+                FlowGrid[iQ],
+                superficialVelocity,
+                kla,
+                pOverV,
+                efficiency);
+        }
+    }
 }
 
 /// <summary>
@@ -271,6 +385,9 @@ public sealed record KlaCorrelationResult
     public int DegreesOfFreedom { get; init; }
 
     public string ModelFormula { get; init; } = "kLa = K * (P/V)^alpha * (vs)^beta";
+
+    /// <summary>Scientific provenance of the fit, e.g. map intersection rather than raw runs.</summary>
+    public string DataBasis { get; init; } = "Dados experimentais";
 
     public IReadOnlyList<string> ExcludedPointsNotes { get; init; } = [];
 }

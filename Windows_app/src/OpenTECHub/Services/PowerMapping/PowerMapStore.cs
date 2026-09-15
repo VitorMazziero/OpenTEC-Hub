@@ -230,6 +230,15 @@ public sealed class PowerMapStore : IPowerMapStore
                 var csv = PowerMapFileContracts.BuildSurfaceGridCsv(updated.SurfaceData);
                 PowerMapFileContracts.WriteAllTextAtomic(surfaceCsvPath, csv);
             }
+
+            if (updated.SurfaceIntersection is not null)
+            {
+                var intersectionCsvPath = Path.Combine(mapDir, PowerMapFileContracts.SurfaceIntersectionCsvFileName);
+                var csv = PowerMapFileContracts.BuildSurfaceIntersectionCsv(
+                    updated.SurfaceIntersection,
+                    updated.Geometry.VesselDiameterM);
+                PowerMapFileContracts.WriteAllTextAtomic(intersectionCsvPath, csv);
+            }
         }
     }
 

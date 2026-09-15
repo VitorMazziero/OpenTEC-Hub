@@ -167,7 +167,7 @@ public sealed class ReceitasViewModelTests
     }
 
     [Fact]
-    public void Normal_ports_face_the_connected_neighbour_when_nodes_are_reversed()
+    public void Normal_ports_stay_on_their_card_edges_when_nodes_are_reversed()
     {
         var vm = Build();
         var tab = Tab(vm);
@@ -176,8 +176,13 @@ public sealed class ReceitasViewModelTests
 
         end.X = start.X - 120;
 
-        Assert.False(start.Ports.Single(p => p.Name == ConnectorNames.Out).IsOnLeft);
-        Assert.False(end.Ports.Single(p => p.Name == ConnectorNames.In).IsOnLeft);
+        var startOutput = start.Ports.Single(p => p.Name == ConnectorNames.Out);
+        var endInput = end.Ports.Single(p => p.Name == ConnectorNames.In);
+
+        Assert.False(startOutput.IsOnLeft);
+        Assert.Equal(RecipeNodeViewModel.Width, startOutput.OffsetX);
+        Assert.True(endInput.IsOnLeft);
+        Assert.Equal(0, endInput.OffsetX);
     }
 
     [Fact]

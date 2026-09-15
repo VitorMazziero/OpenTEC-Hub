@@ -34,8 +34,10 @@ public static class RecipeConnectionRouter
         bool endOnLeft,
         double stub)
     {
+        // The port stubs leave their own cards before routing begins. Keeping source and target
+        // cards in the obstacle set prevents the middle of a reversed or return route from
+        // crossing behind either card.
         var blocked = obstacles
-            .Where(o => o.Id != sourceId && o.Id != targetId)
             .Select(o => Inflate(o.Bounds, Clearance))
             .ToArray();
 

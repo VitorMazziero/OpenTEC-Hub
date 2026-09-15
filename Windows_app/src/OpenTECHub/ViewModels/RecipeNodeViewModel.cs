@@ -215,7 +215,6 @@ public sealed partial class RecipePortViewModel : ObservableObject
     {
         Port = port;
         OffsetY = offsetY;
-        IsOnLeft = IsInput || IsLoop;
     }
 
     public RecipePort Port { get; }
@@ -226,8 +225,11 @@ public sealed partial class RecipePortViewModel : ObservableObject
 
     public bool IsLoop => ConnectorNames.IsLoopIn(Port.Name) || ConnectorNames.IsLoopOut(Port.Name);
 
-    /// <summary>Whether this port is rendered on the node's left edge.</summary>
-    public bool IsOnLeft { get; private set; } = true;
+    /// <summary>
+    /// Whether this port is rendered on the node's left edge. Port placement is deliberately
+    /// stable: moving another node must reroute a connector, never move its anchors or labels.
+    /// </summary>
+    public bool IsOnLeft => IsInput || IsLoop;
 
     public string Label => Port.Label ?? (Name switch
     {
@@ -248,18 +250,6 @@ public sealed partial class RecipePortViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsConnectableTarget { get; set; }
 
-    /// <summary>Moves a normal port to the edge facing its connected neighbour.</summary>
-    public void SetSide(bool isLeft)
-    {
-        if (IsOnLeft == isLeft)
-        {
-            return;
-        }
-
-        IsOnLeft = isLeft;
-        OnPropertyChanged(nameof(IsOnLeft));
-        OnPropertyChanged(nameof(OffsetX));
-    }
 }
 
 /// <summary>

@@ -44,4 +44,21 @@ public sealed class RecipeConnectionRouterTests
         Assert.True(route.Points[1].X < route.Points[0].X);
         Assert.True(route.Points[^2].X > route.Points[^1].X);
     }
+
+    [Fact]
+    public void Route_does_not_cross_the_source_or_target_cards_after_leaving_the_port_normals()
+    {
+        var source = new RecipeRouteObstacle("source", new Rect(200, 100, 234, 80));
+        var target = new RecipeRouteObstacle("target", new Rect(80, 260, 234, 80));
+
+        var route = RecipeConnectionRouter.Build(
+            new Point(source.Bounds.Left, 140), new Point(target.Bounds.Right, 300),
+            source.Id, target.Id, [source, target],
+            startOnLeft: true, endOnLeft: false, stub: 22);
+
+        Assert.True(route.Points[1].X < source.Bounds.Left);
+        Assert.True(route.Points[^2].X > target.Bounds.Right);
+        Assert.DoesNotContain(route.Points.Skip(1).SkipLast(1), point =>
+            source.Bounds.Contains(point) || target.Bounds.Contains(point));
+    }
 }

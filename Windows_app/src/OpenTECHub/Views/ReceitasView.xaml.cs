@@ -220,8 +220,12 @@ public partial class ReceitasView : UserControl
             }
 
             var position = e.GetPosition(CanvasRoot);
-            _dragNode.X = _originX + (position.X - _dragStart.X);
-            _dragNode.Y = _originY + (position.Y - _dragStart.Y);
+            var rawX = _originX + (position.X - _dragStart.X);
+            var rawY = _originY + (position.Y - _dragStart.Y);
+            var snapped = SnapNode(_dragNode, rawX, rawY);
+            _dragNode.X = snapped.X;
+            _dragNode.Y = snapped.Y;
+            ViewModel?.SelectedTab?.SetAlignmentGuides(snapped.Guides);
         }
         else if (_panning)
         {
@@ -265,6 +269,7 @@ public partial class ReceitasView : UserControl
         }
 
         _dragNode = null;
+        ViewModel?.SelectedTab?.ClearAlignmentGuides();
         _panning = false;
         ViewportBorder.ReleaseMouseCapture();
     }
@@ -287,6 +292,72 @@ public partial class ReceitasView : UserControl
         }
         return null;
     }
+
+    private SnapResult SnapNode(RecipeNodeViewModel moving, double rawX, double rawY)
+    {
+        var tab = ViewModel?.SelectedTab;
+        if (tab is null)
+        {
+            return new SnapResult(rawX, rawY, []);
+        }
+
+        var others = tab.Nodes.Where(n => !ReferenceEquals(n, moving)).ToArray();
+        var tolerance = 8 / Math.Max(0.05, ZoomTransform.ScaleX);
+        var xCandidates = new List<(double Value, double Distance)>();
+        var yCandidates = new List<(double Value, double Distance)>();
+
+        foreach (var other in others)
+        {
+            var otherX = new[] { other.X, other.X + RecipeNodeViewModel.Width / 2, other.X + RecipeNodeViewModel.Width };
+            var movingX = new[] { rawX, rawX + RecipeNodeViewModel.Width / 2, rawX + RecipeNodeViewModel.Width };
+            for (var i = 0; i < otherX.Length; i++)
+            {
+                xCandidates.Add((otherX[i] - (movingX[i] - rawX), Math.Abs(otherX[i] - movingX[i])));
+            }
+
+            var otherY = new[] { other.Y, other.Y + other.Height / 2, other.Y + other.Height };
+            var movingY = new[] { rawY, rawY + moving.Height / 2, rawY + moving.Height };
+            for (var i = 0; i < otherY.Length; i++)
+            {
+                yCandidates.Add((otherY[i] - (movingY[i] - rawY), Math.Abs(otherY[i] - movingY[i])));
+            }
+
+            // Port ordinates are the most useful alignment target: once snapped, a
+            // normal connector can become a single straight horizontal segment.
+            foreach (var movingPort in moving.Ports)
+            {
+                foreach (var otherPort in other.Ports)
+                {
+                    var targetY = other.Y + otherPort.OffsetY;
+                    var candidateY = targetY - movingPort.OffsetY;
+                    yCandidates.Add((candidateY, Math.Abs(candidateY - rawY)));
+                }
+            }
+        }
+
+        var xHasMatch = xCandidates.Any(c => c.Distance <= tolerance);
+        var yHasMatch = yCandidates.Any(c => c.Distance <= tolerance);
+        var xMatch = xCandidates.Where(c => c.Distance <= tolerance).OrderBy(c => c.Distance).FirstOrDefault();
+        var yMatch = yCandidates.Where(c => c.Distance <= tolerance).OrderBy(c => c.Distance).FirstOrDefault();
+        var x = xHasMatch ? xMatch.Value : rawX;
+        var y = yHasMatch ? yMatch.Value : rawY;
+
+        var (width, height) = tab.ComputeCanvasBounds();
+        var guides = new List<RecipeAlignmentGuide>();
+        if (xHasMatch)
+        {
+            guides.Add(new RecipeAlignmentGuide(x, 0, x, height));
+        }
+
+        if (yHasMatch)
+        {
+            guides.Add(new RecipeAlignmentGuide(0, y, width, y));
+        }
+
+        return new SnapResult(x, y, guides);
+    }
+
+    private sealed record SnapResult(double X, double Y, IReadOnlyList<RecipeAlignmentGuide> Guides);
 
     // ── Wheel zoom, toward the cursor ──────────────────────────────────────────
 

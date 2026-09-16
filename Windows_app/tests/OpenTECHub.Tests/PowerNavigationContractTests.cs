@@ -225,16 +225,18 @@ public sealed class PowerNavigationContractTests
         var validationTab = ReadTabContent(xaml, "Validação");
         Assert.Contains("SingleLineSegmentedControlStyle", xaml, StringComparison.Ordinal);
         Assert.Contains("Tara do eixo", validationTab, StringComparison.Ordinal);
-        Assert.Contains("Ponto único", validationTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ponto único", validationTab, StringComparison.Ordinal);
         Assert.Contains("Correlação elétrica", validationTab, StringComparison.Ordinal);
         Assert.DoesNotContain("Calibração estática", validationTab, StringComparison.Ordinal);
         Assert.Contains("Varredura no ar", validationTab, StringComparison.Ordinal);
         Assert.Contains("CurrentTarePoints", validationTab, StringComparison.Ordinal);
         Assert.Contains("PVoidCi95W", validationTab, StringComparison.Ordinal);
         Assert.Contains("CancelTareSweepCommand", validationTab, StringComparison.Ordinal);
-        Assert.Contains("Mapa de kLa e eficiência", validationTab, StringComparison.Ordinal);
-        Assert.Contains("ImportConditionsFromKlaMapCommand", validationTab, StringComparison.Ordinal);
-        Assert.Contains("KlaEfficiencyItems", validationTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("Mapa de kLa e eficiência", validationTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImportConditionsFromKlaMapCommand", validationTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("KlaEfficiencyItems", validationTab, StringComparison.Ordinal);
+
+        Assert.Contains("Ponto único", acquisitionTab, StringComparison.Ordinal);
 
         Assert.Contains("LiveChartHost", xaml, StringComparison.Ordinal);
         Assert.Contains("NpChartHost", xaml, StringComparison.Ordinal);

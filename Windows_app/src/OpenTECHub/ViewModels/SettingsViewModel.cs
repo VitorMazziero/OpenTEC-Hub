@@ -921,13 +921,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         new(
             "Testes de Potência",
             "Testes-Potencia\\",
-            "Ensaios autocontidos de curva de potência, Np, regime gaseificado e flooding.",
+            "Ensaios autocontidos de curva de potência, Np e regime gaseificado.",
             "ensaio.json, *.csv",
             AppPaths.PowerTestsDirectory),
         new(
             "Mapas de Potência",
             "Mapas-Potencia\\",
-            "Síntese de superfícies 2D (N, Qg), fronteira de flooding, benchmark de impelidores e correlações kLa.",
+            "Síntese de superfícies 2D (N, Qg), benchmark de impelidores e correlações kLa.",
             "*.json, *.csv",
             AppPaths.PowerMapsDirectory),
         new(

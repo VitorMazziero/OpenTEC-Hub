@@ -562,7 +562,6 @@ public sealed class DocumentationTests
                      DocumentationCatalog.PowerTareTopicId,
                      DocumentationCatalog.PowerSinglePointTopicId,
                      DocumentationCatalog.PowerElectricalTopicId,
-                     DocumentationCatalog.PowerKlaMapTopicId,
                  })
         {
             Assert.Contains($"CommandParameter=\"{topicId}\"", xaml, StringComparison.Ordinal);

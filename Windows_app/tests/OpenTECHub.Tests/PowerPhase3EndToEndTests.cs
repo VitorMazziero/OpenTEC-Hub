@@ -159,15 +159,14 @@ public sealed class PowerPhase3EndToEndTests : IDisposable
         Assert.Null(mapViewModel.InspectedLayerValue);
         Assert.Equal("Fora do domínio interpolado", mapViewModel.InspectedLayerValueFormatted);
 
-        Assert.NotNull(mapViewModel.CurrentFloodingBoundary);
-        Assert.NotEmpty(mapViewModel.CurrentFloodingBoundary!.NienowTheoreticalPoints);
+        Assert.Null(mapViewModel.CurrentFloodingBoundary);
 
         // ---- 5. Cursor inspection reads the layer under an anchor -------------------------
         var probe = surface.AnchorPoints.OrderBy(a => a.AgitationRpm).ThenBy(a => a.GasFlowLpm).ElementAt(1);
         mapViewModel.UpdateCursorInspection(probe.AgitationRpm, probe.GasFlowLpm);
         Assert.Equal(probe.AgitationRpm, mapViewModel.InspectedAgitationRpm);
         Assert.NotNull(mapViewModel.InspectedLayerValue);
-        Assert.Contains("Zona", mapViewModel.InspectedFlowRegime, StringComparison.Ordinal);
+        Assert.Equal("—", mapViewModel.InspectedFlowRegime);
 
         // Every layer must produce a drawable field.
         foreach (var layer in Enum.GetValues<PowerMapLayer>())

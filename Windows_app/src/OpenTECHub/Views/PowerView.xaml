@@ -600,61 +600,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Importação de mapa de kLa e Avaliação de Eficiência -->
-                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="Mapa de kLa e eficiência" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
-                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="potencia-mapa-kla" />
-                            </Grid>
-                            <Grid Margin="0,7,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="6" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox ItemsSource="{Binding AvailableKlaMaps}" SelectedItem="{Binding SelectedKlaMapForImport}"
-                                          DisplayMemberPath="DisplayText" Height="26" IsEnabled="{Binding CanEditPlan}"
-                                          ToolTip="Mapas de kLa salvos no workspace" />
-                                <Button Grid.Column="2" Content="↻" Width="30" Height="26"
-                                        Command="{Binding RefreshKlaMapsCommand}"
-                                        ToolTip="Recarregar a lista de mapas de kLa" />
-                            </Grid>
-                            <Button Content="Vincular mapa de kLa" Padding="8,4" HorizontalAlignment="Stretch"
-                                    Command="{Binding ImportConditionsFromKlaMapCommand}"
-                                    IsEnabled="{Binding CanImportFromKlaMap}" />
-
-                            <Border Margin="0,7,0,0" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8,6"
-                                    Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding ControlRegionSummary}" FontWeight="SemiBold" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
-                                               Visibility="{Binding AverageKlaEfficiency, Converter={StaticResource NullToVis}}"
-                                               Text="{Binding AverageKlaEfficiency, StringFormat='{}Eficiência média na região de controle: {0:F2} h⁻¹ / (kW/m³)'}" />
-                                </StackPanel>
-                            </Border>
-
-                            <TextBlock Margin="0,7,0,3" Text="Comparação com kLa interpolado na superfície contínua:" Style="{StaticResource PowerLabel}"
-                                       Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}" />
-                            <DataGrid Margin="0,2,0,4" Height="150" ItemsSource="{Binding KlaEfficiencyItems}"
-                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                                      Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}" HorizontalScrollBarVisibility="Auto">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="52" />
-                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm, StringFormat={}{0:F1}}" Width="62" />
-                                    <DataGridTextColumn Header="kLa (h⁻¹)" Binding="{Binding KlaInterpolatedPerHour, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="58" />
-                                    <DataGridTextColumn Header="P líq (W)" Binding="{Binding NetPowerW, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="58" />
-                                    <DataGridTextColumn Header="P/V (W/m³)" Binding="{Binding VolumetricPowerWm3, StringFormat={}{0:F1}, TargetNullValue='—'}" Width="64" />
-                                    <DataGridTextColumn Header="η (h⁻¹/kW/m³)" Binding="{Binding SpecificEfficiency, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="82" />
-                                    <DataGridTextColumn Header="Região" Binding="{Binding RegionLabel}" Width="75" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </StackPanel>
-                    </Border>
-
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
@@ -852,10 +797,12 @@
                                 <DockPanel Margin="5,2,5,4">
                                     <StackPanel Orientation="Horizontal">
                                         <RadioButton Content="Np × Re" GroupName="PowerResultCharts"
-                                                     IsChecked="{Binding ShowPowerRatioChart, Converter={StaticResource InverseBool}, Mode=TwoWay}"
+                                                     IsChecked="{Binding ShowPowerRatioChart, Converter={StaticResource InverseBool}, Mode=OneWay}"
+                                                     Checked="NpChart_Checked"
                                                      Margin="0,0,10,0" VerticalAlignment="Center" />
                                         <RadioButton Content="P_G/P₀ × Fl_G / Fr" GroupName="PowerResultCharts"
-                                                     IsChecked="{Binding ShowPowerRatioChart, Mode=TwoWay}"
+                                                     IsChecked="{Binding ShowPowerRatioChart, Mode=OneWay}"
+                                                     Checked="PowerRatioChart_Checked"
                                                      VerticalAlignment="Center" />
                                     </StackPanel>
                                 </DockPanel>
@@ -956,7 +903,7 @@
                                                             </Style>
                                                         </Ellipse.Style>
                                                     </Ellipse>
-                                                    <TextBlock Text="{Binding Status}" ToolTip="{Binding StatusDescription}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Status}" ToolTip="{Binding Status}" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>

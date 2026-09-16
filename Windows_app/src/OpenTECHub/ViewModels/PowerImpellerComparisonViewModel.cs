@@ -27,15 +27,9 @@ public sealed record ImpellerComparisonRow(ImpellerComparisonItem Item)
         ? $"{Item.TurbulentNpMean.ToString("F3", CultureInfo.CurrentCulture)} ± {Item.TurbulentNpCi95.ToString("F3", CultureInfo.CurrentCulture)}"
         : "—";
 
-    public string ExperimentalFlG => Format(Item.ExperimentalFloodingFlG, "F4");
-
-    public string NienowFlG => Format(Item.NienowFloodingFlG, "F4");
-
     public string ParasiticPower => Format(Item.ParasiticPowerZeroSpeedW, "F3");
 
     public string SpecificPower => Format(Item.AverageSpecificPowerWm3, "F0");
-
-    public string DispersionEfficiency => Format(Item.GasDispersionEfficiencyRatio, "F3");
 
     public string TestDate => Item.TestDateUtc.ToLocalTime().ToString("dd/MM/yyyy", CultureInfo.CurrentCulture);
 

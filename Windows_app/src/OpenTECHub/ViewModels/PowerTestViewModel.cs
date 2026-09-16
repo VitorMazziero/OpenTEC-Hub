@@ -127,6 +127,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _klaStore = klaStore;
         _rig = gasRig ?? (static () => GasRigConfiguration.Default);
         MapViewModel = mapViewModel;
+        MapViewModel?.AttachPowerTestViewModel(this);
         TestRootDirectory = store.RootDirectory;
         _routeCoordinator = runner?.RouteCoordinator ?? new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 
@@ -4248,7 +4249,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         PowerRunPhase.Rejected => "Rejeitado",
         PowerRunPhase.Completed => "Concluído",
         PowerRunPhase.Faulted => "Interrompido",
-        _ => phase.ToString(),
+        _ => "Estado não mapeado",
     };
 
     private static void RunOnUi(Action action)
@@ -4291,8 +4292,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 public sealed record PowerResultRow
 {
     public required Guid RunId { get; init; }
-    public required string StatusGlyph { get; init; }
-    public required string StatusDescription { get; init; }
     public required string Rpm { get; init; }
     public required string NetTorque { get; init; }
     public required string Power { get; init; }
@@ -4325,12 +4324,27 @@ public sealed record PowerResultRow
 
     public static string StatusText(PowerRunPhase phase) => phase switch
     {
+        PowerRunPhase.Idle => "Pronto",
+        PowerRunPhase.Preflight => "Pré-voo",
+        PowerRunPhase.PreparingCondition => "Preparando",
+        PowerRunPhase.SettingSpeed => "Ajustando rotação",
+        PowerRunPhase.PrestagingFlow => "Preparando vazão",
+        PowerRunPhase.OpeningGas => "Abrindo gás",
+        PowerRunPhase.SettlingTorque => "Estabilizando torque",
+        PowerRunPhase.AccumulatingToTarget => "Acumulando amostras",
+        PowerRunPhase.PausedByOperator => "Pausado pelo operador",
+        PowerRunPhase.PausedForMeasurement => "Pausado · sem medida",
+        PowerRunPhase.HoldingForManualEnergy => "Aguardando wattímetro",
         PowerRunPhase.Accepted => "Aceito",
         PowerRunPhase.Captured => "Em revisão",
         PowerRunPhase.Reviewing => "Em revisão",
         PowerRunPhase.Rejected => "Rejeitado",
+        PowerRunPhase.StoppingRun => "Parando",
+        PowerRunPhase.PreparingNextRun => "Preparando próximo ponto",
+        PowerRunPhase.Aborting => "Interrompendo",
+        PowerRunPhase.Completed => "Concluído",
         PowerRunPhase.Faulted => "Interrompido",
-        _ => phase.ToString(),
+        _ => "Estado não mapeado",
     };
 
     public static string StopReasonText(PowerStopReason reason) => reason switch
@@ -4339,16 +4353,7 @@ public sealed record PowerResultRow
         PowerStopReason.Tmax => "Limite de torque",
         PowerStopReason.NotConverged => "Não convergiu",
         PowerStopReason.Aborted => "Interrompido pelo operador",
-        _ => reason.ToString(),
-    };
-
-    private static string StatusGlyphFor(PowerRunPhase phase) => phase switch
-    {
-        PowerRunPhase.Accepted => "🟢",
-        PowerRunPhase.Captured => "🟡",
-        PowerRunPhase.Reviewing => "🔵",
-        PowerRunPhase.Rejected or PowerRunPhase.Faulted => "🔴",
-        _ => "🟡",
+        _ => "Motivo não mapeado",
     };
 
     public static PowerResultRow From(PowerRunSummary run)
@@ -4367,8 +4372,6 @@ public sealed record PowerResultRow
         return new PowerResultRow
         {
             RunId = run.RunId,
-            StatusGlyph = StatusGlyphFor(run.Phase),
-            StatusDescription = StatusText(run.Phase),
             Rpm = F(run.MeanRpmMeasured, "F1"),
             NetTorque = F(run.NetPowerW is { } netPower && run.MeanRpmMeasured != 0
                 ? netPower / PowerCalc.AngularVelocity(run.MeanRpmMeasured)

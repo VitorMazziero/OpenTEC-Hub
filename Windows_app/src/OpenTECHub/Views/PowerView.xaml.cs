@@ -235,6 +235,22 @@ public partial class PowerView : UserControl
         _redraw.Invalidate();
     });
 
+    private void NpChart_Checked(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { ShowPowerRatioChart: true } vm)
+        {
+            vm.ShowPowerRatioChart = false;
+        }
+    }
+
+    private void PowerRatioChart_Checked(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { ShowPowerRatioChart: false } vm)
+        {
+            vm.ShowPowerRatioChart = true;
+        }
+    }
+
     private void ApplyThemeToPlots()
     {
         StylePlot(_livePlot.Plot, "Tempo (s)", "Torque (%)");

@@ -300,7 +300,7 @@ public partial class PowerMapView : UserControl
             .Where(p => p.KlaPerHour > 0 && p.PredictedKlaPerHour is > 0)
             .ToArray() ?? [];
 
-        pairs = SelectRepresentative(pairs, 500);
+        pairs = SelectRepresentative(pairs, p => p.KlaPerHour, p => p.PredictedKlaPerHour!.Value, 500);
 
         if (pairs.Length == 0)
         {
@@ -368,7 +368,7 @@ public partial class PowerMapView : UserControl
             .Where(c => c.KlaPerHour > 0 && c.VolumetricPowerWm3 > 0)
             .ToArray() ?? [];
 
-        intersectionCells = SelectRepresentative(intersectionCells, 500);
+        intersectionCells = SelectRepresentative(intersectionCells, c => c.VolumetricPowerWm3, c => c.KlaPerHour, 500);
 
         if (pairs.Length == 0 && intersectionCells.Length == 0)
         {
@@ -413,16 +413,20 @@ public partial class PowerMapView : UserControl
         _klaPvPlot.Refresh();
     }
 
-    private static T[] SelectRepresentative<T>(T[] source, int maximum)
+    private static T[] SelectRepresentative<T>(T[] source, Func<T, double> primary, Func<T, double> secondary, int maximum)
     {
         if (source.Length <= maximum)
         {
             return source;
         }
 
-        var stride = (source.Length - 1.0) / (maximum - 1);
+        var ordered = source
+            .OrderBy(primary)
+            .ThenBy(secondary)
+            .ToArray();
+        var stride = (ordered.Length - 1.0) / (maximum - 1);
         return Enumerable.Range(0, maximum)
-            .Select(i => source[(int)Math.Round(i * stride)])
+            .Select(i => ordered[(int)Math.Round(i * stride)])
             .ToArray();
     }
 

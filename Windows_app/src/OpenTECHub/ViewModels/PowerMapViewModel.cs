@@ -24,7 +24,6 @@ public enum PowerMapLayer
     NetPower,
     PowerRatio,
     Efficiency,
-    FloodingBoundary,
 }
 
 public enum PowerMapColormap
@@ -262,12 +261,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool ShowIsolines { get; set; } = true;
 
-    [ObservableProperty]
-    public partial bool ShowNienowBoundary { get; set; } = true;
-
-    [ObservableProperty]
-    public partial bool ShowExperimentalFlooding { get; set; } = true;
-
     // Inspection coordinates & values
     [ObservableProperty]
     public partial double? InspectedAgitationRpm { get; set; }
@@ -403,8 +396,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     partial void OnSelectedColormapChanged(PowerMapColormap value) => VisualizationChanged?.Invoke();
     partial void OnShowAnchorsChanged(bool value) => VisualizationChanged?.Invoke();
     partial void OnShowIsolinesChanged(bool value) => VisualizationChanged?.Invoke();
-    partial void OnShowNienowBoundaryChanged(bool value) => VisualizationChanged?.Invoke();
-    partial void OnShowExperimentalFloodingChanged(bool value) => VisualizationChanged?.Invoke();
     partial void OnAutoScaleChanged(bool value) => VisualizationChanged?.Invoke();
     partial void OnManualScaleMinChanged(double? value) => VisualizationChanged?.Invoke();
     partial void OnManualScaleMaxChanged(double? value) => VisualizationChanged?.Invoke();
@@ -1224,11 +1215,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     /// [row = N index, column = Qg index] and carrying the finite range found in it.
     /// Cells outside the convex hull come back as NaN so the view can leave them unpainted.
     /// </summary>
-    /// <remarks>
-    /// The flooding layer is not stored on the surface: it is the dimensionless margin
-    /// <c>Qg / Qg,F(N)</c> against Nienow's correlation, so 1.0 is exactly the frontier,
-    /// below is dispersed and above is flooded.
-    /// </remarks>
     public bool TryBuildLayerField(out double[,] field, out double minValue, out double maxValue)
     {
         field = new double[1, 1];

@@ -462,6 +462,30 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Conferência manual após a tabela de condições -->
+                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Ponto único" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
+                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="potencia-ponto-unico" />
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="N (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Qg (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,7,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="Comandar" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartSinglePointCommand}" IsEnabled="{Binding IsSinglePointActive, Converter={StaticResource InverseBool}}" Padding="6,4" ToolTip="Liga o motor e o fluxo de ar na condição especificada" />
+                                <Button Grid.Column="2" Content="Parar eixo" Command="{Binding StopSinglePointCommand}" IsEnabled="{Binding IsSinglePointActive}" Padding="6,4" ToolTip="Para o motor com segurança" />
+                            </Grid>
+                            <Button Margin="0,6,0,0" Content="Adicionar à tabela de condições" Command="{Binding AddSinglePointToTestCommand}" Padding="6,3" ToolTip="Insere este ponto (N e Qg) na grade do ensaio" />
+                        </StackPanel>
+                    </Border>
+
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
@@ -493,6 +517,10 @@
                             <Border Visibility="{Binding IsTareAssistantOpen, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeDefaultBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="8" Margin="0,4,0,6">
                                 <StackPanel>
                                     <TextBlock Text="Varredura no ar · vaso seco" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap">
+                                        <Run Text="Perfil: " />
+                                        <Run Text="{Binding TareProfileName}" FontWeight="SemiBold" />
+                                    </TextBlock>
                                     <Grid Margin="0,4,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0"><TextBlock Text="N ini" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding TareStartRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
@@ -542,43 +570,9 @@
                                                 ToolTip="Exclui o perfil selecionado da biblioteca de taras" />
                                     </Grid>
 
-                                    <!-- Criar nova tara -->
-                                    <TextBlock Text="Criar nova tara (salvar curva medida):" Style="{StaticResource PowerLabel}" Margin="0,6,0,2" />
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" Style="{StaticResource CompactField}" Text="{Binding TareProfileName, UpdateSourceTrigger=PropertyChanged}"
-                                                 ToolTip="Digite o nome do novo perfil para arquivar a tara (ex.: eixo_furo_unico)" />
-                                        <Button Grid.Column="2" Content="Salvar nova tara" Padding="8,4" Command="{Binding SaveTareProfileCommand}"
-                                                IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}"
-                                                ToolTip="Arquiva a tara medida neste ensaio sob este novo nome na biblioteca" />
-                                    </Grid>
+                                    <TextBlock Margin="0,6,0,0" Text="Uma nova medição é arquivada automaticamente com o nome informado antes do ensaio." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Card 2: Ponto Único de Conferência -->
-                    <Border Style="{StaticResource PowerCard}" Margin="0,0,0,7">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="Ponto único" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Style="{StaticResource DocHelpButton}"
-                                        Command="{Binding DataContext.OpenDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="potencia-ponto-unico" />
-                            </Grid>
-
-                            <Grid Margin="0,7,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0"><TextBlock Text="N (rpm)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointRpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Text="Qg (L/min)" Style="{StaticResource PowerLabel}" /><TextBox Style="{StaticResource CompactField}" Text="{Binding SinglePointFlowLpm, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </Grid>
-                            <Grid Margin="0,7,0,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Content="Comandar" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartSinglePointCommand}" IsEnabled="{Binding IsSinglePointActive, Converter={StaticResource InverseBool}}" Padding="6,4" ToolTip="Liga o motor e o fluxo de ar na condição especificada" />
-                                <Button Grid.Column="2" Content="Parar eixo" Command="{Binding StopSinglePointCommand}" IsEnabled="{Binding IsSinglePointActive}" Padding="6,4" ToolTip="Para o motor com segurança" />
-                            </Grid>
-                            <Button Margin="0,6,0,0" Content="Adicionar à tabela de condições" Command="{Binding AddSinglePointToTestCommand}" Padding="6,3" ToolTip="Insere este ponto (N e Qg) na grade do ensaio" />
                         </StackPanel>
                     </Border>
 

@@ -2615,15 +2615,52 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TareMeasurementInfo()
     {
-        IsTareAssistantOpen = !IsTareAssistantOpen;
+        if (IsTareAssistantOpen)
+        {
+            IsTareAssistantOpen = false;
+            return;
+        }
+
+        // A nova curva recebe seu nome antes de qualquer comando ao eixo. Isso
+        // evita medir uma tara sem destino e elimina a segunda ação ambígua de
+        // "salvar nova tara" no cartão.
+        if (_dialogs is not null)
+        {
+            var initialName = CurrentTest?.Tare?.ProfileName ?? "";
+            if (!_dialogs.PromptInput(
+                    "Nome da nova tara",
+                    "Informe o nome do perfil que será arquivado ao concluir a varredura:",
+                    out var profileName,
+                    initialName))
+            {
+                return;
+            }
+
+            profileName = profileName.Trim();
+            if (!PowerTestFileContracts.ValidateTareProfileName(profileName, out var nameError))
+            {
+                ShowError(nameError ?? "Nome de tara inválido.");
+                return;
+            }
+
+            if (_store.ListTareProfiles().Any(p => string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase)) &&
+                !_dialogs.Confirm(
+                    "Substituir perfil de tara",
+                    $"Já existe um perfil chamado \"{profileName}\". Substituir a curva ao concluir a medição?",
+                    "Substituir",
+                    "Cancelar",
+                    isDanger: true))
+            {
+                return;
+            }
+
+            TareProfileName = profileName;
+        }
+
+        IsTareAssistantOpen = true;
         if (IsTareAssistantOpen)
         {
             RefreshTareProfiles();
-            if (string.IsNullOrWhiteSpace(TareProfileName) &&
-                CurrentTest?.Tare?.ProfileName is { Length: > 0 } filedAs)
-            {
-                TareProfileName = filedAs;
-            }
 
             TareProgressMessage = CurrentTest?.Tare is null
                 ? "Monte os impelidores no eixo e opere com o vaso no ar (seco)."

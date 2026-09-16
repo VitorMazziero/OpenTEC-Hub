@@ -6,6 +6,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.26.2] - 2026-09-15
+
+### Potência — janela de ensaio, mapas e comparação
+
+- reorganização da tabela de resultados, ações do ensaio e fluxo nomeado de tara;
+- restauração do gráfico experimental `P_G/P₀ × Fl_G / Fr`, com atualização apenas para pontos aceitos;
+- Np teórico agregado para associações de impelidores, ponderado por `D⁵`;
+- remoção do flooding/Nienow do fluxo ativo, da comparação e dos CSVs novos, preservando leitura legada;
+- integração do resumo kLa no card de ensaios de origem e redução determinística da densidade dos gráficos de modelos.
+
 ## [Unreleased]
 
 ### Added — calibração contínua em duas faixas e perfis de mangueira

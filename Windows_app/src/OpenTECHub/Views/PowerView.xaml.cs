@@ -24,6 +24,7 @@ public partial class PowerView : UserControl
 {
     private readonly WpfPlot _livePlot = new();
     private readonly WpfPlot _npPlot = new();
+    private readonly WpfPlot _powerRatioPlot = new();
 
     /// <summary>
     /// Charts redraw only while the page is on screen and only when their data moved (§C). The
@@ -50,6 +51,7 @@ public partial class PowerView : UserControl
         InitializeComponent();
         LiveChartHost.Child = _livePlot;
         NpChartHost.Child = _npPlot;
+        PowerRatioChartHost.Child = _powerRatioPlot;
         _redraw = new VisibleRedrawTimer(this, TimeSpan.FromSeconds(1), RedrawPlots);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -86,6 +88,7 @@ public partial class PowerView : UserControl
                 FollowCurrentCondition();
                 break;
             case nameof(PowerTestViewModel.ReferenceLiteratureNp):
+            case nameof(PowerTestViewModel.ShowPowerRatioChart):
             case nameof(PowerTestViewModel.CurrentTest):
                 MarkResultsDirty();
                 break;
@@ -240,8 +243,14 @@ public partial class PowerView : UserControl
         _livePlot.Plot.Axes.Right.TickLabelStyle.IsVisible = true;
         _livePlot.Plot.Axes.Right.FrameLineStyle.Width = 1;
         StylePlot(_npPlot.Plot, "log₁₀(Re)", "Np");
+        StylePlot(_powerRatioPlot.Plot, "Fl_G (–)", "P_G/P₀ (–)");
+        _powerRatioPlot.Plot.Axes.Right.Label.Text = "Fr (–)";
+        _powerRatioPlot.Plot.Axes.Right.Label.FontSize = 10;
+        _powerRatioPlot.Plot.Axes.Right.TickLabelStyle.IsVisible = true;
+        _powerRatioPlot.Plot.Axes.Right.FrameLineStyle.Width = 1;
         _livePlot.Refresh();
         _npPlot.Refresh();
+        _powerRatioPlot.Refresh();
     }
 
     private static void StylePlot(Plot plot, string xLabel, string yLabel)
@@ -279,7 +288,14 @@ public partial class PowerView : UserControl
         if (_resultsDirty)
         {
             _resultsDirty = false;
-            RedrawNp(vm);
+            if (vm.ShowPowerRatioChart)
+            {
+                RedrawPowerRatio(vm);
+            }
+            else
+            {
+                RedrawNp(vm);
+            }
         }
     }
 
@@ -325,6 +341,7 @@ public partial class PowerView : UserControl
         var plot = _npPlot.Plot;
         plot.Clear();
         var points = vm.Results
+            .Where(p => p.IsAccepted)
             .Where(p => p.ReynoldsNumber > 0 && p.PowerNumber > 0 &&
                         double.IsFinite(p.ReynoldsNumber) && double.IsFinite(p.PowerNumber))
             .ToArray();
@@ -360,6 +377,65 @@ public partial class PowerView : UserControl
         }
         plot.Axes.AutoScale();
         _npPlot.Refresh();
+    }
+
+    private void RedrawPowerRatio(PowerTestViewModel vm)
+    {
+        var plot = _powerRatioPlot.Plot;
+        plot.Clear();
+        StylePlot(plot, "Fl_G (–)", "P_G/P₀ (–)");
+        plot.Axes.Right.Label.Text = "Fr (–)";
+        plot.Axes.Right.Label.FontSize = 10;
+        plot.Axes.Right.TickLabelStyle.IsVisible = true;
+        plot.Axes.Right.FrameLineStyle.Width = 1;
+
+        var points = vm.Results
+            .Where(p => p.IsAccepted && p.IsGassed &&
+                        p.AerationNumber > 0 && p.Ratio > 0 &&
+                        double.IsFinite(p.AerationNumber) && double.IsFinite(p.Ratio))
+            .OrderBy(p => p.AerationNumber)
+            .ToArray();
+
+        if (points.Length > 0)
+        {
+            var xs = points.Select(p => p.AerationNumber).ToArray();
+            var ys = points.Select(p => p.Ratio).ToArray();
+            var scatter = plot.Add.Scatter(xs, ys);
+            scatter.Color = PlotColor.FromHex("#3B82F6");
+            scatter.LineWidth = 1.6f;
+            scatter.MarkerSize = 7;
+
+            for (var i = 0; i < points.Length; i++)
+            {
+                var ci = points[i].RatioCi95;
+                if (!double.IsFinite(ci) || ci <= 0)
+                {
+                    continue;
+                }
+
+                var error = plot.Add.Line(xs[i], Math.Max(0.0, ys[i] - ci), xs[i], ys[i] + ci);
+                error.Color = PlotColor.FromHex("#3B82F6").WithAlpha(0.75);
+                error.LineWidth = 1.3f;
+            }
+
+            var frPoints = points
+                .Where(p => p.FroudeNumber > 0 && double.IsFinite(p.FroudeNumber))
+                .ToArray();
+            if (frPoints.Length > 0)
+            {
+                var fr = plot.Add.Scatter(
+                    frPoints.Select(p => p.AerationNumber).ToArray(),
+                    frPoints.Select(p => p.FroudeNumber).ToArray());
+                fr.Color = PlotColor.FromHex("#10B981").WithAlpha(0.75);
+                fr.LineWidth = 1.2f;
+                fr.LinePattern = LinePattern.Dotted;
+                fr.MarkerSize = 4;
+                fr.Axes.YAxis = plot.Axes.Right;
+            }
+        }
+
+        plot.Axes.AutoScale();
+        _powerRatioPlot.Refresh();
     }
 
     private void ExportCsv_Click(object sender, RoutedEventArgs e)

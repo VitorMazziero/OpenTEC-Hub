@@ -341,6 +341,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double? CurrentFr { get; private set; }
     [ObservableProperty] public partial double? CurrentFlowVvm { get; private set; }
     [ObservableProperty] public partial double? CurrentPowerRatio { get; private set; }
+    [ObservableProperty] public partial bool ShowPowerRatioChart { get; set; }
     [ObservableProperty] public partial string GasLoopStatusBadge { get; private set; } = "Fechado";
     [ObservableProperty] public partial string AgitationOwnerLabel { get; private set; } = "Manual";
     [ObservableProperty] public partial string StatusMessage { get; private set; } = "Crie ou abra um ensaio de potência.";
@@ -2467,9 +2468,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     private static PowerRunPhase NextManualResultPhase(PowerRunPhase phase) => phase switch
     {
-        PowerRunPhase.Accepted => PowerRunPhase.Captured,
-        PowerRunPhase.Captured => PowerRunPhase.Reviewing,
-        PowerRunPhase.Reviewing => PowerRunPhase.Rejected,
+        PowerRunPhase.Accepted => PowerRunPhase.Rejected,
+        PowerRunPhase.Rejected => PowerRunPhase.Accepted,
+        PowerRunPhase.Captured or PowerRunPhase.Reviewing => PowerRunPhase.Rejected,
         _ => PowerRunPhase.Accepted,
     };
 
@@ -4265,9 +4266,11 @@ public sealed record PowerResultRow
     public required string Attempts { get; init; }
     public required string Timestamp { get; init; }
     public required string Status { get; init; }
+    public bool IsAccepted { get; init; }
 
     // Gassed-result columns.
     public required string GasFlowLpm { get; init; }
+    public required string FlG { get; init; }
     public required string Fr { get; init; }
     public required string PgLiquid { get; init; }
     public required string P0Ref { get; init; }
@@ -4286,11 +4289,20 @@ public sealed record PowerResultRow
     public static string StatusText(PowerRunPhase phase) => phase switch
     {
         PowerRunPhase.Accepted => "Aceito",
-        PowerRunPhase.Captured => "Capturado",
+        PowerRunPhase.Captured => "Em revisão",
         PowerRunPhase.Reviewing => "Em revisão",
         PowerRunPhase.Rejected => "Rejeitado",
         PowerRunPhase.Faulted => "Interrompido",
         _ => phase.ToString(),
+    };
+
+    public static string StopReasonText(PowerStopReason reason) => reason switch
+    {
+        PowerStopReason.Target => "Alvo de precisão",
+        PowerStopReason.Tmax => "Limite de torque",
+        PowerStopReason.NotConverged => "Não convergiu",
+        PowerStopReason.Aborted => "Interrompido pelo operador",
+        _ => reason.ToString(),
     };
 
     private static string StatusGlyphFor(PowerRunPhase phase) => phase switch
@@ -4328,12 +4340,14 @@ public sealed record PowerResultRow
             Np = F(analysis?.AssemblyPowerNumber, "G5"),
             Re = F(analysis?.AssemblyReynoldsNumber, "G5"),
             Ci = F(analysis?.AssemblyPowerNumberCi95, "G4"),
-            StopReason = run.StopReason.ToString(),
+            StopReason = StopReasonText(run.StopReason),
             Attempts = run.Tries.ToString(CultureInfo.CurrentCulture),
             Timestamp = (run.CompletedUtc ?? run.StartedUtc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.CurrentCulture),
             Status = StatusText(run.Phase),
+            IsAccepted = run.Phase == PowerRunPhase.Accepted,
 
             GasFlowLpm = F(run.GasFlowLpm, "F2"),
+            FlG = F(run.GasFlowNumber, "G5"),
             Fr = F(run.FroudeNumber, "G4"),
             PgLiquid = F(run.GassedPowerW ?? (run.GasMode is PowerGasMode.Gassed or PowerGasMode.Both ? run.NetPowerW : null), "F3"),
             P0Ref = F(run.ReferenceP0W, "F3"),

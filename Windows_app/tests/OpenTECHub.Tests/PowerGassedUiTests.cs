@@ -486,20 +486,10 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.True(vm.CanChangeResultStatus);
 
         vm.CycleResultStatusCommand.Execute(targetRow);
-        Assert.Equal("Capturado", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
-        Assert.Equal("🟡", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
-
-        vm.CycleResultStatusCommand.Execute(vm.Results.First(r => r.RunId == targetRow.RunId));
-        Assert.Equal("Em revisão", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
-        Assert.Equal("🔵", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
-
-        vm.CycleResultStatusCommand.Execute(vm.Results.First(r => r.RunId == targetRow.RunId));
         Assert.Equal("Rejeitado", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
-        Assert.Equal("🔴", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
 
         vm.CycleResultStatusCommand.Execute(vm.Results.First(r => r.RunId == targetRow.RunId));
         Assert.Equal("Aceito", vm.Results.First(r => r.RunId == targetRow.RunId).Status);
-        Assert.Equal("🟢", vm.Results.First(r => r.RunId == targetRow.RunId).StatusGlyph);
     }
 
     [Fact]

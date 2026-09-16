@@ -180,6 +180,8 @@
                     <Button Content="{Binding PauseButtonLabel}" Margin="3,0" Command="{Binding PauseResumeCommand}" IsEnabled="{Binding CanPause}" />
                     <Button Content="Pular" Margin="3,0" Command="{Binding SkipCurrentCommand}" IsEnabled="{Binding CanSkipCurrent}" />
                     <Button Content="Parar e revisar" Margin="3,0" Command="{Binding StopAndReviewCommand}" IsEnabled="{Binding CanStop}" />
+                    <Button Content="Concluir ensaio" Margin="3,0" Command="{Binding CompleteTestCommand}" IsEnabled="{Binding HasActiveTest}" />
+                    <Button Content="Interromper" Margin="3,0" Style="{StaticResource DangerButtonStyle}" Command="{Binding AbortTestCommand}" IsEnabled="{Binding HasActiveTest}" />
                 </StackPanel>
 
                 <!-- Ações contextuais de Modelos e Ajustes -->
@@ -853,9 +855,19 @@
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Margin="5,2,5,4" Text="Np × Re" FontWeight="SemiBold" />
+                                <DockPanel Margin="5,2,5,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="Np × Re" GroupName="PowerResultCharts"
+                                                     IsChecked="{Binding ShowPowerRatioChart, Converter={StaticResource InverseBool}, Mode=TwoWay}"
+                                                     Margin="0,0,10,0" VerticalAlignment="Center" />
+                                        <RadioButton Content="P_G/P₀ × Fl_G / Fr" GroupName="PowerResultCharts"
+                                                     IsChecked="{Binding ShowPowerRatioChart, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
                                 <Grid Grid.Row="1">
-                                    <Border x:Name="NpChartHost" />
+                                    <Border x:Name="NpChartHost" Visibility="{Binding ShowPowerRatioChart, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                                    <Border x:Name="PowerRatioChartHost" Visibility="{Binding ShowPowerRatioChart, Converter={StaticResource BoolToVis}}" />
                                 </Grid>
                             </Grid>
                         </Border>
@@ -919,11 +931,6 @@
                             </Border>
                             <DataGrid Grid.Row="2" Margin="0,8,0,0" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="" Binding="{Binding StatusGlyph}" Width="30">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="ToolTip" Value="{Binding StatusDescription}" /></Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
                                     <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="62" />
                                     <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="82" />
                                     <DataGridTextColumn Header="P líqu. (W)" Binding="{Binding Power}" Width="74" />
@@ -931,29 +938,46 @@
                                     <DataGridTextColumn Header="Re" Binding="{Binding Re}" Width="74" />
                                     <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" Width="68" />
                                     <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm}" Width="72" />
+                                    <DataGridTextColumn Header="Fl_G" Binding="{Binding FlG}" Width="64" />
                                     <DataGridTextColumn Header="Fr" Binding="{Binding Fr}" Width="64" />
                                     <DataGridTextColumn Header="PG (W)" Binding="{Binding PgLiquid}" Width="70" />
                                     <DataGridTextColumn Header="P₀ ref (W)" Binding="{Binding P0Ref}" Width="74" />
                                     <DataGridTextColumn Header="PG/P₀ ± IC" Binding="{Binding PowerRatio}" Width="92" />
                                     <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" Width="80" />
                                     <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="48" />
-                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="94" />
-                                    <DataGridTextColumn Header="Data/hora" Binding="{Binding Timestamp}" Width="130" />
+                                    <DataGridTemplateColumn Header="Status" Width="110">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Ellipse Width="9" Height="9" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="{DynamicResource TextSecondaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Aceito"><Setter Property="Fill" Value="{DynamicResource StateOkBrush}" /></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Rejeitado"><Setter Property="Fill" Value="{DynamicResource StateAlarmBrush}" /></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Em revisão"><Setter Property="Fill" Value="{DynamicResource AccentBrush}" /></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Interrompido"><Setter Property="Fill" Value="{DynamicResource StateAlarmBrush}" /></DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                    <TextBlock Text="{Binding Status}" ToolTip="{Binding StatusDescription}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                     <DataGridTemplateColumn Header="Ação" Width="110">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Button Content="Mudar status" Padding="6,2" Command="{Binding DataContext.CycleResultStatusCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}" IsEnabled="{Binding DataContext.CanChangeResultStatus, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        ToolTip="Alterna entre Aceito, Capturado, Em revisão e Rejeitado" />
+                                                        ToolTip="Alterna entre Aceito e Rejeitado" />
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
-                            <StackPanel Grid.Row="3" HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,8,0,0">
-                                <Button Content="Concluir ensaio" Command="{Binding CompleteTestCommand}" Margin="0,0,6,0" IsEnabled="{Binding HasActiveTest}" />
-                                <Button Content="Interromper" Command="{Binding AbortTestCommand}" IsEnabled="{Binding HasActiveTest}" />
-                            </StackPanel>
                         </Grid>
                     </Border>
                 </StackPanel>

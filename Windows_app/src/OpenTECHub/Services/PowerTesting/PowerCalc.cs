@@ -60,6 +60,38 @@ public static class PowerCalc
         return denom > 0 ? powerW / denom : double.NaN;
     }
 
+    /// <summary>
+    /// Theoretical assembly power number for impellers sharing one shaft. The measured assembly
+    /// value is normalized by the largest impeller diameter, so each literature value is weighted
+    /// by (D_i / D_ref)^5 to preserve P = ρN³Σ(Np_iD_i⁵). A missing/invalid stage reference makes
+    /// the aggregate unavailable rather than silently drawing a partial theoretical line.
+    /// </summary>
+    public static double AssemblyLiteraturePowerNumber(IEnumerable<Impeller> impellers)
+    {
+        ArgumentNullException.ThrowIfNull(impellers);
+        var stages = impellers.ToArray();
+        if (stages.Length == 0)
+        {
+            return double.NaN;
+        }
+
+        var referenceDiameter = stages.Max(stage => stage.DiameterM);
+        if (!double.IsFinite(referenceDiameter) || referenceDiameter <= 0)
+        {
+            return double.NaN;
+        }
+
+        if (stages.Any(stage => !double.IsFinite(stage.DiameterM) || stage.DiameterM <= 0 ||
+                               stage.LiteratureNp is not { } np || !double.IsFinite(np) || np <= 0))
+        {
+            return double.NaN;
+        }
+
+        var aggregate = stages.Sum(stage => stage.LiteratureNp!.Value *
+            Math.Pow(stage.DiameterM / referenceDiameter, 5));
+        return double.IsFinite(aggregate) && aggregate > 0 ? aggregate : double.NaN;
+    }
+
     /// <summary>Aeration (gas flow) number Fl_G = Q_g/(N·D³) [–] (§4.5). Phase-2 use; N in rev/s.</summary>
     public static double AerationNumber(double gasFlowLpm, double rpm, double diameterM)
     {

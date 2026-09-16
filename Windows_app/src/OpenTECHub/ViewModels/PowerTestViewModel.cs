@@ -670,10 +670,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
     public string ResultsCsvPath => CurrentTest is null ? "" : Path.Combine(_store.RootDirectory, CurrentTest.FolderName, PowerTestFileContracts.ResultsSummaryFileName);
-    public double? ReferenceLiteratureNp => Impellers
-        .OrderByDescending(i => i.DiameterM)
-        .Select(i => i.LiteratureNp)
-        .FirstOrDefault(value => value.HasValue);
+    public double? ReferenceLiteratureNp
+    {
+        get
+        {
+            var value = PowerCalc.AssemblyLiteraturePowerNumber(Impellers);
+            return double.IsFinite(value) && value > 0 ? value : null;
+        }
+    }
     public string LiveSummary => HasServoSample
         ? $"{Format(CurrentRpm, "F1")} rpm · {Format(CurrentTorqueNm, "F4")} N·m · {Format(CurrentPowerW, "F2")} W"
         : "Aguardando telemetria válida do servo";

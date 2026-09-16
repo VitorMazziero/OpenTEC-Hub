@@ -10,6 +10,44 @@ public sealed class PowerAnalysisEngineTests
 {
     private readonly PowerAnalysisEngine _engine = new();
 
+    [Fact]
+    public void Assembly_literature_Np_weights_each_stage_by_reference_diameter_to_the_fifth()
+    {
+        var impellers = new[]
+        {
+            new Impeller { DiameterM = 0.060, LiteratureNp = 5.0 },
+            new Impeller { DiameterM = 0.080, LiteratureNp = 1.5 },
+        };
+
+        var expected = 5.0 * Math.Pow(0.060 / 0.080, 5) + 1.5;
+
+        Assert.Equal(expected, PowerCalc.AssemblyLiteraturePowerNumber(impellers), 12);
+    }
+
+    [Fact]
+    public void Assembly_literature_Np_sums_equal_diameter_stages()
+    {
+        var impellers = new[]
+        {
+            new Impeller { DiameterM = 0.065, LiteratureNp = 5.0 },
+            new Impeller { DiameterM = 0.065, LiteratureNp = 1.3 },
+        };
+
+        Assert.Equal(6.3, PowerCalc.AssemblyLiteraturePowerNumber(impellers), 12);
+    }
+
+    [Fact]
+    public void Assembly_literature_Np_is_unavailable_when_a_stage_reference_is_missing()
+    {
+        var impellers = new[]
+        {
+            new Impeller { DiameterM = 0.065, LiteratureNp = 5.0 },
+            new Impeller { DiameterM = 0.065 },
+        };
+
+        Assert.True(double.IsNaN(PowerCalc.AssemblyLiteraturePowerNumber(impellers)));
+    }
+
     // ---- PowerCalc primitives -------------------------------------------------------------
 
     [Fact]

@@ -6,6 +6,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.26.3] - 2026-09-15
+
+### Correção de integração do mapa
+
+- a tabela de kLa/P/V exibida em “Ensaios de origem” passa a ser projetada diretamente da intersecção atual do mapa.
+
 ## [0.26.2] - 2026-09-15
 
 ### Potência — janela de ensaio, mapas e comparação

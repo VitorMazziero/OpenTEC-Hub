@@ -234,8 +234,6 @@ public partial class PowerMapView : UserControl
             DrawAnchors(plot, surface.AnchorPoints);
         }
 
-        DrawFloodingBoundaries(plot, viewModel, nMinimum, nMaximum, qMinimum, qMaximum);
-
         if (qMaximum > qMinimum && nMaximum > nMinimum)
         {
             plot.Axes.SetLimits(qMinimum, qMaximum, nMinimum, nMaximum);
@@ -277,87 +275,18 @@ public partial class PowerMapView : UserControl
         }
     }
 
-    /// <summary>
-    /// Experimental points, split by regime so the operator can see at a glance which conditions
-    /// were already flooded when they were measured.
-    /// </summary>
     private static void DrawAnchors(Plot plot, IReadOnlyList<PowerMapAnchorPoint> anchors)
     {
-        var dispersed = anchors.Where(a => !a.IsFlooded).ToArray();
-        var flooded = anchors.Where(a => a.IsFlooded).ToArray();
-
-        if (dispersed.Length > 0)
+        if (anchors.Count > 0)
         {
             var points = plot.Add.ScatterPoints(
-                dispersed.Select(a => a.GasFlowLpm).ToArray(),
-                dispersed.Select(a => a.AgitationRpm).ToArray());
+                anchors.Select(a => a.GasFlowLpm).ToArray(),
+                anchors.Select(a => a.AgitationRpm).ToArray());
             points.MarkerSize = 8;
             points.MarkerShape = MarkerShape.FilledCircle;
             points.Color = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
             points.LegendText = "Condições medidas";
         }
-
-        if (flooded.Length > 0)
-        {
-            var points = plot.Add.ScatterPoints(
-                flooded.Select(a => a.GasFlowLpm).ToArray(),
-                flooded.Select(a => a.AgitationRpm).ToArray());
-            points.MarkerSize = 10;
-            points.MarkerShape = MarkerShape.OpenTriangleUp;
-            points.Color = ToPlotColor(TryBrush("StateAlarmTextBrush"), MediaColors.Red);
-            points.LegendText = "Medidas em afogamento";
-        }
-    }
-
-    private static void DrawFloodingBoundaries(
-        Plot plot,
-        PowerMapViewModel viewModel,
-        double nMinimum,
-        double nMaximum,
-        double qMinimum,
-        double qMaximum)
-    {
-        if (viewModel.CurrentFloodingBoundary is not { } boundary)
-        {
-            return;
-        }
-
-        if (viewModel.ShowNienowBoundary && boundary.NienowTheoreticalPoints.Count > 1)
-        {
-            // Only the stretch that actually crosses the plotted window is worth drawing.
-            var visible = boundary.NienowTheoreticalPoints
-                .Where(p => p.AgitationRpm >= nMinimum && p.AgitationRpm <= nMaximum &&
-                            p.GasFlowLpm >= qMinimum && p.GasFlowLpm <= qMaximum)
-                .OrderBy(p => p.AgitationRpm)
-                .ToArray();
-
-            if (visible.Length > 1)
-            {
-                var line = plot.Add.Scatter(
-                    visible.Select(p => p.GasFlowLpm).ToArray(),
-                    visible.Select(p => p.AgitationRpm).ToArray());
-                line.MarkerSize = 0;
-                line.LineWidth = 2.6f;
-                line.LinePattern = LinePattern.Dashed;
-                line.Color = ToPlotColor(TryBrush("StateWarningTextBrush"), MediaColors.Goldenrod);
-                line.LegendText = "Flooding — Nienow (teórica)";
-            }
-        }
-
-        if (viewModel.ShowExperimentalFlooding && boundary.ExperimentalPoints.Count > 1)
-        {
-            var experimental = boundary.ExperimentalPoints.OrderBy(p => p.AgitationRpm).ToArray();
-            var line = plot.Add.Scatter(
-                experimental.Select(p => p.GasFlowLpm).ToArray(),
-                experimental.Select(p => p.AgitationRpm).ToArray());
-            line.MarkerSize = 7;
-            line.LineWidth = 2.6f;
-            line.Color = ToPlotColor(TryBrush("StateAlarmTextBrush"), MediaColors.Red);
-            line.LegendText = "Flooding — experimental";
-        }
-
-        plot.ShowLegend(Alignment.UpperLeft);
-        StyleLegend(plot);
     }
 
     /// <summary>Parity of measured against predicted kLa, with the ±15% acceptance band (§18.3 step 5.3).</summary>
@@ -370,6 +299,8 @@ public partial class PowerMapView : UserControl
         var pairs = ViewModel?.MatchedPairs
             .Where(p => p.KlaPerHour > 0 && p.PredictedKlaPerHour is > 0)
             .ToArray() ?? [];
+
+        pairs = SelectRepresentative(pairs, 500);
 
         if (pairs.Length == 0)
         {
@@ -437,6 +368,8 @@ public partial class PowerMapView : UserControl
             .Where(c => c.KlaPerHour > 0 && c.VolumetricPowerWm3 > 0)
             .ToArray() ?? [];
 
+        intersectionCells = SelectRepresentative(intersectionCells, 500);
+
         if (pairs.Length == 0 && intersectionCells.Length == 0)
         {
             AddCentredNote(plot, "Sem pontos válidos na intersecção das superfícies");
@@ -474,13 +407,23 @@ public partial class PowerMapView : UserControl
             series.MarkerSize = 7;
             series.LineWidth = group.Length > 1 ? 1.4f : 0f;
             series.Color = palette.GetColor(index);
-            series.LegendText = $"Qg = {groups[index].Key:0.##} L/min (v_s {group[0].SuperficialVelocityMs:0.0000} m/s)";
         }
 
-        plot.ShowLegend(Alignment.LowerRight);
-        StyleLegend(plot);
         plot.Axes.AutoScale();
         _klaPvPlot.Refresh();
+    }
+
+    private static T[] SelectRepresentative<T>(T[] source, int maximum)
+    {
+        if (source.Length <= maximum)
+        {
+            return source;
+        }
+
+        var stride = (source.Length - 1.0) / (maximum - 1);
+        return Enumerable.Range(0, maximum)
+            .Select(i => source[(int)Math.Round(i * stride)])
+            .ToArray();
     }
 
     private static IColormap ResolveColormap(PowerMapColormap colormap) => colormap switch
@@ -512,18 +455,6 @@ public partial class PowerMapView : UserControl
         bar.Axis.MajorTickStyle.Color = text;
         bar.Axis.MinorTickStyle.Color = text;
         bar.Axis.FrameLineStyle.Color = text;
-    }
-
-    private static void StyleLegend(Plot plot)
-    {
-        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
-        var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
-        var stroke = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
-
-        plot.Legend.BackgroundColor = surface.WithAlpha(0.88);
-        plot.Legend.FontColor = text;
-        plot.Legend.OutlineColor = stroke;
-        plot.Legend.FontSize = 10;
     }
 
     private static void StylePlot(Plot plot, string xLabel, string yLabel)

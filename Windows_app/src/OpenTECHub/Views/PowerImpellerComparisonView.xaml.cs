@@ -153,8 +153,6 @@ public partial class PowerImpellerComparisonView : UserControl
             series.MarkerSize = 6;
             series.LineWidth = 1.4f;
             series.Color = color;
-            var impellerLabel = !string.IsNullOrWhiteSpace(item.ImpellerName) ? item.ImpellerName : item.ImpellerType.ToString();
-            series.LegendText = $"{item.TestName} — {impellerLabel} D/T {item.DiameterRatioDt:F2}";
 
             // IC95 as a vertical whisker per point: the band is the measurement, not decoration.
             foreach (var point in points.Where(p => p.Uncertainty95 > 0))
@@ -195,8 +193,6 @@ public partial class PowerImpellerComparisonView : UserControl
         };
         plot.Axes.Bottom.TickGenerator = logTicks;
         plot.Axes.AutoScale();
-        plot.ShowLegend(Alignment.LowerRight);
-        StyleLegend(plot);
         _npRePlot.Refresh();
     }
 
@@ -230,23 +226,9 @@ public partial class PowerImpellerComparisonView : UserControl
             series.MarkerSize = 6;
             series.LineWidth = 1.4f;
             series.Color = color;
-            var impellerLabel = !string.IsNullOrWhiteSpace(item.ImpellerName) ? item.ImpellerName : item.ImpellerType.ToString();
-            series.LegendText = $"{item.TestName} — {impellerLabel}";
-
-            // The experimental flooding knee, where the impeller stops dispersing.
-            if (item.ExperimentalFloodingFlG is { } flooding && flooding > 0)
-            {
-                var marker = plot.Add.VerticalLine(flooding);
-                marker.Color = color.WithAlpha(0.75);
-                marker.LineWidth = 1.8f;
-                marker.LinePattern = LinePattern.Dotted;
-                marker.LabelOppositeAxis = true;
-            }
         }
 
         plot.Axes.AutoScale();
-        plot.ShowLegend(Alignment.LowerLeft);
-        StyleLegend(plot);
         _powerRatioPlot.Refresh();
     }
 
@@ -293,13 +275,9 @@ public partial class PowerImpellerComparisonView : UserControl
             series.MarkerSize = 6;
             series.LineWidth = 1.4f;
             series.Color = palette.GetColor(index);
-            var impellerLabel = !string.IsNullOrWhiteSpace(item.ImpellerName) ? item.ImpellerName : item.ImpellerType.ToString();
-            series.LegendText = $"{item.TestName} — {impellerLabel}";
         }
 
         plot.Axes.AutoScale();
-        plot.ShowLegend(Alignment.UpperLeft);
-        StyleLegend(plot);
         _specificPowerPlot.Refresh();
     }
 
@@ -355,18 +333,6 @@ public partial class PowerImpellerComparisonView : UserControl
         note.Alignment = Alignment.MiddleCenter;
         note.LabelFontColor = ToPlotColor(TryBrush("TextMutedBrush"), MediaColors.Gray);
         plot.Axes.SetLimits(0, 1, 0, 1);
-    }
-
-    private static void StyleLegend(Plot plot)
-    {
-        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
-        var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
-        var stroke = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
-
-        plot.Legend.BackgroundColor = surface.WithAlpha(0.88);
-        plot.Legend.FontColor = text;
-        plot.Legend.OutlineColor = stroke;
-        plot.Legend.FontSize = 9;
     }
 
     private static void StylePlot(Plot plot, string xLabel, string yLabel)

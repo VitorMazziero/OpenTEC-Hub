@@ -55,18 +55,18 @@
                     <TextBlock Margin="0,6,0,0" Text="{Binding StatusMessage}"
                                Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top" Width="180">
-                    <Button Content="Recarregar ensaios" Padding="8,4" Command="{Binding ReloadTestsCommand}" />
-                    <Button Margin="0,6,0,0" Content="Comparar" Padding="8,4"
+                <WrapPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right">
+                    <Button Content="Recarregar ensaios" Padding="8,4" Margin="0,0,5,0" Command="{Binding ReloadTestsCommand}" />
+                    <Button Content="Comparar" Padding="8,4" Margin="0,0,5,0"
                             Style="{StaticResource AccentButtonStyle}" Command="{Binding BuildComparisonCommand}" />
-                    <TextBox Margin="0,8,0,0" Height="28" Padding="5,2" VerticalContentAlignment="Center"
+                    <TextBox Width="150" Height="28" Padding="5,2" Margin="0,0,5,0" VerticalContentAlignment="Center"
                              Text="{Binding ComparisonName, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="Nome da comparação salva" />
-                    <Button Margin="0,6,0,0" Content="Salvar comparação" Padding="8,4"
+                    <Button Content="Salvar comparação" Padding="8,4" Margin="0,0,5,0"
                             Command="{Binding SaveComparisonCommand}" IsEnabled="{Binding HasComparison}" />
-                    <Button Margin="0,6,0,0" Content="Exportar CSV" Padding="8,4"
+                    <Button Content="Exportar CSV" Padding="8,4"
                             Click="ExportComparisonCsv_Click" IsEnabled="{Binding HasComparison}" />
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
 
@@ -130,10 +130,8 @@
                     <DataGridTextColumn Header="D/T" Binding="{Binding DiameterRatio}" Width="Auto" />
                     <DataGridTextColumn Header="Np platô ± IC₉₅" Binding="{Binding PlateauNp}" Width="Auto" />
                     <DataGridTextColumn Header="(Fl_G)_F exp." Binding="{Binding ExperimentalFlG}" Width="Auto" />
-                    <DataGridTextColumn Header="(Fl_G)_F Nienow" Binding="{Binding NienowFlG}" Width="Auto" />
                     <DataGridTextColumn Header="P_vazio (W)" Binding="{Binding ParasiticPower}" Width="Auto" />
                     <DataGridTextColumn Header="P/V médio (W/m³)" Binding="{Binding SpecificPower}" Width="Auto" />
-                    <DataGridTextColumn Header="Efic. rel. dispersão" Binding="{Binding DispersionEfficiency}" Width="Auto" />
                     <DataGridTextColumn Header="Data" Binding="{Binding TestDate}" Width="Auto" />
                 </DataGrid.Columns>
             </DataGrid>

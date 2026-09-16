@@ -12,6 +12,7 @@
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:InverseBoolConverter x:Key="InverseBool" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <Style x:Key="MapCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
@@ -66,21 +67,13 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Mapa de Potência" FontSize="17" FontWeight="Bold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                         <Border Margin="10,0,0,0" Padding="8,2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4">
                             <TextBlock Text="{Binding GridResolutionLabel}" FontSize="11" FontWeight="Bold"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </Border>
-                        <Border Margin="7,0,0,0" Padding="8,2" CornerRadius="4"
-                                Background="{DynamicResource SurfaceSunkenBrush}"
-                                BorderBrush="{DynamicResource StateWarningBrush}"
-                                BorderThickness="1"
-                                Visibility="{Binding IsSurfaceStale, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="Malha desatualizada — reconstrua" FontSize="11" FontWeight="Bold"
-                                       Foreground="{DynamicResource StateWarningTextBrush}" />
                         </Border>
                     </StackPanel>
                     <TextBlock Margin="0,3,0,0" Text="{Binding StatusMessage}" Style="{StaticResource CaptionTextStyle}"
@@ -156,6 +149,31 @@
                             </ListBox>
                             <Button Margin="0,7,0,0" Content="Recarregar lista de ensaios" Padding="8,4"
                                     Command="{Binding ReloadPowerTestsCommand}" />
+
+                            <Border Margin="0,8,0,0" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="4" Padding="8,6"
+                                    Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ControlRegionSummary}" FontWeight="SemiBold" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}"
+                                               Visibility="{Binding AverageKlaEfficiency, Converter={StaticResource NullToVis}}"
+                                               Text="{Binding AverageKlaEfficiency, StringFormat='{}Eficiência média na região de controle: {0:F2} h⁻¹ / (kW/m³)'}" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Margin="0,7,0,3" Text="Comparação com kLa interpolado na superfície contínua:" Style="{StaticResource MapLabel}"
+                                       Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}" />
+                            <DataGrid Margin="0,2,0,4" Height="150" ItemsSource="{Binding KlaEfficiencyItems}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                                      Visibility="{Binding HasLinkedKlaMap, Converter={StaticResource BoolToVis}}" HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding AgitationRpm, StringFormat={}{0:F0}}" Width="52" />
+                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm, StringFormat={}{0:F1}}" Width="62" />
+                                    <DataGridTextColumn Header="kLa (h⁻¹)" Binding="{Binding KlaInterpolatedPerHour, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="58" />
+                                    <DataGridTextColumn Header="P líq (W)" Binding="{Binding NetPowerW, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="58" />
+                                    <DataGridTextColumn Header="P/V (W/m³)" Binding="{Binding VolumetricPowerWm3, StringFormat={}{0:F1}, TargetNullValue='—'}" Width="64" />
+                                    <DataGridTextColumn Header="η (h⁻¹/kW/m³)" Binding="{Binding SpecificEfficiency, StringFormat={}{0:F2}, TargetNullValue='—'}" Width="82" />
+                                    <DataGridTextColumn Header="Região" Binding="{Binding RegionLabel}" Width="75" />
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </StackPanel>
                     </Border>
 
@@ -299,6 +317,13 @@
                     <!-- Controles de visualização: aplicam-se imediatamente, sem botão de confirmação -->
                     <Border Style="{StaticResource MapCard}" Margin="0,0,0,7">
                         <StackPanel>
+                            <Border Margin="0,0,0,7" Padding="8,5" CornerRadius="4"
+                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
+                                    Visibility="{Binding IsSurfaceStale, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Malha desatualizada — reconstrua no cabeçalho do mapa." FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
+                            </Border>
                             <TextBlock Text="Visualização" Style="{StaticResource SectionTitle}" />
                             <TextBlock Text="Camada" Style="{StaticResource MapLabel}" />
                             <ComboBox ItemsSource="{Binding AvailableLayers}" SelectedValue="{Binding SelectedLayer}"
@@ -308,8 +333,6 @@
                                       SelectedValuePath="Colormap" DisplayMemberPath="DisplayText" />
                             <CheckBox Margin="0,9,0,0" Content="Pontos experimentais" IsChecked="{Binding ShowAnchors}" />
                             <CheckBox Margin="0,5,0,0" Content="Isolinhas de contorno" IsChecked="{Binding ShowIsolines}" />
-                            <CheckBox Margin="0,5,0,0" Content="Fronteira teórica de Nienow" IsChecked="{Binding ShowNienowBoundary}" />
-                            <CheckBox Margin="0,5,0,0" Content="Fronteira experimental de flooding" IsChecked="{Binding ShowExperimentalFlooding}" />
                             <CheckBox Margin="0,9,0,0" Content="Escala automática de cor" IsChecked="{Binding AutoScale}" />
                             <Grid Margin="0,6,0,0" IsEnabled="{Binding AutoScale, Converter={StaticResource InverseBool}}">
                                 <Grid.ColumnDefinitions>

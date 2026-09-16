@@ -81,6 +81,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     private int _reconstructionGeneration;
     private bool _suppressStale;
     private readonly IPowerAnalysisEngine _analysisEngine;
+    private PowerTestViewModel? _powerTestViewModel;
 
     public PowerMapViewModel(
         IPowerTestStore testStore,
@@ -114,6 +115,48 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     /// <summary>Multi-assay impeller benchmarking shown alongside the surface (§18.3 step 6).</summary>
     public PowerImpellerComparisonViewModel Comparison { get; }
 
+    /// <summary>Resumo da comparação kLa/PV exibido junto às fontes do mapa.</summary>
+    public bool HasLinkedKlaMap => _powerTestViewModel?.HasLinkedKlaMap ?? false;
+    public string LinkedKlaMapName => _powerTestViewModel?.LinkedKlaMapName ?? "";
+    public string ControlRegionSummary => _powerTestViewModel?.ControlRegionSummary ?? "Nenhum mapa de kLa vinculado.";
+    public double? AverageKlaEfficiency => _powerTestViewModel?.AverageKlaEfficiency;
+    public ObservableCollection<KlaEfficiencyComparisonItem> KlaEfficiencyItems =>
+        _powerTestViewModel?.KlaEfficiencyItems ?? _emptyKlaEfficiencyItems;
+    private static readonly ObservableCollection<KlaEfficiencyComparisonItem> _emptyKlaEfficiencyItems = [];
+
+    public void AttachPowerTestViewModel(PowerTestViewModel viewModel)
+    {
+        if (ReferenceEquals(_powerTestViewModel, viewModel))
+        {
+            return;
+        }
+
+        if (_powerTestViewModel is not null)
+        {
+            _powerTestViewModel.PropertyChanged -= OnPowerTestPropertyChanged;
+        }
+
+        _powerTestViewModel = viewModel;
+        _powerTestViewModel.PropertyChanged += OnPowerTestPropertyChanged;
+        OnPropertyChanged(nameof(HasLinkedKlaMap));
+        OnPropertyChanged(nameof(LinkedKlaMapName));
+        OnPropertyChanged(nameof(ControlRegionSummary));
+        OnPropertyChanged(nameof(AverageKlaEfficiency));
+        OnPropertyChanged(nameof(KlaEfficiencyItems));
+    }
+
+    private void OnPowerTestPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(PowerTestViewModel.HasLinkedKlaMap): OnPropertyChanged(nameof(HasLinkedKlaMap)); break;
+            case nameof(PowerTestViewModel.LinkedKlaMapName): OnPropertyChanged(nameof(LinkedKlaMapName)); break;
+            case nameof(PowerTestViewModel.ControlRegionSummary): OnPropertyChanged(nameof(ControlRegionSummary)); break;
+            case nameof(PowerTestViewModel.AverageKlaEfficiency): OnPropertyChanged(nameof(AverageKlaEfficiency)); break;
+            case nameof(PowerTestViewModel.KlaEfficiencyItems): OnPropertyChanged(nameof(KlaEfficiencyItems)); break;
+        }
+    }
+
     public string TestRootDirectory { get; }
 
     public string MapRootDirectory { get; }
@@ -135,7 +178,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         new(PowerMapLayer.NetPower, "Potência de eixo (P_líq)", "W", "P_líq (W)"),
         new(PowerMapLayer.PowerRatio, "Razão de aeração (P_G/P₀)", "–", "P_G/P₀ (–)"),
         new(PowerMapLayer.Efficiency, "Eficiência kLa/(P/V)", "h⁻¹/(W/m³)", "Eficiência kLa/(P/V)"),
-        new(PowerMapLayer.FloodingBoundary, "Fronteira de flooding (Qg/Qg,F)", "–", "Qg / Qg,F (–)"),
     ];
 
     public IReadOnlyList<PowerMapColormapOption> AvailableColormaps { get; } =
@@ -824,8 +866,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
                 var vesselD = doc.Geometry.VesselDiameterM > 0 ? doc.Geometry.VesselDiameterM : 0.190;
                 var liquidV = doc.Geometry.LiquidVolumeM3 > 0 ? doc.Geometry.LiquidVolumeM3 : 0.010;
-                var impeller = doc.Geometry.Impellers.Count > 0 ? doc.Geometry.Impellers[0] : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
-                var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
 
                 foreach (var run in doc.Runs.Where(r => r.Phase == PowerRunPhase.Accepted && r.NetPowerW.HasValue))
                 {
@@ -837,8 +877,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                     var flowLpm = run.GasFlowLpm ?? 0.0;
                     var vs = PowerCalc.GasSuperficialVelocity(flowLpm, vesselD);
                     var pv = PowerCalc.VolumetricPower(netPowerW, liquidV);
-                    var isFlooded = flowLpm > PowerCalc.NienowFloodingGasFlowLpm(run.AgitationRpm, d, vesselD);
-
                     anchors.Add(new PowerMapAnchorPoint
                     {
                         RunId = run.RunId,
@@ -853,7 +891,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                         GasFlowNumber = run.GasFlowNumber,
                         FroudeNumber = run.FroudeNumber,
                         ReynoldsNumber = run.Analysis?.AssemblyReynoldsNumber,
-                        IsFlooded = isFlooded,
+                        IsFlooded = false,
                         MeasuredAtUtc = run.CompletedUtc ?? run.StartedUtc,
                     });
                 }
@@ -882,13 +920,12 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                 GradientIterations = GradientIterations,
             };
 
-            var (surfaceData, flooding) = await Task.Run(() =>
+            var surfaceData = await Task.Run(() =>
             {
                 token.ThrowIfCancellationRequested();
                 var surface = _engine.ReconstructSurface(anchors, refGeometry, refFluid, settings);
                 token.ThrowIfCancellationRequested();
-                var flood = _engine.ComputeFloodingBoundary(refGeometry);
-                return (surface, flood);
+                return surface;
             }, token);
 
             token.ThrowIfCancellationRequested();
@@ -909,7 +946,9 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                     Geometry = refGeometry,
                     Fluid = refFluid,
                     SurfaceData = surfaceData,
-                    FloodingBoundary = flooding,
+                    // Legacy flooding fields are retained in the document schema for
+                    // compatibility, but are no longer recomputed or presented here.
+                    FloodingBoundary = CurrentDocument.FloodingBoundary,
                     SurfaceIntersection = null,
                     KlaPairs = [],
                     KlaCorrelation = null,
@@ -919,7 +958,7 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
             }
 
             CurrentSurfaceData = surfaceData;
-            CurrentFloodingBoundary = flooding;
+            CurrentFloodingBoundary = CurrentDocument?.FloodingBoundary;
             CurrentSurfaceIntersection = null;
             CurrentCorrelation = null;
             MatchedPairs.Clear();
@@ -1210,42 +1249,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         var max = double.NegativeInfinity;
         var anyFinite = false;
 
-        if (SelectedLayer == PowerMapLayer.FloodingBoundary)
-        {
-            var geom = CurrentDocument?.Geometry ?? new PowerGeometry();
-            var vesselD = geom.VesselDiameterM > 0 ? geom.VesselDiameterM : 0.190;
-            var impeller = geom.Impellers.Count > 0
-                ? geom.Impellers[0]
-                : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
-            var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
-
-            for (var i = 0; i < rows; i++)
-            {
-                var rpm = surface.RpmGrid[i];
-                var critical = PowerCalc.NienowFloodingGasFlowLpm(rpm, d, vesselD);
-
-                for (var j = 0; j < cols; j++)
-                {
-                    var ratio = critical > 0 ? surface.FlowGrid[j] / critical : double.NaN;
-                    values[i, j] = ratio;
-
-                    if (double.IsFinite(ratio))
-                    {
-                        anyFinite = true;
-                        if (ratio < min)
-                        {
-                            min = ratio;
-                        }
-
-                        if (ratio > max)
-                        {
-                            max = ratio;
-                        }
-                    }
-                }
-            }
-        }
-        else
         {
             var source = SelectedLayer switch
             {
@@ -1398,20 +1401,8 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         InspectedGasFlowVvm = liquidVol > 0 ? PowerCalc.LpmToVvm(gasFlowLpm, liquidVol) : 0.0;
         InspectedSuperficialVelocityMs = PowerCalc.GasSuperficialVelocity(gasFlowLpm, vesselDiameter);
 
-        var impeller = geom.Impellers.Count > 0 ? geom.Impellers[0] : new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.060 };
-        var d = impeller.DiameterM > 0 ? impeller.DiameterM : 0.060;
-
-        if (agitationRpm > 0)
-        {
-            var critFlowLpm = PowerCalc.NienowFloodingGasFlowLpm(agitationRpm, d, vesselDiameter);
-            IsInspectedFlooded = gasFlowLpm > critFlowLpm;
-            InspectedFlowRegime = IsInspectedFlooded ? "Zona Afogada (Flooded)" : "Zona Dispersa (Dispersed)";
-        }
-        else
-        {
-            IsInspectedFlooded = false;
-            InspectedFlowRegime = "—";
-        }
+        IsInspectedFlooded = false;
+        InspectedFlowRegime = "—";
 
         var surface = CurrentSurfaceData;
         if (surface != null &&
@@ -1475,7 +1466,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
                 PowerMapLayer.NetPower => $"{InspectedLayerValue.Value:F2} W",
                 PowerMapLayer.PowerRatio => $"{InspectedLayerValue.Value:F3}",
                 PowerMapLayer.Efficiency => $"{InspectedLayerValue.Value:G5} h⁻¹/(W/m³)",
-                PowerMapLayer.FloodingBoundary => $"{InspectedLayerValue.Value:F1} W/m³",
                 _ => $"{InspectedLayerValue.Value:F1} W/m³"
             }
             : "Fora do domínio interpolado";

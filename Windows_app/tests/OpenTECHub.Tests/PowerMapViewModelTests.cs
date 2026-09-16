@@ -122,7 +122,7 @@ public sealed class PowerMapViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task ReconstructSurfaceAsync_Computes_Mesh_And_Flooding_And_Raises_Event()
+    public async Task ReconstructSurfaceAsync_Computes_Mesh_Without_Flooding_And_Raises_Event()
     {
         // 1. Create a power test with 4 corner points
         var conditions = new List<PowerCondition>
@@ -174,8 +174,9 @@ public sealed class PowerMapViewModelTests : IDisposable
         Assert.Equal(60, vm.CurrentSurfaceData.ResolutionQg);
         Assert.Equal(4, vm.CurrentSurfaceData.AnchorPoints.Count);
 
-        Assert.NotNull(vm.CurrentFloodingBoundary);
-        Assert.NotEmpty(vm.CurrentFloodingBoundary.NienowTheoreticalPoints);
+        // Flooding/Nienow is legacy document data only; reconstruction no longer
+        // calculates or presents that correlation.
+        Assert.Null(vm.CurrentFloodingBoundary);
     }
 
     [Fact]

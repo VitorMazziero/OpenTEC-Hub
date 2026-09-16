@@ -80,7 +80,6 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     private int _reconstructionGeneration;
     private bool _suppressStale;
     private readonly IPowerAnalysisEngine _analysisEngine;
-    private PowerTestViewModel? _powerTestViewModel;
 
     public PowerMapViewModel(
         IPowerTestStore testStore,
@@ -114,47 +113,14 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
     /// <summary>Multi-assay impeller benchmarking shown alongside the surface (§18.3 step 6).</summary>
     public PowerImpellerComparisonViewModel Comparison { get; }
 
-    /// <summary>Resumo da comparação kLa/PV exibido junto às fontes do mapa.</summary>
-    public bool HasLinkedKlaMap => _powerTestViewModel?.HasLinkedKlaMap ?? false;
-    public string LinkedKlaMapName => _powerTestViewModel?.LinkedKlaMapName ?? "";
-    public string ControlRegionSummary => _powerTestViewModel?.ControlRegionSummary ?? "Nenhum mapa de kLa vinculado.";
-    public double? AverageKlaEfficiency => _powerTestViewModel?.AverageKlaEfficiency;
-    public ObservableCollection<KlaEfficiencyComparisonItem> KlaEfficiencyItems =>
-        _powerTestViewModel?.KlaEfficiencyItems ?? _emptyKlaEfficiencyItems;
-    private static readonly ObservableCollection<KlaEfficiencyComparisonItem> _emptyKlaEfficiencyItems = [];
-
-    public void AttachPowerTestViewModel(PowerTestViewModel viewModel)
-    {
-        if (ReferenceEquals(_powerTestViewModel, viewModel))
-        {
-            return;
-        }
-
-        if (_powerTestViewModel is not null)
-        {
-            _powerTestViewModel.PropertyChanged -= OnPowerTestPropertyChanged;
-        }
-
-        _powerTestViewModel = viewModel;
-        _powerTestViewModel.PropertyChanged += OnPowerTestPropertyChanged;
-        OnPropertyChanged(nameof(HasLinkedKlaMap));
-        OnPropertyChanged(nameof(LinkedKlaMapName));
-        OnPropertyChanged(nameof(ControlRegionSummary));
-        OnPropertyChanged(nameof(AverageKlaEfficiency));
-        OnPropertyChanged(nameof(KlaEfficiencyItems));
-    }
-
-    private void OnPowerTestPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        switch (e.PropertyName)
-        {
-            case nameof(PowerTestViewModel.HasLinkedKlaMap): OnPropertyChanged(nameof(HasLinkedKlaMap)); break;
-            case nameof(PowerTestViewModel.LinkedKlaMapName): OnPropertyChanged(nameof(LinkedKlaMapName)); break;
-            case nameof(PowerTestViewModel.ControlRegionSummary): OnPropertyChanged(nameof(ControlRegionSummary)); break;
-            case nameof(PowerTestViewModel.AverageKlaEfficiency): OnPropertyChanged(nameof(AverageKlaEfficiency)); break;
-            case nameof(PowerTestViewModel.KlaEfficiencyItems): OnPropertyChanged(nameof(KlaEfficiencyItems)); break;
-        }
-    }
+    /// <summary>Resumo da comparação kLa/PV derivado da intersecção atual do mapa.</summary>
+    public bool HasLinkedKlaMap => CurrentSurfaceIntersection is not null && SelectedKlaMapOption is not null;
+    public string LinkedKlaMapName => SelectedKlaMapOption?.Name ?? "";
+    public string ControlRegionSummary => CurrentSurfaceIntersection is { } i
+        ? $"Intersecção: N {i.MinRpm:F0}–{i.MaxRpm:F0} rpm · Qg {i.MinFlowLpm:F1}–{i.MaxFlowLpm:F1} L/min"
+        : "Nenhum mapa de kLa vinculado.";
+    public double? AverageKlaEfficiency => CurrentSurfaceIntersection?.EfficiencyMean;
+    public ObservableCollection<KlaEfficiencyComparisonItem> KlaEfficiencyItems { get; } = [];
 
     public string TestRootDirectory { get; }
 
@@ -444,6 +410,11 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
         }
 
         CurrentSurfaceIntersection = null;
+        KlaEfficiencyItems.Clear();
+        OnPropertyChanged(nameof(HasLinkedKlaMap));
+        OnPropertyChanged(nameof(LinkedKlaMapName));
+        OnPropertyChanged(nameof(ControlRegionSummary));
+        OnPropertyChanged(nameof(AverageKlaEfficiency));
         CurrentCorrelation = null;
         MatchedPairs.Clear();
         MatchedPairsCount = 0;
@@ -781,6 +752,29 @@ public sealed partial class PowerMapViewModel : ObservableObject, IDisposable
 
     private void ApplyIntersectionDisplay(SurfaceIntersectionResult? intersection)
     {
+        KlaEfficiencyItems.Clear();
+        if (intersection is not null && CurrentDocument is { Geometry.LiquidVolumeM3: > 0 } document)
+        {
+            var volume = document.Geometry.LiquidVolumeM3;
+            foreach (var cell in intersection.EnumerateValidCells().Take(200))
+            {
+                KlaEfficiencyItems.Add(new KlaEfficiencyComparisonItem
+                {
+                    AgitationRpm = cell.AgitationRpm,
+                    GasFlowLpm = cell.GasFlowLpm,
+                    KlaInterpolatedPerHour = Math.Round(cell.KlaPerHour, 2),
+                    NetPowerW = Math.Round(cell.VolumetricPowerWm3 * volume, 2),
+                    VolumetricPowerWm3 = Math.Round(cell.VolumetricPowerWm3, 1),
+                    SpecificEfficiency = Math.Round(cell.Efficiency, 2),
+                    IsInControlRegion = true,
+                });
+            }
+        }
+        OnPropertyChanged(nameof(HasLinkedKlaMap));
+        OnPropertyChanged(nameof(LinkedKlaMapName));
+        OnPropertyChanged(nameof(ControlRegionSummary));
+        OnPropertyChanged(nameof(AverageKlaEfficiency));
+
         if (intersection is null)
         {
             CommonDomainText = "—";

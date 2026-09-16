@@ -127,7 +127,6 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         _klaStore = klaStore;
         _rig = gasRig ?? (static () => GasRigConfiguration.Default);
         MapViewModel = mapViewModel;
-        MapViewModel?.AttachPowerTestViewModel(this);
         TestRootDirectory = store.RootDirectory;
         _routeCoordinator = runner?.RouteCoordinator ?? new PowerMotorRouteCoordinator(arbiter, device, CommandOwner.PowerAssay);
 

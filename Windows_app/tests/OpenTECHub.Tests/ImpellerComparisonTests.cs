@@ -18,7 +18,7 @@ public sealed class ImpellerComparisonTests
     private readonly PowerAnalysisEngine _engine = new();
 
     [Fact]
-    public void Comparison_item_carries_the_plateau_flooding_and_dispersion_columns()
+    public void Comparison_item_carries_the_plateau_without_active_flooding_columns()
     {
         var document = BuildDocument("Rushton D=60", ImpellerType.RushtonFlatBlade, diameterM: 0.060);
 
@@ -34,12 +34,10 @@ public sealed class ImpellerComparisonTests
         Assert.NotEmpty(item.PowerNumberReynoldsCurve);
         Assert.NotEmpty(item.PowerRatioCurve);
 
-        // Flooding columns come straight from the assay's own analysis.
-        Assert.Equal(0.045, item.ExperimentalFloodingFlG!.Value, 6);
-        Assert.Equal(0.030, item.NienowFloodingFlG!.Value, 6);
-
-        // Relative dispersion efficiency is experimental / Nienow: above 1 disperses better.
-        Assert.Equal(0.045 / 0.030, item.GasDispersionEfficiencyRatio!.Value, 6);
+        // Flooding/Nienow values are legacy-only and are not populated in new comparisons.
+        Assert.Null(item.ExperimentalFloodingFlG);
+        Assert.Null(item.NienowFloodingFlG);
+        Assert.Null(item.GasDispersionEfficiencyRatio);
 
         // Parasitic drag is the tare the assay actually subtracted.
         Assert.Equal(0.5, item.ParasiticPowerZeroSpeedW!.Value, 6);
@@ -108,6 +106,8 @@ public sealed class ImpellerComparisonTests
         Assert.Contains("np_re;Rushton;", csv, StringComparison.Ordinal);
         Assert.Contains("pg_p0;Rushton;", csv, StringComparison.Ordinal);
         Assert.Contains("ATENCAO", csv, StringComparison.Ordinal);
+        Assert.DoesNotContain("eficiencia_relativa_dispersao", csv, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlG_F_nienow", csv, StringComparison.Ordinal);
 
         // The separator is ';', so any ';' inside a note or a name must not open a new column.
         var noteLine = csv.Split('\n').First(l => l.Contains("montagens diferentes", StringComparison.Ordinal));

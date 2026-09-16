@@ -87,17 +87,6 @@ public static class ImpellerComparisonBuilder
             parasitic = voidPowers.Average();
         }
 
-        var experimentalFlG = document.Flooding?.ExperimentalFlG;
-        var nienowFlG = document.Flooding?.TheoreticalFlGNienow;
-
-        // Relative dispersion efficiency: how much more gas the impeller took before flooding than
-        // Nienow's Rushton correlation predicts. Above 1 it disperses better than the reference.
-        double? dispersionEfficiency = null;
-        if (experimentalFlG is > 0 && nienowFlG is > 0)
-        {
-            dispersionEfficiency = experimentalFlG.Value / nienowFlG.Value;
-        }
-
         return new ImpellerComparisonItem
         {
             SourceTestId = document.TestId,
@@ -111,11 +100,8 @@ public static class ImpellerComparisonBuilder
             LiquidDensityKgM3 = document.Fluid.DensityKgM3,
             TurbulentNpMean = plateau.HasFit ? plateau.PowerNumber : 0.0,
             TurbulentNpCi95 = plateau.HasFit ? plateau.PowerNumberCi95 : 0.0,
-            ExperimentalFloodingFlG = experimentalFlG,
-            NienowFloodingFlG = nienowFlG,
             AverageSpecificPowerWm3 = averageSpecificPower,
             ParasiticPowerZeroSpeedW = parasitic,
-            GasDispersionEfficiencyRatio = dispersionEfficiency,
             PowerRatioCurve = ratioCurve,
             PowerNumberReynoldsCurve = npReCurve,
         };
@@ -247,17 +233,14 @@ public static class ImpellerComparisonBuilder
 
         builder.AppendLine();
         builder.AppendLine(
-            "tabela;ensaio;tipo;D_m;D_T;Np_platou;Np_IC95;FlG_F_experimental;FlG_F_nienow;" +
-            "P_V_medio_W_m3;P_vazio_W;eficiencia_relativa_dispersao;data_utc");
+            "tabela;ensaio;tipo;D_m;D_T;Np_platou;Np_IC95;P_V_medio_W_m3;P_vazio_W;data_utc");
 
         foreach (var item in items)
         {
             builder.AppendLine(invariant,
                 $"benchmark;{Escape(item.TestName)};{item.ImpellerType};{item.ImpellerDiameterM:F4};" +
                 $"{item.DiameterRatioDt:F4};{item.TurbulentNpMean:F4};{item.TurbulentNpCi95:F4};" +
-                $"{Format(item.ExperimentalFloodingFlG)};{Format(item.NienowFloodingFlG)};" +
-                $"{Format(item.AverageSpecificPowerWm3)};{Format(item.ParasiticPowerZeroSpeedW)};" +
-                $"{Format(item.GasDispersionEfficiencyRatio)};{item.TestDateUtc:O}");
+                $"{Format(item.AverageSpecificPowerWm3)};{Format(item.ParasiticPowerZeroSpeedW)};{item.TestDateUtc:O}");
         }
 
         builder.AppendLine();

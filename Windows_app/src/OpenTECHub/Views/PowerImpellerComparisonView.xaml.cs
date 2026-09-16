@@ -105,9 +105,49 @@ public partial class PowerImpellerComparisonView : UserControl
 
     private void Redraw()
     {
+        RedrawSeriesKey();
         DrawNpReynolds();
         DrawPowerRatio();
         DrawSpecificPower();
+    }
+
+    private void RedrawSeriesKey()
+    {
+        SeriesKeyHost.Children.Clear();
+        var items = ViewModel?.Items ?? [];
+        var palette = new ScottPlot.Palettes.Category10();
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+            var color = palette.GetColor(index);
+            var label = string.IsNullOrWhiteSpace(item.ImpellerName)
+                ? item.ImpellerType.ToString()
+                : item.ImpellerName;
+            var swatch = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(0, 0, 4, 0),
+                Background = new SolidColorBrush(MediaColor.FromArgb(color.A, color.R, color.G, color.B)),
+            };
+            var text = new TextBlock
+            {
+                Text = $"{item.TestName} — {label}",
+                Foreground = TryBrush("TextSecondaryBrush") ?? Brushes.Gray,
+                FontSize = 11,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                ToolTip = item.TestName,
+            };
+            var entry = new StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                Margin = new Thickness(4, 2, 14, 2),
+            };
+            entry.Children.Add(swatch);
+            entry.Children.Add(text);
+            SeriesKeyHost.Children.Add(entry);
+        }
     }
 
     private void DrawNpReynolds()

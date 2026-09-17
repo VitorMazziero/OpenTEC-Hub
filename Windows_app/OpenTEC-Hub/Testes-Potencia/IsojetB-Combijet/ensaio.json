@@ -6,7 +6,7 @@
   "status": "Interrupted",
   "createdUtc": "2026-09-11T18:38:50.7397295+00:00",
   "startedUtc": "2026-09-11T19:31:14.0185095+00:00",
-  "lastModifiedUtc": "2026-09-17T00:39:09.5710196+00:00",
+  "lastModifiedUtc": "2026-09-17T00:41:53.2896796+00:00",
   "gasRig": {
     "airInletInput": "Input2"
   },
@@ -83,7 +83,7 @@
     "points": [
       {
         "rpm": 100,
-        "pVoidW": 0.37008938753002435,
+        "pVoidW": 0.27,
         "sigmaTauPercent": 0.44479548844236133,
         "sampleCount": 231,
         "meanRpmMeasured": 99.99480519480515,
@@ -272,7 +272,7 @@
     "impellerSetHash": "e9ed76b1e553df8307a076b6aed7929f819fd32fa1343836ecf30ef5fd9edf52",
     "measuredUtc": "2026-09-10T17:00:15.5728863+00:00",
     "profileName": "eixo_furo_duplo_2",
-    "rawSamplesFileName": "tara-20260910-170015.csv"
+    "rawSamplesFileName": "tara-20260910-170015_07.csv"
   },
   "relativeMode": true,
   "linkedMap": {

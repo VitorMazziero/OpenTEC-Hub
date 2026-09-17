@@ -65,7 +65,7 @@
         <!-- Main Content -->
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,12,16,12">
             <StackPanel>
-                <TextBlock Text="Critérios Estatísticos (Dois-Portões §12)" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock Text="Critérios Estatísticos" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <TextBlock Text="Controlam a identificação automática de regime permanente e parada estatística do ponto de ensaio."
                            Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10" />
 

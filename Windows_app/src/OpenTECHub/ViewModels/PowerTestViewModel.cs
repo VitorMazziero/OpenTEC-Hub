@@ -584,6 +584,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 var newPoints = SelectedTareProfilePoints.Select(ep => ep.ToRecord()).ToList();
                 var newCurve = curve with { Points = newPoints };
                 _store.SaveTareProfile(name, newCurve);
+
+                if (CurrentTest is not null &&
+                    string.Equals(CurrentTest.Tare?.ProfileName, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    CurrentTest.Tare = newCurve;
+                    _store.SaveTare(CurrentTest.FolderName, newCurve);
+                    _store.SaveTestManifest(CurrentTest);
+                    RefreshCurrentTarePoints();
+                    ReprocessScientificData();
+                }
             }
         }
     }
@@ -2692,6 +2702,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         // A nova curva recebe seu nome antes de qualquer comando ao eixo. Isso
         // evita medir uma tara sem destino e elimina a segunda ação ambígua de
         // "salvar nova tara" no cartão.
+        string? targetProfileName = null;
+        var exists = false;
         if (_dialogs is not null)
         {
             var initialName = CurrentTest?.Tare?.ProfileName ?? "";
@@ -2711,7 +2723,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            if (_store.ListTareProfiles().Any(p => string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase)) &&
+            exists = _store.ListTareProfiles().Any(p => string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase));
+            if (exists &&
                 !_dialogs.Confirm(
                     "Substituir perfil de tara",
                     $"Já existe um perfil chamado \"{profileName}\". Substituir a curva ao concluir a medição?",
@@ -2722,22 +2735,41 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            TareProfileName = profileName;
+            targetProfileName = profileName;
         }
 
         IsTareAssistantOpen = true;
         if (IsTareAssistantOpen)
         {
-            RefreshTareProfiles();
+            RefreshTareProfiles(targetProfileName);
 
-            TareProgressMessage = CurrentTest?.Tare is null
-                ? "Monte os impelidores no eixo e opere com o vaso no ar (seco)."
-                : $"Tara atual possui {CurrentTest.Tare.Points.Count} patamares ({TareStatus}).";
+            if (!string.IsNullOrWhiteSpace(targetProfileName))
+            {
+                SelectedTareProfile = TareProfiles.FirstOrDefault(
+                    p => string.Equals(p.Name, targetProfileName, StringComparison.OrdinalIgnoreCase));
+                TareProfileName = targetProfileName;
+                CurrentTarePoints.Clear();
+                TareProgressMessage = exists
+                    ? $"Perfil \"{targetProfileName}\" será substituído ao concluir a varredura. Clique em 'Iniciar ensaio no ar'."
+                    : $"Perfil \"{targetProfileName}\" preparado para varredura no ar (vaso seco). Clique em 'Iniciar ensaio no ar'.";
+            }
+            else
+            {
+                TareProgressMessage = CurrentTest?.Tare is null
+                    ? "Monte os impelidores no eixo e opere com o vaso no ar (seco)."
+                    : $"Tara atual possui {CurrentTest.Tare.Points.Count} patamares ({TareStatus}).";
+            }
         }
     }
 
     [RelayCommand]
-    private void CloseTareAssistant() => IsTareAssistantOpen = false;
+    private void CloseTareAssistant()
+    {
+        IsTareAssistantOpen = false;
+        RefreshCurrentTarePoints();
+        TareProfileName = CurrentTest?.Tare?.ProfileName ?? "";
+        RefreshTareProfiles(CurrentTest?.Tare?.ProfileName);
+    }
 
     [RelayCommand]
     private async Task StartTareSweepAsync()
@@ -2918,6 +2950,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             ValidationMessage = TareProgressMessage;
             OnPropertyChanged(nameof(TareStatus));
             OnPropertyChanged(nameof(ResultModeLabel));
+            ReprocessScientificData();
         }
         catch (OperationCanceledException)
         {
@@ -3070,9 +3103,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     // biblioteca guarda uma cópia nomeada que qualquer ensaio pode reaproveitar.
     // =========================================================================
 
-    private void RefreshTareProfiles()
+    private void RefreshTareProfiles(string? keepSelectedName = null)
     {
-        var previous = SelectedTareProfile?.Name ?? TareProfileName;
+        var previous = keepSelectedName ?? SelectedTareProfile?.Name ?? TareProfileName;
 
         TareProfiles.Clear();
         foreach (var profile in _store.ListTareProfiles())
@@ -3134,6 +3167,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             _store.SaveTestManifest(CurrentTest);
             RefreshCurrentTarePoints();
             NotifyDocumentState();
+            ReprocessScientificData();
         }
         catch (Exception ex) { ShowError($"Não foi possível retirar a tara: {ex.Message}"); }
     }
@@ -3182,6 +3216,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             ValidationMessage = TareProgressMessage;
             OnPropertyChanged(nameof(TareStatus));
             OnPropertyChanged(nameof(ResultModeLabel));
+            ReprocessScientificData();
         }
         catch (Exception ex)
         {

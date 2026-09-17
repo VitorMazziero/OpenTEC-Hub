@@ -1372,6 +1372,71 @@ public sealed class PowerTestRunnerTests
         Assert.Equal(PowerTestStatus.Interrupted, doc.Status);
     }
 
+    [Fact]
+    public async Task Samples_with_deviated_speed_or_flow_are_rejected_and_not_counted_in_capture()
+    {
+        using var h = new Harness();
+        var settings = FastSettings() with
+        {
+            SpeedToleranceRpm = 3,
+            PrestageFlowToleranceLpm = 0.2,
+            MinSamples = 6,
+            RelativeCiFraction = 0.5,
+        };
+        var doc = h.CreateDocument(settings, gasMode: PowerGasMode.Gassed);
+        doc.Conditions[0].GasFlowLpm = 4.0;
+        h.PushGas(0, 0, flowRate: 0.0, flowSetpoint: 0.0, valve1: 0, valve2: 0, valveMain: 1, commandId: 0, commandAck: 0, flowmeterOnline: true);
+
+        await h.Runner.StartTestAsync(doc);
+
+        // Prestage flow
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 1, valve2: 0, valveMain: 0, commandId: 1, commandAck: 1);
+        Assert.Equal(PowerRunPhase.OpeningGas, h.Runner.Phase);
+
+        // Open gas into reactor
+        h.PushGas(15, 0.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+
+        // Confirm speed
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        Assert.Equal(PowerRunPhase.SettlingTorque, h.Runner.Phase);
+
+        // Transition to accumulating
+        while (h.Runner.Phase == PowerRunPhase.SettlingTorque)
+        {
+            h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        }
+        Assert.Equal(PowerRunPhase.AccumulatingToTarget, h.Runner.Phase);
+
+        var dataPoints = new List<PowerDataPoint>();
+        h.Runner.DataPointAdded += pt => dataPoints.Add(pt);
+
+        // Push an isolated speed deviation sample
+        h.PushGas(350, 9.5, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        // Push an isolated flow deviation sample
+        h.PushGas(300, 8.5, flowRate: 1.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+
+        // Verify that the deviant samples were rejected (Counted == false)
+        var speedDeviant = dataPoints.FirstOrDefault(p => Math.Abs(p.RpmMeasured - 300) > 10);
+        Assert.NotNull(speedDeviant);
+        Assert.False(speedDeviant.Counted);
+
+        var flowDeviant = dataPoints.FirstOrDefault(p => p.FlowLpm is { } f && Math.Abs(f - 4.0) > 1.0);
+        Assert.NotNull(flowDeviant);
+        Assert.False(flowDeviant.Counted);
+
+        // Drive run to completion with valid samples (re-settling torque and accumulating)
+        while (h.Runner.Phase is PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget)
+        {
+            h.PushGas(300, 2.0, flowRate: 4.0, flowSetpoint: 4.0, valve1: 0, valve2: 1, valveMain: 0, commandId: 2, commandAck: 2);
+        }
+
+        // Final torque calculation must NOT contain the 9.5 or 8.5 deviations
+        Assert.Equal(2.0, h.Runner.CurrentRun!.MeanTorquePercent, 1);
+    }
+
     private static PowerTestSettings FastSettings() => new()
     {
         MinRpm = 15,

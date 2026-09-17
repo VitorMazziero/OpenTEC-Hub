@@ -124,4 +124,41 @@ public sealed class PowerTareCaptureControllerTests
         Assert.Contains(capture.Samples, sample => sample.Attempt == 2);
         Assert.Equal(PowerStopReason.NotConverged, capture.Result().StopReason);
     }
+
+    [Fact]
+    public void Speed_deviation_during_tare_is_rejected_and_not_counted()
+    {
+        var settings = new PowerTestSettings
+        {
+            SpeedToleranceRpm = 2,
+            SpeedStableSamples = 1,
+            StationarityWindowSeconds = 0.5,
+            StationarityRequiredSamples = 1,
+            StationaritySlopeTolerancePercentPerSecond = 100,
+            MinSamples = 5,
+            RelativeCiFraction = 0.01,
+            MaxCaptureSeconds = 30,
+        };
+        var capture = new PowerTareCaptureController(settings, 300);
+        var t = 0.0;
+        while (capture.State != TareCaptureState.Accumulating)
+        {
+            t += 0.25;
+            capture.Add(DateTimeOffset.UnixEpoch.AddSeconds(t), t, 1.2, 300);
+        }
+        Assert.Equal(TareCaptureState.Accumulating, capture.State);
+
+        t += 0.25;
+        capture.Add(DateTimeOffset.UnixEpoch.AddSeconds(t), t, 1.2, 300); // In tolerance, counted
+        t += 0.25;
+        capture.Add(DateTimeOffset.UnixEpoch.AddSeconds(t), t, 9.9, 350); // Speed excursion! Rejected
+        t += 0.25;
+        capture.Add(DateTimeOffset.UnixEpoch.AddSeconds(t), t, 1.2, 300); // In tolerance, counted
+
+        var rejected = capture.Samples.FirstOrDefault(s => Math.Abs(s.TargetRpm - s.MeasuredRpm) > 10);
+        Assert.NotNull(rejected);
+        Assert.False(rejected.Counted);
+        // The mean torque must be close to 1.2, completely unaffected by the 9.9 excursion
+        Assert.True(capture.CurrentMeanTorquePercent < 1.5, $"Mean torque was corrupted: {capture.CurrentMeanTorquePercent}");
+    }
 }

@@ -52,6 +52,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private double _currentRpm;
     private double _currentTorquePercent;
     private int _speedStableCount;
+    private int _consecutiveOutCount;
     private int _commandedRpm;
     private bool _disposed;
     private (double Flow, bool V1, bool V2, bool VFlow)? _targetGasState;
@@ -725,6 +726,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
         condition.Status = PowerConditionStatus.InProgress;
         _runPoints.Clear();
         _speedStableCount = 0;
+        _consecutiveOutCount = 0;
         _ventFlowStableCount = 0;
         _ventFlowDeviation = null;
         _pairedUngassedP0W = null;
@@ -1161,6 +1163,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
             if (SpeedIsConfirmed(snapshot.ServoRpm, _commandedRpm))
             {
                 _capture?.Reset();
+                _consecutiveOutCount = 0;
                 SetPhase(PowerRunPhase.SettlingTorque, "Rotação medida confirmada; aguardando estacionariedade do torque.");
             }
             else if (PhaseElapsedSeconds >= _currentTest.Settings.MaxSpeedSettlingSeconds)
@@ -1175,6 +1178,26 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
         if (_phase is PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget)
         {
+            var inTolerance = IsSampleInTolerance(snapshot, out var rejectionReason);
+            if (!inTolerance)
+            {
+                AppendSample(snapshot, now, counted: false);
+                _consecutiveOutCount++;
+
+                if (_consecutiveOutCount >= _currentTest.Settings.SpeedStableSamples &&
+                    _phase == PowerRunPhase.AccumulatingToTarget)
+                {
+                    _capture?.Reset();
+                    SetPhase(PowerRunPhase.SettlingTorque,
+                        $"Condição de rotação/vazão desviou ({rejectionReason}); reiniciando estabilização do torque.");
+                    LogEvent("RunStabilityLost", rejectionReason ?? "Rotação ou vazão fora da tolerância.");
+                }
+
+                RaiseStateChanged();
+                return;
+            }
+
+            _consecutiveOutCount = 0;
             var counted = _phase == PowerRunPhase.AccumulatingToTarget;
             var priorCaptureState = _capture!.State;
             _capture.Add(now, snapshot.ServoTorquePct, snapshot.ServoRpm);
@@ -1584,6 +1607,45 @@ public sealed class PowerTestRunner : IPowerTestRunner
             _speedStableCount = 0;
         }
         return _speedStableCount >= _currentTest.Settings.SpeedStableSamples;
+    }
+
+    private bool IsSampleInTolerance(SensorSnapshot snapshot, out string? rejectionReason)
+    {
+        if (_currentTest is null || _currentRun is null)
+        {
+            rejectionReason = "Sem ensaio ou corrida ativa";
+            return false;
+        }
+
+        var speedError = Math.Abs(snapshot.ServoRpm - _commandedRpm);
+        if (speedError > _currentTest.Settings.SpeedToleranceRpm)
+        {
+            rejectionReason = FormattableString.Invariant(
+                $"Rotação fora da tolerância: {snapshot.ServoRpm:F1} rpm (alvo {_commandedRpm:F1} ± {_currentTest.Settings.SpeedToleranceRpm:F1} rpm, erro {speedError:F1} rpm)");
+            return false;
+        }
+
+        if (_currentRun.GasMode == PowerGasMode.Gassed)
+        {
+            var targetFlow = _currentCondition?.GasFlowLpm ?? 0.0;
+            if (!snapshot.FlowmeterOnline || !double.IsFinite(snapshot.FlowRate))
+            {
+                rejectionReason = "Fluxômetro offline ou leitura de vazão indefinida";
+                return false;
+            }
+
+            var flowError = Math.Abs(snapshot.FlowRate - targetFlow);
+            var flowTol = _currentTest.Settings.PrestageFlowToleranceLpm;
+            if (flowError > flowTol)
+            {
+                rejectionReason = FormattableString.Invariant(
+                    $"Vazão de gás fora da tolerância: {snapshot.FlowRate:F2} L/min (alvo {targetFlow:F2} ± {flowTol:F2} L/min, erro {flowError:F2} L/min)");
+                return false;
+            }
+        }
+
+        rejectionReason = null;
+        return true;
     }
 
     private void UpdateReplicateAgreement(PowerCondition condition)

@@ -25,6 +25,7 @@ public sealed class PowerTareCaptureController
     private readonly PowerCaptureController _capture;
     private readonly double _startedSeconds;
     private int _speedStableCount;
+    private int _consecutiveSpeedDeviations;
     private double _lastSeconds;
 
     public PowerTareCaptureController(PowerTestSettings settings, double targetRpm, double startedSeconds = 0)
@@ -83,7 +84,8 @@ public sealed class PowerTareCaptureController
             TareCaptureState.StabilizingTorque => TareCapturePhase.StabilizingTorque,
             _ => TareCapturePhase.Accumulating,
         };
-        var counted = State == TareCaptureState.Accumulating;
+        var speedInTol = Math.Abs(rpm - TargetRpm) <= _settings.SpeedToleranceRpm;
+        var counted = State == TareCaptureState.Accumulating && speedInTol;
         Samples.Add(new TareSample(
             timestampUtc,
             Math.Max(0, monotonicSeconds - _startedSeconds),
@@ -96,10 +98,20 @@ public sealed class PowerTareCaptureController
 
         if (State == TareCaptureState.StabilizingSpeed)
         {
-            _speedStableCount = Math.Abs(rpm - TargetRpm) <= _settings.SpeedToleranceRpm
-                ? _speedStableCount + 1
-                : 0;
+            _speedStableCount = speedInTol ? _speedStableCount + 1 : 0;
             if (_speedStableCount >= _settings.SpeedStableSamples)
+            {
+                _capture.Reset();
+                _consecutiveSpeedDeviations = 0;
+                State = TareCaptureState.StabilizingTorque;
+            }
+            return;
+        }
+
+        if (!speedInTol)
+        {
+            _consecutiveSpeedDeviations++;
+            if (_consecutiveSpeedDeviations >= _settings.SpeedStableSamples && State == TareCaptureState.Accumulating)
             {
                 _capture.Reset();
                 State = TareCaptureState.StabilizingTorque;
@@ -107,6 +119,7 @@ public sealed class PowerTareCaptureController
             return;
         }
 
+        _consecutiveSpeedDeviations = 0;
         _capture.Add(monotonicSeconds, torquePercent, rpm);
         if (_capture.State == CaptureState.Accumulating)
         {

@@ -677,6 +677,127 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.Equal(runRejected200_2.RunId, vm.Results[4].RunId);        // Rejected, 200 rpm, Qg = 2
     }
 
+    [Fact]
+    public void Applying_or_modifying_tare_profile_triggers_reprocess_of_scientific_data()
+    {
+        var doc = _store.CreateTest(
+            "test-reprocess-tare-" + Guid.NewGuid().ToString("N"),
+            new FluidProperties { DensityKgM3 = 998, ViscosityPaS = 0.001 },
+            new PowerGeometry
+            {
+                Impellers = [new Impeller { DiameterM = 0.06 }],
+                VesselDiameterM = 0.20,
+                LiquidVolumeM3 = 0.010,
+            },
+            new PowerTestSettings(),
+            [new PowerCondition { AgitationRpm = 300, GasMode = PowerGasMode.Ungassed }]);
+
+        var run = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+            AgitationRpm = 300,
+            GasMode = PowerGasMode.Ungassed,
+            Phase = PowerRunPhase.Accepted,
+            MeanTorquePercent = 10.0,
+            MeanShaftPowerW = 2.0,
+            NetPowerW = 2.0,
+            SampleCount = 10,
+        };
+        doc.Runs.Add(run);
+        _store.SaveTestManifest(doc);
+
+        var tareCurve = new TareCurve
+        {
+            ProfileName = "perfil_novo_tara",
+            Points = [new TarePoint(300, 0.35, 0.01) { SampleCount = 10, MeanRpmMeasured = 300, Attempts = 1 }],
+            ImpellerSetHash = "test-hash",
+        };
+        _store.SaveTareProfile("perfil_novo_tara", tareCurve);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        // Apply tare profile
+        vm.SelectedTareProfile = vm.TareProfiles.First(p => p.Name == "perfil_novo_tara");
+        vm.ApplyTareProfileCommand.Execute(null);
+
+        Assert.Equal("perfil_novo_tara", vm.CurrentTest!.Tare?.ProfileName);
+        // Net power should now be shaft power (2.0) - pvoid (0.35) = 1.65 W
+        var reloaded = _store.LoadTest(doc.FolderName);
+        Assert.NotNull(reloaded?.Tare);
+        Assert.Equal("perfil_novo_tara", reloaded.Tare.ProfileName);
+
+        // Now modify a point in the active tare profile
+        Assert.NotEmpty(vm.SelectedTareProfilePoints);
+        vm.SelectedTareProfilePoints[0].PVoidW = 0.50;
+
+        // Manifest and active tare should have updated automatically
+        Assert.Equal(0.50, vm.CurrentTest!.Tare!.Points[0].PVoidW);
+        var reloadedAfterEdit = _store.LoadTest(doc.FolderName);
+        Assert.Equal(0.50, reloadedAfterEdit!.Tare!.Points[0].PVoidW);
+    }
+
+    [Fact]
+    public void TareMeasurementInfo_preserves_new_profile_name_and_clears_points_table()
+    {
+        var doc = _store.CreateTest(
+            "test-tare-measure-" + Guid.NewGuid().ToString("N"),
+            new FluidProperties(),
+            new PowerGeometry(),
+            new PowerTestSettings(),
+            [new PowerCondition { AgitationRpm = 300 }]);
+
+        var existingTare = new TareCurve
+        {
+            ProfileName = "eixo_furo_duplo_2",
+            Points = [new TarePoint(100, 0.1, 0.01) { SampleCount = 10, MeanRpmMeasured = 100, Attempts = 1 }, new TarePoint(200, 0.2, 0.01) { SampleCount = 10, MeanRpmMeasured = 200, Attempts = 1 }],
+        };
+        _store.SaveTare(doc.FolderName, existingTare);
+        _store.SaveTareProfile("eixo_furo_duplo_2", existingTare);
+        doc.Tare = existingTare;
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var dialogs = new PromptingDialogService("eixo_furo_duplo_3");
+        var vm = new PowerTestViewModel(_store, device, arbiter, runner: null, dialogs);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        Assert.Equal(2, vm.CurrentTarePoints.Count);
+        Assert.Equal("eixo_furo_duplo_2", vm.SelectedTareProfile?.Name);
+
+        // Operator asks to measure new tare "eixo_furo_duplo_3"
+        vm.TareMeasurementInfoCommand.Execute(null);
+
+        Assert.True(vm.IsTareAssistantOpen);
+        Assert.Equal("eixo_furo_duplo_3", vm.TareProfileName);
+        Assert.Null(vm.SelectedTareProfile);
+        Assert.Empty(vm.CurrentTarePoints);
+
+        // Closing without running restores previous tare points
+        vm.CloseTareAssistantCommand.Execute(null);
+        Assert.False(vm.IsTareAssistantOpen);
+        Assert.Equal(2, vm.CurrentTarePoints.Count);
+        Assert.Equal("eixo_furo_duplo_2", vm.SelectedTareProfile?.Name);
+    }
+
+    private sealed class PromptingDialogService(string response) : Services.Dialogs.IDialogService
+    {
+        public bool ConfirmDestructive(string title, string consequence, string exactCommand) => true;
+        public bool Confirm(string title, string message, string confirmText = "Confirmar", string cancelText = "Cancelar", bool isDanger = false) => true;
+        public bool PromptInput(string title, string message, out string resp, string initialValue = "")
+        {
+            resp = response;
+            return true;
+        }
+        public Services.Dialogs.RecipeStartOption PromptRecipeStart(string recipeName) => Services.Dialogs.RecipeStartOption.Cancel;
+    }
+
     private sealed class TestDeviceService : IDeviceService
     {
         public ConnectionState State => ConnectionState.Connected;

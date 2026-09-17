@@ -561,12 +561,18 @@
                                     <!-- Perfil existente na biblioteca -->
                                     <TextBlock Text="Perfil existente:" Style="{StaticResource PowerLabel}" Margin="0,2,0,2" />
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                         <ComboBox Grid.Column="0" ItemsSource="{Binding TareProfiles}" SelectedItem="{Binding SelectedTareProfile}" DisplayMemberPath="Name" ToolTip="Selecione um perfil de tara arquivado" />
                                         <Button Grid.Column="2" Content="Usar no ensaio" Padding="8,4" Command="{Binding ApplyTareProfileCommand}"
                                                 IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}"
                                                 ToolTip="Usa a curva arquivada deste eixo no ensaio aberto, sem repetir a varredura no ar" />
-                                        <Button Grid.Column="4" Content="Excluir" Padding="8,4" Command="{Binding DeleteTareProfileCommand}"
+                                    </Grid>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Renomear" Padding="8,3" Command="{Binding RenameTareProfileCommand}"
+                                                IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}"
+                                                ToolTip="Renomeia o perfil de tara selecionado na biblioteca" />
+                                        <Button Grid.Column="2" Content="Excluir" Padding="8,3" Command="{Binding DeleteTareProfileCommand}"
                                                 IsEnabled="{Binding IsTareRunning, Converter={StaticResource InverseBool}}"
                                                 ToolTip="Exclui o perfil selecionado da biblioteca de taras" />
                                     </Grid>
@@ -896,11 +902,8 @@
                                     <DataGridTextColumn Header="Torque (N·m)" Binding="{Binding NetTorque}" SortMemberPath="NetTorqueNm" Width="98" />
                                     <DataGridTextColumn Header="Potência (W)" Binding="{Binding Power}" SortMemberPath="NetPowerW" Width="94" />
                                     <DataGridTextColumn Header="PG/P₀ ± IC" Binding="{Binding PowerRatio}" SortMemberPath="Ratio" Width="110" />
-                                    <DataGridTextColumn Header="Np" Binding="{Binding Np}" SortMemberPath="PowerNumber" Width="66" />
-                                    <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" SortMemberPath="PowerNumberCi95" Width="72" />
+                                    <DataGridTextColumn Header="Np ± IC" Binding="{Binding Np}" SortMemberPath="PowerNumber" Width="110" />
                                     <DataGridTextColumn Header="Re" Binding="{Binding Re}" SortMemberPath="ReynoldsNumber" Width="80" />
-                                    <DataGridTextColumn Header="Fl" Binding="{Binding FlG}" SortMemberPath="AerationNumber" Width="75" />
-                                    <DataGridTextColumn Header="Fr" Binding="{Binding Fr}" SortMemberPath="FroudeNumber" Width="68" />
                                     <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" SortMemberPath="StopReason" Width="125" />
                                     <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="48" />
                                     <DataGridTemplateColumn Header="Status" SortMemberPath="SortPhasePriority" Width="115">

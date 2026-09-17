@@ -61,6 +61,9 @@ public interface IPowerTestStore
     /// <summary>Removes a filed profile. Returns false when there was nothing to remove.</summary>
     bool DeleteTareProfile(string profileName);
 
+    /// <summary>Renames a filed profile from <paramref name="oldProfileName"/> to <paramref name="newProfileName"/>.</summary>
+    void RenameTareProfile(string oldProfileName, string newProfileName);
+
     // ---- Raw tare readings ---------------------------------------------------
     // Written while the sweep runs, so a sweep that never converges still leaves its
     // measurements on disk. One file per sweep: a retry never overwrites an earlier attempt.

@@ -663,6 +663,52 @@ public sealed class PowerTestStore : IPowerTestStore
         }
     }
 
+    public void RenameTareProfile(string oldProfileName, string newProfileName)
+    {
+        if (!PowerTestFileContracts.ValidateTareProfileName(oldProfileName, out var oldError))
+        {
+            throw new ArgumentException(oldError ?? "Nome atual do perfil de tara inválido.", nameof(oldProfileName));
+        }
+        if (!PowerTestFileContracts.ValidateTareProfileName(newProfileName, out var newError))
+        {
+            throw new ArgumentException(newError ?? "Novo nome do perfil de tara inválido.", nameof(newProfileName));
+        }
+
+        var trimmedOld = oldProfileName.Trim();
+        var trimmedNew = newProfileName.Trim();
+
+        lock (_ioLock)
+        {
+            _writer.Flush();
+            var oldPath = Path.Combine(
+                TareProfilesDirectory, PowerTestFileContracts.TareProfileFileName(trimmedOld));
+            if (!File.Exists(oldPath))
+            {
+                throw new FileNotFoundException($"O perfil de tara \"{trimmedOld}\" não foi encontrado.", oldPath);
+            }
+
+            var newPath = Path.Combine(
+                TareProfilesDirectory, PowerTestFileContracts.TareProfileFileName(trimmedNew));
+            if (!string.Equals(trimmedOld, trimmedNew, StringComparison.OrdinalIgnoreCase) && File.Exists(newPath))
+            {
+                throw new InvalidOperationException($"Já existe um perfil de tara chamado \"{trimmedNew}\".");
+            }
+
+            var curve = LoadTareProfile(trimmedOld);
+            if (curve is null)
+            {
+                throw new InvalidOperationException($"Não foi possível carregar a curva de tara do perfil \"{trimmedOld}\".");
+            }
+
+            var updated = curve with { ProfileName = trimmedNew };
+            WriteAllTextAtomic(newPath, PowerTestFileContracts.SerializeTare(updated));
+            if (!string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(oldPath);
+            }
+        }
+    }
+
     public void SaveCalibration(string testFolderName, TorqueCalibration calibration)
     {
         lock (_ioLock)

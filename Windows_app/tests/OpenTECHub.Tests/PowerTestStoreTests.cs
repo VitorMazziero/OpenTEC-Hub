@@ -645,6 +645,25 @@ public sealed class PowerTestStoreTests : IDisposable
     }
 
     [Fact]
+    public void Renaming_A_Tare_Profile_Updates_Profile_File_And_Name()
+    {
+        _store.SaveTareProfile("eixo_furo_antigo", TareOf(300, 0.61));
+
+        _store.RenameTareProfile("eixo_furo_antigo", "eixo_furo_renomeado");
+
+        Assert.Null(_store.LoadTareProfile("eixo_furo_antigo"));
+        var curve = _store.LoadTareProfile("eixo_furo_renomeado");
+        Assert.NotNull(curve);
+        Assert.Equal("eixo_furo_renomeado", curve.ProfileName);
+        Assert.Equal(0.61, curve.Points[0].PVoidW, 4);
+
+        // Renaming to an existing name throws InvalidOperationException
+        _store.SaveTareProfile("eixo_furo_outro", TareOf(300, 0.80));
+        Assert.Throws<InvalidOperationException>(() =>
+            _store.RenameTareProfile("eixo_furo_renomeado", "eixo_furo_outro"));
+    }
+
+    [Fact]
     public void Tare_Profile_Library_Is_Not_Listed_Or_Claimable_As_An_Assay()
     {
         _store.SaveTareProfile("eixo_furo_unico", TareOf(300, 0.61));

@@ -786,6 +786,68 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.Equal("eixo_furo_duplo_2", vm.SelectedTareProfile?.Name);
     }
 
+    [Fact]
+    public void RenameTareProfile_prompts_dialog_and_updates_store_and_test()
+    {
+        var doc = _store.CreateTest(
+            "test-tare-rename-" + Guid.NewGuid().ToString("N"),
+            new FluidProperties(),
+            new PowerGeometry(),
+            new PowerTestSettings(),
+            [new PowerCondition { AgitationRpm = 300 }]);
+
+        var existingTare = new TareCurve
+        {
+            ProfileName = "eixo_original",
+            Points = [new TarePoint(100, 0.1, 0.01) { SampleCount = 10, MeanRpmMeasured = 100, Attempts = 1 }],
+        };
+        _store.SaveTareProfile("eixo_original", existingTare);
+        _store.SaveTare(doc.FolderName, existingTare);
+        doc.Tare = existingTare;
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var dialogs = new PromptingDialogService("eixo_novo_nome");
+        var vm = new PowerTestViewModel(_store, device, arbiter, runner: null, dialogs);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        vm.SelectedTareProfile = vm.TareProfiles.First(p => p.Name == "eixo_original");
+        vm.RenameTareProfileCommand.Execute(null);
+
+        Assert.Equal("eixo_novo_nome", vm.SelectedTareProfile?.Name);
+        Assert.Equal("eixo_novo_nome", vm.TareProfileName);
+        Assert.Equal("eixo_novo_nome", vm.CurrentTest!.Tare?.ProfileName);
+
+        // Store verification
+        Assert.Null(_store.LoadTareProfile("eixo_original"));
+        Assert.NotNull(_store.LoadTareProfile("eixo_novo_nome"));
+        var reloaded = _store.LoadTest(doc.FolderName);
+        Assert.Equal("eixo_novo_nome", reloaded!.Tare!.ProfileName);
+    }
+
+    [Fact]
+    public void PowerResultRow_formats_Np_with_confidence_interval()
+    {
+        var run = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            MeanRpmMeasured = 300,
+            StartedUtc = DateTimeOffset.UtcNow,
+            Analysis = new PowerPointResult
+            {
+                AssemblyPowerNumber = 1.25,
+                AssemblyPowerNumberCi95 = 0.04,
+                AssemblyReynoldsNumber = 25000,
+            },
+        };
+
+        var row = PowerResultRow.From(run);
+        Assert.Contains("±", row.Np);
+        Assert.Equal($"{(1.25).ToString("G5", System.Globalization.CultureInfo.CurrentCulture)} ± {(0.04).ToString("G4", System.Globalization.CultureInfo.CurrentCulture)}", row.Np);
+    }
+
     private sealed class PromptingDialogService(string response) : Services.Dialogs.IDialogService
     {
         public bool ConfirmDestructive(string title, string consequence, string exactCommand) => true;

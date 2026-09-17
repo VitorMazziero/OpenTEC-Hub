@@ -3259,6 +3259,58 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
     }
 
+    [RelayCommand]
+    private void RenameTareProfile()
+    {
+        if (SelectedTareProfile is not { } selected)
+        {
+            ShowError("Escolha um perfil de tara para renomear.");
+            return;
+        }
+
+        if (_dialogs is null ||
+            !_dialogs.PromptInput(
+                "Renomear perfil de tara",
+                "Novo nome do perfil de tara:",
+                out var newName,
+                selected.Name))
+        {
+            return;
+        }
+
+        var trimmedNew = newName?.Trim() ?? "";
+        if (!PowerTestFileContracts.ValidateTareProfileName(trimmedNew, out var error))
+        {
+            ShowError(error ?? "Nome de perfil de tara inválido.");
+            return;
+        }
+
+        try
+        {
+            _store.RenameTareProfile(selected.Name, trimmedNew);
+
+            // Se o ensaio aberto estiver usando este perfil de tara, atualize também o nome da tara no ensaio
+            if (CurrentTest?.Tare is not null &&
+                string.Equals(CurrentTest.Tare.ProfileName, selected.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentTest.Tare = CurrentTest.Tare with { ProfileName = trimmedNew };
+                _store.SaveTare(CurrentTest.FolderName, CurrentTest.Tare);
+                _store.SaveTestManifest(CurrentTest);
+            }
+
+            TareProfileName = trimmedNew;
+            RefreshTareProfiles(trimmedNew);
+            RefreshCurrentTarePoints();
+            TareProgressMessage = $"Perfil de tara renomeado de \"{selected.Name}\" para \"{trimmedNew}\".";
+            ValidationMessage = TareProgressMessage;
+            OnPropertyChanged(nameof(TareStatus));
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Não foi possível renomear o perfil de tara: {ex.Message}");
+        }
+    }
+
     // =========================================================================
     // 8.3 Ponto único (conferência rápida)
     // =========================================================================
@@ -4487,6 +4539,14 @@ public sealed record PowerResultRow
                 : pr.ToString("F3", CultureInfo.CurrentCulture);
         }
 
+        var npText = "—";
+        if (analysis?.AssemblyPowerNumber is { } assemblyNp && double.IsFinite(assemblyNp))
+        {
+            npText = analysis.AssemblyPowerNumberCi95 is { } assemblyNpCi && double.IsFinite(assemblyNpCi) && assemblyNpCi > 0
+                ? $"{assemblyNp.ToString("G5", CultureInfo.CurrentCulture)} ± {assemblyNpCi.ToString("G4", CultureInfo.CurrentCulture)}"
+                : assemblyNp.ToString("G5", CultureInfo.CurrentCulture);
+        }
+
         return new PowerResultRow
         {
             RunId = run.RunId,
@@ -4495,7 +4555,7 @@ public sealed record PowerResultRow
                 ? netPower / PowerCalc.AngularVelocity(run.MeanRpmMeasured)
                 : null, "F5"),
             Power = F(run.NetPowerW, "F4"),
-            Np = F(analysis?.AssemblyPowerNumber, "G5"),
+            Np = npText,
             Re = F(analysis?.AssemblyReynoldsNumber, "G5"),
             Ci = F(analysis?.AssemblyPowerNumberCi95, "G4"),
             StopReason = StopReasonText(run.StopReason),

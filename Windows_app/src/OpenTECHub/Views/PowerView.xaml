@@ -153,7 +153,8 @@
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </Border>
                             <Border Margin="7,0,0,0" Padding="8,2" CornerRadius="4"
-                                    Background="{DynamicResource StateWarningBrush}"
+                                    Background="{DynamicResource SurfaceSunkenBrush}"
+                                    BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1"
                                     Visibility="{Binding MapViewModel.IsSurfaceStale, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="Malha desatualizada — reconstrua" FontSize="11" FontWeight="Bold"
                                            Foreground="{DynamicResource StateWarningTextBrush}" />
@@ -573,6 +574,24 @@
                                     <TextBlock Margin="0,6,0,0" Text="Uma nova medição é arquivada automaticamente com o nome informado antes do ensaio." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
+
+                            <DataGrid Height="140" Margin="0,4,0,0" ItemsSource="{Binding SelectedTareProfilePoints}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
+                                <DataGrid.Style>
+                                    <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedTareProfilePoints.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm, UpdateSourceTrigger=PropertyChanged}" Width="Auto" MinWidth="46" />
+                                    <DataGridTextColumn Header="P vaz (W)" Binding="{Binding PVoidW, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:F3}}" Width="*" MinWidth="46" />
+                                    <DataGridTextColumn Header="στ %" Binding="{Binding SigmaTauPercent, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:F3}}" Width="*" MinWidth="40" />
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </StackPanel>
                     </Border>
 
@@ -870,23 +889,21 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            <DataGrid Grid.Row="2" Margin="0,8,0,0" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto">
+                            <DataGrid x:Name="ResultsDataGrid" Grid.Row="2" Margin="0,8,0,0" Height="220" ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" Sorting="ResultsDataGrid_Sorting" Loaded="ResultsDataGrid_Loaded">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" Width="62" />
-                                    <DataGridTextColumn Header="τ líqu. (N·m)" Binding="{Binding NetTorque}" Width="82" />
-                                    <DataGridTextColumn Header="P líqu. (W)" Binding="{Binding Power}" Width="74" />
-                                    <DataGridTextColumn Header="Np" Binding="{Binding Np}" Width="64" />
-                                    <DataGridTextColumn Header="Re" Binding="{Binding Re}" Width="74" />
-                                    <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" Width="68" />
-                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm}" Width="72" />
-                                    <DataGridTextColumn Header="Fl_G" Binding="{Binding FlG}" Width="64" />
-                                    <DataGridTextColumn Header="Fr" Binding="{Binding Fr}" Width="64" />
-                                    <DataGridTextColumn Header="PG (W)" Binding="{Binding PgLiquid}" Width="70" />
-                                    <DataGridTextColumn Header="P₀ ref (W)" Binding="{Binding P0Ref}" Width="74" />
-                                    <DataGridTextColumn Header="PG/P₀ ± IC" Binding="{Binding PowerRatio}" Width="92" />
-                                    <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" Width="80" />
+                                    <DataGridTextColumn Header="N (rpm)" Binding="{Binding Rpm}" SortMemberPath="MeanRpm" Width="68" />
+                                    <DataGridTextColumn Header="Qg (L/min)" Binding="{Binding GasFlowLpm}" SortMemberPath="GasFlowLpmNumber" Width="80" />
+                                    <DataGridTextColumn Header="Torque (N·m)" Binding="{Binding NetTorque}" SortMemberPath="NetTorqueNm" Width="98" />
+                                    <DataGridTextColumn Header="Potência (W)" Binding="{Binding Power}" SortMemberPath="NetPowerW" Width="94" />
+                                    <DataGridTextColumn Header="PG/P₀ ± IC" Binding="{Binding PowerRatio}" SortMemberPath="Ratio" Width="110" />
+                                    <DataGridTextColumn Header="Np" Binding="{Binding Np}" SortMemberPath="PowerNumber" Width="66" />
+                                    <DataGridTextColumn Header="IC95 Np" Binding="{Binding Ci}" SortMemberPath="PowerNumberCi95" Width="72" />
+                                    <DataGridTextColumn Header="Re" Binding="{Binding Re}" SortMemberPath="ReynoldsNumber" Width="80" />
+                                    <DataGridTextColumn Header="Fl" Binding="{Binding FlG}" SortMemberPath="AerationNumber" Width="75" />
+                                    <DataGridTextColumn Header="Fr" Binding="{Binding Fr}" SortMemberPath="FroudeNumber" Width="68" />
+                                    <DataGridTextColumn Header="Parada" Binding="{Binding StopReason}" SortMemberPath="StopReason" Width="125" />
                                     <DataGridTextColumn Header="Tent." Binding="{Binding Attempts}" Width="48" />
-                                    <DataGridTemplateColumn Header="Status" Width="110">
+                                    <DataGridTemplateColumn Header="Status" SortMemberPath="SortPhasePriority" Width="115">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -908,7 +925,7 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="Ação" Width="110">
+                                    <DataGridTemplateColumn Header="Ação" Width="105">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Button Content="Mudar status" Padding="6,2" Command="{Binding DataContext.CycleResultStatusCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -917,6 +934,7 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Data e Hora" Binding="{Binding Timestamp}" SortMemberPath="SortTimestamp" Width="145" />
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>

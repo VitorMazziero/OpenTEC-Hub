@@ -66,6 +66,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
     private double? _pairedUngassedP0W;
     private double? _pairedUngassedP0Ci95W;
     private bool _isSubphase2Both;
+    private double _linkRecoveryStartMonotonic;
+    private double _linkRestoredStableStartMonotonic;
 
     public PowerTestRunner(
         IDeviceService device,
@@ -123,6 +125,7 @@ public sealed class PowerTestRunner : IPowerTestRunner
     public bool IsInReview => _phase == PowerRunPhase.Reviewing;
     public bool IsPausedByOperator => _phase == PowerRunPhase.PausedByOperator;
     public bool IsPausedForMeasurement => _phase == PowerRunPhase.PausedForMeasurement;
+    public bool IsPausedForLinkRecovery => _phase == PowerRunPhase.PausedForLinkRecovery;
     public double CurrentRpm => _currentRpm;
     public double CurrentTorquePercent => _currentTorquePercent;
     public double CurrentTorqueCi95Percent => _capture?.CurrentTorqueCi95Percent ?? 0.0;
@@ -403,6 +406,73 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
         catch (InvalidOperationException)
         {
+            return false;
+        }
+    }
+
+    public Task ResumeAfterLinkRecoveryAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_phase != PowerRunPhase.PausedForLinkRecovery || _currentTest is null ||
+            _currentRun is null || _currentCondition is null)
+        {
+            throw new InvalidOperationException("Nenhum ensaio está pausado aguardando reconexão.");
+        }
+        if (_device.State != ConnectionState.Connected)
+        {
+            throw new InvalidOperationException("O Hub ainda não está conectado.");
+        }
+        if (_device.Latest is not { } latest || !HasValidServoMeasurement(latest) ||
+            GetMonotonicSeconds() - _lastValidServoMonotonic > _currentTest.Settings.MeasurementTimeoutSeconds)
+        {
+            throw new InvalidOperationException("A medida do servo ainda não voltou de forma válida.");
+        }
+        var needsGas = _currentRun.GasMode is PowerGasMode.Gassed or PowerGasMode.Both;
+        var ownsGas = needsGas || HasOpenGasPath(latest);
+        if (_currentRun.GasMode == PowerGasMode.Gassed && (!latest.FlowmeterOnline || !double.IsFinite(latest.FlowRate)))
+        {
+            throw new InvalidOperationException("A medida do fluxômetro ainda não voltou de forma válida.");
+        }
+
+        var actuators = ownsGas ? GassedActuators : Phase1Actuators;
+        _arbiter.Claim(CommandOwner.PowerAssay, actuators, $"Retomada após reconexão: {_currentRun.FolderName}");
+        if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.PowerAssay ||
+            (ownsGas && _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.PowerAssay))
+        {
+            throw new InvalidOperationException("Falha ao reaver a posse dos atuadores junto ao árbitro.");
+        }
+
+        if (_capture is null)
+        {
+            throw new InvalidOperationException("O controlador da captura não está disponível.");
+        }
+        _speedStableCount = 0;
+        _ventFlowStableCount = 0;
+        _capture.Reset();
+        if (_currentRun.GasMode == PowerGasMode.Gassed && _currentCondition.GasFlowLpm is { } flow)
+        {
+            StartGassedSequence(flow);
+        }
+        else
+        {
+            SetPhase(PowerRunPhase.SettingSpeed, "Conexão restabelecida; reaproximando a rotação antes de recapturar.");
+            DispatchMotorOrFault(_commandedRpm, "retomar a rotação");
+        }
+        LogEvent("LinkRecoveryResumed", "Conexão restabelecida e posse de atuadores recuperada; ensaio retomado.");
+        return Task.CompletedTask;
+    }
+
+    private bool TryResumeAfterLinkRecovery()
+    {
+        try
+        {
+            ResumeAfterLinkRecoveryAsync().GetAwaiter().GetResult();
+            LogEvent("LinkRecoveryAutoResumed", "Retomada automática pós-reconexão realizada com sucesso.");
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            LogEvent("LinkRecoveryAutoResumeFailed", ex.Message);
             return false;
         }
     }
@@ -884,7 +954,16 @@ public sealed class PowerTestRunner : IPowerTestRunner
         _lastTelemetryMonotonic = now;
         if (!HasValidServoMeasurement(snapshot))
         {
-            if (RequiresServoMeasurement(_phase))
+            if (_phase == PowerRunPhase.PausedForLinkRecovery)
+            {
+                _linkRestoredStableStartMonotonic = 0;
+                if (_device.State == ConnectionState.Connected)
+                {
+                    _statusMessage = "Conexão restabelecida; aguardando leituras válidas do servo drive...";
+                    RaiseStateChanged();
+                }
+            }
+            else if (RequiresServoMeasurement(_phase))
             {
                 PauseForMeasurement("A medida do servo ficou ausente, offline ou desabilitada no Hub.");
             }
@@ -921,6 +1000,51 @@ public sealed class PowerTestRunner : IPowerTestRunner
             _statusMessage = "Medida restabelecida. Confirme a retomada para reiniciar a captura.";
             RaiseStateChanged();
             return;
+        }
+
+        if (_phase == PowerRunPhase.PausedForLinkRecovery)
+        {
+            var isGassedCondition = _currentRun?.GasMode == PowerGasMode.Gassed;
+            var isGasOk = !isGassedCondition || (snapshot.FlowmeterOnline && double.IsFinite(snapshot.FlowRate));
+
+            if (_device.State == ConnectionState.Connected && isGasOk && HasValidServoMeasurement(snapshot))
+            {
+                if (_linkRestoredStableStartMonotonic <= 0)
+                {
+                    _linkRestoredStableStartMonotonic = now;
+                }
+
+                var stableSeconds = now - _linkRestoredStableStartMonotonic;
+                const double RequiredStabilitySeconds = 3.0;
+
+                if (stableSeconds < RequiredStabilitySeconds - 0.05)
+                {
+                    _statusMessage = FormattableString.Invariant(
+                        $"Conexão restabelecida. Estabilizando telemetria do servo ({stableSeconds:F1}s / {RequiredStabilitySeconds:F0}s)...");
+                    RaiseStateChanged();
+                    return;
+                }
+
+                _linkRestoredStableStartMonotonic = 0;
+                if ((_currentTest.Settings.AutoAcceptRuns || _currentTest.Settings.AutoResumeOnLinkRestore) &&
+                    TryResumeAfterLinkRecovery())
+                {
+                    return;
+                }
+                _statusMessage = "Conexão restabelecida e estável há 3s. Confirme a retomada para reiniciar a captura.";
+                RaiseStateChanged();
+                return;
+            }
+            else
+            {
+                _linkRestoredStableStartMonotonic = 0;
+                if (_device.State == ConnectionState.Connected)
+                {
+                    _statusMessage = "Conexão restabelecida; aguardando leituras válidas do servo drive...";
+                    RaiseStateChanged();
+                }
+                return;
+            }
         }
 
         if (_phase == PowerRunPhase.PausedByOperator)
@@ -1176,7 +1300,8 @@ public sealed class PowerTestRunner : IPowerTestRunner
 
             if (run.ReferenceP0W is null)
             {
-                var (p0, p0Ci, prov) = _analysis.ResolveReferenceP0(run.MeanRpmMeasured, doc);
+                var targetRpm = run.AgitationRpm > 0 ? run.AgitationRpm : run.MeanRpmMeasured;
+                var (p0, p0Ci, prov) = _analysis.ResolveReferenceP0(targetRpm, doc);
                 run.ReferenceP0W = p0;
                 run.ReferenceP0Ci95W = p0Ci;
                 run.P0Provenance = prov;
@@ -1617,10 +1742,19 @@ public sealed class PowerTestRunner : IPowerTestRunner
         LogEvent("RunnerFaulted", reason);
     }
 
-    private void CheckWatchdog()
+    internal void CheckWatchdog()
     {
         if (_currentTest is null)
         {
+            return;
+        }
+        if (_phase == PowerRunPhase.PausedForLinkRecovery)
+        {
+            var maxWait = _currentTest.Settings.LinkRecoveryTimeoutSeconds;
+            if (maxWait > 0 && GetMonotonicSeconds() - _linkRecoveryStartMonotonic > maxWait)
+            {
+                FaultWithoutSafeCommand($"Tempo limite de reconexão do link esgotado ({maxWait:F0}s).");
+            }
             return;
         }
         if (RequiresServoMeasurement(_phase))
@@ -1640,11 +1774,48 @@ public sealed class PowerTestRunner : IPowerTestRunner
         }
     }
 
+    private void PauseForLinkRecovery(string reason)
+    {
+        if (_phase == PowerRunPhase.PausedForLinkRecovery)
+        {
+            return;
+        }
+
+        _capture?.Reset();
+        _speedStableCount = 0;
+        _ventFlowStableCount = 0;
+        _runPoints.Clear();
+        _linkRecoveryStartMonotonic = GetMonotonicSeconds();
+        _linkRestoredStableStartMonotonic = 0;
+
+        if (_currentRun is { } run)
+        {
+            run.CurrentPhase = PowerRunPhase.PausedForLinkRecovery;
+            UpsertCurrentRunSummary(PowerRunPhase.PausedForLinkRecovery);
+        }
+
+        var timeout = _currentTest?.Settings.LinkRecoveryTimeoutSeconds ?? 30.0;
+        SetPhase(PowerRunPhase.PausedForLinkRecovery,
+            $"{reason} Aguardando reconexão (limite de {timeout:F0}s)...");
+        LogEvent("PausedForLinkRecovery", reason);
+    }
+
     private void OnConnectionStateChanged(ConnectionStateChange change)
     {
         if (change.State != ConnectionState.Connected && IsRunning)
         {
+            if (_currentTest?.Settings.LinkRecoveryTimeoutSeconds > 0 &&
+                _phase is not (PowerRunPhase.Aborting or PowerRunPhase.Faulted or PowerRunPhase.Completed))
+            {
+                PauseForLinkRecovery("A conexão com o Hub foi perdida durante o ensaio.");
+                return;
+            }
+
             FaultWithoutSafeCommand("A conexão com o Hub foi perdida durante o ensaio.");
+        }
+        else if (change.State == ConnectionState.Connected && _phase == PowerRunPhase.PausedForLinkRecovery)
+        {
+            LogEvent("LinkRestored", "Conexão com o Hub restabelecida; aguardando telemetria válida do servo...");
         }
     }
 
@@ -1654,6 +1825,14 @@ public sealed class PowerTestRunner : IPowerTestRunner
              transfer.Actuators.Contains(ActuatorId.Aeration)) &&
             _currentTest?.Status == PowerTestStatus.Running)
         {
+            if (transfer.IsSafeAbort &&
+                _currentTest.Settings.LinkRecoveryTimeoutSeconds > 0 &&
+                _phase is not (PowerRunPhase.Aborting or PowerRunPhase.Faulted or PowerRunPhase.Completed))
+            {
+                PauseForLinkRecovery("A posse dos atuadores foi revogada pelo aborto seguro do link.");
+                return;
+            }
+
             FaultWithoutSafeCommand("A posse dos atuadores foi revogada pelo aborto seguro do link.");
         }
     }

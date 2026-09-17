@@ -1198,6 +1198,180 @@ public sealed class PowerTestRunnerTests
         Assert.InRange(sim.ReadFlow(), 0.0, 0.05);
     }
 
+    [Fact]
+    public async Task Link_drop_pauses_for_recovery_and_resumes_automatically_after_3s_stable_telemetry()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings() with
+        {
+            AutoResumeOnLinkRestore = true,
+            LinkRecoveryTimeoutSeconds = 30.0,
+        });
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        // 1. Drop link (simulating Wi-Fi failure)
+        h.Device.SetConnectionState(ConnectionState.Reconnecting, "Wi-Fi drop");
+
+        // Actuator possession revoked to Manual by arbiter safe abort
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+        Assert.True(h.Runner.IsPausedForLinkRecovery);
+
+        // 2. Reconnect link
+        h.Device.SetConnectionState(ConnectionState.Connected, "Wi-Fi restored");
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        // 3. Telemetry arriving, but less than 3 seconds stable
+        // Frames 1 to 6 (2.5s from start): still paused
+        for (var i = 0; i < 6; i++)
+        {
+            h.Push(300, 2.0);
+        }
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+
+        // 4. Frame 7 reaches 3.0s -> automatically resumes!
+        h.Push(300, 2.0);
+
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+        Assert.False(h.Runner.IsPausedForLinkRecovery);
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.Contains(h.Device.Sent, json => json == "{\"motorSetpoint\":300}");
+    }
+
+    [Fact]
+    public async Task Link_recovery_resets_stability_timer_if_servo_telemetry_drops_out()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings() with
+        {
+            AutoResumeOnLinkRestore = true,
+            LinkRecoveryTimeoutSeconds = 30.0,
+        });
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        h.Device.SetConnectionState(ConnectionState.Reconnecting, "Wi-Fi drop");
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        h.Device.SetConnectionState(ConnectionState.Connected, "Wi-Fi restored");
+
+        // 2 seconds of valid telemetry
+        for (var i = 0; i < 4; i++)
+        {
+            h.Push(300, 2.0);
+        }
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        // Drop servo telemetry (e.g. ServoOnline = false)
+        h.AdvanceSeconds(0.5);
+        h.Device.Push(new SensorSnapshot
+        {
+            HasServoTelemetry = false,
+            ServoOnline = false,
+        });
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        // Resume valid telemetry: must wait another full 3 seconds (7 frames)
+        for (var i = 0; i < 6; i++)
+        {
+            h.Push(300, 2.0);
+        }
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        h.Push(300, 2.0); // 7th frame -> 3.0s reached
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
+    public async Task Link_recovery_times_out_and_faults_after_configured_timeout()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings() with
+        {
+            LinkRecoveryTimeoutSeconds = 10.0,
+        });
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        h.Device.SetConnectionState(ConnectionState.Reconnecting, "Wi-Fi drop");
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        // Advance 5 seconds - still waiting
+        h.AdvanceSeconds(5.0);
+        h.TickWatchdog();
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+        Assert.Equal(PowerTestStatus.Running, doc.Status);
+
+        // Advance past 10 seconds total (5.0 + 6.0 = 11.0s)
+        h.AdvanceSeconds(6.0);
+        h.TickWatchdog();
+
+        Assert.Equal(PowerRunPhase.Faulted, h.Runner.Phase);
+        Assert.Equal(PowerTestStatus.Interrupted, doc.Status);
+        Assert.NotNull(doc.InterruptionReason);
+        Assert.Contains("Tempo limite de reconexão do link esgotado", doc.InterruptionReason);
+    }
+
+    [Fact]
+    public async Task Link_recovery_manual_resume_works_when_auto_resume_disabled()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings() with
+        {
+            AutoResumeOnLinkRestore = false,
+            AutoAcceptRuns = false,
+            LinkRecoveryTimeoutSeconds = 30.0,
+        });
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        h.Device.SetConnectionState(ConnectionState.Reconnecting, "Wi-Fi drop");
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+
+        h.Device.SetConnectionState(ConnectionState.Connected, "Wi-Fi restored");
+
+        // Push 4 seconds of stable telemetry (8 frames)
+        for (var i = 0; i < 8; i++)
+        {
+            h.Push(300, 2.0);
+        }
+
+        // Did not auto-resume because AutoResumeOnLinkRestore is false
+        Assert.Equal(PowerRunPhase.PausedForLinkRecovery, h.Runner.Phase);
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+
+        // Operator manually calls ResumeAfterLinkRecoveryAsync
+        await h.Runner.ResumeAfterLinkRecoveryAsync();
+
+        Assert.Equal(PowerRunPhase.SettingSpeed, h.Runner.Phase);
+        Assert.Equal(CommandOwner.PowerAssay, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
+    public async Task Link_drop_faults_immediately_when_LinkRecoveryTimeoutSeconds_is_zero()
+    {
+        using var h = new Harness();
+        var doc = h.CreateDocument(FastSettings() with
+        {
+            LinkRecoveryTimeoutSeconds = 0,
+        });
+        h.Push(0, 0);
+        await h.Runner.StartTestAsync(doc);
+        h.DriveToAccumulating();
+
+        h.Device.SetConnectionState(ConnectionState.Reconnecting, "Wi-Fi drop");
+
+        Assert.Equal(PowerRunPhase.Faulted, h.Runner.Phase);
+        Assert.Equal(PowerTestStatus.Interrupted, doc.Status);
+    }
+
     private static PowerTestSettings FastSettings() => new()
     {
         MinRpm = 15,
@@ -1379,6 +1553,9 @@ public sealed class PowerTestRunnerTests
             Assert.Equal(phase, Runner.Phase);
         }
 
+        public void AdvanceSeconds(double seconds) => _clock.Advance(TimeSpan.FromSeconds(seconds));
+        public void TickWatchdog() => Runner.CheckWatchdog();
+
         public void Dispose()
         {
             Runner.Dispose();
@@ -1415,6 +1592,12 @@ public sealed class PowerTestRunnerTests
         public event Action<string>? DeviceLogReceived;
         public event Action<string>? CommandSent;
         public event Action<double>? SessionTimeZeroed;
+
+        public void SetConnectionState(ConnectionState newState, string reason = "")
+        {
+            State = newState;
+            StateChanged?.Invoke(new ConnectionStateChange(newState, Medium, Endpoint, reason));
+        }
 
         public void Send(OpenTECCommand command)
         {

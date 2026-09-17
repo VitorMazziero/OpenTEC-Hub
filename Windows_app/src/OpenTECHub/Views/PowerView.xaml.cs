@@ -25,6 +25,10 @@ public partial class PowerView : UserControl
     private readonly WpfPlot _livePlot = new();
     private readonly WpfPlot _npPlot = new();
     private readonly WpfPlot _powerRatioPlot = new();
+    private ScottPlot.Plottables.Text? _npTooltip;
+    private (double X, double Y, double N, double Q)[] _npPoints = [];
+    private ScottPlot.Plottables.Text? _powerRatioTooltip;
+    private (double X, double Y, double N, double Q)[] _powerRatioPoints = [];
 
     /// <summary>
     /// Charts redraw only while the page is on screen and only when their data moved (§C). The
@@ -52,6 +56,10 @@ public partial class PowerView : UserControl
         LiveChartHost.Child = _livePlot;
         NpChartHost.Child = _npPlot;
         PowerRatioChartHost.Child = _powerRatioPlot;
+        _npPlot.MouseMove += OnNpPlotMouseMove;
+        _npPlot.MouseLeave += OnNpPlotMouseLeave;
+        _powerRatioPlot.MouseMove += OnPowerRatioPlotMouseMove;
+        _powerRatioPlot.MouseLeave += OnPowerRatioPlotMouseLeave;
         _redraw = new VisibleRedrawTimer(this, TimeSpan.FromSeconds(1), RedrawPlots);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -89,7 +97,10 @@ public partial class PowerView : UserControl
                 break;
             case nameof(PowerTestViewModel.ReferenceLiteratureNp):
             case nameof(PowerTestViewModel.ShowPowerRatioChart):
+                MarkResultsDirty();
+                break;
             case nameof(PowerTestViewModel.CurrentTest):
+                ApplyDefaultResultsSorting();
                 MarkResultsDirty();
                 break;
         }
@@ -185,6 +196,7 @@ public partial class PowerView : UserControl
     {
         SubscribeToThemeChanges();
         ApplyThemeToPlots();
+        ApplyDefaultResultsSorting();
         _redraw.Invalidate();
 
         // The kLa maps live in a sibling workspace root that can change between visits, so the
@@ -258,12 +270,14 @@ public partial class PowerView : UserControl
         _livePlot.Plot.Axes.Right.Label.FontSize = 10;
         _livePlot.Plot.Axes.Right.TickLabelStyle.IsVisible = true;
         _livePlot.Plot.Axes.Right.FrameLineStyle.Width = 1;
+        _livePlot.Plot.Axes.Right.MinimumSize = 45;
         StylePlot(_npPlot.Plot, "log₁₀(Re)", "Np");
         StylePlot(_powerRatioPlot.Plot, "Fl_G (–)", "P_G/P₀ (–)");
         _powerRatioPlot.Plot.Axes.Right.Label.Text = "Fr (–)";
         _powerRatioPlot.Plot.Axes.Right.Label.FontSize = 10;
         _powerRatioPlot.Plot.Axes.Right.TickLabelStyle.IsVisible = true;
         _powerRatioPlot.Plot.Axes.Right.FrameLineStyle.Width = 1;
+        _powerRatioPlot.Plot.Axes.Right.MinimumSize = 45;
         _livePlot.Refresh();
         _npPlot.Refresh();
         _powerRatioPlot.Refresh();
@@ -283,8 +297,10 @@ public partial class PowerView : UserControl
         plot.Axes.Top.TickLabelStyle.IsVisible = false;
         plot.Axes.Bottom.Label.Text = xLabel;
         plot.Axes.Bottom.Label.FontSize = 10;
+        plot.Axes.Bottom.MinimumSize = 44;
         plot.Axes.Left.Label.Text = yLabel;
         plot.Axes.Left.Label.FontSize = 10;
+        plot.Axes.Left.MinimumSize = 45;
         plot.Legend.IsVisible = false;
     }
 
@@ -350,6 +366,7 @@ public partial class PowerView : UserControl
         plot.Axes.Right.Label.FontSize = 10;
         plot.Axes.Right.TickLabelStyle.IsVisible = true;
         plot.Axes.Right.FrameLineStyle.Width = 1;
+        plot.Axes.Right.MinimumSize = 45;
     }
 
     private void RedrawNp(PowerTestViewModel vm)
@@ -369,6 +386,14 @@ public partial class PowerView : UserControl
             scatter.Color = PlotColor.FromHex("#3B82F6");
             scatter.LineWidth = 0;
             scatter.MarkerSize = 7;
+            scatter.MarkerLineWidth = 1.3f;
+            scatter.MarkerLineColor = PlotColor.FromHex("#1E3A8A");
+
+            _npPoints = new (double X, double Y, double N, double Q)[points.Length];
+            for (var i = 0; i < points.Length; i++)
+            {
+                _npPoints[i] = (xs[i], ys[i], points[i].MeanRpm, points[i].GasFlowLpmNumber);
+            }
 
             for (var i = 0; i < points.Length; i++)
             {
@@ -383,6 +408,10 @@ public partial class PowerView : UserControl
                 error.LineWidth = 1.3f;
             }
         }
+        else
+        {
+            _npPoints = [];
+        }
 
         if (vm.ReferenceLiteratureNp is { } literature && literature > 0 && double.IsFinite(literature))
         {
@@ -391,8 +420,137 @@ public partial class PowerView : UserControl
             overlay.LinePattern = LinePattern.Dashed;
             overlay.LineWidth = 1.5f;
         }
+
+        _npTooltip = plot.Add.Text("", 0, 0);
+        _npTooltip.IsVisible = false;
+        _npTooltip.LabelFontColor = PlotColor.FromHex("#F1F5F9");
+        _npTooltip.LabelBackgroundColor = PlotColor.FromHex("#1E293B").WithAlpha(0.9f);
+        _npTooltip.LabelFontSize = 13;
+        _npTooltip.LabelPadding = 4;
+        _npTooltip.LabelBorderColor = PlotColor.FromHex("#475569");
+        _npTooltip.LabelBorderWidth = 1;
+
         plot.Axes.AutoScale();
         _npPlot.Refresh();
+    }
+
+    private void OnNpPlotMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_npTooltip is not null && _npTooltip.IsVisible)
+        {
+            _npTooltip.IsVisible = false;
+            _npPlot.Refresh();
+        }
+    }
+
+    private void OnNpPlotMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_npTooltip is null || _npPoints.Length == 0) return;
+
+        var position = e.GetPosition(_npPlot);
+        var pixel = new Pixel(
+            (float)(position.X * _npPlot.DisplayScale),
+            (float)(position.Y * _npPlot.DisplayScale));
+
+        double minDistance = double.MaxValue;
+        int nearestIndex = -1;
+        var coordinates = _npPlot.Plot.GetCoordinates(pixel);
+        var limits = _npPlot.Plot.Axes.GetLimits();
+        double xRange = limits.Right - limits.Left;
+        double yRange = limits.Top - limits.Bottom;
+        if (xRange <= 0) xRange = 1;
+        if (yRange <= 0) yRange = 1;
+
+        for (int i = 0; i < _npPoints.Length; i++)
+        {
+            var p = _npPoints[i];
+            double dx = (p.X - coordinates.X) / xRange;
+            double dy = (p.Y - coordinates.Y) / yRange;
+            double distanceSquared = dx * dx + dy * dy;
+            if (distanceSquared < minDistance)
+            {
+                minDistance = distanceSquared;
+                nearestIndex = i;
+            }
+        }
+
+        if (nearestIndex >= 0 && minDistance < 0.002) // Roughly 4% of the plot area radius
+        {
+            var p = _npPoints[nearestIndex];
+            double qg = double.IsNaN(p.Q) ? 0.0 : p.Q;
+            _npTooltip.LabelText = $"N = {p.N:F0} rpm\nQg = {qg:F1} L/min";
+            _npTooltip.Location = new Coordinates(p.X, p.Y);
+            if (!_npTooltip.IsVisible)
+            {
+                _npTooltip.IsVisible = true;
+            }
+            _npPlot.Refresh();
+        }
+        else if (_npTooltip.IsVisible)
+        {
+            _npTooltip.IsVisible = false;
+            _npPlot.Refresh();
+        }
+    }
+
+    private void OnPowerRatioPlotMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_powerRatioTooltip is not null && _powerRatioTooltip.IsVisible)
+        {
+            _powerRatioTooltip.IsVisible = false;
+            _powerRatioPlot.Refresh();
+        }
+    }
+
+    private void OnPowerRatioPlotMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_powerRatioTooltip is null || _powerRatioPoints.Length == 0) return;
+
+        var position = e.GetPosition(_powerRatioPlot);
+        var pixel = new Pixel(
+            (float)(position.X * _powerRatioPlot.DisplayScale),
+            (float)(position.Y * _powerRatioPlot.DisplayScale));
+
+        var coordinates = _powerRatioPlot.Plot.GetCoordinates(pixel);
+        var limits = _powerRatioPlot.Plot.Axes.GetLimits();
+        double xRange = limits.Right - limits.Left;
+        double yRange = limits.Top - limits.Bottom;
+        if (xRange <= 0) xRange = 1;
+        if (yRange <= 0) yRange = 1;
+
+        double minDistance = double.MaxValue;
+        int nearestIndex = -1;
+
+        for (int i = 0; i < _powerRatioPoints.Length; i++)
+        {
+            var p = _powerRatioPoints[i];
+            double dx = (p.X - coordinates.X) / xRange;
+            double dy = (p.Y - coordinates.Y) / yRange;
+            double distanceSquared = dx * dx + dy * dy;
+            if (distanceSquared < minDistance)
+            {
+                minDistance = distanceSquared;
+                nearestIndex = i;
+            }
+        }
+
+        if (nearestIndex >= 0 && minDistance < 0.002) // Roughly 4% of the plot area radius
+        {
+            var p = _powerRatioPoints[nearestIndex];
+            double qg = double.IsNaN(p.Q) ? 0.0 : p.Q;
+            _powerRatioTooltip.LabelText = $"N = {p.N:F0} rpm\nQg = {qg:F1} L/min";
+            _powerRatioTooltip.Location = new Coordinates(p.X, p.Y);
+            if (!_powerRatioTooltip.IsVisible)
+            {
+                _powerRatioTooltip.IsVisible = true;
+            }
+            _powerRatioPlot.Refresh();
+        }
+        else if (_powerRatioTooltip.IsVisible)
+        {
+            _powerRatioTooltip.IsVisible = false;
+            _powerRatioPlot.Refresh();
+        }
     }
 
     private void RedrawPowerRatio(PowerTestViewModel vm)
@@ -416,10 +574,18 @@ public partial class PowerView : UserControl
         {
             var xs = points.Select(p => p.AerationNumber).ToArray();
             var ys = points.Select(p => p.Ratio).ToArray();
+            _powerRatioPoints = new (double X, double Y, double N, double Q)[points.Length];
+            for (int i = 0; i < points.Length; i++)
+            {
+                _powerRatioPoints[i] = (xs[i], ys[i], points[i].MeanRpm, points[i].GasFlowLpmNumber);
+            }
+
             var scatter = plot.Add.Scatter(xs, ys);
             scatter.Color = PlotColor.FromHex("#3B82F6");
             scatter.LineWidth = 1.6f;
             scatter.MarkerSize = 7;
+            scatter.MarkerLineWidth = 1.3f;
+            scatter.MarkerLineColor = PlotColor.FromHex("#1E3A8A");
 
             for (var i = 0; i < points.Length; i++)
             {
@@ -446,12 +612,102 @@ public partial class PowerView : UserControl
                 fr.LineWidth = 1.2f;
                 fr.LinePattern = LinePattern.Dotted;
                 fr.MarkerSize = 4;
+                fr.MarkerLineWidth = 1.3f;
+                fr.MarkerLineColor = PlotColor.FromHex("#064E3B");
                 fr.Axes.YAxis = plot.Axes.Right;
             }
         }
+        else
+        {
+            _powerRatioPoints = [];
+        }
+
+        _powerRatioTooltip = plot.Add.Text("", 0, 0);
+        _powerRatioTooltip.IsVisible = false;
+        _powerRatioTooltip.LabelFontColor = PlotColor.FromHex("#F1F5F9");
+        _powerRatioTooltip.LabelBackgroundColor = PlotColor.FromHex("#1E293B").WithAlpha(0.9f);
+        _powerRatioTooltip.LabelFontSize = 13;
+        _powerRatioTooltip.LabelPadding = 4;
+        _powerRatioTooltip.LabelBorderColor = PlotColor.FromHex("#475569");
+        _powerRatioTooltip.LabelBorderWidth = 1;
 
         plot.Axes.AutoScale();
         _powerRatioPlot.Refresh();
+    }
+
+    private void ResultsDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        var dataGrid = (DataGrid)sender;
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(dataGrid.ItemsSource);
+        if (view is null)
+            return;
+
+        var propertyName = e.Column.SortMemberPath;
+        if (string.IsNullOrEmpty(propertyName) && e.Column is DataGridBoundColumn boundCol && boundCol.Binding is System.Windows.Data.Binding binding)
+        {
+            propertyName = binding.Path.Path;
+        }
+
+        if (string.IsNullOrEmpty(propertyName))
+            return;
+
+        var direction = System.ComponentModel.ListSortDirection.Ascending;
+        if (e.Column.SortDirection == System.ComponentModel.ListSortDirection.Ascending)
+        {
+            direction = System.ComponentModel.ListSortDirection.Descending;
+        }
+
+        e.Column.SortDirection = direction;
+
+        view.SortDescriptions.Clear();
+        view.SortDescriptions.Add(new System.ComponentModel.SortDescription(propertyName, direction));
+
+        if (propertyName is "SortPhasePriority" or "Status" or "StopReason")
+        {
+            view.SortDescriptions.Add(new System.ComponentModel.SortDescription("MeanRpm", System.ComponentModel.ListSortDirection.Ascending));
+            view.SortDescriptions.Add(new System.ComponentModel.SortDescription("GasFlowLpmNumber", System.ComponentModel.ListSortDirection.Ascending));
+        }
+        else if (propertyName == "MeanRpm")
+        {
+            view.SortDescriptions.Add(new System.ComponentModel.SortDescription("GasFlowLpmNumber", System.ComponentModel.ListSortDirection.Ascending));
+        }
+
+        view.Refresh();
+        e.Handled = true;
+    }
+
+    private void ResultsDataGrid_Loaded(object sender, RoutedEventArgs e)
+    {
+        ApplyDefaultResultsSorting();
+    }
+
+    private void ApplyDefaultResultsSorting()
+    {
+        if (ResultsDataGrid?.ItemsSource is null)
+            return;
+
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(ResultsDataGrid.ItemsSource);
+        if (view is null)
+            return;
+
+        view.SortDescriptions.Clear();
+        view.SortDescriptions.Add(new System.ComponentModel.SortDescription("SortPhasePriority", System.ComponentModel.ListSortDirection.Ascending));
+        view.SortDescriptions.Add(new System.ComponentModel.SortDescription("MeanRpm", System.ComponentModel.ListSortDirection.Ascending));
+        view.SortDescriptions.Add(new System.ComponentModel.SortDescription("GasFlowLpmNumber", System.ComponentModel.ListSortDirection.Ascending));
+
+        foreach (var column in ResultsDataGrid.Columns)
+        {
+            if (column.Header?.ToString() == "Status")
+            {
+                column.SortDirection = System.ComponentModel.ListSortDirection.Ascending;
+            }
+            else
+            {
+                column.SortDirection = null;
+            }
+        }
+
+        view.Refresh();
     }
 
     private void ExportCsv_Click(object sender, RoutedEventArgs e)

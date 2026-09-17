@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -560,6 +560,121 @@ public sealed class PowerGassedUiTests : IDisposable
         Assert.NotNull(reloaded);
         Assert.Equal(10.0, reloaded.Runs[0].NetPowerW);
         Assert.Equal(300.0, reloaded.Runs[0].MeanRpmMeasured);
+    }
+
+    [Fact]
+    public void LoadDocument_Recalculates_Old_Runs_With_Inverted_Priority()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            LiquidVolumeM3 = 0.010,
+            Impellers = [new Impeller { DiameterM = 0.065, BladeCount = 6 }]
+        };
+        var doc = _store.CreateTest("Recalculate-On-Open-Test", new FluidProperties { DensityKgM3 = 997.0, ViscosityPaS = 0.00089 }, geometry, new PowerTestSettings());
+
+        // 1 measured ungassed point at 300 rpm, P0 = 0.60 W
+        doc.Runs.Add(new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(),
+            StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-20),
+            AgitationRpm = 300.0,
+            MeanRpmMeasured = 300.0,
+            NetPowerW = 0.60,
+            MeanShaftPowerW = 0.60,
+            GasMode = PowerGasMode.Ungassed,
+            Phase = PowerRunPhase.Accepted,
+        });
+
+        // 1 gassed point at 300 rpm, Qg = 2.0 L/min, PG = 0.72 W
+        // Stored with OLD numbers (e.g. theoretical P0 = 0.80 -> Ratio = 0.90)
+        var gassedRunId = Guid.NewGuid();
+        doc.Runs.Add(new PowerRunSummary
+        {
+            RunId = gassedRunId,
+            StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+            AgitationRpm = 300.0,
+            MeanRpmMeasured = 300.0,
+            NetPowerW = 0.72,
+            MeanShaftPowerW = 0.72,
+            GasMode = PowerGasMode.Gassed,
+            GasFlowLpm = 2.0,
+            ReferenceP0W = 0.80, // Old obsolete value
+            PowerRatio = 0.90,   // Old obsolete value
+            Phase = PowerRunPhase.Accepted,
+        });
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        // Verify that upon opening, the run was recalculated with priority to the measured P0 (0.60 W)
+        var gassedRow = vm.Results.First(r => r.RunId == gassedRunId);
+        Assert.Equal(1.20, gassedRow.Ratio, precision: 2); // 0.72 / 0.60 = 1.20
+
+        var updatedDocRun = vm.CurrentTest!.Runs.First(r => r.RunId == gassedRunId);
+        Assert.Equal(0.60, updatedDocRun.ReferenceP0W!.Value, precision: 2);
+        Assert.Equal(1.20, updatedDocRun.PowerRatio!.Value, precision: 2);
+        Assert.Equal(P0Provenance.MeasuredUngassed, updatedDocRun.P0Provenance);
+        Assert.NotNull(updatedDocRun.GasFlowNumber);
+    }
+
+    [Fact]
+    public void Results_Collection_Initial_Order_Follows_Status_Then_N_Then_Qg()
+    {
+        var geometry = new PowerGeometry
+        {
+            VesselDiameterM = 0.190,
+            LiquidVolumeM3 = 0.010,
+            Impellers = [new Impeller { DiameterM = 0.065, BladeCount = 6 }]
+        };
+        var doc = _store.CreateTest("Sort-Order-Test", new FluidProperties { DensityKgM3 = 997.0, ViscosityPaS = 0.00089 }, geometry, new PowerTestSettings());
+
+        var runRejected200_2 = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(), StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-50),
+            AgitationRpm = 200, GasFlowLpm = 2.0, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Rejected, NetPowerW = 0.1,
+        };
+        var runAccepted300_4 = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(), StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-40),
+            AgitationRpm = 300, GasFlowLpm = 4.0, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, NetPowerW = 0.7,
+        };
+        var runAccepted200_10 = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(), StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-30),
+            AgitationRpm = 200, GasFlowLpm = 10.0, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, NetPowerW = 0.2,
+        };
+        var runAccepted200_Ungassed = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(), StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-20),
+            AgitationRpm = 200, GasFlowLpm = null, GasMode = PowerGasMode.Ungassed, Phase = PowerRunPhase.Accepted, NetPowerW = 0.09,
+        };
+        var runAccepted300_2 = new PowerRunSummary
+        {
+            RunId = Guid.NewGuid(), StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+            AgitationRpm = 300, GasFlowLpm = 2.0, GasMode = PowerGasMode.Gassed, Phase = PowerRunPhase.Accepted, NetPowerW = 0.71,
+        };
+
+        doc.Runs.AddRange([runRejected200_2, runAccepted300_4, runAccepted200_10, runAccepted200_Ungassed, runAccepted300_2]);
+        _store.SaveTestManifest(doc);
+
+        var device = new TestDeviceService();
+        var arbiter = new CommandArbiter(device, TimeProvider.System);
+        var vm = new PowerTestViewModel(_store, device, arbiter);
+        vm.SelectedTest = vm.Tests.First(t => t.Name == doc.Name);
+        vm.LoadSelectedTestCommand.Execute(null);
+
+        // Order must be: Status (Accepted first) -> N (ascending) -> Qg (ascending)
+        Assert.Equal(5, vm.Results.Count);
+        Assert.Equal(runAccepted200_Ungassed.RunId, vm.Results[0].RunId); // Accepted, 200 rpm, Qg = 0
+        Assert.Equal(runAccepted200_10.RunId, vm.Results[1].RunId);       // Accepted, 200 rpm, Qg = 10
+        Assert.Equal(runAccepted300_2.RunId, vm.Results[2].RunId);        // Accepted, 300 rpm, Qg = 2
+        Assert.Equal(runAccepted300_4.RunId, vm.Results[3].RunId);        // Accepted, 300 rpm, Qg = 4
+        Assert.Equal(runRejected200_2.RunId, vm.Results[4].RunId);        // Rejected, 200 rpm, Qg = 2
     }
 
     private sealed class TestDeviceService : IDeviceService

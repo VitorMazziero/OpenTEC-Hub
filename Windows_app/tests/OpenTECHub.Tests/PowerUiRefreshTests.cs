@@ -181,7 +181,8 @@ public sealed class PowerUiRefreshTests : IDisposable
         runner.RaiseStateChanged();
 
         Assert.Equal([NotifyCollectionChangedAction.Replace], events);
-        Assert.Equal("Aceito", vm.Results[^1].Status);
+        var updatedRow = vm.Results.First(r => r.RunId == doc.Runs[^1].RunId);
+        Assert.Equal("Aceito", updatedRow.Status);
         Assert.Equal(selectedId, vm.SelectedResultRow?.RunId);
     }
 
@@ -258,6 +259,7 @@ public sealed class PowerUiRefreshTests : IDisposable
         public Task ResumeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SkipCurrentConditionAsync(string reason = "") => Task.CompletedTask;
         public Task ResumeAfterMeasurementAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ResumeAfterLinkRecoveryAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SubmitManualEnergyAsync(double electricalPowerW, string? instrument = null, string? note = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task StopRunAndReviewAsync(string reason = "") => Task.CompletedTask;
         public Task AcceptRunAsync() => Task.CompletedTask;

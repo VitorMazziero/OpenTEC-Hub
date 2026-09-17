@@ -1,4 +1,4 @@
-﻿<Window x:Class="OpenTECHub.Views.Dialogs.CaptureSettingsDialog"
+<Window x:Class="OpenTECHub.Views.Dialogs.CaptureSettingsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:OpenTECHub.Converters"
@@ -106,6 +106,14 @@
                           IsChecked="{Binding ManualEnergyCaptureEnabled}"
                           IsEnabled="{Binding AutoAcceptRuns, Converter={StaticResource InverseBool}}"
                           ToolTip="Mantém cada ponto parado à espera da leitura do wattímetro. Incompatível com o aceite automático, que por isso desabilita esta opção." />
+                <CheckBox Margin="0,0,0,8" Content="Retomar automaticamente ao reconectar Wi-Fi"
+                          IsChecked="{Binding AutoResumeOnLinkRestore}"
+                          ToolTip="Se houver perda de conexão, tenta reaver o ensaio no mesmo ponto quando a telemetria do motor voltar a ficar estável." />
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="Limite de tolerância à queda do link (s):" Style="{StaticResource PowerLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="2" Width="60" HorizontalAlignment="Left" Style="{StaticResource CompactField}" Text="{Binding LinkRecoveryTimeoutSeconds, UpdateSourceTrigger=LostFocus}" ToolTip="Se a conexão cair, aguarda até esse tempo em segundos antes de abortar o ensaio." />
+                </Grid>
                 <TextBlock Margin="0,4,0,2" Text="Pré-estabilização por C (condições gaseificadas)" Style="{StaticResource PowerLabel}" FontWeight="SemiBold" />
                 <TextBlock Margin="0,0,0,6" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}"
                            Text="Toda condição gaseificada sobe a vazão pela saída B/C — o pulso do fluxômetro sai pela descarga (C) — e só a vazão assentada é comutada para o reator (A), numa frame só. Neste ensaio a linha B fica pinçada ou desconectada: não há N₂." />

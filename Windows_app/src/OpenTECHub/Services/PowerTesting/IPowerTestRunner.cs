@@ -13,6 +13,7 @@ public interface IPowerTestRunner : IDisposable
     bool IsInReview { get; }
     bool IsPausedByOperator { get; }
     bool IsPausedForMeasurement { get; }
+    bool IsPausedForLinkRecovery => Phase == PowerRunPhase.PausedForLinkRecovery;
     double PhaseElapsedSeconds { get; }
     double TotalElapsedSeconds { get; }
     double CurrentRpm { get; }
@@ -45,6 +46,7 @@ public interface IPowerTestRunner : IDisposable
     Task ResumeAsync(CancellationToken cancellationToken = default);
     Task SkipCurrentConditionAsync(string reason = "Condição pulada pelo operador");
     Task ResumeAfterMeasurementAsync(CancellationToken cancellationToken = default);
+    Task ResumeAfterLinkRecoveryAsync(CancellationToken cancellationToken = default);
     Task SubmitManualEnergyAsync(
         double electricalPowerW,
         string? instrument = null,

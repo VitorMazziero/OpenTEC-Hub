@@ -1,0 +1,3 @@
+﻿TimestampUtc,RelativeSeconds,Phase,RpmMeasured,TorquePercent,TorqueNm,ShaftPowerW,FlowLpm,Counted,Attempt
+2026-09-15T12:49:21.7444277+00:00,1.735,SettingSpeed,0.0,0.000,0.00000,0.0000,0.00,0,1
+2026-09-15T12:49:23.8663308+00:00,3.857,SettingSpeed,100.0,1.300,0.01651,0.1729,0.00,0,1

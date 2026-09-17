@@ -364,6 +364,8 @@ public partial class PowerMapView : UserControl
             .Where(p => p.KlaPerHour > 0 && p.VolumetricPowerWm3 > 0)
             .ToArray() ?? [];
 
+        pairs = SelectRepresentative(pairs, p => p.VolumetricPowerWm3, p => p.KlaPerHour, 500);
+
         var intersectionCells = ViewModel?.CurrentSurfaceIntersection?.EnumerateValidCells()
             .Where(c => c.KlaPerHour > 0 && c.VolumetricPowerWm3 > 0)
             .ToArray() ?? [];

@@ -244,7 +244,29 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
             return (null, null, P0Provenance.None);
         }
 
-        // 1st: Reconstruct from fitted plateau (§4.5)
+        // 1st: Priority to measured ungassed point in same test at same N (within speed tolerance)
+        var speedTol = doc.Settings is not null && doc.Settings.SpeedToleranceRpm > 0
+            ? Math.Max(doc.Settings.SpeedToleranceRpm, 5.0)
+            : 5.0;
+
+        var matches = doc.Runs
+            .Where(r => r.Phase == PowerRunPhase.Accepted &&
+                        r.GasMode == PowerGasMode.Ungassed &&
+                        r.NetPowerW is { } np && np > 0 &&
+                        (Math.Abs(r.AgitationRpm - rpm) <= speedTol ||
+                         (r.MeanRpmMeasured > 0 && Math.Abs(r.MeanRpmMeasured - rpm) <= speedTol)))
+            .OrderBy(r => Math.Min(
+                Math.Abs(r.AgitationRpm - rpm),
+                r.MeanRpmMeasured > 0 ? Math.Abs(r.MeanRpmMeasured - rpm) : double.MaxValue))
+            .ToList();
+
+        if (matches.Count > 0)
+        {
+            var match = matches[0];
+            return (match.NetPowerW, match.Ci95PowerW, P0Provenance.MeasuredUngassed);
+        }
+
+        // 2nd: Reconstruct from fitted plateau (§4.5) if no direct measured ungassed point was found
         var fit = plateauFit;
         if (fit is null || !fit.HasFit)
         {
@@ -272,18 +294,6 @@ public sealed class PowerAnalysisEngine : IPowerAnalysisEngine
                 var p0Ci = fit.PowerNumberCi95 * factor;
                 return (p0, p0Ci, P0Provenance.PlateauFit);
             }
-        }
-
-        // 2nd: Fallback to measured ungassed point in same test at same N (±1 rpm)
-        var match = doc.Runs.FirstOrDefault(r =>
-            r.Phase == PowerRunPhase.Accepted &&
-            r.GasMode == PowerGasMode.Ungassed &&
-            r.NetPowerW is { } np && np > 0 &&
-            Math.Abs(r.AgitationRpm - rpm) <= 1.0);
-
-        if (match is not null)
-        {
-            return (match.NetPowerW, match.Ci95PowerW, P0Provenance.MeasuredUngassed);
         }
 
         // 3rd: Missing -> null

@@ -443,6 +443,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     /// gets rejected, so it is an explicit opt-in per assay.
     /// </summary>
     [ObservableProperty] public partial bool AutoAcceptRuns { get; set; }
+    [ObservableProperty] public partial bool AutoResumeOnLinkRestore { get; set; } = true;
+    [ObservableProperty] public partial double LinkRecoveryTimeoutSeconds { get; set; } = 30.0;
 
     [ObservableProperty] public partial PowerSweepType SelectedSweepType { get; set; } = PowerSweepType.VariableNConstantQg;
     [ObservableProperty] public partial double SweepConstantRpm { get; set; } = 300.0;
@@ -550,13 +552,39 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string TareProfileName { get; set; } = "";
     [ObservableProperty] public partial TareProfileSummary? SelectedTareProfile { get; set; }
     public ObservableCollection<TareProfileSummary> TareProfiles { get; } = [];
+    public ObservableCollection<EditableTarePoint> SelectedTareProfilePoints { get; } = [];
 
     /// <summary>Typing over the box detaches it from the list, so the two never disagree.</summary>
     partial void OnSelectedTareProfileChanged(TareProfileSummary? value)
     {
+        SelectedTareProfilePoints.Clear();
         if (value is not null)
         {
             TareProfileName = value.Name;
+            var curve = _store.LoadTareProfile(value.Name);
+            if (curve != null)
+            {
+                foreach (var pt in curve.Points)
+                {
+                    var editable = new EditableTarePoint(pt);
+                    editable.PropertyChanged += (s, e) => SaveModifiedTareProfile();
+                    SelectedTareProfilePoints.Add(editable);
+                }
+            }
+        }
+    }
+
+    private void SaveModifiedTareProfile()
+    {
+        if (SelectedTareProfile is { Name: var name })
+        {
+            var curve = _store.LoadTareProfile(name);
+            if (curve != null)
+            {
+                var newPoints = SelectedTareProfilePoints.Select(ep => ep.ToRecord()).ToList();
+                var newCurve = curve with { Points = newPoints };
+                _store.SaveTareProfile(name, newCurve);
+            }
         }
     }
 
@@ -576,7 +604,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
     public bool HasActiveTest => CurrentTest is not null;
     public bool CanEditPlan => CurrentTest is not null && !IsRunning && !IsTareRunning && CurrentTest.Status != PowerTestStatus.Completed;
-    public bool CanStartOrContinue => CurrentTest is not null && !IsRunning && !IsTareRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
+    public bool CanStartOrContinue => CurrentTest is not null && (!IsRunning || _runner?.IsPausedForLinkRecovery == true) && !IsTareRunning && !IsInReview && CurrentTest.Status != PowerTestStatus.Completed;
     public bool CanManageTest => CurrentTest is not null && !IsRunning && !IsTareRunning;
     public PowerMotorRouteCoordinator RouteCoordinator => _routeCoordinator;
 
@@ -611,10 +639,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool HasPreflightWarning => !IsReadyToStart && !IsRunning && !string.IsNullOrWhiteSpace(PreflightMessage);
 
-    public bool CanPause => IsRunning && _runner?.Phase is PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.PausedByOperator or PowerRunPhase.PausedForMeasurement;
+    public bool CanPause => IsRunning && _runner?.Phase is PowerRunPhase.SettingSpeed or PowerRunPhase.SettlingTorque or PowerRunPhase.AccumulatingToTarget or PowerRunPhase.PausedByOperator or PowerRunPhase.PausedForMeasurement or PowerRunPhase.PausedForLinkRecovery;
     public bool CanStop => IsRunning;
     public bool CanSkipCurrent => IsRunning && _runner?.CurrentCondition is not null;
-    public string PauseButtonLabel => _runner?.IsPausedByOperator == true || _runner?.IsPausedForMeasurement == true ? "▶ Retomar" : "⏸ Pausar";
+    public string PauseButtonLabel => _runner?.IsPausedByOperator == true || _runner?.IsPausedForMeasurement == true || _runner?.IsPausedForLinkRecovery == true ? "▶ Retomar" : "⏸ Pausar";
     public string TestStatusLabel => CurrentTest?.Status switch
     {
         PowerTestStatus.Draft => "Rascunho",
@@ -988,6 +1016,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         PrestageFlowStabilityMaxErrorLpm = settings.PrestageFlowStabilityMaxErrorLpm;
         ManualEnergyCaptureEnabled = settings.ManualEnergyCaptureEnabled;
         AutoAcceptRuns = settings.AutoAcceptRuns;
+        AutoResumeOnLinkRestore = settings.AutoResumeOnLinkRestore;
+        LinkRecoveryTimeoutSeconds = settings.LinkRecoveryTimeoutSeconds;
         RetryThenSkipOnSequenceFailure = settings.UnattendedFailurePolicy == UnattendedFailurePolicy.RetryThenSkip;
     }
 
@@ -1036,7 +1066,16 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             LivePoints.Clear();
             Results.Clear();
             _structureKey = null;
-            RebuildResults();
+
+            if (doc.Runs.Count > 0)
+            {
+                ReprocessScientificData();
+            }
+            else
+            {
+                RebuildResults();
+            }
+
             _runner?.PrepareTest(doc);
             OnPropertyChanged(nameof(IsLegacyRigTest));
             OnPropertyChanged(nameof(LegacyRigMessage));
@@ -2270,7 +2309,11 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         if (!TryPersist(out var error)) { ShowError(error); return; }
         try
         {
-            if (CurrentTest.Status == PowerTestStatus.Running)
+            if (_runner.IsPausedForLinkRecovery)
+            {
+                await _runner.ResumeAfterLinkRecoveryAsync();
+            }
+            else if (CurrentTest.Status == PowerTestStatus.Running)
             {
                 var next = CurrentTest.Conditions.Where(c => c.Status != PowerConditionStatus.Skipped && c.AcceptedReplicates < c.RequestedReplicates).OrderBy(c => c.OrderIndex).FirstOrDefault();
                 if (next is null)
@@ -2303,6 +2346,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             if (_runner.IsPausedForMeasurement)
             {
                 await _runner.ResumeAfterMeasurementAsync();
+            }
+            else if (_runner.IsPausedForLinkRecovery)
+            {
+                await _runner.ResumeAfterLinkRecoveryAsync();
             }
             else if (_runner.IsPausedByOperator)
             {
@@ -2450,9 +2497,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         }
 
         _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
-        _store.UpdateResultsSummary(CurrentTest.FolderName, CurrentTest);
-        _store.SaveTestManifest(CurrentTest);
-        RebuildResults();
+        ReprocessScientificData();
 
         // A row action is also allowed to resolve a no-capture review. The persisted summary is
         // authoritative for this explicit operator override; clear only the runner's transient
@@ -2534,12 +2579,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             }
 
             double? fr = null;
+            double? fl = null;
             double? vvm = null;
             if (run.GasMode != PowerGasMode.Ungassed && run.GasFlowLpm is { } flowLpm)
             {
                 if (rpm > 0 && refImpeller.DiameterM > 0)
                 {
                     fr = PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
+                    fl = PowerCalc.AerationNumber(flowLpm, rpm, refImpeller.DiameterM);
                 }
                 if (geometry.LiquidVolumeM3 > 0)
                 {
@@ -2564,7 +2611,9 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             CurrentTest.Runs[i] = run with
             {
                 GasFlowVvm = vvm ?? run.GasFlowVvm,
-                FroudeNumber = fr ?? run.FroudeNumber,
+                GasFlowNumber = run.GasFlowNumber ?? fl,
+                FroudeNumber = run.FroudeNumber ?? fr,
+                GassedPowerW = run.GassedPowerW ?? (run.GasMode != PowerGasMode.Ungassed ? run.NetPowerW : null),
                 Analysis = newAnalysis,
             };
         }
@@ -2574,10 +2623,21 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             var run = CurrentTest.Runs[i];
             if (run.GasMode == PowerGasMode.Ungassed)
             {
+                if (run.ReferenceP0W != null || run.PowerRatio != null)
+                {
+                    CurrentTest.Runs[i] = run with
+                    {
+                        ReferenceP0W = null,
+                        ReferenceP0Ci95W = null,
+                        P0Provenance = P0Provenance.None,
+                        PowerRatio = null,
+                        PowerRatioCi95 = null,
+                    };
+                }
                 continue;
             }
 
-            var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
+            var rpm = run.AgitationRpm > 0 ? run.AgitationRpm : run.MeanRpmMeasured;
             var (p0, p0Ci, provenance) = _analysis.ResolveReferenceP0(rpm, CurrentTest);
 
             double? ratio = null;
@@ -2587,6 +2647,14 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 var (r, ci) = PowerCalc.PropagatePowerRatioUncertainty(pgVal, run.Ci95PowerW ?? 0.0, p0Val, p0Ci ?? 0.0);
                 ratio = r;
                 ratioCi = ci;
+            }
+            else if (run.ReferenceP0W is { } existingP0 && existingP0 > 0 && run.NetPowerW is { } pgVal2)
+            {
+                p0 = existingP0;
+                p0Ci = run.ReferenceP0Ci95W;
+                provenance = run.P0Provenance;
+                ratio = run.PowerRatio;
+                ratioCi = run.PowerRatioCi95;
             }
 
             CurrentTest.Runs[i] = run with
@@ -3385,6 +3453,8 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         PrestageFlowStabilityMaxErrorLpm = PrestageFlowStabilityMaxErrorLpm,
         ManualEnergyCaptureEnabled = ManualEnergyCaptureEnabled,
         AutoAcceptRuns = AutoAcceptRuns,
+        AutoResumeOnLinkRestore = AutoResumeOnLinkRestore,
+        LinkRecoveryTimeoutSeconds = LinkRecoveryTimeoutSeconds,
         UnattendedFailurePolicy = RetryThenSkipOnSequenceFailure ? UnattendedFailurePolicy.RetryThenSkip : UnattendedFailurePolicy.StopForReview,
     };
 
@@ -4010,7 +4080,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
 
         var selectedRunId = SelectedResultRow?.RunId;
         var index = 0;
-        foreach (var run in CurrentTest.Runs.OrderBy(r => r.StartedUtc))
+        foreach (var run in CurrentTest.Runs
+            .OrderBy(r => PowerResultRow.GetPhasePriority(r.Phase))
+            .ThenBy(r => r.AgitationRpm > 0 ? r.AgitationRpm : r.MeanRpmMeasured)
+            .ThenBy(r => r.GasFlowLpm ?? 0.0))
         {
             var row = PowerResultRow.From(run);
             var existingIndex = -1;
@@ -4321,6 +4394,17 @@ public sealed record PowerResultRow
     public PowerGasMode GasMode { get; init; }
     public bool IsGassed => GasMode is PowerGasMode.Gassed or PowerGasMode.Both;
 
+    // Sorting and grouping backing fields
+    public double MeanRpm { get; init; }
+    public double NetTorqueNm { get; init; }
+    public double NetPowerW { get; init; }
+    public double GasFlowLpmNumber { get; init; }
+    public double PgLiquidW { get; init; }
+    public double P0RefW { get; init; }
+    public int AttemptsCount { get; init; }
+    public DateTimeOffset SortTimestamp { get; init; }
+    public int SortPhasePriority { get; init; }
+
     public static string StatusText(PowerRunPhase phase) => phase switch
     {
         PowerRunPhase.Idle => "Pronto",
@@ -4371,7 +4455,7 @@ public sealed record PowerResultRow
         return new PowerResultRow
         {
             RunId = run.RunId,
-            Rpm = F(run.MeanRpmMeasured, "F1"),
+            Rpm = F(run.AgitationRpm, "F1"),
             NetTorque = F(run.NetPowerW is { } netPower && run.MeanRpmMeasured != 0
                 ? netPower / PowerCalc.AngularVelocity(run.MeanRpmMeasured)
                 : null, "F5"),
@@ -4400,8 +4484,27 @@ public sealed record PowerResultRow
             Ratio = run.PowerRatio ?? double.NaN,
             RatioCi95 = run.PowerRatioCi95 ?? double.NaN,
             GasMode = run.GasMode,
+
+            MeanRpm = run.AgitationRpm > 0 ? run.AgitationRpm : run.MeanRpmMeasured,
+            NetTorqueNm = run.NetPowerW is { } np && run.MeanRpmMeasured != 0 ? np / PowerCalc.AngularVelocity(run.MeanRpmMeasured) : double.NaN,
+            NetPowerW = run.NetPowerW ?? double.NaN,
+            GasFlowLpmNumber = run.GasFlowLpm ?? 0.0,
+            PgLiquidW = run.GassedPowerW ?? (run.GasMode is PowerGasMode.Gassed or PowerGasMode.Both ? run.NetPowerW : null) ?? double.NaN,
+            P0RefW = run.ReferenceP0W ?? double.NaN,
+            AttemptsCount = run.Tries,
+            SortTimestamp = run.CompletedUtc ?? run.StartedUtc,
+            SortPhasePriority = GetPhasePriority(run.Phase),
         };
     }
+
+    public static int GetPhasePriority(PowerRunPhase phase) => phase switch
+    {
+        PowerRunPhase.Accepted => 1,
+        PowerRunPhase.Captured or PowerRunPhase.Reviewing => 2,
+        PowerRunPhase.Rejected => 3,
+        PowerRunPhase.Faulted or PowerRunPhase.Aborting => 4,
+        _ => 5,
+    };
 }
 
 public sealed record EnumChoice<T>(T Value, string Label) where T : struct, Enum;
@@ -4412,3 +4515,28 @@ public enum PowerSweepType
     VariableQgConstantN,
     MatrixNByQg,
 }
+
+public partial class EditableTarePoint : ObservableObject
+{
+    private readonly TarePoint _original;
+
+    [ObservableProperty] private double _rpm;
+    [ObservableProperty] private double _pVoidW;
+    [ObservableProperty] private double _sigmaTauPercent;
+
+    public EditableTarePoint(TarePoint point)
+    {
+        _original = point;
+        _rpm = point.Rpm;
+        _pVoidW = point.PVoidW;
+        _sigmaTauPercent = point.SigmaTauPercent;
+    }
+
+    public TarePoint ToRecord() => _original with
+    {
+        Rpm = Rpm,
+        PVoidW = PVoidW,
+        SigmaTauPercent = SigmaTauPercent
+    };
+}
+

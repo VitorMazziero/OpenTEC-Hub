@@ -527,18 +527,18 @@ public sealed class PowerAnalysisEngineTests
             }
         };
 
-        // Case 1: Fitted plateau provided
+        // Case 1: Direct measured ungassed point takes highest priority (even if plateau is provided)
         var plateau = new PlateauFitResult { HasFit = true, PowerNumber = 5.0, PowerNumberCi95 = 0.1 };
-        var (p0_plat, ci_plat, prov_plat) = _engine.ResolveReferenceP0(300, doc, plateau);
-        Assert.Equal(P0Provenance.PlateauFit, prov_plat);
-        Assert.NotNull(p0_plat);
-        Assert.True(p0_plat > 0);
-
-        // Case 2: No plateau fit -> fall back to measured ungassed at 300 rpm
-        var (p0_meas, ci_meas, prov_meas) = _engine.ResolveReferenceP0(300, doc, plateauFit: null);
+        var (p0_meas, ci_meas, prov_meas) = _engine.ResolveReferenceP0(300, doc, plateau);
         Assert.Equal(P0Provenance.MeasuredUngassed, prov_meas);
         Assert.Equal(0.60, p0_meas!.Value, 4);
         Assert.Equal(0.02, ci_meas!.Value, 4);
+
+        // Case 2: No measured ungassed point at this rpm -> fall back to reconstructed plateau
+        var (p0_plat, ci_plat, prov_plat) = _engine.ResolveReferenceP0(500, doc, plateau);
+        Assert.Equal(P0Provenance.PlateauFit, prov_plat);
+        Assert.NotNull(p0_plat);
+        Assert.True(p0_plat > 0);
 
         // Case 3: Different rpm (e.g. 800 rpm) with no plateau and no run -> null / None
         var (p0_none, ci_none, prov_none) = _engine.ResolveReferenceP0(800, doc, plateauFit: null);

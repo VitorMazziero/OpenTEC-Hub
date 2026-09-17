@@ -42,6 +42,7 @@ public enum PowerRunPhase
     AccumulatingToTarget,
     PausedByOperator,
     PausedForMeasurement,
+    PausedForLinkRecovery,
     HoldingForManualEnergy,
     Captured,
     StoppingRun,
@@ -315,6 +316,12 @@ public sealed record PowerTestSettings
 
     /// <summary>Auto-accept a condition when replicate spread is within the CIs (§16).</summary>
     public bool AutoAcceptRuns { get; init; }
+
+    /// <summary>Auto-resume the assay after a dropped link reconnects and servo telemetry stabilizes.</summary>
+    public bool AutoResumeOnLinkRestore { get; init; } = true;
+
+    /// <summary>Grace period in seconds to wait for a dropped link to reconnect before permanently interrupting the assay.</summary>
+    public double LinkRecoveryTimeoutSeconds { get; init; } = 30.0;
 }
 
 /// <summary>One planned row of the conditions table (§7.3). Gas is optional and per-row.</summary>

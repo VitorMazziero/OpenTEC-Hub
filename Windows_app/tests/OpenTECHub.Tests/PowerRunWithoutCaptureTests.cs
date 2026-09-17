@@ -309,6 +309,7 @@ public sealed class PowerRunWithoutCaptureTests : IDisposable
         public Task ResumeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SkipCurrentConditionAsync(string reason = "") => Task.CompletedTask;
         public Task ResumeAfterMeasurementAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ResumeAfterLinkRecoveryAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SubmitManualEnergyAsync(double electricalPowerW, string? instrument = null, string? note = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task StopRunAndReviewAsync(string reason = "") => Task.CompletedTask;
         public Task AcceptRunAsync() => Task.CompletedTask;

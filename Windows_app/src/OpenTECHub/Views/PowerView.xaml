@@ -509,7 +509,7 @@
                             <!-- Estado e ação em linhas próprias: na coluna de 340 DIP os dois
                                  lado a lado cortavam o texto do estado. -->
                             <TextBlock Margin="0,7,0,0" Text="{Binding TareStatus}" FontWeight="SemiBold" TextWrapping="Wrap"
-                                       ToolTip="Status de compatibilidade da tara com o conjunto de impelidores do ensaio." />
+                                       ToolTip="Status da tara do eixo aplicada no ensaio." />
                             <Button Margin="0,6,0,6" Content="Medir nova tara" Padding="8,4" HorizontalAlignment="Stretch"
                                     Command="{Binding TareMeasurementInfoCommand}"
                                     ToolTip="Abre os controles de varredura estatística no ar com vaso seco" />

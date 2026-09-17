@@ -6,8 +6,8 @@
   "status": "Completed",
   "createdUtc": "2026-09-06T23:40:14.9186784+00:00",
   "startedUtc": "2026-09-11T13:19:27.6090087+00:00",
-  "lastModifiedUtc": "2026-09-17T00:41:35.3886402+00:00",
-  "completedUtc": "2026-09-14T23:43:55.990215+00:00",
+  "lastModifiedUtc": "2026-09-17T19:04:13.5932805+00:00",
+  "completedUtc": "2026-09-17T19:04:13.5930125+00:00",
   "fluid": {
     "densityKgM3": 995.65,
     "viscosityPaS": 0.000797,
@@ -81,7 +81,7 @@
     "points": [
       {
         "rpm": 100,
-        "pVoidW": 0.37008938753002435,
+        "pVoidW": 0.37,
         "sigmaTauPercent": 0.44479548844236133,
         "sampleCount": 231,
         "meanRpmMeasured": 99.99480519480515,
@@ -269,8 +269,8 @@
     },
     "impellerSetHash": "e9ed76b1e553df8307a076b6aed7929f819fd32fa1343836ecf30ef5fd9edf52",
     "measuredUtc": "2026-09-10T17:00:15.5728863+00:00",
-    "profileName": "eixo_furo_duplo_2",
-    "rawSamplesFileName": "tara-20260910-170015.csv"
+    "profileName": "eixo_furo_duplo",
+    "rawSamplesFileName": "tara-20260910-170015_02.csv"
   },
   "relativeMode": true,
   "flooding": {

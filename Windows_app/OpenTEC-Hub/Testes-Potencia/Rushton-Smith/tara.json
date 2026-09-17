@@ -3,7 +3,7 @@
   "points": [
     {
       "rpm": 100,
-      "pVoidW": 0.37008938753002435,
+      "pVoidW": 0.37,
       "sigmaTauPercent": 0.44479548844236133,
       "sampleCount": 231,
       "meanRpmMeasured": 99.99480519480515,
@@ -185,10 +185,12 @@
     "prestageFlowStabilityMaxErrorLpm": 0.3,
     "unattendedFailurePolicy": "StopForReview",
     "manualEnergyCaptureEnabled": false,
-    "autoAcceptRuns": false
+    "autoAcceptRuns": false,
+    "autoResumeOnLinkRestore": true,
+    "linkRecoveryTimeoutSeconds": 30
   },
   "impellerSetHash": "e9ed76b1e553df8307a076b6aed7929f819fd32fa1343836ecf30ef5fd9edf52",
   "measuredUtc": "2026-09-10T17:00:15.5728863+00:00",
-  "profileName": "eixo_furo_duplo_2",
-  "rawSamplesFileName": "tara-20260910-170015.csv"
+  "profileName": "eixo_furo_duplo",
+  "rawSamplesFileName": "tara-20260910-170015_02.csv"
 }

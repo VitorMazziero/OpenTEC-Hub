@@ -673,20 +673,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
                 return "Sem tara aplicada · modo relativo";
             }
 
-            var currentHash = PowerTestFileContracts.ComputeImpellerSetHash(BuildGeometry());
-            var matchesGeometry = string.Equals(CurrentTest.Tare.ImpellerSetHash, currentHash, StringComparison.OrdinalIgnoreCase);
             var profileName = CurrentTest.Tare.ProfileName;
-
-            if (!string.IsNullOrWhiteSpace(profileName))
-            {
-                return matchesGeometry
-                    ? $"Tara compatível · {profileName}"
-                    : $"Tara no ar aplicada · {profileName}";
-            }
-
-            return matchesGeometry
-                ? "Tara compatível · curva do ensaio"
-                : "Tara no ar aplicada · conjunto diferente";
+            return !string.IsNullOrWhiteSpace(profileName)
+                ? $"Tara aplicada · {profileName}"
+                : "Tara aplicada · curva do ensaio";
         }
     }
     public string ResultModeLabel => CurrentTest?.Tare is null ? "RELATIVO" : "CALIBRADO";
@@ -2564,68 +2554,76 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         };
         CurrentTest.Geometry = BuildGeometry();
 
+        CurrentTest.RelativeMode = CurrentTest.Tare is null;
+
         var geometry = CurrentTest.Geometry;
         var fluid = CurrentTest.Fluid;
-        var refImpeller = geometry.Impellers.OrderByDescending(i => i.DiameterM).FirstOrDefault()
-                          ?? new Impeller { Type = ImpellerType.RushtonFlatBlade, DiameterM = 0.06 };
+        var tNom = CurrentTest.Calibration?.MotorRatedTorqueNm > 0
+            ? CurrentTest.Calibration.MotorRatedTorqueNm
+            : (CurrentTest.MotorRatedTorqueNm > 0 ? CurrentTest.MotorRatedTorqueNm : 1.27);
 
         for (var i = 0; i < CurrentTest.Runs.Count; i++)
         {
             var run = CurrentTest.Runs[i];
             var rpm = run.MeanRpmMeasured > 0 ? run.MeanRpmMeasured : run.AgitationRpm;
-            var pNet = run.NetPowerW ?? run.MeanShaftPowerW;
 
-            double re = 0.0;
-            double np = 0.0;
-            double? npCi = null;
-            if (rpm > 0 && refImpeller.DiameterM > 0 && fluid.DensityKgM3 > 0 && fluid.ViscosityPaS > 0)
+            if (rpm > 0 && (run.MeanTorquePercent != 0 || run.MeanShaftPowerW > 0 || run.NetPowerW.HasValue))
             {
-                re = PowerCalc.ReynoldsNumber(fluid.DensityKgM3, rpm, refImpeller.DiameterM, fluid.ViscosityPaS);
-                np = PowerCalc.PowerNumber(pNet, fluid.DensityKgM3, rpm, refImpeller.DiameterM);
-                if (run.Ci95PowerW is { } ciW && ciW > 0)
-                {
-                    npCi = ciW / (fluid.DensityKgM3 * Math.Pow(rpm / 60.0, 3) * Math.Pow(refImpeller.DiameterM, 5));
-                }
-            }
+                var omega = PowerCalc.AngularVelocity(rpm);
+                double shaftPowerW = run.MeanShaftPowerW > 0
+                    ? run.MeanShaftPowerW
+                    : (run.NetPowerW is { } npw && npw > 0 ? npw : (omega > 0 && tNom > 0 ? (run.MeanTorquePercent / 100.0 * tNom) * omega : 0.0));
 
-            double? fr = null;
-            double? fl = null;
-            double? vvm = null;
-            if (run.GasMode != PowerGasMode.Ungassed && run.GasFlowLpm is { } flowLpm)
-            {
-                if (rpm > 0 && refImpeller.DiameterM > 0)
+                double meanTorquePercent;
+                if (shaftPowerW > 0 && omega > 0 && tNom > 0)
                 {
-                    fr = PowerCalc.FroudeNumber(rpm, refImpeller.DiameterM);
-                    fl = PowerCalc.AerationNumber(flowLpm, rpm, refImpeller.DiameterM);
+                    meanTorquePercent = (shaftPowerW / (omega * tNom)) * 100.0;
                 }
-                if (geometry.LiquidVolumeM3 > 0)
+                else
                 {
-                    vvm = flowLpm / (geometry.LiquidVolumeM3 * 1000.0);
+                    meanTorquePercent = run.MeanTorquePercent;
                 }
-            }
 
-            var newAnalysis = run.Analysis is not null
-                ? run.Analysis with
+                var torquePercentCi95 = run.TorqueCi95Percent ?? 0.0;
+                if (torquePercentCi95 == 0 && run.Ci95PowerW is { } ciW && ciW > 0 && omega > 0 && tNom > 0)
                 {
-                    AssemblyReynoldsNumber = re,
-                    AssemblyPowerNumber = np,
-                    AssemblyPowerNumberCi95 = npCi ?? run.Analysis.AssemblyPowerNumberCi95,
+                    torquePercentCi95 = (ciW / (omega * tNom)) * 100.0;
                 }
-                : new PowerPointResult
+
+                var input = new PowerPointInput
                 {
-                    AssemblyReynoldsNumber = re,
-                    AssemblyPowerNumber = np,
-                    AssemblyPowerNumberCi95 = npCi ?? 0.0,
+                    MeanTorquePercent = meanTorquePercent,
+                    TorquePercentCi95 = torquePercentCi95,
+                    MeanRpm = rpm,
+                    Fluid = fluid,
+                    Geometry = geometry,
+                    Calibration = CurrentTest.Calibration,
+                    Tare = CurrentTest.Tare,
+                    SnrFloorMultiple = CurrentTest.Settings.SnrFloorMultiple,
+                    MotorRatedTorqueNm = tNom,
+                    GasFlowLpm = run.GasFlowLpm,
+                    GasFlowVvm = run.GasFlowVvm,
+                    ReferenceP0W = run.ReferenceP0W,
+                    ReferenceP0Ci95W = run.ReferenceP0Ci95W,
+                    P0Provenance = run.P0Provenance,
                 };
 
-            CurrentTest.Runs[i] = run with
-            {
-                GasFlowVvm = vvm ?? run.GasFlowVvm,
-                GasFlowNumber = run.GasFlowNumber ?? fl,
-                FroudeNumber = run.FroudeNumber ?? fr,
-                GassedPowerW = run.GassedPowerW ?? (run.GasMode != PowerGasMode.Ungassed ? run.NetPowerW : null),
-                Analysis = newAnalysis,
-            };
+                var result = _analysis.AnalyzePoint(input);
+
+                CurrentTest.Runs[i] = run with
+                {
+                    MeanTorqueNm = result.MeanTorqueNm,
+                    MeanShaftPowerW = result.ShaftPowerW,
+                    NetPowerW = result.NetPowerW,
+                    Ci95PowerW = result.NetPowerCi95W,
+                    IsRelative = result.IsRelative,
+                    Analysis = result,
+                    GasFlowVvm = run.GasFlowVvm ?? result.GasFlowVvm,
+                    GasFlowNumber = run.GasFlowNumber ?? result.GasFlowNumber,
+                    FroudeNumber = run.FroudeNumber ?? result.FroudeNumber,
+                    GassedPowerW = run.GasMode != PowerGasMode.Ungassed ? result.NetPowerW : null,
+                };
+            }
         }
 
         for (var i = 0; i < CurrentTest.Runs.Count; i++)
@@ -2756,7 +2754,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             else
             {
                 TareProgressMessage = CurrentTest?.Tare is null
-                    ? "Monte os impelidores no eixo e opere com o vaso no ar (seco)."
+                    ? "Opere com o eixo no ar (vaso seco e sem impelidores)."
                     : $"Tara atual possui {CurrentTest.Tare.Points.Count} patamares ({TareStatus}).";
             }
         }
@@ -3157,15 +3155,27 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void UseNoTare()
     {
-        if (!CanEditPlan || CurrentTest is null) { return; }
+        if (CurrentTest is null) { return; }
+        if (IsRunning || IsTareRunning)
+        {
+            ShowError("Aguarde a operação atual finalizar para retirar a tara.");
+            return;
+        }
         try
         {
             _store.ClearTare(CurrentTest.FolderName);
             CurrentTest.Tare = null;
             CurrentTest.RelativeMode = true;
             SelectedTareProfile = null;
+            TareProfileName = "";
+            TareProgressMessage = "Modo relativo ativado (sem tara).";
+            ValidationMessage = TareProgressMessage;
+            StatusMessage = ValidationMessage;
             _store.SaveTestManifest(CurrentTest);
             RefreshCurrentTarePoints();
+            OnPropertyChanged(nameof(TareStatus));
+            OnPropertyChanged(nameof(ResultModeLabel));
+            OnPropertyChanged(nameof(ResultsCsvPath));
             NotifyDocumentState();
             ReprocessScientificData();
         }
@@ -3202,6 +3212,7 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
         try
         {
             CurrentTest.Tare = curve;
+            CurrentTest.RelativeMode = false;
             _store.SaveTare(CurrentTest.FolderName, curve);
             _store.SaveTestManifest(CurrentTest);
 
@@ -3214,8 +3225,10 @@ public sealed partial class PowerTestViewModel : ObservableObject, IDisposable
             TareProgressMessage =
                 $"Perfil \"{selected.Name}\" aplicado: {curve.Points.Count} patamares ({TareStatus}).";
             ValidationMessage = TareProgressMessage;
+            StatusMessage = ValidationMessage;
             OnPropertyChanged(nameof(TareStatus));
             OnPropertyChanged(nameof(ResultModeLabel));
+            OnPropertyChanged(nameof(ResultsCsvPath));
             ReprocessScientificData();
         }
         catch (Exception ex)

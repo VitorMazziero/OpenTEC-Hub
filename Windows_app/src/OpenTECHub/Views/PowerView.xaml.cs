@@ -99,6 +99,11 @@ public partial class PowerView : UserControl
             case nameof(PowerTestViewModel.ShowPowerRatioChart):
                 MarkResultsDirty();
                 break;
+            case nameof(PowerTestViewModel.TareStatus):
+            case nameof(PowerTestViewModel.ResultModeLabel):
+                MarkResultsDirty();
+                _redraw.Invalidate();
+                break;
             case nameof(PowerTestViewModel.CurrentTest):
                 ApplyDefaultResultsSorting();
                 MarkResultsDirty();

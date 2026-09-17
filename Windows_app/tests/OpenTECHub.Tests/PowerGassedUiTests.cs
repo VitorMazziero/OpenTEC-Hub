@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -727,9 +728,14 @@ public sealed class PowerGassedUiTests : IDisposable
 
         Assert.Equal("perfil_novo_tara", vm.CurrentTest!.Tare?.ProfileName);
         // Net power should now be shaft power (2.0) - pvoid (0.35) = 1.65 W
+        Assert.NotNull(vm.CurrentTest.Runs[0].NetPowerW);
+        Assert.Equal(1.65, vm.CurrentTest.Runs[0].NetPowerW!.Value, 2);
+        Assert.Equal(1.65.ToString("F4", CultureInfo.CurrentCulture), vm.Results[0].Power);
+
         var reloaded = _store.LoadTest(doc.FolderName);
         Assert.NotNull(reloaded?.Tare);
         Assert.Equal("perfil_novo_tara", reloaded.Tare.ProfileName);
+        Assert.Equal(1.65, reloaded.Runs[0].NetPowerW!.Value, 2);
 
         // Now modify a point in the active tare profile
         Assert.NotEmpty(vm.SelectedTareProfilePoints);
@@ -737,8 +743,12 @@ public sealed class PowerGassedUiTests : IDisposable
 
         // Manifest and active tare should have updated automatically
         Assert.Equal(0.50, vm.CurrentTest!.Tare!.Points[0].PVoidW);
+        Assert.Equal(1.50, vm.CurrentTest.Runs[0].NetPowerW!.Value, 2);
+        Assert.Equal(1.50.ToString("F4", CultureInfo.CurrentCulture), vm.Results[0].Power);
+
         var reloadedAfterEdit = _store.LoadTest(doc.FolderName);
         Assert.Equal(0.50, reloadedAfterEdit!.Tare!.Points[0].PVoidW);
+        Assert.Equal(1.50, reloadedAfterEdit.Runs[0].NetPowerW!.Value, 2);
     }
 
     [Fact]

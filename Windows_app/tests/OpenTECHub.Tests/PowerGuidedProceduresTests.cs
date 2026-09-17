@@ -128,7 +128,7 @@ public sealed class PowerGuidedProceduresTests : IDisposable
         _store.SaveTare(doc.FolderName, doc.Tare);
         vm.LoadSelectedTestCommand.Execute(null);
 
-        Assert.Contains("Tara compatível", vm.TareStatus, StringComparison.Ordinal);
+        Assert.Contains("Tara aplicada", vm.TareStatus, StringComparison.Ordinal);
         Assert.Equal("CALIBRADO", vm.ResultModeLabel);
     }
 

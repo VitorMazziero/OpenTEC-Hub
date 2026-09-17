@@ -1883,3 +1883,13 @@
   "eventType": "TestCompleted",
   "message": "Ensaio \u0027Rushton-Smith\u0027 conclu\u00EDdo."
 }
+{
+  "timestampUtc": "2026-09-17T19:02:28.2284131+00:00",
+  "eventType": "TestReopened",
+  "message": "Reaberto pelo operador."
+}
+{
+  "timestampUtc": "2026-09-17T19:04:14.0169326+00:00",
+  "eventType": "TestCompleted",
+  "message": "Ensaio \u0027Rushton-Smith\u0027 conclu\u00EDdo."
+}

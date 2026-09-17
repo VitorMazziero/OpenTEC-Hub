@@ -445,7 +445,10 @@ public partial class PowerView : UserControl
 
     private void OnNpPlotMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (_npTooltip is null || _npPoints.Length == 0) return;
+        if (_npTooltip is null || _npPoints.Length == 0)
+        {
+            return;
+        }
 
         var position = e.GetPosition(_npPlot);
         var pixel = new Pixel(
@@ -458,8 +461,14 @@ public partial class PowerView : UserControl
         var limits = _npPlot.Plot.Axes.GetLimits();
         double xRange = limits.Right - limits.Left;
         double yRange = limits.Top - limits.Bottom;
-        if (xRange <= 0) xRange = 1;
-        if (yRange <= 0) yRange = 1;
+        if (xRange <= 0)
+        {
+            xRange = 1;
+        }
+        if (yRange <= 0)
+        {
+            yRange = 1;
+        }
 
         for (int i = 0; i < _npPoints.Length; i++)
         {
@@ -504,7 +513,10 @@ public partial class PowerView : UserControl
 
     private void OnPowerRatioPlotMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (_powerRatioTooltip is null || _powerRatioPoints.Length == 0) return;
+        if (_powerRatioTooltip is null || _powerRatioPoints.Length == 0)
+        {
+            return;
+        }
 
         var position = e.GetPosition(_powerRatioPlot);
         var pixel = new Pixel(
@@ -515,8 +527,14 @@ public partial class PowerView : UserControl
         var limits = _powerRatioPlot.Plot.Axes.GetLimits();
         double xRange = limits.Right - limits.Left;
         double yRange = limits.Top - limits.Bottom;
-        if (xRange <= 0) xRange = 1;
-        if (yRange <= 0) yRange = 1;
+        if (xRange <= 0)
+        {
+            xRange = 1;
+        }
+        if (yRange <= 0)
+        {
+            yRange = 1;
+        }
 
         double minDistance = double.MaxValue;
         int nearestIndex = -1;
@@ -640,7 +658,9 @@ public partial class PowerView : UserControl
         var dataGrid = (DataGrid)sender;
         var view = System.Windows.Data.CollectionViewSource.GetDefaultView(dataGrid.ItemsSource);
         if (view is null)
+        {
             return;
+        }
 
         var propertyName = e.Column.SortMemberPath;
         if (string.IsNullOrEmpty(propertyName) && e.Column is DataGridBoundColumn boundCol && boundCol.Binding is System.Windows.Data.Binding binding)
@@ -649,7 +669,9 @@ public partial class PowerView : UserControl
         }
 
         if (string.IsNullOrEmpty(propertyName))
+        {
             return;
+        }
 
         var direction = System.ComponentModel.ListSortDirection.Ascending;
         if (e.Column.SortDirection == System.ComponentModel.ListSortDirection.Ascending)
@@ -684,11 +706,15 @@ public partial class PowerView : UserControl
     private void ApplyDefaultResultsSorting()
     {
         if (ResultsDataGrid?.ItemsSource is null)
+        {
             return;
+        }
 
         var view = System.Windows.Data.CollectionViewSource.GetDefaultView(ResultsDataGrid.ItemsSource);
         if (view is null)
+        {
             return;
+        }
 
         view.SortDescriptions.Clear();
         view.SortDescriptions.Add(new System.ComponentModel.SortDescription("SortPhasePriority", System.ComponentModel.ListSortDirection.Ascending));

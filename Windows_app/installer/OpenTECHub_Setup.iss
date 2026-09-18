@@ -34,7 +34,17 @@
 #if !FileExists(MyAppDll)
   #error Publicacao nao encontrada. Rode 'dotnet publish ..\src\OpenTECHub\OpenTECHub.csproj -c Release -r win-x64 --self-contained true' antes de compilar o instalador (ou passe /DPublishDir).
 #endif
-#define MyAppVersion GetStringFileInfo(MyAppDll, PRODUCT_VERSION)
+; O MinVer grava em ProductVersion a InformationalVersion completa, que inclui o
+; metadado de build apos '+' (ex.: "0.26.4+c479d32..."). Esse sufixo e o SHA do
+; commit: nao distingue versoes e polui tanto o nome do instalador quanto o que
+; aparece em Programas e Recursos. Fica so a versao semantica; num build sem tag
+; o pre-release e preservado ("0.26.4-dev.8"), que continua informativo.
+#define MyAppVersionRaw GetStringFileInfo(MyAppDll, PRODUCT_VERSION)
+#if Pos("+", MyAppVersionRaw) > 0
+  #define MyAppVersion Copy(MyAppVersionRaw, 1, Pos("+", MyAppVersionRaw) - 1)
+#else
+  #define MyAppVersion MyAppVersionRaw
+#endif
 
 [Setup]
 AppId={{E1D4978F-5F1A-4C2E-A37F-02D437F9E821}

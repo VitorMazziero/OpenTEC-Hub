@@ -57,8 +57,12 @@ if (-not (Test-Path $DllPath)) {
     exit 1
 }
 
-$version = (Get-Item $DllPath).VersionInfo.ProductVersion
-Write-Host "`n[2/3] Versao detectada no binario: $version" -ForegroundColor Cyan
+# ProductVersion traz a InformationalVersion do MinVer, com o metadado de build
+# apos '+'. O .iss descarta esse sufixo ao nomear a saida, entao aqui se aplica o
+# mesmo corte: sem ele a mensagem final apontaria para um arquivo inexistente.
+$rawVersion = (Get-Item $DllPath).VersionInfo.ProductVersion
+$version = $rawVersion -replace '\+.*$', ''
+Write-Host "`n[2/3] Versao detectada no binario: $version (completa: $rawVersion)" -ForegroundColor Cyan
 
 # Localizar compilador Inno Setup
 Write-Host "`n[3/3] Localizando compilador do Inno Setup (ISCC.exe)..." -ForegroundColor Yellow

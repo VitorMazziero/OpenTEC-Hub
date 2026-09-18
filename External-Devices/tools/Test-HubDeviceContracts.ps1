@@ -31,13 +31,22 @@ Require 'Hub routes' $hub @('/distance', '/flowData', '/flowCommand', '/biomassD
 Require 'Hub reliability' $hub @('cmd_id', 'ack_cmd_id', 'takeReliable', 'ackReliable')
 
 Require 'Distance node' $distance @('/distance', 'distance=', '&time=', '/nodeHello', '&offset=', '&ack_cmd_id=', 'processConfigUpdate(body')
-Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', '&slope=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
+Require 'Pump node' $pump @('/pumpData', '/pumpCommand', 'mode=', '&flow=', '&vol=', '&v_tgt=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
+
+# Calibracao polinomial da bomba (3.12, commit 73e9a80), que substituiu o par
+# linear slope/intercept: quartica na faixa baixa (a1..c1), quadratica na faixa
+# alta (k2, f2, c2) e a velocidade de transicao entre elas. O nome difere por
+# direcao e nao e erro de digitacao: o no ecoa 'trans_speed' na telemetria e
+# aceita 'transition_speed' no comando.
+Require 'Pump calibration echo' $pump @('&a1=', '&b1=', '&k1=', '&f1=', '&c1=', '&k2=', '&f2=', '&c2=', '&trans_speed=', '&cal_crc=')
+Require 'Pump calibration command' $pump @('"transition_speed"')
 Require 'Flowmeter node' $flow @('/flowData', '/flowCommand', 'seconds=', '&flow_voltage=', '&flow_rate=', '&flow_setpoint=', '&valve1State=', '&valve2State=', '&kp=', 'cmd_id', 'ack_cmd_id', '/nodeHello')
 Require 'Biomass node' $biomass @('/biomassData', '/biomassCommand', 'absorbance=', '&raw=', '&gear=', 'cmd_id', 'ack_cmd_id', '&idle=', '/nodeHello')
 Require 'Agitator node' $agitator @('/agitatorHello', '/nodeHello', '/agitatorData', '/agitatorCommand', 'pct=', '&dir=', '&pot=', '&src=', 'cmd_id', 'ack_cmd_id')
 
 Require 'Hub distance fields' $hub @('hasParam("distance")', 'hasParam("time")', 'hasParam("offset")', 'hasParam("sample_ms")', 'hasParam("send_ms")')
-Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")', 'hasParam("slope")', 'hasParam("intercept")')
+Require 'Hub pump fields' $hub @('hasParam("mode")', 'hasParam("flow")', 'hasParam("vol")', 'hasParam("v_tgt")')
+Require 'Hub pump calibration' $hub @('hasParam("a1")', 'hasParam("b1")', 'hasParam("k1")', 'hasParam("f1")', 'hasParam("c1")', 'hasParam("k2")', 'hasParam("f2")', 'hasParam("c2")', 'hasParam("trans_speed")', 'hasParam("cal_crc")')
 Require 'Hub flow fields' $hub @('hasParam("seconds")', 'hasParam("flow_voltage")', 'hasParam("flow_rate")', 'hasParam("flow_setpoint")', 'hasParam("valve1State")', 'hasParam("valve2State")', 'hasParam("kp")', 'hasParam("ki")', 'hasParam("ramp")', 'hasParam("ff_gain")', 'hasParam("ff_offset")', 'hasParam("flow_output")', 'hasParam("flow_setpoint_corrected")')
 Require 'Hub biomass fields' $hub @('hasParam("absorbance")', 'hasParam("raw")', 'hasParam("idle")', 'hasParam("gear")', 'hasParam("ema")', 'hasParam("probe_ms")')
 Require 'Hub agitator fields' $hub @('hasParam("pct")', 'hasParam("dir")', 'hasParam("pot")', 'hasParam("src")')

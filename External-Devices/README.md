@@ -25,6 +25,16 @@ Este diretório reúne firmware, aplicativos, hardware, evidências e histórico
 - `hardware/cad/source/` contém fontes mecânicas; binários grandes são tratados por Git LFS.
 - Cada dispositivo mantém `README.md`, `CHANGELOG.md` e documentação de arquitetura, protocolo, hardware, validação e estado atual.
 
+## Atualização de firmware
+
+Pela interface, para os cinco dispositivos de uma vez — estado dos nós, compilação e gravação OTA:
+
+```powershell
+python External-Devices\tools\updater_app\app.py
+```
+
+Por linha de comando, um dispositivo por vez: `tools\Publish-OtaFirmware.ps1 <dispositivo> [-Compile]`. Os dois usam o mesmo catálogo de endereços, FQBN e caminhos de sketch; ver [o aplicativo](tools/updater_app/README.md).
+
 ## Verificação
 
 Execute no PowerShell, na raiz do repositório:

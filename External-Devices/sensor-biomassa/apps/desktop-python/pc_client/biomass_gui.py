@@ -2529,11 +2529,21 @@ class MainWindow(QtWidgets.QMainWindow):
     # Status sync
     # ------------------------------------------------------------------
     def _fw_tuple(self, st: dict) -> tuple:
-        try:
-            parts = str(st.get("fw", "0")).split(".")
-            return tuple(int(p) for p in parts[:2])
-        except ValueError:
-            return (0, 0)
+        # The firmware reports its version with a leading "v" ("v11.1"), so a
+        # bare int() on the first field raised ValueError and every capability
+        # gated on this -- the paced blank among them -- silently fell back to
+        # the "oldest firmware" branch. Pull the leading digit run out of each
+        # of the first two dotted fields; anything unparseable counts as 0.
+        out = []
+        for part in str(st.get("fw", "0")).split(".")[:2]:
+            digits = ""
+            for ch in part:
+                if ch.isdigit():
+                    digits += ch
+                elif digits:
+                    break
+            out.append(int(digits) if digits else 0)
+        return tuple(out)
 
     def _on_status(self, st: dict):
         self._guard = True

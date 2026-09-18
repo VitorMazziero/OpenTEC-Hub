@@ -1854,3 +1854,8 @@
   "eventType": "TestReopened",
   "message": "Reaberto pelo operador."
 }
+{
+  "timestampUtc": "2026-09-18T12:06:10.8935732+00:00",
+  "eventType": "TestCompleted",
+  "message": "Ensaio \u0027Isojet-Combijet-2\u0027 conclu\u00EDdo."
+}

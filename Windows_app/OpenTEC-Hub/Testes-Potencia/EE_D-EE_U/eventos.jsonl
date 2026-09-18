@@ -1944,3 +1944,13 @@
   "eventType": "TestCompleted",
   "message": "Ensaio \u0027EE_D-EE_U\u0027 conclu\u00EDdo."
 }
+{
+  "timestampUtc": "2026-09-18T12:01:58.3940444+00:00",
+  "eventType": "TestReopened",
+  "message": "Reaberto pelo operador."
+}
+{
+  "timestampUtc": "2026-09-18T12:06:05.4446435+00:00",
+  "eventType": "TestCompleted",
+  "message": "Ensaio \u0027EE_D-EE_U\u0027 conclu\u00EDdo."
+}

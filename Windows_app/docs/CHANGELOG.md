@@ -6,6 +6,23 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.26.4] - 2026-09-18
+
+### Potência — tara, estabilidade e recálculo
+
+- análise científica por ponto na tara, com semântica explícita do eixo;
+- renomeação de perfil de tara por diálogo, coluna `Np ± IC` e remoção de colunas redundantes da tabela;
+- filtro estrito de estabilidade de torque, recálculo por tara e correção no assistente de perfis;
+- recálculo dos ensaios ao abrir, ordenação da tabela e resiliência de conexão.
+
+### Ferramentas dos dispositivos externos
+
+- aplicativo PySide6 em `External-Devices/tools/updater_app` que centraliza compilação e gravação OTA dos cinco dispositivos, lendo o estado dos nós em `/nodes`;
+- `Test-HubDeviceContracts.ps1` alinhado à calibração polinomial 3.12 da bomba, que substituiu o par linear `slope`/`intercept`;
+- correção na leitura de versão do firmware no aplicativo do sensor de biomassa, que interpretava `"v11.1"` como versão zero.
+
+---
+
 ## [0.26.3] - 2026-09-15
 
 ### Correção de integração do mapa

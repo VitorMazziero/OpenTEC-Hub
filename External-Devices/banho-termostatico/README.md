@@ -53,4 +53,7 @@ relé realmente fechou a linha da tecla.
 
 Leia `docs/CURRENT_STATUS.md` antes de gravar hardware e `docs/PROTOCOL.md` antes de tocar
 em comunicação. O Hub ainda não conhece este nó (`hub_enabled = 0` por padrão); o formato de
-push e o canal por carona seguem os dos outros dispositivos para a integração futura.
+push e o canal por carona seguem os dos outros dispositivos para a integração futura, planejada em
+`../docs/Planos/IMPLEMENTATION_PLAN_BANHO.md` (segunda via do setpoint de temperatura, como o servo
+é para a agitação); o aplicativo Android próprio do nó está planejado em
+`../docs/Planos/IMPLEMENTATION_PLAN_BANHO_APP_ANDROID.md`.

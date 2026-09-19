@@ -12,7 +12,10 @@
   ligar ao ESP32). `sense_mask = 6` já é o padrão; falta `sense_enabled = 1` após a conferência
 - Aplicativo de bancada: `apps/desktop-python/bath_app.py` testado contra um servidor HTTP
   simulado (CLI e janela); não testado contra o dispositivo
-- Hub: sem integração (`hub_enabled = 0`); nenhuma alteração no Hub ou no aplicativo principal
+- Hub: sem integração (`hub_enabled = 0`); nenhuma alteração no Hub ou no aplicativo principal.
+  Plano: `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO.md` (banho como segunda via do setpoint de
+  temperatura; exige o push em tarefa própria, r3). Aplicativo Android próprio do nó:
+  `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO_APP_ANDROID.md`
 - Bancada/hardware: **pendente** — gates G1–G8 em `VALIDATION.md`, nenhum executado
 - Display: leitor implementado a partir dos pontos identificados na placa (`2DISP, A…G, PD,
   CH1…CH4`); polaridade, fase e ordem dos dígitos são hipóteses até G6

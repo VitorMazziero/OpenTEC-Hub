@@ -184,7 +184,7 @@ o estado (`sp_shadow`, `sp_known`, `seq_busy`, `sp_target`, `mode`) em `bath_st`
 boot que encontra `seq_busy = 1` marca `sp_known = false`. No modo display a sombra é
 reconstruída do painel nos primeiros ~300 ms após o display ficar vivo.
 
-## 6. Integração futura com o Hub (não implementada no Hub)
+## 6. Integração futura com o Hub (não implementada no Hub — plano em `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO.md`)
 
 Com `hub_enabled = 1` o nó procura `ModuloTECNAL_1/2`, envia
 `GET /nodeHello?dev=bath&ver=v1&mac=…` e a cada `send_period`:

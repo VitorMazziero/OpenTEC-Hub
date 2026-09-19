@@ -1,6 +1,6 @@
 # Dispositivos externos
 
-Este diretório reúne firmware, aplicativos, hardware, evidências e histórico dos cinco dispositivos externos integrados ao `ESP32S3-HUB`.
+Este diretório reúne firmware, aplicativos, hardware, evidências e histórico dos cinco dispositivos externos integrados ao `ESP32S3-HUB` e do banho termostático (`banho-termostatico`, ainda sem integração com o Hub).
 
 | Dispositivo | Firmware ativo | Aplicativo |
 |---|---|---|
@@ -9,6 +9,7 @@ Este diretório reúne firmware, aplicativos, hardware, evidências e histórico
 | Frasco agitador | `frasco-agitador/firmware/flask-agitator` | Flutter |
 | Sensor de biomassa | `sensor-biomassa/firmware/biomass-sensor` | Desktop Python |
 | Sensor de distância | `sensor-distancia/firmware/distance-sensor` | — |
+| Banho termostático (C404) | `banho-termostatico/firmware/thermostatic-bath` | Desktop Python (bancada) |
 
 ## Documentação transversal
 
@@ -27,7 +28,7 @@ Este diretório reúne firmware, aplicativos, hardware, evidências e histórico
 
 ## Atualização de firmware
 
-Pela interface, para os cinco dispositivos de uma vez — estado dos nós, compilação e gravação OTA:
+Pela interface, para os seis dispositivos de uma vez — estado dos nós, compilação e gravação OTA:
 
 ```powershell
 python External-Devices\tools\updater_app\app.py

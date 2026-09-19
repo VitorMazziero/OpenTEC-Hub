@@ -1,6 +1,6 @@
 """Check the device catalogue against the repository and the PowerShell publisher.
 
-The updater and ``tools/Publish-OtaFirmware.ps1`` flash the same five devices.
+The updater and ``tools/Publish-OtaFirmware.ps1`` flash the same six devices.
 If their default addresses, board definitions or sketch paths ever drift apart,
 an operator gets a different result depending on which publisher was used, so
 the two tables are compared field by field here.
@@ -50,7 +50,7 @@ def parse_publisher() -> dict[str, dict[str, str]]:
 def main() -> int:
     print("Catalogo de dispositivos")
 
-    check(len(DEVICES) == 5, "cinco dispositivos no catalogo")
+    check(len(DEVICES) == 6, "seis dispositivos no catalogo")
 
     for device in DEVICES:
         print(f"\n{device.name} [{device.key}]")

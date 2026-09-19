@@ -1,7 +1,7 @@
 """
 ota.py -- multipart upload of a firmware image to a device's /update route.
 
-The five firmwares expose the same OTA contract: ``POST /update`` with a
+The six firmwares expose the same OTA contract: ``POST /update`` with a
 multipart body whose single part is named ``firmware``. This reproduces the
 exact request the PowerShell publisher makes through curl.
 

@@ -1,6 +1,6 @@
 # Atualizador de dispositivos externos
 
-Aplicativo PySide6 que centraliza a compilação e a gravação OTA dos cinco dispositivos externos. Faz pela interface o que `tools/Publish-OtaFirmware.ps1` faz por linha de comando, para um dispositivo de cada vez.
+Aplicativo PySide6 que centraliza a compilação e a gravação OTA dos seis dispositivos externos. Faz pela interface o que `tools/Publish-OtaFirmware.ps1` faz por linha de comando, para um dispositivo de cada vez.
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -34,7 +34,7 @@ Os dispositivos são gravados um de cada vez. Eles compartilham o ponto de acess
 
 ## Contrato com o firmware
 
-As cinco imagens são enviadas como `POST /update` com uma parte `multipart/form-data` chamada `firmware`, com `Content-Length` declarado. Os firmwares recusam nomes contendo `merged`, `bootloader` ou `partitions`; o aplicativo aplica a mesma regra antes de enviar, para que a recusa aconteça aqui e não no meio da gravação da flash.
+As seis imagens são enviadas como `POST /update` com uma parte `multipart/form-data` chamada `firmware`, com `Content-Length` declarado. Os firmwares recusam nomes contendo `merged`, `bootloader` ou `partitions`; o aplicativo aplica a mesma regra antes de enviar, para que a recusa aconteça aqui e não no meio da gravação da flash.
 
 Endereços de AP padrão, FQBN e caminhos de sketch são os mesmos de `Publish-OtaFirmware.ps1` e `tests/test_catalog.py` compara as duas tabelas campo a campo — se divergirem, o teste falha.
 
@@ -51,7 +51,7 @@ Quatro conjuntos, todos sem hardware: catálogo e paridade com o publicador Powe
 | Arquivo | Responsabilidade |
 |---|---|
 | `app.py` | ponto de entrada |
-| `updater/devices.py` | catálogo dos cinco dispositivos e caminhos do repositório |
+| `updater/devices.py` | catálogo dos seis dispositivos e caminhos do repositório |
 | `updater/hub.py` | leitura de `/nodes` e teste da rota `/update` |
 | `updater/firmware.py` | descoberta de imagens e leitura da versão no fonte |
 | `updater/compiler.py` | chamada ao `arduino-cli` |

@@ -130,7 +130,7 @@ def main() -> int:
 
     print("\nSelecao")
     window._set_all_checked(True)
-    check(len(window._checked_rows()) == len(DEVICES), "marcar todos seleciona os cinco")
+    check(len(window._checked_rows()) == len(DEVICES), "marcar todos seleciona todos")
     window._set_all_checked(False)
     check(not window._checked_rows(), "desmarcar todos limpa a selecao")
 

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('distance', 'agitator', 'pump', 'flowmeter', 'biomass')]
+    [ValidateSet('distance', 'agitator', 'pump', 'flowmeter', 'biomass', 'bath')]
     [string]$Device,
 
     [Parameter(Position = 1)]
@@ -90,6 +90,14 @@ $deviceMeta = @{
         Fqbn         = 'esp32:esp32:esp32s3'
         RelativePath = 'sensor-biomassa\firmware\biomass-sensor'
         BinPattern   = 'biomass-sensor*.ino.bin'
+    }
+
+    'bath' = @{
+        Name         = 'Banho Termostatico'
+        DefaultApIp  = '192.168.8.1'
+        Fqbn         = 'esp32:esp32:esp32s3'
+        RelativePath = 'banho-termostatico\firmware\thermostatic-bath'
+        BinPattern   = 'thermostatic-bath*.ino.bin'
     }
 }
 

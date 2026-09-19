@@ -1,5 +1,5 @@
 """
-devices.py -- catalogue of the five external devices this updater can flash.
+devices.py -- catalogue of the six external devices this updater can flash.
 
 Every field here is a contract shared with ``tools/Publish-OtaFirmware.ps1``,
 with the Hub's ``/nodes`` route and with the firmware itself:
@@ -126,6 +126,16 @@ DEVICES: tuple[Device, ...] = (
         bin_pattern="biomass-sensor*.ino.bin",
         version_file="sensor-biomassa/firmware/biomass-sensor/src/core/FirmwareApp.cpp",
         version_regex=r'FW_VERSION\s*=\s*"([^"]+)"',
+    ),
+    Device(
+        key="bath",
+        name="Banho Termostatico",
+        default_ap_ip="192.168.8.1",
+        fqbn="esp32:esp32:esp32s3",
+        relative_path="banho-termostatico/firmware/thermostatic-bath",
+        bin_pattern="thermostatic-bath*.ino.bin",
+        version_file="banho-termostatico/firmware/thermostatic-bath/src/config/BoardConfig.h",
+        version_regex=r'FirmwareTag\s*=\s*"([^"]+)"',
     ),
 )
 

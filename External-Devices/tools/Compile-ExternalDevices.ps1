@@ -35,7 +35,8 @@ $jobs = @(
     @('agitator', 'esp32:esp32:esp32', 'frasco-agitador\firmware\flask-agitator'),
     @('pump', 'esp32:esp32:esp32', 'bomba-peristaltica\firmware\peristaltic-pump'),
     @('flowmeter', 'esp32:esp32:esp32:UploadSpeed=921600,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=4M,PartitionScheme=default,DebugLevel=none,PSRAM=disabled,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default', 'fluxometro\firmware\flowmeter'),
-    @('biomass', 'esp32:esp32:esp32s3', 'sensor-biomassa\firmware\biomass-sensor')
+    @('biomass', 'esp32:esp32:esp32s3', 'sensor-biomassa\firmware\biomass-sensor'),
+    @('bath', 'esp32:esp32:esp32s3', 'banho-termostatico\firmware\thermostatic-bath')
 )
 
 foreach ($job in $jobs) {
@@ -45,4 +46,4 @@ foreach ($job in $jobs) {
     if ($LASTEXITCODE -ne 0) { throw "Build failed: $($job[0])" }
 }
 
-Write-Output 'All five external-device firmwares compiled successfully.'
+Write-Output 'All six external-device firmwares compiled successfully.'

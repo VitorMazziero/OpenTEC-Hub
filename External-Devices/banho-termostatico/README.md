@@ -3,7 +3,9 @@
 Versão ativa: **r2** (`BathClient r2`). Placa de compilação: **ESP32-S3** (`esp32:esp32:esp32s3`).
 
 - Firmware: `firmware/thermostatic-bath`
-- Aplicativo de bancada: `apps/desktop-python/bath_app.py` (Tkinter + urllib, sem dependências)
+- Aplicativos de bancada (falam HTTP direto com o nó, sem o Hub):
+  - Desktop Python: `apps/desktop-python/bath_app.py` (Tkinter + urllib, sem dependências)
+  - Android (Flutter): `apps/flutter` (`bath_app`) — mesmas funções em celular
 - Plano de hardware original: `plano_controle_remoto_C404_ESP32S3.md`
 - Documentação: `docs/` (arquitetura, protocolo, hardware, validação, estado atual)
 
@@ -46,8 +48,9 @@ relé realmente fechou a linha da tecla.
 
    gera `tools\.build\bath\thermostatic-bath.ino.bin`; na primeira gravação use a
    Arduino IDE/`arduino-cli upload` pela USB. A partir daí, OTA em `http://192.168.8.1/update`.
-2. Conecte ao AP `Banho Termostatico` (sem senha) e abra `http://192.168.8.1/ui` no celular ou
-   rode `python apps\desktop-python\bath_app.py` no PC.
+2. Conecte ao AP `Banho Termostatico` (sem senha) e abra `http://192.168.8.1/ui` no celular,
+   rode `python apps\desktop-python\bath_app.py` no PC, ou instale o app Android
+   (`apps\flutter`, veja o README de lá).
 3. Siga `docs/VALIDATION.md` na ordem: relés fora do C404 → um relé em paralelo a uma tecla →
    sequência completa → caracterização do display.
 

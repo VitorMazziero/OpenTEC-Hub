@@ -9,7 +9,7 @@ Este diretório reúne firmware, aplicativos, hardware, evidências e histórico
 | Frasco agitador | `frasco-agitador/firmware/flask-agitator` | Flutter |
 | Sensor de biomassa | `sensor-biomassa/firmware/biomass-sensor` | Desktop Python |
 | Sensor de distância | `sensor-distancia/firmware/distance-sensor` | — |
-| Banho termostático (C404) | `banho-termostatico/firmware/thermostatic-bath` | Desktop Python (bancada) |
+| Banho termostático (C404) | `banho-termostatico/firmware/thermostatic-bath` | Desktop Python (bancada) + Android (Flutter) |
 
 ## Documentação transversal
 

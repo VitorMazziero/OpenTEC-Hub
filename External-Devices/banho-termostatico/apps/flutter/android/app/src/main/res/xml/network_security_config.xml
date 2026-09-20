@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- O nó bath fala HTTP puro (sem TLS) no AP 192.168.8.1 e em qualquer IP que
+     receba na rede do Hub. Permitimos cleartext para toda a rede local. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

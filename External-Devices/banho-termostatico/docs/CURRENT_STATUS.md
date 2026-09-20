@@ -10,8 +10,13 @@
 - Montagem (2026-09-19): relés, display e fonte ligados; sensoriamento de `▲`/`▼` a ligar nos
   bornes `NO` dos relés 2 e 3 → GPIO 2/42 (WIRING.md §3b, com a conferência de nível antes de
   ligar ao ESP32). `sense_mask = 6` já é o padrão; falta `sense_enabled = 1` após a conferência
-- Aplicativo de bancada: `apps/desktop-python/bath_app.py` testado contra um servidor HTTP
-  simulado (CLI e janela); não testado contra o dispositivo
+- Aplicativos de bancada (HTTP direto, sem o Hub):
+  - `apps/desktop-python/bath_app.py` testado contra um servidor HTTP simulado (CLI e janela);
+    não testado contra o dispositivo
+  - `apps/flutter` (`bath_app`, Android): quatro abas (Operação, Modos, Bancada, Config),
+    `cmd_id` com reentrega, traço de 10 min, diagnóstico. `flutter analyze` limpo e `flutter test`
+    (modelos com fixtures do PROTOCOL.md + serviço contra um `HttpServer` falso) passam;
+    **não testado contra o dispositivo** (gates G1–G9 a reproduzir pelo app na bancada)
 - Hub: sem integração (`hub_enabled = 0`); nenhuma alteração no Hub ou no aplicativo principal.
   Plano: `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO.md` (banho como segunda via do setpoint de
   temperatura; exige o push em tarefa própria, r3). Aplicativo Android próprio do nó:

@@ -26,7 +26,7 @@ class BathApp extends StatelessWidget {
     return ChangeNotifierProvider<BathService>.value(
       value: service,
       child: MaterialApp(
-        title: 'Banho Termostático TECNAL',
+        title: 'Banho Lucadema',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const BathShell(),
@@ -57,7 +57,32 @@ class _BathShellState extends State<BathShell> {
     final service = context.watch<BathService>();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Banho Termostático'),
+        titleSpacing: 12,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'assets/icon/app_logo.png',
+                width: 24,
+                height: 24,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Flexible(
+              child: Text(
+                'Banho Lucadema',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

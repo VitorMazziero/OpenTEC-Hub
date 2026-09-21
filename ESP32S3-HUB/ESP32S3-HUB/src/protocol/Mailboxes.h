@@ -80,6 +80,14 @@ bool mailboxPending(ReliableMailbox &box) {
   return pending;
 }
 
+void clearReliable(ReliableMailbox &box) {
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    box.awaiting = false;
+    box.payload = "";
+    xSemaphoreGive(cmdMutex);
+  }
+}
+
 // Reads the ack_cmd_id query parameter a node appends to its data push, or 0.
 uint32_t readAckParam(AsyncWebServerRequest *request) {
   if (!request->hasParam("ack_cmd_id")) return 0;
@@ -397,6 +405,7 @@ uint32_t queueReliable(ReliableMailbox &box, const String &innerJson, const char
 String takeReliable(ReliableMailbox &box);
 bool ackReliable(ReliableMailbox &box, uint32_t reportedAck, const char *label);
 bool mailboxPending(ReliableMailbox &box);
+void clearReliable(ReliableMailbox &box);
 
 // Helper de validação de resposta da UART (portável, sem range-based for)
 static inline bool isValidSensorReply(const String& r) {

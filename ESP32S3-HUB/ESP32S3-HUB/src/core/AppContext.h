@@ -71,6 +71,7 @@
 #include "../devices/ServoDevice.h"
 #include "../protocol/HttpCommandQueue.h"
 #include "../protocol/JsonUtils.h"
+#include "../control/ExternalBathCascade.h"
 
 // Mutex para proteger a porta serial do sensor
 SemaphoreHandle_t sensorSerialMutex = NULL;
@@ -167,6 +168,18 @@ bool bypassMode = false;
 
 // ---------- External thermostatic bath (H01 foundation) ----------
 bool bathCommOn = false;
+enum class TempControlRoute : uint8_t { UartModule = 0, ExternalBath = 1 };
+TempControlRoute tempControlRoute = TempControlRoute::UartModule;
+bool tempReferenceCommanded = false;
+bool tempRouteTransitionPending = false;
+ExternalBathCascade bathCascade;
+ExternalBathCascadeSnapshot bathCascadeSnapshot;
+float bathCommandSetpoint = NAN;
+float bathCommandConfirmed = NAN;
+bool bathCommandLatestWins = false;
+unsigned long bathCascadeLastCalcMs = 0;
+unsigned long bathCommandLastSendMs = 0;
+unsigned long bathCommandLastDoneMs = 0;
 float bathSp = NAN;
 bool bathSpKnown = false;
 float bathTarget = NAN;

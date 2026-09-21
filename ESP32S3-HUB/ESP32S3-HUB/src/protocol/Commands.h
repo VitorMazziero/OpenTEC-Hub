@@ -138,6 +138,8 @@ uint32_t computeStateHash() {
 void processJsonCommand(const String &json) {
   String value;
   bool motorRouteChangedInFrame = false;
+  bool tempRouteChangedInFrame = false;
+  String bathOperation;
 
   // Diagnostics are a system read: no actuator ownership, NVS mutation or telemetry
   // frame. "all" deliberately emits one bounded line per node for USB robustness.
@@ -359,9 +361,104 @@ void processJsonCommand(const String &json) {
     }
   }
 
+  // ============ TEMPERATURE ROUTE / EXTERNAL BATH ============
+  if (json.indexOf("\"tempControlMode\"") != -1) {
+    uint32_t requested = 0;
+    String raw;
+    if (JsonUtils::getRaw(json, "tempControlMode", raw) &&
+        JsonUtils::parseUInt(raw, requested) && requested <= 1) {
+      const TempControlRoute next = requested == 1
+          ? TempControlRoute::ExternalBath : TempControlRoute::UartModule;
+      if (next != tempControlRoute) {
+        tempControlRoute = next;
+        tempRouteChangedInFrame = true;
+        tempReferenceCommanded = false;
+        tempRouteTransitionPending = true;
+        tempOn = false;
+        flagTempDirty = false;
+        bathCascade.reset();
+        clearReliable(bathBox);
+        bathCommandSetpoint = NAN;
+        bathCommandConfirmed = NAN;
+        bathCommandLatestWins = false;
+        // 100B is the established, working module command that releases the
+        // original temperature actuator before the external route can act.
+        sendSensorCommand("100B", false);
+        ESP32_EVT(String("Via de temperatura alterada para ") +
+                  (next == TempControlRoute::ExternalBath ? "banho externo" : "modulo UART") +
+                  "; 100B enviado; novo tempSetpoint exigido");
+      }
+    } else {
+      ESP32_AVISO("tempControlMode rejeitado: esperado 0 (UART) ou 1 (banho externo)");
+    }
+  }
+
+  if (json.indexOf("\"bathComm\"") != -1) {
+    bool enabled = false;
+    String raw;
+    if (JsonUtils::getRaw(json, "bathComm", raw) && JsonUtils::parseBool(raw, enabled)) {
+      bathCommOn = enabled;
+      if (!enabled) clearReliable(bathBox);
+      ESP32_EVT(String("Comunicação do banho ") + (enabled ? "ativada" : "desativada"));
+    } else {
+      ESP32_AVISO("bathComm rejeitado: esperado 0, 1, false ou true");
+    }
+  }
+
+  if (json.indexOf("\"bathMode\"") != -1) {
+    String raw;
+    if (JsonUtils::getRaw(json, "bathMode", raw)) {
+      raw.trim();
+      raw.toLowerCase();
+      if (raw == "auto" || raw == "manual" || raw == "0" || raw == "1") {
+        bathOperation = String("\"mode\":\"") +
+                        ((raw == "auto" || raw == "1") ? "auto" : "manual") + "\"";
+      } else {
+        ESP32_AVISO("bathMode rejeitado: esperado auto/manual");
+      }
+    }
+  }
+
+  if (json.indexOf("\"bathSync\"") != -1 && bathOperation.length() == 0) {
+    String raw;
+    float sync = 0.0f;
+    if (JsonUtils::getRaw(json, "bathSync", raw) &&
+        JsonUtils::parseFiniteFloat(raw, sync) && sync >= 0.0f && sync <= 100.0f) {
+      bathOperation = String("\"sync_sp\":") + String(sync, 2);
+    } else {
+      ESP32_AVISO("bathSync rejeitado: faixa 0..100 e valor finito");
+    }
+  }
+
+  if (json.indexOf("\"bathAbort\"") != -1 && bathOperation.length() == 0) {
+    String raw;
+    bool abort = false;
+    if (JsonUtils::getRaw(json, "bathAbort", raw) && JsonUtils::parseBool(raw, abort) && abort) {
+      bathOperation = "\"abort\":1";
+    } else {
+      ESP32_AVISO("bathAbort rejeitado: esperado 1/true");
+    }
+  }
+
   // ============ TEMPERATURE CONTROL ============
   if (json.indexOf("\"tempSetpoint\"") != -1) {
-    setTemperature(getValueFromJson(json, "tempSetpoint").toFloat());
+    if (tempRouteChangedInFrame) {
+      ESP32_AVISO("tempSetpoint ignorado: troca de via exige novo comando");
+    } else {
+      String raw;
+      float requested = 0.0f;
+      if (JsonUtils::getRaw(json, "tempSetpoint", raw) &&
+          JsonUtils::parseFiniteFloat(raw, requested)) {
+        setTemperature(requested);
+        tempReferenceCommanded = true;
+      } else {
+        ESP32_AVISO("tempSetpoint rejeitado: valor finito esperado");
+      }
+    }
+  }
+
+  if (bathOperation.length() > 0 && bathCommOn) {
+    queueReliable(bathBox, bathOperation, "Bath");
   }
 
   // ============ PH CONTROL (CRITICAL FIX) ============

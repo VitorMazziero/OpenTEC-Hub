@@ -134,7 +134,10 @@ void processOutgoingCommands() {
 
   // 3. TEMPERATURE UPDATE
   if (flagTempDirty) {
-    if (fabs(tempReference) < 0.001) {
+    if (tempControlRoute == TempControlRoute::ExternalBath) {
+      flagTempDirty = false;
+      tempOn = false;
+    } else if (fabs(tempReference) < 0.001) {
       tempOn = false;
       sendSensorCommand("100B", false); 
     } else {
@@ -250,6 +253,62 @@ void processOutgoingCommands() {
   }
 }
 
+void serviceExternalBathCascade(unsigned long now) {
+  if (tempControlRoute != TempControlRoute::ExternalBath) {
+    bathCascade.reset();
+    bathCascadeSnapshot = bathCascade.snapshot();
+    bathCommandSetpoint = NAN;
+    return;
+  }
+
+  const bool reactorFresh = reactorTempPvFresh(now);
+  const bool nodeFresh = bathLastUpdate > 0 && now - bathLastUpdate <= 5000;
+  const bool bathFault = strcmp(bathState, "error") == 0 ||
+                         strcmp(bathState, "aborted") == 0 ||
+                         strcmp(bathGuard, "suspended") == 0;
+  ExternalBathCascadeInputs in;
+  in.nowMs = now;
+  in.enabled = tempReferenceCommanded;
+  in.referenceValid = tempReferenceCommanded;
+  in.referenceC = tempReference;
+  in.reactorPvValid = reactorFresh;
+  in.reactorPvC = reactorTempPv;
+  in.nodeOnline = nodeFresh;
+  in.bathCommEnabled = bathCommOn;
+  in.bathSpSourceDisplay = bathSpSource == 1;
+  in.bathModeAuto = bathMode == 1;
+  in.bathGuardHealthy = strcmp(bathGuard, "suspended") != 0;
+  in.bathSpValid = bathDisplaySpValid;
+  in.bathSpC = bathDisplaySp;
+  in.actuatorBusy = mailboxPending(bathBox) || strcmp(bathState, "running") == 0 ||
+                    strcmp(bathState, "settling") == 0;
+  in.pause = tempReferenceCommanded && !reactorFresh;
+  in.pauseReason = "reactor_pv_stale";
+  in.fault = bathFault;
+  in.faultReason = bathFault ? "bath_fault" : "";
+
+  bathCascadeLastCalcMs = now;
+  const bool ready = bathCascade.update(in);
+  bathCascadeSnapshot = bathCascade.snapshot();
+  bathCommandSetpoint = bathCascadeSnapshot.commandSetpointC;
+  if (bathDisplaySpValid) bathCommandConfirmed = bathDisplaySp;
+
+  const bool nodeReady = nodeFresh && bathCommOn &&
+                         (strcmp(bathState, "idle") == 0 || strcmp(bathState, "done") == 0);
+  if (ready && nodeReady && !mailboxPending(bathBox)) {
+    const String inner = String("\"setpoint\":") + String(bathCommandSetpoint, 1);
+    const uint32_t revision = queueReliable(bathBox, inner, "Bath");
+    if (revision != 0) {
+      bathCascade.markCommandSent(bathCommandSetpoint, now);
+      bathCommandLastSendMs = now;
+      bathCommandLatestWins = false;
+    }
+  } else if (ready) {
+    bathCommandLatestWins = true;
+  }
+  bathCascadeSnapshot = bathCascade.snapshot();
+}
+
 // ------------------------------------------------------------------
 // SETUP
 // ------------------------------------------------------------------
@@ -353,6 +412,8 @@ void firmwareLoop() {
     // Now it is safe to read because processOutgoingCommands() has finished.
     readAndBroadcastSensorData(); 
   }
+
+  serviceExternalBathCascade(now);
 
   // NVS FLASH SAVE (Debounced)
   // Só grava na memória física se houve alteração e já se passaram 5 segundos sem novos comandos

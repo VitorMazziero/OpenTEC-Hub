@@ -438,6 +438,8 @@ void startWiFi() {
         snprintf(bathError, sizeof(bathError), "%s", error);
         snprintf(bathGuard, sizeof(bathGuard), "%s", guard);
         bathLastUpdate = millis();
+        if (bathDisplaySpValid) bathCommandConfirmed = bathDisplaySp;
+        if (strcmp(bathState, "done") == 0) bathCommandLastDoneMs = bathLastUpdate;
         recordDeviceActivity(DEV_BATH, request->client()->remoteIP(), bathLastUpdate, false);
         xSemaphoreGive(stateMutex);
       }

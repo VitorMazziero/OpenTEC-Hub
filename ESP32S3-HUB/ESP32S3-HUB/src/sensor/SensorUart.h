@@ -24,7 +24,9 @@ void setTemperature(float temp) {
 
   if (fabs(tempReference - temp) > 0.01f) {
       tempReference = temp;
-      flagTempDirty = true;
+      // In the external route the same reactor reference feeds the cascade;
+      // never send it directly as a C404 setpoint.
+      flagTempDirty = tempControlRoute == TempControlRoute::UartModule;
   }
 }
 

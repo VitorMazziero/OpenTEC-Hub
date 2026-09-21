@@ -27,6 +27,8 @@ V8_KEYS = {
     "BiomassOnline", "BiomassCommEnabled", "BiomassCommandPending", "BiomassAbs",
     "BiomassRaw", "BiomassIT", "BiomassPWM", "DistanceOnline", "DistanceCommEnabled",
     "BathOnline", "BathCommEnabled", "BathCommandPending", "BathCommandId", "BathCommandAck",
+    "TempControlMode", "TempControlViaBath", "BathCascadeEnabled", "BathCascadeState",
+    "BathCommandLatestWins", "BathCommandSetpoint", "BathCommandConfirmed",
     "Distance", "PumpOnline", "PumpCommEnabled", "PumpCommandPending", "PumpMode",
     "PumpPWM", "PumpSpeed", "PumpFlow", "PumpVol", "PumpTargetVol", "PumpActive",
     "PumpWaiting", "AgitatorOnline", "AgitatorCommandPending", "AgitatorPercent",

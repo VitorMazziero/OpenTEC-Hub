@@ -453,6 +453,24 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"BathCommandPending\":" + String(snapBathPending ? "true" : "false");
   jsonResponse += ",\"BathCommandId\":" + String(snapBathId);
   jsonResponse += ",\"BathCommandAck\":" + String(snapBathAck);
+  jsonResponse += ",\"TempControlMode\":" + String(static_cast<uint8_t>(tempControlRoute));
+  jsonResponse += ",\"TempControlViaBath\":" +
+                  String(tempControlRoute == TempControlRoute::ExternalBath ? "true" : "false");
+  jsonResponse += ",\"BathCascadeEnabled\":" +
+                  String(tempControlRoute == TempControlRoute::ExternalBath && bathCommOn ? "true" : "false");
+  jsonResponse += ",\"BathCascadeState\":\"" +
+                  String(externalBathCascadeStateName(bathCascadeSnapshot.state)) + "\"";
+  jsonResponse += ",\"BathCommandLatestWins\":" + String(bathCommandLatestWins ? "true" : "false");
+  if (isfinite(bathCommandSetpoint)) {
+    jsonResponse += ",\"BathCommandSetpoint\":" + String(bathCommandSetpoint, 1);
+  } else {
+    jsonResponse += ",\"BathCommandSetpoint\":null";
+  }
+  if (isfinite(bathCommandConfirmed)) {
+    jsonResponse += ",\"BathCommandConfirmed\":" + String(bathCommandConfirmed, 1);
+  } else {
+    jsonResponse += ",\"BathCommandConfirmed\":null";
+  }
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";

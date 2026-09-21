@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-// AP local sempre ativo; STA para o Hub so quando `hub_enabled = 1`. O Hub ainda
-// nao conhece o dispositivo `bath`, entao o padrao e desligado.
-void checkWifi();
+// AP local sempre ativo; a tarefa HubLink liga/desliga a STA conforme o snapshot
+// de `hub_enabled`. O padrão continua desligado até a integração de bancada.
+void checkWifi(bool hubEnabled);
 bool httpGet(const String& url, int& code, String& body);

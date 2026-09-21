@@ -2,7 +2,7 @@
 
 Compila os fontes **reais** do firmware (`setpoint/SetpointManager.cpp`,
 `setpoint/SetpointGuard.cpp`, `keypad/KeyPresser.cpp`, `keypad/KeySense.cpp`,
-`core/AppContext.cpp`) contra um Contemp C404 simulado e percorre os cenários que a bancada
+`protocol/ConfigCodec.cpp`, `core/AppContext.cpp`) contra um Contemp C404 simulado e percorre os cenários que a bancada
 ainda não pôde rodar. Não substitui `docs/VALIDATION.md`: prova a lógica de sequência, não
 relés, temporização real, display ou NVS.
 
@@ -27,3 +27,7 @@ todo toque) para provar que o firmware para com `sp_mismatch` em vez de insistir
 
 Os parâmetros do C404 simulado são hipóteses até o gate G3b; quando a bancada medir o atraso,
 a taxa e a cauda reais, ajuste `C404` em `sim.cpp` e os padrões de `hold_*` em `BathConfig`.
+
+Os cenários U/V exercitam o contrato confiável: três entregas do mesmo `cmd_id` produzem uma
+única sequência, e uma ação recusada não avança `g_lastCmdId`. A tarefa FreeRTOS `HubLink` não
+é compilada no host-sim; concorrência, Wi-Fi e stack watermark exigem firmware/bancada.

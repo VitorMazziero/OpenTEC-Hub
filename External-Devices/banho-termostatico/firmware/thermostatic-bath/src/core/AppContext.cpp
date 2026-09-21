@@ -25,8 +25,8 @@ const unsigned long OTA_STALL_TIMEOUT_MS = 90000;
 unsigned long g_otaRebootAtMs = 0;
 String g_otaRejectReason = "";
 
-uint8_t g_hubFailStreak = 0;
-bool g_hubAnnounced = false;
+volatile uint8_t g_hubFailStreak = 0;
+volatile bool g_hubAnnounced = false;
 
 const char* keyName(Key k) {
   switch (k) {

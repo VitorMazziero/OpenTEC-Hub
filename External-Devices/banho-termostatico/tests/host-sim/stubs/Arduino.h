@@ -1,6 +1,7 @@
 #pragma once
 // Minimal Arduino surface for compiling SetpointManager/KeyPresser/AppContext on a host.
 #include <cmath>
+#include <cctype>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -33,6 +34,7 @@ class String {
   String(unsigned long v) { s_ = std::to_string(v); }
   String(int v) { s_ = std::to_string(v); }
   size_t length() const { return s_.size(); }
+  char operator[](size_t i) const { return s_[i]; }
   const char* c_str() const { return s_.c_str(); }
   String& operator=(const char* c) { s_ = c ? c : ""; return *this; }
   String& operator+=(const String& o) { s_ += o.s_; return *this; }

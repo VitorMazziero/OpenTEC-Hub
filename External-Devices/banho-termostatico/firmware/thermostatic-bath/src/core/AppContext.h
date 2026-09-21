@@ -82,9 +82,9 @@ extern const unsigned long OTA_STALL_TIMEOUT_MS;
 extern unsigned long g_otaRebootAtMs;
 extern String g_otaRejectReason;
 
-extern uint8_t g_hubFailStreak;
+extern volatile uint8_t g_hubFailStreak;
 constexpr uint8_t LINK_WATCHDOG_FAILS = 8;
-extern bool g_hubAnnounced;
+extern volatile bool g_hubAnnounced;
 
 const char* keyName(Key k);
 bool keyFromName(const char* name, Key& out);

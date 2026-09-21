@@ -5,6 +5,7 @@
 // latency; stable value that lags 350 ms and holds the previous stable value while
 // the digits are moving). Key-sense lines are driven from relay state + operator.
 #include <Arduino.h>
+#include <WiFi.h>
 
 #include <deque>
 #include <functional>
@@ -16,6 +17,7 @@
 #include "display/DisplayReader.h"
 #include "keypad/KeyPresser.h"
 #include "keypad/KeySense.h"
+#include "protocol/ConfigCodec.h"
 #include "setpoint/SetpointGuard.h"
 #include "setpoint/SetpointManager.h"
 #include "storage/NvsConfig.h"
@@ -23,6 +25,7 @@
 // ---------------------------------------------------------------- Arduino stubs
 bool g_serialVerbose = false;
 SerialClass Serial;
+WiFiClass WiFi;
 static unsigned long g_now = 0;
 static int g_pinLevel[64];
 unsigned long millis() { return g_now; }
@@ -178,6 +181,7 @@ struct Outcome {
 static void resetWorld(C404& c, float startSp) {
   g_now = 1000;
   for (int i = 0; i < 64; ++i) g_pinLevel[i] = HIGH;
+  setpointAbort();
   keypadInit();
   keypadClear();
   g_cfg = BathConfig();
@@ -189,6 +193,7 @@ static void resetWorld(C404& c, float startSp) {
   g_c404 = &c;
   g_stableSp = startSp; g_stableValid = true;
   g_spShadow = startSp; g_spKnown = true; g_spTarget = startSp;
+  g_lastCmdId = 0;
   g_nvsBusyWrites = g_nvsWrites = 0;
   g_manualPressCount = 0; g_manualActivityMs = 0;
   c.userUp = c.userDown = c.userStar = false;
@@ -590,6 +595,28 @@ int main(int argc, char** argv) {
     printf("  T9: sp=%.1f target=%.1f corrections=%lu\n", c.sp, g_spTarget, (unsigned long)corrections());
     CHECK(fabsf(c.sp - 32.0f) < 0.01f && fabsf(g_spTarget - 32.0f) < 0.01f, "sp=%.2f target=%.2f", c.sp, g_spTarget);
     CHECK(corrections() == 1, "corrections=%lu", (unsigned long)corrections()); }
+
+  printf("== U. Hub redelivery: three copies of one cmd_id cause one sequence\n");
+  resetWorld(c, 30.0f);
+  g_cfg.holdEnabled = 0;
+  { String firstReply, duplicateWhileBusy, duplicateAfterDone;
+    CHECK(processCommand("{\"cmd_id\":101,\"setpoint\":30.5}", firstReply), "first command not recognized");
+    const unsigned long planned = keypadPressesTotal();
+    CHECK(g_lastCmdId == 101, "ack=%lu", (unsigned long)g_lastCmdId);
+    CHECK(processCommand("{\"cmd_id\":101,\"setpoint\":30.5}", duplicateWhileBusy), "busy duplicate not recognized");
+    CHECK(duplicateWhileBusy == "{\"ok\":true,\"action\":\"duplicate\"}", "reply=%s", duplicateWhileBusy.c_str());
+    CHECK(keypadPressesTotal() == planned, "duplicate changed planned presses");
+    Outcome o = runUntilIdle(c, 30000); report("U", o, c);
+    CHECK(processCommand("{\"cmd_id\":101,\"setpoint\":30.5}", duplicateAfterDone), "late duplicate not recognized");
+    CHECK(duplicateAfterDone == "{\"ok\":true,\"action\":\"duplicate\"}", "reply=%s", duplicateAfterDone.c_str());
+    CHECK(fabsf(c.sp - 30.5f) < 0.01f, "sp=%.2f", c.sp);
+    CHECK(g_lastCmdId == 101, "ack changed to %lu", (unsigned long)g_lastCmdId); }
+
+  printf("== V. refused Hub command does not acknowledge cmd_id\n");
+  { String rejected;
+    CHECK(processCommand("{\"cmd_id\":102,\"setpoint\":999.0}", rejected), "rejected command not recognized");
+    CHECK(rejected == "{\"ok\":false,\"error\":\"range\"}", "reply=%s", rejected.c_str());
+    CHECK(g_lastCmdId == 101, "refused revision was acknowledged: %lu", (unsigned long)g_lastCmdId); }
 
   printf("\n%s (%d failure(s))\n", g_failures ? "FAILED" : "ALL PASSED", g_failures);
   return g_failures ? 1 : 0;

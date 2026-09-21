@@ -6,14 +6,15 @@
 #include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
 
-void checkWifi() {
+void checkWifi(bool hubEnabled) {
   const unsigned long now = millis();
 
-  if (!g_cfg.hubEnabled) {
+  if (!hubEnabled) {
     if (WiFi.status() == WL_CONNECTED || g_wifiState != WF_IDLE) {
       WiFi.disconnect(false, false);
       g_wifiState = WF_IDLE;
     }
+    g_hubAnnounced = false;
     return;
   }
 

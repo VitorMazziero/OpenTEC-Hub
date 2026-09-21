@@ -7,6 +7,7 @@
 #include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
 #include "../display/DisplayReader.h"
+#include "../network/HubLink.h"
 #include "../protocol/ConfigCodec.h"
 #include "../setpoint/SetpointGuard.h"
 
@@ -212,11 +213,12 @@ void handleDiag() {
   String json = getStatusAsJson();
   // Acrescenta os campos de rede no mesmo objeto.
   json.remove(json.length() - 1);
-  char extra[200];
+  char extra[240];
   snprintf(extra, sizeof(extra),
-           ",\"free_heap\":%u,\"ssid\":\"%s\",\"rssi\":%d,\"mac\":\"%s\",\"ap_ip\":\"%s\",\"hub_fail_streak\":%u}",
+           ",\"free_heap\":%u,\"ssid\":\"%s\",\"rssi\":%d,\"mac\":\"%s\",\"ap_ip\":\"%s\",\"hub_fail_streak\":%u,\"hub_task_stack_min\":%lu}",
            static_cast<unsigned int>(ESP.getFreeHeap()), WiFi.SSID().c_str(), WiFi.RSSI(),
-           WiFi.macAddress().c_str(), WiFi.softAPIP().toString().c_str(), g_hubFailStreak);
+           WiFi.macAddress().c_str(), WiFi.softAPIP().toString().c_str(), g_hubFailStreak,
+           static_cast<unsigned long>(hubLinkMinFreeStackBytes()));
   json += extra;
   sendJson(200, json);
 }

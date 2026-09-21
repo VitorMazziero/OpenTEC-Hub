@@ -10,11 +10,22 @@ void readAndBroadcastSensorData() {
   // pattern — it was already correct; pH, O₂, pressure and antifoam now follow
   // the same rule.
   vTaskDelay(pdMS_TO_TICKS(10));
-  float temperatureVal = -1.0;
+  float temperatureVal = -1.0f;
+  bool temperatureValid = false;
   String temperatureResp = sendSensorCommand("b", true);
-  if (temperatureResp.length() > 0) {
-    temperatureVal = temperatureResp.toFloat();
-    if (temperatureVal < 0.0f || temperatureVal > 100.0f) temperatureVal = -1.0f;
+  if (JsonUtils::parseFiniteFloat(temperatureResp, temperatureVal) &&
+      temperatureVal >= 0.0f && temperatureVal <= 100.0f) {
+    temperatureValid = true;
+  } else {
+    temperatureVal = -1.0f;
+  }
+
+  // An invalid UART reply must not refresh the last good reactor sample.
+  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    reactorTempPv = temperatureValid ? temperatureVal : NAN;
+    reactorTempPvValid = temperatureValid;
+    if (temperatureValid) reactorTempPvUpdatedMs = millis();
+    xSemaphoreGive(stateMutex);
   }
   vTaskDelay(pdMS_TO_TICKS(10));
   float pHVal = -1.0;
@@ -258,7 +269,10 @@ void readAndBroadcastSensorData() {
   jsonResponse += "\"HubFirmwareVersion\":\"" HUB_FIRMWARE_VERSION "\"";
   jsonResponse += ",\"HubProtocolVersion\":" + String(HUB_PROTOCOL_VERSION);
   jsonResponse += ",\"Time\":" + String(timeSec, 1);
-  jsonResponse += ",\"Tempval\":" + String(temperatureVal, 2);
+  jsonResponse += ",\"Tempval\":" + String(temperatureValid ? temperatureVal : -1.0f, 2);
+  jsonResponse += ",\"TempvalValid\":" + String(temperatureValid ? "true" : "false");
+  jsonResponse += ",\"TempvalAgeMs\":" + String(
+      reactorTempPvUpdatedMs > 0 ? millis() - reactorTempPvUpdatedMs : 999999UL);
   jsonResponse += ",\"pHval\":" + String(pHVal, 2);
   jsonResponse += ",\"Oxyval\":" + String(oxyVal, 1);
   jsonResponse += ",\"Antifoam\":" + String(antifoamVal, 0);

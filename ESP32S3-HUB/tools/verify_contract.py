@@ -20,7 +20,7 @@ ENDPOINTS = {
 }
 
 V8_KEYS = {
-    "Time", "Tempval", "pHval", "Oxyval", "Antifoam", "Pressure", "HubStations",
+    "Time", "Tempval", "TempvalValid", "TempvalAgeMs", "pHval", "Oxyval", "Antifoam", "Pressure", "HubStations",
     "FlowmeterOnline", "FlowControlEnabled", "FlowCommandPending", "FlowCommandId",
     "FlowCommandAck", "FlowCommandDeliveries", "FlowCommandAgeMs", "FlowCommandSource",
     "FlowVoltage", "FlowRate", "FlowSetpoint", "Valve1", "Valve2", "ValveFlow",

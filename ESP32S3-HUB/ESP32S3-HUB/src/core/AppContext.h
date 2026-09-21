@@ -235,6 +235,27 @@ unsigned long dataDelay = 1000;
 unsigned long lastDataMillis = 0;
 unsigned long lastReadBroadcastTime = 0;
 
+// Reactor PV from the module over this Hub's UART (`b` command). Acquisition
+// remains active even when the original temperature actuator is disabled.
+float reactorTempPv = NAN;
+bool reactorTempPvValid = false;
+unsigned long reactorTempPvUpdatedMs = 0;
+constexpr unsigned long REACTOR_TEMP_STALE_MIN_MS = 5000;
+constexpr unsigned long REACTOR_TEMP_STALE_MAX_MS = 60000;
+
+inline unsigned long reactorTempStaleTimeoutMs() {
+  const unsigned long delayMs = dataDelay < 100 ? 100 : dataDelay;
+  const unsigned long triple = delayMs > REACTOR_TEMP_STALE_MAX_MS / 3
+      ? REACTOR_TEMP_STALE_MAX_MS
+      : delayMs * 3;
+  return triple < REACTOR_TEMP_STALE_MIN_MS ? REACTOR_TEMP_STALE_MIN_MS : triple;
+}
+
+inline bool reactorTempPvFresh(unsigned long nowMs) {
+  return reactorTempPvValid && reactorTempPvUpdatedMs > 0 &&
+         nowMs - reactorTempPvUpdatedMs <= reactorTempStaleTimeoutMs();
+}
+
 // ---------- Sensor UART ----------
 String sensorBuffer = "";
 bool uartSensorOK = true;

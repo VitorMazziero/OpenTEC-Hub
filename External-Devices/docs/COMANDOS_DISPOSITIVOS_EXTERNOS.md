@@ -1,11 +1,11 @@
 # Comandos e procedimentos dos dispositivos externos
 
-**Data:** 2026-09-12  
+**Data:** 2026-09-21
 **Propósito:** um único lugar que responda, por dispositivo, a três perguntas: *que interações o nó pode receber*, *o que o firmware faz com cada uma* e *o que o hardware deve fazer em consequência*. Cada afirmação abaixo foi conferida no código ativo (firmware do nó, `Commands.h`/`HttpServer.h` do Hub 10.4 e `CommandBuilders`/ViewModels do aplicativo), não nos documentos anteriores. Onde o código diverge da documentação do nó, este arquivo prevalece e a divergência está marcada com ⚠.
 
 **Fontes por dispositivo:** o contrato de fio detalhado continua em `<dispositivo>/docs/PROTOCOL.md` e no `ESP32S3-HUB/docs/WIRE_CONTRACT_V9.md`; este documento não os substitui — ele explica o comportamento. Estado de implementação e pendências de bancada: `Windows_app/docs/PONTOS_DE_MELHORIA_EXPOSICAO_NOS.md`.
 
-**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11.1 — auditoria B01–B15 aplicada em 2026-09-13), §5 (agitador de frasco, firmware v10) e §6 (servo drive, driver 2.0 — fechado por decisão de projeto, 2026-09-13) completos.
+**Estado desta revisão:** §1 (bomba peristáltica), §2 (sensor de distância, firmware v11), §3 (fluxômetro), §4 (sensor de biomassa, firmware v11.1 — auditoria B01–B15 aplicada em 2026-09-13), §5 (agitador de frasco, firmware v10) e §6 (servo drive, driver 2.0 — fechado por decisão de projeto, 2026-09-13) completos. O banho r3 aparece no painel apenas como estado real; sua seção operacional só será adicionada depois da integração do Hub/Windows App.
 
 > **Leitura das versões:** Hub 10.4 é a versão ativa. Para a bomba, 3.12 é a primeira
 > implantação e o único contrato executável; menções a 3.10/3.11 abaixo são apenas histórico
@@ -23,6 +23,7 @@
 | **Sensor de Biomassa** | v11.1 | 🟢 Total (+ `biomassAutoRange`, janela por `probe_ms`) | 🟢 Total (+ auto-range, sentinelas, alarme de aquisição parada) | 🟢 Integrado; B02/B14 abertos por decisão (§4.10) | 🟡 Pendente (§4.11) |
 | **Agitador de Frascos** | v10 | 🟢 Total | 🟢 Total | 🟢 100% Integrado; auditoria A01–A08 encerrada (§5.10) | 🟡 Pendente (§5.11) |
 | **Servo Drive (RPM)** | driver 2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado — só no Módulo TECNAL 2 | 🟢 Concluída (§6.0); sem novas alterações por projeto |
+| **Banho termostático (C404)** | r3 | 🔴 Não implementado | 🔴 Não implementado | 🟡 Nó + app Android próprio validados em software; integração planejada | 🟡 Gates G1–G10 pendentes |
 
 ## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.12)
 

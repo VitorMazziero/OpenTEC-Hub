@@ -1,6 +1,6 @@
 # Dispositivos externos
 
-Este diretório reúne firmware, aplicativos, hardware, evidências e histórico dos cinco dispositivos externos integrados ao `ESP32S3-HUB` e do banho termostático (`banho-termostatico`, ainda sem integração com o Hub).
+Este diretório reúne firmware, aplicativos, hardware, evidências e histórico dos cinco dispositivos externos integrados ao `ESP32S3-HUB` e do banho termostático (`banho-termostatico`: nó r3 e app Android próprio prontos em software, ainda sem integração implementada no Hub).
 
 | Dispositivo | Firmware ativo | Aplicativo |
 |---|---|---|

@@ -15,13 +15,15 @@ Mesma organização dos demais dispositivos externos: um sketch de duas linhas e
 | `setpoint/SetpointGuard` | Modo manual/automático: gesto `▲`+`▼` (e botão opcional), desvio `display − sp_target`, e no modo automático a reversão de mudanças manuais depois de o painel parar; suspensão após falhas ou abort |
 | `protocol/ConfigCodec` | Parser JSON manual, ações, configuração, `/status` e `/config` em JSON |
 | `api/LocalHttpApi` | Rotas HTTP, página `/ui`, OTA |
-| `network/NetworkManager` | AP sempre ativo; STA para o Hub só com `hub_enabled` |
+| `network/NetworkManager` | AP sempre ativo; conexão STA solicitada exclusivamente pela tarefa `HubLink` |
+| `network/HubLink` | tarefa HTTP no core 0; snapshot protegido; hello/push r3; fila fixa que devolve comandos ao loop principal; medição de pilha |
 | `storage/NvsConfig` | `bath_cfg` (parâmetros) e `bath_st` (sombra, confiança, `seq_busy`) |
 
 ## Invariantes
 
-- Nenhum `delay()` com relé fechado; o único bloqueio longo (`httpGet`, 2,5 s) só ocorre com a
-  fila vazia. O watchdog de 15 s é alimentado a cada volta do `loop`.
+- Nenhum `delay()` com relé fechado. `httpGet` pode bloquear por até 2,5 s, mas somente na
+  tarefa `HubLink`; a temporização dos relés permanece no loop principal. O watchdog de 15 s
+  é alimentado a cada volta do `loop`.
 - Os quatro GPIOs de relé são escritos em HIGH **antes** do `pinMode(OUTPUT)`: o registrador
   de saída do ESP32 parte em 0 e a ordem inversa fecharia os relés por alguns µs no boot.
 - `sp_known` só vira `true` por `sync_sp`, por sequência concluída sem erro, ou por leitura
@@ -72,6 +74,7 @@ loop: keypadService fecha/abre relés; callback soma step_c à sombra a cada ▲
 ```
 
 `tests/host-sim/` compila `SetpointManager.cpp`, `SetpointGuard.cpp`, `KeyPresser.cpp`,
-`KeySense.cpp` e `AppContext.cpp` no PC contra um C404 simulado (auto-repetição com atraso e
+`KeySense.cpp`, `ConfigCodec.cpp` e `AppContext.cpp` no PC contra um C404 simulado (auto-repetição com atraso e
 aceleração, toques perdidos, display ilegível, cauda após soltar, operador apertando teclas)
-e percorre 30 cenários; é a evidência de lógica enquanto a bancada não roda.
+e percorre 34 cenários, incluindo idempotência de `cmd_id`; é a evidência de lógica enquanto
+a bancada não roda. O agendamento real entre cores e a rede continuam dependentes de bancada.

@@ -105,7 +105,7 @@ O que o sensoriamento resolve e o que não resolve:
   C404, e `*`/`ENTER` navegam por menus onde `▲`/`▼` não mexem no SP. Contar toques manuais
   não reconstrói o setpoint; por isso a fonte definitiva é o display (§3).
 
-## 5. Resumo de conexões extras para o firmware r2
+## 5. Resumo de conexões extras para os firmwares r2/r3
 
 | Objetivo | Fios ao C404 | Componentes |
 |---|---|---|

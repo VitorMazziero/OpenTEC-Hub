@@ -1,6 +1,6 @@
 # Protocolo — Banho termostático (`banho-termostatico`)
 
-**Versão do firmware:** `r2` (`BathClient r2`)
+**Versão do firmware:** `r3` (`BathClient r3`); API local compatível com r2
 **Rede:** AP `Banho Termostatico` (aberto, canal 6), `192.168.8.1`; STA para o Hub opcional
 **Compatibilidade com Hub:** nenhuma ainda (`hub_enabled = 0`); rota `/bath` proposta, ver §6
 
@@ -28,7 +28,7 @@ A serial (115200) aceita os mesmos JSONs, mais `status` e `config`.
 ## 2. Estado (`GET /status`)
 
 ```json
-{"device":"bath","version":"BathClient r2 …","uptime_s":120,
+{"device":"bath","version":"BathClient r3 …","uptime_s":120,
  "mode":"manual","guard":"off","deviation_c":null,"guard_corrections":0,"arrows_held_ms":0,
  "sp_shadow":30.00,"sp_known":true,"sp_target":31.50,"sp_source":0,
  "seq_state":"running","seq_kind":"setpoint","seq_phase":"presses","seq_error":"",
@@ -184,19 +184,34 @@ o estado (`sp_shadow`, `sp_known`, `seq_busy`, `sp_target`, `mode`) em `bath_st`
 boot que encontra `seq_busy = 1` marca `sp_known = false`. No modo display a sombra é
 reconstruída do painel nos primeiros ~300 ms após o display ficar vivo.
 
-## 6. Integração futura com o Hub (não implementada no Hub — plano em `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO.md`)
+## 6. Contrato r3 com o Hub (nó implementado; handler do Hub ainda planejado)
 
-Com `hub_enabled = 1` o nó procura `ModuloTECNAL_1/2`, envia
-`GET /nodeHello?dev=bath&ver=v1&mac=…` e a cada `send_period`:
+Com `hub_enabled = 1`, a tarefa `HubLink` procura `ModuloTECNAL_1/2`, envia:
 
 ```text
-GET http://192.168.4.1/bath?sp=<sombra>&known=<0|1>&target=<alvo>&state=<seq_state>&pv=<display_pv|-1>&pv_ok=<0|1>&mode=<0|1>&dev=<display−alvo|0>&dev_ok=<0|1>&time=<s>&ack_cmd_id=<n>
+GET /nodeHello?dev=bath&ver=r3&mac=<MAC real>
 ```
 
-`mode` (0 manual, 1 auto) e `dev`/`dev_ok` são a telemetria do modo (§3.2); o Hub pode trocar
-o modo pelo canal por carona com `{"mode":"auto"}`.
+e, a cada `send_period`, inclusive durante toques/hold:
 
-Resposta `200` com corpo JSON iniciado por `{` é passada ao mesmo `processCommand` (§3/§4),
-o que dá ao Hub o canal por carona dos outros nós. O push nunca ocorre com toques em
-andamento, porque o `httpGet` bloqueia até 2,5 s e alongaria um toque — e isso inclui um
-hold, que pode durar dezenas de segundos; o Hub verá o nó calado durante esse tempo.
+```text
+GET /bathData
+  ?sp=<sombra>&known=<0|1>&target=<alvo>
+  &state=<seq_state>&phase=<seq_phase>&err=<seq_error>
+  &pv=<display_pv|-1>&pv_ok=<0|1>
+  &display_sp=<display_sp|-1>&display_sp_ok=<0|1>&sp_source=<0|1>
+  &mode=<0|1>&guard=<guard_state>&dev=<display−alvo|0>&dev_ok=<0|1>
+  &time=<s>&ack_cmd_id=<n>
+```
+
+O enlace roda em tarefa própria e lê somente um snapshot protegido. A resposta JSON é colocada
+numa fila fixa e `processCommand` é chamado no loop principal; a tarefa HTTP nunca toca relés
+nem o `SetpointManager` diretamente. `/diag` expõe `hub_task_stack_min` para dimensionar a
+pilha de 6 kB na bancada.
+
+Resposta `200` iniciada por `{` é tratada como comando por carona. Reentrega do mesmo
+`cmd_id` responde `duplicate` sem reaplicar toques. Comando recusado não avança
+`ack_cmd_id`, portanto a caixa confiável do Hub continua pendente.
+
+O Hub 10.4 atual ainda não implementa `/bathData`; manter `hub_enabled=0` até executar
+`../../docs/Planos/IMPLEMENTATION_PLAN_BANHO_HUB.md` e os ensaios integrados.

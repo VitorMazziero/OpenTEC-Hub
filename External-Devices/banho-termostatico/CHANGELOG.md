@@ -1,5 +1,22 @@
 # Changelog — Banho termostático
 
+## 2026-09-21 — enlace assíncrono e contrato do Hub (r3)
+
+- HTTP do Hub movido para `network/HubLink`: tarefa FreeRTOS própria no core 0, snapshot
+  protegido e fila fixa de comandos. O parser e os relés permanecem no loop principal; timeout
+  de rede não alonga toque/hold.
+- Push periódico continua durante `running/settling`, usa `/bathData` e anuncia
+  `dev=bath&ver=r3&mac=<MAC real>`.
+- Push r3 publica `state`, `phase`, `err`, PV/SP do display com flags de validade,
+  `sp_source`, modo/guarda/desvio e `ack_cmd_id`.
+- `/diag` publica `hub_task_stack_min`; `hub_enabled` continua 0 por padrão até a integração.
+- Host-sim passou a compilar `ConfigCodec.cpp` e cobre três reentregas do mesmo `cmd_id`
+  (uma sequência) e comando recusado sem avanço do ACK: 34 cenários aprovados.
+- Compilado com ESP32 core 3.3.11: 1 083 125 B de flash (82%) e 48 248 B de RAM (14%).
+- Integração do Hub/Windows App continua não implementada; planos individuais em
+  `../docs/Planos/IMPLEMENTATION_PLAN_BANHO_HUB.md` e
+  `../docs/Planos/IMPLEMENTATION_PLAN_BANHO_WINDOWS_APP.md`.
+
 ## 2026-09-19 — tecla mantida em malha fechada (r2)
 
 - `SetpointManager`: no modo display, uma distância ≥ `hold_min_steps` é vencida mantendo

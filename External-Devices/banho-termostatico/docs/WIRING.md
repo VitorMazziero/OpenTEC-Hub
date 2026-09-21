@@ -9,7 +9,7 @@ Guia fio a fio para a montagem definida em 2026-09-18 e completada em 2026-09-19
 - LED externo para indicar o modo atual;
 - fonte de 5 V dedicada para ESP32 e HW-280.
 
-Pinos conforme `firmware/thermostatic-bath/src/config/BoardConfig.h` (r2), com o LED de modo
+Pinos conforme `firmware/thermostatic-bath/src/config/BoardConfig.h` (r2/r3), com o LED de modo
 adicionado ao **GPIO 40**. O firmware deve configurar `ModeLedPin = 40` para usar esse LED.
 
 ---

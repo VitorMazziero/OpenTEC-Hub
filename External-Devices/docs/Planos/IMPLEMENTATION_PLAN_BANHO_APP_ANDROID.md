@@ -2,8 +2,10 @@
 ## `External-Devices/banho-termostatico/apps/flutter/` — cliente direto do nó, sem o Hub
 
 **Data de Emissão:** 2026-09-19
-**Status:** Proposta — nenhum código alterado por este documento
-**Referência Normativa:** `../../banho-termostatico/docs/PROTOCOL.md` (r2: rotas, `/status`, `/config`, ações, §3.1 hold, §3.2 modos), `../../banho-termostatico/docs/VALIDATION.md` (gates G1–G9)
+**Atualizado:** 2026-09-21
+**Status:** **implementado e validado em software**; validação contra o dispositivo real pendente
+**Versão implementada:** 1.1.0+2
+**Referência Normativa:** `../../banho-termostatico/docs/PROTOCOL.md` (r2/r3: rotas, `/status`, `/config`, ações, §3.1 hold, §3.2 modos), `../../banho-termostatico/docs/VALIDATION.md` (gates G1–G9)
 **Modelos a seguir:** `frasco-agitador/apps/flutter` (estrutura `models/pages/services/widgets/theme`, HTTP por `package:http`, *badge* de conexão, folha de diagnóstico, botão de emergência) e `bomba-peristaltica/apps/flutter` (`fl_chart`, `shared_preferences` para o host)
 **Relação com o outro plano:** independente de `IMPLEMENTATION_PLAN_BANHO.md`. Fala com o nó pelo AP `Banho Termostatico` (`192.168.8.1`) ou pelo IP que o nó receber na rede do Hub; não passa pelo Hub. É o equivalente Android do `bath_app.py` e da página `/ui`, e o que a bancada usa nos gates G1–G9 quando não há PC.
 
@@ -31,7 +33,7 @@ função que só faça sentido pelo Hub (via de temperatura, receitas).
 
 ---
 
-## 2. Contrato consumido (r2)
+## 2. Contrato consumido (r2/r3)
 
 | Rota | Uso no app | Período |
 |---|---|---|
@@ -156,7 +158,7 @@ External-Devices/banho-termostatico/apps/flutter/
 
 ---
 
-## 7. Entregáveis e ordem
+## 7. Entregáveis e ordem — concluídos em software
 | Passo | Conteúdo | Fecha com |
 |---|---|---|
 | 1 | Esqueleto: `pubspec`, tema, `BathService` com poll e `cmd_id`, `BathStatus`, aba Operação | `flutter test` dos modelos e do serviço |
@@ -167,3 +169,12 @@ External-Devices/banho-termostatico/apps/flutter/
 
 Sem dependência do Hub nem do plano de integração; pode ser feito antes ou em paralelo ao M0
 daquele plano — e é útil justamente nos gates de bancada que o M0 exige.
+
+### Evidência atual
+
+- quatro abas e todos os controles previstos presentes em `apps/flutter`;
+- `flutter analyze` sem problemas;
+- testes de modelo, serviço e widgets aprovados, incluindo compatibilidade r2/r3 e aviso de
+  firmware incompatível;
+- APK gerado com sucesso;
+- uso real com o ESP32-S3/C404 ainda depende dos gates G1–G9.

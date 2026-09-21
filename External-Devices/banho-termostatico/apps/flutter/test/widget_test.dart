@@ -9,6 +9,7 @@ import 'package:bath_app/services/bath_service.dart';
 import 'package:bath_app/theme/app_theme.dart';
 import 'package:bath_app/widgets/setpoint_card.dart';
 import 'package:bath_app/widgets/mode_card.dart';
+import 'package:bath_app/widgets/connection_badge.dart';
 
 /// Cliente falso que devolve um /status fixo — dá ao serviço um estado
 /// conhecido sem depender de rede real (bloqueada no flutter_test).
@@ -90,6 +91,22 @@ void main() {
     expect(find.text('Manual'), findsOneWidget);
     expect(find.text('Automático'), findsWidgets);
 
+    s.dispose();
+  });
+
+  testWidgets('badge avisa firmware fora de r2/r3', (tester) async {
+    final s = BathService(client: _statusClient({
+      'version': 'BathClient r1',
+      'sp_shadow': 30.0,
+      'sp_known': true,
+      'seq_state': 'idle',
+    }));
+    await s.pollStatus();
+
+    await tester.pumpWidget(_wrap(s, ConnectionBadge(service: s)));
+    await tester.pump();
+
+    expect(find.text('Firmware incompatível'), findsOneWidget);
     s.dispose();
   });
 }

@@ -1,4 +1,4 @@
-/// Modelo do `GET /config` do nó bath (firmware r2). Ver PROTOCOL.md §4.
+/// Modelo do `GET /config` do nó bath (firmwares r2/r3). Ver PROTOCOL.md §4.
 ///
 /// Cada chave tem tipo (int/float), faixa e dica para o formulário. Aplicar
 /// envia **só o que mudou** (diff); o nó responde `config_unchanged` quando

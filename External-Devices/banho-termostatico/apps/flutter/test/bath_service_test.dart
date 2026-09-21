@@ -24,6 +24,7 @@ void main() {
   };
 
   late List<int?> receivedCmdIds;
+  late List<int?> attemptedCmdIds;
   late List<Map<String, dynamic>> receivedBodies;
   late int failFirst; // nº de POSTs que "falham" (rede) antes de responder
   late int postCount;
@@ -34,6 +35,7 @@ void main() {
         if (req.method == 'POST') {
           postCount++;
           final body = jsonDecode(req.body) as Map<String, dynamic>;
+          attemptedCmdIds.add(body['cmd_id'] as int?);
           if (postCount <= failFirst) {
             throw http.ClientException('falha de rede simulada');
           }
@@ -51,6 +53,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     receivedCmdIds = [];
+    attemptedCmdIds = [];
     receivedBodies = [];
     failFirst = 0;
     postCount = 0;
@@ -88,6 +91,8 @@ void main() {
     // O nó só registra a requisição que chegou inteira (a 3ª tentativa).
     expect(receivedCmdIds.length, 1);
     expect(receivedCmdIds.single, isNotNull);
+    expect(attemptedCmdIds, hasLength(3));
+    expect(attemptedCmdIds.toSet(), hasLength(1));
   });
 
   test('409 vira erro visível com o error literal', () async {
@@ -106,6 +111,8 @@ void main() {
     expect(r.networkFailure, true);
     expect(r.ok, false);
     expect(receivedBodies, isEmpty);
+    expect(attemptedCmdIds, hasLength(3));
+    expect(attemptedCmdIds.toSet(), hasLength(1));
   });
 
   test('applyConfig vazio responde config_unchanged sem tocar na rede',

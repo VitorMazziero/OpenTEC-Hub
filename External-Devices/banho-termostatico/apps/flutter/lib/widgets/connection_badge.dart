@@ -77,9 +77,15 @@ class ConnectionBadge extends StatelessWidget {
     IconData icon;
     switch (service.status) {
       case ConnectionStatus.connected:
-        color = AppTheme.okGreen;
-        text = '${service.host} · ${service.lastLatencyMs} ms';
-        icon = Icons.wifi;
+        if (service.statusData.supportsFirmware) {
+          color = AppTheme.okGreen;
+          text = '${service.host} · ${service.lastLatencyMs} ms';
+          icon = Icons.wifi;
+        } else {
+          color = AppTheme.accentAmber;
+          text = 'Firmware incompatível';
+          icon = Icons.warning_amber_rounded;
+        }
         break;
       case ConnectionStatus.connecting:
         color = AppTheme.accentAmber;

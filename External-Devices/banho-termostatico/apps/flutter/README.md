@@ -5,7 +5,7 @@ sem passar pelo Hub. É o equivalente Android do `bath_app.py` (desktop) e da p�
 `/ui` do próprio nó, e a ferramenta de bancada para os gates G1–G9 do
 [`../../docs/VALIDATION.md`](../../docs/VALIDATION.md) quando não há PC.
 
-Protocolo consumido: [`../../docs/PROTOCOL.md`](../../docs/PROTOCOL.md) (firmware r2).
+Protocolo consumido: [`../../docs/PROTOCOL.md`](../../docs/PROTOCOL.md) (firmwares r2/r3).
 
 ## Como conectar
 
@@ -42,6 +42,8 @@ O botão **Abortar** fica sempre visível, acima da barra de abas.
 - Trocar de host reinicia o poll e limpa o traço; o último host fica salvo.
 - Firmware sem os campos de modo/guarda/hold (anterior ao r2) → os cartões
   correspondentes mostram "firmware sem suporte".
+- A conexão continua visível, mas o badge avisa **Firmware incompatível** quando
+  a versão anunciada não é r2 nem r3.
 
 ## Como rodar / gerar o APK
 

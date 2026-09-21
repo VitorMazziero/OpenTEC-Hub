@@ -42,6 +42,7 @@ void main() {
       expect(s.lastCmdId, 4);
       expect(s.seqBusy, true);
       expect(s.supportsModes, true);
+      expect(s.supportsFirmware, true);
     });
 
     test('sem display: campos null preservados, não viram 0', () {
@@ -89,6 +90,16 @@ void main() {
       final s = BathStatus.fromJson(j);
       expect(s.mode, BathMode.unknown);
       expect(s.supportsModes, false);
+      expect(s.supportsFirmware, false);
+    });
+
+    test('firmware r3 mantém compatibilidade da API local', () {
+      final s = BathStatus.fromJson({
+        'version': 'BathClient r3 (async Hub link)',
+        'mode': 'auto',
+      });
+      expect(s.supportsFirmware, true);
+      expect(s.supportsModes, true);
     });
   });
 }

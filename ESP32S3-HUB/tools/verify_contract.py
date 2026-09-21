@@ -14,9 +14,9 @@ V9 = ROOT / "ESP32S3-HUB"
 
 ENDPOINTS = {
     "/command", "/readData", "/ping", "/distance", "/flowData",
-    "/biomassData", "/pumpData", "/agitatorData", "/servoData",
+    "/biomassData", "/bathData", "/pumpData", "/agitatorData", "/servoData",
     "/flowCommand", "/biomassCommand", "/agitatorHello",
-    "/agitatorCommand", "/pumpCommand", "/servoCommand",
+    "/agitatorCommand", "/pumpCommand", "/bathCommand", "/servoCommand",
 }
 
 V8_KEYS = {
@@ -26,6 +26,7 @@ V8_KEYS = {
     "FlowVoltage", "FlowRate", "FlowSetpoint", "Valve1", "Valve2", "ValveFlow",
     "BiomassOnline", "BiomassCommEnabled", "BiomassCommandPending", "BiomassAbs",
     "BiomassRaw", "BiomassIT", "BiomassPWM", "DistanceOnline", "DistanceCommEnabled",
+    "BathOnline", "BathCommEnabled", "BathCommandPending", "BathCommandId", "BathCommandAck",
     "Distance", "PumpOnline", "PumpCommEnabled", "PumpCommandPending", "PumpMode",
     "PumpPWM", "PumpSpeed", "PumpFlow", "PumpVol", "PumpTargetVol", "PumpActive",
     "PumpWaiting", "AgitatorOnline", "AgitatorCommandPending", "AgitatorPercent",

@@ -4,7 +4,7 @@
 // its last applied id across a Hub reboot and echoes it on every push; a fresh counter
 // restarting at 1 would collide with that echo and lose the first command silently.
 void seedReliableMailboxes() {
-  ReliableMailbox* boxes[] = { &distanceBox, &biomassBox, &pumpBox, &agitatorBox };
+  ReliableMailbox* boxes[] = { &distanceBox, &biomassBox, &pumpBox, &agitatorBox, &bathBox };
   for (ReliableMailbox* box : boxes) {
     const uint32_t base = ((esp_random() % 900000UL) + 100000UL) * 1000UL;
     box->revision = base;
@@ -14,7 +14,7 @@ void seedReliableMailboxes() {
   }
   ESP32_INFO(String("Reliable mailbox seeds: distance=") + distanceBox.revision +
              " biomass=" + biomassBox.revision + " pump=" + pumpBox.revision +
-             " agitator=" + agitatorBox.revision);
+             " agitator=" + agitatorBox.revision + " bath=" + bathBox.revision);
 }
 
 // Queues one command for a node, retained until it acknowledges this revision.
@@ -410,4 +410,3 @@ static inline bool isValidSensorReply(const String& r) {
   }
   return false;
 }
-

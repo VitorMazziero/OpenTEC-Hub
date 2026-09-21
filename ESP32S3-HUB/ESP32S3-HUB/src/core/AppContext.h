@@ -111,6 +111,7 @@ ReliableMailbox biomassBox;
 ReliableMailbox pumpBox;
 ReliableMailbox agitatorBox;
 ReliableMailbox distanceBox;
+ReliableMailbox bathBox;
 
 // ============ UART CONFIG ============
 #define SENSOR_RX_PIN 16
@@ -163,6 +164,25 @@ bool nutrientOn = false;
 bool antifoamOn = false;
 bool pressureOn = false;
 bool bypassMode = false;
+
+// ---------- External thermostatic bath (H01 foundation) ----------
+bool bathCommOn = false;
+float bathSp = NAN;
+bool bathSpKnown = false;
+float bathTarget = NAN;
+float bathPv = NAN;
+bool bathPvValid = false;
+float bathDisplaySp = NAN;
+bool bathDisplaySpValid = false;
+uint8_t bathSpSource = 0;
+uint8_t bathMode = 0;
+float bathDeviation = NAN;
+bool bathDeviationValid = false;
+char bathState[16] = "idle";
+char bathPhase[20] = "";
+char bathError[48] = "";
+char bathGuard[16] = "off";
+unsigned long bathLastUpdate = 0;
 
 // ---------- pH Control ----------
 float pHError = 0.0f;
@@ -447,6 +467,7 @@ enum ExternalDeviceId {
   DEV_PUMP,
   DEV_FLOWMETER,
   DEV_BIOMASS,
+  DEV_BATH,
   DEV_COUNT
 };
 
@@ -465,7 +486,8 @@ DeviceNodeEntry g_deviceRegistry[DEV_COUNT] = {
   { "agitator",  IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
   { "pump",      IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
   { "flowmeter", IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
-  { "biomass",   IPAddress(0, 0, 0, 0), "", "", 0, 0, false }
+  { "biomass",   IPAddress(0, 0, 0, 0), "", "", 0, 0, false },
+  { "bath",      IPAddress(0, 0, 0, 0), "", "", 0, 0, false }
 };
 
 // Health snapshots are fetched by NodeDiagTask, never by an AsyncWebServer callback.

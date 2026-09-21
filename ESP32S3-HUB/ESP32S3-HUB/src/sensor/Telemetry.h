@@ -419,6 +419,26 @@ void readAndBroadcastSensorData() {
   appendNodeIdentity(jsonResponse, "Pump",      snapNodes[DEV_PUMP]);
   appendNodeIdentity(jsonResponse, "Flowmeter", snapNodes[DEV_FLOWMETER]);
   appendNodeIdentity(jsonResponse, "Biomass",   snapNodes[DEV_BIOMASS]);
+  appendNodeIdentity(jsonResponse, "Bath",      snapNodes[DEV_BATH]);
+
+  bool snapBathOnline = false, snapBathComm = false;
+  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    snapBathComm = bathCommOn;
+    snapBathOnline = bathLastUpdate > 0 && (millis() - bathLastUpdate <= 5000);
+    xSemaphoreGive(stateMutex);
+  }
+  const bool snapBathPending = mailboxPending(bathBox);
+  uint32_t snapBathId = 0, snapBathAck = 0;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    snapBathId = bathBox.revision;
+    snapBathAck = bathBox.ack;
+    xSemaphoreGive(cmdMutex);
+  }
+  jsonResponse += ",\"BathOnline\":" + String(snapBathOnline ? "true" : "false");
+  jsonResponse += ",\"BathCommEnabled\":" + String(snapBathComm ? "true" : "false");
+  jsonResponse += ",\"BathCommandPending\":" + String(snapBathPending ? "true" : "false");
+  jsonResponse += ",\"BathCommandId\":" + String(snapBathId);
+  jsonResponse += ",\"BathCommandAck\":" + String(snapBathAck);
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";

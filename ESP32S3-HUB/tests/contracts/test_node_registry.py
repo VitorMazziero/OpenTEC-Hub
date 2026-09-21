@@ -13,8 +13,8 @@ import re
 import unittest
 
 SRC = pathlib.Path(__file__).resolve().parents[2] / "ESP32S3-HUB"
-DEVICES = ("distance", "agitator", "pump", "flowmeter", "biomass")
-PREFIXES = ("Distance", "Agitator", "Pump", "Flowmeter", "Biomass")
+DEVICES = ("distance", "agitator", "pump", "flowmeter", "biomass", "bath")
+PREFIXES = ("Distance", "Agitator", "Pump", "Flowmeter", "Biomass", "Bath")
 
 
 class NodeEntry:
@@ -113,7 +113,7 @@ class NodeRegistryModelTests(unittest.TestCase):
         model.record("flowmeter", "192.168.4.4", 4000, is_hello=False)
         doc = model.nodes(4500)
         self.assertEqual(4500, doc["hub_time_ms"])
-        self.assertEqual(5, len(doc["nodes"]))
+        self.assertEqual(6, len(doc["nodes"]))
         flow = next(n for n in doc["nodes"] if n["dev"] == "flowmeter")
         self.assertEqual(500, flow["age_ms"])
         self.assertTrue(flow["registered"])

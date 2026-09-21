@@ -1,6 +1,20 @@
 // [CORREÇÃO (Issue 1)] Helper para acúmulo de POST por requisição
 struct CmdBuf { String buf; size_t total = 0; };
 
+inline bool parseBathBool(AsyncWebServerRequest* request, const char* name, bool& value) {
+  if (!request->hasParam(name)) return false;
+  return JsonUtils::parseBool(request->getParam(name)->value(), value);
+}
+
+inline bool bathTextParam(AsyncWebServerRequest* request, const char* name,
+                          char* destination, size_t capacity, bool required) {
+  if (!request->hasParam(name)) return !required;
+  const String value = request->getParam(name)->value();
+  if (value.length() >= capacity) return false;
+  snprintf(destination, capacity, "%s", value.c_str());
+  return true;
+}
+
 // ------------------------------------------------------------------
 // startWiFi():
 // ------------------------------------------------------------------
@@ -373,6 +387,66 @@ void startWiFi() {
         request->send(200, "text/plain", "Biomass data received");
     });
 
+    // Bath r3 push. All fields are validated before the state or ACK changes;
+    // malformed telemetry therefore cannot acknowledge a retained command.
+    server.on("/bathData", HTTP_GET, [](AsyncWebServerRequest *request) {
+      float sp = NAN, target = NAN, pv = NAN, displaySp = NAN, deviation = NAN, uptime = NAN;
+      bool known = false, pvOk = false, displaySpOk = false, devOk = false;
+      uint32_t spSource = 0, mode = 0, ack = 0;
+      char state[16] = {}, phase[20] = {}, error[48] = {}, guard[16] = {};
+      bool valid = request->hasParam("sp") && request->hasParam("known") &&
+                   request->hasParam("target") && request->hasParam("state") &&
+                   request->hasParam("phase") && request->hasParam("err") &&
+                   request->hasParam("pv") && request->hasParam("pv_ok") &&
+                   request->hasParam("display_sp") && request->hasParam("display_sp_ok") &&
+                   request->hasParam("sp_source") && request->hasParam("mode") &&
+                   request->hasParam("guard") && request->hasParam("dev") &&
+                   request->hasParam("dev_ok") && request->hasParam("time") &&
+                   request->hasParam("ack_cmd_id");
+      if (valid) {
+        valid = JsonUtils::parseFiniteFloat(request->getParam("sp")->value(), sp) &&
+                JsonUtils::parseFiniteFloat(request->getParam("target")->value(), target) &&
+                JsonUtils::parseFiniteFloat(request->getParam("pv")->value(), pv) &&
+                JsonUtils::parseFiniteFloat(request->getParam("display_sp")->value(), displaySp) &&
+                JsonUtils::parseFiniteFloat(request->getParam("dev")->value(), deviation) &&
+                JsonUtils::parseFiniteFloat(request->getParam("time")->value(), uptime) &&
+                JsonUtils::parseUInt(request->getParam("sp_source")->value(), spSource) && spSource <= 1 &&
+                JsonUtils::parseUInt(request->getParam("mode")->value(), mode) && mode <= 1 &&
+                JsonUtils::parseUInt(request->getParam("ack_cmd_id")->value(), ack) &&
+                parseBathBool(request, "known", known) && parseBathBool(request, "pv_ok", pvOk) &&
+                parseBathBool(request, "display_sp_ok", displaySpOk) && parseBathBool(request, "dev_ok", devOk) &&
+                uptime >= 0.0f && sp >= 0.0f && sp <= 100.0f && target >= 0.0f && target <= 100.0f &&
+                pv >= -1.0f && pv <= 100.0f && displaySp >= -1.0f && displaySp <= 100.0f &&
+                deviation >= -100.0f && deviation <= 100.0f &&
+                bathTextParam(request, "state", state, sizeof(state), true) &&
+                bathTextParam(request, "phase", phase, sizeof(phase), true) &&
+                bathTextParam(request, "err", error, sizeof(error), true) &&
+                bathTextParam(request, "guard", guard, sizeof(guard), true);
+      }
+      if (!valid) {
+        request->send(400, "text/plain", "Invalid bath data");
+        return;
+      }
+
+      if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        bathSp = sp; bathSpKnown = known; bathTarget = target;
+        bathPv = pv; bathPvValid = pvOk; bathDisplaySp = displaySp; bathDisplaySpValid = displaySpOk;
+        bathSpSource = static_cast<uint8_t>(spSource); bathMode = static_cast<uint8_t>(mode);
+        bathDeviation = deviation; bathDeviationValid = devOk;
+        snprintf(bathState, sizeof(bathState), "%s", state);
+        snprintf(bathPhase, sizeof(bathPhase), "%s", phase);
+        snprintf(bathError, sizeof(bathError), "%s", error);
+        snprintf(bathGuard, sizeof(bathGuard), "%s", guard);
+        bathLastUpdate = millis();
+        recordDeviceActivity(DEV_BATH, request->client()->remoteIP(), bathLastUpdate, false);
+        xSemaphoreGive(stateMutex);
+      }
+      ackReliable(bathBox, ack, "Bath");
+      String pending = takeReliable(bathBox);
+      if (pending != "{}") request->send(200, "application/json", pending);
+      else request->send(200, "text/plain", "Bath data received");
+    });
+
     // Handler de GET /pumpData (recebe dados da bomba peristáltica)
     server.on("/pumpData", HTTP_GET, [](AsyncWebServerRequest *request) {
       // Check for the minimal required parameters
@@ -555,6 +629,7 @@ void startWiFi() {
       else if (devName == "pump") devId = DEV_PUMP;
       else if (devName == "flowmeter") devId = DEV_FLOWMETER;
       else if (devName == "biomass") devId = DEV_BIOMASS;
+      else if (devName == "bath") devId = DEV_BATH;
 
       if (devId != DEV_COUNT) {
         if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
@@ -577,7 +652,7 @@ void startWiFi() {
     // trusting the 999999 sentinel in age_ms.
     server.on("/nodes", HTTP_GET, [](AsyncWebServerRequest *request) {
       String only = request->hasParam("dev") ? request->getParam("dev")->value() : "";
-      char resp[1280];
+      char resp[1536];
       int offset = 0;
       unsigned long now = millis();
       offset += snprintf(resp + offset, sizeof(resp) - offset, "{\"hub_time_ms\":%lu,\"nodes\":[", now);
@@ -594,6 +669,7 @@ void startWiFi() {
           else if (i == DEV_PUMP) isOnline = (pumpCommOn && pumpLastUpdate > 0 && (now - pumpLastUpdate <= PUMP_TIMEOUT));
           else if (i == DEV_FLOWMETER) isOnline = (flowmeterCommOn && (now - flowmeterLastUpdate <= FLOWMETER_TIMEOUT));
           else if (i == DEV_BIOMASS) isOnline = (biomassLastUpdate > 0 && (now - biomassLastUpdate <= biomassPresenceWindowMs(biomassProbePeriodMs)));
+          else if (i == DEV_BATH) isOnline = (bathLastUpdate > 0 && (now - bathLastUpdate <= 5000));
 
           offset += snprintf(resp + offset, sizeof(resp) - offset,
                              "%s{\"dev\":\"%s\",\"ip\":\"%s\",\"mac\":\"%s\",\"version\":\"%s\",\"online\":%s,\"age_ms\":%lu,"
@@ -629,6 +705,10 @@ void startWiFi() {
 
     server.on("/pumpCommand", HTTP_GET, [](AsyncWebServerRequest *request) {
       request->send(200, "application/json", takeReliable(pumpBox));
+    });
+
+    server.on("/bathCommand", HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send(200, "application/json", takeReliable(bathBox));
     });
 
     server.on("/servoCommand", HTTP_GET, [](AsyncWebServerRequest *request) {

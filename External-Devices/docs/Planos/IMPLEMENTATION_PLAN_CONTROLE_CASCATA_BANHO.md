@@ -508,7 +508,7 @@ uma nova etapa e outro commit.
 
 ### E01 — Separar o enlace do Hub da tarefa que aciona os relés
 
-**Dependência:** validações G1–G7 do nó concluídas.  
+**Dependência:** validações G1–G7 do nó concluídas.
 **Componente:** `External-Devices/banho-termostatico`.
 
 **Arquivos previstos:**
@@ -539,7 +539,7 @@ continua em aproximadamente `send_period_ms`; sem acesso concorrente direto ao
 
 ### E02 — Fechar o contrato r3 do nó como atuador observável
 
-**Dependência:** E01.  
+**Dependência:** E01.
 **Componente:** `External-Devices/banho-termostatico`.
 
 **Arquivos previstos:**
@@ -571,7 +571,7 @@ corresponde exatamente ao fio.
 
 ### E03 — Integrar o nó do banho e sua caixa confiável no Hub
 
-**Dependência:** E02.  
+**Dependência:** E02.
 **Componente:** `ESP32S3-HUB`.
 
 **Arquivos previstos:**
@@ -605,7 +605,7 @@ todos os contratos do Hub passam e o firmware compila.
 
 ### E04 — Transformar `Tempval` em entrada interna válida e temporal
 
-**Dependência:** E03.  
+**Dependência:** E03.
 **Componente:** `ESP32S3-HUB`.
 
 **Arquivos previstos:**
@@ -632,7 +632,7 @@ a validade; leitura antiga torna-se stale; telemetria existente de `Tempval` nã
 
 ### E05 — Implementar o controlador PI puro e sua máquina de estados
 
-**Dependência:** E04.  
+**Dependência:** E04.
 **Componente:** `ESP32S3-HUB`.
 
 **Arquivos previstos:**
@@ -664,7 +664,7 @@ compilação embarcada verdes.
 
 ### E06 — Orquestrar a cascata e tornar a troca de via segura
 
-**Dependência:** E03–E05.  
+**Dependência:** E03–E05.
 **Componente:** `ESP32S3-HUB`.
 
 **Arquivos previstos:**
@@ -703,7 +703,7 @@ do banho podem ser diferentes; ACK sem `done` não dispara outro comando; perda/
 
 ### E07 — Validar e persistir a configuração da cascata
 
-**Dependência:** E06.  
+**Dependência:** E06.
 **Componente:** `ESP32S3-HUB`.
 
 **Arquivos previstos:**
@@ -734,7 +734,7 @@ de NVS confirma que o loop não grava continuamente.
 
 ### E08 — Publicar diagnóstico completo da cascata no Hub
 
-**Dependência:** E06–E07.  
+**Dependência:** E06–E07.
 **Componente:** `ESP32S3-HUB`.
 
 **Arquivos previstos:**
@@ -764,7 +764,7 @@ orçamento JSON cobertos; todos os contratos passam; firmware compila dentro do 
 
 ### E09 — Modelar banho e reator como duas massas térmicas no simulador
 
-**Dependência:** contrato de telemetria E08.  
+**Dependência:** contrato de telemetria E08.
 **Componente:** `Windows_app/OpenTECHub.Simulator`.
 
 **Arquivos previstos:**
@@ -792,7 +792,7 @@ antigo continua compatível; nenhum teste depende de tempo real ou rede física.
 
 ### E10 — Adicionar o contrato da cascata ao aplicativo Windows
 
-**Dependência:** E08–E09.  
+**Dependência:** E08–E09.
 **Componente:** `Windows_app`.
 
 **Arquivos previstos:**
@@ -818,7 +818,7 @@ passam; solução Windows compila sem mudanças visuais ainda.
 
 ### E11 — Implementar operação e sintonia da cascata na interface Windows
 
-**Dependência:** E10.  
+**Dependência:** E10.
 **Componente:** `Windows_app`.
 
 **Arquivos previstos:**
@@ -851,7 +851,7 @@ contra o simulador.
 
 ### E12 — Adicionar alarmes, receitas, gráficos e registro de sessão no Windows
 
-**Dependência:** E11.  
+**Dependência:** E11.
 **Componente:** `Windows_app`.
 
 **Arquivos previstos:**
@@ -883,7 +883,7 @@ obrigatórias.
 
 ### E13 — Adicionar modelos e comandos da cascata ao aplicativo Android do Hub
 
-**Dependência:** E08.  
+**Dependência:** E08.
 **Componente:** `Android_app`.
 
 **Arquivos previstos:**
@@ -910,7 +910,7 @@ obrigatórias.
 
 ### E14 — Implementar a interface da cascata no aplicativo Android do Hub
 
-**Dependência:** E13.  
+**Dependência:** E13.
 **Componente:** `Android_app`.
 
 **Arquivos previstos:**
@@ -939,7 +939,7 @@ pequena e grande.
 
 ### E15 — Identificar a planta e registrar a sintonia de bancada
 
-**Dependência:** E01–E14; executar apenas com água e proteções térmicas verificadas.  
+**Dependência:** E01–E14; executar apenas com água e proteções térmicas verificadas.
 **Componente:** documentação/evidências e, se necessário, somente defaults aprovados do Hub.
 
 **Arquivos previstos:**
@@ -970,7 +970,7 @@ assinados pelo responsável do processo; nenhuma validação depende apenas de o
 
 ### E16 — Fechar documentação operacional e prontidão para cultivo
 
-**Dependência:** E15 aprovado.  
+**Dependência:** E15 aprovado.
 **Componente:** documentação transversal.
 
 **Arquivos previstos:**

@@ -173,6 +173,7 @@ TempControlRoute tempControlRoute = TempControlRoute::UartModule;
 bool tempReferenceCommanded = false;
 bool tempRouteTransitionPending = false;
 ExternalBathCascade bathCascade;
+ExternalBathCascadeConfig bathCascadeConfig = ExternalBathCascade::defaults();
 ExternalBathCascadeSnapshot bathCascadeSnapshot;
 float bathCommandSetpoint = NAN;
 float bathCommandConfirmed = NAN;

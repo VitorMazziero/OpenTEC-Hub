@@ -24,7 +24,7 @@ ExternalBathCascadeConfig ExternalBathCascade::defaults() {
   return ExternalBathCascadeConfig{};
 }
 
-bool ExternalBathCascade::configure(const ExternalBathCascadeConfig& candidate) {
+bool ExternalBathCascade::validateConfig(const ExternalBathCascadeConfig& candidate) {
   if (!finitePositive(candidate.kp) || !finitePositive(candidate.tiS) ||
       !isfinite(candidate.biasC) || candidate.periodMs < 100 || candidate.periodMs > 600000 ||
       !isfinite(candidate.filterS) || candidate.filterS <= 0.0f || candidate.filterS > 3600.0f ||
@@ -36,6 +36,13 @@ bool ExternalBathCascade::configure(const ExternalBathCascadeConfig& candidate) 
       !isfinite(candidate.outputMinC) || !isfinite(candidate.outputMaxC) ||
       candidate.outputMinC < 0.0f || candidate.outputMaxC > 100.0f ||
       candidate.outputMinC >= candidate.outputMaxC) {
+    return false;
+  }
+  return true;
+}
+
+bool ExternalBathCascade::configure(const ExternalBathCascadeConfig& candidate) {
+  if (!validateConfig(candidate)) {
     return false;
   }
   config_ = candidate;
@@ -119,19 +126,31 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
   }
   if (in.pause) {
     setState(ExternalBathCascadeState::Paused, in.pauseReason);
+    // Freeze the integrator and restart the elapsed-time origin so a long
+    // communication/PV outage cannot create a recovery step.
+    lastInputMs_ = in.nowMs;
     return false;
   }
 
   const bool inputsReady = in.referenceValid && in.referenceC > 0.0f &&
                            in.reactorPvValid && isfinite(in.reactorPvC) &&
                            in.nodeOnline && in.bathCommEnabled && in.bathSpSourceDisplay &&
-                           in.bathModeAuto && in.bathGuardHealthy;
+                           in.bathModeAuto && in.bathGuardHealthy && in.bathSpValid &&
+                           isfinite(in.bathSpC);
   if (!inputsReady) {
     setState(ExternalBathCascadeState::WaitingInputs, "inputs");
+    lastInputMs_ = in.nowMs;
     return false;
   }
 
   uint32_t dtMs = 0;
+  if (lastInputMs_ != 0 &&
+      (snapshot_.state == ExternalBathCascadeState::Controlling ||
+       snapshot_.state == ExternalBathCascadeState::ActuatorBusy) &&
+      in.nowMs - lastInputMs_ < config_.periodMs) {
+    snapshot_.lastUpdateMs = in.nowMs;
+    return false;
+  }
   if (lastInputMs_ != 0) dtMs = in.nowMs - lastInputMs_;
   lastInputMs_ = in.nowMs;
   const float dtS = dtMs > 0 ? dtMs / 1000.0f : config_.periodMs / 1000.0f;

@@ -69,6 +69,7 @@ class ExternalBathCascade {
   ExternalBathCascade();
 
   static ExternalBathCascadeConfig defaults();
+  static bool validateConfig(const ExternalBathCascadeConfig& config);
   bool configure(const ExternalBathCascadeConfig& config);
   const ExternalBathCascadeConfig& config() const { return config_; }
 

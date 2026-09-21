@@ -126,8 +126,56 @@ uint32_t computeStateHash() {
   hash += (pumpCommOn ? 1 : 0) * 163;
   hash += (servoCommOn ? 1 : 0) * 167;
   hash += (motorControlRoute == MotorControlRoute::Modbus ? 1 : 0) * 173;
+  hash += (tempControlRoute == TempControlRoute::ExternalBath ? 1 : 0) * 179;
+  hash += (bathCommOn ? 1 : 0) * 181;
+  hash += (uint32_t)(bathCascadeConfig.kp * 1000.0f) * 191;
+  hash += (uint32_t)(bathCascadeConfig.tiS * 10.0f) * 193;
+  hash += (uint32_t)((bathCascadeConfig.biasC + 100.0f) * 10.0f) * 197;
+  hash += bathCascadeConfig.periodMs * 199;
+  hash += (uint32_t)(bathCascadeConfig.filterS * 10.0f) * 211;
+  hash += bathCascadeConfig.commandMinMs * 223;
+  hash += (uint32_t)(bathCascadeConfig.commandBandC * 100.0f) * 227;
+  hash += (uint32_t)(bathCascadeConfig.slewCMin * 100.0f) * 229;
+  hash += (uint32_t)(bathCascadeConfig.offsetHighC * 10.0f) * 233;
+  hash += (uint32_t)(bathCascadeConfig.offsetLowC * 10.0f) * 239;
+  hash += (uint32_t)(bathCascadeConfig.outputMinC * 10.0f) * 241;
+  hash += (uint32_t)(bathCascadeConfig.outputMaxC * 10.0f) * 251;
 
   return hash;
+}
+
+// Parse all bathCascade* keys into a copy. The live configuration is touched
+// only after every supplied value and the complete candidate pass validation.
+static bool parseBathCascadeConfig(const String &json,
+                                   ExternalBathCascadeConfig &candidate,
+                                   bool &touched) {
+  touched = false;
+  String raw;
+  auto hasToken = [&](const char *key) {
+    return json.indexOf(String("\"") + key + "\"") >= 0;
+  };
+  auto readFloat = [&](const char *key, float &target) {
+    if (!hasToken(key)) return true;
+    touched = true;
+    return JsonUtils::getRaw(json, key, raw) && JsonUtils::parseFiniteFloat(raw, target);
+  };
+  auto readUInt = [&](const char *key, uint32_t &target) {
+    if (!hasToken(key)) return true;
+    touched = true;
+    return JsonUtils::getRaw(json, key, raw) && JsonUtils::parseUInt(raw, target);
+  };
+  return readFloat("bathCascadeKp", candidate.kp) &&
+         readFloat("bathCascadeTiS", candidate.tiS) &&
+         readFloat("bathCascadeBiasC", candidate.biasC) &&
+         readUInt("bathCascadePeriodMs", candidate.periodMs) &&
+         readFloat("bathCascadeFilterS", candidate.filterS) &&
+         readUInt("bathCascadeCommandMinMs", candidate.commandMinMs) &&
+         readFloat("bathCascadeCommandBandC", candidate.commandBandC) &&
+         readFloat("bathCascadeSlewCMin", candidate.slewCMin) &&
+         readFloat("bathCascadeOffsetHighC", candidate.offsetHighC) &&
+         readFloat("bathCascadeOffsetLowC", candidate.offsetLowC) &&
+         readFloat("bathCascadeOutputMinC", candidate.outputMinC) &&
+         readFloat("bathCascadeOutputMaxC", candidate.outputMaxC);
 }
 
 // ------------------------------------------------------------------
@@ -151,6 +199,39 @@ void processJsonCommand(const String &json) {
   // 1. Calcula a assinatura do estado ANTES das mudanças
   uint32_t preHash = computeStateHash();
 
+  ExternalBathCascadeConfig bathCandidate = bathCascadeConfig;
+  bool bathConfigTouched = false;
+  const bool bathConfigSyntaxValid =
+      parseBathCascadeConfig(json, bathCandidate, bathConfigTouched);
+  if (bathConfigTouched) {
+    const bool routeOrSetpointSameFrame =
+        json.indexOf("\"tempControlMode\"") >= 0 ||
+        json.indexOf("\"tempSetpoint\"") >= 0;
+    if (routeOrSetpointSameFrame) {
+      ESP32_AVISO("Configuracao da cascata rejeitada: sintonia exige quadro separado");
+    } else if (!bathConfigSyntaxValid || !ExternalBathCascade::validateConfig(bathCandidate)) {
+      ESP32_AVISO("Configuracao da cascata rejeitada atomicamente: valores fora da faixa");
+    } else {
+      bathCascadeConfig = bathCandidate;
+      bathCascade.configure(bathCascadeConfig);
+      ESP32_EVT("Configuracao da cascata do banho atualizada");
+    }
+  }
+
+  if (json.indexOf("\"bathCascadeReset\"") >= 0) {
+    bool resetCascade = false;
+    String rawReset;
+    if (JsonUtils::getRaw(json, "bathCascadeReset", rawReset) &&
+        JsonUtils::parseBool(rawReset, resetCascade) && resetCascade) {
+      bathCascade.reset();
+      bathCascadeSnapshot = bathCascade.snapshot();
+      bathCommandLatestWins = false;
+      ESP32_EVT("Estado da cascata do banho reinicializado");
+    } else {
+      ESP32_AVISO("bathCascadeReset rejeitado: esperado 1/true");
+    }
+  }
+
   // ============ SYSTEM COMMANDS ============
   if (json.indexOf("\"resetVariables\"") != -1) {
     ESP32_EVT("Comando de reset das variáveis recebido");
@@ -167,6 +248,14 @@ void processJsonCommand(const String &json) {
     dataDelay = 1000; 
     oxyOn = false; tempOn = false; phOn = false; 
     nutrientOn = false; antifoamOn = false; pressureOn = false; 
+    bathCommOn = false;
+    tempControlRoute = TempControlRoute::UartModule;
+    tempReferenceCommanded = false;
+    tempRouteTransitionPending = false;
+    bathCascadeConfig = ExternalBathCascade::defaults();
+    bathCascade.configure(bathCascadeConfig);
+    bathCascade.reset();
+    clearReliable(bathBox);
     if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
       desiredFlowSetpoint = 0.0f;
       desiredFlowValve1 = 0;

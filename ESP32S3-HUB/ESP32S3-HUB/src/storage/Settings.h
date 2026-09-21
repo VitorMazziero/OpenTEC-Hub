@@ -45,6 +45,22 @@ void saveSettings() {
   preferences.putBool("flowComm", flowmeterControlEnabled);
   preferences.putBool("pumpComm", pumpCommOn);
   preferences.putBool("servoComm", servoCommOn);
+  // External-bath control is configuration only. Runtime samples, ACKs and
+  // pending commands are deliberately never persisted.
+  preferences.putFloat("bathKp", bathCascadeConfig.kp);
+  preferences.putFloat("bathTi", bathCascadeConfig.tiS);
+  preferences.putFloat("bathBias", bathCascadeConfig.biasC);
+  preferences.putUInt("bathPeriod", bathCascadeConfig.periodMs);
+  preferences.putFloat("bathFilter", bathCascadeConfig.filterS);
+  preferences.putUInt("bathCmdMin", bathCascadeConfig.commandMinMs);
+  preferences.putFloat("bathBand", bathCascadeConfig.commandBandC);
+  preferences.putFloat("bathSlew", bathCascadeConfig.slewCMin);
+  preferences.putFloat("bathOffHigh", bathCascadeConfig.offsetHighC);
+  preferences.putFloat("bathOffLow", bathCascadeConfig.offsetLowC);
+  preferences.putFloat("bathOutMin", bathCascadeConfig.outputMinC);
+  preferences.putFloat("bathOutMax", bathCascadeConfig.outputMaxC);
+  preferences.putUChar("bathRoute", static_cast<uint8_t>(tempControlRoute));
+  preferences.putBool("bathComm", bathCommOn);
 }
 
 void loadSettings() {
@@ -89,6 +105,37 @@ void loadSettings() {
   flowmeterCommOn = false;
   pumpCommOn = preferences.getBool("pumpComm", false);
   servoCommOn = preferences.getBool("servoComm", true);
+
+  const ExternalBathCascadeConfig defaults = ExternalBathCascade::defaults();
+  bathCascadeConfig.kp = preferences.getFloat("bathKp", defaults.kp);
+  bathCascadeConfig.tiS = preferences.getFloat("bathTi", defaults.tiS);
+  bathCascadeConfig.biasC = preferences.getFloat("bathBias", defaults.biasC);
+  bathCascadeConfig.periodMs = preferences.getUInt("bathPeriod", defaults.periodMs);
+  bathCascadeConfig.filterS = preferences.getFloat("bathFilter", defaults.filterS);
+  bathCascadeConfig.commandMinMs = preferences.getUInt("bathCmdMin", defaults.commandMinMs);
+  bathCascadeConfig.commandBandC = preferences.getFloat("bathBand", defaults.commandBandC);
+  bathCascadeConfig.slewCMin = preferences.getFloat("bathSlew", defaults.slewCMin);
+  bathCascadeConfig.offsetHighC = preferences.getFloat("bathOffHigh", defaults.offsetHighC);
+  bathCascadeConfig.offsetLowC = preferences.getFloat("bathOffLow", defaults.offsetLowC);
+  bathCascadeConfig.outputMinC = preferences.getFloat("bathOutMin", defaults.outputMinC);
+  bathCascadeConfig.outputMaxC = preferences.getFloat("bathOutMax", defaults.outputMaxC);
+  if (!ExternalBathCascade::validateConfig(bathCascadeConfig)) {
+    ESP32_AVISO("Configuracao da cascata do banho invalida na NVS; defaults restaurados");
+    bathCascadeConfig = defaults;
+    flagPendingSave = true;
+    lastSaveTriggerTime = millis();
+  }
+  bathCascade.configure(bathCascadeConfig);
+  const uint8_t persistedRoute = preferences.getUChar("bathRoute", 0);
+  tempControlRoute = persistedRoute == 1 ? TempControlRoute::ExternalBath
+                                         : TempControlRoute::UartModule;
+  bathCommOn = preferences.getBool("bathComm", false);
+  // Reboot never resumes a process command. A new temperature setpoint is
+  // required even if the selected route itself was persisted.
+  tempReferenceCommanded = false;
+  tempOn = false;
+  tempRouteTransitionPending = tempControlRoute == TempControlRoute::ExternalBath;
+  bathCascade.reset();
 }
 
 void debugSettings() {

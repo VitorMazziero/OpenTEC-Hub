@@ -261,11 +261,36 @@ void serviceExternalBathCascade(unsigned long now) {
     return;
   }
 
+  // AsyncWebServer updates the node snapshot on another task. Copy the whole
+  // shared view under the short state mutex; the PI and command queue run
+  // outside it and never hold the lock while formatting or doing I/O.
+  bool bathCommSnapshot = false;
+  float bathDisplaySpSnapshot = NAN;
+  bool bathDisplaySpValidSnapshot = false;
+  uint8_t bathSpSourceSnapshot = 0;
+  uint8_t bathModeSnapshot = 0;
+  unsigned long bathLastUpdateSnapshot = 0;
+  unsigned long bathLastDoneSnapshot = 0;
+  char bathStateSnapshot[sizeof(bathState)] = "idle";
+  char bathGuardSnapshot[sizeof(bathGuard)] = "off";
+  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    bathCommSnapshot = bathCommOn;
+    bathDisplaySpSnapshot = bathDisplaySp;
+    bathDisplaySpValidSnapshot = bathDisplaySpValid;
+    bathSpSourceSnapshot = bathSpSource;
+    bathModeSnapshot = bathMode;
+    bathLastUpdateSnapshot = bathLastUpdate;
+    bathLastDoneSnapshot = bathCommandLastDoneMs;
+    snprintf(bathStateSnapshot, sizeof(bathStateSnapshot), "%s", bathState);
+    snprintf(bathGuardSnapshot, sizeof(bathGuardSnapshot), "%s", bathGuard);
+    xSemaphoreGive(stateMutex);
+  }
+
   const bool reactorFresh = reactorTempPvFresh(now);
-  const bool nodeFresh = bathLastUpdate > 0 && now - bathLastUpdate <= 5000;
-  const bool bathFault = strcmp(bathState, "error") == 0 ||
-                         strcmp(bathState, "aborted") == 0 ||
-                         strcmp(bathGuard, "suspended") == 0;
+  const bool nodeFresh = bathLastUpdateSnapshot > 0 && now - bathLastUpdateSnapshot <= 5000;
+  const bool bathFault = strcmp(bathStateSnapshot, "error") == 0 ||
+                         strcmp(bathStateSnapshot, "aborted") == 0 ||
+                         strcmp(bathGuardSnapshot, "suspended") == 0;
   ExternalBathCascadeInputs in;
   in.nowMs = now;
   in.enabled = tempReferenceCommanded;
@@ -274,14 +299,14 @@ void serviceExternalBathCascade(unsigned long now) {
   in.reactorPvValid = reactorFresh;
   in.reactorPvC = reactorTempPv;
   in.nodeOnline = nodeFresh;
-  in.bathCommEnabled = bathCommOn;
-  in.bathSpSourceDisplay = bathSpSource == 1;
-  in.bathModeAuto = bathMode == 1;
-  in.bathGuardHealthy = strcmp(bathGuard, "suspended") != 0;
-  in.bathSpValid = bathDisplaySpValid;
-  in.bathSpC = bathDisplaySp;
-  in.actuatorBusy = mailboxPending(bathBox) || strcmp(bathState, "running") == 0 ||
-                    strcmp(bathState, "settling") == 0;
+  in.bathCommEnabled = bathCommSnapshot;
+  in.bathSpSourceDisplay = bathSpSourceSnapshot == 1;
+  in.bathModeAuto = bathModeSnapshot == 1;
+  in.bathGuardHealthy = strcmp(bathGuardSnapshot, "suspended") != 0;
+  in.bathSpValid = bathDisplaySpValidSnapshot;
+  in.bathSpC = bathDisplaySpSnapshot;
+  in.actuatorBusy = mailboxPending(bathBox) || strcmp(bathStateSnapshot, "running") == 0 ||
+                    strcmp(bathStateSnapshot, "settling") == 0;
   in.pause = tempReferenceCommanded && !reactorFresh;
   in.pauseReason = "reactor_pv_stale";
   in.fault = bathFault;
@@ -291,11 +316,14 @@ void serviceExternalBathCascade(unsigned long now) {
   const bool ready = bathCascade.update(in);
   bathCascadeSnapshot = bathCascade.snapshot();
   bathCommandSetpoint = bathCascadeSnapshot.commandSetpointC;
-  if (bathDisplaySpValid) bathCommandConfirmed = bathDisplaySp;
 
-  const bool nodeReady = nodeFresh && bathCommOn &&
-                         (strcmp(bathState, "idle") == 0 || strcmp(bathState, "done") == 0);
-  if (ready && nodeReady && !mailboxPending(bathBox)) {
+  const bool nodeReady = nodeFresh && bathCommSnapshot &&
+                         // Equivalent to strcmp(bathState, "idle") == 0 || strcmp(bathState, "done") == 0
+                         (strcmp(bathStateSnapshot, "idle") == 0 ||
+                          strcmp(bathStateSnapshot, "done") == 0);
+  const bool postDoneCooldown = bathCommandLastSendMs == 0 || bathLastDoneSnapshot == 0 ||
+                                now - bathLastDoneSnapshot >= bathCascade.config().commandMinMs;
+  if (ready && nodeReady && !mailboxPending(bathBox) && postDoneCooldown) {
     const String inner = String("\"setpoint\":") + String(bathCommandSetpoint, 1);
     const uint32_t revision = queueReliable(bathBox, inner, "Bath");
     if (revision != 0) {
@@ -363,6 +391,13 @@ void firmwareSetup() {
 
   sensorSerial.begin(9600, SERIAL_8N1, SENSOR_RX_PIN, SENSOR_TX_PIN);
   ESP32_INFO("UART do Módulo TECNAL iniciada em 9600 baud");
+  if (tempControlRoute == TempControlRoute::ExternalBath) {
+    // The persisted route is restored, but no persisted setpoint is resumed.
+    // Release the original module actuator before accepting a new bath command.
+    sendSensorCommand("100B", false);
+    tempOn = false;
+    tempReferenceCommanded = false;
+  }
 
   // O modulo original precisa estar desabilitado antes de o no poder assumir
   // P3-06. Isso tambem garante um boot seguro quando a via persistida e UART.

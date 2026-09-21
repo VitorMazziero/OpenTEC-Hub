@@ -29,6 +29,10 @@ V8_KEYS = {
     "BathOnline", "BathCommEnabled", "BathCommandPending", "BathCommandId", "BathCommandAck",
     "TempControlMode", "TempControlViaBath", "BathCascadeEnabled", "BathCascadeState",
     "BathCommandLatestWins", "BathCommandSetpoint", "BathCommandConfirmed",
+    "TempSetpoint", "BathSp", "BathTarget", "BathPv", "BathDisplaySp", "BathState",
+    "BathPhase", "BathError", "BathMode", "BathGuard", "BathDeviation", "BathSpSource",
+    "BathCascadeError", "BathCascadePvFiltered", "BathCascadeP", "BathCascadeI",
+    "BathCascadeSaturated", "BathCascadePausedReason", "BathCascadeLastUpdateMs",
     "Distance", "PumpOnline", "PumpCommEnabled", "PumpCommandPending", "PumpMode",
     "PumpPWM", "PumpSpeed", "PumpFlow", "PumpVol", "PumpTargetVol", "PumpActive",
     "PumpWaiting", "AgitatorOnline", "AgitatorCommandPending", "AgitatorPercent",
@@ -79,7 +83,12 @@ def source_text() -> str:
 def verify_static_contract() -> None:
     source = source_text()
     missing_endpoints = sorted(endpoint for endpoint in ENDPOINTS if f'"{endpoint}"' not in source)
-    missing_keys = sorted(key for key in V8_KEYS | V10_KEYS if f'\\"{key}\\"' not in source)
+    # Some H06 fields are emitted through a bounded nullable-key helper, so the
+    # key appears as a normal C++ string rather than a concatenated \",\"Key\" token.
+    missing_keys = sorted(
+        key for key in V8_KEYS | V10_KEYS
+        if f'\\"{key}\\"' not in source and f'"{key}"' not in source
+    )
     assert not missing_endpoints, f"endpoints ausentes: {missing_endpoints}"
     assert not missing_keys, f"chaves ausentes: {missing_keys}"
 

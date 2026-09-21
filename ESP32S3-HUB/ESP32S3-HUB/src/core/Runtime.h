@@ -256,8 +256,12 @@ void processOutgoingCommands() {
 void serviceExternalBathCascade(unsigned long now) {
   if (tempControlRoute != TempControlRoute::ExternalBath) {
     bathCascade.reset();
-    bathCascadeSnapshot = bathCascade.snapshot();
-    bathCommandSetpoint = NAN;
+    if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+      bathCascadeSnapshot = bathCascade.snapshot();
+      bathCommandSetpoint = NAN;
+      bathCommandLatestWins = false;
+      xSemaphoreGive(stateMutex);
+    }
     return;
   }
 
@@ -314,8 +318,12 @@ void serviceExternalBathCascade(unsigned long now) {
 
   bathCascadeLastCalcMs = now;
   const bool ready = bathCascade.update(in);
-  bathCascadeSnapshot = bathCascade.snapshot();
-  bathCommandSetpoint = bathCascadeSnapshot.commandSetpointC;
+  ExternalBathCascadeSnapshot updatedSnapshot = bathCascade.snapshot();
+  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    bathCascadeSnapshot = updatedSnapshot;
+    bathCommandSetpoint = updatedSnapshot.commandSetpointC;
+    xSemaphoreGive(stateMutex);
+  }
 
   const bool nodeReady = nodeFresh && bathCommSnapshot &&
                          // Equivalent to strcmp(bathState, "idle") == 0 || strcmp(bathState, "done") == 0
@@ -328,13 +336,19 @@ void serviceExternalBathCascade(unsigned long now) {
     const uint32_t revision = queueReliable(bathBox, inner, "Bath");
     if (revision != 0) {
       bathCascade.markCommandSent(bathCommandSetpoint, now);
-      bathCommandLastSendMs = now;
-      bathCommandLatestWins = false;
+      if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        bathCommandLastSendMs = now;
+        bathCommandLatestWins = false;
+        bathCascadeSnapshot = bathCascade.snapshot();
+        xSemaphoreGive(stateMutex);
+      }
     }
   } else if (ready) {
-    bathCommandLatestWins = true;
+    if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+      bathCommandLatestWins = true;
+      xSemaphoreGive(stateMutex);
+    }
   }
-  bathCascadeSnapshot = bathCascade.snapshot();
 }
 
 // ------------------------------------------------------------------

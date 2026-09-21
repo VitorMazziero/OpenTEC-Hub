@@ -10,7 +10,8 @@
 // e /nodes completo. Chaves aditivas: o protocolo continua 10.
 // 10.2.0: caixa confiavel da distancia por carona no push e ecos de config dos nos.
 // 10.3.0: transicao editavel do fluxometro v12; 10.4.0: calibracao polinomial da bomba v3.12.
-#define HUB_FIRMWARE_VERSION "10.4.0-dev"
+// 10.5.0: telemetria completa e diagnostico da cascata termica externa.
+#define HUB_FIRMWARE_VERSION "10.5.0-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

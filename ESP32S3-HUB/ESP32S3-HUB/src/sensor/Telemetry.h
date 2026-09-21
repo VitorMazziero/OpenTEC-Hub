@@ -89,11 +89,50 @@ void readAndBroadcastSensorData() {
   float snapPumpPidKp = NAN, snapPumpPidKi = NAN, snapPumpPidKd = NAN;
   int snapPumpPotEnabled = -1;
   float snapPumpCycleVolume = NAN;
+  bool snapBathComm = false;
+  unsigned long snapBathUpdate = 0;
+  float snapBathSp = NAN, snapBathTarget = NAN, snapBathPv = NAN;
+  float snapBathDisplaySp = NAN, snapBathDeviation = NAN;
+  bool snapBathSpValid = false, snapBathPvValid = false, snapBathDisplaySpValid = false;
+  bool snapBathDeviationValid = false;
+  uint8_t snapBathMode = 0, snapBathSpSource = 0;
+  char snapBathState[sizeof(bathState)] = "idle";
+  char snapBathPhase[sizeof(bathPhase)] = "";
+  char snapBathError[sizeof(bathError)] = "";
+  char snapBathGuard[sizeof(bathGuard)] = "off";
+  ExternalBathCascadeSnapshot snapBathCascade;
+  float snapBathCommandSetpoint = NAN, snapBathCommandConfirmed = NAN;
+  bool snapBathLatestWins = false;
+  TempControlRoute snapTempRoute = TempControlRoute::UartModule;
+  unsigned long snapReactorPvUpdatedMs = 0;
   // 10.1: the node registry is copied whole (IP always; version/MAC only once the
   // node has said hello) so the identity keys are assembled outside the mutex too.
   DeviceNodeEntry snapNodes[DEV_COUNT];
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
     for (int i = 0; i < DEV_COUNT; i++) snapNodes[i] = g_deviceRegistry[i];
+    snapReactorPvUpdatedMs = reactorTempPvUpdatedMs;
+    snapBathComm = bathCommOn;
+    snapBathUpdate = bathLastUpdate;
+    snapBathSp = bathSp;
+    snapBathTarget = bathTarget;
+    snapBathPv = bathPv;
+    snapBathDisplaySp = bathDisplaySp;
+    snapBathDeviation = bathDeviation;
+    snapBathSpValid = bathSpKnown;
+    snapBathPvValid = bathPvValid;
+    snapBathDisplaySpValid = bathDisplaySpValid;
+    snapBathDeviationValid = bathDeviationValid;
+    snapBathMode = bathMode;
+    snapBathSpSource = bathSpSource;
+    snprintf(snapBathState, sizeof(snapBathState), "%s", bathState);
+    snprintf(snapBathPhase, sizeof(snapBathPhase), "%s", bathPhase);
+    snprintf(snapBathError, sizeof(snapBathError), "%s", bathError);
+    snprintf(snapBathGuard, sizeof(snapBathGuard), "%s", bathGuard);
+    snapBathCascade = bathCascadeSnapshot;
+    snapBathCommandSetpoint = bathCommandSetpoint;
+    snapBathCommandConfirmed = bathCommandConfirmed;
+    snapBathLatestWins = bathCommandLatestWins;
+    snapTempRoute = tempControlRoute;
     if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > distancePresenceWindowMs(distanceSendPeriodMs))) {
       distanceEchoSeen = false;
     }
@@ -272,7 +311,7 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"Tempval\":" + String(temperatureValid ? temperatureVal : -1.0f, 2);
   jsonResponse += ",\"TempvalValid\":" + String(temperatureValid ? "true" : "false");
   jsonResponse += ",\"TempvalAgeMs\":" + String(
-      reactorTempPvUpdatedMs > 0 ? millis() - reactorTempPvUpdatedMs : 999999UL);
+      snapReactorPvUpdatedMs > 0 ? millis() - snapReactorPvUpdatedMs : 999999UL);
   jsonResponse += ",\"pHval\":" + String(pHVal, 2);
   jsonResponse += ",\"Oxyval\":" + String(oxyVal, 1);
   jsonResponse += ",\"Antifoam\":" + String(antifoamVal, 0);
@@ -435,12 +474,7 @@ void readAndBroadcastSensorData() {
   appendNodeIdentity(jsonResponse, "Biomass",   snapNodes[DEV_BIOMASS]);
   appendNodeIdentity(jsonResponse, "Bath",      snapNodes[DEV_BATH]);
 
-  bool snapBathOnline = false, snapBathComm = false;
-  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
-    snapBathComm = bathCommOn;
-    snapBathOnline = bathLastUpdate > 0 && (millis() - bathLastUpdate <= 5000);
-    xSemaphoreGive(stateMutex);
-  }
+  const bool snapBathOnline = snapBathUpdate > 0 && (millis() - snapBathUpdate <= 5000);
   const bool snapBathPending = mailboxPending(bathBox);
   uint32_t snapBathId = 0, snapBathAck = 0;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
@@ -453,24 +487,53 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"BathCommandPending\":" + String(snapBathPending ? "true" : "false");
   jsonResponse += ",\"BathCommandId\":" + String(snapBathId);
   jsonResponse += ",\"BathCommandAck\":" + String(snapBathAck);
-  jsonResponse += ",\"TempControlMode\":" + String(static_cast<uint8_t>(tempControlRoute));
+  jsonResponse += ",\"TempControlMode\":" + String(static_cast<uint8_t>(snapTempRoute));
   jsonResponse += ",\"TempControlViaBath\":" +
-                  String(tempControlRoute == TempControlRoute::ExternalBath ? "true" : "false");
+                  String(snapTempRoute == TempControlRoute::ExternalBath ? "true" : "false");
   jsonResponse += ",\"BathCascadeEnabled\":" +
-                  String(tempControlRoute == TempControlRoute::ExternalBath && bathCommOn ? "true" : "false");
+                  String(snapTempRoute == TempControlRoute::ExternalBath && snapBathComm ? "true" : "false");
   jsonResponse += ",\"BathCascadeState\":\"" +
-                  String(externalBathCascadeStateName(bathCascadeSnapshot.state)) + "\"";
-  jsonResponse += ",\"BathCommandLatestWins\":" + String(bathCommandLatestWins ? "true" : "false");
-  if (isfinite(bathCommandSetpoint)) {
-    jsonResponse += ",\"BathCommandSetpoint\":" + String(bathCommandSetpoint, 1);
+                  String(externalBathCascadeStateName(snapBathCascade.state)) + "\"";
+  jsonResponse += ",\"BathCommandLatestWins\":" + String(snapBathLatestWins ? "true" : "false");
+  if (isfinite(snapBathCommandSetpoint)) {
+    jsonResponse += ",\"BathCommandSetpoint\":" + String(snapBathCommandSetpoint, 1);
   } else {
     jsonResponse += ",\"BathCommandSetpoint\":null";
   }
-  if (isfinite(bathCommandConfirmed)) {
-    jsonResponse += ",\"BathCommandConfirmed\":" + String(bathCommandConfirmed, 1);
+  if (isfinite(snapBathCommandConfirmed)) {
+    jsonResponse += ",\"BathCommandConfirmed\":" + String(snapBathCommandConfirmed, 1);
   } else {
     jsonResponse += ",\"BathCommandConfirmed\":null";
   }
+  auto appendBathNullable = [&](const char* key, float value, bool valid, uint8_t decimals) {
+    jsonResponse += ",\"" + String(key) + "\":";
+    if (valid && isfinite(value)) jsonResponse += String(value, static_cast<unsigned int>(decimals));
+    else jsonResponse += "null";
+  };
+  appendBathNullable("TempSetpoint", tempReference,
+                     isfinite(tempReference) && tempReference > 0.0f, 2);
+  appendBathNullable("BathSp", snapBathSp, snapBathSpValid, 2);
+  appendBathNullable("BathTarget", snapBathTarget, isfinite(snapBathTarget), 2);
+  appendBathNullable("BathPv", snapBathPv, snapBathPvValid, 2);
+  appendBathNullable("BathDeviation", snapBathDeviation, snapBathDeviationValid, 2);
+  const bool cascadeTermsValid = snapBathCascade.state != ExternalBathCascadeState::Off &&
+                                 snapBathCascade.state != ExternalBathCascadeState::WaitingInputs;
+  appendBathNullable("BathCascadeError", snapBathCascade.errorC, cascadeTermsValid, 3);
+  appendBathNullable("BathCascadePvFiltered", snapBathCascade.filteredPvC, cascadeTermsValid, 3);
+  appendBathNullable("BathCascadeP", snapBathCascade.pC, cascadeTermsValid, 3);
+  appendBathNullable("BathCascadeI", snapBathCascade.iC, cascadeTermsValid, 3);
+  jsonResponse += ",\"BathDisplaySp\":";
+  if (snapBathDisplaySpValid && isfinite(snapBathDisplaySp)) jsonResponse += String(snapBathDisplaySp, 2);
+  else jsonResponse += "null";
+  jsonResponse += ",\"BathState\":\"" + String(snapBathState) + "\"";
+  jsonResponse += ",\"BathPhase\":\"" + String(snapBathPhase) + "\"";
+  jsonResponse += ",\"BathError\":\"" + String(snapBathError) + "\"";
+  jsonResponse += ",\"BathMode\":" + String(snapBathMode);
+  jsonResponse += ",\"BathGuard\":\"" + String(snapBathGuard) + "\"";
+  jsonResponse += ",\"BathSpSource\":" + String(snapBathSpSource);
+  jsonResponse += ",\"BathCascadeSaturated\":" + String(snapBathCascade.saturated ? "true" : "false");
+  jsonResponse += ",\"BathCascadePausedReason\":\"" + String(snapBathCascade.pausedReason) + "\"";
+  jsonResponse += ",\"BathCascadeLastUpdateMs\":" + String(snapBathCascade.lastUpdateMs);
 
   jsonResponse += ",\"SensorCommOK\":" + String(uartSensorOK ? "true" : "false");
   jsonResponse += "}";

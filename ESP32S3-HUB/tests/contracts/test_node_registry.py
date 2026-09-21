@@ -159,7 +159,7 @@ class NodeRegistrySourceTests(unittest.TestCase):
         self.assertIn('recordDeviceActivity(DEV_AGITATOR, rip, now, true, "", "")', handler)
 
     def test_firmware_identity_is_10_4(self):
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.4.0-dev"', self.read("Config.h"))
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.5.0-dev"', self.read("Config.h"))
         self.assertIn("#define HUB_PROTOCOL_VERSION 10", self.read("Config.h"))
 
 

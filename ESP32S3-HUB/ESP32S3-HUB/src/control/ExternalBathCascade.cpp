@@ -46,7 +46,19 @@ bool ExternalBathCascade::configure(const ExternalBathCascadeConfig& candidate) 
     return false;
   }
   config_ = candidate;
+  // Bumpless retune: a new Kp/bias must not move the output by itself. The integral
+  // absorbs the difference so only future error changes the command.
+  if (filterInitialized_ && snapshot_.hasCommand &&
+      (snapshot_.state == ExternalBathCascadeState::Controlling ||
+       snapshot_.state == ExternalBathCascadeState::ActuatorBusy)) {
+    rebaseIntegral(lastReferenceC_);
+    snapshot_.iC = integralC_;
+  }
   return true;
+}
+
+void ExternalBathCascade::rebaseIntegral(float referenceC) {
+  integralC_ = outputC_ - referenceC - config_.biasC - config_.kp * snapshot_.errorC;
 }
 
 void ExternalBathCascade::reset() {
@@ -57,6 +69,8 @@ void ExternalBathCascade::reset() {
   outputC_ = 0.0f;
   lastCommandC_ = 0.0f;
   faultLatched_ = false;
+  rebasePending_ = false;
+  lastReferenceC_ = 0.0f;
 }
 
 void ExternalBathCascade::markCommandSent(float setpointC, uint32_t nowMs) {
@@ -68,13 +82,17 @@ void ExternalBathCascade::markCommandSent(float setpointC, uint32_t nowMs) {
 }
 
 float ExternalBathCascade::lowerLimit(float referenceC) const {
+  float absolute = config_.outputMinC;
+  if (actuatorRangeValid_ && actuatorMinC_ > absolute) absolute = actuatorMinC_;
   const float relative = referenceC - config_.offsetLowC;
-  return relative > config_.outputMinC ? relative : config_.outputMinC;
+  return relative > absolute ? relative : absolute;
 }
 
 float ExternalBathCascade::upperLimit(float referenceC) const {
+  float absolute = config_.outputMaxC;
+  if (actuatorRangeValid_ && actuatorMaxC_ < absolute) absolute = actuatorMaxC_;
   const float relative = referenceC + config_.offsetHighC;
-  return relative < config_.outputMaxC ? relative : config_.outputMaxC;
+  return relative < absolute ? relative : absolute;
 }
 
 float ExternalBathCascade::clampOutput(float valueC, float referenceC) const {
@@ -102,6 +120,10 @@ void ExternalBathCascade::setState(ExternalBathCascadeState state, const char* r
 bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
   snapshot_.commandReady = false;
   snapshot_.lastUpdateMs = in.nowMs;
+  actuatorRangeValid_ = in.actuatorRangeValid && isfinite(in.actuatorMinC) &&
+                        isfinite(in.actuatorMaxC) && in.actuatorMinC < in.actuatorMaxC;
+  actuatorMinC_ = in.actuatorMinC;
+  actuatorMaxC_ = in.actuatorMaxC;
 
   if (!in.enabled || (in.referenceValid && in.referenceC <= 0.0f)) {
     integralC_ = 0.0f;
@@ -135,8 +157,10 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
   if (in.pause) {
     setState(ExternalBathCascadeState::Paused, in.pauseReason);
     // Freeze the integrator and restart the elapsed-time origin so a long
-    // communication/PV outage cannot create a recovery step.
+    // communication/PV outage cannot create a recovery step. On return the filter
+    // restarts from the fresh PV and the integral is rebased around the held output.
     lastInputMs_ = in.nowMs;
+    rebasePending_ = true;
     return false;
   }
 
@@ -146,8 +170,13 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
                            in.bathModeAuto && in.bathGuardHealthy && in.bathSpValid &&
                            isfinite(in.bathSpC);
   if (!inputsReady) {
-    setState(ExternalBathCascadeState::WaitingInputs, "inputs");
+    setState(ExternalBathCascadeState::WaitingInputs,
+             in.waitingReason && in.waitingReason[0] ? in.waitingReason : "inputs");
     lastInputMs_ = in.nowMs;
+    // The next valid sample re-seeds from the display SP; an old filtered PV from
+    // before a long outage must not survive into that seed.
+    filterInitialized_ = false;
+    rebasePending_ = false;
     return false;
   }
 
@@ -160,10 +189,13 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
     return false;
   }
   if (lastInputMs_ != 0) dtMs = in.nowMs - lastInputMs_;
+  // A stalled loop must not turn into one huge integral/filter step.
+  if (dtMs > 3 * config_.periodMs) dtMs = 3 * config_.periodMs;
   lastInputMs_ = in.nowMs;
   const float dtS = dtMs > 0 ? dtMs / 1000.0f : config_.periodMs / 1000.0f;
 
-  if (!filterInitialized_) {
+  lastReferenceC_ = in.referenceC;
+  if (!filterInitialized_ || rebasePending_) {
     snapshot_.filteredPvC = in.reactorPvC;
     filterInitialized_ = true;
   } else {
@@ -187,6 +219,11 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
     if (in.bathSpValid) markCommandSent(snapshot_.commandSetpointC, in.nowMs);
     setState(ExternalBathCascadeState::Controlling);
     return !in.bathSpValid;
+  }
+
+  if (rebasePending_) {
+    rebaseIntegral(in.referenceC);
+    rebasePending_ = false;
   }
 
   const float ki = config_.kp / config_.tiS;

@@ -71,6 +71,7 @@
 #include "../devices/ServoDevice.h"
 #include "../protocol/HttpCommandQueue.h"
 #include "../protocol/JsonUtils.h"
+#include "../control/BathCommandCoordinator.h"
 #include "../control/ExternalBathCascade.h"
 
 // Mutex para proteger a porta serial do sensor
@@ -112,7 +113,9 @@ ReliableMailbox biomassBox;
 ReliableMailbox pumpBox;
 ReliableMailbox agitatorBox;
 ReliableMailbox distanceBox;
-ReliableMailbox bathBox;
+// Bath r3.2 uses three prioritized slots (stop > mode/sync > setpoint) instead of a
+// single mailbox; see BathCommandCoordinator. Protected by cmdMutex.
+BathCommandCoordinator bathLink;
 
 // ============ UART CONFIG ============
 #define SENSOR_RX_PIN 16
@@ -171,7 +174,6 @@ bool bathCommOn = false;
 enum class TempControlRoute : uint8_t { UartModule = 0, ExternalBath = 1 };
 TempControlRoute tempControlRoute = TempControlRoute::UartModule;
 bool tempReferenceCommanded = false;
-bool tempRouteTransitionPending = false;
 ExternalBathCascade bathCascade;
 ExternalBathCascadeConfig bathCascadeConfig = ExternalBathCascade::defaults();
 ExternalBathCascadeSnapshot bathCascadeSnapshot;
@@ -179,12 +181,21 @@ float bathCommandSetpoint = NAN;
 float bathCommandConfirmed = NAN;
 bool bathCommandLatestWins = false;
 unsigned long bathCascadeLastCalcMs = 0;
-unsigned long bathCommandLastSendMs = 0;
-unsigned long bathCommandLastDoneMs = 0;
-uint32_t bathCommandLastSentId = 0;
-uint32_t bathCommandLastDoneId = 0;
-bool bathCommandCompletionPending = false;
 constexpr unsigned long BATH_COMMAND_COMPLETION_TIMEOUT_MS = 300000;
+// Plain-text reason of the last cascade-config refusal, published for the apps.
+char bathCascadeConfigError[48] = "";
+// D-2 resume: one `mode=auto` request per cascade activation.
+bool bathAutoRequested = false;
+// C4 safety net: node target diverging from the last completed setpoint.
+unsigned long bathTargetMismatchSinceMs = 0;
+uint8_t bathTargetResendCount = 0;
+constexpr unsigned long BATH_TARGET_MISMATCH_MS = 30000;
+constexpr uint8_t BATH_TARGET_MAX_RESENDS = 3;
+// Node-reported actuator range and last refused Hub command (r3.2).
+float bathNodeSpMin = NAN;
+float bathNodeSpMax = NAN;
+uint32_t bathNodeRejectId = 0;
+char bathNodeRejectError[32] = "";
 float bathSp = NAN;
 bool bathSpKnown = false;
 float bathTarget = NAN;
@@ -545,7 +556,7 @@ TaskHandle_t g_nodeDiagTaskHandle = nullptr;
 
 // Shared by the aggregate frame (Telemetry.h) and the /readData cache copy
 // (Runtime.h): the two Strings must reserve the same size or the assignment reallocates.
-#define HUB_TELEMETRY_JSON_RESERVE 3584
+#define HUB_TELEMETRY_JSON_RESERVE 4608
 
 // Appends "<Prefix>IP" and, when the node has registered, "<Prefix>NodeVer" and
 // "<Prefix>NodeMac" to an aggregate frame under construction. Version and MAC come

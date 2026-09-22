@@ -46,6 +46,13 @@ struct ExternalBathCascadeInputs {
   const char* pauseReason = "";
   bool fault = false;
   const char* faultReason = "";
+  // First missing input, published while waiting (e.g. "node_offline").
+  const char* waitingReason = "inputs";
+  // Range the node itself accepts (sp_min/sp_max, r3.2). The output is clamped to the
+  // intersection with the configured limits so the node never refuses for `range`.
+  bool actuatorRangeValid = false;
+  float actuatorMinC = 0.0f;
+  float actuatorMaxC = 100.0f;
 };
 
 struct ExternalBathCascadeSnapshot {
@@ -77,6 +84,8 @@ class ExternalBathCascade {
   void markCommandSent(float setpointC, uint32_t nowMs);
   bool update(const ExternalBathCascadeInputs& inputs);
   ExternalBathCascadeSnapshot snapshot() const { return snapshot_; }
+  // Last setpoint handed to the node (or the display SP it was seeded from).
+  float lastCommandC() const { return lastCommandC_; }
 
  private:
   ExternalBathCascadeConfig config_;
@@ -87,10 +96,18 @@ class ExternalBathCascade {
   float outputC_ = 0.0f;
   float lastCommandC_ = 0.0f;
   bool faultLatched_ = false;
+  // Set after a pause: the filter restarts from the fresh PV and the integral is
+  // rebased so the output continues from where it stopped (no recovery step).
+  bool rebasePending_ = false;
+  float lastReferenceC_ = 0.0f;
+  bool actuatorRangeValid_ = false;
+  float actuatorMinC_ = 0.0f;
+  float actuatorMaxC_ = 100.0f;
 
   float lowerLimit(float referenceC) const;
   float upperLimit(float referenceC) const;
   float clampOutput(float valueC, float referenceC) const;
+  void rebaseIntegral(float referenceC);
   void setReason(const char* reason);
   void setState(ExternalBathCascadeState state, const char* reason = "");
 };

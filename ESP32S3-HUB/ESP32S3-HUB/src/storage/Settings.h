@@ -134,7 +134,6 @@ void loadSettings() {
   // required even if the selected route itself was persisted.
   tempReferenceCommanded = false;
   tempOn = false;
-  tempRouteTransitionPending = tempControlRoute == TempControlRoute::ExternalBath;
   bathCascade.reset();
 }
 

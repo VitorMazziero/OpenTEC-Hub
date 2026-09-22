@@ -420,7 +420,7 @@ void startWiFi() {
         const DeviceNodeEntry& registeredBath = g_deviceRegistry[DEV_BATH];
         trustedSource = registeredBath.registered &&
                         registeredBath.ip == remoteIp &&
-                        strcmp(registeredBath.version, "r3.1") == 0;
+                        bathNodeVersionSupported(registeredBath.version);
         xSemaphoreGive(stateMutex);
       }
       if (!trustedSource) {
@@ -429,9 +429,10 @@ void startWiFi() {
       }
 
       float sp = NAN, target = NAN, pv = NAN, displaySp = NAN, deviation = NAN, uptime = NAN;
+      float nodeSpMin = NAN, nodeSpMax = NAN;
       bool known = false, pvOk = false, displaySpOk = false, devOk = false;
-      uint32_t spSource = 0, mode = 0, ack = 0;
-      char state[16] = {}, phase[20] = {}, error[48] = {}, guard[16] = {};
+      uint32_t spSource = 0, mode = 0, ack = 0, rejId = 0;
+      char state[16] = {}, phase[20] = {}, error[48] = {}, guard[16] = {}, rejErr[32] = {};
       bool valid = request->hasParam("sp") && request->hasParam("known") &&
                    request->hasParam("target") && request->hasParam("state") &&
                    request->hasParam("phase") && request->hasParam("err") &&
@@ -440,7 +441,9 @@ void startWiFi() {
                    request->hasParam("sp_source") && request->hasParam("mode") &&
                    request->hasParam("guard") && request->hasParam("dev") &&
                    request->hasParam("dev_ok") && request->hasParam("time") &&
-                   request->hasParam("ack_cmd_id");
+                   request->hasParam("ack_cmd_id") && request->hasParam("rej_cmd_id") &&
+                   request->hasParam("rej_err") && request->hasParam("sp_min") &&
+                   request->hasParam("sp_max");
       if (valid) {
         valid = JsonUtils::parseFiniteFloat(request->getParam("sp")->value(), sp) &&
                 JsonUtils::parseFiniteFloat(request->getParam("target")->value(), target) &&
@@ -451,6 +454,10 @@ void startWiFi() {
                 JsonUtils::parseUInt(request->getParam("sp_source")->value(), spSource) && spSource <= 1 &&
                 JsonUtils::parseUInt(request->getParam("mode")->value(), mode) && mode <= 1 &&
                 JsonUtils::parseUInt(request->getParam("ack_cmd_id")->value(), ack) &&
+                JsonUtils::parseUInt(request->getParam("rej_cmd_id")->value(), rejId) &&
+                JsonUtils::parseFiniteFloat(request->getParam("sp_min")->value(), nodeSpMin) &&
+                JsonUtils::parseFiniteFloat(request->getParam("sp_max")->value(), nodeSpMax) &&
+                nodeSpMin < nodeSpMax &&
                 parseBathBool(request, "known", known) && parseBathBool(request, "pv_ok", pvOk) &&
                 parseBathBool(request, "display_sp_ok", displaySpOk) && parseBathBool(request, "dev_ok", devOk) &&
                 uptime >= 0.0f && sp >= 0.0f && sp <= 100.0f && target >= 0.0f && target <= 100.0f &&
@@ -460,12 +467,15 @@ void startWiFi() {
                 bathTextParam(request, "phase", phase, sizeof(phase), true) &&
                 bathTextParam(request, "err", error, sizeof(error), true) &&
                 bathTextParam(request, "guard", guard, sizeof(guard), true) &&
+                bathTextParam(request, "rej_err", rejErr, sizeof(rejErr), true) &&
                 bathTelemetryEnumsValid(state, phase, guard);
       }
       if (!valid) {
         request->send(400, "text/plain", "Invalid bath data");
         return;
       }
+
+      bool owner = false;
 
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
         bathSp = sp; bathSpKnown = known; bathTarget = target;
@@ -478,19 +488,35 @@ void startWiFi() {
         snprintf(bathGuard, sizeof(bathGuard), "%s", guard);
         bathLastUpdate = millis();
         if (bathDisplaySpValid) bathCommandConfirmed = bathDisplaySp;
-        if (strcmp(bathState, "done") == 0 && ack != 0 &&
-            bathCommandCompletionPending && ack == bathCommandLastSentId) {
-          bathCommandLastDoneMs = bathLastUpdate;
-          bathCommandLastDoneId = ack;
-          bathCommandCompletionPending = false;
-        }
+        bathNodeSpMin = nodeSpMin;
+        bathNodeSpMax = nodeSpMax;
+        bathNodeRejectId = rejId;
+        snprintf(bathNodeRejectError, sizeof(bathNodeRejectError), "%s", rejErr);
         recordDeviceActivity(DEV_BATH, remoteIp, bathLastUpdate, false);
+        // Posse (D-1): a cascata ativa na via externa é dona do nó; ele recusa comandos
+        // locais enquanto recebe "1" aqui. A parada libera a posse no push seguinte.
+        owner = tempControlRoute == TempControlRoute::ExternalBath && bathCommOn &&
+                tempReferenceCommanded;
         xSemaphoreGive(stateMutex);
       }
-      ackReliable(bathBox, ack, "Bath");
-      String pending = takeReliable(bathBox);
-      if (pending != "{}") request->send(200, "application/json", pending);
-      else request->send(200, "text/plain", "Bath data received");
+      BathNodeReport report;
+      report.ackCmdId = ack;
+      report.rejCmdId = rejId;
+      report.rejErr = rejErr;
+      report.state = state;
+      report.error = error;
+      report.guard = guard;
+      String pending = "{}";
+      if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+        bathLink.onReport(report, millis());
+        xSemaphoreGive(cmdMutex);
+      }
+      pending = bathTakePayload();
+      AsyncWebServerResponse* response = pending != "{}"
+          ? request->beginResponse(200, "application/json", pending)
+          : request->beginResponse(200, "text/plain", "Bath data received");
+      response->addHeader("X-Hub-Owner", owner ? "1" : "0");
+      request->send(response);
     });
 
     // Handler de GET /pumpData (recebe dados da bomba peristáltica)
@@ -754,7 +780,7 @@ void startWiFi() {
     });
 
     server.on("/bathCommand", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(200, "application/json", takeReliable(bathBox));
+      request->send(200, "application/json", bathTakePayload());
     });
 
     server.on("/servoCommand", HTTP_GET, [](AsyncWebServerRequest *request) {

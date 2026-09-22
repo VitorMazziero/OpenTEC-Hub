@@ -15,13 +15,21 @@ class BathTelemetryTests(unittest.TestCase):
         config = self.read("Config.h")
         telemetry = self.read("src/sensor/Telemetry.h")
         context = self.read("src/core/AppContext.h")
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.5.1-dev"', config)
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.6.0-dev"', config)
         fields = [
             "TempSetpoint", "BathSp", "BathTarget", "BathPv", "BathDisplaySp",
             "BathState", "BathPhase", "BathError", "BathMode", "BathGuard",
             "BathDeviation", "BathSpSource", "BathCascadeError",
             "BathCascadePvFiltered", "BathCascadeP", "BathCascadeI",
             "BathCascadeSaturated", "BathCascadePausedReason", "BathCascadeLastUpdateMs",
+            "BathOwned", "BathCascadeActive", "BathCascadeFaultReason", "BathStopPending",
+            "BathCommandCompletion", "BathOperationError", "BathNodeRejectId",
+            "BathNodeRejectError", "BathNodeSpMin", "BathNodeSpMax", "TempSetpointCommanded",
+            "TempModuleActuatorOn", "BathCascadeKp", "BathCascadeTiS", "BathCascadeBiasC",
+            "BathCascadePeriodMs", "BathCascadeFilterS", "BathCascadeCommandMinMs",
+            "BathCascadeCommandBandC", "BathCascadeSlewCMin", "BathCascadeOffsetHighC",
+            "BathCascadeOffsetLowC", "BathCascadeOutputMinC", "BathCascadeOutputMaxC",
+            "BathCascadeConfigError",
         ]
         for field in fields:
             self.assertIn(field, telemetry + context)
@@ -42,8 +50,8 @@ class BathTelemetryTests(unittest.TestCase):
         reserve = int(context.split("#define HUB_TELEMETRY_JSON_RESERVE ", 1)[1].splitlines()[0])
         # Conservative worst-case estimate for the H06 additions: long bounded
         # strings, finite numbers and node identity fields, excluding legacy keys.
-        bath_payload = 1800
-        self.assertGreaterEqual(reserve, 3584)
+        bath_payload = 2600
+        self.assertGreaterEqual(reserve, 4608)
         self.assertLess(bath_payload, reserve)
 
     def test_identity_is_appended_from_registry_snapshot(self):

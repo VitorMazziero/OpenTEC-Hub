@@ -178,6 +178,42 @@ static bool parseBathCascadeConfig(const String &json,
          readFloat("bathCascadeOutputMaxC", candidate.outputMaxC);
 }
 
+// Parada do banho (decisão D-2 do plano de correções): para de enviar setpoints,
+// entrega `stop` (abort + modo manual) ao nó e libera a posse. Via e bathComm ficam
+// como estão; o banho não é desligado por software e fica no último SP.
+static void requestBathStop(const char* why) {
+  tempReferenceCommanded = false;
+  bathCascade.reset();
+  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    bathCascadeSnapshot = bathCascade.snapshot();
+    bathCommandSetpoint = NAN;
+    bathCommandLatestWins = false;
+    xSemaphoreGive(stateMutex);
+  }
+  bathAutoRequested = false;
+  bathTargetMismatchSinceMs = 0;
+  bathTargetResendCount = 0;
+  bathQueueStop();
+  ESP32_EVT(String("Parada do banho (") + why +
+            "): cascata desligada, no em manual, C404 permanece no ultimo SP");
+}
+
+// Troca de via ou reset: nada pendente do banho sobrevive.
+static void resetBathCommandPath() {
+  bathCascade.reset();
+  bathClearCommands();
+  if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    bathCascadeSnapshot = bathCascade.snapshot();
+    bathCommandSetpoint = NAN;
+    bathCommandConfirmed = NAN;
+    bathCommandLatestWins = false;
+    xSemaphoreGive(stateMutex);
+  }
+  bathAutoRequested = false;
+  bathTargetMismatchSinceMs = 0;
+  bathTargetResendCount = 0;
+}
+
 // ------------------------------------------------------------------
 // processJsonCommand():
 //   Fully Corrected Version with Temporary Variables to fix
@@ -208,12 +244,15 @@ void processJsonCommand(const String &json) {
         json.indexOf("\"tempControlMode\"") >= 0 ||
         json.indexOf("\"tempSetpoint\"") >= 0;
     if (routeOrSetpointSameFrame) {
+      snprintf(bathCascadeConfigError, sizeof(bathCascadeConfigError), "%s", "same_frame");
       ESP32_AVISO("Configuracao da cascata rejeitada: sintonia exige quadro separado");
     } else if (!bathConfigSyntaxValid || !ExternalBathCascade::validateConfig(bathCandidate)) {
+      snprintf(bathCascadeConfigError, sizeof(bathCascadeConfigError), "%s", "out_of_range");
       ESP32_AVISO("Configuracao da cascata rejeitada atomicamente: valores fora da faixa");
     } else {
       bathCascadeConfig = bathCandidate;
       bathCascade.configure(bathCascadeConfig);
+      bathCascadeConfigError[0] = '\0';
       ESP32_EVT("Configuracao da cascata do banho atualizada");
     }
   }
@@ -223,9 +262,21 @@ void processJsonCommand(const String &json) {
     String rawReset;
     if (JsonUtils::getRaw(json, "bathCascadeReset", rawReset) &&
         JsonUtils::parseBool(rawReset, resetCascade) && resetCascade) {
-      bathCascade.reset();
-      bathCascadeSnapshot = bathCascade.snapshot();
-      bathCommandLatestWins = false;
+      // Reset real (C2): descarta conclusão pendente/expirada, esquece o estado
+      // error/aborted/suspended já visto (só uma nova borda volta a falhar) e rearma
+      // a guarda do nó em automático, o que também tira a suspensão.
+      resetBathCommandPath();
+      char nodeState[sizeof(bathState)] = "";
+      char nodeGuard[sizeof(bathGuard)] = "";
+      if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        snprintf(nodeState, sizeof(nodeState), "%s", bathState);
+        snprintf(nodeGuard, sizeof(nodeGuard), "%s", bathGuard);
+        xSemaphoreGive(stateMutex);
+      }
+      if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+        bathLink.rearmEdges(nodeState, nodeGuard);
+        xSemaphoreGive(cmdMutex);
+      }
       ESP32_EVT("Estado da cascata do banho reinicializado");
     } else {
       ESP32_AVISO("bathCascadeReset rejeitado: esperado 1/true");
@@ -249,22 +300,13 @@ void processJsonCommand(const String &json) {
     dataDelay = 1000; 
     oxyOn = false; tempOn = false; phOn = false; 
     nutrientOn = false; antifoamOn = false; pressureOn = false; 
-    bathCommOn = false;
-    tempControlRoute = TempControlRoute::UartModule;
-    tempReferenceCommanded = false;
-    tempRouteTransitionPending = false;
-    bathCascadeConfig = ExternalBathCascade::defaults();
-    bathCascade.configure(bathCascadeConfig);
-    bathCascade.reset();
-    clearReliable(bathBox);
-    bathCommandSetpoint = NAN;
-    bathCommandConfirmed = NAN;
-    bathCommandLatestWins = false;
-    bathCommandLastSendMs = 0;
-    bathCommandLastDoneMs = 0;
-    bathCommandLastSentId = 0;
-    bathCommandLastDoneId = 0;
-    bathCommandCompletionPending = false;
+    // Banho (D-2): a parada não troca a via nem desliga bathComm (o `stop` precisa
+    // ser entregue) e não apaga a sintonia identificada em água.
+    if (tempControlRoute == TempControlRoute::ExternalBath) {
+      requestBathStop("resetVariables");
+    } else {
+      tempReferenceCommanded = false;
+    }
     if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
       desiredFlowSetpoint = 0.0f;
       desiredFlowValve1 = 0;
@@ -468,22 +510,15 @@ void processJsonCommand(const String &json) {
       const TempControlRoute next = requested == 1
           ? TempControlRoute::ExternalBath : TempControlRoute::UartModule;
       if (next != tempControlRoute) {
+        const bool leavingBath = tempControlRoute == TempControlRoute::ExternalBath;
         tempControlRoute = next;
         tempRouteChangedInFrame = true;
         tempReferenceCommanded = false;
-        tempRouteTransitionPending = true;
         tempOn = false;
         flagTempDirty = false;
-        bathCascade.reset();
-        clearReliable(bathBox);
-        bathCommandSetpoint = NAN;
-        bathCommandConfirmed = NAN;
-        bathCommandLatestWins = false;
-        bathCommandLastSendMs = 0;
-        bathCommandLastDoneMs = 0;
-        bathCommandLastSentId = 0;
-        bathCommandLastDoneId = 0;
-        bathCommandCompletionPending = false;
+        resetBathCommandPath();
+        // Ao sair da via externa o Hub larga o banho: stop deixa o nó em manual.
+        if (leavingBath) bathQueueStop();
         // 100B is the established, working module command that releases the
         // original temperature actuator before the external route can act.
         sendSensorCommand("100B", false);
@@ -500,8 +535,13 @@ void processJsonCommand(const String &json) {
     bool enabled = false;
     String raw;
     if (JsonUtils::getRaw(json, "bathComm", raw) && JsonUtils::parseBool(raw, enabled)) {
+      if (!enabled && bathCommOn && tempReferenceCommanded &&
+          tempControlRoute == TempControlRoute::ExternalBath) {
+        requestBathStop("bathComm=0");
+      } else if (!enabled) {
+        bathClearCommands();
+      }
       bathCommOn = enabled;
-      if (!enabled) clearReliable(bathBox);
       ESP32_EVT(String("Comunicação do banho ") + (enabled ? "ativada" : "desativada"));
     } else {
       ESP32_AVISO("bathComm rejeitado: esperado 0, 1, false ou true");
@@ -533,11 +573,14 @@ void processJsonCommand(const String &json) {
     }
   }
 
-  if (json.indexOf("\"bathAbort\"") != -1 && bathOperation.length() == 0) {
+  bool bathStopRequested = false;
+  if (json.indexOf("\"bathAbort\"") != -1) {
     String raw;
     bool abort = false;
     if (JsonUtils::getRaw(json, "bathAbort", raw) && JsonUtils::parseBool(raw, abort) && abort) {
-      bathOperation = "\"abort\":1";
+      // D-4: abort do banho = parada completa, com prioridade sobre qualquer comando.
+      bathStopRequested = true;
+      bathOperation = "";
     } else {
       ESP32_AVISO("bathAbort rejeitado: esperado 1/true");
     }
@@ -551,17 +594,33 @@ void processJsonCommand(const String &json) {
       String raw;
       float requested = 0.0f;
       if (JsonUtils::getRaw(json, "tempSetpoint", raw) &&
-          JsonUtils::parseFiniteFloat(raw, requested)) {
+          JsonUtils::parseFiniteFloat(raw, requested) &&
+          requested >= 0.0f && requested <= 100.0f) {
+        const bool bathRoute = tempControlRoute == TempControlRoute::ExternalBath;
         setTemperature(requested);
-        tempReferenceCommanded = true;
+        if (bathRoute && requested < 0.001f) {
+          // Desligar a temperatura na via externa é a parada do banho (D-2).
+          bathStopRequested = true;
+        } else {
+          if (bathRoute && !tempReferenceCommanded) {
+            // Nova ativação: rearma o pedido de modo automático e o reenvio de alvo.
+            bathAutoRequested = false;
+            bathTargetMismatchSinceMs = 0;
+            bathTargetResendCount = 0;
+          }
+          tempReferenceCommanded = true;
+        }
       } else {
-        ESP32_AVISO("tempSetpoint rejeitado: valor finito esperado");
+        // C9: fora de 0..100 °C é recusado, não saturado para um valor plausível.
+        ESP32_AVISO("tempSetpoint rejeitado: valor finito entre 0 e 100 esperado");
       }
     }
   }
 
-  if (bathOperation.length() > 0 && bathCommOn) {
-    queueReliable(bathBox, bathOperation, "Bath");
+  if (bathStopRequested) {
+    requestBathStop("bathAbort/tempSetpoint=0");
+  } else if (bathOperation.length() > 0 && bathCommOn) {
+    bathQueueOperation(bathOperation);
   }
 
   // ============ PH CONTROL (CRITICAL FIX) ============

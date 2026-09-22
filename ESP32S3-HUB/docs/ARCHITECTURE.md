@@ -40,13 +40,25 @@ Os arquivos legados `.h` formam deliberadamente uma única unidade de compilaç�
 ## Via térmica externa
 
 `TempControlRoute::UartModule` mantém a via histórica. `ExternalBath` só calcula
-quando há referência nova, `Tempval` fresco, nó r3.1 registrado/online, `bathComm`, modo auto,
-SP de display confirmado e guarda não suspensa. A saída do PI é limitada e enviada
-pela `bathBox`; ACK, estado `done` e cooldown são condições independentes. Reboot,
-SP zero, PV stale, erro ou retorno à UART limpam a atuação transitória e não fazem
+quando há referência nova, `Tempval` fresco, nó r3.2+ registrado/online, `bathComm`, modo auto,
+SP de display confirmado e guarda não suspensa. A saída do PI é limitada (também à faixa
+`sp_min/sp_max` do nó) e entregue pelo `BathCommandCoordinator` (`src/control`), puro e testado
+no PC: três posições com prioridade `stop` > `mode/sync` > `setpoint`, um payload por push,
+conclusão vinculada ao `cmd_id` do setpoint (ACK e depois `done`/`idle`) e cooldown após a
+conclusão. Reboot, PV stale ou retorno à UART limpam a atuação transitória e não fazem
 fallback automático para a placa original.
-Falhas do nó e timeout de execução ficam travados até reset explícito. Um `done`
-repetido na telemetria não renova o cooldown nem oculta uma conclusão anterior.
+
+**Parada do banho:** `bathAbort`, `tempSetpoint=0` na via externa e `resetVariables` entregam
+`stop` (abort + modo manual no nó), desligam a cascata e liberam a posse; via e `bathComm` não
+mudam e o C404 fica no último SP. Um novo `tempSetpoint` religa a cascata e pede `mode=auto`.
+
+**Falhas:** eventos de borda do coordenador (entrada em `error`/`aborted`, guarda `suspended`,
+recusa não-`busy` do nó) e timeout de 300 s travam a cascata até `bathCascadeReset`, que limpa a
+conclusão pendente, esquece o estado já visto e rearma a guarda do nó.
+
+**Posse:** enquanto a cascata está ativa, cada resposta do `/bathData` leva `X-Hub-Owner: 1`; o
+nó recusa comandos locais (exceto abort/stop). Um alvo divergente no nó é reenviado até três
+vezes antes de `target_override`.
 
 ## Controle direto do ASDA-B2
 

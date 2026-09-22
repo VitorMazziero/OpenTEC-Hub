@@ -27,11 +27,33 @@ class BathRoutingTests(unittest.TestCase):
 
     def test_latest_wins_waits_for_ack_and_done(self):
         runtime = self.read("src/core/Runtime.h")
-        self.assertIn("mailboxPending(bathBox)", runtime)
-        self.assertIn("bathCompletionPendingSnapshot || mailboxPending(bathBox)", runtime)
-        self.assertIn('strcmp(bathState, "idle") == 0 || strcmp(bathState, "done") == 0', runtime)
-        self.assertIn("bathCommandLatestWins = true", runtime)
-        self.assertIn('queueReliable(bathBox, inner, "Bath")', runtime)
+        self.assertIn("in.actuatorBusy = link.anyPending || completionPending || nodeSequenceRunning", runtime)
+        self.assertIn("postDoneCooldown", runtime)
+        self.assertIn("bathCommandLatestWins = ready", runtime)
+        self.assertIn("bathQueueSetpoint(updatedSnapshot.commandSetpointC)", runtime)
+
+    def test_stop_keeps_route_and_communication(self):
+        commands = self.read("src/protocol/Commands.h")
+        stop = commands[commands.index("static void requestBathStop"):commands.index("static void resetBathCommandPath")]
+        self.assertIn("bathQueueStop()", stop)
+        self.assertIn("tempReferenceCommanded = false", stop)
+        self.assertNotIn("tempControlRoute =", stop)
+        self.assertNotIn("bathCommOn =", stop)
+        reset = commands[commands.index('if (json.indexOf("\\"resetVariables\\"")'):commands.index('if (json.indexOf("\\"restart\\"")')]
+        self.assertIn('requestBathStop("resetVariables")', reset)
+        self.assertNotIn("TempControlRoute::UartModule;", reset)
+        self.assertNotIn("bathCascadeConfig = ExternalBathCascade::defaults()", reset)
+        self.assertIn('requestBathStop("bathAbort/tempSetpoint=0")', commands)
+
+    def test_reset_clears_completion_and_rearms_edges(self):
+        commands = self.read("src/protocol/Commands.h")
+        reset = commands[commands.index('"bathCascadeReset", rawReset'):commands.index("// ============ SYSTEM COMMANDS")]
+        self.assertIn("resetBathCommandPath()", reset)
+        self.assertIn("bathLink.rearmEdges(nodeState, nodeGuard)", reset)
+
+    def test_out_of_range_reference_is_rejected_not_clamped(self):
+        commands = self.read("src/protocol/Commands.h")
+        self.assertIn("requested >= 0.0f && requested <= 100.0f", commands)
 
     def test_same_value_rearms_uart_and_long_running_command_faults(self):
         uart = self.read("src/sensor/SensorUart.h")
@@ -39,6 +61,7 @@ class BathRoutingTests(unittest.TestCase):
         self.assertIn("changed || !tempReferenceCommanded", uart)
         self.assertIn("BATH_COMMAND_COMPLETION_TIMEOUT_MS", runtime)
         self.assertIn('"bath_completion_timeout"', runtime)
+        self.assertIn('"target_override"', runtime)
 
     def test_reset_variables_disables_original_temperature_output(self):
         commands = self.read("src/protocol/Commands.h")

@@ -4,7 +4,7 @@
 // its last applied id across a Hub reboot and echoes it on every push; a fresh counter
 // restarting at 1 would collide with that echo and lose the first command silently.
 void seedReliableMailboxes() {
-  ReliableMailbox* boxes[] = { &distanceBox, &biomassBox, &pumpBox, &agitatorBox, &bathBox };
+  ReliableMailbox* boxes[] = { &distanceBox, &biomassBox, &pumpBox, &agitatorBox };
   for (ReliableMailbox* box : boxes) {
     const uint32_t base = ((esp_random() % 900000UL) + 100000UL) * 1000UL;
     box->revision = base;
@@ -12,9 +12,84 @@ void seedReliableMailboxes() {
     box->awaiting = false;
     box->payload = "";
   }
+  const uint32_t bathBase = ((esp_random() % 900000UL) + 100000UL) * 1000UL;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    bathLink.seed(bathBase);
+    xSemaphoreGive(cmdMutex);
+  }
   ESP32_INFO(String("Reliable mailbox seeds: distance=") + distanceBox.revision +
              " biomass=" + biomassBox.revision + " pump=" + pumpBox.revision +
-             " agitator=" + agitatorBox.revision + " bath=" + bathBox.revision);
+             " agitator=" + agitatorBox.revision + " bath=" + bathBase);
+}
+
+// ============ BANHO: CAMINHO DE COMANDO (r3.2) ============
+// Every access to bathLink goes through cmdMutex: the /bathData handler runs on the
+// AsyncWebServer task, the cascade and the command parser on the main loop.
+
+uint32_t bathQueueSetpoint(float setpointC) {
+  uint32_t id = 0;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    id = bathLink.queueSetpoint(setpointC, millis());
+    xSemaphoreGive(cmdMutex);
+  }
+  if (id) ESP32_EVT(String("Bath setpoint queued cmd_id=") + id + " sp=" + String(setpointC, 1));
+  return id;
+}
+
+uint32_t bathQueueOperation(const String& inner) {
+  uint32_t id = 0;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    id = bathLink.queueOperation(inner.c_str(), millis());
+    xSemaphoreGive(cmdMutex);
+  }
+  if (id) ESP32_EVT(String("Bath operation queued cmd_id=") + id + " " + inner);
+  return id;
+}
+
+uint32_t bathQueueStop() {
+  uint32_t id = 0;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    id = bathLink.queueStop(millis());
+    xSemaphoreGive(cmdMutex);
+  }
+  if (id) ESP32_EVT(String("Bath stop queued cmd_id=") + id);
+  return id;
+}
+
+void bathClearCommands() {
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    bathLink.clear();
+    xSemaphoreGive(cmdMutex);
+  }
+}
+
+BathCoordinatorView bathLinkView() {
+  BathCoordinatorView view;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    view = bathLink.view(millis());
+    xSemaphoreGive(cmdMutex);
+  }
+  return view;
+}
+
+bool bathTakeFault(char* reason, size_t capacity) {
+  bool fault = false;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    fault = bathLink.takeFault(reason, capacity);
+    xSemaphoreGive(cmdMutex);
+  }
+  return fault;
+}
+
+// Next payload for the node, or "{}".
+String bathTakePayload() {
+  char payload[BathCommandCoordinator::kInnerCapacity + 32];
+  bool has = false;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    has = bathLink.nextPayload(payload, sizeof(payload));
+    xSemaphoreGive(cmdMutex);
+  }
+  return has ? String(payload) : String("{}");
 }
 
 // Queues one command for a node, retained until it acknowledges this revision.

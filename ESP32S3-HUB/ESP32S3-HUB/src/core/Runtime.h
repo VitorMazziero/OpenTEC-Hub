@@ -253,9 +253,27 @@ void processOutgoingCommands() {
   }
 }
 
+// First input the cascade is missing, published as BathCascadePausedReason while it
+// waits. Order follows what the operator has to fix first.
+static const char* bathWaitingReason(bool referenceOk, bool reactorFresh, bool nodeFresh,
+                                     bool commOn, uint8_t spSource, uint8_t mode,
+                                     const char* guard, bool displaySpOk) {
+  if (!referenceOk) return "no_reference";
+  if (!reactorFresh) return "reactor_pv_invalid";
+  if (!nodeFresh) return "node_offline";
+  if (!commOn) return "bath_comm_off";
+  if (spSource != 1) return "sp_source_shadow";
+  if (mode != 1) return "bath_manual";
+  if (strcmp(guard, "suspended") == 0) return "guard_suspended";
+  if (!displaySpOk) return "display_sp_invalid";
+  return "inputs";
+}
+
 void serviceExternalBathCascade(unsigned long now) {
   if (tempControlRoute != TempControlRoute::ExternalBath) {
     bathCascade.reset();
+    char discarded[48];
+    bathTakeFault(discarded, sizeof(discarded));
     if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
       bathCascadeSnapshot = bathCascade.snapshot();
       bathCommandSetpoint = NAN;
@@ -271,41 +289,93 @@ void serviceExternalBathCascade(unsigned long now) {
   bool bathCommSnapshot = false;
   float bathDisplaySpSnapshot = NAN;
   bool bathDisplaySpValidSnapshot = false;
+  float bathTargetSnapshot = NAN;
+  float nodeSpMinSnapshot = NAN;
+  float nodeSpMaxSnapshot = NAN;
   uint8_t bathSpSourceSnapshot = 0;
   uint8_t bathModeSnapshot = 0;
   unsigned long bathLastUpdateSnapshot = 0;
-  unsigned long bathLastDoneSnapshot = 0;
-  unsigned long bathLastSendSnapshot = 0;
-  bool bathCompletionPendingSnapshot = false;
   char bathStateSnapshot[sizeof(bathState)] = "idle";
   char bathGuardSnapshot[sizeof(bathGuard)] = "off";
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
     bathCommSnapshot = bathCommOn;
     bathDisplaySpSnapshot = bathDisplaySp;
     bathDisplaySpValidSnapshot = bathDisplaySpValid;
+    bathTargetSnapshot = bathTarget;
+    nodeSpMinSnapshot = bathNodeSpMin;
+    nodeSpMaxSnapshot = bathNodeSpMax;
     bathSpSourceSnapshot = bathSpSource;
     bathModeSnapshot = bathMode;
     bathLastUpdateSnapshot = bathLastUpdate;
-    bathLastDoneSnapshot = bathCommandLastDoneMs;
-    bathLastSendSnapshot = bathCommandLastSendMs;
-    bathCompletionPendingSnapshot = bathCommandCompletionPending;
     snprintf(bathStateSnapshot, sizeof(bathStateSnapshot), "%s", bathState);
     snprintf(bathGuardSnapshot, sizeof(bathGuardSnapshot), "%s", bathGuard);
     xSemaphoreGive(stateMutex);
   }
 
+  const BathCoordinatorView link = bathLinkView();
+  const bool active = tempReferenceCommanded;
   const bool reactorFresh = reactorTempPvFresh(now);
   const bool nodeFresh = bathLastUpdateSnapshot > 0 && now - bathLastUpdateSnapshot <= 5000;
-  const bool completionTimedOut = bathCompletionPendingSnapshot &&
-      (now - bathLastSendSnapshot >= BATH_COMMAND_COMPLETION_TIMEOUT_MS);
-  const bool bathFault = strcmp(bathStateSnapshot, "error") == 0 ||
-                         strcmp(bathStateSnapshot, "aborted") == 0 ||
-                         strcmp(bathGuardSnapshot, "suspended") == 0 ||
-                         completionTimedOut;
+  const bool nodeSequenceRunning = strcmp(bathStateSnapshot, "running") == 0 ||
+                                   strcmp(bathStateSnapshot, "settling") == 0;
+  const bool completionPending = link.completion == BathCompletionState::Pending;
+
+  // D-2 resume: the stop left the node in manual; a new reactor reference re-arms
+  // the guard once per activation. An operator choosing manual afterwards is kept.
+  if (active && nodeFresh && bathCommSnapshot && bathModeSnapshot != 1 &&
+      !bathAutoRequested && !link.stopPending) {
+    bathQueueOperation(String("\"mode\":\"auto\""));
+    bathAutoRequested = true;
+  }
+
+  // Fault events are edges reported by the command path. Seen while the cascade is
+  // off they describe nothing the Hub commanded and are dropped.
+  char faultReason[48] = "";
+  bool fault = bathTakeFault(faultReason, sizeof(faultReason)) && active;
+  if (!fault && active && completionPending &&
+      link.completionAgeMs >= BATH_COMMAND_COMPLETION_TIMEOUT_MS) {
+    fault = true;
+    snprintf(faultReason, sizeof(faultReason), "%s", "bath_completion_timeout");
+  }
+
+  // C4 safety net: with the local API locked (D-1) and the guard reverting the
+  // panel, the node target should equal the last command. If it does not for
+  // BATH_TARGET_MISMATCH_MS, send the command again; give up after a few tries.
+  const ExternalBathCascadeSnapshot previous = bathCascade.snapshot();
+  const bool actuatorBusy = link.anyPending || completionPending || nodeSequenceRunning;
+  if (active && nodeFresh && previous.hasCommand && !actuatorBusy &&
+      previous.state == ExternalBathCascadeState::Controlling && isfinite(bathTargetSnapshot)) {
+    const float expected = bathCascade.lastCommandC();
+    if (fabsf(bathTargetSnapshot - expected) >= 0.05f) {
+      if (bathTargetMismatchSinceMs == 0) {
+        bathTargetMismatchSinceMs = now == 0 ? 1 : now;
+      } else if (now - bathTargetMismatchSinceMs >= BATH_TARGET_MISMATCH_MS) {
+        bathTargetMismatchSinceMs = 0;
+        if (bathTargetResendCount >= BATH_TARGET_MAX_RESENDS) {
+          if (!fault) {
+            fault = true;
+            snprintf(faultReason, sizeof(faultReason), "%s", "target_override");
+          }
+        } else {
+          bathTargetResendCount++;
+          ESP32_AVISO(String("Alvo do banho divergente (") + String(bathTargetSnapshot, 1) +
+                      " != " + String(expected, 1) + "); reenviando");
+          bathQueueSetpoint(expected);
+        }
+      }
+    } else {
+      bathTargetMismatchSinceMs = 0;
+      bathTargetResendCount = 0;
+    }
+  } else if (!active) {
+    bathTargetMismatchSinceMs = 0;
+  }
+
+  const bool referenceOk = active && tempReference > 0.0f;
   ExternalBathCascadeInputs in;
   in.nowMs = now;
-  in.enabled = tempReferenceCommanded;
-  in.referenceValid = tempReferenceCommanded;
+  in.enabled = active;
+  in.referenceValid = active;
   in.referenceC = tempReference;
   in.reactorPvValid = reactorFresh;
   in.reactorPvC = reactorTempPv;
@@ -316,49 +386,46 @@ void serviceExternalBathCascade(unsigned long now) {
   in.bathGuardHealthy = strcmp(bathGuardSnapshot, "suspended") != 0;
   in.bathSpValid = bathDisplaySpValidSnapshot;
   in.bathSpC = bathDisplaySpSnapshot;
-  in.actuatorBusy = bathCompletionPendingSnapshot || mailboxPending(bathBox) ||
-                    strcmp(bathStateSnapshot, "running") == 0 ||
-                    strcmp(bathStateSnapshot, "settling") == 0;
-  in.pause = tempReferenceCommanded && !reactorFresh;
+  in.actuatorBusy = link.anyPending || completionPending || nodeSequenceRunning;
+  in.pause = active && !reactorFresh;
   in.pauseReason = "reactor_pv_stale";
-  in.fault = bathFault;
-  in.faultReason = completionTimedOut ? "bath_completion_timeout" :
-                   (bathFault ? "bath_fault" : "");
+  in.fault = fault;
+  in.faultReason = faultReason;
+  in.waitingReason = bathWaitingReason(referenceOk, reactorFresh, nodeFresh, bathCommSnapshot,
+                                       bathSpSourceSnapshot, bathModeSnapshot,
+                                       bathGuardSnapshot, bathDisplaySpValidSnapshot);
+  in.actuatorRangeValid = isfinite(nodeSpMinSnapshot) && isfinite(nodeSpMaxSnapshot) &&
+                          nodeSpMinSnapshot < nodeSpMaxSnapshot;
+  in.actuatorMinC = nodeSpMinSnapshot;
+  in.actuatorMaxC = nodeSpMaxSnapshot;
 
   bathCascadeLastCalcMs = now;
   const bool ready = bathCascade.update(in);
   ExternalBathCascadeSnapshot updatedSnapshot = bathCascade.snapshot();
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
     bathCascadeSnapshot = updatedSnapshot;
-    bathCommandSetpoint = updatedSnapshot.commandSetpointC;
+    bathCommandSetpoint = updatedSnapshot.state == ExternalBathCascadeState::Off
+        ? NAN : updatedSnapshot.commandSetpointC;
     xSemaphoreGive(stateMutex);
   }
 
-  const bool nodeReady = nodeFresh && bathCommSnapshot &&
-                         // Equivalent to strcmp(bathState, "idle") == 0 || strcmp(bathState, "done") == 0
-                         (strcmp(bathStateSnapshot, "idle") == 0 ||
-                          strcmp(bathStateSnapshot, "done") == 0);
-  const bool postDoneCooldown = bathCommandLastSendMs == 0 || bathLastDoneSnapshot == 0 ||
-                                now - bathLastDoneSnapshot >= bathCascade.config().commandMinMs;
-  if (ready && nodeReady && !mailboxPending(bathBox) && postDoneCooldown) {
-    const String inner = String("\"setpoint\":") + String(bathCommandSetpoint, 1);
-    const uint32_t revision = queueReliable(bathBox, inner, "Bath");
+  const bool nodeReady = nodeFresh && bathCommSnapshot && !nodeSequenceRunning;
+  const bool postDoneCooldown = !link.hasDoneSetpoint ||
+                                now - link.lastDoneMs >= bathCascade.config().commandMinMs;
+  if (ready && nodeReady && !in.actuatorBusy && postDoneCooldown) {
+    const uint32_t revision = bathQueueSetpoint(updatedSnapshot.commandSetpointC);
     if (revision != 0) {
-      bathCascade.markCommandSent(bathCommandSetpoint, now);
+      bathCascade.markCommandSent(updatedSnapshot.commandSetpointC, now);
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
-        bathCommandLastSendMs = now;
-        bathCommandLastSentId = revision;
-        bathCommandCompletionPending = true;
         bathCommandLatestWins = false;
         bathCascadeSnapshot = bathCascade.snapshot();
         xSemaphoreGive(stateMutex);
       }
     }
-  } else if (ready) {
-    if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
-      bathCommandLatestWins = true;
-      xSemaphoreGive(stateMutex);
-    }
+  } else if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+    // latest-wins: a newer output exists but must wait for ACK, done and cooldown.
+    bathCommandLatestWins = ready;
+    xSemaphoreGive(stateMutex);
   }
 }
 

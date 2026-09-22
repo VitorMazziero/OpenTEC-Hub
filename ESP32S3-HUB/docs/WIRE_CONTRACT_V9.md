@@ -122,20 +122,30 @@ declarado pelo nó.
 clientes devem preferir os `*_ms` brutos. `registered`, `last_hello_ms`, `last_data_ms` e
 `hub_time_ms` são do 10.1; clientes toleram a ausência em Hubs 10.0.
 
-### Banho externo r3.1 e cascata térmica (10.5.1)
+### Banho externo r3.2 e cascata térmica (10.6)
 
-O nó registra-se com `GET /nodeHello?dev=bath&ver=r3.1&mac=<MAC>`. O Hub aceita
-`/bathData` somente do IP registrado nessa versão mínima. O push
+O nó registra-se com `GET /nodeHello?dev=bath&ver=r3.2&mac=<MAC>`. O Hub aceita
+`/bathData` somente do IP registrado com versão `r3.2` ou `r3.x` posterior. O push
 `/bathData` exige `sp`, `known`, `target`, `state`, `phase`, `err`, `pv`, `pv_ok`,
 `display_sp`, `display_sp_ok`, `sp_source`, `mode`, `guard`, `dev`, `dev_ok`,
-`time` e `ack_cmd_id`. Campos ausentes, não finitos, fora da faixa ou com strings
+`time`, `ack_cmd_id`, `rej_cmd_id`, `rej_err`, `sp_min` e `sp_max`. Campos ausentes, não finitos, fora da faixa ou com strings
 maiores que os limites do contrato retornam `400` sem renovar presença, alterar o
-snapshot ou confirmar a mailbox.
+snapshot ou confirmar comandos.
 
-`/bathCommand` entrega o payload retido da `bathBox`. O comando é
-`{"cmd_id":N,"setpoint":T}`; o ACK apenas confirma aplicação pelo nó. O Hub
-aguarda também `BathState=done` e o intervalo mínimo após `done` antes de enviar
-um novo alvo.
+A resposta do `/bathData` (e `/bathCommand`) entrega um payload por push, com prioridade
+`{"cmd_id":N,"stop":1}` > `{"cmd_id":N,"mode":"auto|manual"}` / `{"cmd_id":N,"sync_sp":T}` >
+`{"cmd_id":N,"setpoint":T}`; cada tipo tem sua própria revisão pendente. Toda resposta leva
+`X-Hub-Owner: 1|0`: `1` enquanto a cascata está ativa (via externa, `bathComm`, referência
+comandada), o que faz o nó recusar comandos locais. O ACK apenas confirma aplicação; a conclusão
+do setpoint exige o ACK do *seu* `cmd_id` e depois `BathState=done`/`idle`, e só então corre o
+intervalo mínimo antes de um novo alvo. `rej_cmd_id` igual ao setpoint pendente com motivo
+diferente de `busy` falha imediatamente (`node_rejected:<motivo>`).
+
+`bathAbort=1`, `tempSetpoint=0` na via externa e `resetVariables` são a **parada do banho**:
+entregam `stop` (abort + modo manual no nó), desligam a cascata e liberam a posse, sem trocar a
+via nem `bathComm`. Um novo `tempSetpoint > 0` religa a cascata e pede `mode=auto` uma vez.
+`tempSetpoint` fora de 0–100 °C é recusado. `bathCascadeReset=1` limpa falha e conclusão
+pendente, esquece o estado já visto do nó e rearma a guarda.
 
 Na via externa, `tempSetpoint` é a referência do reator e `Tempval` é o PV real
 do reator lido pela UART do módulo (`b`). A saída enviada ao C404 é somente
@@ -148,13 +158,27 @@ O quadro agregado publica sempre presença/roteamento e, quando disponíveis,
 `BathPhase`, `BathError`, `BathMode`, `BathGuard`, `BathDeviation`, `BathSpSource`,
 `BathCascadeError`, `BathCascadePvFiltered`, `BathCascadeP`, `BathCascadeI`,
 `BathCascadeSaturated`, `BathCascadePausedReason` e `BathCascadeLastUpdateMs`.
-Valores numéricos sem validade são `null`; `BathIP`, `BathNodeVer` e `BathNodeMac`
-seguem o registro do nó.
+Valores numéricos sem validade são `null`; com o nó offline os campos do nó (`BathSp`,
+`BathTarget`, `BathPv`, `BathDisplaySp`, `BathDeviation`, `BathMode`, `BathSpSource`) são `null`
+e os textos (`BathState`, `BathPhase`, `BathError`, `BathGuard`) vazios. Na via externa,
+`TempSetpoint` só é publicado depois de comandado nesta sessão. `BathIP`, `BathNodeVer` e
+`BathNodeMac` seguem o registro do nó.
 
-O ciclo de execução publica também `BathCommandCompletionPending`,
-`BathCommandLastSentId`, `BathCommandLastDoneId` e `BathCommandCompletionAgeMs`.
-`done` é contado uma única vez quando acompanha o ACK do comando enviado; uma execução
-que exceda 300 s trava a cascata em `fault` até reset explícito após correção da causa.
+O ciclo de execução publica também `BathCommandPending` (qualquer posição pendente),
+`BathStopPending`, `BathCommandId` (última revisão emitida), `BathCommandAck`,
+`BathCommandCompletion` (`none|pending|done|failed|stopped`), `BathCommandCompletionPending`,
+`BathCommandLastSentId` (revisão do setpoint), `BathCommandLastDoneId`,
+`BathCommandCompletionAgeMs`, `BathOperationError`, `BathNodeRejectId`, `BathNodeRejectError`,
+`BathNodeSpMin`, `BathNodeSpMax`. Uma execução que exceda 300 s trava a cascata em `fault`.
+
+Estado e posse (10.6): `BathCascadeActive`, `BathOwned`, `BathCascadeFaultReason` (motivo quando
+`BathCascadeState=fault`; `BathCascadePausedReason` traz o motivo de espera/pausa),
+`TempSetpointCommanded` e `TempModuleActuatorOn` (último comando à placa original a deixou
+ligada). Sintonia vigente: `BathCascadeKp`, `BathCascadeTiS`, `BathCascadeBiasC`,
+`BathCascadePeriodMs`, `BathCascadeFilterS`, `BathCascadeCommandMinMs`,
+`BathCascadeCommandBandC`, `BathCascadeSlewCMin`, `BathCascadeOffsetHighC`,
+`BathCascadeOffsetLowC`, `BathCascadeOutputMinC`, `BathCascadeOutputMaxC`, e
+`BathCascadeConfigError` (`same_frame`, `out_of_range` ou vazio após sucesso).
 
 ## Serial USB: comandos em linhas
 

@@ -49,7 +49,7 @@ class BathSettingsTests(unittest.TestCase):
         settings = self.read("src/storage/Settings.h")
         runtime = self.read("src/core/Runtime.h")
         self.assertIn("tempReferenceCommanded = false", settings)
-        self.assertIn("tempRouteTransitionPending = tempControlRoute == TempControlRoute::ExternalBath", settings)
+        self.assertNotIn("tempRouteTransitionPending", settings)
         self.assertIn('sendSensorCommand("100B", false)', runtime)
         self.assertIn("if (tempControlRoute == TempControlRoute::ExternalBath)", runtime)
 

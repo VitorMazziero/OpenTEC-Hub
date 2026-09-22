@@ -15,8 +15,22 @@ class BathNodeIntegrationTests(unittest.TestCase):
     def test_node_version_matches_hub_minimum(self):
         board = self.read("config/BoardConfig.h")
         hub_http = (REPO / "ESP32S3-HUB/ESP32S3-HUB/src/network/HttpServer.h").read_text(encoding="utf-8")
-        self.assertIn('FirmwareVersion = "r3.1"', board)
-        self.assertIn('registeredBath.version, "r3.1"', hub_http)
+        coordinator = (REPO / "ESP32S3-HUB/ESP32S3-HUB/src/control/BathCommandCoordinator.cpp").read_text(encoding="utf-8")
+        self.assertIn('FirmwareVersion = "r3.2"', board)
+        self.assertIn("bathNodeVersionSupported(registeredBath.version)", hub_http)
+        self.assertIn("return minor >= 2;", coordinator)
+
+    def test_node_publishes_rejection_range_and_honours_ownership(self):
+        link = self.read("network/HubLink.cpp")
+        codec = self.read("protocol/ConfigCodec.cpp")
+        for token in ("&rej_cmd_id=%lu&rej_err=%s&sp_min=%.2f&sp_max=%.2f", 'g_hubOwnerFlag = owner == "1"',
+                      "CommandSource::Hub"):
+            self.assertIn(token, link)
+        self.assertIn('replyError(reply, "hub_owned")', codec)
+        self.assertIn('getJsonValue(payload, "stop") == 1', codec)
+        self.assertIn('guardSetMode(MODE_MANUAL, "stop")', codec)
+        network = self.read("network/NetworkManager.cpp")
+        self.assertIn('"X-Hub-Owner"', network)
 
     def test_integrated_push_period_stays_inside_hub_freshness_window(self):
         link = self.read("network/HubLink.cpp")

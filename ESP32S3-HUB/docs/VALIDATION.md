@@ -67,7 +67,7 @@ estado PI, ACK separado de `done` e orçamento do quadro agregado.
     quadro parcial e envio em `RUNNING`/`WAITING`; reiniciar e confirmar persistência.
 17. Compatibilidade: conectar fluxômetro v11 e bomba 3.10, confirmar leitura dos campos
     legados e bloqueio explícito das funções modernas, sem chave ausente tratada como zero.
-18. Banho r3.1 / Hub 10.5.1: executar os gates G1–G9 do nó; confirmar `/nodeHello`, presença
+18. Banho r3.2 / Hub 10.6: executar os gates G1–G9 do nó; confirmar `/nodeHello`, presença
     de 60 s, `/bathData` válido e rejeição atômica de payload incompleto/não finito.
 19. Troca térmica: com a placa original em zero, mudar para `tempControlMode=1`, verificar
     `100B`, exigir novo `tempSetpoint` e confirmar que nenhum `B` direto é enviado.

@@ -103,9 +103,11 @@ void readAndBroadcastSensorData() {
   ExternalBathCascadeSnapshot snapBathCascade;
   float snapBathCommandSetpoint = NAN, snapBathCommandConfirmed = NAN;
   bool snapBathLatestWins = false;
-  bool snapBathCompletionPending = false;
-  uint32_t snapBathLastSentId = 0, snapBathLastDoneId = 0;
-  unsigned long snapBathLastSendMs = 0;
+  float snapBathNodeSpMin = NAN, snapBathNodeSpMax = NAN;
+  ExternalBathCascadeConfig snapBathConfig;
+  char snapBathConfigError[sizeof(bathCascadeConfigError)] = "";
+  bool snapTempCommanded = false, snapTempModuleOn = false;
+  float snapTempReference = NAN;
   TempControlRoute snapTempRoute = TempControlRoute::UartModule;
   unsigned long snapReactorPvUpdatedMs = 0;
   // 10.1: the node registry is copied whole (IP always; version/MAC only once the
@@ -135,10 +137,13 @@ void readAndBroadcastSensorData() {
     snapBathCommandSetpoint = bathCommandSetpoint;
     snapBathCommandConfirmed = bathCommandConfirmed;
     snapBathLatestWins = bathCommandLatestWins;
-    snapBathCompletionPending = bathCommandCompletionPending;
-    snapBathLastSentId = bathCommandLastSentId;
-    snapBathLastDoneId = bathCommandLastDoneId;
-    snapBathLastSendMs = bathCommandLastSendMs;
+    snapBathNodeSpMin = bathNodeSpMin;
+    snapBathNodeSpMax = bathNodeSpMax;
+    snapBathConfig = bathCascadeConfig;
+    snprintf(snapBathConfigError, sizeof(snapBathConfigError), "%s", bathCascadeConfigError);
+    snapTempCommanded = tempReferenceCommanded;
+    snapTempModuleOn = tempOn;
+    snapTempReference = tempReference;
     snapTempRoute = tempControlRoute;
     if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > distancePresenceWindowMs(distanceSendPeriodMs))) {
       distanceEchoSeen = false;
@@ -482,32 +487,61 @@ void readAndBroadcastSensorData() {
   appendNodeIdentity(jsonResponse, "Bath",      snapNodes[DEV_BATH]);
 
   const bool snapBathOnline = snapBathUpdate > 0 && (millis() - snapBathUpdate <= 5000);
-  const bool snapBathPending = mailboxPending(bathBox);
-  uint32_t snapBathId = 0, snapBathAck = 0;
-  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
-    snapBathId = bathBox.revision;
-    snapBathAck = bathBox.ack;
-    xSemaphoreGive(cmdMutex);
-  }
+  const BathCoordinatorView snapBathLink = bathLinkView();
+  const bool snapBathViaBath = snapTempRoute == TempControlRoute::ExternalBath;
+  const bool snapBathCompletionPending = snapBathLink.completion == BathCompletionState::Pending;
+  const char* completionName =
+      snapBathLink.completion == BathCompletionState::Pending ? "pending" :
+      snapBathLink.completion == BathCompletionState::Done ? "done" :
+      snapBathLink.completion == BathCompletionState::Failed ? "failed" :
+      snapBathLink.completion == BathCompletionState::Stopped ? "stopped" : "none";
   jsonResponse += ",\"BathOnline\":" + String(snapBathOnline ? "true" : "false");
   jsonResponse += ",\"BathCommEnabled\":" + String(snapBathComm ? "true" : "false");
-  jsonResponse += ",\"BathCommandPending\":" + String(snapBathPending ? "true" : "false");
-  jsonResponse += ",\"BathCommandId\":" + String(snapBathId);
-  jsonResponse += ",\"BathCommandAck\":" + String(snapBathAck);
+  jsonResponse += ",\"BathCommandPending\":" + String(snapBathLink.anyPending ? "true" : "false");
+  jsonResponse += ",\"BathStopPending\":" + String(snapBathLink.stopPending ? "true" : "false");
+  jsonResponse += ",\"BathCommandId\":" + String(snapBathLink.lastIssuedId);
+  jsonResponse += ",\"BathCommandAck\":" + String(snapBathLink.lastAck);
   jsonResponse += ",\"TempControlMode\":" + String(static_cast<uint8_t>(snapTempRoute));
-  jsonResponse += ",\"TempControlViaBath\":" +
-                  String(snapTempRoute == TempControlRoute::ExternalBath ? "true" : "false");
+  jsonResponse += ",\"TempControlViaBath\":" + String(snapBathViaBath ? "true" : "false");
+  jsonResponse += ",\"TempSetpointCommanded\":" + String(snapTempCommanded ? "true" : "false");
+  // Evidence for the dual-actuation alarm: the Hub's last command to the original
+  // module left it enabled (a B other than 100B).
+  jsonResponse += ",\"TempModuleActuatorOn\":" + String(snapTempModuleOn ? "true" : "false");
   jsonResponse += ",\"BathCascadeEnabled\":" +
-                  String(snapTempRoute == TempControlRoute::ExternalBath && snapBathComm ? "true" : "false");
+                  String(snapBathViaBath && snapBathComm ? "true" : "false");
+  jsonResponse += ",\"BathCascadeActive\":" +
+                  String(snapBathViaBath && snapTempCommanded ? "true" : "false");
+  jsonResponse += ",\"BathOwned\":" +
+                  String(snapBathViaBath && snapBathComm && snapTempCommanded ? "true" : "false");
   jsonResponse += ",\"BathCascadeState\":\"" +
                   String(externalBathCascadeStateName(snapBathCascade.state)) + "\"";
+  jsonResponse += ",\"BathCascadeFaultReason\":\"" +
+                  String(snapBathCascade.state == ExternalBathCascadeState::Fault
+                             ? snapBathCascade.pausedReason : "") + "\"";
   jsonResponse += ",\"BathCommandLatestWins\":" + String(snapBathLatestWins ? "true" : "false");
+  jsonResponse += ",\"BathCommandCompletion\":\"" + String(completionName) + "\"";
   jsonResponse += ",\"BathCommandCompletionPending\":" +
                   String(snapBathCompletionPending ? "true" : "false");
-  jsonResponse += ",\"BathCommandLastSentId\":" + String(snapBathLastSentId);
-  jsonResponse += ",\"BathCommandLastDoneId\":" + String(snapBathLastDoneId);
-  jsonResponse += ",\"BathCommandCompletionAgeMs\":" +
-                  String(snapBathCompletionPending ? millis() - snapBathLastSendMs : 0);
+  jsonResponse += ",\"BathCommandLastSentId\":" + String(snapBathLink.setpointId);
+  jsonResponse += ",\"BathCommandLastDoneId\":" + String(snapBathLink.lastDoneId);
+  jsonResponse += ",\"BathCommandCompletionAgeMs\":" + String(snapBathLink.completionAgeMs);
+  jsonResponse += ",\"BathOperationError\":\"" + String(snapBathLink.lastOperationError) + "\"";
+  jsonResponse += ",\"BathNodeRejectId\":" + String(snapBathLink.lastRejectId);
+  jsonResponse += ",\"BathNodeRejectError\":\"" + String(snapBathLink.lastRejectError) + "\"";
+  // Vigent cascade tuning, so the apps show the Hub's values instead of a local draft.
+  jsonResponse += ",\"BathCascadeKp\":" + String(snapBathConfig.kp, 4);
+  jsonResponse += ",\"BathCascadeTiS\":" + String(snapBathConfig.tiS, 1);
+  jsonResponse += ",\"BathCascadeBiasC\":" + String(snapBathConfig.biasC, 2);
+  jsonResponse += ",\"BathCascadePeriodMs\":" + String(snapBathConfig.periodMs);
+  jsonResponse += ",\"BathCascadeFilterS\":" + String(snapBathConfig.filterS, 1);
+  jsonResponse += ",\"BathCascadeCommandMinMs\":" + String(snapBathConfig.commandMinMs);
+  jsonResponse += ",\"BathCascadeCommandBandC\":" + String(snapBathConfig.commandBandC, 2);
+  jsonResponse += ",\"BathCascadeSlewCMin\":" + String(snapBathConfig.slewCMin, 2);
+  jsonResponse += ",\"BathCascadeOffsetHighC\":" + String(snapBathConfig.offsetHighC, 2);
+  jsonResponse += ",\"BathCascadeOffsetLowC\":" + String(snapBathConfig.offsetLowC, 2);
+  jsonResponse += ",\"BathCascadeOutputMinC\":" + String(snapBathConfig.outputMinC, 2);
+  jsonResponse += ",\"BathCascadeOutputMaxC\":" + String(snapBathConfig.outputMaxC, 2);
+  jsonResponse += ",\"BathCascadeConfigError\":\"" + String(snapBathConfigError) + "\"";
   if (isfinite(snapBathCommandSetpoint)) {
     jsonResponse += ",\"BathCommandSetpoint\":" + String(snapBathCommandSetpoint, 1);
   } else {
@@ -523,12 +557,19 @@ void readAndBroadcastSensorData() {
     if (valid && isfinite(value)) jsonResponse += String(value, static_cast<unsigned int>(decimals));
     else jsonResponse += "null";
   };
-  appendBathNullable("TempSetpoint", tempReference,
-                     isfinite(tempReference) && tempReference > 0.0f, 2);
-  appendBathNullable("BathSp", snapBathSp, snapBathSpValid, 2);
-  appendBathNullable("BathTarget", snapBathTarget, isfinite(snapBathTarget), 2);
-  appendBathNullable("BathPv", snapBathPv, snapBathPvValid, 2);
-  appendBathNullable("BathDeviation", snapBathDeviation, snapBathDeviationValid, 2);
+  // On the external route an uncommanded (persisted) reference is not active and is
+  // published as null; the UART route keeps its historical echo.
+  appendBathNullable("TempSetpoint", snapTempReference,
+                     isfinite(snapTempReference) && snapTempReference > 0.0f &&
+                         (!snapBathViaBath || snapTempCommanded), 2);
+  // Node values are only facts while the node is online (C12).
+  appendBathNullable("BathSp", snapBathSp, snapBathOnline && snapBathSpValid, 2);
+  appendBathNullable("BathTarget", snapBathTarget, snapBathOnline && isfinite(snapBathTarget), 2);
+  appendBathNullable("BathPv", snapBathPv, snapBathOnline && snapBathPvValid, 2);
+  appendBathNullable("BathDeviation", snapBathDeviation,
+                     snapBathOnline && snapBathDeviationValid, 2);
+  appendBathNullable("BathNodeSpMin", snapBathNodeSpMin, isfinite(snapBathNodeSpMin), 2);
+  appendBathNullable("BathNodeSpMax", snapBathNodeSpMax, isfinite(snapBathNodeSpMax), 2);
   const bool cascadeTermsValid = snapBathCascade.state != ExternalBathCascadeState::Off &&
                                  snapBathCascade.state != ExternalBathCascadeState::WaitingInputs;
   appendBathNullable("BathCascadeError", snapBathCascade.errorC, cascadeTermsValid, 3);
@@ -536,14 +577,17 @@ void readAndBroadcastSensorData() {
   appendBathNullable("BathCascadeP", snapBathCascade.pC, cascadeTermsValid, 3);
   appendBathNullable("BathCascadeI", snapBathCascade.iC, cascadeTermsValid, 3);
   jsonResponse += ",\"BathDisplaySp\":";
-  if (snapBathDisplaySpValid && isfinite(snapBathDisplaySp)) jsonResponse += String(snapBathDisplaySp, 2);
-  else jsonResponse += "null";
-  jsonResponse += ",\"BathState\":\"" + String(snapBathState) + "\"";
-  jsonResponse += ",\"BathPhase\":\"" + String(snapBathPhase) + "\"";
-  jsonResponse += ",\"BathError\":\"" + String(snapBathError) + "\"";
-  jsonResponse += ",\"BathMode\":" + String(snapBathMode);
-  jsonResponse += ",\"BathGuard\":\"" + String(snapBathGuard) + "\"";
-  jsonResponse += ",\"BathSpSource\":" + String(snapBathSpSource);
+  if (snapBathOnline && snapBathDisplaySpValid && isfinite(snapBathDisplaySp)) {
+    jsonResponse += String(snapBathDisplaySp, 2);
+  } else {
+    jsonResponse += "null";
+  }
+  jsonResponse += ",\"BathState\":\"" + String(snapBathOnline ? snapBathState : "") + "\"";
+  jsonResponse += ",\"BathPhase\":\"" + String(snapBathOnline ? snapBathPhase : "") + "\"";
+  jsonResponse += ",\"BathError\":\"" + String(snapBathOnline ? snapBathError : "") + "\"";
+  jsonResponse += ",\"BathMode\":" + (snapBathOnline ? String(snapBathMode) : String("null"));
+  jsonResponse += ",\"BathGuard\":\"" + String(snapBathOnline ? snapBathGuard : "") + "\"";
+  jsonResponse += ",\"BathSpSource\":" + (snapBathOnline ? String(snapBathSpSource) : String("null"));
   jsonResponse += ",\"BathCascadeSaturated\":" + String(snapBathCascade.saturated ? "true" : "false");
   jsonResponse += ",\"BathCascadePausedReason\":\"" + String(snapBathCascade.pausedReason) + "\"";
   jsonResponse += ",\"BathCascadeLastUpdateMs\":" + String(snapBathCascade.lastUpdateMs);

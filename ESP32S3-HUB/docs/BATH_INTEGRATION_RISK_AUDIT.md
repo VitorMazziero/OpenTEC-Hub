@@ -19,9 +19,23 @@
 | Rollover afetava reconexão, OTA e idade | perda de comunicação ou diagnóstico incorreto | comparações por diferença temporal |
 | ACK e conclusão não eram distintos no agregado | aplicativo podia mostrar confirmação como conclusão | IDs, pendência e idade publicados |
 
+## Correções de 10.6.0-dev / r3.2 (plano `IMPLEMENTATION_PLAN_BANHO_CORRECOES.md`)
+
+| Problema | Correção |
+|---|---|
+| Modo/sync/abort na mesma caixa do setpoint → timeout de 300 s (C1) | coordenador com três posições; conclusão presa ao `cmd_id` do setpoint |
+| Reset não saía de falha por nível (C2) | falhas por borda; reset limpa a conclusão e rearma a guarda |
+| Recusa do nó invisível, 300 s de reentrega (C3) | `rej_cmd_id/rej_err` → falha imediata com motivo; saída limitada a `sp_min/sp_max` |
+| API local movia o C404 com a cascata ativa (N1/C4) | posse `X-Hub-Owner`; alvo divergente reenviado, depois `target_override` |
+| `resetVariables` trocava a via e não parava o nó (C5) | parada única `stop` (abort + manual), via e `bathComm` mantidos |
+| Retomada/ressintonia com degrau, filtro velho (C6/C7) | rebase da integral, filtro reiniciado, `dt` limitado |
+| Referência fora de faixa saturada (C9) | recusada |
+| Sintonia e atuador original sem eco (C10/C11) | telemetria da sintonia vigente, `BathCascadeConfigError`, `TempModuleActuatorOn` |
+
 ## Riscos residuais para o controle geral
 
-1. **O C404 não desliga remotamente.** Ao retornar à via UART, o banho mantém o último SP.
+1. **O C404 não desliga remotamente.** A parada do banho (e o retorno à via UART) deixa o nó
+   em manual e o banho no último SP.
    O operador deve interromper/isolar fisicamente a circulação externa antes de reativar a
    via original; o software não consegue provar essa condição.
 2. **Último SP sobrevive à perda do Hub.** Queda de Wi‑Fi, Hub ou nó pausa novos comandos,

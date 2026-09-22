@@ -17,8 +17,9 @@ class BathContractTests(unittest.TestCase):
         http = self.read("src/network/HttpServer.h")
         self.assertIn("DEV_BATH", app)
         self.assertIn('{ "bath",', app)
-        self.assertIn("ReliableMailbox bathBox", app)
-        self.assertIn("&bathBox", boxes)
+        self.assertIn("BathCommandCoordinator bathLink", app)
+        self.assertIn("bathLink.seed(bathBase)", boxes)
+        self.assertNotIn("bathBox", app + boxes + http)
         self.assertIn('server.on("/bathData"', http)
         self.assertIn('server.on("/bathCommand"', http)
 
@@ -36,11 +37,12 @@ class BathContractTests(unittest.TestCase):
     def test_push_validation_precedes_ack_and_mutation(self):
         http = self.read("src/network/HttpServer.h")
         handler = http[http.index('server.on("/bathData"'):http.index('// Handler de GET /pumpData')]
-        self.assertLess(handler.index('request->send(400'), handler.index('ackReliable(bathBox'))
+        self.assertLess(handler.index('request->send(400'), handler.index('bathLink.onReport(report'))
         self.assertLess(handler.index('request->send(400'), handler.index('bathSp = sp'))
         for field in ("sp", "known", "target", "state", "phase", "err", "pv", "pv_ok",
                       "display_sp", "display_sp_ok", "sp_source", "mode", "guard", "dev",
-                      "dev_ok", "time", "ack_cmd_id"):
+                      "dev_ok", "time", "ack_cmd_id", "rej_cmd_id", "rej_err", "sp_min",
+                      "sp_max"):
             self.assertIn(f'hasParam("{field}")', handler)
 
     def test_push_is_bound_to_registered_compatible_node_and_known_enums(self):
@@ -48,16 +50,26 @@ class BathContractTests(unittest.TestCase):
         handler = http[http.index('server.on("/bathData"'):http.index('// Handler de GET /pumpData')]
         self.assertIn("registeredBath.registered", handler)
         self.assertIn("registeredBath.ip == remoteIp", handler)
-        self.assertIn('strcmp(registeredBath.version, "r3.1") == 0', handler)
+        self.assertIn("bathNodeVersionSupported(registeredBath.version)", handler)
         self.assertIn('request->send(403', handler)
         self.assertIn("bathTelemetryEnumsValid(state, phase, guard)", handler)
 
-    def test_done_is_recorded_once_for_the_matching_command(self):
+    def test_done_is_bound_to_the_setpoint_slot_not_the_last_ack(self):
+        coordinator = self.read("src/control/BathCommandCoordinator.cpp")
+        # C1: completion follows the setpoint's own id; an operation ACK cannot hide it.
+        self.assertIn("completionId_ == r.ackCmdId", coordinator)
+        self.assertIn("completionAcked_ = true", coordinator)
+        self.assertIn("lastDoneId_ = completionId_", coordinator)
+
+    def test_owner_header_and_prioritized_payload(self):
         http = self.read("src/network/HttpServer.h")
         handler = http[http.index('server.on("/bathData"'):http.index('// Handler de GET /pumpData')]
-        self.assertIn("bathCommandCompletionPending && ack == bathCommandLastSentId", handler)
-        self.assertIn("bathCommandLastDoneId = ack", handler)
-        self.assertIn("bathCommandCompletionPending = false", handler)
+        self.assertIn('response->addHeader("X-Hub-Owner"', handler)
+        self.assertIn("bathTakePayload()", handler)
+        coordinator = self.read("src/control/BathCommandCoordinator.cpp")
+        self.assertIn("stop_.pending ? &stop_", coordinator)
+        self.assertIn(": operation_.pending ? &operation_", coordinator)
+        self.assertIn(": setpoint_.pending ? &setpoint_", coordinator)
 
     def test_aggregate_frame_publishes_bath_presence_and_mailbox(self):
         telemetry = self.read("src/sensor/Telemetry.h")

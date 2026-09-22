@@ -54,7 +54,7 @@ class _ModeCardState extends State<ModeCard> {
             Icon(Icons.info_outline, color: Colors.grey),
             SizedBox(width: 10),
             Expanded(
-                child: Text('Firmware sem suporte a modos (requer r2/r3).',
+                child: Text('Firmware sem suporte a modos (requer r2/r3.x).',
                     style: TextStyle(color: Colors.grey))),
           ]),
         ),

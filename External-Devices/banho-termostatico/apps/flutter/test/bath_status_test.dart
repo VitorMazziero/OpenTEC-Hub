@@ -101,5 +101,14 @@ void main() {
       expect(s.supportsFirmware, true);
       expect(s.supportsModes, true);
     });
+
+    test('firmware r3.1 mantém compatibilidade da API local', () {
+      final s = BathStatus.fromJson({
+        'version': 'BathClient r3.1 (bounded Hub cadence)',
+        'mode': 'auto',
+      });
+      expect(s.supportsFirmware, true);
+      expect(s.supportsModes, true);
+    });
   });
 }

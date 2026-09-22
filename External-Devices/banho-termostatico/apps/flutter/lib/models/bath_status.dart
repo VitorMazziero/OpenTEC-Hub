@@ -1,4 +1,4 @@
-/// Modelo do `GET /status` do nó bath (firmwares r2/r3). Ver PROTOCOL.md §2.
+/// Modelo do `GET /status` do nó bath (firmwares r2/r3.x). Ver PROTOCOL.md §2.
 ///
 /// Campos que o nó pode mandar `null` (por não ter display legível, por
 /// exemplo) ficam nullable aqui; o app nunca substitui `null` por um valor
@@ -259,13 +259,13 @@ class BathStatus {
   bool get seqBusy =>
       seqState == SeqState.running || seqState == SeqState.settling;
 
-  /// Os firmwares r2/r3 trazem os campos de modo/guarda/hold. Firmwares antigos não;
+  /// Os firmwares r2/r3.x trazem os campos de modo/guarda/hold. Firmwares antigos não;
   /// nesse caso os cartões correspondentes mostram "firmware sem suporte".
   bool get supportsModes => mode != BathMode.unknown;
 
-  /// O app local é compatível com r2 e r3. O r3 preserva a API local e altera
+  /// O app local é compatível com r2 e r3.x. O r3 preserva a API local e altera
   /// apenas o enlace assíncrono com o Hub.
-  bool get supportsFirmware => RegExp(r'(^|\s)r[23](\s|$|\()').hasMatch(version);
+  bool get supportsFirmware => RegExp(r'(^|\s)r(?:2|3(?:\.\d+)?)(\s|$|\()').hasMatch(version);
 
   String get seqStateLabel {
     switch (seqState) {

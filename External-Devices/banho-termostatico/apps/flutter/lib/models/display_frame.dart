@@ -1,4 +1,4 @@
-/// Modelo do `GET /display` do nó bath (firmwares r2/r3). Ver PROTOCOL.md §1.
+/// Modelo do `GET /display` do nó bath (firmwares r2/r3.x). Ver PROTOCOL.md §1.
 ///
 /// Leitor cru do display do C404: texto dos 8 dígitos, PV/SP interpretados,
 /// `sp_live` (SP ao vivo durante um hold) e contadores de quadros.
